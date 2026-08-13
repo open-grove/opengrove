@@ -1875,7 +1875,15 @@ label.settings-list-row {
 }
 
 .settings-storage-bar > span:nth-child(3) {
+  background: color-mix(in srgb, var(--og-accent) 28%, var(--c-surface));
+}
+
+.settings-storage-bar > span:nth-child(4) {
   background: color-mix(in srgb, var(--c-text) 34%, var(--c-surface));
+}
+
+.settings-storage-bar > span:nth-child(5) {
+  background: color-mix(in srgb, var(--c-text) 18%, var(--c-surface));
 }
 
 .settings-storage-legend {
@@ -1904,7 +1912,15 @@ label.settings-list-row {
 }
 
 .settings-storage-legend span:nth-child(3) i {
+  background: color-mix(in srgb, var(--og-accent) 28%, var(--c-surface));
+}
+
+.settings-storage-legend span:nth-child(4) i {
   background: color-mix(in srgb, var(--c-text) 34%, var(--c-surface));
+}
+
+.settings-storage-legend span:nth-child(5) i {
+  background: color-mix(in srgb, var(--c-text) 18%, var(--c-surface));
 }
 
 .settings-storage-grid {
@@ -1941,11 +1957,34 @@ label.settings-list-row {
   font-size: var(--fs-base);
 }
 
+.settings-storage-card-copy small {
+  color: var(--og-text-muted);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-normal);
+}
+
 .settings-storage-subheading {
   margin-top: var(--sp-2);
   color: var(--og-text);
   font-size: var(--fs-lg);
   font-weight: var(--fw-medium);
+}
+
+.settings-storage-advanced {
+  border-radius: var(--r-lg);
+  background: var(--c-surface-grouped);
+  padding: var(--sp-4);
+}
+
+.settings-storage-advanced > summary {
+  color: var(--og-text);
+  cursor: pointer;
+  font-size: var(--fs-base);
+  font-weight: var(--fw-medium);
+}
+
+.settings-storage-advanced[open] > summary {
+  margin-bottom: var(--sp-3);
 }
 
 @media (max-width: 860px) {

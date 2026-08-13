@@ -6,7 +6,13 @@ import { getHostVersion, type HostVersion } from "../../host-version";
 import { rawDiagnosticText, useI18n, type TranslationFn } from "../../i18n";
 import { useConfirm } from "../ui/confirm-dialog";
 import { ProductIcon } from "../ui/product-icon";
-import { settingsStorageTotalBytes, type SettingsStorageStats } from "./settings-storage-model";
+import {
+  settingsStorageCategoryBytes,
+  settingsStorageTotalBytes,
+  type SettingsStorageCategoryId,
+  type SettingsStorageOverview,
+  type SettingsStorageStats,
+} from "./settings-storage-model";
 
 declare const __OPENGROVE_PACKAGE_VERSION__: string | undefined;
 
@@ -24,8 +30,10 @@ export function SettingsDesktopPanel() {
   const [exportedEvidenceComplete, setExportedEvidenceComplete] = useState<boolean | undefined>();
   const [error, setError] = useState("");
   const [storage, setStorage] = useState<SettingsStorageStats>();
+  const [storageOverview, setStorageOverview] = useState<SettingsStorageOverview>();
   const [storageBusy, setStorageBusy] = useState(false);
   const [storageError, setStorageError] = useState("");
+  const [storageNotice, setStorageNotice] = useState("");
   const [hostVersion, setHostVersion] = useState<HostVersion>();
   const [page, setPage] = useState<"overview" | "storage">("overview");
 
@@ -80,8 +88,13 @@ export function SettingsDesktopPanel() {
   async function refreshStorage() {
     setStorageError("");
     try {
-      const response = await getJson<{ ok: true; stats: SettingsStorageStats }>("/settings/storage");
+      const response = await getJson<{
+        ok: true;
+        stats: SettingsStorageStats;
+        overview?: SettingsStorageOverview;
+      }>("/settings/storage");
       setStorage(response.stats);
+      setStorageOverview(response.overview);
     } catch (innerError) {
       setStorageError(innerError instanceof Error ? innerError.message : String(innerError));
     }
@@ -90,10 +103,14 @@ export function SettingsDesktopPanel() {
   async function cleanupStorage() {
     setStorageBusy(true);
     setStorageError("");
+    setStorageNotice("");
     try {
-      const response = await postJson<{ ok: true; stats?: SettingsStorageStats }>("/settings/storage/cleanup", {});
-      if (response.stats) setStorage(response.stats);
-      else await refreshStorage();
+      const response = await postJson<{
+        ok: true;
+        cleanup?: { reclaimedBytes?: number };
+      }>("/settings/storage/cleanup", {});
+      setStorageNotice(storageCleanupNotice(response.cleanup?.reclaimedBytes, t));
+      await refreshStorage();
     } catch (innerError) {
       setStorageError(innerError instanceof Error ? innerError.message : String(innerError));
     } finally {
@@ -125,12 +142,14 @@ export function SettingsDesktopPanel() {
     if ((await confirm({ ...prompts[scope], confirmLabel: t("common.confirm"), danger: true })) !== "primary") return;
     setStorageBusy(true);
     setStorageError("");
+    setStorageNotice("");
     try {
-      const response = await postJson<{ ok: true; stats?: SettingsStorageStats }>("/settings/storage/clear-history", {
-        scope,
-      });
-      if (response.stats) setStorage(response.stats);
-      else await refreshStorage();
+      const response = await postJson<{
+        ok: true;
+        cleanup?: { reclaimedBytes?: number };
+      }>("/settings/storage/clear-history", { scope });
+      setStorageNotice(storageCleanupNotice(response.cleanup?.reclaimedBytes, t));
+      await refreshStorage();
     } catch (innerError) {
       setStorageError(innerError instanceof Error ? innerError.message : String(innerError));
     } finally {
@@ -166,8 +185,10 @@ export function SettingsDesktopPanel() {
       <div className="settings-page-stack">
         <StoragePanel
           stats={storage}
+          overview={storageOverview}
           busy={storageBusy}
           error={storageError}
+          notice={storageNotice}
           onBack={() => setPage("overview")}
           onRefresh={refreshStorage}
           onCleanup={cleanupStorage}
@@ -207,7 +228,7 @@ export function SettingsDesktopPanel() {
             <p className="settings-warning">{t("settings.desktopExportIncomplete")}</p>
           ) : null}
         </section>
-        <StorageEntry stats={storage} onOpen={() => setPage("storage")} />
+        <StorageEntry stats={storage} overview={storageOverview} onOpen={() => setPage("storage")} />
       </div>
     );
   }
@@ -296,7 +317,7 @@ export function SettingsDesktopPanel() {
         ) : null}
       </section>
 
-      <StorageEntry stats={storage} onOpen={() => setPage("storage")} />
+      <StorageEntry stats={storage} overview={storageOverview} onOpen={() => setPage("storage")} />
 
       <section className="settings-list-section">
         <div className="settings-list-section-heading">
@@ -343,8 +364,10 @@ function runtimeSummary(
 
 function StoragePanel(props: {
   stats?: SettingsStorageStats;
+  overview?: SettingsStorageOverview;
   busy: boolean;
   error: string;
+  notice: string;
   onBack(): void;
   onRefresh(): Promise<void>;
   onCleanup(): Promise<void>;
@@ -356,12 +379,11 @@ function StoragePanel(props: {
   const categories = [...(props.stats?.categories ?? [])].sort(
     (left, right) => right.payloadBytes + right.referencedBlobBytes - left.payloadBytes - left.referencedBlobBytes,
   );
-  const storageSegments = [
-    { label: t("settings.storageDatabase"), bytes: props.stats?.databaseBytes ?? 0 },
-    { label: t("settings.storageBlobFiles"), bytes: props.stats?.blobBytes ?? 0 },
-    { label: t("settings.storageMigrationBackups"), bytes: props.stats?.migrationBackupBytes ?? 0 },
-  ];
-  const totalBytes = settingsStorageTotalBytes(props.stats);
+  const storageSegments = storageCategoryIds.map((id) => ({
+    label: storageOverviewCategoryLabel(id, t),
+    bytes: settingsStorageCategoryBytes(props.overview, id, props.stats),
+  }));
+  const totalBytes = settingsStorageTotalBytes(props.stats, props.overview);
   return (
     <section className="settings-list-section settings-storage-detail">
       <div className="settings-list-section-heading settings-storage-detail-heading">
@@ -401,26 +423,24 @@ function StoragePanel(props: {
         </div>
       </div>
       <div className="settings-storage-grid">
-        <StorageCard label={t("settings.storageDatabase")} value={formatBytes(props.stats?.databaseBytes ?? 0)} />
-        <StorageCard label={t("settings.storageBlobFiles")} value={formatBytes(props.stats?.blobBytes ?? 0)} />
-        <StorageCard
-          label={t("settings.storageSafeToClean")}
-          value={formatBytes(props.stats?.orphanBlobBytes ?? 0)}
+        {storageCategoryIds.map((id) => (
+          <StorageCard
+            key={id}
+            label={storageOverviewCategoryLabel(id, t)}
+            description={storageOverviewCategoryDescription(id, t)}
+            value={formatBytes(settingsStorageCategoryBytes(props.overview, id, props.stats))}
+          />
+        ))}
+      </div>
+      <div className="settings-storage-subheading">{t("settings.storageMaintenance")}</div>
+      <div className="settings-list settings-storage-list">
+        <DesktopActionRow
+          label={t("settings.storageCleanOrphans")}
+          description={t("settings.storageCleanOrphansCopy")}
           actionLabel={props.busy ? t("settings.storageCleaning") : t("settings.storageCleanOrphans")}
           disabled={props.busy || !props.stats?.orphanBlobBytes}
           onAction={() => void props.onCleanup()}
         />
-        <StorageCard
-          label={t("settings.storageMigrationBackups")}
-          value={formatBytes(props.stats?.migrationBackupBytes ?? 0)}
-          actionLabel={t("settings.storageDeleteMigrationBackups")}
-          tone="danger"
-          disabled={props.busy || !props.stats?.migrationBackupBytes}
-          onAction={() => void props.onClearHistory("migration-backups")}
-        />
-      </div>
-      <div className="settings-storage-subheading">{t("settings.storageMaintenance")}</div>
-      <div className="settings-list settings-storage-list">
         <DesktopActionRow
           label={t("settings.storageCleanCaches")}
           description={t("settings.storageRebuildableCopy")}
@@ -429,39 +449,56 @@ function StoragePanel(props: {
           onAction={() => void props.onClearHistory("rebuildable-caches")}
         />
         <DesktopActionRow
-          label={t("settings.storageTrimRoomArchive")}
-          description={t("settings.storageRoomArchiveCopy")}
-          actionLabel={t("settings.storageTrimRoomArchive")}
-          disabled={props.busy}
-          onAction={() => void props.onClearHistory("room-event-archive")}
-        />
-        <DesktopActionRow
-          label={t("settings.storageClearRuntimeEvents")}
-          description={t("settings.storageRuntimeEventsCopy")}
-          actionLabel={t("settings.storageClearRuntimeEvents")}
+          label={t("settings.storageMigrationBackups")}
+          description={t("settings.storageMigrationBackupsCopy")}
+          actionLabel={t("settings.storageDeleteMigrationBackups")}
           tone="danger"
-          disabled={props.busy}
-          onAction={() => void props.onClearHistory("runtime-events")}
+          disabled={props.busy || !props.stats?.migrationBackupBytes}
+          onAction={() => void props.onClearHistory("migration-backups")}
         />
-        {categories.slice(0, 8).map((category) => (
-          <DesktopInfoRow
-            key={category.collection}
-            label={storageCategoryLabel(category.collection, t)}
-            value={t("settings.storageCategoryValue", {
-              records: category.records,
-              size: formatBytes(category.payloadBytes + category.referencedBlobBytes),
-            })}
-          />
-        ))}
       </div>
+      <details className="settings-storage-advanced">
+        <summary>{t("settings.storageAdvancedDetails")}</summary>
+        <p className="settings-help">{t("settings.storageAdvancedDetailsCopy")}</p>
+        <div className="settings-list settings-storage-list">
+          <DesktopInfoRow label={t("settings.storageDatabase")} value={formatBytes(props.stats?.databaseBytes ?? 0)} />
+          <DesktopInfoRow label={t("settings.storageBlobFiles")} value={formatBytes(props.stats?.blobBytes ?? 0)} />
+          <DesktopActionRow
+            label={t("settings.storageTrimRoomArchive")}
+            description={t("settings.storageRoomArchiveCopy")}
+            actionLabel={t("settings.storageTrimRoomArchive")}
+            disabled={props.busy}
+            onAction={() => void props.onClearHistory("room-event-archive")}
+          />
+          <DesktopActionRow
+            label={t("settings.storageClearRuntimeEvents")}
+            description={t("settings.storageRuntimeEventsCopy")}
+            actionLabel={t("settings.storageClearRuntimeEvents")}
+            tone="danger"
+            disabled={props.busy}
+            onAction={() => void props.onClearHistory("runtime-events")}
+          />
+          {categories.slice(0, 8).map((category) => (
+            <DesktopInfoRow
+              key={category.collection}
+              label={storageCategoryLabel(category.collection, t)}
+              value={t("settings.storageCategoryValue", {
+                records: category.records,
+                size: formatBytes(category.payloadBytes + category.referencedBlobBytes),
+              })}
+            />
+          ))}
+        </div>
+      </details>
       {props.error ? <p className="settings-warning">{rawDiagnosticText(props.error)}</p> : null}
+      {props.notice ? <p className="settings-success">{props.notice}</p> : null}
     </section>
   );
 }
 
-function StorageEntry(props: { stats?: SettingsStorageStats; onOpen(): void }) {
+function StorageEntry(props: { stats?: SettingsStorageStats; overview?: SettingsStorageOverview; onOpen(): void }) {
   const { t } = useI18n();
-  const totalBytes = settingsStorageTotalBytes(props.stats);
+  const totalBytes = settingsStorageTotalBytes(props.stats, props.overview);
   return (
     <section className="settings-list-section settings-storage-entry-section">
       <button className="settings-storage-entry" type="button" onClick={props.onOpen}>
@@ -477,6 +514,7 @@ function StorageEntry(props: { stats?: SettingsStorageStats; onOpen(): void }) {
 
 function StorageCard(props: {
   label: string;
+  description?: string;
   value: string;
   actionLabel?: string;
   disabled?: boolean;
@@ -488,6 +526,7 @@ function StorageCard(props: {
       <span className="settings-storage-card-copy">
         <strong>{props.label}</strong>
         <span>{props.value}</span>
+        {props.description ? <small>{props.description}</small> : null}
       </span>
       {props.actionLabel && props.onAction ? (
         <button
@@ -501,6 +540,30 @@ function StorageCard(props: {
       ) : null}
     </div>
   );
+}
+
+const storageCategoryIds: SettingsStorageCategoryId[] = [
+  "apps-and-workspaces",
+  "conversations-and-system",
+  "rebuildable",
+  "backups",
+  "other",
+];
+
+function storageOverviewCategoryLabel(id: SettingsStorageCategoryId, t: TranslationFn): string {
+  if (id === "apps-and-workspaces") return t("settings.storageCategoryAppsAndWorks");
+  if (id === "conversations-and-system") return t("settings.storageCategoryConversationsAndSystem");
+  if (id === "rebuildable") return t("settings.storageCategoryRebuildable");
+  if (id === "backups") return t("settings.storageCategoryBackups");
+  return t("settings.storageCategoryOther");
+}
+
+function storageOverviewCategoryDescription(id: SettingsStorageCategoryId, t: TranslationFn): string {
+  if (id === "apps-and-workspaces") return t("settings.storageCategoryAppsAndWorksCopy");
+  if (id === "conversations-and-system") return t("settings.storageCategoryConversationsAndSystemCopy");
+  if (id === "rebuildable") return t("settings.storageCategoryRebuildableCopy");
+  if (id === "backups") return t("settings.storageCategoryBackupsCopy");
+  return t("settings.storageCategoryOtherCopy");
 }
 
 function storageCategoryLabel(collection: string, t: TranslationFn): string {
@@ -519,6 +582,12 @@ function formatBytes(bytes: number): string {
   const exponent = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
   const value = bytes / 1024 ** exponent;
   return `${value >= 100 || exponent === 0 ? value.toFixed(0) : value.toFixed(1)} ${units[exponent]}`;
+}
+
+function storageCleanupNotice(reclaimedBytes: number | undefined, t: TranslationFn): string {
+  return reclaimedBytes && reclaimedBytes > 0
+    ? t("settings.storageCleanupFreed", { size: formatBytes(reclaimedBytes) })
+    : t("settings.storageCleanupCompleted");
 }
 
 function formatDateTime(value: string | undefined): string {

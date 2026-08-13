@@ -775,10 +775,21 @@ try {
   const storageStats = await getJson<{
     ok: true;
     stats: { kind: string; databaseBytes: number; categories: Array<{ collection: string }> };
+    overview: {
+      totalBytes: number;
+      categories: Array<{ id: string; bytes: number }>;
+      locations: Array<{ id: string; path: string; movable: boolean }>;
+    };
   }>(`${baseUrl}/settings/storage`);
   assert.equal(storageStats.stats.kind, "sqlite");
   assert.ok(storageStats.stats.databaseBytes > 0);
   assert.ok(storageStats.stats.categories.some((category) => category.collection === "room_events"));
+  assert.ok(storageStats.overview.totalBytes >= storageStats.stats.databaseBytes);
+  assert.deepEqual(
+    storageStats.overview.categories.map((category) => category.id),
+    ["apps-and-workspaces", "conversations-and-system", "rebuildable", "backups", "other"],
+  );
+  assert.equal(storageStats.overview.locations.find((location) => location.id === "apps")?.movable, true);
   const cacheCleanup = await postJson<{ ok: true; scope: string }>(`${baseUrl}/settings/storage/clear-history`, {
     scope: "rebuildable-caches",
   });
