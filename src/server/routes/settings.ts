@@ -3,7 +3,7 @@ import { existsSync, unlinkSync } from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { clearCommandVersionCache, resolveCommandInvocation } from "../../kernel/discovery.js";
 import { applyKernelProxyEnv, resolveKernelProxySettings } from "../../runtime/kernel-proxy.js";
-import { currentAppStoreProgramsRoot, defaultAppStoreRoot } from "../app-store.js";
+import { appStoreDataRoot, currentAppStoreProgramsRoot, defaultAppStoreRoot } from "../app-store.js";
 import { mountedAppWorkspaceBindingIssue } from "../app-store-runtime-state.js";
 import type { BridgeSecurity } from "../bridge-security.js";
 import {
@@ -25,12 +25,16 @@ import {
 import { getBridgeRuntimeControls, getBridgeRuntimeControlsByKernel } from "../kernel-selection.js";
 import { resolveHostLanguageSettings } from "../language-preference.js";
 import { migrateMountedAppManifestV1 } from "../migrations/app-manifest-v1.js";
-import { mountedAppManifestIssue, readMountedAppManifest } from "../mounted-apps.js";
+import { mountedAppManifestIssue, readMountedAppManifest, resolveMountedAppWorkspaceRoot } from "../mounted-apps.js";
+import { legacyAppStoreRoot, storeAppLayoutV2ProgramRoots } from "../migrations/store-app-layout-v2.js";
 import { refreshOpenClawGatewayProviders } from "../openclaw-provider-discovery.js";
 import { refreshProviderModelDiscovery } from "../provider-model-discovery.js";
 import { getAllBridgeProviderProfiles, getBridgeProviderModelCatalog } from "../provider-profiles.js";
-import { bridgeDataPath } from "../storage-paths.js";
+import { bridgeDataPath, bridgeUserDataDirectory } from "../storage-paths.js";
 import { applyProviderSetupMigration } from "../system-provider-discovery.js";
+import { inspectOpenGroveStorage } from "../storage-overview.js";
+import { readAppEnv } from "../../identity.js";
+import { defaultOpenGroveWorkspacesDir } from "../../storage/default-data-dir.js";
 
 type SendJson = (response: ServerResponse, status: number, data: unknown) => void;
 type ReadJsonBody = (request: IncomingMessage) => Promise<unknown>;
@@ -105,16 +109,33 @@ export async function handleSettingsRoute(options: {
   }
 
   if (request.method === "GET" && url.pathname === "/settings/storage") {
+    const stats = state.store.storageStats?.() ?? {
+      kind: state.store.kind,
+      databaseBytes: 0,
+      blobBytes: 0,
+      orphanBlobBytes: 0,
+      migrationBackupBytes: 0,
+      categories: [],
+    };
     sendJson(response, 200, {
       ok: true,
-      stats: state.store.storageStats?.() ?? {
-        kind: state.store.kind,
-        databaseBytes: 0,
-        blobBytes: 0,
-        orphanBlobBytes: 0,
-        migrationBackupBytes: 0,
-        categories: [],
-      },
+      stats,
+      overview: await inspectOpenGroveStorage({
+        roots: {
+          userDataDir: bridgeUserDataDirectory(state),
+          programRoots: storeAppLayoutV2ProgramRoots({
+            storeRoot: appStoreDataRoot(state),
+            currentProgramsRoot: currentAppStoreProgramsRoot(appStoreDataRoot(state)),
+          }),
+          currentWorkspacesRoot: defaultOpenGroveWorkspacesDir(),
+          legacyAppsRoot: legacyAppStoreRoot(),
+          externalWorkspaceRoots: storageWorkspaceDirectories(state),
+          appStoreRoots: [appStoreDataRoot(state)],
+          updaterCacheDir: readAppEnv("UPDATER_CACHE_DIR")?.trim(),
+        },
+        orphanBlobBytes: stats.orphanBlobBytes,
+        rebuildableFilePaths: [bridgeDataPath(state, "provider-models-cache.json")],
+      }),
     });
     return true;
   }
@@ -489,6 +510,15 @@ function findKernelInstallAction(
   const rawActions = record(kernel).installActions;
   const actions = Array.isArray(rawActions) ? rawActions : [];
   return actions.map(record).find((action) => action.id === actionId);
+}
+
+function storageWorkspaceDirectories(state: BridgeState): string[] {
+  return state.settings.mountedApps.flatMap((mountedApp) => {
+    if (!mountedApp.path?.trim()) return [];
+    const manifest = readMountedAppManifest(mountedApp.path).manifest;
+    if (!manifest && !mountedApp.workspacePath?.trim()) return [];
+    return [resolveMountedAppWorkspaceRoot(mountedApp.path, manifest ?? {}, mountedApp.workspacePath)];
+  });
 }
 
 async function runInstallCommand(

@@ -1183,7 +1183,7 @@ export const EN = {
     "Use only when local data is corrupted and restarting the service does not recover it. This clears the current desktop data.",
   "settings.storageSpaceTitle": "Storage",
   "settings.localStorageCopy":
-    "History is kept in full by default. SQLite stores indexes and small records; larger messages and tool results are compressed into separate blob files.",
+    "This includes OpenGrove works, Apps, conversations, backups, and temporary files. Cleanup explains its impact and never treats works or conversations as cache.",
   "settings.storageTotalUsed": "Storage used by OpenGrove",
   "settings.storageMaintenance": "Storage maintenance",
   "settings.storageDatabase": "Database",
@@ -1193,12 +1193,36 @@ export const EN = {
   "settings.storageCategoryValue": "{records} records · {size}",
   "settings.storageRefreshStats": "Refresh stats",
   "settings.storageCleaning": "Cleaning…",
+  "settings.storageCleanupCompleted": "Cleanup finished; no additional reclaimed space could be confirmed.",
+  "settings.storageCleanupFreed": "Cleanup finished and reclaimed {size}.",
   "settings.storageCleanOrphans": "Clean unreferenced files",
+  "settings.storageCleanOrphansCopy":
+    "Remove only files confirmed to be unreferenced by conversations, runs, or artifacts. Works and conversations are preserved.",
   "settings.storageCleanCaches": "Clean rebuildable caches",
   "settings.storageRebuildableCopy": "Remove temporary data that the system can generate again automatically.",
   "settings.storageTrimRoomArchive": "Trim Rooms event archive",
   "settings.storageRoomArchiveCopy": "Keep conversation messages and remove only events outside the fast-sync window.",
   "settings.storageDeleteMigrationBackups": "Delete migration rollback backups",
+  "settings.storageMigrationBackupsCopy":
+    "Recovery copies created before an upgrade or reset. Deleting them removes that rollback path.",
+  "settings.storageAdvancedDetails": "Advanced details",
+  "settings.storageAdvancedDetailsCopy":
+    "For troubleshooting. Database, blob, and internal record names are not files you need to manage day to day.",
+  "settings.storageCategoryAppsAndWorks": "Apps and works",
+  "settings.storageCategoryAppsAndWorksCopy":
+    "Installed Apps, their runtimes, and works created or downloaded inside Apps. Never cleaned automatically.",
+  "settings.storageCategoryConversationsAndSystem": "Conversations and system data",
+  "settings.storageCategoryConversationsAndSystemCopy":
+    "Conversations, account state, settings, and local indexes. Never cleaned automatically.",
+  "settings.storageCategoryRebuildable": "Rebuildable temporary files",
+  "settings.storageCategoryRebuildableCopy":
+    "Media cache, logs, and update packages. They may need to be downloaded or generated again after cleanup.",
+  "settings.storageCategoryBackups": "Recovery backups",
+  "settings.storageCategoryBackupsCopy":
+    "Copies kept before upgrades, migrations, or resets. Delete manually after confirming your data is healthy.",
+  "settings.storageCategoryOther": "Diagnostics and other files",
+  "settings.storageCategoryOtherCopy":
+    "Diagnostic bundles and local files not yet classified. Review them before deleting.",
   "settings.storageClearRuntimeEvents": "Clear runtime event history",
   "settings.storageRuntimeEventsCopy":
     "Clear agent events and execution records without affecting conversations or artifacts.",

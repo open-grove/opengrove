@@ -1,4 +1,4 @@
-import { dirname, resolve } from "node:path";
+import { basename, dirname, resolve } from "node:path";
 import type { BridgeState } from "./bridge-types.js";
 import { defaultOpenGroveDataDir } from "../storage/default-data-dir.js";
 
@@ -11,4 +11,9 @@ export function bridgeDataDirectory(state: BridgeState): string {
 
 export function bridgeDataPath(state: BridgeState, ...segments: string[]): string {
   return resolve(bridgeDataDirectory(state), ...segments);
+}
+
+export function bridgeUserDataDirectory(state: BridgeState): string {
+  const dataDir = bridgeDataDirectory(state);
+  return basename(dataDir).toLowerCase() === "data" ? dirname(dataDir) : dataDir;
 }

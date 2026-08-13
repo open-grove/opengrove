@@ -12,6 +12,7 @@ import { SQLITE_STATE_FILE_NAME } from "../src/storage/default-data-dir.js";
 import { stateIdFor } from "../src/storage/state-identity.js";
 import { resolveDesktopEnvironment } from "./shell-env.js";
 import { redactDiagnosticText as redactText } from "../src/diagnostics/redaction.js";
+import { rotateLogIfOversized } from "./bounded-log.js";
 import {
   recoverStaleDesktopStateLocks,
   type DesktopStateLockBlocker,
@@ -19,6 +20,8 @@ import {
   type RecoveredDesktopStateLock,
 } from "./state-lock-recovery.js";
 import { desktopBridgeListenerProcessIds, ownedDesktopBridgeProcessIds } from "./bridge-process-control.js";
+
+const BRIDGE_LOG_POLICY = { maxBytes: 10 * 1024 * 1024, retainedFiles: 2 } as const;
 
 export type BridgeProcessStatus = "stopped" | "starting" | "running" | "restarting" | "failed";
 
@@ -72,6 +75,7 @@ interface DesktopBridgeSupervisorOptions {
   userDataDir: string;
   programsDir?: string;
   workspacesDir?: string;
+  updaterCacheDir?: string;
   token: string;
   isPackaged: boolean;
   channel: "stable" | "dev";
@@ -149,6 +153,7 @@ export class DesktopBridgeSupervisor {
   private readonly isPackaged: boolean;
   private readonly channel: DesktopBridgeSupervisorOptions["channel"];
   private readonly expectedPackageVersion: string | undefined;
+  private readonly updaterCacheDir: string | undefined;
   private readonly onStatus?: DesktopBridgeSupervisorOptions["onStatus"];
   private readonly onStartupActivity?: DesktopBridgeSupervisorOptions["onStartupActivity"];
   private readonly onStateLockRecovered?: DesktopBridgeSupervisorOptions["onStateLockRecovered"];
@@ -172,6 +177,7 @@ export class DesktopBridgeSupervisor {
     this.isPackaged = options.isPackaged;
     this.channel = options.channel;
     this.expectedPackageVersion = options.expectedPackageVersion?.trim() || undefined;
+    this.updaterCacheDir = options.updaterCacheDir?.trim() || undefined;
     this.onStatus = options.onStatus;
     this.onStartupActivity = options.onStartupActivity;
     this.onStateLockRecovered = options.onStateLockRecovered;
@@ -438,6 +444,7 @@ export class DesktopBridgeSupervisor {
           OPENGROVE_WORKSPACES_DIR: this.paths.workspacesDir,
           OPENGROVE_LEGACY_APPS_DIR: join(this.paths.userDataDir, "apps"),
           OPENGROVE_TARGET_APPS_DIR: this.paths.workspacesDir,
+          OPENGROVE_UPDATER_CACHE_DIR: this.updaterCacheDir,
         },
         serialization: "json",
         stdio: ["ignore", "pipe", "pipe", "ipc"],
@@ -534,6 +541,8 @@ export class DesktopBridgeSupervisor {
 
   private openLogs(): void {
     this.closeLogs();
+    rotateLogIfOversized(this.paths.bridgeLogPath, BRIDGE_LOG_POLICY);
+    rotateLogIfOversized(this.paths.bridgeCrashLogPath, BRIDGE_LOG_POLICY);
     this.bridgeLog = createWriteStream(this.paths.bridgeLogPath, { flags: "a" });
     this.crashLog = createWriteStream(this.paths.bridgeCrashLogPath, { flags: "a" });
   }

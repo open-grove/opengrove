@@ -1,5 +1,6 @@
 import { randomBytes } from "node:crypto";
-import { appendFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { homedir } from "node:os";
 import { isAbsolute, join, resolve } from "node:path";
 import { app, BrowserWindow, dialog, ipcMain, Menu, nativeTheme, session, shell } from "electron";
 import {
@@ -60,6 +61,9 @@ import {
   parseDesktopStripeDeepLink,
   type DesktopStripeDeepLink,
 } from "../src/desktop-stripe-deep-link.js";
+import { appendBoundedLog } from "./bounded-log.js";
+
+const MAIN_LOG_POLICY = { maxBytes: 10 * 1024 * 1024, retainedFiles: 2 } as const;
 
 type DesktopChannel = "stable" | "dev";
 
@@ -186,6 +190,7 @@ if (!hasSingleInstanceLock) {
         userDataDir: desktopUserDataDir,
         programsDir: app.isPackaged ? defaultOpenGroveProgramsDir() : join(desktopUserDataDir, "programs"),
         workspacesDir: app.isPackaged ? defaultOpenGroveWorkspacesDir() : join(desktopUserDataDir, "workspaces"),
+        updaterCacheDir: desktopUpdaterCacheDir(),
         token: bridgeToken,
         isPackaged: app.isPackaged,
         channel: DESKTOP_CHANNEL,
@@ -1168,8 +1173,20 @@ function logMain(message: string): void {
   if (!mainLogPath) return;
   const line = `[${new Date().toISOString()}] ${message}\n`;
   try {
-    appendFileSync(mainLogPath, redactText(line, [bridgeToken]), "utf8");
+    appendBoundedLog(mainLogPath, redactText(line, [bridgeToken]), MAIN_LOG_POLICY);
   } catch {
     // Logging must never block startup or bridge recovery.
   }
+}
+
+function desktopUpdaterCacheDir(): string {
+  const home = homedir();
+  const base =
+    process.platform === "win32"
+      ? process.env.LOCALAPPDATA || join(home, "AppData", "Local")
+      : process.platform === "darwin"
+        ? join(home, "Library", "Caches")
+        : process.env.XDG_CACHE_HOME || join(home, ".cache");
+  // electron-builder writes this exact directory name to app-update.yml.
+  return join(base, "opengrove-updater");
 }
