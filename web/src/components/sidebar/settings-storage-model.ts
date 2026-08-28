@@ -26,6 +26,7 @@ export const settingsStorageCategoryIds = OPEN_GROVE_STORAGE_CATEGORY_IDS;
 export type SettingsStorageCleanupEstimates = {
   unreferencedFilesBytes: number;
   rebuildableBytes: number;
+  safeCleanupBytes: number;
   migrationBackupBytes: number;
 };
 
@@ -43,6 +44,39 @@ export function parseSettingsStorageResponse(value: unknown): {
   };
 }
 
+export function parseSettingsStorageCleanupResponse(value: unknown): { reclaimedBytes: number } {
+  const response = record(value, "settings_storage_cleanup_response_invalid");
+  if (response.ok !== true) throw new Error("settings_storage_cleanup_response_not_ok");
+  const cleanup = record(response.cleanup, "settings_storage_cleanup_result_invalid");
+  return {
+    reclaimedBytes: nonNegativeNumber(cleanup.reclaimedBytes, "settings_storage_cleanup_bytes_invalid"),
+  };
+}
+
+export function parseSettingsStorageHistoryResponse(value: unknown): { reclaimedBytes: number } {
+  const response = record(value, "settings_storage_history_response_invalid");
+  if (response.ok !== true) throw new Error("settings_storage_history_response_not_ok");
+  if (response.cleanup === undefined) return { reclaimedBytes: 0 };
+  const cleanup = record(response.cleanup, "settings_storage_history_cleanup_invalid");
+  return {
+    reclaimedBytes: nonNegativeNumber(cleanup.reclaimedBytes, "settings_storage_history_bytes_invalid"),
+  };
+}
+
+export function parseSettingsStorageMaintenanceStartResponse(value: unknown): { leaseId: string } {
+  const response = record(value, "settings_storage_maintenance_start_invalid");
+  if (response.ok !== true || typeof response.leaseId !== "string" || !response.leaseId) {
+    throw new Error("settings_storage_maintenance_start_invalid");
+  }
+  return { leaseId: response.leaseId };
+}
+
+export function parseSettingsStorageMaintenanceEndResponse(value: unknown): void {
+  if (record(value, "settings_storage_maintenance_end_invalid").ok !== true) {
+    throw new Error("settings_storage_maintenance_end_invalid");
+  }
+}
+
 function parseCleanupEstimates(value: unknown): SettingsStorageCleanupEstimates {
   const estimates = record(value, "settings_storage_cleanup_estimates_invalid");
   return {
@@ -51,6 +85,7 @@ function parseCleanupEstimates(value: unknown): SettingsStorageCleanupEstimates 
       "settings_storage_unreferenced_estimate_invalid",
     ),
     rebuildableBytes: nonNegativeNumber(estimates.rebuildableBytes, "settings_storage_rebuildable_estimate_invalid"),
+    safeCleanupBytes: nonNegativeNumber(estimates.safeCleanupBytes, "settings_storage_safe_estimate_invalid"),
     migrationBackupBytes: nonNegativeNumber(estimates.migrationBackupBytes, "settings_storage_backup_estimate_invalid"),
   };
 }

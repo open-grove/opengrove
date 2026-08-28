@@ -63,6 +63,16 @@ try {
   assert.equal(host.activate(first), false, "repeated status events for one runtime must be idempotent");
   assert.equal(published.length, 1);
 
+  host.maintenance("storage_cleanup");
+  assert.equal(host.runtime, first, "planned maintenance keeps the retained renderer bound to its runtime identity");
+  assert.deepEqual(host.state, { stage: "maintenance", operation: "storage_cleanup" });
+  assert.equal(
+    host.activate(first),
+    true,
+    "maintenance completion must republish ready even when the runtime is reused",
+  );
+  assert.deepEqual(host.state, { stage: "ready", generation: 2 });
+
   host.retrying({ attempt: 2, retryInMs: 1_000, message: "bridge crashed" });
   assert.equal(host.runtime, undefined, "requests must stop targeting a crashed runtime");
   assert.deepEqual(host.state, {
@@ -79,7 +89,7 @@ try {
   const replacement = runtime("http://127.0.0.1:44888/api", 202);
   assert.equal(host.activate(replacement), true);
   assert.equal(host.runtime, replacement);
-  assert.deepEqual(host.state, { stage: "ready", generation: 2 });
+  assert.deepEqual(host.state, { stage: "ready", generation: 3 });
 
   host.blocked({
     attempt: 3,

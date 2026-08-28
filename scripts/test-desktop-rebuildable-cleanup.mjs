@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { lstat, mkdtemp, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -24,16 +24,58 @@ try {
   const programRoot = join(tempDir, "programs", "story-seed", "app");
   const programLookalike = join(programRoot, ".cache", "opengrove-media", "keep.bin");
   const logDir = join(tempDir, "logs");
-
+  const updaterCacheDir = join(tempDir, "opengrove-updater");
+  const chromiumCacheDirs = [
+    join(tempDir, "Cache"),
+    join(tempDir, "DawnWebGPUCache"),
+    join(tempDir, "DawnGraphiteCache"),
+  ];
   await writeSized(workspaceCache, 23);
   await writeSized(programLookalike, 17);
-  await mkdir(logDir, { recursive: true });
+  await writeSized(join(logDir, "desktop-main.log"), 29);
+  await writeSized(join(logDir, "desktop-main.log.1"), 13);
+  await writeSized(join(logDir, "bridge.log"), 19);
+  await writeSized(join(logDir, "bridge-crash.log"), 37);
+  await writeSized(join(logDir, "bridge-crash.log.2"), 17);
+  await writeSized(join(logDir, "desktop-restart.log"), 41);
+  await writeSized(join(updaterCacheDir, "pending.zip"), 31);
+  await writeSized(join(chromiumCacheDirs[0], "http-cache"), 7);
+  await writeSized(join(chromiumCacheDirs[1], "webgpu-cache"), 11);
+  await writeSized(join(chromiumCacheDirs[2], "graphite-cache"), 13);
 
-  const result = await cleanupDesktopRebuildableFiles({ workspaceRoots: [workspaceRoot], logDir });
-
+  const result = await cleanupDesktopRebuildableFiles({
+    workspaceRoots: [workspaceRoot],
+    logDir,
+    chromiumCacheDirs,
+    updaterCacheDir,
+  });
+  assert.equal(result.reclaimedBytes, 115);
   assert.equal(result.mediaCacheBytes, 23);
-  await assert.rejects(() => readFile(workspaceCache), { code: "ENOENT" });
+  assert.equal(result.logBytes, 30);
+  assert.equal(result.chromiumCacheBytes, 31);
+  assert.equal(result.updaterCacheBytes, 31);
   assert.equal(await readFile(programLookalike, "utf8"), "x".repeat(17));
+  await assert.rejects(() => lstat(workspaceCache), { code: "ENOENT" });
+  await assert.rejects(() => lstat(join(logDir, "desktop-main.log.1")), { code: "ENOENT" });
+  await assert.rejects(() => lstat(join(logDir, "bridge-crash.log.2")), { code: "ENOENT" });
+  for (const [currentLog, bytes] of [
+    ["desktop-main.log", 29],
+    ["bridge.log", 19],
+    ["bridge-crash.log", 37],
+    ["desktop-restart.log", 41],
+  ]) {
+    assert.equal(
+      await readFile(join(logDir, currentLog), "utf8"),
+      "x".repeat(bytes),
+      `${currentLog} evidence remains unchanged for diagnostics`,
+    );
+  }
+  assert.equal((await lstat(logDir)).isDirectory(), true);
+  assert.equal((await lstat(updaterCacheDir)).isDirectory(), true);
+  for (const cacheDir of chromiumCacheDirs) {
+    assert.equal((await lstat(cacheDir)).isDirectory(), true);
+    assert.deepEqual(await readdir(cacheDir), [], `${cacheDir} must be empty after deterministic disk cleanup`);
+  }
 } finally {
   await rm(tempDir, { recursive: true, force: true });
 }

@@ -539,6 +539,11 @@ try {
     leasedCache.open(leasedReady.mediaUrl ?? ""),
     "the original capability must stay available during active playback",
   );
+  assert.deepEqual(
+    leasedCache.clearWorkspaceCaches([leasedWorkspace]),
+    { removedFiles: 0, retainedFiles: 1, reclaimedBytes: 0 },
+    "safe cleanup must retain media files with an active playback lease",
+  );
   lease.release();
   await waitForReady(leasedCache, leasedTarget, replacementInput);
   assert.equal(

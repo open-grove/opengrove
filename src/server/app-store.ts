@@ -2264,6 +2264,82 @@ export function currentAppStoreProgramsRoot(storeRoot: string): string {
     : legacyAppStoreProgramsRoot(resolvedStoreRoot);
 }
 
+export function inspectUnreferencedAppStoreArchives(storeRoot: string): {
+  candidates: Array<{ path: string; bytes: number }>;
+  reclaimableBytes: number;
+} {
+  const packages = readImportedRegistryPackagesForCleanup(storeRoot);
+  if (!packages) return { candidates: [], reclaimableBytes: 0 };
+  const archiveRoot = join(resolve(storeRoot), "archives");
+  if (!readPathEntry(archiveRoot)?.isDirectory()) return { candidates: [], reclaimableBytes: 0 };
+  const referenced = new Set<string>();
+  for (const item of packages) {
+    if (!item.archiveFile) continue;
+    const path = resolveInside(storeRoot, item.archiveFile);
+    if (!path || !pathIsInside(archiveRoot, path)) return { candidates: [], reclaimableBytes: 0 };
+    referenced.add(resolve(path));
+  }
+  const candidates: Array<{ path: string; bytes: number }> = [];
+  collectUnreferencedArchiveFiles(archiveRoot, referenced, candidates);
+  return {
+    candidates,
+    reclaimableBytes: candidates.reduce((total, candidate) => total + candidate.bytes, 0),
+  };
+}
+
+export function cleanupUnreferencedAppStoreArchives(storeRoot: string): {
+  removed: string[];
+  retained: string[];
+  reclaimedBytes: number;
+} {
+  const archiveRoot = join(resolve(storeRoot), "archives");
+  const inspection = inspectUnreferencedAppStoreArchives(storeRoot);
+  const removed: string[] = [];
+  const retained: string[] = [];
+  let reclaimedBytes = 0;
+  for (const candidate of inspection.candidates) {
+    try {
+      rmSync(candidate.path, { force: true });
+      removed.push(candidate.path);
+      reclaimedBytes += candidate.bytes;
+      removeEmptyArchiveParents(dirname(candidate.path), archiveRoot);
+    } catch {
+      // non-critical-fallback: an in-use archive remains available for the next cleanup pass.
+      retained.push(candidate.path);
+    }
+  }
+  return { removed, retained, reclaimedBytes };
+}
+
+function collectUnreferencedArchiveFiles(
+  root: string,
+  referenced: ReadonlySet<string>,
+  candidates: Array<{ path: string; bytes: number }>,
+): void {
+  for (const entry of readdirSync(root, { withFileTypes: true })) {
+    if (entry.isSymbolicLink()) continue;
+    const path = join(root, entry.name);
+    if (entry.isDirectory()) {
+      collectUnreferencedArchiveFiles(path, referenced, candidates);
+      continue;
+    }
+    if (entry.isFile() && !referenced.has(resolve(path))) candidates.push({ path, bytes: statSync(path).size });
+  }
+}
+
+function removeEmptyArchiveParents(start: string, archiveRoot: string): void {
+  let current = resolve(start);
+  const boundary = resolve(archiveRoot);
+  while (current !== boundary && pathIsInside(boundary, current) && directoryIsEmpty(current)) {
+    try {
+      rmdirSync(current);
+    } catch {
+      return;
+    }
+    current = dirname(current);
+  }
+}
+
 export function cleanupUnreferencedAppStoreProgramGenerations(
   storeRoot: string,
   settings: Pick<BridgeSettings, "mountedApps">,
@@ -2271,22 +2347,27 @@ export function cleanupUnreferencedAppStoreProgramGenerations(
   const inspection = inspectUnreferencedAppStoreProgramGenerations(storeRoot, settings);
   const removed: string[] = [];
   const retained = [...inspection.retained];
+  const removableBuckets = new Set<string>();
   let reclaimedBytes = 0;
   for (const candidate of inspection.candidates) {
     try {
       rmSync(candidate.generationRoot, { recursive: true, force: true });
       removed.push(candidate.appRoot);
+      removableBuckets.add(dirname(candidate.generationRoot));
       reclaimedBytes += candidate.bytes;
     } catch {
       // non-critical-fallback: a locked obsolete generation remains marked for the next startup pass.
       retained.push(candidate.appRoot);
     }
   }
-  for (const programsRoot of storeAppLayoutV2ProgramRoots({
-    storeRoot,
-    currentProgramsRoot: currentAppStoreProgramsRoot(storeRoot),
-  })) {
-    removeEmptyProgramBuckets(programsRoot);
+  for (const appBucketRoot of removableBuckets) {
+    if (directoryIsEmpty(appBucketRoot)) {
+      try {
+        rmdirSync(appBucketRoot);
+      } catch {
+        // non-critical-fallback: a concurrent installer may have added a generation.
+      }
+    }
   }
   return { removed, retained, reclaimedBytes };
 }
@@ -2371,20 +2452,6 @@ function inspectProgramGenerationsInRoot(
   } catch {
     // non-critical-fallback: an inaccessible Programs root must not prevent OpenGrove from starting.
     retained.push(programsRoot);
-  }
-}
-
-function removeEmptyProgramBuckets(programsRoot: string): void {
-  if (!readPathEntry(programsRoot)?.isDirectory()) return;
-  for (const appBucket of readdirSync(programsRoot, { withFileTypes: true })) {
-    if (!appBucket.isDirectory() || appBucket.isSymbolicLink()) continue;
-    const appBucketRoot = join(programsRoot, appBucket.name);
-    if (!directoryIsEmpty(appBucketRoot)) continue;
-    try {
-      rmdirSync(appBucketRoot);
-    } catch {
-      // non-critical-fallback: a concurrent installer may have added a generation.
-    }
   }
 }
 
@@ -3444,6 +3511,19 @@ function readImportedRegistryPackages(storeRoot?: string): AppStorePackageRecord
       : [];
   } catch {
     return [];
+  }
+}
+
+function readImportedRegistryPackagesForCleanup(storeRoot: string): AppStorePackageRecord[] | undefined {
+  const path = importedCatalogPath(storeRoot);
+  if (!existsSync(path)) return undefined;
+  try {
+    const parsed = JSON.parse(readFileSync(path, "utf8")) as { packages?: unknown };
+    if (!Array.isArray(parsed.packages)) return undefined;
+    const packages = parsed.packages.map(normalizeImportedPackage);
+    return packages.every((item): item is AppStorePackageRecord => Boolean(item)) ? packages : undefined;
+  } catch {
+    return undefined;
   }
 }
 

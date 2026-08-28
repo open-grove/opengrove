@@ -118,6 +118,10 @@ export function bridgeRunMaintenanceActive(state: BridgeState): boolean {
   return Boolean(registryForState(state).maintenanceLeaseId);
 }
 
+export function bridgeRunMaintenanceLeaseMatches(state: BridgeState, leaseId: string): boolean {
+  return Boolean(leaseId) && registryForState(state).maintenanceLeaseId === leaseId;
+}
+
 export function activeBridgeRunIds(state: BridgeState): ReadonlySet<string> {
   return new Set(registryForState(state).handlesByRunId.keys());
 }
