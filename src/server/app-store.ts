@@ -2267,25 +2267,67 @@ export function currentAppStoreProgramsRoot(storeRoot: string): string {
 export function cleanupUnreferencedAppStoreProgramGenerations(
   storeRoot: string,
   settings: Pick<BridgeSettings, "mountedApps">,
-): { removed: string[]; retained: string[] } {
+): { removed: string[]; retained: string[]; reclaimedBytes: number } {
+  const inspection = inspectUnreferencedAppStoreProgramGenerations(storeRoot, settings);
+  const removed: string[] = [];
+  const retained = [...inspection.retained];
+  let reclaimedBytes = 0;
+  for (const candidate of inspection.candidates) {
+    try {
+      rmSync(candidate.generationRoot, { recursive: true, force: true });
+      removed.push(candidate.appRoot);
+      reclaimedBytes += candidate.bytes;
+    } catch {
+      // non-critical-fallback: a locked obsolete generation remains marked for the next startup pass.
+      retained.push(candidate.appRoot);
+    }
+  }
+  for (const programsRoot of storeAppLayoutV2ProgramRoots({
+    storeRoot,
+    currentProgramsRoot: currentAppStoreProgramsRoot(storeRoot),
+  })) {
+    removeEmptyProgramBuckets(programsRoot);
+  }
+  return { removed, retained, reclaimedBytes };
+}
+
+export function inspectUnreferencedAppStoreProgramGenerations(
+  storeRoot: string,
+  settings: Pick<BridgeSettings, "mountedApps">,
+): {
+  candidates: Array<{ appRoot: string; generationRoot: string; bytes: number }>;
+  retained: string[];
+  reclaimableBytes: number;
+} {
   const activeProgramRoots = new Set(
     settings.mountedApps.filter((mountedApp) => mountedApp.path?.trim()).map((mountedApp) => resolve(mountedApp.path)),
   );
-  const removed: string[] = [];
+  const candidates: Array<{ appRoot: string; generationRoot: string; bytes: number }> = [];
   const retained: string[] = [];
   for (const programsRoot of storeAppLayoutV2ProgramRoots({
     storeRoot,
     currentProgramsRoot: currentAppStoreProgramsRoot(storeRoot),
   })) {
-    cleanupProgramGenerationsInRoot(programsRoot, activeProgramRoots, removed, retained);
+    inspectProgramGenerationsInRoot(programsRoot, activeProgramRoots, candidates, retained);
   }
-  return { removed, retained };
+  return {
+    candidates,
+    retained,
+    reclaimableBytes: candidates.reduce((total, candidate) => total + candidate.bytes, 0),
+  };
 }
 
-function cleanupProgramGenerationsInRoot(
+function regularFileBytesRecursively(root: string): number {
+  const entry = lstatSync(root);
+  if (entry.isSymbolicLink()) return 0;
+  if (!entry.isDirectory()) return entry.isFile() ? entry.size : 0;
+  return readdirSync(root).reduce((total, name) => total + regularFileBytesRecursively(join(root, name)), 0);
+}
+
+function inspectProgramGenerationsInRoot(
   programsRoot: string,
   activeProgramRoots: ReadonlySet<string>,
-  removed: string[],
+  candidates: Array<{ appRoot: string; generationRoot: string; bytes: number }>,
   retained: string[],
 ): void {
   try {
@@ -2315,18 +2357,10 @@ function cleanupProgramGenerationsInRoot(
             continue;
           }
           try {
-            rmSync(generationRoot, { recursive: true, force: true });
-            removed.push(appRoot);
+            candidates.push({ appRoot, generationRoot, bytes: regularFileBytesRecursively(generationRoot) });
           } catch {
-            // non-critical-fallback: a locked obsolete generation remains marked for the next startup pass.
+            // non-critical-fallback: an unreadable candidate is not advertised as safe to remove.
             retained.push(appRoot);
-          }
-        }
-        if (directoryIsEmpty(appBucketRoot)) {
-          try {
-            rmdirSync(appBucketRoot);
-          } catch {
-            // non-critical-fallback: a concurrent installer may have added a generation.
           }
         }
       } catch {
@@ -2337,6 +2371,20 @@ function cleanupProgramGenerationsInRoot(
   } catch {
     // non-critical-fallback: an inaccessible Programs root must not prevent OpenGrove from starting.
     retained.push(programsRoot);
+  }
+}
+
+function removeEmptyProgramBuckets(programsRoot: string): void {
+  if (!readPathEntry(programsRoot)?.isDirectory()) return;
+  for (const appBucket of readdirSync(programsRoot, { withFileTypes: true })) {
+    if (!appBucket.isDirectory() || appBucket.isSymbolicLink()) continue;
+    const appBucketRoot = join(programsRoot, appBucket.name);
+    if (!directoryIsEmpty(appBucketRoot)) continue;
+    try {
+      rmdirSync(appBucketRoot);
+    } catch {
+      // non-critical-fallback: a concurrent installer may have added a generation.
+    }
   }
 }
 

@@ -3,7 +3,16 @@ import { existsSync, unlinkSync } from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { clearCommandVersionCache, resolveCommandInvocation } from "../../kernel/discovery.js";
 import { applyKernelProxyEnv, resolveKernelProxySettings } from "../../runtime/kernel-proxy.js";
-import { appStoreDataRoot, currentAppStoreProgramsRoot, defaultAppStoreRoot } from "../app-store.js";
+import { defaultOpenGroveWorkspacesDir } from "../../storage/default-data-dir.js";
+import { readAppEnv } from "../../identity.js";
+import { beginBridgeRunMaintenance, endBridgeRunMaintenance } from "../active-runs.js";
+import {
+  appStoreDataRoot,
+  cleanupUnreferencedAppStoreProgramGenerations,
+  currentAppStoreProgramsRoot,
+  defaultAppStoreRoot,
+  inspectUnreferencedAppStoreProgramGenerations,
+} from "../app-store.js";
 import { mountedAppWorkspaceBindingIssue } from "../app-store-runtime-state.js";
 import type { BridgeSecurity } from "../bridge-security.js";
 import {
@@ -33,8 +42,6 @@ import { getAllBridgeProviderProfiles, getBridgeProviderModelCatalog } from "../
 import { bridgeDataPath, bridgeUserDataDirectory } from "../storage-paths.js";
 import { applyProviderSetupMigration } from "../system-provider-discovery.js";
 import { inspectOpenGroveStorage } from "../storage-overview.js";
-import { readAppEnv } from "../../identity.js";
-import { defaultOpenGroveWorkspacesDir } from "../../storage/default-data-dir.js";
 
 type SendJson = (response: ServerResponse, status: number, data: unknown) => void;
 type ReadJsonBody = (request: IncomingMessage) => Promise<unknown>;
@@ -117,31 +124,69 @@ export async function handleSettingsRoute(options: {
       migrationBackupBytes: 0,
       categories: [],
     };
+    const overview = await inspectOpenGroveStorage({
+      roots: {
+        userDataDir: bridgeUserDataDirectory(state),
+        programRoots: storeAppLayoutV2ProgramRoots({
+          storeRoot: appStoreDataRoot(state),
+          currentProgramsRoot: currentAppStoreProgramsRoot(appStoreDataRoot(state)),
+        }),
+        currentWorkspacesRoot: defaultOpenGroveWorkspacesDir(),
+        legacyAppsRoot: legacyAppStoreRoot(),
+        externalWorkspaceRoots: storageWorkspaceDirectories(state),
+        appStoreRoots: [appStoreDataRoot(state)],
+        updaterCacheDir: readAppEnv("UPDATER_CACHE_DIR")?.trim(),
+      },
+      orphanBlobBytes: stats.orphanBlobBytes,
+      rebuildableFilePaths: [bridgeDataPath(state, "provider-models-cache.json")],
+    });
+    const programCleanup = inspectUnreferencedAppStoreProgramGenerations(appStoreDataRoot(state), state.settings);
     sendJson(response, 200, {
       ok: true,
       stats,
-      overview: await inspectOpenGroveStorage({
-        roots: {
-          userDataDir: bridgeUserDataDirectory(state),
-          programRoots: storeAppLayoutV2ProgramRoots({
-            storeRoot: appStoreDataRoot(state),
-            currentProgramsRoot: currentAppStoreProgramsRoot(appStoreDataRoot(state)),
-          }),
-          currentWorkspacesRoot: defaultOpenGroveWorkspacesDir(),
-          legacyAppsRoot: legacyAppStoreRoot(),
-          externalWorkspaceRoots: storageWorkspaceDirectories(state),
-          appStoreRoots: [appStoreDataRoot(state)],
-          updaterCacheDir: readAppEnv("UPDATER_CACHE_DIR")?.trim(),
-        },
-        orphanBlobBytes: stats.orphanBlobBytes,
-        rebuildableFilePaths: [bridgeDataPath(state, "provider-models-cache.json")],
-      }),
+      overview,
+      cleanupEstimates: {
+        unreferencedFilesBytes: stats.orphanBlobBytes + programCleanup.reclaimableBytes,
+        rebuildableBytes: overview.categories.find((category) => category.id === "rebuildable")?.bytes ?? 0,
+        migrationBackupBytes: stats.migrationBackupBytes,
+      },
+    });
+    return true;
+  }
+
+  if (request.method === "POST" && url.pathname === "/settings/storage/maintenance/start") {
+    const admission = beginBridgeRunMaintenance(state);
+    if (!admission.ok) {
+      const error =
+        admission.error === "storage_maintenance_active_runs"
+          ? `desktop_storage_maintenance_active_runs:${admission.activeRuns}`
+          : "desktop_storage_maintenance_in_progress";
+      sendJson(response, 409, { ok: false, error, activeRuns: admission.activeRuns });
+      return true;
+    }
+    sendJson(response, 200, { ok: true, leaseId: admission.leaseId });
+    return true;
+  }
+
+  if (request.method === "POST" && url.pathname === "/settings/storage/maintenance/end") {
+    const payload = record(await readJsonBody(request));
+    const leaseId = stringValue(payload.leaseId);
+    const released = endBridgeRunMaintenance(state, leaseId ?? "");
+    sendJson(response, released ? 200 : 409, {
+      ok: released,
+      ...(released ? {} : { error: "desktop_storage_maintenance_lease_invalid" }),
     });
     return true;
   }
 
   if (request.method === "POST" && url.pathname === "/settings/storage/cleanup") {
-    const cleanup = state.store.cleanupOrphanedBlobs?.() ?? { removedBlobs: 0, reclaimedBytes: 0 };
+    const blobCleanup = state.store.cleanupOrphanedBlobs?.() ?? { removedBlobs: 0, reclaimedBytes: 0 };
+    const programCleanup = cleanupUnreferencedAppStoreProgramGenerations(appStoreDataRoot(state), state.settings);
+    const cleanup = {
+      removedBlobs: blobCleanup.removedBlobs,
+      removedProgramGenerations: programCleanup.removed.length,
+      reclaimedBytes: blobCleanup.reclaimedBytes + programCleanup.reclaimedBytes,
+    };
     sendJson(response, 200, {
       ok: true,
       cleanup,

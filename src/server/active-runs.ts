@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { isA2ATerminalTaskState } from "#agent-protocol";
 import type { AgentEvent, JsonObject } from "../core.js";
 import type { BridgeState } from "./bridge-types.js";
@@ -27,6 +28,7 @@ interface ActiveRunRegistry {
   ownersByInteractionId: Map<string, InteractionOwner>;
   ownersByNativeRequestId: Map<string, InteractionOwner>;
   nextProducerEpoch: number;
+  maintenanceLeaseId?: string;
 }
 
 const registries = new WeakMap<BridgeState, ActiveRunRegistry>();
@@ -38,6 +40,9 @@ export function registerActiveBridgeRun(
   options: { cancel?: () => void } = {},
 ): () => void {
   const registry = registryForState(state);
+  if (registry.maintenanceLeaseId) {
+    throw new Error("bridge_runs_paused_for_storage_maintenance");
+  }
   let handle = registry.handlesByRunId.get(runId);
   if (!handle) {
     handle = {
@@ -78,6 +83,39 @@ export function registerActiveBridgeRun(
       removeHandle(registry, current);
     }
   };
+}
+
+export type BridgeRunMaintenanceAdmission =
+  | { ok: true; leaseId: string }
+  | { ok: false; error: "storage_maintenance_in_progress" | "storage_maintenance_active_runs"; activeRuns: number };
+
+/**
+ * Atomically closes run admission only when no producer lease is active.
+ * JavaScript executes this check-and-set synchronously, so a new run cannot
+ * enter between observing the empty registry and installing the gate.
+ */
+export function beginBridgeRunMaintenance(state: BridgeState): BridgeRunMaintenanceAdmission {
+  const registry = registryForState(state);
+  if (registry.maintenanceLeaseId) {
+    return { ok: false, error: "storage_maintenance_in_progress", activeRuns: registry.handlesByRunId.size };
+  }
+  if (registry.handlesByRunId.size > 0) {
+    return { ok: false, error: "storage_maintenance_active_runs", activeRuns: registry.handlesByRunId.size };
+  }
+  const leaseId = randomUUID();
+  registry.maintenanceLeaseId = leaseId;
+  return { ok: true, leaseId };
+}
+
+export function endBridgeRunMaintenance(state: BridgeState, leaseId: string): boolean {
+  const registry = registryForState(state);
+  if (!leaseId || registry.maintenanceLeaseId !== leaseId) return false;
+  registry.maintenanceLeaseId = undefined;
+  return true;
+}
+
+export function bridgeRunMaintenanceActive(state: BridgeState): boolean {
+  return Boolean(registryForState(state).maintenanceLeaseId);
 }
 
 export function activeBridgeRunIds(state: BridgeState): ReadonlySet<string> {

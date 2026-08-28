@@ -7,8 +7,11 @@ import { rawDiagnosticText, useI18n, type TranslationFn } from "../../i18n";
 import { useConfirm } from "../ui/confirm-dialog";
 import { ProductIcon } from "../ui/product-icon";
 import {
+  parseSettingsStorageResponse,
+  settingsStorageCategoryIds,
   settingsStorageCategoryBytes,
   settingsStorageTotalBytes,
+  type SettingsStorageCleanupEstimates,
   type SettingsStorageCategoryId,
   type SettingsStorageOverview,
   type SettingsStorageStats,
@@ -31,6 +34,7 @@ export function SettingsDesktopPanel() {
   const [error, setError] = useState("");
   const [storage, setStorage] = useState<SettingsStorageStats>();
   const [storageOverview, setStorageOverview] = useState<SettingsStorageOverview>();
+  const [storageCleanupEstimates, setStorageCleanupEstimates] = useState<SettingsStorageCleanupEstimates>();
   const [storageBusy, setStorageBusy] = useState(false);
   const [storageError, setStorageError] = useState("");
   const [storageNotice, setStorageNotice] = useState("");
@@ -88,13 +92,10 @@ export function SettingsDesktopPanel() {
   async function refreshStorage() {
     setStorageError("");
     try {
-      const response = await getJson<{
-        ok: true;
-        stats: SettingsStorageStats;
-        overview?: SettingsStorageOverview;
-      }>("/settings/storage");
+      const response = parseSettingsStorageResponse(await getJson<unknown>("/settings/storage"));
       setStorage(response.stats);
       setStorageOverview(response.overview);
+      setStorageCleanupEstimates(response.cleanupEstimates);
     } catch (innerError) {
       setStorageError(innerError instanceof Error ? innerError.message : String(innerError));
     }
@@ -144,6 +145,12 @@ export function SettingsDesktopPanel() {
     setStorageError("");
     setStorageNotice("");
     try {
+      if (scope === "rebuildable-caches" && desktop?.cleanupRebuildableStorage) {
+        const result = await desktop.cleanupRebuildableStorage();
+        setStorageNotice(storageCleanupNotice(result.reclaimedBytes, t, result.updaterCacheSkipped));
+        await refreshStorage();
+        return;
+      }
       const response = await postJson<{
         ok: true;
         cleanup?: { reclaimedBytes?: number };
@@ -151,7 +158,13 @@ export function SettingsDesktopPanel() {
       setStorageNotice(storageCleanupNotice(response.cleanup?.reclaimedBytes, t));
       await refreshStorage();
     } catch (innerError) {
-      setStorageError(innerError instanceof Error ? innerError.message : String(innerError));
+      setStorageError(
+        scope === "rebuildable-caches"
+          ? rebuildableCleanupError(innerError, t)
+          : innerError instanceof Error
+            ? innerError.message
+            : String(innerError),
+      );
     } finally {
       setStorageBusy(false);
     }
@@ -186,6 +199,7 @@ export function SettingsDesktopPanel() {
         <StoragePanel
           stats={storage}
           overview={storageOverview}
+          cleanupEstimates={storageCleanupEstimates}
           busy={storageBusy}
           error={storageError}
           notice={storageNotice}
@@ -338,6 +352,8 @@ export function SettingsDesktopPanel() {
   );
 }
 
+// ===== Runtime summary =====
+
 type RuntimeSummary = {
   running: boolean;
   version: string;
@@ -362,9 +378,12 @@ function runtimeSummary(
   };
 }
 
+// ===== Storage management =====
+
 function StoragePanel(props: {
   stats?: SettingsStorageStats;
   overview?: SettingsStorageOverview;
+  cleanupEstimates?: SettingsStorageCleanupEstimates;
   busy: boolean;
   error: string;
   notice: string;
@@ -379,11 +398,11 @@ function StoragePanel(props: {
   const categories = [...(props.stats?.categories ?? [])].sort(
     (left, right) => right.payloadBytes + right.referencedBlobBytes - left.payloadBytes - left.referencedBlobBytes,
   );
-  const storageSegments = storageCategoryIds.map((id) => ({
+  const storageSegments = settingsStorageCategoryIds.map((id) => ({
     label: storageOverviewCategoryLabel(id, t),
-    bytes: settingsStorageCategoryBytes(props.overview, id, props.stats),
+    bytes: settingsStorageCategoryBytes(props.overview, id),
   }));
-  const totalBytes = settingsStorageTotalBytes(props.stats, props.overview);
+  const totalBytes = settingsStorageTotalBytes(props.overview);
   return (
     <section className="settings-list-section settings-storage-detail">
       <div className="settings-list-section-heading settings-storage-detail-heading">
@@ -423,12 +442,12 @@ function StoragePanel(props: {
         </div>
       </div>
       <div className="settings-storage-grid">
-        {storageCategoryIds.map((id) => (
+        {settingsStorageCategoryIds.map((id) => (
           <StorageCard
             key={id}
             label={storageOverviewCategoryLabel(id, t)}
             description={storageOverviewCategoryDescription(id, t)}
-            value={formatBytes(settingsStorageCategoryBytes(props.overview, id, props.stats))}
+            value={formatBytes(settingsStorageCategoryBytes(props.overview, id))}
           />
         ))}
       </div>
@@ -436,21 +455,27 @@ function StoragePanel(props: {
       <div className="settings-list settings-storage-list">
         <DesktopActionRow
           label={t("settings.storageCleanOrphans")}
-          description={t("settings.storageCleanOrphansCopy")}
+          description={`${t("settings.storageCleanOrphansCopy")} ${t("settings.storageCleanupEstimate", {
+            size: formatBytes(props.cleanupEstimates?.unreferencedFilesBytes ?? 0),
+          })}`}
           actionLabel={props.busy ? t("settings.storageCleaning") : t("settings.storageCleanOrphans")}
           disabled={props.busy || !props.stats?.orphanBlobBytes}
           onAction={() => void props.onCleanup()}
         />
         <DesktopActionRow
           label={t("settings.storageCleanCaches")}
-          description={t("settings.storageRebuildableCopy")}
+          description={`${t("settings.storageRebuildableCopy")} ${t("settings.storageCleanupEstimateMaximum", {
+            size: formatBytes(props.cleanupEstimates?.rebuildableBytes ?? 0),
+          })}`}
           actionLabel={t("settings.storageCleanCaches")}
           disabled={props.busy}
           onAction={() => void props.onClearHistory("rebuildable-caches")}
         />
         <DesktopActionRow
           label={t("settings.storageMigrationBackups")}
-          description={t("settings.storageMigrationBackupsCopy")}
+          description={`${t("settings.storageMigrationBackupsCopy")} ${t("settings.storageCleanupEstimate", {
+            size: formatBytes(props.cleanupEstimates?.migrationBackupBytes ?? 0),
+          })}`}
           actionLabel={t("settings.storageDeleteMigrationBackups")}
           tone="danger"
           disabled={props.busy || !props.stats?.migrationBackupBytes}
@@ -498,7 +523,7 @@ function StoragePanel(props: {
 
 function StorageEntry(props: { stats?: SettingsStorageStats; overview?: SettingsStorageOverview; onOpen(): void }) {
   const { t } = useI18n();
-  const totalBytes = settingsStorageTotalBytes(props.stats, props.overview);
+  const totalBytes = settingsStorageTotalBytes(props.overview);
   return (
     <section className="settings-list-section settings-storage-entry-section">
       <button className="settings-storage-entry" type="button" onClick={props.onOpen}>
@@ -542,28 +567,20 @@ function StorageCard(props: {
   );
 }
 
-const storageCategoryIds: SettingsStorageCategoryId[] = [
-  "apps-and-workspaces",
-  "conversations-and-system",
-  "rebuildable",
-  "backups",
-  "other",
-];
-
 function storageOverviewCategoryLabel(id: SettingsStorageCategoryId, t: TranslationFn): string {
-  if (id === "apps-and-workspaces") return t("settings.storageCategoryAppsAndWorks");
-  if (id === "conversations-and-system") return t("settings.storageCategoryConversationsAndSystem");
+  if (id === "works-and-files") return t("settings.storageCategoryWorksAndFiles");
+  if (id === "apps-and-runtime") return t("settings.storageCategoryAppsAndRuntime");
   if (id === "rebuildable") return t("settings.storageCategoryRebuildable");
   if (id === "backups") return t("settings.storageCategoryBackups");
-  return t("settings.storageCategoryOther");
+  return t("settings.storageCategoryConversationsAndSystem");
 }
 
 function storageOverviewCategoryDescription(id: SettingsStorageCategoryId, t: TranslationFn): string {
-  if (id === "apps-and-workspaces") return t("settings.storageCategoryAppsAndWorksCopy");
-  if (id === "conversations-and-system") return t("settings.storageCategoryConversationsAndSystemCopy");
+  if (id === "works-and-files") return t("settings.storageCategoryWorksAndFilesCopy");
+  if (id === "apps-and-runtime") return t("settings.storageCategoryAppsAndRuntimeCopy");
   if (id === "rebuildable") return t("settings.storageCategoryRebuildableCopy");
   if (id === "backups") return t("settings.storageCategoryBackupsCopy");
-  return t("settings.storageCategoryOtherCopy");
+  return t("settings.storageCategoryConversationsAndSystemCopy");
 }
 
 function storageCategoryLabel(collection: string, t: TranslationFn): string {
@@ -584,11 +601,35 @@ function formatBytes(bytes: number): string {
   return `${value >= 100 || exponent === 0 ? value.toFixed(0) : value.toFixed(1)} ${units[exponent]}`;
 }
 
-function storageCleanupNotice(reclaimedBytes: number | undefined, t: TranslationFn): string {
+function storageCleanupNotice(
+  reclaimedBytes: number | undefined,
+  t: TranslationFn,
+  updaterCacheSkipped = false,
+): string {
+  if (updaterCacheSkipped) {
+    return t("settings.storageCleanupFreedUpdaterSkipped", { size: formatBytes(reclaimedBytes ?? 0) });
+  }
   return reclaimedBytes && reclaimedBytes > 0
     ? t("settings.storageCleanupFreed", { size: formatBytes(reclaimedBytes) })
     : t("settings.storageCleanupCompleted");
 }
+
+function rebuildableCleanupError(error: unknown, t: TranslationFn): string {
+  const message = error instanceof Error ? error.message : String(error);
+  if (message.startsWith("desktop_storage_maintenance_active_runs:")) {
+    return t("settings.storageCleanupErrorActiveRuns");
+  }
+  if (message === "rebuildable_cleanup_reused_bridge_unsupported") {
+    return t("settings.storageCleanupErrorReusedBridge");
+  }
+  if (message === "desktop_storage_maintenance_in_progress") return t("settings.storageCleanupErrorInProgress");
+  if (message.startsWith("rebuildable_cleanup_and_restart_failed:")) {
+    return t("settings.storageCleanupErrorRestart");
+  }
+  return t("settings.storageCleanupErrorGeneric", { error: message });
+}
+
+// ===== Desktop presentation helpers =====
 
 function formatDateTime(value: string | undefined): string {
   if (!value) return "—";

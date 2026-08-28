@@ -1,6 +1,5 @@
 import { fork, type ChildProcess } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync } from "node:fs";
-import { createWriteStream, type WriteStream } from "node:fs";
 import { join } from "node:path";
 import { APP_DEFAULT_RELEASE_CONTROL_URL, APP_DEFAULT_WW_BASE_URL, APP_DESKTOP_UI_ORIGIN } from "../src/identity.js";
 import {
@@ -12,7 +11,7 @@ import { SQLITE_STATE_FILE_NAME } from "../src/storage/default-data-dir.js";
 import { stateIdFor } from "../src/storage/state-identity.js";
 import { resolveDesktopEnvironment } from "./shell-env.js";
 import { redactDiagnosticText as redactText } from "../src/diagnostics/redaction.js";
-import { rotateLogIfOversized } from "./bounded-log.js";
+import { appendBoundedLog, rotateLogIfOversized } from "./bounded-log.js";
 import {
   recoverStaleDesktopStateLocks,
   type DesktopStateLockBlocker,
@@ -159,8 +158,6 @@ export class DesktopBridgeSupervisor {
   private readonly onStateLockRecovered?: DesktopBridgeSupervisorOptions["onStateLockRecovered"];
   private readonly recoverStateLocks: NonNullable<DesktopBridgeSupervisorOptions["recoverStateLocks"]>;
   private child?: ChildProcess;
-  private bridgeLog?: WriteStream;
-  private crashLog?: WriteStream;
   private runtimeInfo?: DesktopBridgeRuntimeInfo;
   private status: BridgeProcessStatus = "stopped";
   private restartCount = 0;
@@ -278,6 +275,10 @@ export class DesktopBridgeSupervisor {
 
   currentRuntime(): DesktopBridgeRuntimeInfo | undefined {
     return this.runtimeInfo;
+  }
+
+  updaterCacheDirectory(): string | undefined {
+    return this.updaterCacheDir;
   }
 
   async isReusableExternalBridgeHealthy(): Promise<boolean> {
@@ -493,14 +494,12 @@ export class DesktopBridgeSupervisor {
       });
       child.once("exit", (code, signal) => {
         if (this.stopping) {
-          this.closeLogs();
           return;
         }
         this.child = undefined;
         this.runtimeInfo = undefined;
         this.crashCount += 1;
         this.writeCrashLog(Buffer.from(`bridge exited code=${code ?? "null"} signal=${signal ?? "null"}\n`));
-        this.closeLogs();
         if (!settled) {
           settled = true;
           this.status = "failed";
@@ -540,26 +539,27 @@ export class DesktopBridgeSupervisor {
   }
 
   private openLogs(): void {
-    this.closeLogs();
     rotateLogIfOversized(this.paths.bridgeLogPath, BRIDGE_LOG_POLICY);
     rotateLogIfOversized(this.paths.bridgeCrashLogPath, BRIDGE_LOG_POLICY);
-    this.bridgeLog = createWriteStream(this.paths.bridgeLogPath, { flags: "a" });
-    this.crashLog = createWriteStream(this.paths.bridgeCrashLogPath, { flags: "a" });
-  }
-
-  private closeLogs(): void {
-    this.bridgeLog?.end();
-    this.crashLog?.end();
-    this.bridgeLog = undefined;
-    this.crashLog = undefined;
   }
 
   private writeBridgeLog(chunk: Buffer): void {
-    this.bridgeLog?.write(redactText(chunk.toString("utf8"), [this.token]));
+    this.appendBridgeLog(this.paths.bridgeLogPath, chunk);
   }
 
   private writeCrashLog(chunk: Buffer): void {
-    this.crashLog?.write(redactText(chunk.toString("utf8"), [this.token]));
+    this.appendBridgeLog(this.paths.bridgeCrashLogPath, chunk);
+  }
+
+  private appendBridgeLog(path: string, chunk: Buffer): void {
+    try {
+      appendBoundedLog(path, redactText(chunk.toString("utf8"), [this.token]), BRIDGE_LOG_POLICY);
+    } catch (error) {
+      console.warn("desktop_bridge_log_write_failed", {
+        path,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
   }
 
   private notifyStatus(): void {

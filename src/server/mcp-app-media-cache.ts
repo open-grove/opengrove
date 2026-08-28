@@ -16,12 +16,12 @@ import { Readable, Transform } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { Agent, fetch as undiciFetch } from "undici";
 import { normalizeAppUi } from "../app-builder/ui-runtime.js";
+import { MCP_APP_MEDIA_CACHE_WORKSPACE_DIRECTORY } from "../mcp-app-media-cache-path.js";
 import type { MountedAppTarget } from "./mounted-apps.js";
 import type { WorkspaceRawFileResult } from "./workspace-store.js";
 
 const DEFAULT_MAX_BYTES = 5 * 1024 * 1024 * 1024;
-const CACHE_WORKSPACE_DIRECTORY = ".cache/opengrove-media";
-const CACHE_DIRECTORY_SEGMENTS = CACHE_WORKSPACE_DIRECTORY.split("/");
+const CACHE_DIRECTORY_SEGMENTS = MCP_APP_MEDIA_CACHE_WORKSPACE_DIRECTORY.split("/");
 const MEDIA_ROUTE_PREFIX = "/mcp-app-media/";
 const MEDIA_PUBLIC_PREFIX = "./mcp-app-media/";
 const PUBLIC_DOH_ORIGIN = "https://cloudflare-dns.com";
@@ -115,7 +115,7 @@ export class McpAppMediaCache {
     mkdirSync(cacheDirectory, { recursive: true });
     const fileName = cacheFileName(input.cacheKey, input.contentType);
     const absolutePath = join(cacheDirectory, fileName);
-    const workspacePath = `${CACHE_WORKSPACE_DIRECTORY}/${fileName}`;
+    const workspacePath = `${MCP_APP_MEDIA_CACHE_WORKSPACE_DIRECTORY}/${fileName}`;
 
     const existing = this.existingResult(absolutePath, workspacePath, input);
     if (existing) return existing;

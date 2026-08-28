@@ -3401,6 +3401,7 @@ try {
     cloudRecruitState.settings,
   );
   assert.ok(generationCleanup.removed.includes(orphanProgramRoot));
+  assert.ok(generationCleanup.reclaimedBytes > 0);
   assert.equal(existsSync(orphanProgramRoot), false);
   assert.ok(generationCleanup.retained.includes(malformedMarkerProgramRoot));
   assert.equal(
