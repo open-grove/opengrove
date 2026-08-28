@@ -768,7 +768,11 @@ try {
     overview: {
       totalBytes: number;
       categories: Array<{ id: string; bytes: number }>;
-      locations: Array<{ id: string; path: string; movable: boolean }>;
+    };
+    cleanupEstimates: {
+      unreferencedFilesBytes: number;
+      rebuildableBytes: number;
+      migrationBackupBytes: number;
     };
   }>(`${baseUrl}/settings/storage`);
   assert.equal(storageStats.stats.kind, "sqlite");
@@ -777,9 +781,13 @@ try {
   assert.ok(storageStats.overview.totalBytes >= storageStats.stats.databaseBytes);
   assert.deepEqual(
     storageStats.overview.categories.map((category) => category.id),
-    ["apps-and-workspaces", "conversations-and-system", "rebuildable", "backups", "other"],
+    ["works-and-files", "apps-and-runtime", "rebuildable", "backups", "conversations-and-system"],
   );
-  assert.equal(storageStats.overview.locations.find((location) => location.id === "apps")?.movable, true);
+  assert.ok(storageStats.cleanupEstimates.unreferencedFilesBytes >= 0);
+  assert.equal(
+    storageStats.cleanupEstimates.rebuildableBytes,
+    storageStats.overview.categories.find((category) => category.id === "rebuildable")?.bytes,
+  );
   const cacheCleanup = await postJson<{ ok: true; scope: string }>(`${baseUrl}/settings/storage/clear-history`, {
     scope: "rebuildable-caches",
   });

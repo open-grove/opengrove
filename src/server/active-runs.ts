@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import type { BridgeState } from "./bridge-types.js";
 import { releaseBridgeKernelAdapter, retainBridgeKernelAdapter } from "./kernel-lifecycle.js";
 
@@ -5,6 +6,7 @@ interface ActiveRunRegistry {
   leasesByRunId: Map<string, Set<symbol>>;
   executionStatesByRunId: Map<string, BridgeState>;
   adaptersByRunId: Map<string, BridgeState["kernelAdapter"]>;
+  maintenanceLeaseId?: string;
 }
 
 const registries = new WeakMap<BridgeState, ActiveRunRegistry>();
@@ -15,6 +17,9 @@ const registries = new WeakMap<BridgeState, ActiveRunRegistry>();
  */
 export function registerActiveBridgeRun(state: BridgeState, runId: string): () => void {
   const registry = registryForState(state);
+  if (registry.maintenanceLeaseId) {
+    throw new Error("bridge_runs_paused_for_storage_maintenance");
+  }
   const lease = Symbol(runId);
   const leases = registry.leasesByRunId.get(runId) ?? new Set<symbol>();
   if (leases.size === 0) {
@@ -36,6 +41,39 @@ export function registerActiveBridgeRun(state: BridgeState, runId: string): () =
       registry.adaptersByRunId.delete(runId);
     }
   };
+}
+
+export type BridgeRunMaintenanceAdmission =
+  | { ok: true; leaseId: string }
+  | { ok: false; error: "storage_maintenance_in_progress" | "storage_maintenance_active_runs"; activeRuns: number };
+
+/**
+ * Atomically closes run admission only when no producer lease is active.
+ * JavaScript executes this check-and-set synchronously, so a new run cannot
+ * enter between observing the empty registry and installing the gate.
+ */
+export function beginBridgeRunMaintenance(state: BridgeState): BridgeRunMaintenanceAdmission {
+  const registry = registryForState(state);
+  if (registry.maintenanceLeaseId) {
+    return { ok: false, error: "storage_maintenance_in_progress", activeRuns: registry.leasesByRunId.size };
+  }
+  if (registry.leasesByRunId.size > 0) {
+    return { ok: false, error: "storage_maintenance_active_runs", activeRuns: registry.leasesByRunId.size };
+  }
+  const leaseId = randomUUID();
+  registry.maintenanceLeaseId = leaseId;
+  return { ok: true, leaseId };
+}
+
+export function endBridgeRunMaintenance(state: BridgeState, leaseId: string): boolean {
+  const registry = registryForState(state);
+  if (!leaseId || registry.maintenanceLeaseId !== leaseId) return false;
+  registry.maintenanceLeaseId = undefined;
+  return true;
+}
+
+export function bridgeRunMaintenanceActive(state: BridgeState): boolean {
+  return Boolean(registryForState(state).maintenanceLeaseId);
 }
 
 export function activeBridgeRunIds(state: BridgeState): ReadonlySet<string> {

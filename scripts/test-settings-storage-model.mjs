@@ -18,44 +18,45 @@ try {
     target: "node20",
     outfile: bundlePath,
   });
-  const { settingsStorageCategoryBytes, settingsStorageTotalBytes } = await import(pathToFileURL(bundlePath).href);
-  assert.equal(
-    settingsStorageTotalBytes({
-      kind: "sqlite",
-      databaseBytes: 100,
-      blobBytes: 300,
-      orphanBlobBytes: 80,
-      migrationBackupBytes: 20,
-      categories: [],
-    }),
-    420,
-    "orphan blobs are already included in blobBytes and must not be counted twice",
+  const { parseSettingsStorageResponse, settingsStorageCategoryBytes, settingsStorageTotalBytes } = await import(
+    pathToFileURL(bundlePath).href
   );
   const overview = {
     totalBytes: 900,
     scannedAt: "2026-08-13T00:00:00.000Z",
     categories: [
-      { id: "apps-and-workspaces", bytes: 400 },
-      { id: "conversations-and-system", bytes: 200 },
+      { id: "works-and-files", bytes: 300 },
+      { id: "apps-and-runtime", bytes: 200 },
       { id: "rebuildable", bytes: 150 },
       { id: "backups", bytes: 100 },
-      { id: "other", bytes: 50 },
+      { id: "conversations-and-system", bytes: 150 },
     ],
-    locations: [],
+    cleanupCandidates: { rebuildableBytes: 150 },
+    backups: [{ kind: "migration", bytes: 100, createdAt: "2026-08-12T00:00:00.000Z" }],
   };
-  assert.equal(settingsStorageTotalBytes(undefined, overview), 900, "the complete scan wins over legacy DB-only stats");
-  assert.equal(settingsStorageCategoryBytes(overview, "rebuildable"), 150);
-  assert.equal(
-    settingsStorageCategoryBytes(undefined, "rebuildable", {
+  const parsed = parseSettingsStorageResponse({
+    ok: true,
+    stats: {
       kind: "sqlite",
       databaseBytes: 100,
       blobBytes: 300,
       orphanBlobBytes: 80,
       migrationBackupBytes: 20,
       categories: [],
-    }),
-    80,
-    "older Bridge responses keep a meaningful category fallback",
+    },
+    overview,
+    cleanupEstimates: {
+      unreferencedFilesBytes: 80,
+      rebuildableBytes: 150,
+      migrationBackupBytes: 20,
+    },
+  });
+  assert.equal(settingsStorageTotalBytes(parsed.overview), 900);
+  assert.equal(settingsStorageCategoryBytes(overview, "rebuildable"), 150);
+  assert.throws(
+    () => parseSettingsStorageResponse({ ok: true, stats: parsed.stats, cleanupEstimates: parsed.cleanupEstimates }),
+    /storage_overview_invalid/,
+    "the network boundary rejects incomplete storage responses instead of trusting a generic type",
   );
 } finally {
   await rm(tempDir, { recursive: true, force: true });

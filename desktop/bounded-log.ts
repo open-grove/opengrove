@@ -59,7 +59,19 @@ function trimLogToRecentBytes(path: string, maxBytes: number): void {
 function fileBytes(path: string): number {
   try {
     return statSync(path).size;
-  } catch {
+  } catch (error) {
+    if (!isMissingPathError(error)) {
+      console.warn("desktop_bounded_log_stat_failed", {
+        path,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
     return 0;
   }
+}
+
+function isMissingPathError(error: unknown): boolean {
+  return Boolean(
+    error && typeof error === "object" && "code" in error && (error as { code?: unknown }).code === "ENOENT",
+  );
 }

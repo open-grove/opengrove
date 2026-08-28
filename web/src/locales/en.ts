@@ -644,8 +644,9 @@ export const EN = {
   "confirm.clearRuntimeEventsBody": "Rooms conversations and artifacts are kept.",
   "confirm.clearRoomArchiveTitle": "Trim the Rooms event archive?",
   "confirm.clearRoomArchiveBody": "Messages are fully kept; only events beyond the fast-sync window are removed.",
-  "confirm.clearCachesTitle": "Clear rebuildable model and tool caches?",
-  "confirm.clearCachesBody": "They are rebuilt automatically on next use.",
+  "confirm.clearCachesTitle": "Clear rebuildable temporary files?",
+  "confirm.clearCachesBody":
+    "This removes media cache, rotated logs, browser cache, and unused update cache. Works, conversations, App programs, current logs, and recovery backups stay in place. OpenGrove recreates or downloads the removed files when needed.",
   "confirm.clearMigrationBackupsTitle": "Delete the pre-migration JSON backups?",
   "confirm.clearMigrationBackupsBody":
     "Continue only after confirming history looks right on SQLite; once deleted, you can't roll back with an older OpenGrove.",
@@ -1193,11 +1194,25 @@ export const EN = {
   "settings.storageCategoryValue": "{records} records · {size}",
   "settings.storageRefreshStats": "Refresh stats",
   "settings.storageCleaning": "Cleaning…",
-  "settings.storageCleanupCompleted": "Cleanup finished; no additional reclaimed space could be confirmed.",
-  "settings.storageCleanupFreed": "Cleanup finished and reclaimed {size}.",
+  "settings.storageCleanupEstimate": "Estimated removal: {size}.",
+  "settings.storageCleanupEstimateMaximum":
+    "Up to about {size}; protected items such as current diagnostic logs remain.",
+  "settings.storageCleanupCompleted":
+    "Cleanup finished; no measurable files were removed. Check the operating system for current free disk space.",
+  "settings.storageCleanupFreed":
+    "Removed about {size} of rebuildable files. Check the operating system for current free disk space.",
+  "settings.storageCleanupFreedUpdaterSkipped":
+    "Removed about {size} of rebuildable files. Update cache was kept because an update is in progress. Check the operating system for current free disk space.",
+  "settings.storageCleanupErrorActiveRuns": "A task is still running. Wait for it to finish before cleaning storage.",
+  "settings.storageCleanupErrorReusedBridge":
+    "This window is connected to another OpenGrove service, so desktop cache cannot be paused and cleaned safely here. Use the client that started that service.",
+  "settings.storageCleanupErrorInProgress": "Storage maintenance is already in progress. Try again later.",
+  "settings.storageCleanupErrorRestart":
+    "The local service did not recover after cleanup. Restart OpenGrove and inspect diagnostics.",
+  "settings.storageCleanupErrorGeneric": "Cleanup failed: {error}",
   "settings.storageCleanOrphans": "Clean unreferenced files",
   "settings.storageCleanOrphansCopy":
-    "Remove only files confirmed to be unreferenced by conversations, runs, or artifacts. Works and conversations are preserved.",
+    "Remove only blobs and obsolete program generations confirmed unused by conversations, runs, artifacts, or installed Apps. Works and conversations stay in place; removal cannot be undone.",
   "settings.storageCleanCaches": "Clean rebuildable caches",
   "settings.storageRebuildableCopy": "Remove temporary data that the system can generate again automatically.",
   "settings.storageTrimRoomArchive": "Trim Rooms event archive",
@@ -1208,9 +1223,12 @@ export const EN = {
   "settings.storageAdvancedDetails": "Advanced details",
   "settings.storageAdvancedDetailsCopy":
     "For troubleshooting. Database, blob, and internal record names are not files you need to manage day to day.",
-  "settings.storageCategoryAppsAndWorks": "Apps and works",
-  "settings.storageCategoryAppsAndWorksCopy":
-    "Installed Apps, their runtimes, and works created or downloaded inside Apps. Never cleaned automatically.",
+  "settings.storageCategoryWorksAndFiles": "My works and files",
+  "settings.storageCategoryWorksAndFilesCopy":
+    "Content you create, download, or save in App Workspaces. Safe cleanup never deletes it.",
+  "settings.storageCategoryAppsAndRuntime": "Apps and runtime components",
+  "settings.storageCategoryAppsAndRuntimeCopy":
+    "Local App content, App Store program generations, and files needed to run Apps. Only explicitly rebuildable cache is cleaned.",
   "settings.storageCategoryConversationsAndSystem": "Conversations and system data",
   "settings.storageCategoryConversationsAndSystemCopy":
     "Conversations, account state, settings, and local indexes. Never cleaned automatically.",
@@ -1220,9 +1238,6 @@ export const EN = {
   "settings.storageCategoryBackups": "Recovery backups",
   "settings.storageCategoryBackupsCopy":
     "Copies kept before upgrades, migrations, or resets. Delete manually after confirming your data is healthy.",
-  "settings.storageCategoryOther": "Diagnostics and other files",
-  "settings.storageCategoryOtherCopy":
-    "Diagnostic bundles and local files not yet classified. Review them before deleting.",
   "settings.storageClearRuntimeEvents": "Clear runtime event history",
   "settings.storageRuntimeEventsCopy":
     "Clear agent events and execution records without affecting conversations or artifacts.",
