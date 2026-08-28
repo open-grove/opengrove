@@ -45,22 +45,62 @@ try {
 
     await page.getByRole("heading", { name: "存储空间", exact: true }).waitFor();
     assert.equal(await page.getByText("6.0 GB", { exact: true }).count(), 1);
-    for (const label of ["我的作品与文件", "App 与运行组件", "可重新生成的临时文件", "恢复备份", "聊天与系统数据"]) {
+    for (const label of ["我的作品与文件", "App 与运行组件", "缓存和临时文件", "升级备份", "聊天与系统数据"]) {
       assert.ok((await page.getByText(label, { exact: true }).count()) > 0, `${label} must be visible`);
     }
+    assert.match(
+      await page
+        .getByText(/共 1 份，最近保存于/)
+        .first()
+        .textContent(),
+      /2026/,
+    );
+    assert.equal(
+      await page.getByRole("button", { name: "删除重置恢复备份", exact: true }).count(),
+      0,
+      "unfinished reset-backup cleanup must not be exposed",
+    );
     assert.equal(await page.getByText("数据库", { exact: true }).isVisible(), false);
-    assert.match(await page.getByText(/最多可删除约 1.0 GB/).textContent(), /当前诊断日志等保护项会保留/);
+    assert.match(await page.getByText(/预计可清理/).textContent(), /1\.0 GB/);
 
-    await page.getByRole("button", { name: "清理可重建缓存", exact: true }).click();
+    await page.getByRole("button", { name: "安全释放空间", exact: true }).click();
     const dialog = page.getByRole("dialog");
-    await dialog.getByText("清理可重建临时文件？", { exact: true }).waitFor();
-    assert.match(await dialog.textContent(), /作品、聊天、App 程序、当前日志和恢复备份会保留/);
+    await dialog.getByText("安全释放空间？", { exact: true }).waitFor();
+    assert.match(await dialog.textContent(), /不会删除作品、App、聊天、知识库、账号或设置/);
     await dialog.getByRole("button", { name: "确认", exact: true }).click();
-    await page.getByText(/已删除约 512 MB 的可重建文件/).waitFor();
+    await page.getByText(/已清理约 512 MB 的缓存和临时文件/).waitFor();
     assert.equal(await page.evaluate(() => document.documentElement.dataset.cleanupRequested), "true");
 
-    await page.getByText("高级详情", { exact: true }).click();
-    assert.ok(await page.getByText("数据库", { exact: true }).isVisible());
+    assert.equal(await page.getByText("高级详情", { exact: true }).count(), 0);
+    assert.equal(await page.getByText("数据库", { exact: true }).count(), 0);
+    assert.equal(
+      await page.getByRole("button", { name: "精简 Rooms 事件归档", exact: true }).count(),
+      0,
+      "Room ledger history must be read-only in storage details",
+    );
+    assert.equal(
+      await page.getByRole("button", { name: "清除运行事件历史", exact: true }).count(),
+      0,
+      "runtime diagnostics history must be read-only in storage details",
+    );
+    for (const internalLabel of ["Blob 文件", "Agent 事件", "Rooms 事件归档", "knowledge_revisions"]) {
+      assert.equal(
+        await page.getByText(internalLabel, { exact: true }).count(),
+        0,
+        `${internalLabel} must stay internal`,
+      );
+    }
+
+    await page.evaluate(() => {
+      const payload = globalThis.storagePayload;
+      payload.overview.backups = [];
+      payload.overview.categories.find((category) => category.id === "backups").bytes = 0;
+      payload.cleanupEstimates.migrationBackupBytes = 0;
+    });
+    await page.getByRole("button", { name: "刷新统计", exact: true }).click();
+    await page.waitForFunction(() => !document.body.textContent?.includes("升级备份"));
+    assert.equal(await page.getByText("升级备份", { exact: true }).count(), 0, "empty update backups stay hidden");
+    assert.equal(await page.getByRole("button", { name: "删除升级备份", exact: true }).count(), 0);
   } finally {
     await browser.close();
   }
@@ -105,9 +145,11 @@ function entrySource() {
       cleanupEstimates: {
         unreferencedFilesBytes: 20 * 1024 ** 2,
         rebuildableBytes: 1024 ** 3,
+        safeCleanupBytes: 1024 ** 3,
         migrationBackupBytes: 1024 ** 3,
       },
     };
+    globalThis.storagePayload = storagePayload;
     globalThis.fetch = async (input) => {
       const url = String(input);
       if (url.includes("/settings/storage")) {

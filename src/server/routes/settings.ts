@@ -1,16 +1,23 @@
 import { spawn } from "node:child_process";
-import { existsSync, unlinkSync } from "node:fs";
+import { existsSync, statSync, unlinkSync } from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { readAppEnv } from "../../identity.js";
 import { clearCommandVersionCache, resolveCommandInvocation } from "../../kernel/discovery.js";
 import { applyKernelProxyEnv, resolveKernelProxySettings } from "../../runtime/kernel-proxy.js";
 import { defaultOpenGroveWorkspacesDir } from "../../storage/default-data-dir.js";
-import { readAppEnv } from "../../identity.js";
-import { beginBridgeRunMaintenance, endBridgeRunMaintenance } from "../active-runs.js";
+import { listStateMigrationBackupPaths, resolveStateMigrationPaths } from "../../storage/migration-backups.js";
+import {
+  beginBridgeRunMaintenance,
+  bridgeRunMaintenanceLeaseMatches,
+  endBridgeRunMaintenance,
+} from "../active-runs.js";
 import {
   appStoreDataRoot,
+  cleanupUnreferencedAppStoreArchives,
   cleanupUnreferencedAppStoreProgramGenerations,
   currentAppStoreProgramsRoot,
   defaultAppStoreRoot,
+  inspectUnreferencedAppStoreArchives,
   inspectUnreferencedAppStoreProgramGenerations,
 } from "../app-store.js";
 import { mountedAppWorkspaceBindingIssue } from "../app-store-runtime-state.js";
@@ -25,6 +32,7 @@ import {
   syncNumberedGroupPresentations,
 } from "../bridge-state.js";
 import { BRIDGE_KERNEL_IDS, type BridgeKernelId, type BridgeSettings, type BridgeState } from "../bridge-types.js";
+import { mcpAppMediaCache } from "../mcp-app-media-cache.js";
 import {
   describeKernelLogins,
   kernelLoginRouteProfiles,
@@ -124,6 +132,11 @@ export async function handleSettingsRoute(options: {
       migrationBackupBytes: 0,
       categories: [],
     };
+    const migrationStatePaths = resolveStateMigrationPaths(state.store.path);
+    const migrationPaths =
+      state.store.kind === "sqlite"
+        ? listStateMigrationBackupPaths(migrationStatePaths.databasePath, migrationStatePaths.legacyPath)
+        : [];
     const overview = await inspectOpenGroveStorage({
       roots: {
         userDataDir: bridgeUserDataDirectory(state),
@@ -138,16 +151,24 @@ export async function handleSettingsRoute(options: {
         updaterCacheDir: readAppEnv("UPDATER_CACHE_DIR")?.trim(),
       },
       orphanBlobBytes: stats.orphanBlobBytes,
+      stateBackupPaths: migrationPaths,
       rebuildableFilePaths: [bridgeDataPath(state, "provider-models-cache.json")],
     });
     const programCleanup = inspectUnreferencedAppStoreProgramGenerations(appStoreDataRoot(state), state.settings);
+    const archiveCleanup = inspectUnreferencedAppStoreArchives(appStoreDataRoot(state));
     sendJson(response, 200, {
       ok: true,
       stats,
       overview,
       cleanupEstimates: {
-        unreferencedFilesBytes: stats.orphanBlobBytes + programCleanup.reclaimableBytes,
-        rebuildableBytes: overview.categories.find((category) => category.id === "rebuildable")?.bytes ?? 0,
+        unreferencedFilesBytes:
+          stats.orphanBlobBytes + programCleanup.reclaimableBytes + archiveCleanup.reclaimableBytes,
+        rebuildableBytes: overview.cleanupCandidates.rebuildableBytes,
+        safeCleanupBytes:
+          stats.orphanBlobBytes +
+          programCleanup.reclaimableBytes +
+          archiveCleanup.reclaimableBytes +
+          overview.cleanupCandidates.rebuildableBytes,
         migrationBackupBytes: stats.migrationBackupBytes,
       },
     });
@@ -180,74 +201,86 @@ export async function handleSettingsRoute(options: {
   }
 
   if (request.method === "POST" && url.pathname === "/settings/storage/cleanup") {
-    const blobCleanup = state.store.cleanupOrphanedBlobs?.() ?? { removedBlobs: 0, reclaimedBytes: 0 };
-    const programCleanup = cleanupUnreferencedAppStoreProgramGenerations(appStoreDataRoot(state), state.settings);
-    const cleanup = {
-      removedBlobs: blobCleanup.removedBlobs,
-      removedProgramGenerations: programCleanup.removed.length,
-      reclaimedBytes: blobCleanup.reclaimedBytes + programCleanup.reclaimedBytes,
-    };
-    sendJson(response, 200, {
-      ok: true,
-      cleanup,
-      stats: state.store.storageStats?.(),
-    });
+    const payload = record(await readJsonBody(request));
+    const requestedLeaseId = stringValue(payload.leaseId);
+    if (requestedLeaseId && !bridgeRunMaintenanceLeaseMatches(state, requestedLeaseId)) {
+      sendJson(response, 409, { ok: false, error: "desktop_storage_maintenance_lease_invalid" });
+      return true;
+    }
+    const admission = requestedLeaseId ? undefined : beginBridgeRunMaintenance(state);
+    if (admission && !admission.ok) {
+      const error =
+        admission.error === "storage_maintenance_active_runs"
+          ? `desktop_storage_maintenance_active_runs:${admission.activeRuns}`
+          : "desktop_storage_maintenance_in_progress";
+      sendJson(response, 409, { ok: false, error, activeRuns: admission.activeRuns });
+      return true;
+    }
+    try {
+      const mediaCleanup = mcpAppMediaCache.clearWorkspaceCaches(storageWorkspaceDirectories(state));
+      const blobCleanup = state.store.cleanupOrphanedBlobs?.() ?? { removedBlobs: 0, reclaimedBytes: 0 };
+      const programCleanup = cleanupUnreferencedAppStoreProgramGenerations(appStoreDataRoot(state), state.settings);
+      const archiveCleanup = cleanupUnreferencedAppStoreArchives(appStoreDataRoot(state));
+      const cleanup = {
+        removedBlobs: blobCleanup.removedBlobs,
+        removedMediaCacheFiles: mediaCleanup.removedFiles,
+        retainedMediaCacheFiles: mediaCleanup.retainedFiles,
+        removedProgramGenerations: programCleanup.removed.length,
+        removedArchives: archiveCleanup.removed.length,
+        reclaimedBytes:
+          mediaCleanup.reclaimedBytes +
+          blobCleanup.reclaimedBytes +
+          programCleanup.reclaimedBytes +
+          archiveCleanup.reclaimedBytes,
+      };
+      sendJson(response, 200, {
+        ok: true,
+        cleanup,
+        stats: state.store.storageStats?.(),
+      });
+    } finally {
+      if (admission?.ok) endBridgeRunMaintenance(state, admission.leaseId);
+    }
     return true;
   }
 
   if (request.method === "POST" && url.pathname === "/settings/storage/clear-history") {
     const payload = record(await readJsonBody(request));
     const scope = stringValue(payload.scope);
-    if (scope === "runtime-events") {
-      const activeRun = state.app.sessions
-        .listRuns()
-        .some(
-          (run) =>
-            run.status === "running" || run.status === "waiting_for_approval" || run.status === "waiting_for_user",
-        );
-      if (activeRun) {
-        sendJson(response, 409, { ok: false, error: "history_clear_blocked_by_active_run" });
+    if (scope === "rebuildable-caches") {
+      const requestedLeaseId = stringValue(payload.leaseId);
+      if (requestedLeaseId && !bridgeRunMaintenanceLeaseMatches(state, requestedLeaseId)) {
+        sendJson(response, 409, { ok: false, error: "desktop_storage_maintenance_lease_invalid" });
         return true;
       }
-      const removed =
-        state.store.clearRuntimeEventArchive?.() ?? state.app.events.list().length + state.app.executions.list().length;
-      state.app.events.clear();
-      state.app.executions.clear();
-      state.store.saveFrom(state.app);
-      const cleanup = state.store.cleanupOrphanedBlobs?.();
-      sendJson(response, 200, { ok: true, scope, removed, cleanup, stats: state.store.storageStats?.() });
-      return true;
-    }
-    if (scope === "room-event-archive") {
-      const before = state.store.clearRoomEventArchive?.() ?? 0;
-      // Reinsert only the in-memory hot delivery window. Messages remain in the
-      // authoritative message collection and are never deleted by this action.
-      state.store.saveFrom(state.app);
-      const retained = state.app.rooms.snapshot().events.length;
-      const cleanup = state.store.cleanupOrphanedBlobs?.();
-      sendJson(response, 200, {
-        ok: true,
-        scope,
-        removed: Math.max(0, before - retained),
-        cleanup,
-        stats: state.store.storageStats?.(),
-      });
-      return true;
-    }
-    if (scope === "rebuildable-caches") {
-      clearCommandVersionCache();
-      const toolSchemaCacheEntries = Object.keys(state.app.workingState.get().toolSchemaCache).length;
-      state.app.workingState.update({ toolSchemaCache: {} });
-      const providerModelsCache = bridgeDataPath(state, "provider-models-cache.json");
-      const removedProviderCache = existsSync(providerModelsCache);
-      if (removedProviderCache) unlinkSync(providerModelsCache);
-      state.store.saveFrom(state.app);
-      sendJson(response, 200, {
-        ok: true,
-        scope,
-        removed: toolSchemaCacheEntries + Number(removedProviderCache),
-        stats: state.store.storageStats?.(),
-      });
+      const admission = requestedLeaseId ? undefined : beginBridgeRunMaintenance(state);
+      if (admission && !admission.ok) {
+        const error =
+          admission.error === "storage_maintenance_active_runs"
+            ? `desktop_storage_maintenance_active_runs:${admission.activeRuns}`
+            : "desktop_storage_maintenance_in_progress";
+        sendJson(response, 409, { ok: false, error, activeRuns: admission.activeRuns });
+        return true;
+      }
+      try {
+        clearCommandVersionCache();
+        const toolSchemaCacheEntries = Object.keys(state.app.workingState.get().toolSchemaCache).length;
+        state.app.workingState.update({ toolSchemaCache: {} });
+        const providerModelsCache = bridgeDataPath(state, "provider-models-cache.json");
+        const removedProviderCache = existsSync(providerModelsCache);
+        const reclaimedBytes = removedProviderCache ? statSync(providerModelsCache).size : 0;
+        if (removedProviderCache) unlinkSync(providerModelsCache);
+        state.store.saveFrom(state.app);
+        sendJson(response, 200, {
+          ok: true,
+          scope,
+          removed: toolSchemaCacheEntries + Number(removedProviderCache),
+          cleanup: { reclaimedBytes },
+          stats: state.store.storageStats?.(),
+        });
+      } finally {
+        if (admission?.ok) endBridgeRunMaintenance(state, admission.leaseId);
+      }
       return true;
     }
     if (scope === "migration-backups") {
@@ -461,6 +494,15 @@ export async function handleSettingsRoute(options: {
   return true;
 }
 
+function storageWorkspaceDirectories(state: BridgeState): string[] {
+  return state.settings.mountedApps.flatMap((mountedApp) => {
+    if (!mountedApp.path?.trim()) return [];
+    const manifest = readMountedAppManifest(mountedApp.path).manifest;
+    if (!manifest && !mountedApp.workspacePath?.trim()) return [];
+    return [resolveMountedAppWorkspaceRoot(mountedApp.path, manifest ?? {}, mountedApp.workspacePath)];
+  });
+}
+
 function kernelLoginActionFromPath(pathname: string):
   | {
       kernelId: BridgeKernelId;
@@ -555,15 +597,6 @@ function findKernelInstallAction(
   const rawActions = record(kernel).installActions;
   const actions = Array.isArray(rawActions) ? rawActions : [];
   return actions.map(record).find((action) => action.id === actionId);
-}
-
-function storageWorkspaceDirectories(state: BridgeState): string[] {
-  return state.settings.mountedApps.flatMap((mountedApp) => {
-    if (!mountedApp.path?.trim()) return [];
-    const manifest = readMountedAppManifest(mountedApp.path).manifest;
-    if (!manifest && !mountedApp.workspacePath?.trim()) return [];
-    return [resolveMountedAppWorkspaceRoot(mountedApp.path, manifest ?? {}, mountedApp.workspacePath)];
-  });
 }
 
 async function runInstallCommand(

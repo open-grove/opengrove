@@ -38,6 +38,10 @@ export type DesktopBridgeStartupState =
       actions: DesktopBridgeStartupBlockerAction[];
     }
   | {
+      stage: "maintenance";
+      operation: "storage_cleanup";
+    }
+  | {
       stage: "ready";
       generation: number;
     };
@@ -46,6 +50,7 @@ export function isDesktopBridgeStartupState(value: unknown): value is DesktopBri
   if (!value || typeof value !== "object") return false;
   const candidate = value as Record<string, unknown>;
   if (candidate.stage === "ready") return positiveAttempt(candidate.generation);
+  if (candidate.stage === "maintenance") return candidate.operation === "storage_cleanup";
   if (candidate.stage === "starting") return positiveAttempt(candidate.attempt);
   if (candidate.stage === "migrating") return positiveAttempt(candidate.attempt);
   if (candidate.stage === "retrying") {

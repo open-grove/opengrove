@@ -32,9 +32,9 @@ try {
   assert.equal(await readFile(`${logPath}.1`, "utf8"), "abcdefgh");
   assert.equal(await readFile(`${logPath}.2`, "utf8"), "12345678");
 
-  await writeFile(logPath, "012345678901234567890123456789", "utf8");
+  await writeFile(logPath, "HEAD-unique-middle-TAIL-6789", "utf8");
   appendBoundedLog(logPath, "z", { maxBytes: 10, retainedFiles: 2 });
-  assert.equal(await readFile(`${logPath}.1`, "utf8"), "0123456789", "an old oversized log keeps only its recent tail");
+  assert.equal(await readFile(`${logPath}.1`, "utf8"), "-TAIL-6789", "an old oversized log keeps only its recent tail");
 } finally {
   await rm(tempDir, { recursive: true, force: true });
 }

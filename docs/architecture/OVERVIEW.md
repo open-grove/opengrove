@@ -30,18 +30,28 @@ user-facing categories:
   generations.
 - **Rebuildable temporary files**: media cache, browser cache, rotated logs,
   updater cache, and confirmed orphan blobs.
-- **Recovery backups**: reset and data-migration rollback copies.
+- **Update backups**: data-migration rollback copies created before a database update.
 - **Conversations and system data**: Rooms, knowledge, settings, account state,
   diagnostics, indexes, and other Host-owned state.
 
 Storage accounting does not grant cleanup authority. Safe cleanup may remove
-only data with an explicit regeneration or unreferenced-file contract. It keeps
+only data with an explicit regeneration or unreferenced-file contract, through
+one user-facing **Free space safely** action. It keeps
 App Workspaces, active App program generations, conversations, current diagnostic
 logs, and recovery backups. An obsolete App program generation is removable
 only when it is no longer mounted and carries the Host-authored committed
-cleanup marker; unmarked local App archives are retained. The displayed byte
+cleanup marker. Registry archives referenced by the valid local catalog are
+retained; an archive is eligible only when that catalog is readable and proves
+that no package references it. A missing, malformed, or partially invalid
+catalog fails closed and authorizes no archive deletion. The displayed byte
 result is the logical size of files removed; filesystem allocation and
 operating-system caches can make the change in free disk space differ.
+
+Database-update backups are managed separately from safe cleanup and are shown
+only while they exist. The UI reports their latest creation time and warns that
+deleting them removes the ability to return to the pre-update data. Room ledger
+events, Agent events, and execution records are read-only storage accounting;
+the consumer settings page does not expose deletion controls for them.
 
 The desktop bounds current main, Bridge, and Bridge-crash logs to 10 MiB each
 and keeps two rotated files per log. Cleanup removes rotated logs but retains

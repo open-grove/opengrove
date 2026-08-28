@@ -7,6 +7,10 @@ import { rawDiagnosticText, useI18n, type TranslationFn } from "../../i18n";
 import { useConfirm } from "../ui/confirm-dialog";
 import { ProductIcon } from "../ui/product-icon";
 import {
+  parseSettingsStorageCleanupResponse,
+  parseSettingsStorageHistoryResponse,
+  parseSettingsStorageMaintenanceEndResponse,
+  parseSettingsStorageMaintenanceStartResponse,
   parseSettingsStorageResponse,
   settingsStorageCategoryIds,
   settingsStorageCategoryBytes,
@@ -101,16 +105,24 @@ export function SettingsDesktopPanel() {
     }
   }
 
-  async function cleanupStorage() {
+  async function clearStorageHistory(scope: "migration-backups") {
+    if (
+      (await confirm({
+        title: t("confirm.clearMigrationBackupsTitle"),
+        body: t("confirm.clearMigrationBackupsBody"),
+        confirmLabel: t("common.confirm"),
+        danger: true,
+      })) !== "primary"
+    )
+      return;
     setStorageBusy(true);
     setStorageError("");
     setStorageNotice("");
     try {
-      const response = await postJson<{
-        ok: true;
-        cleanup?: { reclaimedBytes?: number };
-      }>("/settings/storage/cleanup", {});
-      setStorageNotice(storageCleanupNotice(response.cleanup?.reclaimedBytes, t));
+      const response = parseSettingsStorageHistoryResponse(
+        await postJson<unknown>("/settings/storage/clear-history", { scope }),
+      );
+      setStorageNotice(t("settings.storageMigrationBackupsDeleted", { size: formatBytes(response.reclaimedBytes) }));
       await refreshStorage();
     } catch (innerError) {
       setStorageError(innerError instanceof Error ? innerError.message : String(innerError));
@@ -119,52 +131,44 @@ export function SettingsDesktopPanel() {
     }
   }
 
-  async function clearStorageHistory(
-    scope: "runtime-events" | "room-event-archive" | "rebuildable-caches" | "migration-backups",
-  ) {
-    const prompts = {
-      "runtime-events": {
-        title: t("confirm.clearRuntimeEventsTitle"),
-        body: t("confirm.clearRuntimeEventsBody"),
-      },
-      "room-event-archive": {
-        title: t("confirm.clearRoomArchiveTitle"),
-        body: t("confirm.clearRoomArchiveBody"),
-      },
-      "rebuildable-caches": {
-        title: t("confirm.clearCachesTitle"),
-        body: t("confirm.clearCachesBody"),
-      },
-      "migration-backups": {
-        title: t("confirm.clearMigrationBackupsTitle"),
-        body: t("confirm.clearMigrationBackupsBody"),
-      },
-    } as const;
-    if ((await confirm({ ...prompts[scope], confirmLabel: t("common.confirm"), danger: true })) !== "primary") return;
+  async function safeCleanupStorage() {
+    if (
+      (await confirm({
+        title: t("confirm.safeStorageCleanupTitle"),
+        body: t("confirm.safeStorageCleanupBody"),
+        confirmLabel: t("common.confirm"),
+        danger: true,
+      })) !== "primary"
+    )
+      return;
     setStorageBusy(true);
     setStorageError("");
     setStorageNotice("");
     try {
-      if (scope === "rebuildable-caches" && desktop?.cleanupRebuildableStorage) {
+      if (desktop?.cleanupRebuildableStorage) {
         const result = await desktop.cleanupRebuildableStorage();
         setStorageNotice(storageCleanupNotice(result.reclaimedBytes, t, result.updaterCacheSkipped));
-        await refreshStorage();
-        return;
+      } else {
+        const { leaseId } = parseSettingsStorageMaintenanceStartResponse(
+          await postJson<unknown>("/settings/storage/maintenance/start", {}),
+        );
+        try {
+          const unreferenced = parseSettingsStorageCleanupResponse(
+            await postJson<unknown>("/settings/storage/cleanup", { leaseId }),
+          );
+          const rebuildable = parseSettingsStorageHistoryResponse(
+            await postJson<unknown>("/settings/storage/clear-history", { scope: "rebuildable-caches", leaseId }),
+          );
+          setStorageNotice(storageCleanupNotice(unreferenced.reclaimedBytes + rebuildable.reclaimedBytes, t));
+        } finally {
+          parseSettingsStorageMaintenanceEndResponse(
+            await postJson<unknown>("/settings/storage/maintenance/end", { leaseId }),
+          );
+        }
       }
-      const response = await postJson<{
-        ok: true;
-        cleanup?: { reclaimedBytes?: number };
-      }>("/settings/storage/clear-history", { scope });
-      setStorageNotice(storageCleanupNotice(response.cleanup?.reclaimedBytes, t));
       await refreshStorage();
     } catch (innerError) {
-      setStorageError(
-        scope === "rebuildable-caches"
-          ? rebuildableCleanupError(innerError, t)
-          : innerError instanceof Error
-            ? innerError.message
-            : String(innerError),
-      );
+      setStorageError(storageCleanupError(innerError, t));
     } finally {
       setStorageBusy(false);
     }
@@ -197,7 +201,6 @@ export function SettingsDesktopPanel() {
     return (
       <div className="settings-page-stack">
         <StoragePanel
-          stats={storage}
           overview={storageOverview}
           cleanupEstimates={storageCleanupEstimates}
           busy={storageBusy}
@@ -205,7 +208,7 @@ export function SettingsDesktopPanel() {
           notice={storageNotice}
           onBack={() => setPage("overview")}
           onRefresh={refreshStorage}
-          onCleanup={cleanupStorage}
+          onCleanup={safeCleanupStorage}
           onClearHistory={clearStorageHistory}
         />
       </div>
@@ -381,7 +384,6 @@ function runtimeSummary(
 // ===== Storage management =====
 
 function StoragePanel(props: {
-  stats?: SettingsStorageStats;
   overview?: SettingsStorageOverview;
   cleanupEstimates?: SettingsStorageCleanupEstimates;
   busy: boolean;
@@ -390,15 +392,13 @@ function StoragePanel(props: {
   onBack(): void;
   onRefresh(): Promise<void>;
   onCleanup(): Promise<void>;
-  onClearHistory(
-    scope: "runtime-events" | "room-event-archive" | "rebuildable-caches" | "migration-backups",
-  ): Promise<void>;
+  onClearHistory(scope: "migration-backups"): Promise<void>;
 }) {
   const { t } = useI18n();
-  const categories = [...(props.stats?.categories ?? [])].sort(
-    (left, right) => right.payloadBytes + right.referencedBlobBytes - left.payloadBytes - left.referencedBlobBytes,
+  const visibleStorageCategoryIds = settingsStorageCategoryIds.filter(
+    (id) => id !== "backups" || (props.cleanupEstimates?.migrationBackupBytes ?? 0) > 0,
   );
-  const storageSegments = settingsStorageCategoryIds.map((id) => ({
+  const storageSegments = visibleStorageCategoryIds.map((id) => ({
     label: storageOverviewCategoryLabel(id, t),
     bytes: settingsStorageCategoryBytes(props.overview, id),
   }));
@@ -442,11 +442,11 @@ function StoragePanel(props: {
         </div>
       </div>
       <div className="settings-storage-grid">
-        {settingsStorageCategoryIds.map((id) => (
+        {visibleStorageCategoryIds.map((id) => (
           <StorageCard
             key={id}
             label={storageOverviewCategoryLabel(id, t)}
-            description={storageOverviewCategoryDescription(id, t)}
+            description={storageOverviewCategoryDescription(id, t, props.overview)}
             value={formatBytes(settingsStorageCategoryBytes(props.overview, id))}
           />
         ))}
@@ -454,67 +454,25 @@ function StoragePanel(props: {
       <div className="settings-storage-subheading">{t("settings.storageMaintenance")}</div>
       <div className="settings-list settings-storage-list">
         <DesktopActionRow
-          label={t("settings.storageCleanOrphans")}
-          description={`${t("settings.storageCleanOrphansCopy")} ${t("settings.storageCleanupEstimate", {
-            size: formatBytes(props.cleanupEstimates?.unreferencedFilesBytes ?? 0),
+          label={t("settings.storageSafeCleanup")}
+          description={`${t("settings.storageSafeCleanupCopy")} ${t("settings.storageCleanupEstimateMaximum", {
+            size: formatBytes(props.cleanupEstimates?.safeCleanupBytes ?? 0),
           })}`}
-          actionLabel={props.busy ? t("settings.storageCleaning") : t("settings.storageCleanOrphans")}
-          disabled={props.busy || !props.stats?.orphanBlobBytes}
+          actionLabel={props.busy ? t("settings.storageCleaning") : t("settings.storageSafeCleanup")}
+          disabled={props.busy || !(props.cleanupEstimates?.safeCleanupBytes ?? 0)}
           onAction={() => void props.onCleanup()}
         />
-        <DesktopActionRow
-          label={t("settings.storageCleanCaches")}
-          description={`${t("settings.storageRebuildableCopy")} ${t("settings.storageCleanupEstimateMaximum", {
-            size: formatBytes(props.cleanupEstimates?.rebuildableBytes ?? 0),
-          })}`}
-          actionLabel={t("settings.storageCleanCaches")}
-          disabled={props.busy}
-          onAction={() => void props.onClearHistory("rebuildable-caches")}
-        />
-        <DesktopActionRow
-          label={t("settings.storageMigrationBackups")}
-          description={`${t("settings.storageMigrationBackupsCopy")} ${t("settings.storageCleanupEstimate", {
-            size: formatBytes(props.cleanupEstimates?.migrationBackupBytes ?? 0),
-          })}`}
-          actionLabel={t("settings.storageDeleteMigrationBackups")}
-          tone="danger"
-          disabled={props.busy || !props.stats?.migrationBackupBytes}
-          onAction={() => void props.onClearHistory("migration-backups")}
-        />
-      </div>
-      <details className="settings-storage-advanced">
-        <summary>{t("settings.storageAdvancedDetails")}</summary>
-        <p className="settings-help">{t("settings.storageAdvancedDetailsCopy")}</p>
-        <div className="settings-list settings-storage-list">
-          <DesktopInfoRow label={t("settings.storageDatabase")} value={formatBytes(props.stats?.databaseBytes ?? 0)} />
-          <DesktopInfoRow label={t("settings.storageBlobFiles")} value={formatBytes(props.stats?.blobBytes ?? 0)} />
+        {(props.cleanupEstimates?.migrationBackupBytes ?? 0) > 0 ? (
           <DesktopActionRow
-            label={t("settings.storageTrimRoomArchive")}
-            description={t("settings.storageRoomArchiveCopy")}
-            actionLabel={t("settings.storageTrimRoomArchive")}
-            disabled={props.busy}
-            onAction={() => void props.onClearHistory("room-event-archive")}
-          />
-          <DesktopActionRow
-            label={t("settings.storageClearRuntimeEvents")}
-            description={t("settings.storageRuntimeEventsCopy")}
-            actionLabel={t("settings.storageClearRuntimeEvents")}
+            label={t("settings.storageMigrationBackups")}
+            description={`${t("settings.storageMigrationBackupsCopy")} ${backupKindSummary(props.overview, t)}`}
+            actionLabel={t("settings.storageDeleteMigrationBackups")}
             tone="danger"
             disabled={props.busy}
-            onAction={() => void props.onClearHistory("runtime-events")}
+            onAction={() => void props.onClearHistory("migration-backups")}
           />
-          {categories.slice(0, 8).map((category) => (
-            <DesktopInfoRow
-              key={category.collection}
-              label={storageCategoryLabel(category.collection, t)}
-              value={t("settings.storageCategoryValue", {
-                records: category.records,
-                size: formatBytes(category.payloadBytes + category.referencedBlobBytes),
-              })}
-            />
-          ))}
-        </div>
-      </details>
+        ) : null}
+      </div>
       {props.error ? <p className="settings-warning">{rawDiagnosticText(props.error)}</p> : null}
       {props.notice ? <p className="settings-success">{props.notice}</p> : null}
     </section>
@@ -575,22 +533,35 @@ function storageOverviewCategoryLabel(id: SettingsStorageCategoryId, t: Translat
   return t("settings.storageCategoryConversationsAndSystem");
 }
 
-function storageOverviewCategoryDescription(id: SettingsStorageCategoryId, t: TranslationFn): string {
+function storageOverviewCategoryDescription(
+  id: SettingsStorageCategoryId,
+  t: TranslationFn,
+  overview?: SettingsStorageOverview,
+): string {
   if (id === "works-and-files") return t("settings.storageCategoryWorksAndFilesCopy");
   if (id === "apps-and-runtime") return t("settings.storageCategoryAppsAndRuntimeCopy");
   if (id === "rebuildable") return t("settings.storageCategoryRebuildableCopy");
-  if (id === "backups") return t("settings.storageCategoryBackupsCopy");
+  if (id === "backups") {
+    const migrationBackups = overview?.backups.filter((backup) => backup.kind === "migration") ?? [];
+    const latest = migrationBackups[0];
+    if (!latest) return t("settings.storageCategoryBackupsCopy");
+    return `${t("settings.storageCategoryBackupsCopy")} ${t("settings.storageBackupSummary", {
+      count: migrationBackups.length,
+      reason: t("settings.storageBackupReasonMigration"),
+      time: formatDateTime(latest.createdAt),
+    })}`;
+  }
   return t("settings.storageCategoryConversationsAndSystemCopy");
 }
 
-function storageCategoryLabel(collection: string, t: TranslationFn): string {
-  if (collection === "room_messages") return t("settings.storageCategoryRoomMessages");
-  if (collection === "room_events") return t("settings.storageCategoryRoomEvents");
-  if (collection === "executions") return t("settings.storageCategoryExecutions");
-  if (collection === "agent_events") return t("settings.storageCategoryAgentEvents");
-  if (collection === "artifacts") return t("source.kind.artifacts");
-  if (collection === "knowledge") return t("settings.storageCategoryKnowledge");
-  return collection;
+function backupKindSummary(overview: SettingsStorageOverview | undefined, t: TranslationFn): string {
+  const backups = overview?.backups.filter((backup) => backup.kind === "migration") ?? [];
+  const latest = backups[0];
+  if (!latest) return t("settings.storageBackupNone");
+  return t("settings.storageBackupKindSummary", {
+    count: backups.length,
+    time: formatDateTime(latest.createdAt),
+  });
 }
 
 function formatBytes(bytes: number): string {
@@ -614,7 +585,7 @@ function storageCleanupNotice(
     : t("settings.storageCleanupCompleted");
 }
 
-function rebuildableCleanupError(error: unknown, t: TranslationFn): string {
+function storageCleanupError(error: unknown, t: TranslationFn): string {
   const message = error instanceof Error ? error.message : String(error);
   if (message.startsWith("desktop_storage_maintenance_active_runs:")) {
     return t("settings.storageCleanupErrorActiveRuns");
