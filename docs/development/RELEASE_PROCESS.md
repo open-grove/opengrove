@@ -70,6 +70,23 @@ gh workflow run desktop-release.yml --ref main \
   -f platforms=all
 ```
 
+For the first public release only, dispatch `v0.6.6` with the explicit
+one-time bootstrap input:
+
+```bash
+gh workflow run desktop-release.yml --ref main \
+  -f ref=<current-main-commit> \
+  -f platforms=all \
+  -f first_public_release=true
+```
+
+This path is accepted only while the public repository has no GitHub Release
+and the candidate tag is exactly `v0.6.6`. It downloads the reviewed `v0.6.5`
+production installers from the protected release root and verifies their fixed
+file names, sizes, and SHA-256 identities before running the normal N-1 update
+gate. After the first GitHub Release exists, the bootstrap is rejected and
+later candidates automatically use the previous public GitHub Release.
+
 The full workflow checks all of the following before it assembles the immutable
 candidate:
 

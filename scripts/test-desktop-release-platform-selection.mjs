@@ -70,6 +70,8 @@ const workflowSource = readFileSync(workflowPath, "utf8");
 const workflow = loadYaml(workflowSource);
 const jobs = workflow.jobs;
 assert.equal(workflow.on.workflow_dispatch.inputs.platforms.default, "all");
+assert.equal(workflow.on.workflow_dispatch.inputs.first_public_release.default, false);
+assert.equal(workflow.on.workflow_dispatch.inputs.first_public_release.type, "boolean");
 assert.match(
   jobs["resolve-candidate"].steps.find((step) => step.id === "platforms").run,
   /desktop-release-platform-selection\.mjs/,
@@ -79,6 +81,10 @@ assert.match(jobs["mac-release"].strategy.matrix.include, /fromJSON.*mac_matrix/
 assert.match(jobs["windows-release"].if, /run_windows/);
 assert.match(jobs["release-gates"].if, /full_candidate/);
 assert.ok(jobs["partial-platform-summary"]);
+assert.match(
+  jobs["resolve-candidate"].steps.find((step) => step.id === "candidate").run,
+  /public-release-bootstrap\.mjs/,
+);
 
 const cacheStep = jobs["mac-release"].steps.find((step) => step.uses === "actions/cache@v4");
 assert.ok(cacheStep, "macOS release jobs must cache Electron downloads");

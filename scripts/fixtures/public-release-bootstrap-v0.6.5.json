@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "firstPublicReleaseTag": "v0.6.6",
+  "previousReleaseTag": "v0.6.5",
+  "assets": {
+    "mac-arm64": {
+      "file": "OpenGrove-0.6.5-mac-arm64.dmg",
+      "size": 226870743,
+      "sha256": "b344fc75408fe53e10c8b2d703e6037661ac12f54c8cdba46c65c584de93a62e"
+    },
+    "mac-x64": {
+      "file": "OpenGrove-0.6.5-mac-x64.dmg",
+      "size": 235267157,
+      "sha256": "ec5b7b4b788df2dcde615cda04d170092cb6b61b46fe51c2cf6951239da05418"
+    },
+    "windows-x64": {
+      "file": "OpenGrove-0.6.5-win-x64.exe",
+      "size": 182892429,
+      "sha256": "ee4e52c193f0bbcd7a52ef4127f7ba321a9bc97ffe1109acfb2c1dfab8b314f4"
+    }
+  }
+}

@@ -496,16 +496,23 @@ function testDesktopReleaseWorkflow() {
   assert.match(releaseGates, /needs\.golden-replay\.result == 'success'/);
   assert.match(workflow, /opengrove-\$\{\{ env\.CANDIDATE_ID \}\}-gated-candidate/);
   assert.match(workflow, /release-source\/windows-x64\.json/);
+  assert.match(workflow, /first_public_release:/);
+  assert.match(workflow, /first_public_release is disabled after the first public GitHub Release exists/);
+  assert.match(workflow, /public-release-bootstrap\.mjs download/);
+  assert.match(workflow, /vars\.OPENGROVE_DESKTOP_RELEASE_PUBLIC_ROOT/);
   assert.doesNotMatch(workflow, /npm run dist:desktop:release/);
   const finalizer = readFileSync(
     join(projectRoot, ".github", "workflows", "desktop-release-finalize.yml"),
     "utf8",
   ).replace(/\r\n/g, "\n");
+  const finalizerJobHeader = finalizer.slice(finalizer.indexOf("  finalize:"), finalizer.indexOf("    steps:"));
+  assert.match(finalizerJobHeader, /environment: desktop-release/);
   assert.match(finalizer, /candidate_run_id:/);
   assert.match(finalizer, /test "\$workflow_path" = '\.github\/workflows\/desktop-release\.yml'/);
   assert.match(finalizer, /git merge-base --is-ancestor "\$commit" origin\/main/);
   assert.match(finalizer, /verify-desktop-release-candidate\.mjs/);
   assert.match(finalizer, /--current-release-tag "\$current_release_tag"/);
+  assert.match(finalizer, /public-release-bootstrap\.mjs previous-tag/);
   assert.doesNotMatch(finalizer, /--previous-release-tag/);
   assert.match(finalizer, /gh run download "\$CANDIDATE_RUN_ID"/);
   assert.match(finalizer, /git config user\.name "github-actions\[bot\]"/);

@@ -6,7 +6,10 @@ to draft `docs/releases/vX.Y.Z.md`.
 
 ## Unreleased
 
+## v0.6.6 - 2026-08-31
+
 - Separate replaceable Store App programs from user-owned Workspaces with a copy-validated, rollback-safe migration that never blocks OpenGrove startup, retains legacy data for recovery, and exports structured layout evidence in the diagnostic bundle.
+- Prepare the public repository for external pull requests and its first formal desktop release, with administrator-owned review, protected finalization, and a checksum-pinned one-time v0.6.5-to-v0.6.6 update bootstrap.
 
 ## v0.6.5 - 2026-08-25
 

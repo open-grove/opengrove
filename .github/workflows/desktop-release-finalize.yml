@@ -28,6 +28,7 @@ jobs:
     name: Mint tag and archive the exact gated bytes
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    environment: desktop-release
     steps:
       - name: Check out trusted finalizer
         uses: actions/checkout@v4
@@ -87,6 +88,9 @@ jobs:
         shell: bash
         run: |
           current_release_tag="$(gh release list --exclude-drafts --exclude-pre-releases --limit 1 --json tagName --jq '.[0].tagName')"
+          if [ -z "$current_release_tag" ]; then
+            current_release_tag="$(node scripts/public-release-bootstrap.mjs previous-tag --expected-tag '${{ inputs.tag }}')"
+          fi
           node scripts/verify-desktop-release-candidate.mjs \
             --release-dir release/desktop \
             --commit '${{ steps.candidate.outputs.commit }}' \
