@@ -1,0 +1,300 @@
+.room-group-avatar {
+  display: grid;
+  place-items: center;
+  font-weight: var(--fw-semibold);
+  line-height: 1;
+  letter-spacing: 0;
+  text-transform: uppercase;
+  overflow: hidden;
+}
+
+.room-group-avatar:not(.grove-avatar) {
+  background: var(--room-group-avatar-bg);
+  color: var(--room-group-avatar-fg);
+  box-shadow: inset 0 0 0 1px var(--room-group-avatar-border);
+}
+
+.room-group-avatar:not(.grove-avatar) svg {
+  width: 62%;
+  height: 62%;
+  stroke-width: 2.15;
+}
+
+.room-group-avatar.has-members {
+  --room-avatar-stack-item-size: var(--sp-5);
+  --room-avatar-stack-overlap: var(--sp-2);
+  display: flex;
+  width: max-content;
+  height: var(--room-avatar-stack-item-size);
+  align-items: center;
+  justify-content: flex-start;
+  overflow: visible;
+  background: transparent;
+  box-shadow: none;
+  padding: 0;
+}
+
+.room-group-avatar.has-members .room-group-avatar-stack {
+  --avatar-group-overlap: var(--room-avatar-stack-overlap);
+  --avatar-ring-color: var(--og-surface);
+  width: max-content;
+  height: var(--room-avatar-stack-item-size);
+  overflow: visible;
+}
+
+.room-group-avatar-stack > .room-group-avatar-member,
+.room-group-avatar-stack > .room-group-avatar-count {
+  --avatar-size: var(--room-avatar-stack-item-size);
+  width: var(--room-avatar-stack-item-size);
+  height: var(--room-avatar-stack-item-size);
+  border-radius: var(--r-pill);
+}
+
+.room-group-avatar-stack > .room-group-avatar-member {
+  overflow: visible;
+  background: transparent;
+}
+
+.room-group-avatar-stack > .room-group-avatar-count {
+  overflow: hidden;
+  background: var(--c-surface-hover);
+  color: var(--og-text-muted);
+  font-size: var(--fs-2xs);
+  font-weight: var(--fw-medium);
+  letter-spacing: -0.04em;
+  white-space: nowrap;
+}
+
+.room-group-avatar-member.grove-avatar {
+  color: var(--rooms-text);
+}
+
+.room-group-avatar-member.grove-avatar svg {
+  width: 74%;
+  height: 74%;
+}
+
+.rooms-room-avatar.room-group-avatar {
+  font-size: var(--fs-base);
+}
+
+.rooms-list-item:has(> .room-group-avatar.has-members) {
+  grid-template-columns: var(--sp-10) minmax(0, 1fr) auto;
+}
+
+.rooms-list-item .rooms-room-avatar.room-group-avatar.has-members {
+  --room-avatar-stack-item-size: var(--sp-4);
+  --room-avatar-stack-overlap: var(--sp-1);
+  width: var(--sp-10);
+  height: var(--sp-4);
+}
+
+.rooms-kernel-result .rooms-room-avatar.room-group-avatar.has-members {
+  --room-avatar-stack-item-size: var(--sp-4);
+  --room-avatar-stack-overlap: var(--sp-1);
+  width: var(--sp-10);
+  height: var(--sp-4);
+}
+
+.room-header-avatar.room-group-avatar {
+  font-size: var(--section-sidebar-room-header-avatar-font-size);
+}
+
+.room-header-avatar.rooms-avatar {
+  --avatar-badge-size: var(--sp-2-5);
+  overflow: visible;
+  border-radius: var(--r-pill);
+}
+
+.room-header-avatar.room-group-avatar.has-members {
+  --room-avatar-stack-item-size: var(--sp-5);
+  --room-avatar-stack-overlap: var(--sp-2);
+  width: auto;
+  height: var(--sp-5);
+}
+
+.rooms-pin-avatar.room-group-avatar {
+  font-size: var(--fs-lg);
+}
+
+.rooms-pin-avatar.room-group-avatar.has-members {
+  --room-avatar-stack-item-size: var(--sp-4);
+  --room-avatar-stack-overlap: var(--sp-1);
+  width: var(--sp-10);
+  height: var(--sp-4);
+}
+
+.rooms-group-profile-icon.room-group-avatar {
+  font-size: var(--fs-md);
+}
+
+.rooms-group-profile-card:has(.room-group-avatar.has-members) {
+  grid-template-columns: var(--sp-10) minmax(0, 1fr);
+}
+
+.rooms-group-profile-icon.room-group-avatar.has-members {
+  --room-avatar-stack-item-size: var(--sp-4);
+  --room-avatar-stack-overlap: var(--sp-1);
+  width: var(--sp-10);
+  height: var(--sp-4);
+}
+
+.rooms-list-item .rooms-room-avatar,
+.rooms-kernel-result .rooms-room-avatar,
+.rooms-list-item .rooms-room-avatar.direct,
+.rooms-kernel-result .rooms-room-avatar.direct {
+  display: grid;
+  width: 22px;
+  height: 22px;
+  place-items: center;
+  overflow: hidden;
+  border-radius: var(--section-sidebar-avatar-radius);
+  background: transparent;
+  box-shadow: none;
+}
+
+.rooms-list-item .rooms-room-avatar.rooms-avatar,
+.rooms-kernel-result .rooms-room-avatar.rooms-avatar {
+  overflow: visible;
+  border-radius: var(--r-pill);
+}
+
+.rooms-list-item .rooms-room-avatar.direct .entity-icon,
+.rooms-kernel-result .rooms-room-avatar.direct .entity-icon {
+  display: grid;
+  width: 22px;
+  height: 22px;
+  place-items: center;
+  overflow: hidden;
+  border: 0;
+  border-radius: var(--section-sidebar-avatar-radius);
+  background: transparent;
+  box-shadow: none;
+}
+
+.rooms-list-item .rooms-room-avatar.direct .entity-icon svg,
+.rooms-kernel-result .rooms-room-avatar.direct .entity-icon svg {
+  width: 16px;
+  height: 16px;
+  max-width: 16px;
+  max-height: 16px;
+  flex: none;
+}
+
+.contacts-nav-panel .rooms-icon-button,
+.rooms-list-panel .rooms-icon-button {
+  width: 26px;
+  height: 26px;
+  border-radius: var(--r-sm);
+}
+
+.contacts-section-tree {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.contacts-section-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 28px;
+  gap: 2px;
+  align-items: center;
+  border-radius: var(--r-sm);
+}
+
+.contacts-section-row:hover,
+.contacts-section-row:focus-within,
+.contacts-section-row[data-active="true"] {
+  background: var(--og-section-active);
+}
+
+.contacts-section-toggle {
+  grid-template-columns: 22px minmax(0, 1fr) 18px;
+}
+
+.contacts-section-row .contacts-section-toggle,
+.contacts-section-row .contacts-section-search-toggle {
+  background: transparent;
+}
+
+.contacts-section-chevron {
+  justify-self: center;
+  color: var(--og-section-muted);
+  transition: transform var(--motion-fast) var(--motion-ease);
+}
+
+.contacts-section-toggle[aria-expanded="true"] .contacts-section-chevron {
+  transform: rotate(180deg);
+}
+
+.contacts-section-search-toggle {
+  display: grid;
+  grid-template-columns: none;
+  place-items: center;
+  width: 26px;
+  min-height: 26px;
+  border-radius: var(--section-sidebar-search-radius);
+  color: var(--og-section-muted);
+  padding: 0;
+}
+
+.contacts-section-search-toggle:hover,
+.contacts-section-search-toggle:focus-visible,
+.contacts-section-search-toggle[data-active="true"] {
+  background: var(--og-section-hover);
+  color: var(--og-section-text);
+}
+
+.contacts-sidebar-directory {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 8px;
+  min-height: 0;
+  padding: 0;
+}
+
+.contacts-nav-section-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 18px;
+}
+
+.contacts-nav-section-label small {
+  color: var(--og-section-muted);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-normal);
+  white-space: nowrap;
+}
+
+.contacts-sidebar-directory .contacts-search {
+  min-height: 32px;
+}
+
+.contacts-search-clear {
+  display: grid;
+  grid-template-columns: none;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  min-height: 22px;
+  border-radius: var(--section-sidebar-avatar-radius);
+  color: var(--og-section-muted);
+  padding: 0;
+}
+
+.contacts-search-clear:hover,
+.contacts-search-clear:focus-visible {
+  background: var(--og-section-active);
+  color: var(--og-section-text);
+}
+
+.contacts-detail-layout {
+  min-height: 0;
+  overflow: auto;
+}
+
+.contacts-detail-layout .contacts-detail-panel {
+  min-height: 100%;
+  width: 100%;
+}

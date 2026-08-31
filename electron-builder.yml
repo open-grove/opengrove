@@ -1,0 +1,114 @@
+appId: cn.opengrove.desktop
+productName: OpenGrove
+protocols:
+  - name: OpenGrove
+    schemes:
+      - opengrove
+copyright: Copyright © 2026 OpenGrove
+directories:
+  output: release/desktop
+extraMetadata:
+  main: desktop-dist/main.cjs
+  opengroveOfficialRelease: false
+files:
+  - package.json
+  - dist/**/*
+  - web-dist/**/*
+  - desktop-dist/**/*
+  - src/skills/bundled/**/*
+  - assets/**/*
+  - LICENSE
+  - NOTICE
+  - THIRD_PARTY_NOTICES.md
+  - "!data/**"
+  - "!release/**"
+  - "!.git/**"
+  - "!.opengrove/**"
+  - "!.codex/**"
+  - "!.claude/**"
+  - "!docs/**"
+  - "!dist/examples/**"
+  - "!dist/tests/**"
+  - "!dist/**/*.map"
+  # Third-party package contents use electron-builder's top-level defaults.
+  # Recursive node_modules exclusions can remove runtime files from nested
+  # test/doc directories, so custom exclusions are limited to owned paths.
+  - "!assets/**/*.md"
+  - "!**/.DS_Store"
+  - "!**/.env"
+  - "!**/.env.*"
+  - "!**/*.pem"
+  - "!**/*.key"
+asar: true
+electronFuses:
+  # The packaged Bridge forks the Electron executable with ELECTRON_RUN_AS_NODE
+  # because the distribution does not ship a second Node binary. Keep this
+  # explicit exception until that runtime is split out; the CLI inspector and
+  # NODE_OPTIONS entry points remain disabled and app code is ASAR-only below.
+  runAsNode: true
+  enableCookieEncryption: false
+  enableNodeOptionsEnvironmentVariable: false
+  enableNodeCliInspectArguments: false
+  enableEmbeddedAsarIntegrityValidation: true
+  onlyLoadAppFromAsar: true
+  # Electron does not ship browser_v8_context_snapshot.bin in its standard
+  # distribution. Enabling this fuse without a separately generated snapshot
+  # makes the signed app abort before main.ts runs.
+  loadBrowserProcessSpecificV8Snapshot: false
+  grantFileProtocolExtraPrivileges: false
+asarUnpack:
+  - "**/node_modules/@anthropic-ai/claude-agent-sdk-*/**"
+extraResources:
+  - from: build/app-update.yml
+    to: app-update.yml
+publish:
+  - provider: generic
+    url: https://desktop-updates.invalid/
+mac:
+  category: public.app-category.productivity
+  icon: build/icon.icns
+  files:
+    # A positive platform matcher prevents electron-builder from adding an
+    # implicit **/* matcher before these architecture exclusions.
+    - package.json
+    - "!node_modules/@anthropic-ai/claude-agent-sdk-darwin-!(${arch})/**"
+    - "!node_modules/@anthropic-ai/claude-agent-sdk-win32-*/**"
+    - "!node_modules/@anthropic-ai/claude-agent-sdk-linux-*/**"
+  # Development packages need a complete ad-hoc signature so macOS can run
+  # the packaged Bridge during artifact verification. Formal releases delete
+  # this override and require a Developer ID identity instead.
+  identity: "-"
+  hardenedRuntime: false
+  gatekeeperAssess: false
+  notarize: false
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.inherit.plist
+  target:
+    - dmg
+    - zip
+win:
+  icon: build/icon.ico
+  files:
+    - package.json
+    - "!node_modules/@anthropic-ai/claude-agent-sdk-win32-!(${arch})/**"
+    - "!node_modules/@anthropic-ai/claude-agent-sdk-darwin-*/**"
+    - "!node_modules/@anthropic-ai/claude-agent-sdk-linux-*/**"
+  target:
+    - nsis
+linux:
+  category: Utility
+  maintainer: OpenGrove
+  files:
+    - package.json
+    - "!node_modules/@anthropic-ai/claude-agent-sdk-linux-!(${arch})/**"
+    - "!node_modules/@anthropic-ai/claude-agent-sdk-darwin-*/**"
+    - "!node_modules/@anthropic-ai/claude-agent-sdk-win32-*/**"
+  target:
+    - AppImage
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  include: build/installer.nsh
+  installerIcon: build/icon.ico
+  uninstallerIcon: build/icon.ico

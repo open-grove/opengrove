@@ -1,0 +1,21 @@
+{
+  "manifest_version": 3,
+  "name": "OpenGrove Companion",
+  "version": "0.1.0",
+  "description": "Send selected page context into OpenGrove.",
+  "host_permissions": ["<all_urls>"],
+  "permissions": ["clipboardWrite", "storage", "activeTab", "scripting"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content-script.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_title": "OpenGrove Browser Adapter"
+  }
+}

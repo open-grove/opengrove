@@ -1,0 +1,31 @@
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities) source("./");
+@import "./styles/tokens.css";
+@import "./styles/reset.css";
+@import "./styles/primitives.css";
+@import "./styles/base/document.css";
+
+/* Keep OpenGrove's reset and token contract canonical. Tailwind contributes
+   opt-in utilities only; Preflight is intentionally not imported. */
+@theme inline {
+  --color-*: initial;
+  --color-background: var(--c-bg);
+  --color-foreground: var(--c-text);
+  --color-card: var(--c-surface);
+  --color-card-foreground: var(--c-text);
+  --color-popover: var(--c-popover-solid);
+  --color-popover-foreground: var(--c-text);
+  --color-primary: var(--c-accent-solid);
+  --color-primary-foreground: var(--og-white);
+  --color-secondary: var(--c-surface-hover);
+  --color-secondary-foreground: var(--c-text);
+  --color-muted: var(--c-surface-hover);
+  --color-muted-foreground: var(--c-muted);
+  --color-accent: var(--c-accent-soft);
+  --color-accent-foreground: var(--c-text);
+  --color-destructive: var(--c-error-solid);
+  --color-destructive-foreground: var(--og-white);
+  --color-border: var(--c-border-strong);
+  --color-input: var(--c-surface);
+  --color-ring: var(--c-focus-ring);
+}

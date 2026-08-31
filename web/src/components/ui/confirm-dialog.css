@@ -1,0 +1,11 @@
+.confirm-dialog {
+  width: min(420px, 100%);
+}
+
+.confirm-dialog-body {
+  color: var(--c-text-2);
+  font-size: var(--fs-base);
+  line-height: var(--lh-normal);
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}

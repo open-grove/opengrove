@@ -1,0 +1,195 @@
+.chat-view {
+  position: relative;
+  background: transparent;
+}
+
+.chat-frame-controls {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  z-index: 24;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Reserve clearance below the floating controls so the first message
+   (right-aligned user bubbles especially) never sits underneath them. */
+.chat-view[data-empty="false"] .thread.chat-thread-scroll {
+  padding-top: 64px;
+}
+
+.topbar-icon-button {
+  display: inline-grid;
+  place-items: center;
+  width: 36px;
+  height: 34px;
+  border: 1px solid var(--og-border);
+  border-radius: var(--r-lg);
+  background: var(--og-surface);
+  color: var(--og-text-muted);
+  cursor: pointer;
+}
+
+.topbar-icon-button:hover,
+.topbar-icon-button:focus-visible,
+.topbar-icon-button[data-open="true"] {
+  background: var(--og-surface-subtle);
+  color: var(--og-text);
+  outline: 0;
+}
+
+.topbar-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 30px;
+  border: 1px solid var(--og-border);
+  border-radius: var(--r-md);
+  background: var(--og-surface);
+  padding: 0 10px;
+  color: var(--og-text-muted);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+}
+
+button.topbar-runtime-picker {
+  cursor: pointer;
+  font: inherit;
+}
+
+button.topbar-runtime-picker:hover,
+button.topbar-runtime-picker:focus-visible,
+button.topbar-runtime-picker[aria-expanded="true"] {
+  background: var(--og-surface-subtle);
+  color: var(--og-text);
+  outline: 0;
+}
+
+.topbar-runtime-provider {
+  max-width: calc(var(--sp-10) * 3 + var(--sp-7) + var(--sp-0-5));
+  overflow: hidden;
+  color: var(--og-text-soft);
+  font-weight: var(--fw-normal);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.topbar-runtime-provider::before {
+  content: "\00b7";
+  margin-right: var(--sp-2);
+}
+
+.topbar-runtime-chevron {
+  flex: 0 0 auto;
+  color: var(--og-text-soft);
+  transition: transform var(--motion-fast) var(--motion-ease);
+}
+
+.topbar-runtime-picker[aria-expanded="true"] .topbar-runtime-chevron {
+  transform: rotate(180deg);
+}
+
+.direct-kernel-runtime-popover {
+  z-index: 80;
+  display: grid;
+  overflow: hidden;
+  border: 1px solid var(--og-border);
+  border-radius: var(--r-lg);
+  background: var(--og-surface);
+  box-shadow: var(--shadow-lg);
+  padding: var(--sp-2);
+}
+
+.direct-kernel-runtime-group {
+  display: grid;
+  gap: var(--sp-1);
+  padding: var(--sp-1) 0;
+}
+
+.direct-kernel-runtime-group + .direct-kernel-runtime-group {
+  border-top: 1px solid var(--og-border);
+  margin-top: var(--sp-1);
+  padding-top: var(--sp-2-5);
+}
+
+.direct-kernel-runtime-group h3 {
+  margin: 0;
+  padding: 0 var(--sp-2) var(--sp-1);
+  color: var(--og-text-muted);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-medium);
+}
+
+.direct-kernel-runtime-options {
+  display: grid;
+  gap: var(--sp-0-5);
+}
+
+.direct-kernel-runtime-option {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) calc(var(--sp-4) + var(--sp-0-5));
+  min-height: var(--control-height);
+  align-items: center;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--og-text);
+  cursor: pointer;
+  padding: var(--sp-1-5) var(--sp-2);
+  text-align: left;
+  font: inherit;
+  font-size: var(--fs-sm);
+}
+
+.direct-kernel-runtime-option:hover,
+.direct-kernel-runtime-option:focus-visible,
+.direct-kernel-runtime-option.selected {
+  background: var(--c-fill-strong);
+  outline: 0;
+}
+
+.direct-kernel-runtime-option svg {
+  color: var(--og-accent);
+}
+
+.direct-kernel-runtime-option:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.topbar-kernel-icon {
+  width: 18px;
+  height: 18px;
+  margin-left: -3px;
+  border: 0;
+  border-radius: var(--topbar-kernel-icon-radius);
+}
+
+.chat-view[data-empty="true"] .conversation {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  overflow: auto;
+  padding: clamp(58px, 8vh, 104px) 24px clamp(76px, 11vh, 132px);
+  background: transparent;
+}
+
+.chat-view[data-empty="true"] .thread {
+  display: block;
+  width: min(780px, 100%);
+  min-height: auto;
+  overflow: visible;
+  padding: 0 24px;
+}
+
+.chat-view[data-empty="true"] .chat-layout {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+@media (max-width: 900px) {
+  .chat-view[data-empty="true"] .conversation {
+    padding: 0 16px 96px;
+  }
+}

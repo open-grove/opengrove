@@ -1,0 +1,61 @@
+.rooms-onboarding-view {
+  grid-template-columns: minmax(0, 1fr);
+  place-items: center;
+  padding: 10px;
+  /* 空状态在 App 外壳里：用画布底色而不是白卡，读出“内嵌面板”感 */
+  background: var(--c-bg);
+  border-radius: var(--r-lg);
+}
+
+.rooms-loading-view {
+  grid-template-columns: minmax(0, 1fr);
+  place-items: center;
+  background: var(--c-bg);
+  border-radius: var(--r-lg);
+}
+
+.rooms-guide-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-top: 2px;
+}
+
+.rooms-guide-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 36px;
+  border: 1px solid var(--og-border);
+  border-radius: var(--r-sm);
+  background: var(--og-surface);
+  color: var(--rooms-text);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--fs-base);
+  font-weight: var(--fw-semibold);
+  padding: 0 14px;
+}
+
+.room-primary-button:disabled,
+.rooms-guide-secondary:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.rooms-guide-secondary:hover,
+.rooms-guide-secondary:focus-visible {
+  background: var(--og-surface-subtle);
+}
+
+.rooms-runtime-guide {
+  width: min(720px, 100%);
+  justify-self: center;
+  align-self: center;
+  text-align: center;
+}
+
+.rooms-runtime-guide .rooms-guide-avatar svg {
+  color: inherit;
+}

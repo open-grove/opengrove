@@ -1,0 +1,97 @@
+# Build and publish per-kernel agent CI images to GHCR.
+#
+# Each kernel gets its own image so that pinning or updating one engine never
+# entangles another's dependencies. This workflow is manual and single-kernel by
+# design: to update one kernel you pick it here and rebuild only its image.
+#
+# The image already embeds a manifest with the pinned engineVersion (baked by
+# the Dockerfile). After push we know the real image digest, so this workflow
+# records the mapping in the job summary.
+name: Build Agent Images
+
+on:
+  workflow_dispatch:
+    inputs:
+      kernel:
+        description: Kernel image to build
+        required: true
+        type: choice
+        options:
+          - claude-code
+          - codex
+          - pi
+          - opencode
+      engine_version:
+        description: Exact engine version to pin (e.g. 1.18.3)
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: build-agent-image-${{ inputs.kernel }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Resolve image reference
+        id: image
+        shell: bash
+        run: |
+          set -euo pipefail
+          owner="$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')"
+          image="ghcr.io/${owner}/opengrove-agent-${{ inputs.kernel }}"
+          echo "ref=${image}:${{ inputs.engine_version }}" >> "${GITHUB_OUTPUT}"
+
+      - name: Build and push image
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/agents/${{ inputs.kernel }}.Dockerfile
+          build-args: |
+            ENGINE_VERSION=${{ inputs.engine_version }}
+          tags: ${{ steps.image.outputs.ref }}
+          push: true
+          provenance: false
+
+      - name: Verify pinned engine version inside the pushed image
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --rm "${{ steps.image.outputs.ref }}" \
+            bash /opt/opengrove/verify-agent-image-version.sh "${{ inputs.kernel }}"
+
+      - name: Record image digest in job summary
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            echo "## Agent image published"
+            echo ""
+            echo "| field | value |"
+            echo "| --- | --- |"
+            echo "| kernel | ${{ inputs.kernel }} |"
+            echo "| engineVersion | ${{ inputs.engine_version }} |"
+            echo "| image | ${{ steps.image.outputs.ref }} |"
+            echo "| digest | ${{ steps.build.outputs.digest }} |"
+          } >> "${GITHUB_STEP_SUMMARY}"

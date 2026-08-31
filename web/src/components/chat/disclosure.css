@@ -1,0 +1,211 @@
+/* ─────────────────────────────────────────────────────────────────────────
+   Disclosure — the shared collapsible "process group" primitive.
+   Behaviour + motion live here; per-surface scale/colour are layered on by the
+   variant classes (--process / --room-run / --exploration) and the consumers'
+   own stylesheets. Motion uses shared tokens; reset.css's prefers-reduced-motion
+   guard turns the reveal off automatically.
+   ───────────────────────────────────────────────────────────────────────── */
+
+.og-disclosure {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  color: var(--thread-activity-fg);
+}
+
+.og-disclosure-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.og-disclosure-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex: 1 1 auto;
+  min-width: 0;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  padding: 0;
+  color: var(--thread-activity-fg);
+  font: inherit;
+  font-size: var(--thread-body-font-size);
+  line-height: var(--lh-normal);
+  text-align: left;
+  cursor: pointer;
+}
+
+.og-disclosure-toggle:hover,
+.og-disclosure-toggle:focus-visible {
+  color: var(--thread-activity-title-fg);
+  outline: 0;
+}
+
+.og-disclosure-summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  color: var(--thread-activity-title-fg);
+}
+
+.og-disclosure-summary > span:last-child {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.og-disclosure-chevron {
+  flex: 0 0 auto;
+  color: var(--thread-activity-fg);
+  transition:
+    transform var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease);
+}
+
+.og-disclosure[data-open="true"] > .og-disclosure-row .og-disclosure-chevron {
+  transform: rotate(90deg);
+  color: var(--thread-activity-title-fg);
+}
+
+/* Motion Primitives owns the height/opacity transition; this wrapper clips it. */
+.og-disclosure-panel {
+  overflow: hidden;
+}
+
+.og-disclosure-panel-motion {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.og-disclosure-panel-inner {
+  display: grid;
+  gap: 6px;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Sequential reveal: each direct child fades/slides in, offset by its --i index.
+   Children opt in by setting style={{ "--i": n }}; rows without it use --i:0. */
+.og-disclosure[data-open="true"]
+  > .og-disclosure-panel[data-motion-mode="height"]
+  > .og-disclosure-panel-motion
+  > .og-disclosure-panel-inner
+  > * {
+  animation: slide-up var(--dur-normal) var(--ease-entrance) both;
+  animation-delay: calc(var(--i, 0) * var(--dur-stagger));
+}
+
+/* ── Variant: assistant run process timeline (private chat) ── */
+.og-disclosure--process {
+  width: min(760px, 100%);
+  --og-tool-aggregate-max-height: min(46vh, 420px);
+}
+
+/* ── Variant: room run details (group chat) ── */
+.og-disclosure--room-run {
+  gap: 0;
+  width: min(736px, 100%);
+  --og-tool-aggregate-max-height: min(44vh, 360px);
+  color: var(--thread-activity-fg);
+  font-size: var(--thread-body-font-size);
+  line-height: var(--lh-normal);
+}
+
+.og-disclosure--room-run > .og-disclosure-row {
+  position: relative;
+  border-bottom: 1px solid var(--c-line-06);
+  padding-bottom: 5px;
+}
+
+.og-disclosure--room-run > .og-disclosure-panel > .og-disclosure-panel-motion > .og-disclosure-panel-inner {
+  gap: 0;
+  margin-top: var(--sp-4);
+}
+
+/* A single homogeneous tool cluster skips the outer embedded aggregate. Bound
+   that cluster itself, but avoid a second scrollbar when it is already nested
+   inside the bounded heterogeneous aggregate. */
+.og-disclosure--exploration[data-open="true"]:not(
+    .thread-activity-embedded[data-open="true"] .og-disclosure--exploration
+  )
+  > .og-disclosure-panel
+  > .og-disclosure-panel-motion
+  > .og-disclosure-panel-inner {
+  max-height: var(--og-tool-aggregate-max-height, min(44vh, 360px));
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+}
+
+.og-disclosure--room-run .og-disclosure-toggle,
+.og-disclosure--room-run .og-disclosure-summary {
+  color: var(--thread-activity-fg);
+  font-size: var(--thread-body-font-size);
+  line-height: var(--lh-normal);
+}
+
+.og-disclosure--room-run .og-disclosure-toggle {
+  flex: 0 1 auto;
+  justify-content: flex-start;
+  gap: 6px;
+}
+
+/* ── Variant: exploration cluster (nested read/search) ── */
+.og-disclosure--exploration .og-disclosure-toggle {
+  flex: 0 1 auto;
+  justify-content: flex-start;
+  gap: 6px;
+  font-size: var(--thread-body-font-size);
+  line-height: var(--lh-normal);
+}
+
+.og-disclosure--exploration[data-open="false"] {
+  gap: 0;
+}
+
+.og-disclosure--exploration[data-open="false"] .og-disclosure-panel-inner {
+  margin-top: 0;
+}
+
+.og-disclosure--exploration .og-disclosure-chevron {
+  opacity: 0;
+}
+
+.og-disclosure--exploration:hover .og-disclosure-chevron,
+.og-disclosure--exploration .og-disclosure-toggle:focus-visible .og-disclosure-chevron,
+.og-disclosure--exploration[data-open="true"] .og-disclosure-chevron {
+  opacity: 0.9;
+}
+
+.og-disclosure--exploration .og-disclosure-panel-inner {
+  margin-top: 2px;
+  padding-left: 0;
+}
+
+.og-disclosure--exploration .thread-activity-summary-text {
+  color: var(--thread-activity-fg);
+}
+
+.og-disclosure--exploration .og-disclosure-summary .thread-activity-row-icon {
+  color: var(--thread-activity-fg);
+}
+
+.og-disclosure--exploration .og-disclosure-summary .thread-activity-row-icon svg {
+  width: 13px;
+  height: 13px;
+}
+
+.og-disclosure--exploration .thread-activity-row,
+.og-disclosure--exploration .thread-activity-row-title {
+  color: var(--thread-activity-title-fg);
+}
+
+.og-disclosure--exploration .thread-activity-row-icon,
+.og-disclosure--exploration .thread-activity-row-detail {
+  color: var(--thread-activity-detail-fg);
+}

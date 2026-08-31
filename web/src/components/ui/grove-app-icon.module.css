@@ -1,0 +1,102 @@
+.icon {
+  overflow: visible;
+}
+
+.originalIcon :is(path, rect, circle) {
+  stroke-width: 1.9;
+}
+
+.tile {
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: var(--r-lg);
+  background: color-mix(in srgb, var(--c-neutral-300) 38%, var(--c-surface));
+  color: var(--c-neutral-700);
+}
+
+.tile[data-grove-tone="system"] {
+  background: color-mix(in srgb, var(--c-brand-green) 9%, var(--c-surface));
+  color: color-mix(in srgb, var(--c-brand-green) 66%, var(--c-text));
+}
+
+.tile[data-grove-tone="custom"] {
+  background: var(--c-surface-active);
+}
+
+.customImage {
+  display: block;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.tile[data-grove-tone="story"] {
+  background: color-mix(in srgb, var(--c-error) 10%, var(--c-surface));
+  color: color-mix(in srgb, var(--c-error) 76%, var(--c-text));
+}
+
+.tile[data-grove-tone="research"] {
+  background: color-mix(in srgb, var(--c-accent) 10%, var(--c-surface));
+  color: color-mix(in srgb, var(--c-accent) 70%, var(--c-text));
+}
+
+.tile[data-grove-tone="launch"] {
+  background: color-mix(in srgb, var(--c-warning) 11%, var(--c-surface));
+  color: color-mix(in srgb, var(--c-warning) 78%, var(--c-text));
+}
+
+.tile[data-grove-tone="growth"] {
+  background: color-mix(in srgb, var(--c-success) 10%, var(--c-surface));
+  color: color-mix(in srgb, var(--c-success) 76%, var(--c-text));
+}
+
+.tile[data-grove-tone="delivery"] {
+  background: color-mix(in srgb, var(--c-violet) 9%, var(--c-surface));
+  color: color-mix(in srgb, var(--c-violet) 70%, var(--c-text));
+}
+
+.tile[data-grove-tone="media"] {
+  background: color-mix(in srgb, var(--c-violet) 7%, var(--c-error-soft));
+  color: color-mix(in srgb, var(--c-violet) 54%, var(--c-error));
+}
+
+.tile[data-grove-tone="production"] {
+  background: color-mix(in srgb, var(--c-interaction-blue) 9%, var(--c-surface));
+  color: color-mix(in srgb, var(--c-interaction-blue) 68%, var(--c-text));
+}
+
+.tile[data-grove-tone="editorial"] {
+  background: color-mix(in srgb, var(--c-warning) 9%, var(--c-surface));
+  color: color-mix(in srgb, var(--c-warning) 64%, var(--c-text));
+}
+
+.tile[data-grove-tone="library"] {
+  background: color-mix(in srgb, var(--c-neutral-500) 10%, var(--c-surface));
+  color: color-mix(in srgb, var(--c-neutral-600) 68%, var(--c-text));
+}
+
+.tile[data-grove-tone="seed"] {
+  background: color-mix(in srgb, var(--c-success) 11%, var(--c-surface));
+  color: color-mix(in srgb, var(--c-success) 74%, var(--c-text));
+}
+
+.tile[data-grove-tone="analytics"] {
+  background: color-mix(in srgb, var(--c-accent) 11%, var(--c-surface));
+  color: color-mix(in srgb, var(--c-accent) 72%, var(--c-text));
+}
+
+.tile[data-grove-tone="garden"] {
+  background: color-mix(in srgb, var(--c-violet) 9%, var(--c-surface));
+  color: color-mix(in srgb, var(--c-violet) 68%, var(--c-text));
+}
+
+.tile[data-grove-tone="character"] {
+  background: color-mix(in srgb, var(--c-error) 8%, var(--c-surface));
+  color: color-mix(in srgb, var(--c-error) 62%, var(--c-text));
+}
+
+.tile[data-grove-tone="talent"] {
+  background: color-mix(in srgb, var(--c-brand-green) 10%, var(--c-surface));
+  color: color-mix(in srgb, var(--c-brand-green) 68%, var(--c-text));
+}

@@ -1,0 +1,320 @@
+/* Rooms, refined around existing OpenGrove chat primitives. */
+.rooms-list-panel {
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  gap: 10px;
+  min-width: 0;
+  min-height: 0;
+  /* Each primary column is its own paper card. The canvas gap between cards
+     provides separation without adding another outline. */
+  border: 1px solid transparent;
+  border-radius: var(--r-lg);
+  background: var(--c-surface);
+  overflow: hidden;
+  padding: 14px 10px 16px;
+}
+
+@media (max-width: 900px) {
+  .rooms-list-panel {
+    display: none;
+  }
+}
+
+.rooms-section-label {
+  color: var(--rooms-muted);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+  padding: 0 8px;
+}
+
+.rooms-pinboard {
+  display: grid;
+  gap: 8px;
+  border-bottom: 1px solid var(--rooms-border);
+  padding-bottom: 12px;
+}
+
+.rooms-pinned-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.rooms-pin-item {
+  display: grid;
+  justify-items: center;
+  gap: 5px;
+  min-width: 0;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--rooms-muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--fs-xs);
+  padding: 6px 4px;
+}
+
+.rooms-pin-item:hover,
+.rooms-pin-item:focus-visible,
+.rooms-pin-item[data-active="true"] {
+  background: var(--rooms-blue-soft);
+  color: var(--rooms-text);
+}
+
+.rooms-pin-item > span:last-child {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rooms-pin-unread-anchor {
+  --unread-count-anchor-top: -3px;
+  --unread-count-anchor-right: -3px;
+  --unread-count-ring-color: var(--c-surface);
+}
+
+.rooms-pin-avatar {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--rooms-pin-avatar-radius);
+  background: var(--rooms-pin-avatar-bg);
+  color: var(--rooms-pin-avatar-fg);
+}
+
+.rooms-chat-list {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  flex: 1 1 auto;
+  gap: 6px;
+  min-height: 0;
+}
+
+.rooms-list-items {
+  display: grid;
+  align-content: start;
+  gap: 2px;
+  min-height: 0;
+  overflow: auto;
+  padding-right: 2px;
+}
+
+.rooms-list-item {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  min-width: 0;
+  min-height: 44px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--og-section-text);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--fs-base);
+  font-weight: var(--fw-normal);
+  box-shadow: none;
+  padding: 0 10px;
+  text-align: left;
+}
+
+.rooms-list-item:hover,
+.rooms-list-item:focus-visible {
+  background: var(--og-section-hover);
+  color: var(--og-section-text);
+}
+
+.rooms-list-item[data-active="true"] {
+  background: var(--rooms-blue-soft);
+  color: var(--og-section-text);
+  font-weight: var(--fw-medium);
+}
+
+.rooms-list-item svg {
+  color: var(--og-section-icon);
+}
+
+.rooms-list-item .pixel-icon {
+  width: 18px;
+  height: 18px;
+}
+
+.rooms-list-time,
+.rooms-list-preview,
+.rooms-list-meta {
+  color: var(--og-section-muted);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-normal);
+}
+
+.rooms-list-preview,
+.rooms-room-badge {
+  display: none;
+}
+
+.rooms-list-name {
+  flex: 1;
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--og-section-text);
+  font-size: var(--fs-base);
+  font-weight: var(--fw-medium);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rooms-list-preview {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rooms-list-copy,
+.rooms-list-meta {
+  display: grid;
+  min-width: 0;
+}
+
+.rooms-list-copy {
+  gap: 0;
+}
+
+.rooms-list-meta {
+  justify-items: end;
+  gap: 0;
+}
+
+.rooms-room-badge {
+  flex: 0 0 auto;
+}
+
+.room-header-copy {
+  min-width: 0;
+}
+
+.room-composer .opengrove-question-line {
+  min-height: 38px;
+}
+
+.room-composer-reply {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-width: 0;
+  margin-bottom: var(--sp-1-5);
+  border-radius: var(--r-sm);
+  background: var(--c-surface-raised);
+  padding: var(--sp-1-5) var(--sp-2);
+  color: var(--c-text-2);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-normal);
+}
+
+.room-composer-reply-copy {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-1);
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.room-composer-reply-copy strong {
+  flex: 0 0 auto;
+  color: var(--c-text);
+  font-weight: var(--fw-medium);
+}
+
+.room-composer-reply-copy span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.room-composer-reply-close {
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--c-text-3);
+  cursor: pointer;
+  padding: 0;
+}
+
+.room-composer-reply-close:hover,
+.room-composer-reply-close:focus-visible {
+  background: var(--c-surface-active);
+  color: var(--c-text);
+  outline: none;
+}
+
+.room-composer .opengrove-question {
+  min-height: 30px;
+  max-height: 110px;
+  font-size: var(--fs-base);
+  line-height: var(--lh-normal);
+}
+
+.room-composer .opengrove-action:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.room-composer .opengrove-composer-footer {
+  min-height: 28px;
+  align-items: center;
+}
+
+.room-composer .opengrove-composer-footer-left {
+  align-items: center;
+  gap: 8px;
+}
+
+.room-composer .opengrove-composer-at,
+.room-composer .opengrove-composer-plus {
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 26px;
+  height: 26px;
+  min-width: 26px;
+  min-height: 26px;
+  border: 0;
+  border-radius: var(--rooms-composer-control-radius);
+  background: transparent;
+  color: var(--rooms-composer-control-fg);
+  line-height: 1;
+  padding: 0;
+  box-shadow: none;
+  transition:
+    background var(--motion-fast) var(--motion-ease),
+    color var(--motion-fast) var(--motion-ease);
+}
+
+.room-composer .opengrove-composer-at svg,
+.room-composer .opengrove-composer-plus svg {
+  display: block;
+  width: 17px;
+  height: 17px;
+  margin: 0;
+}
+
+.room-composer .opengrove-composer-at:hover,
+.room-composer .opengrove-composer-at:focus-visible,
+.room-composer .opengrove-composer-plus:hover,
+.room-composer .opengrove-composer-plus:focus-visible {
+  background: var(--rooms-composer-control-hover-bg);
+  color: var(--rooms-composer-control-hover-fg);
+  outline: 0;
+}

@@ -1,0 +1,220 @@
+name: Deploy gated desktop release
+
+on:
+  workflow_dispatch:
+    inputs:
+      candidate_run_id:
+        description: Successful Desktop release candidate Actions run ID
+        required: true
+        type: string
+      tag:
+        description: Existing formal release tag, for example v0.6.3
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: desktop-release-deploy-${{ inputs.tag }}
+  cancel-in-progress: false
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  NODE_USE_ENV_PROXY: "1"
+
+jobs:
+  deploy:
+    name: Upload, verify, and register exact candidate bytes
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment: desktop-release
+    env:
+      OSS_REGION: ${{ vars.OPENGROVE_RELEASE_OSS_REGION }}
+      OPENGROVE_RELEASE_OSS_BUCKET: ${{ vars.OPENGROVE_RELEASE_OSS_BUCKET }}
+      OPENGROVE_RELEASE_OSS_ENDPOINT: ${{ vars.OPENGROVE_RELEASE_OSS_ENDPOINT }}
+      OPENGROVE_RELEASE_R2_BUCKET: ${{ vars.OPENGROVE_RELEASE_R2_BUCKET }}
+      OPENGROVE_RELEASE_R2_ACCOUNT_ID: ${{ vars.OPENGROVE_RELEASE_R2_ACCOUNT_ID }}
+      PUBLIC_RELEASE_ROOT: ${{ vars.OPENGROVE_DESKTOP_RELEASE_PUBLIC_ROOT }}
+      UPDATER_RELEASE_ROOT: ${{ vars.OPENGROVE_DESKTOP_RELEASE_UPDATER_ROOT }}
+      CLIENT_RELEASES_URL: ${{ vars.OPENGROVE_CLIENT_RELEASES_URL }}
+    steps:
+      - name: Check out trusted deployment workflow
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Select deployment timing output
+        shell: bash
+        run: echo "RELEASE_TIMING_FILE=$RUNNER_TEMP/desktop-release-deploy-timing.json" >> "$GITHUB_ENV"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Resolve candidate and formal release identity
+        id: candidate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CANDIDATE_RUN_ID: ${{ inputs.candidate_run_id }}
+          REQUESTED_TAG: ${{ inputs.tag }}
+        shell: bash
+        run: |
+          if [[ ! "$CANDIDATE_RUN_ID" =~ ^[0-9]+$ ]]; then
+            echo "Candidate run ID must contain digits only." >&2
+            exit 1
+          fi
+          if [[ ! "$REQUESTED_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Release tag must use vMAJOR.MINOR.PATCH." >&2
+            exit 1
+          fi
+          run="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$CANDIDATE_RUN_ID")"
+          test "$(jq -r '.conclusion' <<< "$run")" = success
+          test "$(jq -r '.event' <<< "$run")" = workflow_dispatch
+          test "$(jq -r '.path' <<< "$run")" = '.github/workflows/desktop-release.yml'
+          commit="$(jq -r '.head_sha' <<< "$run")"
+          run_url="$(jq -r '.html_url' <<< "$run")"
+          git fetch --no-tags origin main
+          git merge-base --is-ancestor "$commit" origin/main
+          deployment_commit="$(git rev-parse HEAD)"
+          git merge-base --is-ancestor "$deployment_commit" origin/main
+          candidate_package_json="$RUNNER_TEMP/desktop-release-candidate-package.json"
+          git show "$commit:package.json" > "$candidate_package_json"
+          package_json="$(<"$candidate_package_json")"
+          version="$(node -e 'const p=JSON.parse(process.argv[1]); process.stdout.write(String(p.version))' "$package_json")"
+          test "$REQUESTED_TAG" = "v$version"
+          git fetch origin "refs/tags/$REQUESTED_TAG:refs/tags/$REQUESTED_TAG"
+          test "$(git rev-parse --verify "refs/tags/$REQUESTED_TAG^{commit}")" = "$commit"
+          gh release view "$REQUESTED_TAG" >/dev/null
+          echo "commit=$commit" >> "$GITHUB_OUTPUT"
+          echo "deployment_commit=$deployment_commit" >> "$GITHUB_OUTPUT"
+          echo "candidate_package_json=$candidate_package_json" >> "$GITHUB_OUTPUT"
+          echo "run_url=$run_url" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Download gated candidate without rebuilding
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CANDIDATE_RUN_ID: ${{ inputs.candidate_run_id }}
+          VERSION: ${{ steps.candidate.outputs.version }}
+        shell: bash
+        run: |
+          mkdir -p release/desktop
+          node scripts/run-release-timing-phase.mjs \
+            --timing-file "$RELEASE_TIMING_FILE" \
+            --command desktop-release-deploy \
+            --version "$VERSION" \
+            --phase download-gated-candidate \
+            --reset \
+            -- gh run download "$CANDIDATE_RUN_ID" \
+              --name "opengrove-candidate-$CANDIDATE_RUN_ID-gated-candidate" \
+              --dir release/desktop
+
+      - name: Verify candidate identity and immutable bytes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_COMMIT: ${{ steps.candidate.outputs.commit }}
+          RELEASE_RUN_URL: ${{ steps.candidate.outputs.run_url }}
+          RELEASE_TAG: ${{ inputs.tag }}
+          VERSION: ${{ steps.candidate.outputs.version }}
+        shell: bash
+        run: |
+          node scripts/run-release-timing-phase.mjs \
+            --timing-file "$RELEASE_TIMING_FILE" \
+            --command desktop-release-deploy \
+            --version "$VERSION" \
+            --phase verify-gated-candidate \
+            -- bash -euo pipefail -c '
+              current_release_tag="$(gh release list --exclude-drafts --exclude-pre-releases --limit 1 --json tagName --jq ".[0].tagName")"
+              node scripts/verify-desktop-release-candidate.mjs \
+                --release-dir release/desktop \
+                --commit "$RELEASE_COMMIT" \
+                --expected-tag "$RELEASE_TAG" \
+                --current-release-tag "$current_release_tag" \
+                --ci-run-url "$RELEASE_RUN_URL"
+            '
+
+      - name: Install dependencies
+        env:
+          VERSION: ${{ steps.candidate.outputs.version }}
+        run: >-
+          node scripts/run-release-timing-phase.mjs
+          --timing-file "$RELEASE_TIMING_FILE"
+          --command desktop-release-deploy
+          --version "$VERSION"
+          --phase install-deployment-dependencies
+          -- npm ci
+
+      - name: Install pinned ossutil
+        env:
+          VERSION: ${{ steps.candidate.outputs.version }}
+        shell: bash
+        run: |
+          node scripts/run-release-timing-phase.mjs \
+            --timing-file "$RELEASE_TIMING_FILE" \
+            --command desktop-release-deploy \
+            --version "$VERSION" \
+            --phase install-ossutil \
+            -- bash scripts/install-pinned-ossutil.sh
+
+      - name: Check deployment credentials
+        env:
+          OPENGROVE_RELEASE_OSS_REGION: ${{ vars.OPENGROVE_RELEASE_OSS_REGION }}
+          OPENGROVE_DESKTOP_RELEASE_PUBLIC_ROOT: ${{ vars.OPENGROVE_DESKTOP_RELEASE_PUBLIC_ROOT }}
+          OPENGROVE_DESKTOP_RELEASE_UPDATER_ROOT: ${{ vars.OPENGROVE_DESKTOP_RELEASE_UPDATER_ROOT }}
+          OPENGROVE_CLIENT_RELEASES_URL: ${{ vars.OPENGROVE_CLIENT_RELEASES_URL }}
+          OSS_ACCESS_KEY_ID: ${{ secrets.OSS_ACCESS_KEY_ID }}
+          OSS_ACCESS_KEY_SECRET: ${{ secrets.OSS_ACCESS_KEY_SECRET }}
+          OSS_SESSION_TOKEN: ${{ secrets.OSS_SESSION_TOKEN }}
+          OPENGROVE_RELEASE_R2_ACCESS_KEY_ID: ${{ secrets.OPENGROVE_RELEASE_R2_ACCESS_KEY_ID }}
+          OPENGROVE_RELEASE_R2_SECRET_ACCESS_KEY: ${{ secrets.OPENGROVE_RELEASE_R2_SECRET_ACCESS_KEY }}
+          OPENGROVE_RELEASE_UPLOAD_TOKEN: ${{ secrets.OPENGROVE_RELEASE_UPLOAD_TOKEN }}
+          VERSION: ${{ steps.candidate.outputs.version }}
+        shell: bash
+        run: |
+          node scripts/run-release-timing-phase.mjs \
+            --timing-file "$RELEASE_TIMING_FILE" \
+            --command desktop-release-deploy \
+            --version "$VERSION" \
+            --phase check-deployment-credentials \
+            -- node scripts/check-desktop-release-infrastructure.mjs
+
+      - name: Upload, remotely verify, and register candidate
+        env:
+          OSS_ACCESS_KEY_ID: ${{ secrets.OSS_ACCESS_KEY_ID }}
+          OSS_ACCESS_KEY_SECRET: ${{ secrets.OSS_ACCESS_KEY_SECRET }}
+          OSS_SESSION_TOKEN: ${{ secrets.OSS_SESSION_TOKEN }}
+          OPENGROVE_RELEASE_R2_ACCESS_KEY_ID: ${{ secrets.OPENGROVE_RELEASE_R2_ACCESS_KEY_ID }}
+          OPENGROVE_RELEASE_R2_SECRET_ACCESS_KEY: ${{ secrets.OPENGROVE_RELEASE_R2_SECRET_ACCESS_KEY }}
+          OPENGROVE_RELEASE_UPLOAD_TOKEN: ${{ secrets.OPENGROVE_RELEASE_UPLOAD_TOKEN }}
+          CANDIDATE_PACKAGE_JSON: ${{ steps.candidate.outputs.candidate_package_json }}
+          OPENGROVE_RELEASE_CANDIDATE_COMMIT: ${{ steps.candidate.outputs.commit }}
+          OPENGROVE_RELEASE_DEPLOYMENT_COMMIT: ${{ steps.candidate.outputs.deployment_commit }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        shell: bash
+        run: |
+          node scripts/publish-desktop-release.mjs \
+            --release-package-json "$CANDIDATE_PACKAGE_JSON" \
+            --release-dir release/desktop \
+            --public-base-url "$PUBLIC_RELEASE_ROOT/$RELEASE_TAG" \
+            --updater-base-url "$UPDATER_RELEASE_ROOT/$RELEASE_TAG" \
+            --register-url "$CLIENT_RELEASES_URL" \
+            --gate-receipt release/desktop/release-gate-receipt.json \
+            --upload-installers \
+            --timing-file "$RELEASE_TIMING_FILE" \
+            --append-timing
+
+      - name: Upload deployment timing
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-release-deploy-${{ inputs.tag }}-${{ github.run_id }}-timing
+          if-no-files-found: warn
+          path: ${{ env.RELEASE_TIMING_FILE }}
+
+      - name: State promotion boundary
+        run: echo "Exact gated bytes were deployed and registered. Promotion remains a separate explicit workflow."

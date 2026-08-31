@@ -1,0 +1,36 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "categories": {
+    "correctness": "off",
+    "nursery": "off",
+    "pedantic": "off",
+    "perf": "off",
+    "restriction": "off",
+    "style": "off",
+    "suspicious": "off"
+  },
+  "env": {
+    "browser": true,
+    "es2024": true,
+    "node": true
+  },
+  "ignorePatterns": [
+    "node_modules/**",
+    "dist/**",
+    "desktop-dist/**",
+    "web-dist/**",
+    "release/**",
+    "test-results/**",
+    "playwright-report/**",
+    "src/skills/bundled/**/assets/**"
+  ],
+  "plugins": ["import", "typescript"],
+  "rules": {
+    "no-debugger": "error",
+    "no-dupe-keys": "error",
+    "no-duplicate-case": "error",
+    "no-import-assign": "error",
+    "no-unreachable": "error",
+    "valid-typeof": "error"
+  }
+}

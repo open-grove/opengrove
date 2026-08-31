@@ -1,0 +1,23 @@
+<svg width="420" height="128" viewBox="0 0 420 128" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">OpenGrove readme lockup</title>
+  <desc id="desc">OpenGrove sapling mark beside the OpenGrove green wordmark.</desc>
+  <g transform="translate(20 20) scale(0.72)" shape-rendering="crispEdges">
+    <rect x="0" y="0" width="31" height="31" fill="#7BCB57"/>
+    <rect x="16" y="16" width="31" height="31" fill="#5FB24A"/>
+    <rect x="79" y="15" width="31" height="31" fill="#7BCB57"/>
+    <rect x="63" y="31" width="31" height="31" fill="#5FB24A"/>
+    <rect x="47" y="47" width="17" height="58" fill="#202424"/>
+    <rect x="60" y="47" width="4" height="58" fill="#343A38"/>
+    <rect x="32" y="105" width="47" height="15" fill="#202424"/>
+    <rect x="32" y="105" width="47" height="3" fill="#343A38"/>
+  </g>
+  <g
+    font-family="Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', sans-serif"
+    font-size="52"
+    font-weight="560"
+    letter-spacing="-1.7"
+  >
+    <text x="124" y="79" fill="#111827">Open</text>
+    <text x="248" y="79" fill="#168A53">Grove</text>
+  </g>
+</svg>

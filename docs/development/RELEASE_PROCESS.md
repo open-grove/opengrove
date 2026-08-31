@@ -1,0 +1,123 @@
+# Release process
+
+OpenGrove desktop releases are built by CI from an explicit candidate commit.
+The same gated bytes are finalized, deployed, and promoted; downstream stages
+never rebuild an installer.
+
+## Invariants
+
+- Do not create the formal version tag before every candidate gate passes.
+- Dispatch the workflow from trusted `main`. The `ref` input selects candidate
+  code, but does not replace the workflow or release-control code from `main`.
+- When candidate identity is resolved, it must equal the current `main` tip.
+  A newer `main` push supersedes older Main CI work and becomes the next
+  eligible candidate.
+- A full candidate must have a successful latest `Main CI` run for the exact
+  candidate SHA.
+- The latest completed `Nightly` run on `main` must be successful, no more than
+  24 hours old, and its tested SHA must be an ancestor of the candidate.
+- Only `platforms=all` can assemble a registrable candidate. Partial platform
+  runs are diagnostics and cannot be promoted.
+- A release is identified by its candidate commit, workflow run, version,
+  `clientReleaseNumber`, immutable artifact bytes, and gate receipt.
+
+Nightly evidence proves the additional platform and live-provider health of a
+recent ancestor, not necessarily the exact candidate SHA. Commits after that
+Nightly are covered by exact-SHA Main CI and the final candidate artifact gates.
+
+## Prepare a candidate
+
+1. Start from a clean, current `main`.
+2. Update `version` and increment `clientReleaseNumber` in `package.json`.
+3. Add paired `docs/releases/vX.Y.Z.md` and
+   `docs/releases/vX.Y.Z.zh-CN.md` notes.
+4. Update `CHANGELOG.md`.
+5. Run the focused checks for the changed areas.
+
+The candidate workflow first verifies the exact Main CI and recent Nightly
+evidence. It then performs the required lightweight release-readiness checks
+against the authorized candidate commit:
+
+```bash
+npm run release:readiness
+```
+
+That command checks release notes, release configuration and workflow
+contracts, and the npm package manifest. It intentionally does not repeat the
+full harness, complete Browser UI suite, Web package integration, or
+cross-platform regression already owned by Main CI and Nightly.
+
+To catch deterministic source and release-metadata failures before starting a
+cloud candidate, you may optionally run:
+
+```bash
+npm run release:check
+```
+
+This is a broader local confidence check than the candidate workflow runs. It
+may create temporary Web and npm package artifacts, but it does not build,
+sign, install, or upload a desktop installer, access local signing identities,
+or download a previous release. It is optional and is not a substitute for
+the recorded Main CI and Nightly evidence.
+
+## Build and gate
+
+Dispatch the trusted candidate workflow from `main`:
+
+```bash
+gh workflow run desktop-release.yml --ref main \
+  -f ref=<current-main-commit> \
+  -f platforms=all
+```
+
+The full workflow checks all of the following before it assembles the immutable
+candidate:
+
+- version and paired release notes;
+- a successful latest Main CI run for the exact candidate SHA;
+- a successful, recent latest Nightly run whose SHA is in the candidate's
+  history;
+- replay of the installer and Bridge gates against pinned known-good artifacts;
+- signed/notarized macOS Apple Silicon and Intel packages;
+- the Windows x64 package;
+- package inventory and final installed-artifact smoke;
+- independently generated and verified updater metadata;
+- update behavior from the previous published release; and
+- one combined gate receipt over the exact platform bytes.
+
+A platform-only run such as `platforms=windows-x64` is useful for diagnosis but
+intentionally produces no registrable candidate or gate receipt.
+
+If evidence shows a transient infrastructure failure and candidate code is
+unchanged, rerun only the failed jobs:
+
+```bash
+gh run rerun <run-id> --failed
+```
+
+Deterministic product, test, signing, notarization, packaging, metadata, or
+updater failures require a fix, a new candidate commit, and a new complete run.
+
+## Finalize, deploy, and control
+
+After every full-candidate gate passes:
+
+1. Dispatch `desktop-release-finalize.yml` with the candidate run ID and
+   expected tag. It verifies candidate identity, downloads the gated candidate,
+   creates the formal tag at that exact commit, and attaches those exact bytes
+   to the GitHub Release.
+2. Dispatch `desktop-release-deploy.yml` with the same run ID and tag. It
+   downloads, verifies, uploads, and registers the same gated bytes. It does not
+   rebuild and does not change the active update pointer.
+3. Dispatch `desktop-release-control.yml` to explicitly `promote`, `rollback`,
+   or `withdraw` the active release pointer.
+
+Rollback repoints what eligible clients are offered; it does not force an
+already newer installation to downgrade. Withdraw clears the active candidate.
+Neither action deletes immutable candidates, tags, GitHub Releases, or retained
+artifacts.
+
+Deployment endpoints, account identifiers, bucket names, signing material, and
+access tokens are provided through protected GitHub environments, variables,
+and secrets. Never place their values in tracked files, issue text, PR logs, or
+local evidence intended for publication.

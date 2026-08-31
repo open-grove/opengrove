@@ -1,0 +1,186 @@
+name: Main CI
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: opengrove-main-ci
+  # Only the newest main tip is eligible to become a release candidate.
+  cancel-in-progress: true
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  OPENGROVE_WEB_BUILD_ID: ${{ github.sha }}
+
+jobs:
+  static:
+    name: Checks / ${{ matrix.name }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Repository
+            command: check:static:base
+          - name: Server
+            command: check:static:server
+          - name: Web
+            command: check:web
+          - name: Desktop
+            command: check:desktop
+          - name: Release
+            command: check:static:release
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run ${{ matrix.command }}
+
+  unit:
+    name: Unit tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run test:unit
+
+  harness:
+    name: Harness / ${{ matrix.name }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    container:
+      image: mcr.microsoft.com/playwright:v1.62.1-noble
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: State and storage
+            group: state-storage
+          - name: Rooms and routines
+            group: rooms-routines
+          - name: Apps and knowledge
+            group: apps-knowledge
+          - name: App lifecycle
+            group: app-lifecycle
+          - name: Kernels and providers
+            group: kernels-providers
+          - name: Web and desktop
+            group: web-desktop
+          - name: Release contracts
+            group: release-contracts
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run test:harness:${{ matrix.group }}
+
+  web-package:
+    name: Web packaging
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run test:pack:web
+
+  browser-ui:
+    name: Browser UI
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    container:
+      image: mcr.microsoft.com/playwright:v1.62.1-noble
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run test:ui
+      - name: Upload browser diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: main-playwright-results-${{ github.run_id }}
+          if-no-files-found: ignore
+          path: test-results/
+
+  desktop-protocol:
+    name: Desktop protocol smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    container:
+      image: mcr.microsoft.com/playwright:v1.62.1-noble
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: xvfb-run -a npm run test:desktop-protocol-proxy-electron
+
+  windows:
+    name: Windows / ${{ matrix.name }}
+    runs-on: windows-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Media cleanup
+            command: test:windows:media-cleanup
+          - name: App Store lifecycle
+            command: test:windows:app-store-lifecycle
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run ${{ matrix.command }}
+
+  result:
+    name: Main CI result
+    if: always()
+    needs:
+      - static
+      - unit
+      - harness
+      - web-package
+      - browser-ui
+      - desktop-protocol
+      - windows
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Require successful dependencies
+        env:
+          CI_JOB_RESULTS: ${{ toJSON(needs) }}
+        run: node scripts/check-ci-results.mjs

@@ -1,0 +1,132 @@
+name: Nightly
+
+on:
+  schedule:
+    - cron: "0 2,14 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: read
+
+concurrency:
+  group: opengrove-nightly
+  cancel-in-progress: false
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  OPENGROVE_WEB_BUILD_ID: ${{ github.sha }}
+
+jobs:
+  harness:
+    name: Full harness / ${{ matrix.name }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    container:
+      image: mcr.microsoft.com/playwright:v1.62.1-noble
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: State and storage
+            group: state-storage
+          - name: Rooms and routines
+            group: rooms-routines
+          - name: Apps and knowledge
+            group: apps-knowledge
+          - name: App lifecycle
+            group: app-lifecycle
+          - name: Kernels and providers
+            group: kernels-providers
+          - name: Web and desktop
+            group: web-desktop
+          - name: Release contracts
+            group: release-contracts
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run test:harness:${{ matrix.group }}
+
+  cross-platform-integration:
+    name: Additional platform integration / ${{ matrix.platform }}
+    runs-on: ${{ matrix.platform }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        # The Linux harness shards above already execute this subset.
+        platform: [macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Install Chromium
+        run: npx playwright install chromium
+      - run: npm run test:integration
+
+  browser-ui:
+    name: Complete Browser UI
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    container:
+      image: mcr.microsoft.com/playwright:v1.62.1-noble
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run test:ui
+      - name: Upload browser diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-playwright-results-${{ github.run_id }}
+          if-no-files-found: ignore
+          path: test-results/
+
+  web-package:
+    name: Web packaging
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run test:pack:web
+
+  real-agent:
+    name: Real Agent matrix
+    uses: ./.github/workflows/real-agent-smoke.yml
+    secrets: inherit
+
+  result:
+    name: Nightly result
+    if: always()
+    needs:
+      - harness
+      - cross-platform-integration
+      - browser-ui
+      - web-package
+      - real-agent
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Require successful dependencies
+        env:
+          CI_JOB_RESULTS: ${{ toJSON(needs) }}
+        run: node scripts/check-ci-results.mjs

@@ -1,0 +1,137 @@
+name: Desktop gate golden replay
+
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: Commit to validate
+        required: false
+        type: string
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Commit or branch to validate
+        required: false
+        type: string
+
+concurrency:
+  group: desktop-gate-golden-replay-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  BASELINE_MANIFEST: scripts/fixtures/desktop-release-golden-v0.6.0.json
+
+jobs:
+  replay:
+    name: Replay ${{ matrix.smoke_target }}
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-15
+            smoke_target: mac-arm64
+            artifact_target: darwin-arm64
+            app_out: release/desktop/mac-arm64/OpenGrove.app
+          - os: windows-latest
+            smoke_target: windows-x64
+            artifact_target: windows-x64
+            app_out: release/desktop/win-unpacked
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Resolve pinned asset
+        id: asset
+        shell: bash
+        env:
+          TARGET: ${{ matrix.smoke_target }}
+        run: |
+          set -euo pipefail
+          asset="$(node -e "const value=require('./' + process.env.BASELINE_MANIFEST); process.stdout.write(value.targets[process.env.TARGET].asset)")"
+          tag="$(node -e "const value=require('./' + process.env.BASELINE_MANIFEST); process.stdout.write(value.tag)")"
+          echo "name=${asset}" >> "${GITHUB_OUTPUT}"
+          echo "tag=${tag}" >> "${GITHUB_OUTPUT}"
+
+      - name: Download pinned known-good installer
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ASSET: ${{ steps.asset.outputs.name }}
+          TAG: ${{ steps.asset.outputs.tag }}
+        run: |
+          set -euo pipefail
+          mkdir -p release/desktop/golden
+          gh release download "${TAG}" --pattern "${ASSET}" --dir release/desktop/golden
+
+      - name: Verify pinned installer identity
+        id: baseline
+        shell: bash
+        env:
+          TARGET: ${{ matrix.smoke_target }}
+          ASSET: ${{ steps.asset.outputs.name }}
+        run: |
+          set -euo pipefail
+          node scripts/verify-desktop-gate-baseline.mjs \
+            --manifest "${BASELINE_MANIFEST}" \
+            --target "${TARGET}" \
+            --installer "release/desktop/golden/${ASSET}"
+
+      - name: Install and launch pinned installer
+        shell: bash
+        env:
+          TARGET: ${{ matrix.smoke_target }}
+          ASSET: ${{ steps.asset.outputs.name }}
+          APP_OUT: ${{ matrix.app_out }}
+          VERSION: ${{ steps.baseline.outputs.version }}
+        run: |
+          set -euo pipefail
+          node scripts/smoke-desktop-installer.mjs \
+            --target "${TARGET}" \
+            --installer "release/desktop/golden/${ASSET}" \
+            --expected-version "${VERSION}" \
+            --app-out "${APP_OUT}" \
+            --survival-ms 5000 \
+            --legacy-process-only
+
+      - name: Replay artifact and Bridge gates
+        shell: bash
+        env:
+          TARGET: ${{ matrix.artifact_target }}
+          VERSION: ${{ steps.baseline.outputs.version }}
+          FILE_COUNT: ${{ steps.baseline.outputs.dist_file_count }}
+          INVENTORY_SHA256: ${{ steps.baseline.outputs.dist_inventory_sha256 }}
+        run: |
+          set -euo pipefail
+          node scripts/check-desktop-artifact.mjs \
+            --target "${TARGET}" \
+            --expected-app-version "${VERSION}" \
+            --expected-dist-file-count "${FILE_COUNT}" \
+            --expected-dist-inventory-sha256 "${INVENTORY_SHA256}"
+
+      - name: Upload gate evidence on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-gate-replay-${{ matrix.smoke_target }}
+          if-no-files-found: ignore
+          path: |
+            release/desktop/release-gates/**
+            release/desktop/**/*.log
+            release/desktop/**/*.png

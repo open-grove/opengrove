@@ -1,0 +1,77 @@
+.surface {
+  --overlay-surface-available-width: calc(100vw - var(--sp-6));
+
+  box-sizing: border-box;
+}
+
+.radixSurface {
+  --overlay-surface-available-width: var(--radix-popover-content-available-width, calc(100vw - var(--sp-6)));
+}
+
+.baseSurface {
+  --overlay-surface-available-width: var(--available-width, calc(100vw - var(--sp-6)));
+}
+
+.surface[data-size="compact"] {
+  width: max-content;
+  min-width: min(
+    var(--overlay-surface-compact-min-width),
+    var(--overlay-surface-available-width, calc(100vw - var(--sp-6)))
+  );
+  max-width: min(
+    var(--overlay-surface-compact-max-width),
+    var(--overlay-surface-available-width, calc(100vw - var(--sp-6)))
+  );
+}
+
+.surface[data-size="content"] {
+  width: max-content;
+  min-width: min(
+    var(--overlay-surface-content-min-width),
+    var(--overlay-surface-available-width, calc(100vw - var(--sp-6)))
+  );
+  max-width: min(
+    var(--overlay-surface-content-max-width),
+    var(--overlay-surface-available-width, calc(100vw - var(--sp-6)))
+  );
+}
+
+.surface[data-size="regular"] {
+  width: max-content;
+  min-width: min(
+    var(--overlay-surface-regular-min-width),
+    var(--overlay-surface-available-width, calc(100vw - var(--sp-6)))
+  );
+  max-width: min(
+    var(--overlay-surface-regular-max-width),
+    var(--overlay-surface-available-width, calc(100vw - var(--sp-6)))
+  );
+}
+
+.surface[data-size="wide"] {
+  width: max-content;
+  min-width: min(
+    var(--overlay-surface-wide-min-width),
+    var(--overlay-surface-available-width, calc(100vw - var(--sp-6)))
+  );
+  max-width: min(
+    var(--overlay-surface-wide-max-width),
+    var(--overlay-surface-available-width, calc(100vw - var(--sp-6)))
+  );
+}
+
+.surface[data-size="picker"] {
+  width: max-content;
+  min-width: min(
+    var(--overlay-surface-picker-min-width),
+    var(--overlay-surface-available-width, calc(100vw - var(--sp-6)))
+  );
+  max-width: min(
+    var(--overlay-surface-picker-max-width),
+    var(--overlay-surface-available-width, calc(100vw - var(--sp-6)))
+  );
+}
+
+.surface[data-size="preserve"] {
+  max-width: min(100%, var(--overlay-surface-available-width, calc(100vw - var(--sp-6))));
+}

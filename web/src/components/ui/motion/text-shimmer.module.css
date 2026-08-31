@@ -1,0 +1,28 @@
+.shimmer {
+  --text-shimmer-base: var(--c-faint);
+  --text-shimmer-highlight: var(--c-text);
+  --text-shimmer-spread: 42px;
+  display: inline-block;
+  background-image:
+    linear-gradient(
+      90deg,
+      transparent calc(50% - var(--text-shimmer-spread)),
+      var(--text-shimmer-highlight),
+      transparent calc(50% + var(--text-shimmer-spread))
+    ),
+    linear-gradient(var(--text-shimmer-base), var(--text-shimmer-base));
+  background-repeat: no-repeat, padding-box;
+  background-size:
+    250% 100%,
+    auto;
+  color: transparent;
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shimmer {
+    background-image: none;
+    color: var(--text-shimmer-base);
+  }
+}

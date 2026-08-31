@@ -1,0 +1,23 @@
+/* Shared icon primitives used by AppRail, mobile nav, and sidebar rows. */
+.sidebar-mini-action svg,
+.topbar-icon-button svg {
+  stroke-width: 1.8;
+}
+
+.pixel-icon {
+  width: 22px;
+  height: 22px;
+  overflow: visible;
+  color: currentColor;
+  flex: 0 0 auto;
+  shape-rendering: crispEdges;
+  vertical-align: -0.1em;
+}
+
+.pixel-icon__main {
+  fill: currentColor;
+}
+
+.pixel-icon__accent {
+  fill: var(--pixel-icon-accent, currentColor);
+}

@@ -1,0 +1,138 @@
+name: Finalize desktop release candidate
+
+on:
+  workflow_dispatch:
+    inputs:
+      candidate_run_id:
+        description: Successful Desktop release candidate Actions run ID
+        required: true
+        type: string
+      tag:
+        description: Formal version tag to create, for example v0.5.19
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  contents: write
+
+concurrency:
+  group: desktop-release-finalize-${{ inputs.tag }}
+  cancel-in-progress: false
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  finalize:
+    name: Mint tag and archive the exact gated bytes
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out trusted finalizer
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Resolve successful candidate run
+        id: candidate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CANDIDATE_RUN_ID: ${{ inputs.candidate_run_id }}
+          REQUESTED_TAG: ${{ inputs.tag }}
+        shell: bash
+        run: |
+          if [[ ! "$CANDIDATE_RUN_ID" =~ ^[0-9]+$ ]]; then
+            echo "Candidate run ID must contain digits only." >&2
+            exit 1
+          fi
+          run="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$CANDIDATE_RUN_ID")"
+          conclusion="$(jq -r '.conclusion' <<< "$run")"
+          event="$(jq -r '.event' <<< "$run")"
+          commit="$(jq -r '.head_sha' <<< "$run")"
+          run_url="$(jq -r '.html_url' <<< "$run")"
+          workflow_path="$(jq -r '.path' <<< "$run")"
+          test "$conclusion" = success
+          test "$event" = workflow_dispatch
+          test "$workflow_path" = '.github/workflows/desktop-release.yml'
+          git fetch --no-tags origin main
+          git merge-base --is-ancestor "$commit" origin/main
+          package_json="$(git show "$commit:package.json")"
+          version="$(node -e 'const p=JSON.parse(process.argv[1]); process.stdout.write(String(p.version))' "$package_json")"
+          test "$REQUESTED_TAG" = "v$version"
+          if git ls-remote --exit-code --tags origin "refs/tags/$REQUESTED_TAG" >/dev/null 2>&1; then
+            git fetch origin "refs/tags/$REQUESTED_TAG:refs/tags/$REQUESTED_TAG"
+            tag_commit="$(git rev-parse --verify "refs/tags/$REQUESTED_TAG^{commit}")"
+            test "$tag_commit" = "$commit"
+          fi
+          echo "commit=$commit" >> "$GITHUB_OUTPUT"
+          echo "run_url=$run_url" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Download gated candidate without rebuilding
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CANDIDATE_RUN_ID: ${{ inputs.candidate_run_id }}
+        shell: bash
+        run: |
+          mkdir -p release/desktop
+          gh run download "$CANDIDATE_RUN_ID" \
+            --name "opengrove-candidate-$CANDIDATE_RUN_ID-gated-candidate" \
+            --dir release/desktop
+
+      - name: Verify candidate identity and immutable bytes
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          current_release_tag="$(gh release list --exclude-drafts --exclude-pre-releases --limit 1 --json tagName --jq '.[0].tagName')"
+          node scripts/verify-desktop-release-candidate.mjs \
+            --release-dir release/desktop \
+            --commit '${{ steps.candidate.outputs.commit }}' \
+            --expected-tag '${{ inputs.tag }}' \
+            --current-release-tag "$current_release_tag" \
+            --ci-run-url '${{ steps.candidate.outputs.run_url }}'
+
+      - name: Compose bilingual notes from the candidate commit
+        env:
+          RELEASE_COMMIT: ${{ steps.candidate.outputs.commit }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        shell: bash
+        run: |
+          source_root="$RUNNER_TEMP/candidate-release-notes"
+          mkdir -p "$source_root/docs/releases"
+          git show "$RELEASE_COMMIT:docs/releases/$RELEASE_TAG.md" > "$source_root/docs/releases/$RELEASE_TAG.md"
+          git show "$RELEASE_COMMIT:docs/releases/$RELEASE_TAG.zh-CN.md" > "$source_root/docs/releases/$RELEASE_TAG.zh-CN.md"
+          node scripts/compose-release-notes.mjs "$RELEASE_TAG" release/desktop/github-release-notes.md --source-root "$source_root"
+
+      - name: Create formal tag and GitHub Release from exact candidate bytes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag }}
+          RELEASE_COMMIT: ${{ steps.candidate.outputs.commit }}
+          VERSION: ${{ steps.candidate.outputs.version }}
+        shell: bash
+        run: |
+          if ! git rev-parse --verify --quiet "refs/tags/$RELEASE_TAG^{commit}"; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git tag -a "$RELEASE_TAG" "$RELEASE_COMMIT" -m "OpenGrove $RELEASE_TAG"
+            git push origin "refs/tags/$RELEASE_TAG"
+          fi
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            echo "GitHub Release $RELEASE_TAG already exists; verified tag is unchanged."
+            exit 0
+          fi
+          gh release create "$RELEASE_TAG" \
+            "release/desktop/OpenGrove-$VERSION-mac-arm64.dmg" \
+            "release/desktop/OpenGrove-$VERSION-mac-x64.dmg" \
+            "release/desktop/OpenGrove-$VERSION-win-x64.exe" \
+            release/desktop/SHA256SUMS.txt \
+            release/desktop/release-gate-receipt.json \
+            --verify-tag \
+            --title "OpenGrove $RELEASE_TAG" \
+            --notes-file release/desktop/github-release-notes.md
+
+      - name: State deployment boundary
+        run: echo "Formal GitHub Release created. Run desktop-release-deploy.yml for OSS/R2 deployment and ww registration; promotion remains a separate explicit workflow."

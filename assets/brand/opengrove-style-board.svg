@@ -1,0 +1,129 @@
+<svg width="1440" height="960" viewBox="0 0 1440 960" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">OpenGrove visual style board</title>
+  <desc id="desc">A visual system board for OpenGrove showing logo, colors, typography, icons, and interface components.</desc>
+  <rect width="1440" height="960" fill="#F6F6F7"/>
+
+  <defs>
+    <filter id="softShadow" x="-20%" y="-20%" width="140%" height="140%" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="16" stdDeviation="30" flood-color="#000000" flood-opacity="0.07"/>
+    </filter>
+    <style>
+      .font { font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", sans-serif; }
+      .h1 { font-size: 42px; font-weight: 620; letter-spacing: -1.2px; fill: #1F2023; }
+      .h2 { font-size: 21px; font-weight: 620; letter-spacing: -0.2px; fill: #1F2023; }
+      .body { font-size: 15px; font-weight: 400; fill: #6F7278; }
+      .small { font-size: 13px; font-weight: 500; fill: #6F7278; }
+      .tiny { font-size: 12px; font-weight: 500; fill: #9A9DA3; }
+      .iconStroke { stroke: #6F7278; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+    </style>
+  </defs>
+
+  <rect x="54" y="54" width="1332" height="852" rx="32" fill="#FFFFFF" filter="url(#softShadow)"/>
+
+  <g class="font">
+    <text x="100" y="132" class="h1">Open<tspan fill="#168A53">Grove</tspan></text>
+    <text x="100" y="168" class="body">Low-saturation agent workspace identity with a small pixel sapling mark.</text>
+  </g>
+
+  <g transform="translate(1120 78)">
+    <rect width="128" height="128" rx="28" fill="#FBFBFA" stroke="rgba(0,0,0,0.08)"/>
+    <g transform="translate(24 18) scale(0.72)" shape-rendering="crispEdges">
+      <rect x="0" y="0" width="31" height="31" fill="#7BCB57"/>
+      <rect x="16" y="16" width="31" height="31" fill="#5FB24A"/>
+      <rect x="79" y="15" width="31" height="31" fill="#7BCB57"/>
+      <rect x="63" y="31" width="31" height="31" fill="#5FB24A"/>
+      <rect x="47" y="47" width="17" height="58" fill="#202424"/>
+      <rect x="60" y="47" width="4" height="58" fill="#343A38"/>
+      <rect x="32" y="105" width="47" height="15" fill="#202424"/>
+      <rect x="32" y="105" width="47" height="3" fill="#343A38"/>
+    </g>
+  </g>
+
+  <g class="font" transform="translate(100 238)">
+    <text class="h2" x="0" y="0">Color Tokens</text>
+    <g transform="translate(0 34)">
+      <rect width="136" height="88" rx="16" fill="#F6F6F7" stroke="rgba(0,0,0,0.08)"/>
+      <text x="18" y="34" class="small">App BG</text>
+      <text x="18" y="60" class="tiny">#F6F6F7</text>
+    </g>
+    <g transform="translate(156 34)">
+      <rect width="136" height="88" rx="16" fill="#FFFFFF" stroke="rgba(0,0,0,0.08)"/>
+      <text x="18" y="34" class="small">Surface</text>
+      <text x="18" y="60" class="tiny">#FFFFFF</text>
+    </g>
+    <g transform="translate(312 34)">
+      <rect width="136" height="88" rx="16" fill="#1F2023"/>
+      <text x="18" y="34" fill="#FFFFFF" font-size="13" font-weight="500">Text</text>
+      <text x="18" y="60" fill="#C8CBD0" font-size="12" font-weight="500">#1F2023</text>
+    </g>
+    <g transform="translate(468 34)">
+      <rect width="136" height="88" rx="16" fill="#2F95F3"/>
+      <text x="18" y="34" fill="#FFFFFF" font-size="13" font-weight="500">Accent</text>
+      <text x="18" y="60" fill="#DDEEFF" font-size="12" font-weight="500">#2F95F3</text>
+    </g>
+    <g transform="translate(624 34)">
+      <rect width="136" height="88" rx="16" fill="#168A53"/>
+      <text x="18" y="34" fill="#FFFFFF" font-size="13" font-weight="500">Brand Green</text>
+      <text x="18" y="60" fill="#CDEEDB" font-size="12" font-weight="500">#168A53</text>
+    </g>
+    <g transform="translate(780 34)">
+      <rect width="136" height="88" rx="16" fill="#5FB24A"/>
+      <text x="18" y="34" fill="#FFFFFF" font-size="13" font-weight="500">Sapling</text>
+      <text x="18" y="60" fill="#E9F7E4" font-size="12" font-weight="500">#5FB24A</text>
+    </g>
+  </g>
+
+  <g class="font" transform="translate(100 410)">
+    <text class="h2" x="0" y="0">Typography</text>
+    <text x="0" y="54" font-size="28" font-weight="620" letter-spacing="-0.6" fill="#1F2023">页面标题 / Page Title</text>
+    <text x="0" y="92" font-size="16" font-weight="620" fill="#1F2023">分区标题 / Section Title</text>
+    <text x="0" y="126" font-size="14" font-weight="400" fill="#6F7278">正文说明保持安静，使用统一灰度和更舒服的行高。</text>
+    <text x="0" y="154" font-size="12.5" font-weight="400" fill="#9A9DA3">辅助信息更轻，不参与主要视觉竞争。</text>
+  </g>
+
+  <g class="font" transform="translate(650 410)">
+    <text class="h2" x="0" y="0">Icon Rules</text>
+    <g transform="translate(0 38)">
+      <rect width="44" height="44" rx="22" fill="#F2F3F3"/>
+      <circle cx="22" cy="22" r="7" fill="none" class="iconStroke"/>
+      <path d="M22 15v14M15 22h14" class="iconStroke"/>
+      <text x="62" y="28" class="body">Lucide-style, 16-18px, stroke 1.8</text>
+    </g>
+    <g transform="translate(0 96)">
+      <rect width="44" height="44" rx="12" fill="#FBFBFA" stroke="rgba(0,0,0,0.08)"/>
+      <path d="M16 28h12M16 22h12M16 16h12" class="iconStroke"/>
+      <text x="62" y="28" class="body">Neutral containers, minimal color</text>
+    </g>
+  </g>
+
+  <g class="font" transform="translate(100 632)">
+    <text class="h2" x="0" y="0">Settings Surface</text>
+    <rect x="0" y="34" width="560" height="210" rx="24" fill="#F6F6F7"/>
+    <rect x="24" y="58" width="148" height="162" rx="18" fill="#FFFFFF" stroke="rgba(0,0,0,0.08)"/>
+    <rect x="42" y="78" width="112" height="34" rx="12" fill="#F2F3F3"/>
+    <text x="58" y="100" font-size="13" font-weight="600" fill="#1F2023">订阅</text>
+    <text x="58" y="140" font-size="13" font-weight="500" fill="#6F7278">通用</text>
+    <text x="58" y="176" font-size="13" font-weight="500" fill="#6F7278">连接器</text>
+
+    <rect x="196" y="58" width="336" height="162" rx="18" fill="#FFFFFF" stroke="rgba(0,0,0,0.08)"/>
+    <text x="220" y="94" font-size="16" font-weight="620" fill="#1F2023">权限</text>
+    <text x="220" y="126" font-size="13" font-weight="400" fill="#6F7278">轻列表行，右侧统一控件。</text>
+    <line x1="220" y1="150" x2="508" y2="150" stroke="rgba(0,0,0,0.08)"/>
+    <text x="220" y="181" font-size="13" font-weight="500" fill="#1F2023">自动审核</text>
+    <rect x="464" y="164" width="44" height="24" rx="12" fill="#2F95F3"/>
+    <circle cx="496" cy="176" r="9" fill="#FFFFFF"/>
+  </g>
+
+  <g class="font" transform="translate(742 632)">
+    <text class="h2" x="0" y="0">Component Mood</text>
+    <rect x="0" y="34" width="452" height="72" rx="20" fill="#FFFFFF" stroke="rgba(0,0,0,0.08)"/>
+    <text x="24" y="64" font-size="14" font-weight="620" fill="#1F2023">Claude Agent</text>
+    <text x="24" y="88" font-size="13" font-weight="400" fill="#6F7278">SDK 接入 · AWS Bedrock</text>
+    <rect x="328" y="54" width="84" height="32" rx="16" fill="#F2F3F3"/>
+    <text x="351" y="75" font-size="13" font-weight="600" fill="#1F2023">已启用</text>
+
+    <rect x="0" y="126" width="452" height="92" rx="20" fill="#FFFFFF" stroke="rgba(0,0,0,0.08)"/>
+    <text x="24" y="158" font-size="14" font-weight="620" fill="#1F2023">OpenGrove input</text>
+    <text x="24" y="184" font-size="13" font-weight="400" fill="#9A9DA3">Rounded but restrained, light border, strong whitespace.</text>
+  </g>
+</svg>

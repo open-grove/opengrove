@@ -1,0 +1,209 @@
+.list {
+  display: grid;
+  overflow: hidden;
+  border-radius: var(--r-lg);
+  background: var(--c-surface-grouped);
+}
+
+.item {
+  position: relative;
+  min-width: 0;
+}
+
+.item + .item::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: var(--sp-4);
+  left: var(--sp-4);
+  height: 1px;
+  background: var(--c-line-06);
+}
+
+.row {
+  display: grid;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 60px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 11px;
+  align-items: center;
+  background: transparent;
+  color: var(--og-text);
+  padding: 9px 16px;
+}
+
+.row:hover {
+  background: var(--c-fill-strong);
+}
+
+.rowMain {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: 32px minmax(0, 1fr);
+  gap: 11px;
+  align-items: center;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  padding: 0;
+  text-align: left;
+  font: inherit;
+}
+
+.rowMain:focus-visible,
+.expandButton:focus-visible {
+  border-radius: var(--r-sm);
+  outline: 2px solid var(--settings-focus-border);
+  outline-offset: 2px;
+}
+
+.rowMain:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.icon {
+  width: 32px;
+  height: 32px;
+}
+
+.main {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.main strong {
+  overflow: hidden;
+  color: var(--og-text);
+  font-size: var(--fs-base);
+  font-weight: var(--fw-medium);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.main small {
+  overflow: hidden;
+  color: var(--og-text-muted);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-normal);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.action {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.chevron {
+  color: var(--og-text-soft);
+  transform: rotate(-90deg);
+  transition: transform var(--motion-fast) var(--motion-ease);
+}
+
+.expandButton {
+  display: inline-grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  padding: 0;
+}
+
+.expandButton:hover {
+  background: var(--c-fill);
+}
+
+.expanded .chevron {
+  transform: rotate(0deg);
+}
+
+.installButton {
+  min-height: 30px;
+  border: 0;
+  border-radius: var(--r-md);
+  background: var(--c-fill-strong);
+  color: var(--og-text);
+  cursor: pointer;
+  padding: 0 11px;
+  font: inherit;
+  font-size: var(--fs-sm);
+}
+
+.installButton:hover,
+.installButton:focus-visible {
+  background: var(--c-fill);
+  outline: 0;
+}
+
+.expandedPanel {
+  display: grid;
+  border-top: 1px solid var(--c-line-06);
+  padding: 0 16px 0 59px;
+}
+
+.detailRow {
+  display: grid;
+  min-height: 52px;
+  grid-template-columns: minmax(160px, 0.55fr) minmax(220px, 1fr);
+  gap: 16px;
+  align-items: center;
+}
+
+.detailRow + .detailRow {
+  border-top: 1px solid var(--c-line-06);
+}
+
+.detailRow > strong {
+  color: var(--og-text);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+}
+
+.detailRow input {
+  min-width: 0;
+  height: 34px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--og-text);
+  padding: 0 10px;
+  font: inherit;
+  font-size: var(--fs-sm);
+  text-align: right;
+  text-overflow: ellipsis;
+}
+
+.detailRow input:hover {
+  background: var(--c-fill);
+}
+
+.detailRow input:focus {
+  background: var(--c-fill);
+  outline: 2px solid var(--settings-focus-border);
+  outline-offset: 0;
+}
+
+@media (max-width: 760px) {
+  .expandedPanel {
+    padding-left: 16px;
+  }
+
+  .detailRow {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 6px;
+    padding: 8px 0;
+  }
+
+  .detailRow input {
+    text-align: left;
+  }
+}

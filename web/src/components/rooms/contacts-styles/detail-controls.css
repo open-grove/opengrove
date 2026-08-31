@@ -1,0 +1,40 @@
+.contacts-detail-control {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  border: 1px solid var(--og-section-border);
+  border-radius: var(--r-sm);
+  background: var(--og-surface);
+  color: var(--og-section-text);
+  font: inherit;
+  font-size: var(--fs-base);
+  outline: none;
+}
+
+.contacts-detail-control:not(textarea) {
+  min-height: 32px;
+  padding: 0 9px;
+}
+
+.contacts-detail-textarea {
+  resize: vertical;
+  min-height: 74px;
+  padding: 8px 9px;
+}
+
+.contacts-detail-control:focus {
+  border-color: var(--og-section-border);
+  box-shadow: none;
+}
+
+.contacts-message-button.primary {
+  border-color: var(--og-interaction);
+  background: var(--contacts-message-primary-bg);
+  color: var(--og-white);
+}
+
+.contacts-message-button.primary:hover,
+.contacts-message-button.primary:focus-visible {
+  background: var(--contacts-message-primary-hover-bg);
+  color: var(--og-white);
+}

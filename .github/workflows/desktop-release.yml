@@ -1,0 +1,666 @@
+name: Desktop release candidate
+run-name: Desktop candidate ${{ inputs.ref }} [${{ inputs.platforms }}]
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Current main commit SHA or the main branch
+        required: true
+        type: string
+      platforms:
+        description: "Targets: all or comma-separated mac-arm64, mac-x64, windows-x64"
+        required: true
+        default: all
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: desktop-release-candidate-${{ inputs.ref }}
+  cancel-in-progress: false
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  CANDIDATE_ID: candidate-${{ github.run_id }}
+
+jobs:
+  resolve-candidate:
+    name: Resolve candidate identity before exposing release secrets
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      commit: ${{ steps.candidate.outputs.commit }}
+      version: ${{ steps.candidate.outputs.version }}
+      client_release_number: ${{ steps.candidate.outputs.client_release_number }}
+      expected_tag: ${{ steps.candidate.outputs.expected_tag }}
+      previous_release_tag: ${{ steps.candidate.outputs.previous_release_tag }}
+      web_build_id: ${{ steps.candidate.outputs.web_build_id }}
+      platforms: ${{ steps.platforms.outputs.platforms }}
+      mac_matrix: ${{ steps.platforms.outputs.mac_matrix }}
+      run_mac: ${{ steps.platforms.outputs.run_mac }}
+      run_windows: ${{ steps.platforms.outputs.run_windows }}
+      full_candidate: ${{ steps.platforms.outputs.full_candidate }}
+      main_ci_run_url: ${{ steps.ci-evidence.outputs.main_ci_run_url }}
+      nightly_run_url: ${{ steps.ci-evidence.outputs.nightly_run_url }}
+      nightly_sha: ${{ steps.ci-evidence.outputs.nightly_sha }}
+    steps:
+      - name: Check out trusted workflow source
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Select requested platforms
+        id: platforms
+        env:
+          REQUESTED_PLATFORMS: ${{ inputs.platforms }}
+        run: >-
+          node scripts/desktop-release-platform-selection.mjs
+          --platforms "$REQUESTED_PLATFORMS"
+          --github-output "$GITHUB_OUTPUT"
+
+      - name: Resolve and authorize requested ref
+        id: candidate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REQUESTED_REF: ${{ inputs.ref }}
+        shell: bash
+        run: |
+          if [[ ! "$REQUESTED_REF" =~ ^[A-Za-z0-9][A-Za-z0-9._/-]*$ ]] || [[ "$REQUESTED_REF" == *..* ]]; then
+            echo "Candidate ref contains unsupported characters." >&2
+            exit 1
+          fi
+          git fetch --no-tags origin main
+          git fetch --no-tags origin "$REQUESTED_REF"
+          commit="$(git rev-parse --verify 'FETCH_HEAD^{commit}')"
+          main_commit="$(git rev-parse --verify 'origin/main^{commit}')"
+          if [[ "$commit" != "$main_commit" ]]; then
+            echo "Candidate must be the current main tip ($main_commit), received $commit." >&2
+            exit 1
+          fi
+          package_json="$(git show "$commit:package.json")"
+          version="$(node -e 'const p=JSON.parse(process.argv[1]); process.stdout.write(String(p.version))' "$package_json")"
+          client_release_number="$(node -e 'const p=JSON.parse(process.argv[1]); if (!Number.isSafeInteger(p.clientReleaseNumber) || p.clientReleaseNumber <= 0) process.exit(1); process.stdout.write(String(p.clientReleaseNumber))' "$package_json")"
+          expected_tag="v$version"
+          if git ls-remote --exit-code --tags origin "refs/tags/$expected_tag" >/dev/null 2>&1; then
+            echo "Formal tag $expected_tag already exists; candidate gates must run before the tag is created." >&2
+            exit 1
+          fi
+          previous_release_tag="$(gh release list --exclude-drafts --exclude-pre-releases --limit 1 --json tagName --jq '.[0].tagName')"
+          test -n "$previous_release_tag"
+          node -e '
+            const parse = (value) => {
+              const match = /^v?(\d+)\.(\d+)\.(\d+)$/.exec(value);
+              if (!match) throw new Error(`unsupported release version: ${value}`);
+              return match.slice(1).map(Number);
+            };
+            const current = parse(process.argv[1]);
+            const previous = parse(process.argv[2]);
+            if (!current.some((part, index) => part > previous[index] && current.slice(0, index).every((prefix, prefixIndex) => prefix === previous[prefixIndex]))) {
+              throw new Error(`${process.argv[1]} must be newer than ${process.argv[2]}`);
+            }
+          ' "$version" "$previous_release_tag"
+          echo "commit=$commit" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "client_release_number=$client_release_number" >> "$GITHUB_OUTPUT"
+          echo "expected_tag=$expected_tag" >> "$GITHUB_OUTPUT"
+          echo "previous_release_tag=$previous_release_tag" >> "$GITHUB_OUTPUT"
+          echo "web_build_id=release-${version//./_}-${commit:0:12}" >> "$GITHUB_OUTPUT"
+
+      - name: Verify exact Main CI and recent Nightly evidence
+        id: ci-evidence
+        if: steps.platforms.outputs.full_candidate == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CANDIDATE_COMMIT: ${{ steps.candidate.outputs.commit }}
+        run: >-
+          node scripts/release-ci-eligibility.mjs
+          --repository "$GITHUB_REPOSITORY"
+          --candidate "$CANDIDATE_COMMIT"
+          --main-workflow main-ci.yml
+          --nightly-workflow nightly.yml
+          --max-nightly-age-hours 24
+          --github-output "$GITHUB_OUTPUT"
+
+  release-readiness:
+    name: Check candidate release metadata and contracts
+    needs: resolve-candidate
+    if: needs.resolve-candidate.outputs.full_candidate == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out authorized candidate commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.resolve-candidate.outputs.commit }}
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check release readiness
+        run: npm run release:readiness
+
+  deployment-readiness:
+    name: Check protected deployment infrastructure
+    needs: resolve-candidate
+    if: needs.resolve-candidate.outputs.full_candidate == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: desktop-release
+    steps:
+      - name: Check out trusted readiness code
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install pinned ossutil
+        run: bash scripts/install-pinned-ossutil.sh
+
+      - name: Check deployment access without writing
+        env:
+          NODE_USE_ENV_PROXY: "1"
+          OPENGROVE_RELEASE_OSS_REGION: ${{ vars.OPENGROVE_RELEASE_OSS_REGION }}
+          OPENGROVE_RELEASE_OSS_BUCKET: ${{ vars.OPENGROVE_RELEASE_OSS_BUCKET }}
+          OPENGROVE_RELEASE_OSS_ENDPOINT: ${{ vars.OPENGROVE_RELEASE_OSS_ENDPOINT }}
+          OPENGROVE_RELEASE_R2_BUCKET: ${{ vars.OPENGROVE_RELEASE_R2_BUCKET }}
+          OPENGROVE_RELEASE_R2_ACCOUNT_ID: ${{ vars.OPENGROVE_RELEASE_R2_ACCOUNT_ID }}
+          OPENGROVE_DESKTOP_RELEASE_PUBLIC_ROOT: ${{ vars.OPENGROVE_DESKTOP_RELEASE_PUBLIC_ROOT }}
+          OPENGROVE_DESKTOP_RELEASE_UPDATER_ROOT: ${{ vars.OPENGROVE_DESKTOP_RELEASE_UPDATER_ROOT }}
+          OPENGROVE_CLIENT_RELEASES_URL: ${{ vars.OPENGROVE_CLIENT_RELEASES_URL }}
+          OSS_ACCESS_KEY_ID: ${{ secrets.OSS_ACCESS_KEY_ID }}
+          OSS_ACCESS_KEY_SECRET: ${{ secrets.OSS_ACCESS_KEY_SECRET }}
+          OSS_SESSION_TOKEN: ${{ secrets.OSS_SESSION_TOKEN }}
+          OPENGROVE_RELEASE_R2_ACCESS_KEY_ID: ${{ secrets.OPENGROVE_RELEASE_R2_ACCESS_KEY_ID }}
+          OPENGROVE_RELEASE_R2_SECRET_ACCESS_KEY: ${{ secrets.OPENGROVE_RELEASE_R2_SECRET_ACCESS_KEY }}
+          OPENGROVE_RELEASE_UPLOAD_TOKEN: ${{ secrets.OPENGROVE_RELEASE_UPLOAD_TOKEN }}
+        run: node scripts/check-desktop-release-infrastructure.mjs
+
+  golden-replay:
+    name: Replay known-good desktop release gates
+    needs: resolve-candidate
+    if: needs.resolve-candidate.outputs.full_candidate == 'true'
+    uses: ./.github/workflows/desktop-gate-replay.yml
+    with:
+      ref: ${{ needs.resolve-candidate.outputs.commit }}
+
+  mac-release:
+    name: Build signed macOS ${{ matrix.arch }} release
+    if: >-
+      !cancelled() &&
+      needs.resolve-candidate.result == 'success' &&
+      needs.resolve-candidate.outputs.run_mac == 'true' &&
+      (
+        needs.resolve-candidate.outputs.full_candidate != 'true' ||
+        (
+          needs.release-readiness.result == 'success' &&
+          needs.deployment-readiness.result == 'success' &&
+          needs.golden-replay.result == 'success'
+        )
+      )
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 150
+    environment: desktop-release
+    needs: [resolve-candidate, release-readiness, deployment-readiness, golden-replay]
+    env:
+      OPENGROVE_EXPECTED_RELEASE_TAG: ${{ needs.resolve-candidate.outputs.expected_tag }}
+      OPENGROVE_PREVIOUS_RELEASE_TAG: ${{ needs.resolve-candidate.outputs.previous_release_tag }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.resolve-candidate.outputs.mac_matrix) }}
+    steps:
+      - name: Check signing and notarization secrets
+        env:
+          CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
+          APPLE_API_KEY_BASE64: ${{ secrets.APPLE_API_KEY_BASE64 }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        shell: bash
+        run: |
+          missing=()
+          for name in CSC_LINK CSC_KEY_PASSWORD; do
+            if [ -z "${!name:-}" ]; then missing+=("$name"); fi
+          done
+
+          api_key_configured=false
+          apple_id_configured=false
+          for name in APPLE_API_KEY_BASE64 APPLE_API_KEY_ID APPLE_API_ISSUER; do
+            if [ -n "${!name:-}" ]; then api_key_configured=true; fi
+          done
+          for name in APPLE_ID APPLE_APP_SPECIFIC_PASSWORD APPLE_TEAM_ID; do
+            if [ -n "${!name:-}" ]; then apple_id_configured=true; fi
+          done
+
+          if [ "$api_key_configured" = "$apple_id_configured" ]; then
+            echo "Configure exactly one notarization strategy: App Store Connect API key or Apple ID app-specific password." >&2
+            exit 1
+          fi
+          if [ "$api_key_configured" = true ]; then
+            required=(APPLE_API_KEY_BASE64 APPLE_API_KEY_ID APPLE_API_ISSUER)
+          else
+            required=(APPLE_ID APPLE_APP_SPECIFIC_PASSWORD APPLE_TEAM_ID)
+          fi
+          for name in "${required[@]}"; do
+            if [ -z "${!name:-}" ]; then missing+=("$name"); fi
+          done
+          if [ "${#missing[@]}" -ne 0 ]; then
+            echo "Missing desktop-release environment secrets: ${missing[*]}" >&2
+            exit 1
+          fi
+
+      - name: Check out authorized candidate commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.resolve-candidate.outputs.commit }}
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Restore Electron download caches
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/Library/Caches/electron
+            ~/Library/Caches/electron-builder
+          key: desktop-electron-${{ runner.os }}-${{ matrix.arch }}-${{ hashFiles('package-lock.json', 'electron-builder.yml', 'electron-builder.release.cjs') }}
+          restore-keys: |
+            desktop-electron-${{ runner.os }}-${{ matrix.arch }}-
+
+      - name: Install pinned ossutil
+        shell: bash
+        run: |
+          archive="$RUNNER_TEMP/${{ matrix.ossutil_archive }}"
+          curl --fail --silent --show-error --location \
+            "https://gosspublic.alicdn.com/ossutil/v2/2.3.0/${{ matrix.ossutil_archive }}" \
+            --output "$archive"
+          printf '%s  %s\n' '${{ matrix.ossutil_sha256 }}' "$archive" | shasum -a 256 --check
+          mkdir -p "$RUNNER_TEMP/ossutil-bin"
+          unzip -q "$archive" -d "$RUNNER_TEMP/ossutil-bin"
+          binary="$(find "$RUNNER_TEMP/ossutil-bin" -type f -name ossutil -print -quit)"
+          test -n "$binary"
+          chmod 755 "$binary"
+          mv "$binary" "$RUNNER_TEMP/ossutil-bin/ossutil"
+          echo "$RUNNER_TEMP/ossutil-bin" >> "$GITHUB_PATH"
+
+      - name: Materialize Apple API key when configured
+        env:
+          APPLE_API_KEY_BASE64: ${{ secrets.APPLE_API_KEY_BASE64 }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+        shell: bash
+        run: |
+          if [ -z "${APPLE_API_KEY_BASE64:-}" ]; then
+            echo "Apple ID notarization strategy selected; no API key to materialize."
+            exit 0
+          fi
+          key_path="$RUNNER_TEMP/AuthKey_${APPLE_API_KEY_ID}.p8"
+          printf '%s' "$APPLE_API_KEY_BASE64" | base64 --decode > "$key_path"
+          chmod 600 "$key_path"
+          echo "APPLE_API_KEY=$key_path" >> "$GITHUB_ENV"
+
+      - name: Resolve release metadata
+        id: release
+        shell: bash
+        run: |
+          version="$(node -p "require('./package.json').version")"
+          commit="$(git rev-parse HEAD | tr '[:upper:]' '[:lower:]')"
+          test "$commit" = '${{ needs.resolve-candidate.outputs.commit }}'
+          test "v$version" = '${{ needs.resolve-candidate.outputs.expected_tag }}'
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "expected_tag=v$version" >> "$GITHUB_OUTPUT"
+          echo "web_build_id=${{ needs.resolve-candidate.outputs.web_build_id }}" >> "$GITHUB_OUTPUT"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run release preflight
+        env:
+          CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: node scripts/preflight-desktop-release.mjs
+
+      - name: Build application
+        env:
+          OPENGROVE_WEB_BUILD_ID: ${{ steps.release.outputs.web_build_id }}
+        run: npm run build
+
+      - name: Prepare desktop package inputs
+        run: |
+          npm run minify:dist
+          npm run check:desktop-package
+          node scripts/stage-desktop-runtime.mjs --target mac
+
+      - name: Package, sign, and notarize macOS ${{ matrix.arch }}
+        env:
+          CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          OPENGROVE_MAC_SIGNING_IDENTITY: ${{ secrets.MAC_SIGNING_IDENTITY }}
+          OPENGROVE_DESKTOP_ARCH: ${{ matrix.arch }}
+          OPENGROVE_DESKTOP_OUTPUT_DIR: release/desktop
+        run: npx electron-builder --config electron-builder.release.cjs --mac --${{ matrix.arch }} --publish never
+
+      - name: Finalize and verify distribution bytes
+        env:
+          CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          OPENGROVE_MAC_SIGNING_IDENTITY: ${{ secrets.MAC_SIGNING_IDENTITY }}
+        run: |
+          node scripts/finalize-mac-dmg-artifacts.mjs --arch ${{ matrix.arch }}
+          node scripts/check-desktop-artifact.mjs --target darwin-${{ matrix.arch }}
+          node scripts/verify-desktop-release.mjs
+          node scripts/smoke-desktop-installer.mjs --target ${{ matrix.target }}
+          node scripts/write-desktop-release-source.mjs --target ${{ matrix.target }}
+
+      - name: Build and independently verify updater metadata
+        run: |
+          node scripts/prepare-desktop-release.mjs \
+            --public-base-url https://release-gate.invalid/opengrove \
+            --updater-base-url https://release-gate.invalid/opengrove/updater
+          node scripts/verify-desktop-update-metadata.mjs \
+            --evidence-out release/desktop/release-gates/${{ matrix.target }}/updater_metadata.json
+
+      - name: Download previous installer
+        id: previous
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          previous='${{ needs.resolve-candidate.outputs.previous_release_tag }}'
+          test -n "$previous"
+          mkdir -p "$RUNNER_TEMP/previous-release"
+          gh release download "$previous" \
+            --pattern 'OpenGrove-*-mac-${{ matrix.arch }}.dmg' \
+            --dir "$RUNNER_TEMP/previous-release"
+          installer="$(find "$RUNNER_TEMP/previous-release" -type f -name '*.dmg' -print -quit)"
+          test -n "$installer"
+          echo "installer=$installer" >> "$GITHUB_OUTPUT"
+
+      - name: Update previous release through the real updater
+        run: |
+          node scripts/test-previous-desktop-update.mjs \
+            --target ${{ matrix.target }} \
+            --previous-installer '${{ steps.previous.outputs.installer }}'
+
+      - name: Upload gated macOS bytes
+        uses: actions/upload-artifact@v4
+        with:
+          name: opengrove-${{ env.CANDIDATE_ID }}-${{ matrix.target }}
+          compression-level: 0
+          if-no-files-found: error
+          path: |
+            release/desktop/OpenGrove-${{ steps.release.outputs.version }}-mac-${{ matrix.arch }}.dmg
+            release/desktop/OpenGrove-${{ steps.release.outputs.version }}-mac-${{ matrix.arch }}.zip
+            release/desktop/OpenGrove-${{ steps.release.outputs.version }}-mac-${{ matrix.arch }}.zip.blockmap
+            release/desktop/updater/${{ matrix.target }}/**
+            release/desktop/release-source/${{ matrix.target }}.json
+            release/desktop/release-gates/${{ matrix.target }}/**
+
+      - name: Upload macOS gate failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: opengrove-${{ env.CANDIDATE_ID }}-${{ matrix.target }}-failure
+          if-no-files-found: ignore
+          path: |
+            release/desktop/release-gates/${{ matrix.target }}/**
+            release/desktop/builder-debug.yml
+            release/desktop/builder-effective-config.yaml
+
+  windows-release:
+    name: Build unsigned Windows x64 release
+    if: >-
+      !cancelled() &&
+      needs.resolve-candidate.result == 'success' &&
+      needs.resolve-candidate.outputs.run_windows == 'true' &&
+      (
+        needs.resolve-candidate.outputs.full_candidate != 'true' ||
+        (
+          needs.release-readiness.result == 'success' &&
+          needs.deployment-readiness.result == 'success' &&
+          needs.golden-replay.result == 'success'
+        )
+      )
+    runs-on: windows-latest
+    timeout-minutes: 120
+    environment: desktop-release
+    needs: [resolve-candidate, release-readiness, deployment-readiness, golden-replay]
+    env:
+      # Temporary until Authenticode or Trusted Signing is configured.
+      OPENGROVE_ALLOW_UNSIGNED_WINDOWS: "1"
+      OPENGROVE_EXPECTED_RELEASE_TAG: ${{ needs.resolve-candidate.outputs.expected_tag }}
+      OPENGROVE_PREVIOUS_RELEASE_TAG: ${{ needs.resolve-candidate.outputs.previous_release_tag }}
+
+    steps:
+      - name: Check out authorized candidate commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.resolve-candidate.outputs.commit }}
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Resolve release metadata
+        id: release
+        shell: pwsh
+        run: |
+          $package = Get-Content package.json -Raw | ConvertFrom-Json
+          $version = [string]$package.version
+          $commit = (git rev-parse HEAD).Trim().ToLower()
+          if ($commit -ne '${{ needs.resolve-candidate.outputs.commit }}') { throw "Checked-out commit $commit does not match authorized candidate" }
+          if ("v$version" -ne '${{ needs.resolve-candidate.outputs.expected_tag }}') { throw "Package version does not match candidate tag" }
+          "version=$version" >> $env:GITHUB_OUTPUT
+          "expected_tag=v$version" >> $env:GITHUB_OUTPUT
+          "web_build_id=${{ needs.resolve-candidate.outputs.web_build_id }}" >> $env:GITHUB_OUTPUT
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run release preflight
+        run: node scripts/preflight-desktop-release.mjs
+
+      - name: Build application
+        env:
+          OPENGROVE_WEB_BUILD_ID: ${{ steps.release.outputs.web_build_id }}
+        run: npm run build
+
+      - name: Prepare desktop package inputs
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $true
+          npm run minify:dist
+          npm run check:desktop-package
+          node scripts/stage-desktop-runtime.mjs --target windows
+
+      - name: Package Windows x64 release
+        run: npx electron-builder --config electron-builder.release.cjs --win --x64 --publish never
+
+      - name: Verify and smoke final Windows installer
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $true
+          node scripts/check-desktop-artifact.mjs --target win32-x64
+          node scripts/verify-desktop-release.mjs
+          node scripts/smoke-desktop-installer.mjs --target windows-x64
+          node scripts/write-desktop-release-source.mjs --target windows-x64
+
+      - name: Build and independently verify updater metadata
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $true
+          node scripts/prepare-desktop-release.mjs --public-base-url https://release-gate.invalid/opengrove --updater-base-url https://release-gate.invalid/opengrove/updater
+          node scripts/verify-desktop-update-metadata.mjs --evidence-out release/desktop/release-gates/windows-x64/updater_metadata.json
+
+      - name: Download previous installer
+        id: previous
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: pwsh
+        run: |
+          $previous = '${{ needs.resolve-candidate.outputs.previous_release_tag }}'
+          if (-not $previous) { throw "No previous release tag was found" }
+          $directory = Join-Path $env:RUNNER_TEMP 'previous-release'
+          New-Item -ItemType Directory -Force -Path $directory | Out-Null
+          gh release download $previous --pattern 'OpenGrove-*-win-x64.exe' --dir $directory
+          $installer = Get-ChildItem $directory -Filter '*.exe' | Select-Object -First 1
+          if (-not $installer) { throw "Previous Windows installer was not downloaded" }
+          "installer=$($installer.FullName)" >> $env:GITHUB_OUTPUT
+
+      - name: Update previous release through the real updater
+        timeout-minutes: 20
+        run: node scripts/test-previous-desktop-update.mjs --target windows-x64 --previous-installer '${{ steps.previous.outputs.installer }}'
+
+      - name: Upload gated Windows bytes
+        uses: actions/upload-artifact@v4
+        with:
+          name: opengrove-${{ env.CANDIDATE_ID }}-windows-x64-unsigned
+          compression-level: 0
+          if-no-files-found: error
+          path: |
+            release/desktop/OpenGrove-${{ steps.release.outputs.version }}-win-x64.exe
+            release/desktop/OpenGrove-${{ steps.release.outputs.version }}-win-x64.exe.blockmap
+            release/desktop/updater/windows-x64/**
+            release/desktop/release-source/windows-x64.json
+            release/desktop/release-gates/windows-x64/**
+
+      - name: Upload Windows gate failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: opengrove-${{ env.CANDIDATE_ID }}-windows-x64-failure
+          if-no-files-found: ignore
+          path: |
+            release/desktop/release-gates/windows-x64/**
+            release/desktop/builder-debug.yml
+            release/desktop/builder-effective-config.yaml
+
+  release-gates:
+    name: Assemble immutable gated candidate
+    needs: [resolve-candidate, release-readiness, deployment-readiness, golden-replay, mac-release, windows-release]
+    if: >-
+      always() &&
+      needs.resolve-candidate.result == 'success' &&
+      needs.release-readiness.result == 'success' &&
+      needs.deployment-readiness.result == 'success' &&
+      needs.golden-replay.result == 'success' &&
+      needs.resolve-candidate.outputs.full_candidate == 'true' &&
+      needs.mac-release.result == 'success' &&
+      needs.windows-release.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out authorized candidate commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.resolve-candidate.outputs.commit }}
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Download the exact gated platform bytes
+        uses: actions/download-artifact@v4
+        with:
+          pattern: opengrove-${{ env.CANDIDATE_ID }}-*
+          path: release/desktop
+          merge-multiple: true
+
+      - name: Assemble metadata and gate receipt
+        env:
+          OPENGROVE_PREVIOUS_RELEASE_TAG: ${{ needs.resolve-candidate.outputs.previous_release_tag }}
+        run: |
+          node scripts/prepare-desktop-release.mjs \
+            --public-base-url https://release-gate.invalid/opengrove \
+            --updater-base-url https://release-gate.invalid/opengrove/updater
+          node scripts/verify-desktop-update-metadata.mjs --require-all
+          node scripts/write-desktop-release-gate-receipt.mjs
+
+      - name: Upload candidate without rebuilding
+        uses: actions/upload-artifact@v4
+        with:
+          name: opengrove-${{ env.CANDIDATE_ID }}-gated-candidate
+          compression-level: 0
+          if-no-files-found: error
+          path: release/desktop/**
+
+  partial-platform-summary:
+    name: Partial platform diagnostic (no candidate)
+    needs: [resolve-candidate, mac-release, windows-release]
+    if: >-
+      always() &&
+      needs.resolve-candidate.result == 'success' &&
+      needs.resolve-candidate.outputs.full_candidate != 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Explain partial-run boundary
+        env:
+          SELECTED_PLATFORMS: ${{ needs.resolve-candidate.outputs.platforms }}
+          MAC_RESULT: ${{ needs.mac-release.result }}
+          WINDOWS_RESULT: ${{ needs.windows-release.result }}
+        shell: bash
+        run: |
+          {
+            echo "## Partial desktop platform diagnostic"
+            echo
+            echo "Selected platforms: \`$SELECTED_PLATFORMS\`"
+            echo "macOS job result: \`$MAC_RESULT\`"
+            echo "Windows job result: \`$WINDOWS_RESULT\`"
+            echo
+            echo "This run intentionally does not assemble a gate receipt or a registrable candidate."
+            echo "Run with \`platforms=all\` for a complete candidate, or rerun failed jobs in an existing complete run."
+          } >> "$GITHUB_STEP_SUMMARY"

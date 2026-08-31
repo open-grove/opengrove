@@ -1,0 +1,204 @@
+.root {
+  position: relative;
+  min-width: 0;
+}
+
+.trigger {
+  display: flex;
+  width: 100%;
+  min-height: 34px;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  border: 0;
+  border-radius: var(--r-sm);
+  background: var(--og-surface-subtle);
+  color: var(--og-text);
+  cursor: pointer;
+  padding: 0 10px;
+  font: inherit;
+  font-size: var(--fs-base);
+  font-weight: var(--fw-normal);
+}
+
+.trigger:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+
+.value {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 7px;
+}
+
+.value > span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.icon {
+  display: inline-grid;
+  flex: 0 0 auto;
+  place-items: center;
+}
+
+.icon :global(.entity-icon) {
+  width: 20px;
+  height: 20px;
+  border-radius: var(--inline-select-entity-icon-radius);
+}
+
+.menu {
+  z-index: 80;
+  display: grid;
+  max-height: min(360px, var(--radix-popover-content-available-height, 50dvh));
+  overflow: auto;
+  border: 1px solid var(--c-line-06);
+  border-radius: var(--r-md);
+  background: var(--c-popover-solid);
+  box-shadow: var(--shadow-md);
+  padding: 6px;
+}
+
+.option {
+  display: flex;
+  min-height: 34px;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 14px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  padding: 0 9px;
+  font: inherit;
+  font-size: var(--fs-base);
+}
+
+.optionCopy {
+  display: flex;
+  min-width: 0;
+  max-width: 100%;
+  align-items: center;
+  gap: var(--sp-2);
+  text-align: left;
+}
+
+.optionCopy > span:last-child {
+  display: grid;
+  min-width: 0;
+  gap: var(--sp-0-5);
+}
+
+.optionCopy strong {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: var(--fw-normal);
+}
+
+.optionCopy small {
+  color: var(--og-text-muted);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-tight);
+}
+
+.option[data-tone="danger"] .optionCopy small {
+  color: currentColor;
+  opacity: 0.78;
+}
+
+.option:hover,
+.option:focus-visible {
+  background: var(--c-surface-hover);
+  outline: 0;
+}
+
+.trigger[data-tone="danger"],
+.option[data-tone="danger"] {
+  color: var(--c-error);
+}
+
+:global(.settings-preference-row) .root {
+  width: max-content;
+  min-width: 0;
+  max-width: 240px;
+}
+
+:global(.employee-dialog-field) .root {
+  width: 100%;
+}
+
+:global(.employee-dialog-runtime-fields) :global(.employee-dialog-field) .root {
+  width: max-content;
+  min-width: 0;
+  max-width: min(240px, 100%);
+  justify-self: end;
+}
+
+:global(.settings-preference-row) .trigger {
+  width: auto;
+  min-height: 24px;
+  border: 0;
+  border-radius: var(--r-md);
+  background: transparent;
+  color: var(--og-text);
+  padding: 0 var(--sp-1) 0 var(--sp-2);
+  font-size: var(--fs-base);
+}
+
+:global(.settings-preference-row) .trigger > svg,
+:global(.employee-dialog-runtime-fields) :global(.employee-dialog-field) .trigger > svg {
+  box-sizing: content-box;
+  border-radius: var(--r-pill);
+  background: var(--c-fill);
+  padding: var(--sp-0-5);
+}
+
+:global(.settings-preference-row) .trigger:hover,
+:global(.settings-preference-row) .trigger:focus-visible,
+:global(.settings-preference-row) .trigger[aria-expanded="true"] {
+  background: var(--c-fill);
+  outline: none;
+}
+
+:global([data-kernel-detail-row]) .trigger {
+  min-height: 34px;
+  border: 1px solid var(--og-border);
+  background: var(--og-surface);
+  font-size: var(--fs-sm);
+}
+
+.contactsRoot {
+  display: block;
+  width: 100%;
+}
+
+.contactsRoot .trigger {
+  min-height: 32px;
+  border: 1px solid var(--rooms-border-strong);
+  background: var(--rooms-panel);
+}
+
+.contactsRoot .trigger:focus-visible {
+  outline: none;
+}
+
+.contactsMenu {
+  max-height: 220px;
+  overflow: auto;
+}
+
+:global(.contacts-kernel-model-field) .contactsRoot {
+  width: 100%;
+}
+
+:global(.contacts-kernel-model-field) .contactsRoot .trigger {
+  width: 100%;
+  justify-content: space-between;
+}

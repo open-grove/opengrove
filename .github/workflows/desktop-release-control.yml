@@ -1,0 +1,99 @@
+name: Control active desktop release
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: Active release pointer operation
+        required: true
+        type: choice
+        options:
+          - promote
+          - rollback
+          - withdraw
+      client_release_number:
+        description: Required for promote/rollback; ignored for withdraw
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desktop-release-control
+  cancel-in-progress: false
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  RELEASE_TIMING_FILE: .opengrove/desktop-release-control-timing.json
+
+jobs:
+  control:
+    name: ${{ inputs.action }} active desktop release
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: desktop-release
+    env:
+      OPENGROVE_CLIENT_RELEASES_URL: ${{ vars.OPENGROVE_CLIENT_RELEASES_URL }}
+    steps:
+      - name: Check out trusted release control
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Validate requested pointer operation
+        env:
+          ACTION: ${{ inputs.action }}
+          OPENGROVE_RELEASE_UPLOAD_TOKEN: ${{ secrets.OPENGROVE_RELEASE_UPLOAD_TOKEN }}
+          RELEASE_NUMBER: ${{ inputs.client_release_number }}
+        shell: bash
+        run: |
+          if [ -z "$OPENGROVE_RELEASE_UPLOAD_TOKEN" ]; then
+            echo "Release upload token is not configured in the desktop-release environment." >&2
+            exit 1
+          fi
+          if [ -z "$OPENGROVE_CLIENT_RELEASES_URL" ]; then
+            echo "Release control URL is not configured in the desktop-release environment." >&2
+            exit 1
+          fi
+          if [ "$ACTION" = withdraw ]; then
+            if [ -n "$RELEASE_NUMBER" ]; then
+              echo "withdraw does not accept a client release number." >&2
+              exit 1
+            fi
+          elif [[ ! "$RELEASE_NUMBER" =~ ^[1-9][0-9]*$ ]]; then
+            echo "promote and rollback require a positive integer client release number." >&2
+            exit 1
+          fi
+
+      - name: Change active release pointer
+        env:
+          ACTION: ${{ inputs.action }}
+          OPENGROVE_RELEASE_UPLOAD_TOKEN: ${{ secrets.OPENGROVE_RELEASE_UPLOAD_TOKEN }}
+          RELEASE_NUMBER: ${{ inputs.client_release_number }}
+        shell: bash
+        run: |
+          arguments=("$ACTION")
+          if [ "$ACTION" != withdraw ]; then arguments+=("$RELEASE_NUMBER"); fi
+          arguments+=(--yes --releases-url "$OPENGROVE_CLIENT_RELEASES_URL")
+          node scripts/run-release-timing-phase.mjs \
+            --timing-file "$RELEASE_TIMING_FILE" \
+            --command desktop-release-control \
+            --version "${RELEASE_NUMBER:-withdraw}" \
+            --phase "$ACTION-active-pointer" \
+            --reset \
+            --finish-run \
+            -- node scripts/control-desktop-release.mjs "${arguments[@]}"
+
+      - name: Upload control timing
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-release-control-${{ inputs.action }}-${{ github.run_id }}-timing
+          if-no-files-found: warn
+          path: ${{ env.RELEASE_TIMING_FILE }}

@@ -1,0 +1,31 @@
+{
+  "id": "replace-with-app-id",
+  "title": "Replace with App title",
+  "defaultLocale": "en",
+  "description": "Portable MCP App for OpenGrove and compatible MCP Apps hosts.",
+  "version": "0.1.0",
+  "ui": {
+    "surface": "view",
+    "workspace": "workspace",
+    "view": {
+      "protocol": "mcp-app",
+      "entry": "ui/index.html",
+      "tools": [
+        "opengrove.app.workspace.list",
+        "opengrove.app.workspace.read"
+      ],
+      "csp": {
+        "connectDomains": [],
+        "resourceDomains": [],
+        "frameDomains": [],
+        "baseUriDomains": []
+      }
+    }
+  },
+  "workspace": {
+    "path": "workspace"
+  },
+  "capabilities": {
+    "cli": []
+  }
+}

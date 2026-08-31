@@ -1,0 +1,372 @@
+name: CI
+
+on:
+  pull_request:
+  merge_group:
+
+permissions:
+  contents: read
+  packages: read
+
+concurrency:
+  group: opengrove-pr-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  OPENGROVE_WEB_BUILD_ID: ${{ github.sha }}
+
+jobs:
+  scope:
+    name: Detect change scope
+    runs-on: ubuntu-latest
+    outputs:
+      docs_only: ${{ steps.change-scope.outputs.docs_only }}
+      base: ${{ steps.change-scope.outputs.base }}
+      server: ${{ steps.change-scope.outputs.server }}
+      web: ${{ steps.change-scope.outputs.web }}
+      desktop: ${{ steps.change-scope.outputs.desktop }}
+      kernel: ${{ steps.change-scope.outputs.kernel }}
+      release: ${{ steps.change-scope.outputs.release }}
+      unit: ${{ steps.change-scope.outputs.unit }}
+      integration: ${{ steps.change-scope.outputs.integration }}
+      web_packaging: ${{ steps.change-scope.outputs.web_packaging }}
+      browser_ui: ${{ steps.change-scope.outputs.browser_ui }}
+      real_agent: ${{ steps.change-scope.outputs.real_agent }}
+      windows_media_cleanup: ${{ steps.change-scope.outputs.windows_media_cleanup }}
+      windows_app_store: ${{ steps.change-scope.outputs.windows_app_store }}
+    steps:
+      - name: Check out candidate merge
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Verify CI contracts
+        run: npm run check:ci-contracts
+
+      - name: Detect CI change scope
+        id: change-scope
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          MERGE_BASE_SHA: ${{ github.event.merge_group.base_sha }}
+          MERGE_HEAD_SHA: ${{ github.event.merge_group.head_sha }}
+        run: |
+          set -euo pipefail
+
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            diff_base="$PR_BASE_SHA"
+            diff_head="$PR_HEAD_SHA"
+          elif [[ "$EVENT_NAME" == "merge_group" ]]; then
+            diff_base="$MERGE_BASE_SHA"
+            diff_head="$MERGE_HEAD_SHA"
+          else
+            echo "Unsupported CI event: $EVENT_NAME" >&2
+            exit 1
+          fi
+
+          test -n "$diff_base"
+          test -n "$diff_head"
+          git diff --check "$diff_base" "$diff_head"
+
+          changed_file_list="$(mktemp)"
+          trap 'rm -f "$changed_file_list"' EXIT
+          changed_files=()
+          if git diff --no-renames --name-only --diff-filter=ACDMRTUXB -z "$diff_base" "$diff_head" > "$changed_file_list"; then
+            mapfile -d '' changed_files < "$changed_file_list"
+          else
+            echo "::warning::Unable to determine changed paths; every PR check will run conservatively."
+          fi
+
+          scope_output="$(node scripts/ci-change-scope.mjs "$EVENT_NAME" "${changed_files[@]}")"
+          printf '%s\n' "$scope_output" >> "$GITHUB_OUTPUT"
+          printf 'Change scope:\n```text\n%s\n```\n' "$scope_output" >> "$GITHUB_STEP_SUMMARY"
+
+  docs:
+    name: Documentation checks
+    needs: scope
+    if: needs.scope.outputs.docs_only == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm run check:doc-refs
+
+  base:
+    name: Repository checks
+    needs: scope
+    if: needs.scope.outputs.base == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run check:static:base
+
+  server:
+    name: Server static checks
+    needs: scope
+    if: needs.scope.outputs.server == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run check:static:server
+
+  web:
+    name: Web checks
+    needs: scope
+    if: needs.scope.outputs.web == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Web static analysis
+        run: npm run check:web:static
+      - name: Web behavior contracts
+        run: npm run test:contract:web
+
+  desktop:
+    name: Desktop checks
+    needs: scope
+    if: needs.scope.outputs.desktop == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Desktop static analysis
+        run: npm run check:desktop:static
+      - name: Desktop behavior contracts
+        run: npm run test:contract:desktop
+
+  release-contracts:
+    name: Release pipeline contracts
+    needs: scope
+    if: needs.scope.outputs.release == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run check:static:release
+      - run: npm run test:harness:release-contracts
+
+  unit:
+    name: Unit tests
+    needs: scope
+    if: needs.scope.outputs.unit == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run test:unit
+
+  integration:
+    name: Affected integration contracts
+    needs: scope
+    if: needs.scope.outputs.integration == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - run: npm run test:integration
+
+  kernel:
+    name: Kernel capability contracts
+    needs: scope
+    if: needs.scope.outputs.kernel == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run test:capabilities
+
+  web-packaging:
+    name: Web packaging
+    needs: scope
+    if: needs.scope.outputs.web_packaging == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run test:pack:web
+
+  browser-ui:
+    name: Browser UI tests
+    needs: scope
+    if: needs.scope.outputs.browser_ui == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    container:
+      image: mcr.microsoft.com/playwright:v1.62.1-noble
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run test:ui
+      - name: Upload browser diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-results
+          if-no-files-found: ignore
+          path: test-results/
+
+  desktop-protocol:
+    name: Desktop protocol smoke
+    needs: scope
+    if: needs.scope.outputs.desktop == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    container:
+      image: mcr.microsoft.com/playwright:v1.62.1-noble
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: xvfb-run -a npm run test:desktop-protocol-proxy-electron
+
+  media-streaming-windows:
+    name: Media streaming cleanup (Windows)
+    needs: scope
+    if: needs.scope.outputs.windows_media_cleanup == 'true'
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run test:windows:media-cleanup
+
+  app-store-windows:
+    name: App Store lifecycle (Windows)
+    needs: scope
+    if: needs.scope.outputs.windows_app_store == 'true'
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run test:windows:app-store-lifecycle
+
+  real-agent:
+    name: Real Agent contracts
+    needs: scope
+    if: needs.scope.outputs.real_agent == 'true'
+    uses: ./.github/workflows/real-agent-smoke.yml
+    secrets: inherit
+
+  required:
+    name: PR required
+    if: always()
+    needs:
+      - scope
+      - docs
+      - base
+      - server
+      - web
+      - desktop
+      - release-contracts
+      - unit
+      - integration
+      - kernel
+      - web-packaging
+      - browser-ui
+      - desktop-protocol
+      - media-streaming-windows
+      - app-store-windows
+      - real-agent
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Require successful dependencies
+        env:
+          CI_JOB_RESULTS: ${{ toJSON(needs) }}
+          CI_JOB_EXPECTATIONS: |
+            scope=success
+            docs=${{ needs.scope.outputs.docs_only == 'true' && 'success' || 'skipped' }}
+            base=${{ needs.scope.outputs.base == 'true' && 'success' || 'skipped' }}
+            server=${{ needs.scope.outputs.server == 'true' && 'success' || 'skipped' }}
+            web=${{ needs.scope.outputs.web == 'true' && 'success' || 'skipped' }}
+            desktop=${{ needs.scope.outputs.desktop == 'true' && 'success' || 'skipped' }}
+            release-contracts=${{ needs.scope.outputs.release == 'true' && 'success' || 'skipped' }}
+            unit=${{ needs.scope.outputs.unit == 'true' && 'success' || 'skipped' }}
+            integration=${{ needs.scope.outputs.integration == 'true' && 'success' || 'skipped' }}
+            kernel=${{ needs.scope.outputs.kernel == 'true' && 'success' || 'skipped' }}
+            web-packaging=${{ needs.scope.outputs.web_packaging == 'true' && 'success' || 'skipped' }}
+            browser-ui=${{ needs.scope.outputs.browser_ui == 'true' && 'success' || 'skipped' }}
+            desktop-protocol=${{ needs.scope.outputs.desktop == 'true' && 'success' || 'skipped' }}
+            media-streaming-windows=${{ needs.scope.outputs.windows_media_cleanup == 'true' && 'success' || 'skipped' }}
+            app-store-windows=${{ needs.scope.outputs.windows_app_store == 'true' && 'success' || 'skipped' }}
+            real-agent=${{ needs.scope.outputs.real_agent == 'true' && 'success' || 'skipped' }}
+        run: node scripts/check-ci-results.mjs

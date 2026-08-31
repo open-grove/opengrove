@@ -1,0 +1,15 @@
+<svg width="128" height="128" viewBox="0 0 128 128" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc" shape-rendering="crispEdges">
+  <title id="title">OpenGrove sapling mark</title>
+  <desc id="desc">A minimal pixel sapling mark for OpenGrove.</desc>
+  <g transform="translate(24 18) scale(0.72)">
+    <rect x="0" y="0" width="31" height="31" fill="#7BCB57"/>
+    <rect x="16" y="16" width="31" height="31" fill="#5FB24A"/>
+    <rect x="79" y="15" width="31" height="31" fill="#7BCB57"/>
+    <rect x="63" y="31" width="31" height="31" fill="#5FB24A"/>
+
+    <rect x="47" y="47" width="17" height="58" fill="#202424"/>
+    <rect x="60" y="47" width="4" height="58" fill="#343A38"/>
+    <rect x="32" y="105" width="47" height="15" fill="#202424"/>
+    <rect x="32" y="105" width="47" height="3" fill="#343A38"/>
+  </g>
+</svg>

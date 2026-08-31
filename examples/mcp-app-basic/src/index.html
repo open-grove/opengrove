@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MCP App 构建示例</title>
+  <style>
+    :root { color-scheme: light dark; font-family: system-ui, sans-serif; }
+    body { margin: 0; padding: 24px; background: transparent; }
+    main { max-width: 720px; margin: 0 auto; }
+    .actions { display: flex; flex-wrap: wrap; gap: 8px; }
+    button { font: inherit; padding: 8px 12px; }
+    pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>MCP App 构建示例</h1>
+    <p id="status">正在连接 Host…</p>
+    <div class="actions">
+      <button id="list-files" type="button" disabled>列出 App 工作区</button>
+      <button id="write-read-file" type="button" disabled>写入并读回文件</button>
+      <button id="run-command" type="button" disabled>执行声明命令</button>
+    </div>
+    <pre id="output"></pre>
+  </main>
+  <!-- OPENGROVE_MCP_APP_BUNDLE -->
+</body>
+</html>

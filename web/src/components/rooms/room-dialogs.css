@@ -1,0 +1,1168 @@
+.employee-dialog,
+.rooms-create-group-dialog {
+  box-sizing: border-box;
+  width: min(520px, calc(100vw - 32px));
+  gap: var(--sp-5);
+  padding: var(--sp-5);
+}
+
+.employee-dialog {
+  --rooms-text: var(--c-text);
+  --rooms-muted: var(--c-muted);
+  --rooms-border: var(--c-border);
+  --rooms-panel: var(--c-surface);
+  --rooms-panel-soft: var(--c-surface-sunken);
+  --rooms-blue-soft: var(--c-accent-soft);
+  --employee-dialog-control-bg: var(--c-surface-grouped);
+  --employee-dialog-active-bg: color-mix(in srgb, var(--c-link) 24%, var(--c-surface));
+  --employee-dialog-hover-bg: color-mix(in srgb, var(--c-text) 10%, var(--c-surface-grouped));
+  --employee-dialog-control-border: transparent;
+  --rooms-border-strong: var(--employee-dialog-control-border);
+  --room-dialog-kernel-option-border: var(--employee-dialog-control-border);
+  --room-dialog-kernel-active-border: var(--c-link);
+  gap: var(--sp-2);
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
+  width: min(640px, calc(100vw - 32px));
+}
+
+.employee-dialog.employee-dialog-embedded {
+  display: grid;
+  width: 100%;
+  max-height: none;
+  overflow: visible;
+  background: transparent;
+  padding: 0;
+}
+
+.employee-dialog-embedded .modal-actions {
+  padding-top: var(--sp-2);
+}
+
+.employee-dialog-embedded .employee-dialog-avatar-grid {
+  grid-template-columns: repeat(8, calc(var(--sp-10) + var(--sp-6)));
+  justify-content: start;
+}
+
+.employee-dialog .modal-title,
+.rooms-create-group-dialog .modal-title {
+  font-size: var(--fs-lg);
+  font-weight: var(--fw-semibold);
+}
+
+.employee-dialog-preview {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  min-height: 48px;
+  border-radius: var(--r-md);
+  background: var(--room-dialog-preview-bg);
+  padding: 8px;
+}
+
+.employee-dialog-preview .rooms-avatar {
+  width: 34px;
+  height: 34px;
+  font-size: var(--fs-sm);
+}
+
+.employee-dialog-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--sp-1);
+  border-radius: var(--r-sm);
+  background: var(--employee-dialog-control-bg);
+  padding: var(--sp-1);
+}
+
+.employee-dialog-tabs button {
+  min-width: 0;
+  min-height: 36px;
+  border: 0;
+  border-radius: var(--r-xs);
+  background: transparent;
+  color: var(--rooms-muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--fs-base);
+  font-weight: var(--fw-normal);
+}
+
+.employee-dialog-tabs button:hover {
+  background: var(--employee-dialog-hover-bg);
+  color: var(--rooms-text);
+}
+
+.employee-dialog-tabs button[data-active="true"] {
+  background: var(--c-surface);
+  color: var(--rooms-text);
+  box-shadow: var(--shadow-sm);
+}
+
+.employee-dialog-tabs button:focus-visible {
+  outline: none;
+  box-shadow: var(--room-dialog-field-focus-shadow);
+}
+
+.employee-dialog-card {
+  display: grid;
+  gap: var(--sp-3);
+  min-width: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 0;
+}
+
+.employee-dialog-identity-card {
+  gap: var(--sp-4);
+  border-radius: var(--r-lg);
+  background: var(--c-surface-grouped);
+  padding: var(--sp-5);
+}
+
+.employee-dialog-profile-hero {
+  display: grid;
+  place-items: center;
+  min-height: calc(var(--sp-10) + var(--sp-10) + var(--sp-8));
+}
+
+.employee-dialog-profile-hero .rooms-avatar {
+  width: 100%;
+  height: 100%;
+  font-size: var(--fs-lg);
+}
+
+.employee-avatar-picker-dialog {
+  box-sizing: border-box;
+  width: min(920px, 100%);
+  max-height: min(88vh, 820px);
+  overflow: auto;
+}
+
+.employee-avatar-picker-dialog-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+}
+
+.employee-avatar-picker-dialog-header > button {
+  display: grid;
+  place-items: center;
+  width: var(--sp-9);
+  height: var(--sp-9);
+  border: 0;
+  border-radius: var(--r-pill);
+  background: transparent;
+  color: var(--rooms-muted);
+  cursor: pointer;
+}
+
+.employee-avatar-picker-dialog-header > button:hover {
+  background: var(--c-surface-hover);
+  color: var(--rooms-text);
+}
+
+.employee-avatar-picker-layout {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  gap: var(--sp-4);
+  min-height: 380px;
+}
+
+.employee-avatar-picker-preview {
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: var(--sp-3);
+  min-width: 0;
+  border-radius: var(--r-lg);
+  background: var(--c-surface-grouped);
+  padding: var(--sp-5);
+  text-align: center;
+}
+
+.employee-avatar-picker-preview > span {
+  color: var(--rooms-muted);
+  font-size: var(--fs-sm);
+}
+
+.employee-avatar-picker-preview > .rooms-avatar {
+  width: 140px;
+  height: 140px;
+}
+
+.employee-avatar-picker-preview > strong {
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--rooms-text);
+  font-size: var(--fs-lg);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.employee-avatar-picker-dialog .employee-dialog-avatar-section,
+.employee-avatar-picker-subpage .employee-dialog-avatar-section {
+  align-content: start;
+  border-radius: var(--r-lg);
+  background: var(--c-surface-grouped);
+  padding: var(--sp-4);
+}
+
+.employee-avatar-picker-dialog .employee-dialog-avatar-mode-card,
+.employee-avatar-picker-subpage .employee-dialog-avatar-mode-card {
+  background: var(--c-surface);
+}
+
+.employee-dialog-profile-name-row {
+  align-items: center;
+  border-radius: var(--r-md);
+  background: var(--c-surface);
+  padding: var(--sp-3) var(--sp-4);
+}
+
+.employee-dialog-embedded .employee-dialog-profile-name-row {
+  grid-template-columns: 120px minmax(0, 1fr);
+  gap: var(--sp-4);
+}
+
+.employee-dialog-embedded .employee-dialog-profile-name-row > input {
+  justify-self: stretch;
+  width: 100%;
+  background: var(--c-surface);
+}
+
+.employee-dialog-runtime-card {
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--sp-5);
+}
+
+.employee-dialog-responsibility-card {
+  gap: var(--sp-6);
+}
+
+.employee-dialog-collaboration-section {
+  display: grid;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+
+.employee-dialog-collaboration-section > h3 {
+  margin: 0;
+  padding: 0 var(--sp-1);
+  color: var(--rooms-text);
+  font-size: var(--fs-base);
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-normal);
+}
+
+.employee-dialog-responsibility-textarea {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 112px;
+  border: 0;
+  border-radius: var(--r-md);
+  background: var(--c-surface-grouped);
+  color: var(--rooms-text);
+  font: inherit;
+  font-size: var(--fs-base);
+  line-height: var(--lh-normal);
+  outline: none;
+  padding: var(--sp-3) var(--sp-4);
+  resize: vertical;
+}
+
+.employee-dialog-responsibility-textarea:focus {
+  box-shadow: var(--room-dialog-field-focus-shadow);
+}
+
+.employee-dialog-tab-description {
+  margin: 0;
+  color: var(--rooms-muted);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-normal);
+}
+
+.employee-dialog-avatar-section {
+  display: grid;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+
+.employee-dialog-identity-card .employee-dialog-avatar-section {
+  border-radius: var(--r-md);
+  background: var(--c-surface-grouped);
+  padding: var(--sp-3) var(--sp-4) var(--sp-4);
+}
+
+.employee-dialog-identity-card .employee-dialog-avatar-tabs button,
+.employee-dialog-identity-card .employee-dialog-avatar-mode-card {
+  background: var(--c-surface);
+}
+
+.employee-dialog-section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  min-width: 0;
+}
+
+.employee-dialog-section-heading > div {
+  display: grid;
+  gap: calc(var(--sp-1) / 2);
+  min-width: 0;
+}
+
+.employee-dialog-section-heading strong {
+  color: var(--rooms-text);
+  font-size: var(--fs-base);
+}
+
+.employee-dialog-section-heading small {
+  color: var(--rooms-muted);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-normal);
+}
+
+.employee-dialog-upload-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-1);
+  border: 0;
+  border-radius: var(--r-sm);
+  background: var(--employee-dialog-control-bg);
+  color: var(--rooms-text);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--fs-base);
+}
+
+.employee-dialog-upload-button {
+  min-height: var(--sp-8);
+  margin-left: auto;
+  padding: 0 var(--sp-3);
+}
+
+.employee-dialog-upload-button:hover {
+  border-color: var(--room-dialog-field-focus-border);
+  background: var(--rooms-blue-soft);
+}
+
+.employee-dialog-avatar-tabs {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: stretch;
+  gap: calc(var(--sp-1) / 2);
+  box-sizing: border-box;
+  height: var(--sp-10);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-md);
+  background: var(--c-surface-sunken);
+  padding: calc(var(--sp-1) / 2);
+}
+
+.employee-dialog-avatar-tabs button {
+  position: relative;
+  z-index: 1;
+  min-width: 0;
+  min-height: 0;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--c-muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--fs-base);
+  transition: color var(--motion-fast) var(--motion-ease);
+}
+
+.employee-dialog-avatar-tabs button:hover {
+  color: var(--c-text);
+}
+
+.employee-dialog-avatar-tabs button[data-active="true"] {
+  background: transparent;
+  color: var(--c-text);
+  font-weight: var(--fw-medium);
+  box-shadow: none;
+}
+
+.employee-dialog-avatar-tabs button:focus-visible {
+  outline: none;
+  box-shadow: var(--room-dialog-field-focus-shadow);
+}
+
+.employee-dialog-avatar-tab-thumb {
+  border-radius: var(--r-sm);
+  background: var(--c-surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.employee-dialog-avatar-panel {
+  display: grid;
+  align-content: start;
+  min-width: 0;
+  min-height: calc(var(--sp-10) + var(--sp-10) + var(--sp-8));
+}
+
+.employee-dialog-avatar-generated-panel {
+  gap: var(--sp-2);
+}
+
+.employee-dialog-avatar-panel-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  min-height: var(--sp-8);
+}
+
+.employee-dialog-avatar-refresh-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-1);
+  min-height: var(--sp-8);
+  border: 0;
+  border-radius: var(--r-sm);
+  background: var(--c-surface);
+  color: var(--c-text);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--fs-sm);
+  padding: 0 var(--sp-3);
+}
+
+.employee-dialog-avatar-refresh-button:hover {
+  background: var(--c-surface-hover);
+}
+
+.employee-dialog-avatar-refresh-button:focus-visible {
+  outline: none;
+  box-shadow: var(--room-dialog-field-focus-shadow);
+}
+
+.employee-dialog-avatar-grid {
+  display: grid;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  gap: var(--sp-2);
+}
+
+.employee-dialog-avatar-option {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 1;
+  min-width: 0;
+  border: 0;
+  border-radius: var(--r-pill);
+  background: transparent;
+  cursor: pointer;
+  padding: calc(var(--sp-1) / 2);
+}
+
+.employee-dialog-avatar-option:hover {
+  background: var(--rooms-blue-soft);
+}
+
+.employee-dialog-avatar-option[data-active="true"] {
+  border-color: var(--room-dialog-kernel-active-border);
+  box-shadow: var(--room-dialog-field-focus-shadow);
+}
+
+.employee-dialog-avatar-mode-card {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  min-width: 0;
+  overflow: hidden;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: var(--employee-dialog-control-bg);
+  padding: var(--sp-2);
+}
+
+.employee-dialog-avatar-mode-preview {
+  display: grid;
+  place-items: center;
+  width: calc(var(--sp-10) + var(--sp-2));
+  height: calc(var(--sp-10) + var(--sp-2));
+  flex: none;
+  overflow: hidden;
+  border-radius: var(--r-pill);
+}
+
+.employee-dialog-avatar-mode-preview > .rooms-avatar {
+  width: 100%;
+  height: 100%;
+}
+
+.employee-dialog-avatar-mode-card > div {
+  display: grid;
+  flex: 1;
+  gap: calc(var(--sp-1) / 2);
+  min-width: 0;
+  overflow: hidden;
+}
+
+.employee-dialog-avatar-mode-card strong,
+.employee-dialog-avatar-mode-card small {
+  display: block;
+}
+
+.employee-dialog-avatar-mode-card strong {
+  color: var(--rooms-text);
+  font-size: var(--fs-base);
+}
+
+.employee-dialog-avatar-mode-card small,
+.employee-dialog-avatar-error {
+  color: var(--rooms-muted);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-normal);
+  overflow-wrap: anywhere;
+}
+
+.employee-dialog-avatar-input {
+  display: none;
+}
+
+.employee-dialog-avatar-error {
+  margin: 0;
+  color: var(--c-error);
+}
+
+.employee-dialog-preview div,
+.employee-dialog-field,
+.employee-dialog-runtime,
+.rooms-create-group-members {
+  min-width: 0;
+}
+
+.rooms-create-group-hero {
+  display: grid;
+  justify-items: center;
+  gap: var(--sp-2);
+}
+
+.rooms-create-group-hero .room-group-avatar {
+  width: 72px;
+  height: 72px;
+  border-radius: var(--r-pill);
+}
+
+.rooms-create-group-hero .room-group-avatar.has-members {
+  --room-avatar-stack-item-size: var(--sp-10);
+  --room-avatar-stack-overlap: var(--sp-3);
+  width: auto;
+  height: var(--sp-10);
+}
+
+.rooms-create-group-hero strong {
+  color: var(--c-text);
+  font-size: var(--fs-lg);
+  font-weight: var(--fw-semibold);
+}
+
+.rooms-create-group-section {
+  display: grid;
+  gap: var(--sp-2);
+}
+
+.rooms-create-group-section h3,
+.rooms-create-group-title {
+  margin: 0;
+  padding: 0 var(--sp-2);
+  color: var(--c-text);
+  font-size: var(--fs-base);
+  font-weight: var(--fw-semibold);
+}
+
+.rooms-create-group-name {
+  display: grid;
+  grid-template-columns: 104px minmax(0, 1fr);
+  align-items: center;
+  gap: var(--sp-3);
+  min-height: 52px;
+  border-radius: var(--r-lg);
+  background: var(--c-surface-grouped);
+  padding: var(--sp-2) var(--sp-4);
+  color: var(--c-text);
+  font-size: var(--fs-base);
+}
+
+.rooms-create-group-name input {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 36px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: var(--c-surface);
+  color: var(--c-text);
+  padding: 0 var(--sp-3);
+  font: inherit;
+}
+
+.employee-dialog-preview strong,
+.employee-dialog-preview small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.employee-dialog-preview strong {
+  color: var(--rooms-text);
+  font-size: var(--fs-base);
+}
+
+.employee-dialog-preview small {
+  color: var(--rooms-muted);
+  font-size: var(--fs-sm);
+}
+
+.employee-dialog-field {
+  display: grid;
+  gap: var(--sp-1);
+  min-width: 0;
+  color: var(--rooms-text);
+  font-size: var(--fs-base);
+}
+
+.employee-dialog-field > small {
+  color: var(--rooms-muted);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-normal);
+}
+
+.employee-dialog-model-note {
+  min-height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  color: var(--rooms-muted);
+  line-height: var(--lh-normal);
+  text-align: right;
+}
+
+.employee-dialog-runtime {
+  display: grid;
+  grid-column: 1 / -1;
+  gap: var(--sp-2);
+}
+
+.employee-dialog-runtime-settings {
+  display: grid;
+  grid-column: 1 / -1;
+  gap: var(--sp-2);
+}
+
+.employee-dialog-runtime-settings-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+}
+
+.employee-dialog-runtime-fields {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0;
+  overflow: hidden;
+  border-radius: var(--r-md);
+  background: var(--c-surface-grouped);
+}
+
+.employee-dialog-runtime-fields > .employee-dialog-field {
+  position: relative;
+  box-sizing: border-box;
+  grid-template-columns: minmax(132px, 1fr) auto;
+  align-items: center;
+  gap: var(--sp-4);
+  min-height: calc(var(--sp-10) + var(--sp-1));
+  padding: var(--sp-0-5) var(--sp-4);
+}
+
+.employee-dialog-runtime-fields > .employee-dialog-field:not(:last-child)::after {
+  position: absolute;
+  right: var(--sp-4);
+  bottom: 0;
+  left: var(--sp-4);
+  height: 1px;
+  background: var(--c-line-06);
+  content: "";
+}
+
+.employee-dialog-runtime-fields > .employee-dialog-field > span:first-child {
+  color: var(--rooms-text);
+  font-weight: var(--fw-medium);
+}
+
+.employee-dialog-runtime-fields > .employee-dialog-warning {
+  margin: var(--sp-2);
+}
+
+.employee-dialog-runtime-note {
+  margin: 0 var(--sp-1);
+  color: var(--rooms-muted);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-normal);
+}
+
+.employee-dialog-a2a-card {
+  display: grid;
+  gap: var(--sp-3);
+  border: 0;
+  border-radius: var(--r-md);
+  background: var(--c-surface-grouped);
+  padding: var(--sp-4);
+}
+
+.employee-dialog-a2a-visibility {
+  display: grid;
+  grid-template-columns: minmax(100px, 1fr) auto;
+  align-items: center;
+  gap: var(--sp-4);
+  min-height: var(--sp-8);
+}
+
+.employee-dialog-a2a-visibility > strong {
+  color: var(--rooms-text);
+  font-size: var(--fs-base);
+  font-weight: var(--fw-medium);
+}
+
+.employee-dialog-contract-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sp-3);
+}
+
+.employee-dialog-contract-segmented {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+  width: min(220px, 100%);
+  border: 0;
+  border-radius: var(--r-sm);
+  background: var(--c-surface);
+  padding: 3px;
+}
+
+.employee-dialog-contract-segmented button {
+  min-height: 24px;
+  border: 0;
+  border-radius: var(--r-xs);
+  background: transparent;
+  color: var(--rooms-muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--fs-base);
+}
+
+.employee-dialog-contract-segmented button[data-active="true"] {
+  background: var(--employee-dialog-active-bg);
+  color: var(--rooms-text);
+  box-shadow: none;
+}
+
+.employee-dialog-a2a-card .employee-dialog-field input,
+.employee-dialog-a2a-card .employee-dialog-field textarea {
+  background: var(--c-surface);
+}
+
+.employee-dialog-runtime-title {
+  margin: 0;
+  padding: 0 var(--sp-1);
+  color: var(--rooms-text);
+  font-size: var(--fs-base);
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-normal);
+}
+
+.employee-dialog-kernel-list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-content: start;
+  gap: var(--sp-2);
+  padding: 1px 2px 1px 1px;
+}
+
+.employee-dialog-kernel-option {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr);
+  gap: var(--sp-2);
+  align-items: center;
+  min-width: 0;
+  min-height: 42px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: var(--employee-dialog-control-bg);
+  color: var(--rooms-text);
+  cursor: pointer;
+  font: inherit;
+  padding: var(--sp-1) var(--sp-3);
+  text-align: left;
+}
+
+.employee-dialog-kernel-option:hover,
+.employee-dialog-kernel-option:focus-visible {
+  border-color: var(--room-dialog-kernel-hover-border);
+  background: var(--rooms-blue-soft);
+  outline: none;
+}
+
+.employee-dialog-kernel-option[data-active="true"] {
+  background: var(--employee-dialog-active-bg);
+  color: var(--rooms-text);
+  box-shadow: none;
+}
+
+.employee-dialog-kernel-option[data-ready="false"] {
+  background: var(--room-dialog-kernel-disabled-bg);
+  color: var(--room-dialog-kernel-disabled-fg);
+}
+
+.employee-dialog-kernel-option[data-ready="false"][data-active="true"] {
+  border-color: var(--room-dialog-kernel-disabled-active-border);
+  background: var(--room-dialog-kernel-disabled-active-bg);
+  color: var(--room-dialog-kernel-disabled-active-fg);
+  box-shadow: var(--room-dialog-kernel-disabled-active-shadow);
+}
+
+.entity-icon.employee-dialog-kernel-icon {
+  display: grid;
+  place-items: center;
+  width: var(--sp-6);
+  height: var(--sp-6);
+  overflow: visible;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--rooms-text);
+  box-shadow: none;
+}
+
+.entity-icon.employee-dialog-kernel-icon svg {
+  width: var(--sp-5);
+  height: var(--sp-5);
+  max-width: none;
+  max-height: none;
+}
+
+.employee-dialog-kernel-option span:last-child {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+
+.employee-dialog-kernel-option strong,
+.employee-dialog-kernel-option small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.employee-dialog-kernel-option strong {
+  font-size: var(--fs-base);
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-tight);
+}
+
+.employee-dialog-kernel-option small {
+  color: var(--rooms-muted);
+  font-size: var(--fs-sm);
+}
+
+.employee-dialog-warning {
+  border-radius: var(--r-sm);
+  background: var(--room-dialog-warning-bg);
+  color: var(--room-dialog-warning-fg);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-normal);
+  padding: 8px 10px;
+}
+
+.employee-dialog-section-note,
+.employee-dialog-field > small {
+  margin: 0;
+  color: var(--rooms-muted);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-normal);
+}
+
+.employee-dialog-submit-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  margin: 0;
+  border-radius: var(--r-sm);
+  background: var(--c-error-soft);
+  color: var(--c-error);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-normal);
+  padding: var(--sp-2) var(--sp-3);
+}
+
+.employee-dialog-submit-error button {
+  flex: 0 0 auto;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  font-weight: var(--fw-medium);
+  padding: var(--sp-1) var(--sp-2);
+}
+
+.employee-dialog-submit-error button:hover,
+.employee-dialog-submit-error button:focus-visible {
+  border-radius: var(--r-sm);
+  background: color-mix(in srgb, currentColor 10%, transparent);
+  outline: none;
+}
+
+.employee-dialog-field input,
+.employee-dialog-field select,
+.employee-dialog-field textarea {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  border: 1px solid var(--rooms-border-strong);
+  border-radius: var(--r-sm);
+  background: var(--employee-dialog-control-bg);
+  color: var(--rooms-text);
+  font: inherit;
+  font-size: var(--fs-base);
+  outline: none;
+}
+
+.employee-dialog .employee-dialog-field [data-inline-select-button] {
+  min-height: 32px;
+  border: 0;
+  background: var(--employee-dialog-control-bg);
+}
+
+.employee-dialog .employee-dialog-runtime-fields .employee-dialog-field [data-inline-select-button] {
+  width: auto;
+  min-height: 24px;
+  background: transparent;
+  padding: 0 var(--sp-1) 0 var(--sp-2);
+}
+
+.employee-dialog .employee-dialog-field [data-inline-select-button]:hover,
+.employee-dialog .employee-dialog-field [data-inline-select-button][aria-expanded="true"] {
+  background: var(--employee-dialog-hover-bg);
+}
+
+.employee-dialog .employee-dialog-runtime-fields .employee-dialog-field [data-inline-select-button]:hover,
+.employee-dialog .employee-dialog-runtime-fields .employee-dialog-field [data-inline-select-button]:focus-visible,
+.employee-dialog
+  .employee-dialog-runtime-fields
+  .employee-dialog-field
+  [data-inline-select-button][aria-expanded="true"] {
+  background: var(--c-fill);
+  outline: none;
+}
+
+.employee-dialog-field input,
+.employee-dialog-field select {
+  height: 32px;
+  padding: 0 10px;
+}
+
+.employee-dialog-field textarea {
+  resize: vertical;
+  min-height: 74px;
+  padding: 9px 10px;
+}
+
+.employee-dialog-a2a-card textarea {
+  min-height: 58px;
+}
+
+.employee-dialog-field:focus-within input,
+.employee-dialog-field:focus-within select,
+.employee-dialog-field:focus-within textarea {
+  border-color: var(--room-dialog-field-focus-border);
+  box-shadow: var(--room-dialog-field-focus-shadow);
+}
+
+.employee-dialog-runtime-fields > .employee-dialog-field input {
+  field-sizing: content;
+  width: auto;
+  min-width: 9ch;
+  max-width: min(38ch, 55vw);
+  height: 24px;
+  overflow: hidden;
+  border: 0;
+  background: transparent;
+  justify-self: end;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: right;
+}
+
+.employee-dialog-runtime-fields > .employee-dialog-field input:hover,
+.employee-dialog-runtime-fields > .employee-dialog-field input:focus {
+  background: var(--c-fill);
+}
+
+.employee-dialog .primary-button,
+.employee-dialog .ghost-button {
+  min-height: 32px;
+  border: 0;
+  border-radius: var(--r-md);
+  background: var(--c-fill-strong);
+  color: var(--rooms-text);
+  font-weight: var(--fw-normal);
+}
+
+.employee-dialog .primary-button:hover,
+.employee-dialog .ghost-button:hover {
+  border: 0;
+  background: var(--employee-dialog-hover-bg);
+  color: var(--rooms-text);
+}
+
+.employee-dialog-runtime-fields > .employee-dialog-field:focus-within input {
+  border-color: transparent;
+  box-shadow: none;
+}
+
+.rooms-create-group-members {
+  display: grid;
+  gap: var(--sp-2);
+}
+
+@media (max-width: 560px) {
+  .employee-avatar-picker-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .employee-avatar-picker-preview {
+    min-height: 220px;
+  }
+
+  .employee-dialog-contract-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .employee-dialog-avatar-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .employee-dialog-embedded .employee-dialog-avatar-grid {
+    grid-template-columns: repeat(4, calc(var(--sp-10) + var(--sp-6)));
+  }
+
+  .employee-dialog-runtime-fields > .employee-dialog-field {
+    grid-template-columns: minmax(112px, 0.42fr) minmax(0, 1fr);
+  }
+}
+
+.rooms-create-group-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--rooms-text);
+  font-size: var(--fs-base);
+}
+
+.rooms-create-group-title span {
+  color: var(--rooms-muted);
+  font-size: var(--fs-sm);
+}
+
+.rooms-create-group-list {
+  display: grid;
+  gap: 0;
+  max-height: 230px;
+  overflow: auto;
+  border: 0;
+  border-radius: var(--r-lg);
+  background: var(--c-surface-grouped);
+  padding: 0;
+}
+
+.rooms-create-group-member {
+  position: relative;
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) 20px;
+  gap: var(--sp-3);
+  align-items: center;
+  min-height: 54px;
+  border-radius: 0;
+  cursor: pointer;
+  padding: var(--sp-2) var(--sp-4);
+}
+
+.rooms-create-group-member + .rooms-create-group-member::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: var(--sp-4);
+  left: calc(var(--sp-10) + var(--sp-4));
+  height: 1px;
+  background: var(--c-line-06);
+}
+
+.rooms-create-group-member input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  opacity: 0;
+}
+
+.rooms-create-group-member > svg {
+  color: transparent;
+}
+
+.rooms-create-group-member:hover,
+.rooms-create-group-member:focus-within {
+  background: color-mix(in srgb, var(--c-text) 7%, var(--c-surface-grouped));
+}
+
+.rooms-create-group-member:has(input:checked) > svg {
+  color: var(--c-link);
+}
+
+.rooms-create-group-member .rooms-avatar {
+  width: 32px;
+  height: 32px;
+  font-size: var(--fs-xs);
+}
+
+.rooms-create-group-member-name {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+
+.rooms-create-group-member-name strong,
+.rooms-create-group-member-name small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rooms-create-group-member-name strong {
+  color: var(--rooms-text);
+  font-size: var(--fs-base);
+}
+
+.rooms-create-group-member-name small {
+  color: var(--rooms-muted);
+  font-size: var(--fs-sm);
+}
+
+.rooms-member-drawer-foot .rooms-soft-button {
+  justify-content: center;
+  width: 100%;
+}

@@ -1,0 +1,276 @@
+.contacts-skill-picker {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0;
+  max-height: 360px;
+  overflow: auto;
+}
+
+.contacts-skill-option {
+  position: relative;
+  display: grid;
+  grid-template-columns: var(--sp-8) minmax(0, 1fr) auto;
+  gap: var(--sp-3);
+  align-items: center;
+  min-width: 0;
+  border: 0;
+  border-top: 1px solid color-mix(in srgb, var(--rooms-border) 38%, transparent);
+  border-radius: 0;
+  background: transparent;
+  padding: var(--sp-3) var(--sp-4);
+}
+
+.contacts-skill-option:hover,
+.contacts-skill-option:focus-within,
+.contacts-skill-option[data-selected="true"] {
+  background: color-mix(in srgb, var(--c-link) 7%, transparent);
+}
+
+.contacts-skill-mode-controls input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.contacts-skill-mode-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.contacts-skill-mode-controls label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  min-height: var(--sp-8);
+  border-radius: var(--r-sm);
+  background: var(--c-surface);
+  color: var(--rooms-muted);
+  cursor: pointer;
+  font-size: var(--fs-sm);
+  padding: 0 var(--sp-2);
+}
+
+.contacts-skill-mode-controls label > span {
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  border: 1px solid var(--rooms-border);
+  border-radius: var(--r-xs);
+  color: var(--c-surface);
+}
+
+.contacts-skill-mode-controls input:checked + span {
+  border-color: var(--c-link);
+  background: var(--c-link);
+}
+
+.contacts-skill-tags {
+  grid-column: 1 / -1;
+}
+
+.contacts-skill-copy {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.contacts-skill-copy strong,
+.contacts-skill-copy small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.contacts-skill-copy strong {
+  color: var(--rooms-text);
+  font-size: var(--fs-base);
+  font-weight: var(--fw-semibold);
+}
+
+.contacts-skill-copy small {
+  color: var(--rooms-muted);
+  font-size: var(--fs-sm);
+}
+
+.contacts-skill-tags {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 5px;
+  max-width: 120px;
+}
+
+.contacts-skill-tags em {
+  display: inline-flex;
+  align-items: center;
+  min-height: 20px;
+  border-radius: var(--r-pill);
+  background: var(--contacts-shared-control-bg);
+  color: var(--rooms-muted);
+  font-size: var(--fs-xs);
+  font-style: normal;
+  padding: 0 7px;
+  white-space: nowrap;
+}
+
+.contacts-skill-tags em[data-published="true"] {
+  background: var(--contacts-skill-published-bg);
+  color: var(--contacts-skill-published-fg);
+}
+
+.contacts-skill-pill-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.contacts-skill-pill {
+  display: inline-flex;
+  align-items: center;
+  max-width: 240px;
+  min-height: 28px;
+  border: 1px solid var(--contacts-shared-control-border);
+  border-radius: var(--r-pill);
+  background: var(--contacts-shared-control-bg);
+  color: var(--rooms-text);
+  font-size: var(--fs-sm);
+  padding: 0 10px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.contacts-detail-hero {
+  display: grid;
+  grid-template-columns: 58px minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: center;
+}
+
+.contacts-detail-hero .rooms-avatar {
+  width: 54px;
+  height: 54px;
+  font-size: var(--contacts-detail-avatar-font-size);
+}
+
+.contacts-avatar-editor {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 54px;
+  height: 54px;
+}
+
+button.contacts-avatar-editor {
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  padding: 0;
+}
+
+button.contacts-avatar-editor:disabled {
+  cursor: default;
+}
+
+.contacts-avatar-editor input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.contacts-avatar-editor > .contacts-avatar-editor-badge {
+  position: absolute;
+  right: -3px;
+  bottom: 2px;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border: 1px solid var(--rooms-border-strong);
+  border-radius: var(--r-pill);
+  background: var(--rooms-panel);
+  color: var(--rooms-muted);
+  cursor: pointer;
+  padding: 0;
+  box-shadow: var(--contacts-avatar-button-shadow);
+}
+
+button.contacts-avatar-editor:hover > .contacts-avatar-editor-badge,
+button.contacts-avatar-editor:focus-visible > .contacts-avatar-editor-badge {
+  color: var(--rooms-text);
+  outline: none;
+}
+
+button.contacts-avatar-editor:focus-visible {
+  border-radius: var(--r-pill);
+  outline: 2px solid var(--room-dialog-field-focus-border);
+  outline-offset: 3px;
+}
+
+.contacts-detail-hero p {
+  margin: 4px 0 0;
+  color: var(--rooms-muted);
+  font-size: var(--fs-base);
+}
+
+.contacts-detail-list {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  border-top: 1px solid var(--rooms-border);
+}
+
+.contacts-detail-list div {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  min-height: 44px;
+  border-bottom: 1px solid var(--rooms-border);
+}
+
+.contacts-detail-list dt {
+  color: var(--rooms-muted);
+  font-size: var(--fs-sm);
+}
+
+.contacts-detail-list dd {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  margin: 0;
+  color: var(--rooms-text);
+  font-size: var(--fs-base);
+  overflow-wrap: anywhere;
+}
+
+.contacts-detail-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+@media (max-width: 900px) {
+  .contacts-skill-picker {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .contacts-skill-option {
+    grid-template-columns: var(--sp-8) minmax(0, 1fr);
+  }
+
+  .contacts-skill-mode-controls {
+    grid-column: 2;
+    justify-content: flex-start;
+  }
+}

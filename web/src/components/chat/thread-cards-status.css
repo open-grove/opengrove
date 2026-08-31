@@ -1,0 +1,201 @@
+.thread-card {
+  display: grid;
+  gap: 12px;
+  max-width: min(760px, 100%);
+  border: 0;
+  border-radius: var(--r-md);
+  background: var(--thread-card-bg);
+  padding: var(--sp-4);
+  box-shadow: 0 10px 30px var(--c-line-04);
+}
+
+.thread-card.tone-success {
+  background: var(--thread-card-success-bg);
+}
+
+.thread-card.tone-warn {
+  background: var(--thread-card-warn-bg);
+}
+
+.thread-card.tone-approval,
+.thread-card.status-requires-action {
+  background: var(--thread-card-approval-bg);
+}
+
+.thread-card.status-rejected {
+  background: var(--thread-card-rejected-bg);
+}
+
+.thread-card-header {
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  align-items: start;
+}
+
+.thread-card-title-group {
+  display: flex;
+  gap: 10px;
+  align-items: start;
+  min-width: 0;
+}
+
+.thread-card-icon {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--r-md);
+  background: var(--thread-card-icon-bg);
+  color: var(--c-muted);
+  flex: 0 0 auto;
+}
+
+.thread-card-icon.tone-info,
+.thread-card.status-loaded .thread-card-icon,
+.thread-card.status-finished .thread-card-icon {
+  background: var(--thread-card-info-bg);
+  color: var(--thread-card-info-fg);
+}
+
+.thread-card-icon.tone-approval {
+  background: var(--thread-card-info-bg);
+  color: var(--thread-card-info-fg);
+}
+
+.thread-card-title {
+  color: var(--opengrove-text);
+  font-size: var(--fs-md);
+  font-weight: var(--fw-bold);
+  line-height: var(--lh-tight);
+  overflow-wrap: anywhere;
+}
+
+.thread-card-subtitle {
+  margin-top: 3px;
+  color: var(--c-muted);
+  font-size: var(--fs-base);
+  line-height: var(--lh-normal);
+}
+
+.thread-status-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  border-radius: var(--r-pill);
+  padding: 2px 8px;
+  background: var(--thread-status-badge-bg);
+  color: var(--c-muted);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-bold);
+  line-height: var(--lh-normal);
+  white-space: nowrap;
+}
+
+.thread-status-badge.status-complete,
+.thread-status-badge.status-staged,
+.thread-status-badge.status-approved {
+  background: var(--thread-status-success-bg);
+  color: var(--thread-note-success-fg);
+}
+
+.thread-status-badge.status-loaded,
+.thread-status-badge.status-finished,
+.thread-status-badge.status-requires-action {
+  background: var(--thread-status-info-bg);
+  color: var(--thread-card-info-fg);
+}
+
+.thread-status-badge.status-blocked {
+  background: var(--thread-status-blocked-bg);
+  color: var(--c-warning);
+}
+
+.thread-status-badge.status-incomplete,
+.thread-status-badge.status-rejected {
+  background: var(--thread-status-error-bg);
+  color: var(--thread-note-error-fg);
+}
+
+.thread-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.thread-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  border: 0;
+  border-radius: var(--r-pill);
+  background: var(--thread-chip-bg);
+  padding: 2px 8px;
+  color: var(--c-muted);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-bold);
+  line-height: var(--lh-normal);
+}
+
+.thread-chip.tone-strong {
+  background: var(--thread-chip-strong-bg);
+  color: var(--thread-chip-strong-fg);
+}
+
+.thread-turn-status {
+  display: grid;
+  grid-template-columns: max-content minmax(64px, 1fr);
+  align-items: center;
+  gap: 12px;
+  width: min(760px, 100%);
+  border-bottom: 0;
+  padding: 0;
+  color: var(--thread-activity-title-fg);
+  font-size: var(--thread-body-font-size);
+  font-weight: var(--fw-normal);
+  line-height: var(--lh-normal);
+}
+
+.thread-turn-status.is-thinking {
+  border-bottom: 0;
+  padding: 0;
+}
+
+.thread-turn-status[data-active="true"] {
+  color: var(--c-muted);
+  font-weight: var(--fw-medium);
+}
+
+.thread-turn-status-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  color: currentColor;
+  white-space: nowrap;
+}
+
+.thread-turn-status-line {
+  border-top: 1px solid var(--c-line-06);
+}
+
+.thread-turn-status-check {
+  color: var(--c-success);
+  animation: scale-in var(--dur-slow) var(--ease-entrance);
+}
+
+.thread-tail-thinking {
+  display: flex;
+  align-items: center;
+  width: fit-content;
+  color: var(--thread-thinking-fg);
+  font-size: var(--thread-body-font-size);
+  font-weight: var(--fw-normal);
+  line-height: var(--lh-tight);
+}
+
+@media (max-width: 980px) {
+  .thread-card {
+    max-width: 100%;
+  }
+}

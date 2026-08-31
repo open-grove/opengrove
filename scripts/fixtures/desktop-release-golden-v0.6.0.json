@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "product": "OpenGrove",
+  "tag": "v0.6.0",
+  "gitCommit": "0bf60fddb84ae99403738b9deb0fadfecec501f2",
+  "version": "0.6.0",
+  "distInventory": {
+    "fileCount": 324,
+    "sha256": "0c3ba0434c297043ea200930c68e8f2a89d2134acfda1cd81ac5336e441ba43c"
+  },
+  "targets": {
+    "mac-arm64": {
+      "asset": "OpenGrove-0.6.0-mac-arm64.dmg",
+      "size": 208088952,
+      "sha256": "30d7c588d1d1d771bb7572040a4f91900338ed0fed5231ce5bb8fac967f93fad"
+    },
+    "mac-x64": {
+      "asset": "OpenGrove-0.6.0-mac-x64.dmg",
+      "size": 215230509,
+      "sha256": "66e617cc76a4b65d03bba91ce0a0d7e8c5b946d732fc03444e00dba2b8db4eca"
+    },
+    "windows-x64": {
+      "asset": "OpenGrove-0.6.0-win-x64.exe",
+      "size": 168531049,
+      "sha256": "93e0f5517be4684b6b11afa12bee1ab8310f999e7dae3163cb590d7371274e2d"
+    }
+  }
+}

@@ -1,0 +1,172 @@
+/* Component primitives — shared building blocks so cards, buttons, inputs, and
+   panels look identical everywhere instead of each view minting its own. Apply
+   these classes on the element and keep only view-specific tweaks in the
+   component CSS. All values resolve from tokens.css (theme-aware). */
+
+/* Card: filled surface, not an outlined one. Cards sit on paper pages as often
+   as on the canvas, and a fill is measured against whichever it lands on — an
+   opaque step is only distinguishable against one of them (design.md Layering).
+   8px radius = compact, professional, info-dense (chosen over the softer 12px). */
+.og-card {
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
+  background: var(--c-fill);
+  box-shadow: none;
+}
+
+/* Button: shared look (radius, weight, transition, focus). Size/padding stay
+   with the view since they depend on the toolbar/row the button sits in.
+   Variants: default (subtle), --primary (semantic accent), --danger. */
+.og-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-sm);
+  background: var(--c-surface);
+  color: var(--c-text);
+  font: inherit;
+  font-weight: var(--fw-semibold);
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    background var(--motion-fast) var(--motion-ease),
+    border-color var(--motion-fast) var(--motion-ease),
+    color var(--motion-fast) var(--motion-ease);
+}
+
+.og-button:hover,
+.og-button:focus-visible {
+  background: var(--c-surface-hover);
+  outline: 0;
+}
+
+.og-button:focus-visible {
+  box-shadow: 0 0 0 3px var(--c-focus-ring);
+}
+
+.og-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.og-button--primary {
+  border-color: var(--button-primary-background-color);
+  background: var(--button-primary-background-color);
+  color: var(--button-primary-text-color);
+}
+
+.og-button--primary:hover,
+.og-button--primary:focus-visible {
+  border-color: var(--button-primary-hover-background-color);
+  background: var(--button-primary-hover-background-color);
+}
+
+.og-button--danger {
+  border-color: transparent;
+  background: var(--c-error);
+  color: var(--og-white);
+}
+
+/* Empty state: quiet centered placeholder for views without content. Illustration
+   or icon on top, title + optional description, optional action row. The compact
+   variant slims padding for narrow panels and list rows. */
+.og-empty-state {
+  display: grid;
+  justify-items: center;
+  gap: var(--sp-3);
+  width: min(360px, 100%);
+  margin: 0 auto;
+  padding: var(--sp-8) var(--sp-4);
+  text-align: center;
+  animation: fade-in var(--dur-normal) var(--ease-out);
+}
+
+.og-empty-state--compact {
+  gap: var(--sp-2);
+  width: 100%;
+  padding: var(--sp-4);
+}
+
+.og-empty-state-art,
+.og-empty-state-icon {
+  display: grid;
+  place-items: center;
+  color: var(--c-faint);
+}
+
+.og-empty-state-copy {
+  display: grid;
+  gap: var(--sp-1);
+}
+
+.og-empty-state-title {
+  margin: 0;
+  color: var(--c-text);
+  font-size: var(--fs-lg);
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-tight);
+}
+
+.og-empty-state-description {
+  margin: 0;
+  color: var(--c-muted);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-relaxed);
+}
+
+.og-empty-state-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--sp-2);
+  padding-top: var(--sp-1);
+}
+
+/* Skeleton: pulsing placeholder bars so loading views never render blank. */
+.og-skeleton-stack {
+  display: grid;
+  gap: var(--sp-3);
+  width: min(360px, 100%);
+  margin: 0 auto;
+  padding: var(--sp-8) var(--sp-4);
+}
+
+.og-skeleton {
+  display: block;
+  border-radius: var(--r-sm);
+  background: var(--c-surface-active);
+  animation: og-skeleton-pulse var(--motion-spin) var(--motion-ease) infinite alternate;
+}
+
+.og-skeleton-line {
+  height: 12px;
+}
+
+@keyframes og-skeleton-pulse {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0.45;
+  }
+}
+.agent-state-indicator {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--sp-2);
+  color: currentColor;
+  white-space: nowrap;
+}
+
+.agent-state-indicator > canvas {
+  flex: 0 0 auto;
+}
+
+.agent-state-indicator > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

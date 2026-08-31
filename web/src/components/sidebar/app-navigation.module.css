@@ -1,0 +1,2194 @@
+.rail {
+  --app-rail-item-height: 32px;
+  --app-rail-icon-column: 38px;
+  grid-column: 1;
+  grid-row: 2;
+  display: grid;
+  box-sizing: border-box;
+  grid-template-rows: minmax(0, 1fr) auto;
+  align-content: start;
+  align-items: start;
+  justify-items: stretch;
+  min-width: 0;
+  border-right: 0;
+  /* The rail is part of the app frame, not a panel on it: it stays transparent so
+     the frame shows through, and the panels to its right are the paper. That is
+     also why it has no border — there is no boundary to draw inside one surface. */
+  background: var(--app-rail-collapsed-bg);
+  padding: 0 10px 14px;
+  transition:
+    background-color var(--motion-normal) var(--motion-ease),
+    border-color var(--motion-normal) var(--motion-ease),
+    padding var(--motion-normal) var(--motion-ease);
+}
+
+.windowDragRegion {
+  grid-row: 1;
+  display: none;
+  height: 0;
+  min-width: 0;
+  -webkit-app-region: drag;
+}
+
+:global(html[data-opengrove-desktop="true"]) .rail {
+  padding-top: 0;
+}
+
+.brandRow {
+  grid-row: 2;
+  display: grid;
+  align-items: center;
+  grid-template-columns: 38px;
+  justify-items: stretch;
+  width: 100%;
+  min-width: 0;
+}
+
+.brand {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr);
+  align-items: center;
+  column-gap: 5px;
+  width: 30px;
+  height: 30px;
+  margin-bottom: 18px;
+  border: 0;
+  border-radius: var(--app-navigation-brand-radius);
+  background: transparent;
+  box-shadow: none;
+  color: inherit;
+  cursor: pointer;
+  overflow: hidden;
+  padding: 0;
+  justify-self: center;
+  text-align: left;
+}
+
+.brandIcon {
+  display: grid;
+  box-sizing: border-box;
+  grid-column: 1;
+  grid-row: 1;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--app-rail-brand-icon-border);
+  border-radius: var(--r-md);
+  background: var(--app-rail-brand-icon-bg);
+  transition:
+    background-color var(--motion-fast) var(--motion-ease),
+    border-color var(--motion-fast) var(--motion-ease),
+    box-shadow var(--motion-fast) var(--motion-ease);
+}
+
+.brandLogo,
+.brandToggle {
+  grid-area: 1 / 1;
+  display: grid;
+  place-items: center;
+  transition:
+    opacity var(--motion-fast) var(--motion-ease),
+    transform var(--motion-fast) var(--motion-ease);
+}
+
+.brandLogo svg {
+  width: 23px;
+  height: 23px;
+}
+
+.brandToggle {
+  color: var(--og-text-muted);
+  opacity: 0;
+  transform: scale(0.92);
+}
+
+.brandToggle svg {
+  width: 16px;
+  height: 16px;
+  stroke-width: 1.8;
+}
+
+.brand:hover .brandIcon,
+.brand:focus-visible .brandIcon {
+  background: color-mix(in srgb, var(--og-text) 4.5%, transparent);
+  color: var(--og-text);
+}
+
+.brand:hover .brandLogo,
+.brand:focus-visible .brandLogo {
+  opacity: 0;
+  transform: scale(0.92);
+}
+
+.brand:hover .brandToggle,
+.brand:focus-visible .brandToggle {
+  color: var(--og-text);
+  opacity: 1;
+  transform: scale(1);
+}
+
+.brand:focus,
+.brand:focus-visible {
+  outline: 0;
+  box-shadow: none;
+}
+
+.wordmark,
+.buttonLabel,
+.userButtonName {
+  display: none;
+}
+
+.wordmark {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--og-text-strong);
+  font-size: var(--fs-md);
+  font-weight: var(--fw-semibold);
+  line-height: 1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wordmark span {
+  color: var(--og-brand);
+}
+
+.nav {
+  grid-row: 1;
+  display: grid;
+  align-content: start;
+  min-height: 0;
+  gap: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding-bottom: 8px;
+}
+
+.bottom {
+  grid-row: 2;
+  position: relative;
+  display: grid;
+  gap: 8px;
+}
+
+.section {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.section + .section {
+  margin-top: 13px;
+}
+
+.sectionTitle {
+  display: block;
+  box-sizing: border-box;
+  height: 14px;
+  margin: 0;
+  min-width: 0;
+  overflow: hidden;
+  padding: 0 6px;
+  visibility: hidden;
+  color: var(--og-text-muted);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  line-height: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sectionItems,
+.userAppTabs {
+  display: grid;
+  min-width: 0;
+}
+
+.sectionItems {
+  gap: 4px;
+}
+
+.userAppTabs {
+  gap: 4px;
+}
+
+.rail:not([data-expanded="true"]) .nav {
+  overflow: visible;
+}
+
+.rail:not([data-expanded="true"]) .button,
+.rail:not([data-expanded="true"]) .userButton {
+  overflow: visible;
+}
+
+.rail:not([data-expanded="true"]) .button:hover,
+.rail:not([data-expanded="true"]) .button:focus-visible,
+.rail:not([data-expanded="true"]) .userButton:hover,
+.rail:not([data-expanded="true"]) .userButton:focus-visible {
+  z-index: 90;
+}
+
+.rail:not([data-expanded="true"]) .button[data-tooltip]::after,
+.rail:not([data-expanded="true"]) .userButton[data-tooltip]::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  left: calc(100% + 10px);
+  top: 50%;
+  z-index: 140;
+  max-width: 220px;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--og-border-strong) 82%, transparent);
+  border-radius: var(--r-sm);
+  background: color-mix(in srgb, var(--og-surface) 98%, transparent);
+  box-shadow: var(--shadow-md);
+  color: var(--og-text-strong);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+  line-height: var(--lh-tight);
+  opacity: 0;
+  padding: 7px 9px;
+  pointer-events: none;
+  text-overflow: ellipsis;
+  transform: translate(4px, -50%);
+  transition:
+    opacity var(--motion-fast) var(--motion-ease),
+    transform var(--motion-fast) var(--motion-ease);
+  white-space: nowrap;
+}
+
+.rail:not([data-expanded="true"]) .button[data-tooltip]:hover::after,
+.rail:not([data-expanded="true"]) .button[data-tooltip]:focus-visible::after,
+.rail:not([data-expanded="true"]) .userButton[data-tooltip]:hover::after,
+.rail:not([data-expanded="true"]) .userButton[data-tooltip]:focus-visible::after {
+  opacity: 1;
+  transform: translate(0, -50%);
+}
+
+.button {
+  position: relative;
+  display: grid;
+  grid-template-columns: var(--app-rail-icon-column) minmax(0, 1fr);
+  align-items: center;
+  justify-content: start;
+  justify-items: stretch;
+  width: var(--app-rail-icon-column);
+  height: var(--app-rail-item-height);
+  border: 0;
+  border-radius: var(--r-app-rail-button);
+  background: transparent;
+  color: var(--app-rail-button-fg);
+  cursor: pointer;
+  overflow: hidden;
+  padding: 0;
+  transition:
+    background-color var(--motion-fast) var(--motion-ease),
+    box-shadow var(--motion-fast) var(--motion-ease),
+    color var(--motion-fast) var(--motion-ease),
+    transform var(--motion-fast) var(--motion-ease);
+}
+
+.iconUnreadAnchor {
+  --unread-count-anchor-top: -3px;
+  --unread-count-anchor-right: -6px;
+  --unread-count-ring-color: var(--app-shell-bg);
+  grid-column: 1;
+  align-self: center;
+  justify-self: center;
+  width: 27px;
+  height: 27px;
+}
+
+.iconUnreadAnchor > svg,
+.iconUnreadAnchor > :global(.pixel-icon) {
+  grid-column: 1;
+  align-self: center;
+  justify-self: center;
+}
+
+.button svg {
+  stroke-width: 1.8;
+}
+
+.button:active,
+.brand:active,
+.userButton:active {
+  transform: none;
+}
+
+.button:hover,
+.button:focus-visible {
+  background: color-mix(in srgb, var(--og-text) 5%, transparent);
+  color: color-mix(in srgb, var(--og-text) 82%, transparent);
+  outline: 0;
+  --pixel-icon-accent: currentColor;
+}
+
+.button[data-active="true"] {
+  background: var(--c-surface);
+  color: var(--og-text);
+  box-shadow: var(--shadow-xs);
+  --pixel-icon-accent: currentColor;
+}
+
+.button[data-active="true"]::before {
+  display: none;
+}
+
+.userButton {
+  position: relative;
+  display: grid;
+  grid-template-columns: var(--app-rail-icon-column) minmax(0, 1fr);
+  align-items: center;
+  justify-items: stretch;
+  width: var(--app-rail-icon-column);
+  height: 36px;
+  border: 0;
+  border-radius: var(--r-md);
+  background: transparent;
+  color: var(--og-text);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-medium);
+  line-height: 1;
+  overflow: hidden;
+  padding: 0;
+  box-shadow: none;
+}
+
+.userButton:hover,
+.userButton:focus-visible {
+  outline: 0;
+  background: color-mix(in srgb, var(--og-text) 4.5%, transparent);
+}
+
+.userButton[data-active="true"] {
+  outline: 0;
+  background: var(--c-surface);
+  box-shadow: var(--shadow-xs);
+}
+
+.userButtonAvatar,
+.userButtonAvatar img,
+.userMenuAvatar,
+.userMenuAvatar img,
+.accountMenuAvatar img {
+  width: 100%;
+  height: 100%;
+}
+
+.userButtonAvatar,
+.userMenuAvatar {
+  display: grid;
+  place-items: center;
+  align-self: center;
+  justify-self: center;
+  overflow: hidden;
+  border-radius: var(--app-navigation-avatar-radius);
+  background: color-mix(in srgb, var(--c-muted) 78%, var(--og-surface));
+  color: var(--og-white);
+}
+
+.userButtonAvatar {
+  grid-column: 1;
+  grid-row: 1;
+  width: 26px;
+  height: 26px;
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-medium);
+  line-height: 0;
+}
+
+.userButtonAvatar img,
+.userMenuAvatar img,
+.accountMenuAvatar img,
+.profileDialogAvatar img {
+  object-fit: cover;
+}
+
+.userMenu {
+  position: absolute;
+  bottom: calc(100% + 10px);
+  left: -7px;
+  z-index: 120;
+  display: grid;
+  gap: 5px;
+  width: 218px;
+  border: 1px solid var(--og-border);
+  border-radius: var(--r-app-rail-user-menu);
+  background: var(--og-surface);
+  box-shadow: var(--shadow-md);
+  padding: 8px;
+}
+
+.userMenuProfile,
+.userMenuItem {
+  display: grid;
+  align-items: center;
+  width: 100%;
+  border: 0;
+  border-radius: var(--r-lg);
+  background: transparent;
+  color: var(--og-text);
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.userMenuProfile {
+  grid-template-columns: 32px minmax(0, 1fr) 16px;
+  gap: 9px;
+  min-height: 46px;
+  padding: 6px 7px;
+}
+
+.userMenuItem {
+  grid-template-columns: 18px minmax(0, 1fr);
+  gap: 10px;
+  min-height: 34px;
+  padding: 0 8px;
+  font-size: var(--fs-base);
+}
+
+.userMenuItem svg {
+  width: 15px;
+  height: 15px;
+}
+
+.userMenuProfile:hover,
+.userMenuProfile:focus-visible,
+.userMenuItem:hover,
+.userMenuItem:focus-visible {
+  background: var(--c-surface-hover);
+  outline: 0;
+}
+
+.userMenuProfile:disabled {
+  cursor: default;
+}
+
+.userMenuProfile:disabled:hover {
+  background: transparent;
+}
+
+.userMenuAvatar {
+  overflow: hidden;
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+}
+
+.userMenuCopy {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.userMenuCopy strong,
+.userMenuCopy small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.userMenuCopy strong {
+  color: var(--og-text);
+  font-size: var(--fs-base);
+  font-weight: var(--fw-semibold);
+}
+
+.userMenuCopy small {
+  color: var(--og-text-muted);
+  font-size: var(--fs-xs);
+}
+
+.userMenuDivider,
+.userAppMenuDivider {
+  height: 1px;
+  background: var(--og-border);
+}
+
+.userMenuDivider {
+  margin: 3px 7px;
+}
+
+.accountMenu {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 10px);
+  z-index: 140;
+  display: grid;
+  box-sizing: border-box;
+  gap: 0;
+  border: 1px solid var(--c-line-06);
+  border-radius: var(--r-lg);
+  background: var(--c-popover-solid);
+  box-shadow: var(--shadow-md);
+  padding: 8px;
+}
+
+.accountMenuProfile,
+.accountMenuItem {
+  display: grid;
+  align-items: center;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: var(--og-text-strong);
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.accountMenuProfile {
+  grid-template-columns: 30px minmax(0, 1fr) 16px;
+  gap: 8px;
+  min-height: 50px;
+  border-radius: var(--r-md);
+  padding: 0 8px;
+}
+
+.accountMenuProfile:hover,
+.accountMenuProfile:focus-visible,
+.accountMenuItem:hover,
+.accountMenuItem:focus-visible {
+  background: color-mix(in srgb, var(--og-text) 4.5%, transparent);
+  outline: 0;
+}
+
+.accountMenuAvatar {
+  display: grid;
+  place-items: center;
+  align-self: center;
+  justify-self: center;
+  width: 30px;
+  height: 30px;
+  overflow: hidden;
+  border-radius: var(--r-pill);
+  background: color-mix(in srgb, var(--c-muted) 78%, var(--og-surface));
+  color: var(--og-white);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-medium);
+}
+
+.accountMenuCopy {
+  display: grid;
+  align-self: center;
+  gap: 2px;
+  min-width: 0;
+}
+
+.accountMenuCopy strong,
+.accountMenuCopy small {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.accountMenuCopy strong {
+  color: var(--og-text-strong);
+  font-size: var(--fs-base);
+  font-weight: var(--fw-medium);
+  line-height: var(--lh-tight);
+}
+
+.accountMenuCopy small {
+  color: var(--og-text-muted);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-normal);
+  line-height: var(--lh-tight);
+}
+
+.accountMenuDivider {
+  height: 1px;
+  margin: 7px 8px;
+  background: var(--c-line-06);
+}
+
+.accountMenuItem {
+  grid-template-columns: 22px minmax(0, 1fr) 16px;
+  gap: 7px;
+  min-height: 38px;
+  border-radius: var(--r-md);
+  padding: 0 8px;
+  font-size: var(--fs-base);
+  font-weight: var(--fw-normal);
+  line-height: 1;
+}
+
+.accountMenuItem > span {
+  min-width: 0;
+  overflow: hidden;
+  align-self: center;
+  line-height: var(--lh-tight);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.accountMenuItem svg {
+  justify-self: center;
+  width: 18px;
+  height: 18px;
+  stroke-width: 1.9;
+}
+
+.accountMenuChevron {
+  justify-self: end;
+}
+
+.userAppMenuDivider {
+  margin: 2px 4px;
+}
+
+.userTabWrap {
+  position: relative;
+  min-width: 0;
+}
+
+.userTab {
+  position: relative;
+}
+
+.userTabIcon {
+  position: relative;
+  inset: auto;
+  display: grid;
+  place-items: center;
+  width: var(--app-rail-icon-column);
+  height: var(--app-rail-item-height);
+  min-width: 0;
+  overflow: visible;
+  color: inherit;
+  pointer-events: none;
+}
+
+.userTabIcon :global(.pixel-icon) {
+  align-self: center;
+  justify-self: center;
+  width: 27px;
+  height: 27px;
+}
+
+.userTabMarker,
+.userTabWrap[data-developer-mode="true"] .userTabMarker {
+  display: none;
+}
+
+.userTabMenuButton {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border: 1px solid var(--og-border);
+  border-radius: var(--r-sm);
+  background: var(--og-surface);
+  color: var(--og-text-muted);
+  cursor: pointer;
+  opacity: 0;
+  padding: 0;
+  pointer-events: none;
+  box-shadow: var(--shadow-sm);
+  transition:
+    opacity var(--motion-fast) var(--motion-ease),
+    color var(--motion-fast) var(--motion-ease),
+    background-color var(--motion-fast) var(--motion-ease),
+    transform var(--motion-fast) var(--motion-ease);
+}
+
+.userTabWrap:hover .userTabMenuButton,
+.userTabWrap:focus-within .userTabMenuButton,
+.userTabWrap[data-menu-open="true"] .userTabMenuButton,
+.userTabMenuButton:focus-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.userTabMenuButton:hover {
+  background: var(--og-surface-subtle);
+  color: var(--og-text-strong);
+}
+
+.userTabWrap[data-menu-open="true"] {
+  z-index: 30;
+}
+
+.profileDialog {
+  box-sizing: border-box;
+  width: min(420px, calc(100vw - 32px));
+  gap: 0;
+  border: 1px solid color-mix(in srgb, var(--og-border-strong) 86%, transparent);
+  background: var(--og-surface);
+  padding: var(--sp-4);
+}
+
+.profileDialog :global(.modal-title) {
+  color: var(--og-text-strong);
+  font-size: var(--fs-lg);
+  font-weight: var(--fw-normal);
+  letter-spacing: 0;
+  line-height: var(--lh-tight);
+}
+
+.profileDialogForm {
+  display: grid;
+  gap: var(--sp-3);
+  min-width: 0;
+}
+
+.profileDialogAvatar {
+  position: relative;
+  justify-self: center;
+  display: grid;
+  place-items: center;
+  width: 88px;
+  height: 88px;
+  margin: var(--sp-6) 0 var(--sp-4);
+}
+
+.profileDialogAvatar > span {
+  display: grid;
+  place-items: center;
+  width: 82px;
+  height: 82px;
+  overflow: hidden;
+  border-radius: var(--profile-avatar-radius);
+  background: color-mix(in srgb, var(--c-muted) 78%, var(--og-surface));
+  box-shadow: none;
+  color: var(--og-white);
+  font-size: var(--fs-xl);
+  font-weight: var(--fw-normal);
+}
+
+.profileDialogAvatar img {
+  display: block;
+  width: 82px;
+  height: 82px;
+  overflow: hidden;
+  border-radius: var(--profile-avatar-radius);
+}
+
+.profileDialogAvatar input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.profileDialogAvatar button {
+  position: absolute;
+  right: 5px;
+  bottom: 8px;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border: 1px solid var(--og-border);
+  border-radius: var(--profile-avatar-action-radius);
+  background: var(--og-surface);
+  color: var(--og-text-muted);
+  cursor: pointer;
+  padding: 0;
+  box-shadow: var(--shadow-sm);
+}
+
+.profileDialogAvatar button:hover,
+.profileDialogAvatar button:focus-visible {
+  color: var(--og-text);
+  outline: 0;
+}
+
+.profileDialogAvatar button svg {
+  width: 13px;
+  height: 13px;
+  stroke-width: 1.9;
+}
+
+.profileDialogAvatar .profileDialogAvatarRemove {
+  right: auto;
+  left: 5px;
+  color: var(--c-error);
+}
+
+.profileDialogField {
+  box-sizing: border-box;
+  display: grid;
+  gap: var(--sp-1);
+  min-width: 0;
+  min-height: 56px;
+  border: 1px solid color-mix(in srgb, var(--og-border-strong) 82%, transparent);
+  border-radius: var(--r-md);
+  background: var(--og-surface);
+  color: var(--og-text);
+  padding: var(--sp-2) var(--sp-3);
+}
+
+.profileDialogField > span {
+  color: var(--og-text-strong);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-normal);
+  line-height: var(--lh-tight);
+}
+
+.profileDialogField input {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  height: 24px;
+  border: 0;
+  background: transparent;
+  color: var(--og-text);
+  font: inherit;
+  font-size: var(--fs-base);
+  font-weight: var(--fw-normal);
+  padding: 0;
+  outline: 0;
+}
+
+.profileDialogField:focus-within {
+  border-color: color-mix(in srgb, var(--c-violet) 38%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--c-violet) 12%, transparent);
+}
+
+.profileDialogReadonlyField {
+  background: color-mix(in srgb, var(--og-surface-muted) 72%, var(--og-surface));
+}
+
+.profileDialogReadonlyValue {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  min-width: 0;
+}
+
+.profileDialogReadonlyValue strong {
+  min-width: 0;
+  color: var(--og-text);
+  font-size: var(--fs-base);
+  font-weight: var(--fw-normal);
+  line-height: var(--lh-normal);
+}
+
+.profileDialogReadonlyValue small {
+  flex: 0 0 auto;
+  color: var(--og-text-muted);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-normal);
+}
+
+.profileDialog :global(.modal-actions) {
+  gap: var(--sp-2);
+  justify-content: flex-end;
+}
+
+.profileDialog :global(.ghost-button),
+.profileDialog :global(.primary-button) {
+  min-height: 34px;
+  border-radius: var(--r-pill);
+  font-size: var(--fs-base);
+  font-weight: var(--fw-medium);
+  padding: 0 var(--sp-4);
+}
+
+.withdrawalDialog {
+  box-sizing: border-box;
+  position: relative;
+  width: min(520px, calc(100vw - 32px));
+  height: 342px;
+  max-height: calc(100vh - 40px);
+  overflow: visible;
+  grid-template-rows: 28px minmax(0, 1fr);
+  gap: var(--sp-3);
+  border: 1px solid color-mix(in srgb, var(--og-border-strong) 86%, transparent);
+  background: var(--og-surface);
+  padding: var(--sp-4);
+}
+
+.withdrawalToast {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 8px);
+  z-index: var(--z-toast);
+  box-sizing: border-box;
+  width: max-content;
+  max-width: min(420px, calc(100vw - 40px));
+  border: 1px solid color-mix(in srgb, var(--og-border-strong) 52%, transparent);
+  border-radius: var(--r-pill);
+  background: color-mix(in srgb, var(--og-surface) 94%, transparent);
+  box-shadow: 0 8px 18px color-mix(in srgb, var(--og-text-strong) 10%, transparent);
+  color: var(--c-warning);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-normal);
+  padding: var(--sp-2) var(--sp-3);
+  text-align: center;
+  transform: translateX(-50%);
+}
+
+.withdrawalDialogHeader {
+  display: flex;
+  min-width: 0;
+  min-height: 28px;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+}
+
+.withdrawalDialogHeaderLeft {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.withdrawalDialogHeaderRight {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.withdrawalDialogToolButton {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: 24px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--og-text-muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--fs-xs);
+  line-height: var(--lh-tight);
+  padding: 2px 4px;
+  white-space: nowrap;
+}
+
+.withdrawalDialogToolButton svg {
+  width: 13px;
+  height: 13px;
+  stroke-width: 1.9;
+}
+
+.withdrawalDialogToolButton:hover:not(:disabled),
+.withdrawalDialogToolButton:focus-visible {
+  background: color-mix(in srgb, var(--og-text) 5%, transparent);
+  color: var(--og-text-strong);
+}
+
+.withdrawalDialogToolButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.withdrawalDialogBack {
+  flex: 0 0 auto;
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--og-text-muted);
+  cursor: pointer;
+  padding: 0;
+}
+
+.withdrawalDialogClose {
+  flex: 0 0 auto;
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--og-text-muted);
+  cursor: pointer;
+  padding: 0;
+}
+
+.withdrawalDialogBack:hover,
+.withdrawalDialogBack:focus-visible {
+  background: transparent;
+  color: var(--og-text-strong);
+  outline: 0;
+}
+
+.withdrawalDialogClose:hover,
+.withdrawalDialogClose:focus-visible {
+  background: transparent;
+  color: var(--og-text-strong);
+  outline: 0;
+}
+
+.withdrawalDialog :global(.modal-title) {
+  min-width: 0;
+  padding: 0;
+  color: var(--og-text-strong);
+  font-size: var(--fs-lg);
+  font-weight: var(--fw-normal);
+  letter-spacing: 0;
+  line-height: var(--lh-tight);
+}
+
+.withdrawalShell {
+  display: grid;
+  gap: var(--sp-2);
+  align-content: stretch;
+  align-self: stretch;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.withdrawalDialog[data-step="overview"] .withdrawalShell {
+  grid-template-rows: minmax(0, 1fr) auto;
+  gap: var(--sp-3);
+}
+
+.withdrawalDialog[data-step="contract"] {
+  height: min(380px, calc(100vh - 40px));
+}
+
+.withdrawalDialog[data-step="contract"] .withdrawalShell {
+  overflow: hidden;
+}
+
+.withdrawalDialog:is([data-step="stripe_consent"], [data-step="stripe_setup"]) {
+  height: min(380px, calc(100vh - 40px));
+}
+
+.withdrawalDialog:is([data-step="stripe_consent"], [data-step="stripe_setup"]) .withdrawalShell {
+  grid-template-rows: minmax(0, 1fr) auto;
+}
+
+.withdrawalDialog:is([data-step="stripe_consent"], [data-step="stripe_setup"]) .withdrawalContract {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) auto;
+  align-content: stretch;
+  align-items: stretch;
+  overflow: hidden;
+}
+
+.withdrawalDialog:is([data-step="stripe_consent"], [data-step="stripe_setup"]) .withdrawalContractCopy {
+  align-content: start;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.withdrawalOverviewMetrics {
+  display: grid;
+  align-self: center;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+
+.withdrawalSummary {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--sp-2);
+  min-width: 0;
+  border: 1px solid color-mix(in srgb, var(--og-border-strong) 80%, transparent);
+  border-radius: var(--r-lg);
+  background: color-mix(in srgb, var(--og-surface-subtle) 74%, var(--og-surface));
+  padding: var(--sp-3) 10px var(--sp-3) var(--sp-3);
+}
+
+.withdrawalSummaryIcon {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: var(--r-md);
+  background: color-mix(in srgb, var(--c-success) 12%, var(--og-surface));
+  color: var(--c-success);
+}
+
+.withdrawalBalance {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.withdrawalBalance span,
+.withdrawalStat span,
+.withdrawalConfirmAmount span,
+.withdrawalConfirmRows span {
+  color: var(--og-text-muted);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-normal);
+  line-height: var(--lh-tight);
+}
+
+.withdrawalBalance strong {
+  color: var(--og-text-strong);
+  font-size: var(--fs-2xl);
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-tight);
+}
+
+.withdrawalSummaryActionWrap {
+  position: relative;
+  display: inline-flex;
+  align-self: center;
+  justify-self: end;
+}
+
+.withdrawalSummaryActionWrap[data-tooltip] {
+  cursor: not-allowed;
+}
+
+.withdrawalSummaryActionWrap[data-tooltip]::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 8px);
+  z-index: 5;
+  width: max-content;
+  max-width: 260px;
+  border-radius: var(--r-md);
+  background: var(--og-text-strong);
+  box-shadow: var(--shadow-md);
+  color: var(--og-surface);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-normal);
+  line-height: var(--lh-normal);
+  opacity: 0;
+  padding: var(--sp-2) var(--sp-3);
+  pointer-events: none;
+  transform: translateY(4px);
+  transition:
+    opacity var(--dur-fast) var(--ease-out),
+    transform var(--dur-fast) var(--ease-out);
+  white-space: nowrap;
+}
+
+.withdrawalSummaryActionWrap[data-tooltip]::before {
+  content: "";
+  position: absolute;
+  right: 24px;
+  bottom: calc(100% + 3px);
+  z-index: 6;
+  width: 10px;
+  height: 10px;
+  background: var(--og-text-strong);
+  opacity: 0;
+  pointer-events: none;
+  transform: rotate(45deg) translateY(4px);
+  transition:
+    opacity var(--dur-fast) var(--ease-out),
+    transform var(--dur-fast) var(--ease-out);
+}
+
+.withdrawalSummaryActionWrap[data-tooltip]:hover::after,
+.withdrawalSummaryActionWrap[data-tooltip]:hover::before {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.withdrawalSummaryActionWrap[data-tooltip]:hover::before {
+  transform: rotate(45deg) translateY(0);
+}
+
+.withdrawalSummaryAction {
+  align-self: center;
+  min-height: 40px;
+  border: 0;
+  border-radius: var(--r-pill);
+  background: var(--og-text-strong);
+  color: var(--og-surface);
+  cursor: pointer;
+  font-size: var(--fs-base);
+  font-weight: var(--fw-semibold);
+  line-height: 1;
+  padding: 0 20px;
+  white-space: nowrap;
+}
+
+.withdrawalSummaryAction:disabled {
+  background: color-mix(in srgb, var(--og-text-strong) 38%, var(--og-surface-subtle));
+  color: color-mix(in srgb, var(--og-surface) 62%, var(--og-text-muted));
+  cursor: not-allowed;
+  opacity: 1;
+  pointer-events: none;
+}
+
+.withdrawalSummaryAction:not(:disabled):hover,
+.withdrawalSummaryAction:not(:disabled):focus-visible {
+  background: color-mix(in srgb, var(--og-text-strong) 88%, var(--og-surface));
+  outline: 0;
+}
+
+.withdrawalStats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sp-2);
+}
+
+.withdrawalStat {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  align-items: center;
+  gap: 3px var(--sp-2);
+  min-width: 0;
+  border: 1px solid color-mix(in srgb, var(--og-border-strong) 76%, transparent);
+  border-radius: var(--r-md);
+  background: var(--og-surface);
+  padding: var(--sp-3);
+}
+
+.withdrawalStat svg {
+  grid-row: span 2;
+  color: var(--og-text-muted);
+  stroke-width: 1.9;
+}
+
+.withdrawalStat strong {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--og-text-strong);
+  font-size: var(--fs-base);
+  font-weight: var(--fw-medium);
+  line-height: var(--lh-tight);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.withdrawalRecordStat {
+  position: relative;
+  color: inherit;
+  cursor: default;
+  font: inherit;
+  padding-right: 48px;
+  text-align: left;
+}
+
+button.withdrawalRecordStat {
+  cursor: pointer;
+}
+
+button.withdrawalRecordStat:hover,
+button.withdrawalRecordStat:focus-visible {
+  border-color: color-mix(in srgb, var(--og-text-strong) 22%, var(--og-border-strong));
+  background: color-mix(in srgb, var(--og-text) 4%, var(--og-surface));
+  outline: 0;
+}
+
+button.withdrawalRecordStat:hover .withdrawalRecordLink,
+button.withdrawalRecordStat:focus-visible .withdrawalRecordLink {
+  color: var(--c-success);
+}
+
+.withdrawalRecordLink {
+  position: absolute;
+  top: 50%;
+  right: var(--sp-3);
+  transform: translateY(-50%);
+  color: var(--og-text-strong);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+  line-height: var(--lh-tight);
+}
+
+.withdrawalRecordLink:disabled {
+  color: var(--og-text-muted);
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.withdrawalLatestStatus {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  min-width: 0;
+  margin: 2px 0 0;
+  color: var(--og-text-muted);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-normal);
+}
+
+.withdrawalLatestStatus svg {
+  flex: 0 0 auto;
+  color: var(--og-text-muted);
+  stroke-width: 1.9;
+}
+
+.withdrawalLatestStatus span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.withdrawalContract,
+.withdrawalConfirm,
+.withdrawalRecords,
+.withdrawalSuccess {
+  display: grid;
+  gap: var(--sp-3);
+  min-width: 0;
+  min-height: 0;
+  border: 0;
+  background: transparent;
+  padding: 0;
+}
+
+.withdrawalRecords {
+  overflow: hidden;
+  padding: var(--sp-3) 0 0;
+}
+
+.withdrawalRecordTable {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  align-content: start;
+  min-height: 0;
+  max-height: 100%;
+  overflow: hidden;
+  margin: 0;
+  padding: 0;
+}
+
+.withdrawalRecordTableHeader,
+.withdrawalRecordTableRow {
+  display: grid;
+  grid-template-columns: minmax(116px, 1.2fr) minmax(72px, 0.7fr) minmax(0, 1.2fr);
+  column-gap: var(--sp-3);
+  min-width: 0;
+}
+
+.withdrawalRecordTableHeader {
+  color: var(--og-text-muted);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-tight);
+  padding: 0 var(--sp-2) 4px;
+}
+
+.withdrawalRecordTableBody {
+  min-height: 0;
+  overflow: auto;
+}
+
+.withdrawalRecordTableRow {
+  border-top: 1px solid color-mix(in srgb, var(--og-border-strong) 70%, transparent);
+  padding: 8px var(--sp-2);
+}
+
+.withdrawalRecordLoadSentinel {
+  height: 1px;
+}
+
+.withdrawalRecordTableMeta {
+  border-top: 1px solid color-mix(in srgb, var(--og-border-strong) 70%, transparent);
+  color: var(--og-text-muted);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-tight);
+  padding: 8px var(--sp-2);
+}
+
+.withdrawalRecordTableRow > strong,
+.withdrawalRecordTableRow > time,
+.withdrawalRecordStatusCell {
+  min-width: 0;
+  color: var(--og-text-strong);
+  font-size: var(--fs-sm);
+  font-style: normal;
+  font-weight: var(--fw-normal);
+  line-height: var(--lh-tight);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.withdrawalRecordTableRow > strong,
+.withdrawalRecordTableRow > time {
+  overflow: hidden;
+}
+
+.withdrawalRecordStatusCell {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.withdrawalRecordStatusText {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.withdrawalRecordStatusInfo {
+  position: relative;
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  color: var(--og-text-muted);
+  cursor: help;
+}
+
+.withdrawalRecordStatusInfo svg {
+  stroke-width: 2;
+}
+
+.withdrawalRecordStatusInfo::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  z-index: 10;
+  box-sizing: border-box;
+  width: 220px;
+  border-radius: var(--r-md);
+  background: var(--og-text-strong);
+  box-shadow: var(--shadow-md);
+  color: var(--og-surface);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-normal);
+  line-height: var(--lh-normal);
+  opacity: 0;
+  padding: var(--sp-2) var(--sp-3);
+  pointer-events: none;
+  transform: translateY(4px);
+  transition:
+    opacity var(--dur-fast) var(--ease-out),
+    transform var(--dur-fast) var(--ease-out);
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.withdrawalRecordStatusInfo:hover::after,
+.withdrawalRecordStatusInfo:focus-visible::after {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.withdrawalRecordsEmpty {
+  align-self: center;
+  justify-self: center;
+  margin: 0;
+  color: var(--og-text-muted);
+  font-size: var(--fs-base);
+  line-height: var(--lh-normal);
+}
+
+.withdrawalRecordsFailure {
+  display: grid;
+  align-self: center;
+  justify-self: center;
+  justify-items: center;
+  gap: var(--sp-3);
+  color: var(--og-text-muted);
+  font-size: var(--fs-base);
+  line-height: var(--lh-normal);
+  text-align: center;
+}
+
+.withdrawalRecordsFailure p {
+  margin: 0;
+}
+
+.withdrawalForm {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  align-self: stretch;
+  gap: var(--sp-3);
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.withdrawalFormFooter {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--sp-3);
+  margin-top: auto;
+  min-height: 42px;
+}
+
+.withdrawalFormActions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.withdrawalPanel {
+  display: grid;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+
+.withdrawalForm h3 {
+  margin: 0;
+  color: var(--og-text-strong);
+  font-size: var(--fs-lg);
+  font-weight: var(--fw-medium);
+  line-height: var(--lh-tight);
+}
+
+.withdrawalFormGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sp-2);
+  margin-top: var(--sp-3);
+}
+
+.withdrawalField {
+  display: grid;
+  grid-template-rows: 16px 38px;
+  gap: var(--sp-1);
+  min-width: 0;
+  color: var(--og-text);
+}
+
+.withdrawalField span {
+  color: var(--og-text-strong);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+  line-height: var(--lh-tight);
+  min-height: 16px;
+}
+
+.withdrawalField input {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  height: 38px;
+  border: 1px solid color-mix(in srgb, var(--og-border-strong) 82%, transparent);
+  border-radius: var(--r-md);
+  background: var(--og-surface);
+  color: var(--og-text);
+  font: inherit;
+  font-size: var(--fs-base);
+  line-height: var(--lh-normal);
+  outline: 0;
+  padding: 0 var(--sp-3);
+}
+
+.withdrawalField input:focus {
+  border-color: color-mix(in srgb, var(--c-success) 42%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--c-success) 11%, transparent);
+}
+
+.withdrawalField input:disabled {
+  cursor: not-allowed;
+  opacity: 0.72;
+}
+
+.withdrawalField input::placeholder {
+  color: color-mix(in srgb, var(--og-text-muted) 54%, transparent);
+}
+
+.withdrawalTip {
+  margin: 0;
+  color: var(--og-text-muted);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-normal);
+}
+
+.withdrawalPrimaryWrap {
+  display: inline-flex;
+  justify-self: stretch;
+}
+
+.withdrawalPrimaryWrap :global(.primary-button) {
+  width: 100%;
+  min-height: 42px;
+  border-radius: var(--r-pill);
+}
+
+.withdrawalForm :global(.modal-actions) {
+  width: 100%;
+  justify-content: flex-end;
+  margin-top: auto;
+}
+
+.withdrawalForm :global(.primary-button) {
+  width: auto;
+  min-width: 112px;
+  min-height: 42px;
+}
+
+.withdrawalHint {
+  margin: 0;
+  color: var(--og-text-muted);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-normal);
+}
+
+.withdrawalError {
+  margin: 0;
+  color: var(--c-warning);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-normal);
+}
+
+.withdrawalFormErrorSlot {
+  min-width: 0;
+  min-height: 18px;
+  margin: 0;
+  color: var(--c-warning);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-normal);
+  overflow-wrap: anywhere;
+}
+
+.withdrawalContractCopy h3,
+.withdrawalSuccess h3 {
+  margin: 0;
+  color: var(--og-text-strong);
+  font-size: var(--fs-lg);
+  font-weight: var(--fw-medium);
+  line-height: var(--lh-tight);
+}
+
+.withdrawalContractCopy p,
+.withdrawalSuccess p {
+  margin: 0;
+  color: var(--og-text);
+  font-size: var(--fs-base);
+  line-height: var(--lh-normal);
+}
+
+.withdrawalContract {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) auto;
+  align-content: stretch;
+  align-items: stretch;
+  align-self: stretch;
+  overflow: hidden;
+}
+
+.withdrawalContractBody {
+  display: grid;
+  grid-template-columns: 216px minmax(0, 1fr);
+  align-items: center;
+  gap: var(--sp-3);
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.withdrawalConfirm {
+  grid-template-rows: minmax(0, 1fr) auto;
+  align-self: stretch;
+  overflow: hidden;
+}
+
+.withdrawalActionBody {
+  display: grid;
+  align-content: start;
+  gap: var(--sp-3);
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.withdrawalContract :global(.modal-actions),
+.withdrawalConfirm :global(.modal-actions) {
+  grid-column: 1 / -1;
+  width: 100%;
+  justify-content: flex-end;
+  margin-top: auto;
+}
+
+.withdrawalContract .withdrawalContractActions {
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+}
+
+.withdrawalContractActionMessage {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  color: var(--c-warning);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-normal);
+  overflow-wrap: anywhere;
+}
+
+.withdrawalContractActions :global(.primary-button) {
+  flex: 0 0 auto;
+  margin-left: auto;
+}
+
+.withdrawalContract :global(.primary-button),
+.withdrawalConfirm :global(.primary-button) {
+  width: auto;
+  min-width: 112px;
+  min-height: 42px;
+}
+
+.withdrawalQrArea {
+  display: grid;
+  justify-items: center;
+  gap: var(--sp-2);
+  width: 204px;
+}
+
+.withdrawalQrCard {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 204px;
+  height: 204px;
+  border: 1px solid color-mix(in srgb, var(--og-border-strong) 86%, transparent);
+  border-radius: var(--r-md);
+  background: var(--c-overlay-highlight);
+  color: var(--og-text-strong);
+}
+
+.withdrawalQrImage {
+  display: block;
+  width: 168px;
+  height: 168px;
+}
+
+.withdrawalQrCard span {
+  position: absolute;
+  inset-inline: var(--sp-3);
+  bottom: var(--sp-3);
+  color: var(--og-text-muted);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-tight);
+  text-align: center;
+}
+
+.withdrawalQrExternalButton {
+  border: 0;
+  background: transparent;
+  color: var(--c-link);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-tight);
+  cursor: pointer;
+}
+
+.withdrawalQrExternalButton:hover {
+  color: var(--c-link-strong);
+}
+
+.withdrawalQrExternalButton:focus-visible {
+  outline: 2px solid var(--c-focus-ring);
+  outline-offset: 3px;
+  border-radius: var(--r-sm);
+}
+
+.withdrawalContract[data-has-signing-url="false"] {
+  align-content: center;
+}
+
+.withdrawalContract[data-has-signing-url="false"] .withdrawalContractBody {
+  grid-template-columns: 1fr;
+}
+
+.withdrawalContract[data-contract-link-blocked="true"] {
+  grid-template-rows: 1fr auto;
+  align-content: stretch;
+  align-items: stretch;
+}
+
+.withdrawalContract[data-contract-link-blocked="true"] .withdrawalContractCopy {
+  align-self: center;
+  justify-items: center;
+  text-align: center;
+}
+
+.withdrawalContract[data-status="failed"] {
+  grid-template-rows: 1fr auto;
+  align-content: stretch;
+  align-items: stretch;
+}
+
+.withdrawalContract[data-status="failed"] .withdrawalContractCopy {
+  align-self: center;
+  justify-items: center;
+  text-align: center;
+}
+
+.withdrawalContract[data-status="failed"] .withdrawalContractCopy h3 {
+  color: var(--c-error);
+}
+
+.withdrawalContractCopy {
+  display: grid;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+
+.withdrawalConfirmAmount {
+  display: grid;
+  gap: var(--sp-1);
+  justify-items: center;
+  border-radius: var(--r-md);
+  background: color-mix(in srgb, var(--c-success) 8%, var(--og-surface));
+  padding: var(--sp-4);
+}
+
+.withdrawalConfirmAmount strong {
+  color: var(--og-text-strong);
+  font-size: var(--fs-2xl);
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-tight);
+}
+
+.withdrawalConfirmRows {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--sp-2);
+}
+
+.withdrawalConfirmRows div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  border: 1px solid color-mix(in srgb, var(--og-border-strong) 76%, transparent);
+  border-radius: var(--r-md);
+  padding: var(--sp-3);
+}
+
+.withdrawalConfirmRows strong {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--og-text-strong);
+  font-size: var(--fs-base);
+  font-weight: var(--fw-medium);
+  line-height: var(--lh-tight);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.withdrawalSuccess {
+  min-height: 0;
+  align-content: center;
+  justify-items: center;
+  text-align: center;
+}
+
+.withdrawalSuccess svg {
+  color: var(--c-success);
+  stroke-width: 1.8;
+}
+
+.withdrawalDialog :global(.modal-actions) {
+  gap: var(--sp-2);
+  justify-content: flex-end;
+}
+
+.withdrawalDialog :global(.ghost-button),
+.withdrawalDialog :global(.primary-button) {
+  min-height: 36px;
+  border-radius: var(--r-pill);
+  font-size: var(--fs-base);
+  font-weight: var(--fw-medium);
+  padding: 0 var(--sp-4);
+}
+
+.withdrawalForm :global(.modal-actions) {
+  width: 100%;
+  justify-content: flex-end;
+  margin-top: auto;
+}
+
+.withdrawalForm :global(.primary-button),
+.withdrawalContract :global(.primary-button),
+.withdrawalConfirm :global(.primary-button) {
+  width: auto;
+  min-width: 112px;
+  min-height: 42px;
+}
+
+.rail[data-expanded="true"] {
+  align-content: stretch;
+  justify-items: stretch;
+  padding-top: 0;
+  padding-inline: 10px;
+}
+
+.rail[data-expanded="true"] .brandRow {
+  grid-template-columns: minmax(0, 1fr);
+  column-gap: 0;
+  justify-items: start;
+  padding-right: 0;
+  transition: grid-template-columns var(--motion-slow) var(--motion-ease);
+}
+
+.rail[data-expanded="true"] .brand {
+  width: 100%;
+  justify-self: stretch;
+  margin-bottom: 24px;
+}
+
+.rail[data-expanded="true"] .wordmark {
+  display: block;
+  font-size: var(--fs-base);
+  animation: railLabelIn var(--motion-normal) var(--motion-ease-out);
+}
+
+.rail[data-expanded="true"] .nav,
+.rail[data-expanded="true"] .bottom,
+.rail[data-expanded="true"] .section,
+.rail[data-expanded="true"] .sectionItems,
+.rail[data-expanded="true"] .userTabWrap {
+  width: 100%;
+}
+
+.rail[data-expanded="true"] .nav {
+  gap: 0;
+  padding-bottom: 16px;
+}
+
+.rail[data-expanded="true"] .section {
+  gap: 5px;
+}
+
+.rail[data-expanded="true"] .section + .section {
+  margin-top: 13px;
+}
+
+.rail[data-expanded="true"] .sectionTitle {
+  visibility: visible;
+  padding: 0 6px;
+  color: color-mix(in srgb, var(--og-text) 80%, transparent);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  line-height: 14px;
+  animation: railLabelIn var(--motion-normal) var(--motion-ease-out);
+}
+
+.rail[data-expanded="true"] .sectionItems {
+  gap: 4px;
+}
+
+.rail[data-expanded="true"] .userAppTabs {
+  gap: 4px;
+}
+
+.rail[data-expanded="true"] .userTabWrap {
+  display: grid;
+  box-sizing: border-box;
+  grid-template-columns: minmax(0, 1fr);
+  column-gap: 0;
+  align-items: center;
+  border-radius: var(--r-md);
+  overflow: visible;
+  padding-left: 0;
+  padding-right: 0;
+  transition: background-color var(--motion-fast) var(--motion-ease);
+}
+
+.rail[data-expanded="true"] .userTabWrap:hover,
+.rail[data-expanded="true"] .userTabWrap:focus-within,
+.rail[data-expanded="true"] .userTabWrap[data-menu-open="true"] {
+  background: color-mix(in srgb, var(--og-text) 5%, transparent);
+}
+
+.rail[data-expanded="true"] .userTabWrap[data-active="true"] {
+  background: var(--c-surface);
+  box-shadow: var(--shadow-xs);
+}
+
+.rail[data-expanded="true"] .button {
+  box-sizing: border-box;
+  grid-template-columns: var(--app-rail-icon-column) minmax(0, 1fr);
+  column-gap: 0;
+  justify-content: start;
+  justify-items: stretch;
+  width: 100%;
+  min-height: var(--app-rail-item-height);
+  height: var(--app-rail-item-height);
+  border-radius: var(--r-md);
+  color: var(--app-rail-button-fg);
+  padding: 0;
+}
+
+.rail[data-expanded="true"] .button:hover,
+.rail[data-expanded="true"] .button:focus-visible {
+  background: color-mix(in srgb, var(--og-text) 5%, transparent);
+  color: color-mix(in srgb, var(--og-text) 82%, transparent);
+}
+
+.rail[data-expanded="true"] .button[data-active="true"] {
+  border: 0;
+  background: var(--c-surface);
+  color: var(--og-text);
+  box-shadow: var(--shadow-xs);
+}
+
+.rail[data-expanded="true"] .button[data-active="true"]::before {
+  display: none;
+}
+
+.rail[data-expanded="true"] .userTab,
+.rail[data-expanded="true"] .userTab:hover,
+.rail[data-expanded="true"] .userTab:focus-visible,
+.rail[data-expanded="true"] .userTab[data-active="true"],
+.rail[data-expanded="true"] .userTabWrap:hover .userTab,
+.rail[data-expanded="true"] .userTabWrap:focus-within .userTab,
+.rail[data-expanded="true"] .userTabWrap[data-menu-open="true"] .userTab {
+  background: transparent;
+  box-shadow: none;
+  padding: 0;
+}
+
+.rail[data-expanded="true"] .userTabWrap:hover .userTab,
+.rail[data-expanded="true"] .userTabWrap:focus-within .userTab,
+.rail[data-expanded="true"] .userTabWrap[data-menu-open="true"] .userTab,
+.rail[data-expanded="true"] .userTabWrap[data-active="true"] .userTab {
+  color: color-mix(in srgb, var(--og-text) 82%, transparent);
+}
+
+.rail[data-expanded="true"] .buttonLabel,
+.rail[data-expanded="true"] .userTabLabel {
+  display: block;
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  margin-left: -2px;
+  color: inherit;
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  animation: railLabelIn var(--motion-normal) var(--motion-ease-out);
+}
+
+.rail[data-expanded="true"] .userTabLabel {
+  box-sizing: border-box;
+  width: calc(100% + 2px);
+  font-size: var(--fs-sm);
+  min-width: 0;
+}
+
+.rail[data-expanded="true"] .userTabWrap:hover .userTabLabel,
+.rail[data-expanded="true"] .userTabWrap:focus-within .userTabLabel,
+.rail[data-expanded="true"] .userTabWrap[data-menu-open="true"] .userTabLabel {
+  padding-right: 20px;
+}
+
+.rail[data-expanded="true"] .userButton {
+  width: 100%;
+  column-gap: 0;
+}
+
+.rail[data-expanded="true"] .userButtonName {
+  display: block;
+  align-self: center;
+  min-width: 0;
+  overflow: hidden;
+  color: inherit;
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+  line-height: var(--lh-tight);
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  animation: railLabelIn var(--motion-normal) var(--motion-ease-out);
+}
+
+.rail[data-expanded="true"] .userTabIcon {
+  position: relative;
+  inset: auto;
+  width: var(--app-rail-icon-column);
+  height: var(--app-rail-item-height);
+  align-self: center;
+  justify-self: center;
+}
+
+.rail[data-expanded="true"] .userTabMenuButton {
+  position: absolute;
+  top: 50%;
+  right: 4px;
+  width: 16px;
+  min-width: 0;
+  height: 24px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  box-shadow: none;
+  overflow: hidden;
+  transform: translateY(-50%);
+}
+
+.rail[data-expanded="true"] .userTabMenuButton:hover {
+  background: transparent;
+  color: color-mix(in srgb, var(--og-text) 82%, transparent);
+  transform: translateY(-50%);
+}
+
+.rail[data-expanded="true"] .userTabIcon :global(.pixel-icon) {
+  width: 27px;
+  height: 27px;
+}
+
+@media (max-width: 900px) {
+  .withdrawalDialog {
+    width: min(520px, calc(100vw - 24px));
+  }
+
+  .withdrawalDialog[data-step="contract"] {
+    height: min(600px, calc(100vh - 24px));
+  }
+
+  .withdrawalFormGrid,
+  .withdrawalConfirmRows {
+    grid-template-columns: 1fr;
+  }
+
+  .withdrawalContractBody {
+    grid-template-columns: 1fr;
+    align-content: start;
+  }
+
+  .withdrawalQrArea {
+    justify-self: center;
+  }
+
+  .rail {
+    display: none;
+    padding-top: 0;
+  }
+}
+
+@keyframes railLabelIn {
+  from {
+    opacity: 0;
+    transform: translateX(-4px);
+  }
+}
+
+@keyframes appRailMenuIn {
+  from {
+    opacity: 0;
+    transform: translateX(-4px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+@keyframes appRailExpandedMenuIn {
+  from {
+    opacity: 0;
+    transform: translate(-4px, -50%) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translate(0, -50%) scale(1);
+  }
+}

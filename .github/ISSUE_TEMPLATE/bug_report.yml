@@ -1,0 +1,35 @@
+name: Bug report
+description: Report a reproducible OpenGrove problem
+title: "[Bug]: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: Do not include credentials, private data, or unredacted diagnostics.
+  - type: input
+    id: version
+    attributes:
+      label: OpenGrove version
+    validations:
+      required: true
+  - type: textarea
+    id: behavior
+    attributes:
+      label: What happened?
+      description: Include expected behavior and minimal reproduction steps.
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Operating system, architecture, Kernel, and relevant setup.
+    validations:
+      required: true
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Privacy check
+      options:
+        - label: I removed credentials, tokens, private paths, and private user data.
+          required: true

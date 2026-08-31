@@ -1,0 +1,11 @@
+.dialog {
+  width: min(760px, calc(100vw - 32px));
+  max-height: min(88vh, 860px);
+  overflow: auto;
+}
+
+.state {
+  padding: var(--sp-8);
+  color: var(--c-text-3);
+  text-align: center;
+}

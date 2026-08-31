@@ -1,0 +1,78 @@
+.editor {
+  display: grid;
+  gap: var(--sp-5);
+}
+
+.fields {
+  display: grid;
+  overflow: hidden;
+  border-radius: var(--r-lg);
+  background: var(--c-surface-grouped);
+}
+
+.row {
+  position: relative;
+  display: grid;
+  grid-template-columns: 132px minmax(0, 1fr);
+  align-items: center;
+  gap: var(--sp-3);
+  min-height: 52px;
+  padding: var(--sp-2) var(--sp-4);
+  color: var(--c-text);
+}
+
+.row + .row::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: var(--sp-4);
+  left: calc(132px + var(--sp-7, 28px));
+  height: 1px;
+  background: var(--c-line-06);
+}
+
+.row > span {
+  color: var(--c-text);
+  font-size: var(--fs-base);
+  font-weight: var(--fw-medium);
+}
+
+.row em {
+  color: var(--c-error);
+  font-style: normal;
+}
+
+.row input,
+.row textarea {
+  box-sizing: border-box;
+  width: 100%;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: var(--c-surface);
+  color: var(--c-text);
+  padding: var(--sp-2) var(--sp-3);
+  font: inherit;
+  font-size: var(--fs-base);
+  outline: 0;
+}
+
+.stacked {
+  align-items: start;
+  padding-top: var(--sp-3);
+  padding-bottom: var(--sp-3);
+}
+
+.row textarea {
+  min-height: 92px;
+  resize: vertical;
+}
+
+@media (max-width: 640px) {
+  .row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .row + .row::before {
+    left: var(--sp-4);
+  }
+}

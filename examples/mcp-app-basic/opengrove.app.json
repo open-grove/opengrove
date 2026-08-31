@@ -1,0 +1,40 @@
+{
+  "id": "mcp-app-basic",
+  "title": "MCP App 最小示例",
+  "defaultLocale": "zh-CN",
+  "description": "用于验证 OpenGrove MCP Apps Host、沙箱和 per-App tool bridge 的最小示例。",
+  "version": "0.1.0",
+  "ui": {
+    "surface": "view",
+    "workspace": "workspace",
+    "view": {
+      "protocol": "mcp-app",
+      "entry": "ui/index.html",
+      "tools": [
+        "opengrove.app.workspace.list",
+        "opengrove.app.workspace.read",
+        "opengrove.app.workspace.write",
+        "opengrove.app.flows.list",
+        "opengrove.app.command.run"
+      ],
+      "csp": {
+        "connectDomains": [],
+        "resourceDomains": [],
+        "frameDomains": [],
+        "baseUriDomains": []
+      }
+    }
+  },
+  "workspace": {
+    "path": "workspace"
+  },
+  "capabilities": {
+    "cli": [
+      {
+        "id": "describe-demo",
+        "title": "返回 MCP App 命令示例结果",
+        "path": "bin/describe-demo.mjs"
+      }
+    ]
+  }
+}

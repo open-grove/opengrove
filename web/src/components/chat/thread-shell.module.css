@@ -1,0 +1,60 @@
+.shell {
+  display: grid;
+  gap: 26px;
+  width: var(--opengrove-chat-column-width);
+  margin: 0 auto;
+}
+
+.welcome {
+  display: grid;
+  place-items: center;
+  justify-items: center;
+  gap: var(--sp-4);
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  padding: 0;
+  text-align: center;
+  animation: fade-in var(--dur-normal) var(--ease-out);
+}
+
+.welcomeCopy {
+  display: grid;
+  gap: 0;
+}
+
+.welcome strong {
+  color: var(--og-text);
+  font-size: var(--thread-welcome-title-size, var(--fs-2xl));
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-tight);
+  letter-spacing: 0;
+}
+
+.welcome p {
+  margin: 0;
+  color: var(--og-text-muted);
+  font-size: var(--fs-md);
+  line-height: var(--lh-relaxed);
+}
+
+:global(.chat-view[data-empty="true"]) .shell {
+  width: 100%;
+  padding-bottom: var(--sp-5);
+}
+
+:global(.room-message-stream) .shell {
+  width: min(860px, calc(100% - 72px));
+  margin: 0 auto;
+  padding: 26px 0 34px;
+}
+
+@media (max-width: 900px) {
+  :global(.chat-view[data-empty="true"]) .shell {
+    width: min(100%, 780px);
+  }
+
+  :global(.room-message-stream) .shell {
+    width: calc(100% - 28px);
+  }
+}

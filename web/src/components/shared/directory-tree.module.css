@@ -1,0 +1,161 @@
+.files {
+  display: grid;
+  gap: 2px;
+  min-height: 0;
+  overscroll-behavior: contain;
+  padding-right: 0;
+}
+
+.item,
+.children {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.children {
+  margin-left: 0;
+  border-left: 0;
+  padding-left: 0;
+}
+
+.row {
+  box-sizing: border-box;
+  display: grid;
+  align-items: center;
+  position: relative;
+  width: 100%;
+  min-width: 0;
+  min-height: 36px;
+  border: 0;
+  border-radius: var(--r-md);
+  background: transparent;
+  color: var(--directory-tree-row-fg);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--fs-base);
+  font-weight: var(--fw-normal);
+  line-height: var(--lh-tight);
+  padding-right: var(--sp-3);
+  padding-top: 5px;
+  padding-bottom: 5px;
+  text-align: left;
+}
+
+.folderRow {
+  grid-template-columns: 13px 17px minmax(0, 1fr) 16px;
+  gap: 6px;
+  color: var(--directory-tree-folder-fg);
+  font-weight: var(--fw-medium);
+}
+
+.fileRow {
+  grid-template-columns: 17px minmax(0, 1fr) 16px;
+  gap: 7px;
+  color: var(--directory-tree-row-fg);
+  font-weight: var(--fw-normal);
+}
+
+.row > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.folderRow svg,
+.fileRow svg {
+  color: var(--directory-tree-icon-fg);
+  stroke-width: 1.8;
+}
+
+.row:hover,
+.row:focus-visible {
+  background: var(--directory-tree-row-hover-bg);
+  color: var(--directory-tree-row-hover-fg);
+}
+
+.row[data-active="true"] {
+  background: var(--directory-tree-row-active-bg);
+  color: var(--directory-tree-row-active-fg);
+  font-weight: var(--fw-normal);
+}
+
+.folderRow[data-active="true"] {
+  background: transparent;
+  color: var(--directory-tree-folder-fg);
+  font-weight: var(--fw-medium);
+}
+
+.folderRow[data-active="true"]:hover,
+.folderRow[data-active="true"]:focus-visible {
+  background: var(--directory-tree-row-hover-bg);
+  color: var(--directory-tree-row-hover-fg);
+}
+
+.row[data-drop-target="true"] {
+  background: var(--directory-tree-drop-bg);
+  box-shadow: var(--directory-tree-drop-shadow);
+}
+
+.row:focus-visible {
+  outline: 0;
+  box-shadow: var(--directory-tree-focus-shadow);
+}
+
+.more {
+  display: inline-grid;
+  place-items: center;
+  width: var(--sp-6);
+  height: var(--sp-6);
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--directory-tree-more-fg);
+  cursor: pointer;
+  opacity: 0;
+  transition:
+    background var(--motion-fast) var(--motion-ease),
+    color var(--motion-fast) var(--motion-ease),
+    opacity var(--motion-fast) var(--motion-ease);
+}
+
+.row:hover .more,
+.row:focus-within .more,
+.more[aria-expanded="true"] {
+  opacity: 1;
+}
+
+.more:hover,
+.more:focus-visible {
+  background: transparent;
+  color: var(--directory-tree-more-hover-fg);
+  outline: 0;
+}
+
+.renameInput {
+  min-width: 0;
+  width: 100%;
+  height: 22px;
+  border: 1px solid var(--directory-tree-rename-border);
+  border-radius: var(--r-sm);
+  background: var(--directory-tree-rename-bg);
+  color: var(--directory-tree-rename-fg);
+  font: inherit;
+  font-size: var(--fs-base);
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-tight);
+  padding: 0 5px;
+  outline: 0;
+  box-shadow: var(--directory-tree-rename-shadow);
+}
+
+.chevron {
+  align-self: center;
+  color: var(--directory-tree-chevron-fg);
+  transition: transform var(--motion-fast) var(--motion-ease);
+}
+
+.chevron[data-open="true"] {
+  transform: rotate(90deg);
+}

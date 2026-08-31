@@ -1,0 +1,229 @@
+{
+  "version": 4,
+  "policy": "per-file-ratchet",
+  "files": {
+    "app-chat-frame.css": {
+      "spacingLiteral": 8
+    },
+    "app-mobile-nav.css": {
+      "spacingLiteral": 4
+    },
+    "app-shell.css": {
+      "spacingLiteral": 13
+    },
+    "app-workspace.css": {
+      "spacingLiteral": 7
+    },
+    "components/app-shell/app-gates.css": {
+      "fontSizeLiteral": 2,
+      "spacingLiteral": 20
+    },
+    "components/apps/app-create-wizard.css": {
+      "spacingLiteral": 1
+    },
+    "components/apps/mounted-app-workbench.css": {
+      "spacingLiteral": 94,
+      "shadowLiteral": 4
+    },
+    "components/chat/chat-composer.module.css": {
+      "spacingLiteral": 54,
+      "motionLiteral": 1,
+      "shadowLiteral": 2
+    },
+    "components/chat/chat-layout.css": {
+      "spacingLiteral": 4
+    },
+    "components/chat/disclosure.css": {
+      "spacingLiteral": 9
+    },
+    "components/chat/opengrove-composer.css": {
+      "spacingLiteral": 24,
+      "shadowLiteral": 1
+    },
+    "components/chat/skill-command-menu.css": {
+      "spacingLiteral": 14
+    },
+    "components/chat/thread-cards-status.css": {
+      "spacingLiteral": 9,
+      "shadowLiteral": 1
+    },
+    "components/chat/thread-shell.module.css": {
+      "spacingLiteral": 2
+    },
+    "components/chat/thread.css": {
+      "spacingLiteral": 93,
+      "motionLiteral": 2,
+      "shadowLiteral": 2
+    },
+    "components/extensions/extensions-view.module.css": {
+      "spacingLiteral": 31
+    },
+    "components/knowledge/markdown-preview.css": {
+      "spacingLiteral": 34
+    },
+    "components/network/app-store-view.css": {
+      "spacingLiteral": 88,
+      "motionLiteral": 1,
+      "shadowLiteral": 1
+    },
+    "components/rooms/contacts-styles/console-and-forms.css": {
+      "spacingLiteral": 37
+    },
+    "components/rooms/contacts-styles/detail-controls.css": {
+      "spacingLiteral": 2
+    },
+    "components/rooms/contacts-styles/layout-and-directory.css": {
+      "spacingLiteral": 33,
+      "shadowLiteral": 1
+    },
+    "components/rooms/contacts-styles/skills-and-detail.css": {
+      "spacingLiteral": 10
+    },
+    "components/rooms/room-dialogs.css": {
+      "spacingLiteral": 9
+    },
+    "components/rooms/room-members.css": {
+      "spacingLiteral": 31
+    },
+    "components/rooms/room-message-stream.css": {
+      "spacingLiteral": 17,
+      "shadowLiteral": 1
+    },
+    "components/rooms/room-workspace.css": {
+      "spacingLiteral": 9
+    },
+    "components/rooms/rooms-empty-state.css": {
+      "spacingLiteral": 5
+    },
+    "components/rooms/rooms-layout.css": {
+      "spacingLiteral": 14
+    },
+    "components/rooms/rooms-menus.css": {
+      "spacingLiteral": 9,
+      "shadowLiteral": 2
+    },
+    "components/rooms/rooms.css": {
+      "spacingLiteral": 45,
+      "shadowLiteral": 1
+    },
+    "components/shared/attachments.css": {
+      "spacingLiteral": 4
+    },
+    "components/shared/directory-panel.module.css": {
+      "spacingLiteral": 4,
+      "shadowLiteral": 1
+    },
+    "components/shared/directory-tree.module.css": {
+      "spacingLiteral": 7
+    },
+    "components/shared/file-preview-panel.css": {
+      "spacingLiteral": 41
+    },
+    "components/shared/inline-select.module.css": {
+      "spacingLiteral": 5
+    },
+    "components/sidebar/app-navigation.module.css": {
+      "spacingLiteral": 50,
+      "shadowLiteral": 3
+    },
+    "components/sidebar/conversation-sidebar.module.css": {
+      "spacingLiteral": 10
+    },
+    "components/sidebar/section-sidebar.css": {
+      "spacingLiteral": 3,
+      "shadowLiteral": 1
+    },
+    "components/sidebar/settings-dialog.module.css": {
+      "spacingLiteral": 13
+    },
+    "components/sidebar/settings-kernel-panel.module.css": {
+      "spacingLiteral": 12
+    },
+    "components/sidebar/settings.css": {
+      "spacingLiteral": 102,
+      "motionLiteral": 1,
+      "shadowLiteral": 1
+    },
+    "components/sidebar/sidebar-conversations.css": {
+      "spacingLiteral": 1
+    },
+    "components/sidebar/sidebar-shell.css": {
+      "spacingLiteral": 10
+    },
+    "components/system/ops-center-view.css": {
+      "spacingLiteral": 78
+    },
+    "components/ui/dialog.css": {
+      "spacingLiteral": 2,
+      "shadowLiteral": 1
+    },
+    "components/workspace/overview.css": {
+      "spacingLiteral": 11
+    },
+    "styles/base/document.css": {
+      "spacingLiteral": 4
+    },
+    "styles/primitives.css": {
+      "spacingLiteral": 1,
+      "shadowLiteral": 1
+    },
+    "styles/reset.css": {
+      "motionLiteral": 2,
+      "important": 4
+    }
+  },
+  "duplicateSelectors": {
+    ".app-shell": ["app-mobile-nav.css", "app-shell.css"],
+    ".app-shell[data-view=\"rooms\"]": ["app-workspace.css", "components/rooms/rooms.css"],
+    ".rooms-view": ["components/rooms/room-members.css", "components/rooms/rooms.css"],
+    ".rooms-view[data-members-open=\"true\"]": ["components/rooms/room-members.css", "components/rooms/rooms.css"],
+    "body": ["app-shell.css", "styles/base/document.css"],
+    "button": ["styles/base/document.css", "styles/reset.css"],
+    "input": ["styles/base/document.css", "styles/reset.css"],
+    "select": ["styles/base/document.css", "styles/reset.css"],
+    "textarea": ["styles/base/document.css", "styles/reset.css"]
+  },
+  "patchLayerFiles": [],
+  "legacyGlobalFiles": [
+    "app-chat-frame.css",
+    "app-mobile-nav.css",
+    "app-shell.css",
+    "app-workspace.css",
+    "components/app-shell/app-gates.css",
+    "components/apps/app-create-wizard.css",
+    "components/apps/mounted-app-workbench.css",
+    "components/chat/chat-layout.css",
+    "components/chat/disclosure.css",
+    "components/chat/opengrove-composer.css",
+    "components/chat/skill-command-menu.css",
+    "components/chat/thread-cards-status.css",
+    "components/chat/thread.css",
+    "components/network/app-store-error.css",
+    "components/network/app-store-view.css",
+    "components/rooms/contacts-styles/console-and-forms.css",
+    "components/rooms/contacts-styles/detail-controls.css",
+    "components/rooms/contacts-styles/layout-and-directory.css",
+    "components/rooms/contacts-styles/skills-and-detail.css",
+    "components/rooms/contacts-view.css",
+    "components/rooms/room-dialogs.css",
+    "components/rooms/room-members.css",
+    "components/rooms/room-message-stream.css",
+    "components/rooms/room-workspace.css",
+    "components/rooms/rooms-empty-state.css",
+    "components/rooms/rooms-layout.css",
+    "components/rooms/rooms-menus.css",
+    "components/rooms/rooms.css",
+    "components/shared/attachments.css",
+    "components/shared/file-preview-panel.css",
+    "components/sidebar/icon-primitives.css",
+    "components/sidebar/section-sidebar.css",
+    "components/sidebar/settings.css",
+    "components/sidebar/sidebar-conversations.css",
+    "components/sidebar/sidebar-shell.css",
+    "components/system/ops-center-view.css",
+    "components/ui/confirm-dialog.css",
+    "components/ui/dialog.css",
+    "components/ui/toast.css",
+    "components/workspace/overview.css"
+  ]
+}

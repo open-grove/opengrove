@@ -1,0 +1,11 @@
+html,
+body,
+#root {
+  background: #fbfbfa;
+}
+
+html[data-resolved-theme="dark"],
+html[data-resolved-theme="dark"] body,
+html[data-resolved-theme="dark"] #root {
+  background: #1f1f1d;
+}

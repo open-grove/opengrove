@@ -1,0 +1,125 @@
+html,
+body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  margin: 0;
+  background: var(--c-bg);
+  color: var(--c-text);
+  font-family: var(--font-sans);
+  font-size: var(--fs-base);
+  font-weight: var(--fw-normal);
+  letter-spacing: var(--letter-spacing);
+  line-height: var(--lh-normal);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+  letter-spacing: inherit;
+}
+
+code,
+kbd,
+pre,
+samp {
+  font-family: var(--font-mono);
+}
+
+strong,
+b {
+  font-weight: var(--fw-semibold);
+}
+
+#root {
+  width: 100%;
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+}
+
+.react-app {
+  box-sizing: border-box;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.app-fatal-error {
+  box-sizing: border-box;
+  display: grid;
+  width: 100%;
+  height: 100%;
+  min-height: 100vh;
+  place-items: center;
+  padding: 32px;
+  background: var(--c-bg);
+  color: var(--c-text);
+}
+
+.app-fatal-error > div {
+  display: grid;
+  width: min(520px, 100%);
+  gap: 12px;
+  padding: 20px;
+  border: 1px solid var(--og-border);
+  border-radius: var(--r-lg);
+  background: var(--og-surface);
+  box-shadow: var(--shadow-lg);
+}
+
+.app-fatal-error strong {
+  font-size: var(--fs-lg);
+}
+
+.app-fatal-error p {
+  margin: 0;
+  color: var(--c-muted);
+  font-size: var(--fs-base);
+  line-height: var(--lh-relaxed);
+}
+
+.app-fatal-error code {
+  overflow: auto;
+  padding: 10px;
+  border-radius: var(--r-sm);
+  background: var(--og-surface-subtle);
+  color: var(--c-error);
+  font-size: var(--fs-sm);
+  white-space: pre-wrap;
+}
+
+.entity-icon {
+  display: inline-grid;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid var(--og-border);
+  border-radius: var(--r-md);
+  background: var(--og-surface);
+  color: var(--entity-icon-fg);
+  transition:
+    background-color var(--motion-fast) var(--motion-ease),
+    border-color var(--motion-fast) var(--motion-ease),
+    color var(--motion-fast) var(--motion-ease),
+    box-shadow var(--motion-fast) var(--motion-ease);
+}
+
+.entity-icon svg {
+  display: block;
+  max-width: 78%;
+  max-height: 78%;
+}
+
+.entity-icon[data-placeholder="true"] {
+  background: var(--og-surface-subtle);
+  color: var(--entity-icon-placeholder-fg);
+}

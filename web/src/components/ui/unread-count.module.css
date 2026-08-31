@@ -1,0 +1,38 @@
+.count {
+  display: inline-flex;
+  box-sizing: border-box;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  border-radius: var(--r-pill);
+  background: var(--c-unread-solid);
+  color: var(--c-unread-ink);
+  font-size: var(--fs-xs);
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--fw-semibold);
+  line-height: 16px;
+  padding: 0 var(--sp-1);
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.count[data-variant="danger"] {
+  background: var(--c-error-solid);
+}
+
+.anchor {
+  position: relative;
+  display: inline-grid;
+  flex: 0 0 auto;
+  place-items: center;
+}
+
+.anchoredCount {
+  position: absolute;
+  top: var(--unread-count-anchor-top, -4px);
+  right: var(--unread-count-anchor-right, -8px);
+  z-index: 1;
+  outline: var(--sp-0-5) solid var(--unread-count-ring-color, var(--c-surface));
+}

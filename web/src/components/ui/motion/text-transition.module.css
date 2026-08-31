@@ -1,0 +1,18 @@
+.root {
+  position: relative;
+  display: inline-grid;
+  min-width: 0;
+  overflow: hidden;
+  vertical-align: bottom;
+}
+
+.item {
+  grid-area: 1 / 1;
+  min-width: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .root {
+    overflow: visible;
+  }
+}

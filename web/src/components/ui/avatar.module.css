@@ -1,0 +1,128 @@
+.root {
+  --avatar-size: var(--sp-8);
+  --avatar-badge-size: var(--sp-2-5);
+  --avatar-badge-ring-size: 2px;
+  position: relative;
+  display: flex;
+  width: var(--avatar-size);
+  height: var(--avatar-size);
+  flex: 0 0 auto;
+  border-radius: var(--r-pill);
+  overflow: visible;
+  user-select: none;
+}
+
+.root[data-size="sm"] {
+  --avatar-size: var(--sp-6);
+  --avatar-badge-size: var(--sp-2);
+}
+
+.root[data-size="lg"] {
+  --avatar-size: var(--sp-10);
+  --avatar-badge-size: var(--sp-3);
+}
+
+.root::after {
+  content: "";
+  position: absolute;
+  z-index: 2;
+  inset: 0;
+  pointer-events: none;
+  border: 1px solid var(--avatar-border-color, var(--og-border));
+  border-radius: inherit;
+  mix-blend-mode: darken;
+}
+
+:global([data-theme="dark"]) .root::after {
+  mix-blend-mode: lighten;
+}
+
+.image,
+.fallback {
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+}
+
+.image {
+  display: block;
+  aspect-ratio: 1;
+  object-fit: cover;
+}
+
+.fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: var(--c-surface-hover);
+  color: var(--og-text-muted);
+  font-size: var(--fs-sm);
+}
+
+.root[data-size="sm"] .fallback {
+  font-size: var(--fs-xs);
+}
+
+.badge {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  z-index: 10;
+  display: inline-flex;
+  width: var(--avatar-badge-size);
+  height: var(--avatar-badge-size);
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  border: 0;
+  border-radius: var(--r-pill);
+  background: var(--avatar-status-bg, var(--c-success));
+  color: var(--og-white);
+  box-shadow: 0 0 0 var(--avatar-badge-ring-size) var(--avatar-ring-color, var(--og-surface));
+  user-select: none;
+}
+
+.group {
+  --avatar-group-overlap: var(--sp-2);
+  --avatar-group-ring-size: 2px;
+  display: flex;
+  align-items: center;
+  width: max-content;
+  overflow: visible;
+}
+
+.group > .root {
+  box-shadow: 0 0 0 var(--avatar-group-ring-size) var(--avatar-ring-color, var(--og-surface));
+}
+
+.group > * + * {
+  margin-inline-start: calc(var(--avatar-group-overlap) * -1);
+}
+
+.count {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  width: var(--avatar-size, var(--sp-8));
+  height: var(--avatar-size, var(--sp-8));
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--r-pill);
+  background: var(--c-surface-hover);
+  color: var(--og-text-muted);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.group:has(> .root[data-size="sm"]) .count {
+  --avatar-size: var(--sp-6);
+  font-size: var(--fs-xs);
+}
+
+.group:has(> .root[data-size="lg"]) .count {
+  --avatar-size: var(--sp-10);
+}

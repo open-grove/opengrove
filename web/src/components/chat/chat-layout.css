@@ -1,0 +1,107 @@
+.chat-thread-scroll {
+  min-height: 0;
+  overflow: auto;
+  padding: 14px 24px 72px;
+  scroll-padding-bottom: 128px;
+}
+
+.chat-layout {
+  display: grid;
+  position: relative;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0;
+  min-height: 0;
+  height: 100%;
+  background: transparent;
+}
+
+.conversation {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: transparent;
+  transition: margin-right var(--motion-slow) var(--motion-ease-entrance);
+}
+
+.chat-layout[data-inspector="true"] .conversation {
+  margin-right: 382px;
+}
+
+@media (max-width: 1100px) {
+  .chat-layout[data-inspector="true"] .conversation {
+    margin-right: 0;
+  }
+}
+
+.panel-header-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
+.panel-subtitle {
+  color: var(--c-muted);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-normal);
+}
+
+.inspector-summary-card {
+  display: grid;
+  gap: var(--sp-3);
+  border: 1px solid var(--chat-inspector-card-border);
+  border-radius: var(--r-md);
+  background: var(--chat-inspector-card-bg);
+  padding: var(--sp-3);
+}
+
+.inspector-focus-card {
+  gap: var(--sp-3);
+  background: var(--chat-inspector-focus-bg);
+}
+
+.inspector-summary-header {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  align-items: start;
+}
+
+.inspector-summary-kicker {
+  color: var(--c-muted);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-bold);
+  text-transform: uppercase;
+  line-height: var(--lh-tight);
+}
+
+.inspector-summary-title {
+  margin-top: var(--sp-1);
+  color: var(--c-text);
+  font-size: var(--chat-inspector-title-font-size);
+  font-weight: var(--fw-bold);
+  line-height: var(--lh-tight);
+}
+
+.inspector-summary-status {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  border-radius: var(--r-pill);
+  background: var(--chat-inspector-status-bg);
+  padding: 2px var(--sp-2);
+  color: var(--c-muted);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-bold);
+  line-height: var(--lh-normal);
+  white-space: nowrap;
+}
+
+.inspector-summary-meta {
+  color: var(--c-text-3);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-relaxed);
+  white-space: pre-wrap;
+}
