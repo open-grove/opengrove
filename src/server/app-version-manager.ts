@@ -215,7 +215,6 @@ export async function activateImportedFormalAppVersion(input: {
     }
     throw activationError;
   }
-  if (!activated) throw new Error("app_version_formal_target_invalid");
   return {
     install: activated.install,
     versionState: activated.versionState,
