@@ -314,7 +314,7 @@ export async function ensureDefaultStoreAppsInstalledAfterAuth(input: {
       );
       if (!imported) throw new Error("app_store_package_not_found");
       if (input.state.app) input.state.store.saveFrom(input.state.app);
-      const install = installAppStorePackage({
+      const install = await installAppStorePackage({
         packageId: imported.id,
         settings: input.state.settings,
         state: input.state,

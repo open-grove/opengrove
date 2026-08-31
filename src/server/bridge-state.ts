@@ -43,10 +43,12 @@ import {
 import { defaultAppGroupRoomId, findDefaultAppGroupRoom } from "./app-room-ids.js";
 import { resolveMountedAppRuntimeEnv } from "./app-runtime-env.js";
 import {
+  appStoreDataRoot,
   cleanupUnreferencedAppStoreProgramGenerations,
   currentAppStoreProgramsRoot,
   defaultAppStoreRoot,
 } from "./app-store.js";
+import { AppRevisionStore, appRevisionWorkspacePath } from "./app-revision-store.js";
 import {
   type AppVersionActivationJournal,
   appVersionActivationJournalKey,
@@ -1785,6 +1787,7 @@ async function importAppIntoCurrentBridge(state: BridgeState, input: AppImportIn
         description: input.description,
         appsDir: bridgeDataPath(state, "apps"),
         force: input.force === true,
+        initializeGit: false,
       });
       appRoot = imported.appRoot;
       packaged = true;
@@ -1829,6 +1832,20 @@ async function importAppIntoCurrentBridge(state: BridgeState, input: AppImportIn
 
   const id = validation.manifest.id || slug(input.title ?? basename(appRoot)) || "opengrove-app";
   const title = validation.manifest.title || input.title || titleFromSlug(id);
+  try {
+    await new AppRevisionStore(join(appStoreDataRoot(state), "app-revisions")).ensureWorkingCopy({
+      localAppId: id,
+      appRoot,
+      workspacePath: appRevisionWorkspacePath(validation.manifest),
+    });
+  } catch (error) {
+    return {
+      status: "package_failed",
+      message: error instanceof Error ? error.message : String(error),
+      source,
+      appRoot,
+    };
+  }
   const mountedApps = state.settings.mountedApps.map((item) => ({ ...item }));
   const previousIndex = mountedApps.findIndex(
     (item) => item.id === id || (item.path?.trim() ? resolvePathLike(item.path) === resolvePathLike(appRoot) : false),

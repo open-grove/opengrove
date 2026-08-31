@@ -36,8 +36,13 @@ import { appCandidateContentDigest } from "./app-content-digest.js";
 import type { OpenGroveAppManifest } from "../app-builder/manifest.js";
 import { appReleaseSourcePathExcluded } from "./app-release-source-exclusions.js";
 import type { BridgeState } from "./bridge-types.js";
-import type { LocalAppDraftStore, LocalAppDraftSummary } from "./local-app-drafts.js";
-import { saveMountedAppDraft, saveMountedAppDraftForRelease } from "./mounted-app-draft-service.js";
+import type { LocalAppDraftSavePoint, LocalAppDraftStore, LocalAppDraftSummary } from "./local-app-drafts.js";
+import {
+  appRevisionStore,
+  mountedAppRevisionTarget,
+  saveMountedAppDraft,
+  saveMountedAppDraftForRelease,
+} from "./mounted-app-draft-service.js";
 import { readMountedAppManifest, type MountedAppTarget } from "./mounted-apps.js";
 
 const MAX_BUILD_LOG_BYTES = 64 * 1024;
@@ -67,7 +72,9 @@ export interface AppReleaseManifestSnapshot {
 }
 
 export interface AppReleaseWorkingCopyFence {
-  manifest: AppReleaseManifestSnapshot;
+  source: "live" | "save-point";
+  manifest?: AppReleaseManifestSnapshot;
+  savePointCommitSha?: string;
   digest: string;
   fileModes: Record<string, number>;
 }
@@ -123,6 +130,8 @@ export function saveMountedAppReleasePrebuildDraft(input: {
   target: MountedAppTarget;
   submission: unknown;
   draftStore: LocalAppDraftStore;
+  savePoint?: LocalAppDraftSavePoint;
+  sourceRootOverride?: string;
 }): {
   draft: LocalAppDraftSummary;
   installFence: AppReleaseInstallGenerationFence;
@@ -131,17 +140,29 @@ export function saveMountedAppReleasePrebuildDraft(input: {
   const installContainerRoot = appStoreInstallContainerRoot(input.target.appRoot, input.target.id);
   return withReleaseInstallGenerationLock({ installContainerRoot }, () => {
     const installFence = captureReleaseInstallGenerationUnlocked(input.state, input.target, installContainerRoot);
-    const manifestSnapshot = captureLiveManifestSnapshot(input.target.appRoot);
-    assertTargetManifestMatchesDisk(input.target);
-    const workingState = currentWorkingTreeState(input.state, input.target, nonExpiringBuildBudget());
+    const frozenSource = Boolean(input.sourceRootOverride);
+    const sourceRoot = input.sourceRootOverride ?? input.target.appRoot;
+    const manifestSnapshot = frozenSource ? undefined : captureLiveManifestSnapshot(input.target.appRoot);
+    if (!frozenSource) assertTargetManifestMatchesDisk(input.target);
+    const workingState = appWorkingTreeStateForRoot(
+      sourceRoot,
+      mountedAppWorkingManifest(input.state, input.target),
+      nonExpiringBuildBudget(),
+    );
     const draft = saveMountedAppDraft({
       state: input.state,
       target: input.target,
       submission: input.submission,
       store: input.draftStore,
+      ...(frozenSource ? { appRootOverride: sourceRoot, workingContentDigestOverride: workingState.digest } : {}),
+      ...(input.savePoint ? { savePoint: input.savePoint } : {}),
     });
-    assertLiveManifestSnapshotUnchanged(input.target.appRoot, manifestSnapshot);
-    const savedWorkingState = currentWorkingTreeState(input.state, input.target, nonExpiringBuildBudget());
+    if (manifestSnapshot) assertLiveManifestSnapshotUnchanged(input.target.appRoot, manifestSnapshot);
+    const savedWorkingState = appWorkingTreeStateForRoot(
+      sourceRoot,
+      mountedAppWorkingManifest(input.state, input.target),
+      nonExpiringBuildBudget(),
+    );
     if (
       savedWorkingState.digest !== workingState.digest ||
       !sameWorkingFileModes(savedWorkingState.fileModes, workingState.fileModes) ||
@@ -154,12 +175,44 @@ export function saveMountedAppReleasePrebuildDraft(input: {
       draft,
       installFence,
       workingCopyFence: {
-        manifest: manifestSnapshot,
+        source: frozenSource ? "save-point" : "live",
+        ...(manifestSnapshot ? { manifest: manifestSnapshot } : {}),
+        ...(frozenSource && input.savePoint ? { savePointCommitSha: input.savePoint.commitSha } : {}),
         digest: workingState.digest,
         fileModes: { ...workingState.fileModes },
       },
     };
   });
+}
+
+export async function saveMountedAppReleasePrebuildDraftWithRevision(input: {
+  state: BridgeState;
+  target: MountedAppTarget;
+  submission: unknown;
+  draftStore: LocalAppDraftStore;
+}): Promise<ReturnType<typeof saveMountedAppReleasePrebuildDraft>> {
+  const revisions = appRevisionStore(input.state);
+  const revisionTarget = mountedAppRevisionTarget(input.target);
+  const savePoint = await revisions.saveIfChanged({
+    ...revisionTarget,
+    message: "Freeze App source for release",
+  });
+  const materializationRoot = mkdtempSync(join(tmpdir(), "opengrove-release-save-point-"));
+  const sourceRoot = join(materializationRoot, "app");
+  try {
+    await revisions.materialize({
+      ...revisionTarget,
+      commitSha: savePoint.commitSha,
+      targetRoot: sourceRoot,
+    });
+    return saveMountedAppReleasePrebuildDraft({
+      ...input,
+      savePoint,
+      sourceRootOverride: sourceRoot,
+    });
+  } finally {
+    rmSync(materializationRoot, { recursive: true, force: true });
+  }
 }
 
 interface ExecutedAppReleaseBuildRecipe {
@@ -246,10 +299,14 @@ async function prepareMountedAppReleaseBuildExclusive(
           fileModes: { ...input.workingCopyFence.fileModes },
         }
       : appWorkingTreeStateForRoot(input.target.appRoot, workingManifest, budget);
-    const prebuildManifestSnapshot =
-      input.workingCopyFence?.manifest ?? captureLiveManifestSnapshot(input.target.appRoot);
-    assertLiveManifestSnapshotUnchanged(input.target.appRoot, prebuildManifestSnapshot);
-    assertTargetManifestMatchesDisk(input.target);
+    const sourceBoundToSavePoint = input.workingCopyFence?.source === "save-point";
+    const prebuildManifestSnapshot = sourceBoundToSavePoint
+      ? undefined
+      : (input.workingCopyFence?.manifest ?? captureLiveManifestSnapshot(input.target.appRoot));
+    if (prebuildManifestSnapshot) {
+      assertLiveManifestSnapshotUnchanged(input.target.appRoot, prebuildManifestSnapshot);
+      assertTargetManifestMatchesDisk(input.target);
+    }
     if (prebuildWorkingState.digest !== input.prebuildDraft.workingContentDigest) {
       throw new Error("local_app_draft_working_copy_changed");
     }
@@ -306,6 +363,7 @@ async function prepareMountedAppReleaseBuildExclusive(
         builtAppRoot: builtDraftTree.appRoot,
         prebuildWorkingState,
         prebuildManifestSnapshot,
+        sourceBoundToSavePoint,
         installFence,
         budget,
       });
@@ -540,7 +598,8 @@ function saveBuiltReleaseDraft(input: {
   prebuildDraft: LocalAppDraftSummary;
   builtAppRoot: string;
   prebuildWorkingState: Pick<AppWorkingTreeState, "digest" | "fileModes">;
-  prebuildManifestSnapshot: AppReleaseManifestSnapshot;
+  prebuildManifestSnapshot?: AppReleaseManifestSnapshot;
+  sourceBoundToSavePoint: boolean;
   installFence: AppReleaseInstallGenerationFence;
   budget: AppReleaseBuildBudget;
 }): LocalAppDraftSummary {
@@ -555,14 +614,16 @@ function saveBuiltReleaseDraft(input: {
     return withReleaseInstallGenerationLock(input.installFence, () => {
       input.budget.checkpoint();
       assertReleaseInstallGenerationUnchanged(input.state, input.target, input.installFence);
-      assertLiveManifestSnapshotUnchanged(input.target.appRoot, input.prebuildManifestSnapshot);
-      input.budget.checkpoint();
-      const currentPrebuildState = currentWorkingTreeState(input.state, input.target, input.budget);
-      if (
-        currentPrebuildState.digest !== input.prebuildDraft.workingContentDigest ||
-        !sameWorkingFileModes(input.prebuildWorkingState.fileModes, currentPrebuildState.fileModes)
-      ) {
-        throw new Error("local_app_draft_working_copy_changed");
+      if (input.prebuildManifestSnapshot) {
+        assertLiveManifestSnapshotUnchanged(input.target.appRoot, input.prebuildManifestSnapshot);
+        input.budget.checkpoint();
+        const currentPrebuildState = currentWorkingTreeState(input.state, input.target, input.budget);
+        if (
+          currentPrebuildState.digest !== input.prebuildDraft.workingContentDigest ||
+          !sameWorkingFileModes(input.prebuildWorkingState.fileModes, currentPrebuildState.fileModes)
+        ) {
+          throw new Error("local_app_draft_working_copy_changed");
+        }
       }
       input.budget.checkpoint();
       const saved = saveMountedAppDraftForRelease({
@@ -574,15 +635,21 @@ function saveBuiltReleaseDraft(input: {
         publishBase: input.prebuildDraft.publishBase,
         expectedPrevious: input.prebuildDraft,
         appRootOverride: input.builtAppRoot,
+        ...(input.sourceBoundToSavePoint
+          ? { workingContentDigestOverride: input.prebuildDraft.workingContentDigest }
+          : {}),
+        ...(input.prebuildDraft.savePoint ? { savePoint: input.prebuildDraft.savePoint } : {}),
       });
       try {
-        assertLiveManifestSnapshotUnchanged(input.target.appRoot, input.prebuildManifestSnapshot);
-        const postSaveState = currentWorkingTreeState(input.state, input.target, nonExpiringBuildBudget());
-        if (
-          postSaveState.digest !== input.prebuildDraft.workingContentDigest ||
-          !sameWorkingFileModes(input.prebuildWorkingState.fileModes, postSaveState.fileModes)
-        ) {
-          throw new Error("local_app_draft_working_copy_changed");
+        if (input.prebuildManifestSnapshot) {
+          assertLiveManifestSnapshotUnchanged(input.target.appRoot, input.prebuildManifestSnapshot);
+          const postSaveState = currentWorkingTreeState(input.state, input.target, nonExpiringBuildBudget());
+          if (
+            postSaveState.digest !== input.prebuildDraft.workingContentDigest ||
+            !sameWorkingFileModes(input.prebuildWorkingState.fileModes, postSaveState.fileModes)
+          ) {
+            throw new Error("local_app_draft_working_copy_changed");
+          }
         }
       } catch {
         try {

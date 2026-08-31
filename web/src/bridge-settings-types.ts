@@ -432,12 +432,18 @@ export interface LocalAppDraftSummary {
   contentDigest: string;
   workingContentDigest: string;
   employees: AppReleaseEmployeeDefaults[];
+  savePoint?: AppSavePoint;
   publishBase?: {
     packageKey?: string;
     version?: string;
     releaseCommitSha?: string;
     archiveSha256?: string;
   };
+}
+
+export interface AppSavePoint {
+  commitSha: string;
+  savedAt: string;
 }
 
 export interface LocalAppDraftResponse {
@@ -484,6 +490,8 @@ export interface MountedAppVersionStatus {
   savedContentDigest?: string;
   hasUnsavedChanges: boolean;
   workingDigestError?: string;
+  sourceSavePoint?: AppSavePoint;
+  sourceChangedFileCount?: number;
 }
 
 export interface MountedAppVersionsResponse {

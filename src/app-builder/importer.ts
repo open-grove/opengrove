@@ -22,6 +22,8 @@ export interface ImportProjectOptions {
   target?: string;
   appsDir?: string;
   force?: boolean;
+  /** Host-managed creation attaches its bundled Git implementation after scaffolding. */
+  initializeGit?: boolean;
 }
 
 export interface ImportedProjectApp {
@@ -130,7 +132,7 @@ export function importProjectAsApp(source: string, options: ImportProjectOptions
   ensureAppBuildContract(target);
   writeFileSync(join(target, "IMPORT_NOTES.md"), importNotesText({ bundledDirName }), "utf8");
   writeFileSync(join(target, "README.md"), importedReadmeText({ title, cliName, bundledDirName }), "utf8");
-  const gitInitialized = ensureAppGitRepo(target) === "initialized";
+  const gitInitialized = options.initializeGit !== false && ensureAppGitRepo(target) === "initialized";
 
   return {
     ok: true,

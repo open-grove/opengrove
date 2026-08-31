@@ -1736,6 +1736,7 @@ export const ZH_CN = {
   "appStore.version.none": "暂无",
   "appStore.version.unsaved": "有未保存修改",
   "appStore.version.saved": "已保存",
+  "appStore.version.sourceSavedAt": "源码已保存 · {time}",
   "appStore.version.registryUnavailable": "正式版本目录暂时不可用；本机草稿仍保留。",
   "appStore.version.localDraft": "我的本机草稿",
   "appStore.version.localDraftDesc": "草稿只保存在这台设备，不带版本号，也不会上传。",

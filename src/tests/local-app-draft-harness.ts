@@ -21,7 +21,11 @@ import type { BridgeState } from "../server/bridge-types.js";
 import { extractAppStoreAppArchive, packAppStoreArchive } from "../server/app-store.js";
 import { MountedAppVersionStateStore } from "../server/app-version-state.js";
 import { LocalAppDraftStore } from "../server/local-app-drafts.js";
-import { localAppDraftStore, saveMountedAppDraft } from "../server/mounted-app-draft-service.js";
+import {
+  localAppDraftStore,
+  saveMountedAppDraft,
+  saveMountedAppDraftWithRevision,
+} from "../server/mounted-app-draft-service.js";
 import { resolveMountedAppTarget } from "../server/mounted-apps.js";
 import { handleAppStoreRoute } from "../server/routes/app-store.js";
 import { handleAppsRoute } from "../server/routes/apps.js";
@@ -158,6 +162,14 @@ try {
   assert.equal(saved.data.ok, true);
   assert.equal(saved.data.draft.localAppId, "new-local-app-mount");
   assert.equal(saved.data.draft.appId, "new-local-app");
+  assert.match(saved.data.draft.savePoint?.commitSha, /^[a-f0-9]{40}$/);
+  assert.equal(
+    existsSync(join(appRoot, ".git")),
+    true,
+    "saving a local draft must attach the editable App to local revision history",
+  );
+  const managedGitPointer = readFileSync(join(appRoot, ".git"), "utf8");
+  assert.match(managedGitPointer, /^gitdir: .+\n$/u, "the editable App exposes a standard Git working-copy pointer");
   assert.match(saved.data.draft.contentDigest, /^[a-f0-9]{64}$/);
   assert.equal(saved.data.draft.workingContentDigest, workingContentDigestBeforeSave);
   assert.notEqual(
@@ -208,6 +220,36 @@ try {
   assert.equal(
     localAppDraftStore(state).read("new-local-app-mount")?.contentDigest,
     draftBeforeConcurrentChange?.contentDigest,
+  );
+  writeFileSync(join(appRoot, "source.txt"), "draft program v1\n", "utf8");
+
+  writeFileSync(join(appRoot, "source.txt"), "saved source v2\n", "utf8");
+  let snapshotArchive: ReturnType<typeof packAppStoreArchive> | undefined;
+  const snapshotDraft = await saveMountedAppDraftWithRevision({
+    state,
+    target: resolveMountedAppTarget(state, "new-local-app")!,
+    store: new LocalAppDraftStore(join(tempRoot, "snapshot-drafts")),
+    packArchive: (options) => {
+      writeFileSync(join(appRoot, "source.txt"), "concurrent Agent edit\n", "utf8");
+      snapshotArchive = packAppStoreArchive(options);
+      return snapshotArchive;
+    },
+  });
+  assert.match(snapshotDraft.savePoint?.commitSha ?? "", /^[a-f0-9]{40}$/);
+  assert.ok(snapshotArchive);
+  const snapshotArchivePath = join(tempRoot, "snapshot-draft.tgz");
+  const snapshotExtractRoot = join(tempRoot, "snapshot-draft-extracted");
+  writeFileSync(snapshotArchivePath, snapshotArchive.bytes);
+  extractAppStoreAppArchive({ archivePath: snapshotArchivePath, targetRoot: snapshotExtractRoot });
+  assert.equal(
+    readFileSync(join(snapshotExtractRoot, "source.txt"), "utf8"),
+    "saved source v2\n",
+    "the draft archive must come from its recorded save point, not a later live-tree edit",
+  );
+  assert.equal(
+    readFileSync(join(appRoot, "source.txt"), "utf8"),
+    "concurrent Agent edit\n",
+    "a concurrent edit remains in the live working copy for the next save",
   );
   writeFileSync(join(appRoot, "source.txt"), "draft program v1\n", "utf8");
 
@@ -356,7 +398,6 @@ try {
   const packageManifest = `${JSON.stringify({ schemaVersion: 1, appId: "new-local-app" }, null, 2)}\n`;
   writeFileSync(join(appRoot, ".opengrove-store-package.json"), storeMarker, "utf8");
   writeFileSync(join(appRoot, ".opengrove-package-manifest.json"), packageManifest, "utf8");
-  writeFileSync(join(appRoot, ".git"), "gitdir: /machine-only/repo/worktrees/new-local-app\n", "utf8");
   writeFileSync(join(appRoot, "source.txt"), "unsaved program v2\n", "utf8");
   writeFileSync(join(appRoot, "assets", "prompt.txt"), "unsaved App resource\n", "utf8");
   writeFileSync(join(appRoot, "workspace", "keep.md"), "workspace changed after draft save\n", "utf8");
@@ -430,7 +471,7 @@ try {
   );
   assert.equal(
     readFileSync(join(appRoot, ".git"), "utf8"),
-    "gitdir: /machine-only/repo/worktrees/new-local-app\n",
+    managedGitPointer,
     "opening a draft must preserve the machine-local Git worktree link",
   );
 

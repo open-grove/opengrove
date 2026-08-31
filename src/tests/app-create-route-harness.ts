@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import { appEnvName } from "../identity.js";
@@ -24,6 +24,7 @@ const settingsPath = join(tempRoot, "bridge-settings.json");
 const overriddenEnv = {
   [appEnvName("USER_DATA_DIR")]: join(tempRoot, "user-data"),
   [appEnvName("BRIDGE_SETTINGS_PATH")]: settingsPath,
+  [appEnvName("APP_STORE_APPS_DIR")]: join(tempRoot, "apps"),
 };
 const previousEnv = Object.fromEntries(Object.keys(overriddenEnv).map((name) => [name, process.env[name]]));
 
@@ -85,10 +86,16 @@ try {
   assert.equal(created.status, 200);
   assert.equal(created.data.ok, true);
   assert.equal(created.data.mode, "scaffolded");
+  assert.match(
+    created.data.savePoint?.commitSha,
+    /^[a-f0-9]{40}$/u,
+    "a created App must immediately expose a built-in Git save point",
+  );
   const appId = created.data.appId as string;
   assert.ok(appId, "scaffold should produce an app id");
   assert.ok(existsSync(join(created.data.appRoot, "opengrove.app.json")));
-  assert.ok(existsSync(join(created.data.appRoot, ".git")), "scaffolded app should be a git repo");
+  assert.equal(statSync(join(created.data.appRoot, ".git")).isFile(), true, "Host-managed Apps use a Git pointer");
+  assert.match(readFileSync(join(created.data.appRoot, ".git"), "utf8"), /^gitdir: .+\n$/u);
   const createdManifest = JSON.parse(readFileSync(join(created.data.appRoot, "opengrove.app.json"), "utf8")) as {
     icon?: string;
     ui?: { surface?: string };
@@ -383,10 +390,48 @@ try {
       2,
     ),
   );
+  writeFileSync(join(existingAppDir, "program.txt"), "existing history\n", "utf8");
+  assert.equal(spawnSync("git", ["init", "--quiet", existingAppDir]).status, 0);
+  assert.equal(spawnSync("git", ["-C", existingAppDir, "add", "-A"]).status, 0);
+  assert.equal(
+    spawnSync("git", [
+      "-C",
+      existingAppDir,
+      "-c",
+      "user.name=Existing Author",
+      "-c",
+      "user.email=existing@example.com",
+      "commit",
+      "--quiet",
+      "-m",
+      "Existing App history",
+    ]).status,
+    0,
+  );
+  const existingHead = spawnSync("git", ["-C", existingAppDir, "rev-parse", "HEAD"], {
+    encoding: "utf8",
+  }).stdout.trim();
+  writeFileSync(join(existingAppDir, "program.txt"), "uncommitted author edit\n", "utf8");
   const mountedExisting = await callCreate({ source: existingAppDir });
   assert.equal(mountedExisting.status, 200);
   assert.equal(mountedExisting.data.appId, "existing-app");
   assert.equal(mountedExisting.data.appRoot, existingAppDir, "existing app should mount in place");
+  assert.match(mountedExisting.data.savePoint.commitSha, /^[a-f0-9]{40}$/u);
+  assert.notEqual(
+    mountedExisting.data.savePoint.commitSha,
+    existingHead,
+    "OpenGrove save points for an external repository must live outside the user's branch",
+  );
+  assert.equal(
+    spawnSync("git", ["-C", existingAppDir, "rev-parse", "HEAD"], { encoding: "utf8" }).stdout.trim(),
+    existingHead,
+    "adopting an existing repository must not create or rewrite its commits",
+  );
+  assert.match(
+    spawnSync("git", ["-C", existingAppDir, "status", "--porcelain"], { encoding: "utf8" }).stdout,
+    /program\.txt/u,
+    "adopting an existing repository must preserve its uncommitted author edit",
+  );
   assert.equal(state.settings.mountedApps.find((app) => app.id === "existing-app")?.appBuilderEnabled, false);
   assert.equal(
     state.app.rooms.listMembers().some((member) => member.id === appBuilderMemberId("existing-app")),

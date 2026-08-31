@@ -10,6 +10,7 @@ import { restorePersistedAgentState, snapshotPersistedAgentState } from "../../s
 import { queueAppReadinessReport } from "../app-readiness.js";
 import {
   type AppStorePackageRecord,
+  type AppStoreRevisionInstallRollback,
   appStoreArchitectureSummary,
   appStoreDataRoot,
   commitUpdatedAppStorePackageInstall,
@@ -34,6 +35,7 @@ import {
   repairMissingAppStorePackage,
   resolveAppStoreArchive,
   rollbackFreshAppStorePackageInstall,
+  rollbackAppStoreRevisionInstall,
   rollbackUpdatedAppStorePackageInstall,
   trashSeparatedStoreManagedAppInstallation,
   trashStoreManagedAppRoot,
@@ -469,6 +471,7 @@ export async function handleAppStoreRoute(options: {
     let install;
     let freshInstall: FreshAppStorePackageInstall | undefined;
     let updatedInstall: UpdatedAppStorePackageInstall | undefined;
+    let revisionInstallRollback: AppStoreRevisionInstallRollback | undefined;
     let previousFormalVersionState:
       | {
           localAppId: string;
@@ -478,7 +481,7 @@ export async function handleAppStoreRoute(options: {
       | undefined;
     try {
       state.store.saveFrom(state.app);
-      install = installAppStorePackage({
+      install = await installAppStorePackage({
         packageId,
         settings: state.settings,
         state,
@@ -489,6 +492,9 @@ export async function handleAppStoreRoute(options: {
         },
         onUpdatedAppRootCreated: (created) => {
           updatedInstall = created;
+        },
+        onRevisionSavePointCreated: (rollback) => {
+          revisionInstallRollback = rollback;
         },
       });
     } catch (error) {
@@ -553,7 +559,23 @@ export async function handleAppStoreRoute(options: {
         });
       }
     } catch (error) {
-      let activationError = rollbackInstallProgramAfterActivationFailure(state, freshInstall, updatedInstall, error);
+      let activationError: unknown = error;
+      if (revisionInstallRollback) {
+        try {
+          await rollbackAppStoreRevisionInstall(revisionInstallRollback);
+        } catch (rollbackError) {
+          activationError = new AggregateError(
+            [activationError, rollbackError],
+            "app_store_revision_activation_rollback_failed",
+          );
+        }
+      }
+      activationError = rollbackInstallProgramAfterActivationFailure(
+        state,
+        freshInstall,
+        updatedInstall,
+        activationError,
+      );
       state.settings = previousSettings;
       try {
         if (previousFormalVersionState) {

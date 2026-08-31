@@ -187,11 +187,45 @@ saved draft as the App's current runnable content without changing the
 device-selected formal version or the draft's publish base; switching back to a
 formal version does not delete the draft.
 
-For formal publishing, the Host first saves a recoverable prebuild draft. When
-a local release build recipe exists, the Host executes its argv commands in an
-isolated copy of that exact draft, transactionally promotes only declared
-outputs, and saves a postbuild exact draft. Build failure, cancellation,
-timeout, or a concurrent working-copy change must not create a remote release.
+An App root becomes a Git working copy as part of a successful App Store install
+or local import; installation must not report success before the initial source
+save point exists. The Host uses its bundled Git
+implementation for new local history and does not require a system `git`
+installation. Host-managed repository metadata lives under the local App data
+directory and a new App root contains only a standard `.git` pointer, so Codex,
+the App Builder, and ordinary Git tools observe that working copy. When an
+imported App is already a repository or linked worktree, its own `.git`, HEAD,
+branches, index, ignore policy, and history remain authoritative and untouched.
+OpenGrove records release save points for that external working copy in a
+separate device-local repository that is not connected to the user's branches
+or remotes. Workspace data, untracked files matched by the repository's ignore
+rules, credentials covered by structural exclusions, caches, and other
+machine-only runtime state do not enter those save points. Files already tracked
+by an adopted repository retain ordinary Git semantics even when a later ignore
+rule also matches them. Saving first creates an explicit source save point and
+then writes the recoverable draft; the durable
+release journal records the save-point commit used by each formal release.
+Version management reports whether program-source edits remain unsaved and when
+the current source save point was created without exposing Git implementation
+terms in the product UI. Publishing materializes its input from that immutable
+save point, so later edits in the live App belong to the next save and cannot
+silently alter the release already underway.
+Formal version activation and draft reopening must preserve both the `.git`
+connection and Workspace rather than overwriting local editing history with
+Store package state.
+After a formal version activates successfully, the Host records the exact
+installed program as the next source save point. Release-time normalized fields
+such as the version and release notes therefore do not appear to an Agent as
+spurious unsaved edits in the new version.
+
+For formal publishing, the Host first saves an immutable source save point and
+materializes the recoverable prebuild draft from it. When a local release build
+recipe exists, the Host executes its argv commands in an isolated copy of that
+exact draft, transactionally promotes only declared outputs, and saves a
+postbuild exact draft. Build failure, cancellation, timeout, a change to the
+selected materialization, or an App install-generation change must not create a
+remote release. Unrelated edits made later in the live working copy remain
+local and do not alter the selected release input.
 Build commands must not daemonize or deliberately escape their Host-owned
 process group; the Host terminates and awaits that process group on success,
 failure, timeout, and cancellation, but does not scan or signal unrelated OS processes.

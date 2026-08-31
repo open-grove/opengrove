@@ -1813,6 +1813,7 @@ export const EN = {
   "appStore.version.none": "None",
   "appStore.version.unsaved": "Unsaved changes",
   "appStore.version.saved": "Saved",
+  "appStore.version.sourceSavedAt": "Source saved · {time}",
   "appStore.version.registryUnavailable":
     "The formal version catalog is temporarily unavailable. Your local draft is still retained.",
   "appStore.version.localDraft": "My local draft",
