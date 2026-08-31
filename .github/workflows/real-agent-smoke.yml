@@ -7,10 +7,13 @@
 #
 # Triggers:
 #   - workflow_dispatch: pick a single kernel manually.
-#   - workflow_call: Nightly owns the scheduled full matrix.
+#   - workflow_call: Nightly owns the scheduled full matrix when the repository
+#     variable OPENGROVE_REAL_AGENT_SMOKE_ENABLED is set to true.
 #   - PR/merge queue: CI calls this workflow only for Kernel/runtime scope.
 #   - push: Kernel, runtime, protocol, image, or dependency changes on main.
 #     Fork and Dependabot PRs are skipped because they cannot read protected credentials.
+#     Automatic runs are skipped unless OPENGROVE_REAL_AGENT_SMOKE_ENABLED is true,
+#     so public mirrors do not depend on private images or provider credentials.
 #
 # Kernel status:
 #   Cloudflare-backed kernels require authenticated gateway access and upstream Anthropic access configured in Cloudflare.
@@ -88,6 +91,7 @@ jobs:
         shell: bash
         env:
           EVENT: ${{ github.event_name }}
+          AUTO_RUN_ENABLED: ${{ vars.OPENGROVE_REAL_AGENT_SMOKE_ENABLED }}
           DISPATCH_KERNEL: ${{ inputs.kernel }}
           DISPATCH_VERSION: ${{ inputs.engine_version }}
           DISPATCH_MODE: ${{ inputs.runtime_mode }}
@@ -113,6 +117,16 @@ jobs:
             entry="{\"case\":\"$case_name\",\"kernel\":\"$DISPATCH_KERNEL\",\"image\":\"$DISPATCH_KERNEL\",\"engine_version\":\"$DISPATCH_VERSION\",\"runtime_mode\":\"$DISPATCH_MODE\",\"capabilities\":\"$caps\"}"
             echo "matrix={\"include\":[$entry]}" >> "$GITHUB_OUTPUT"
             echo "run=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Live provider probes require repository-external images and credentials.
+          # Keep automatic CI and nightly runs opt-in so a public source mirror can
+          # retain the workflow without inheriting private infrastructure access.
+          if [[ "$AUTO_RUN_ENABLED" != "true" ]]; then
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo 'matrix={"include":[]}' >> "$GITHUB_OUTPUT"
+            echo "Skipping real agent smoke: OPENGROVE_REAL_AGENT_SMOKE_ENABLED is not true" >> "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
 

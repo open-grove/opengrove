@@ -172,6 +172,16 @@ for (const path of [
 }
 assert.match(realAgentWorkflow, /github\.event_name == 'push' && github\.ref/u);
 assert.match(realAgentWorkflow, /cancel-in-progress: .*github\.event_name == 'push'/u);
+assert.match(
+  realAgentWorkflow,
+  /AUTO_RUN_ENABLED: \$\{\{ vars\.OPENGROVE_REAL_AGENT_SMOKE_ENABLED \}\}/u,
+  "automatic real-agent probes should require an explicit repository opt-in",
+);
+assert.match(
+  realAgentWorkflow,
+  /if \[\[ "\$AUTO_RUN_ENABLED" != "true" \]\]; then/u,
+  "public mirrors should skip credential-backed real-agent probes by default",
+);
 
 for (const [name, document] of [
   ["English", releaseProcess],
