@@ -13,6 +13,11 @@ on:
         required: true
         default: all
         type: string
+      first_public_release:
+        description: "One-time v0.6.6 bootstrap when this public repository has no prior GitHub Release"
+        required: true
+        default: false
+        type: boolean
 
 permissions:
   actions: read
@@ -37,6 +42,7 @@ jobs:
       client_release_number: ${{ steps.candidate.outputs.client_release_number }}
       expected_tag: ${{ steps.candidate.outputs.expected_tag }}
       previous_release_tag: ${{ steps.candidate.outputs.previous_release_tag }}
+      previous_release_source: ${{ steps.candidate.outputs.previous_release_source }}
       web_build_id: ${{ steps.candidate.outputs.web_build_id }}
       platforms: ${{ steps.platforms.outputs.platforms }}
       mac_matrix: ${{ steps.platforms.outputs.mac_matrix }}
@@ -67,6 +73,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           REQUESTED_REF: ${{ inputs.ref }}
+          FIRST_PUBLIC_RELEASE: ${{ inputs.first_public_release }}
         shell: bash
         run: |
           if [[ ! "$REQUESTED_REF" =~ ^[A-Za-z0-9][A-Za-z0-9._/-]*$ ]] || [[ "$REQUESTED_REF" == *..* ]]; then
@@ -90,7 +97,18 @@ jobs:
             exit 1
           fi
           previous_release_tag="$(gh release list --exclude-drafts --exclude-pre-releases --limit 1 --json tagName --jq '.[0].tagName')"
-          test -n "$previous_release_tag"
+          previous_release_source=github
+          if [ -z "$previous_release_tag" ]; then
+            if [ "$FIRST_PUBLIC_RELEASE" != true ]; then
+              echo "No prior public GitHub Release exists. Use first_public_release=true only for the reviewed v0.6.6 bootstrap." >&2
+              exit 1
+            fi
+            previous_release_tag="$(node scripts/public-release-bootstrap.mjs previous-tag --expected-tag "$expected_tag")"
+            previous_release_source=bootstrap
+          elif [ "$FIRST_PUBLIC_RELEASE" = true ]; then
+            echo "first_public_release is disabled after the first public GitHub Release exists." >&2
+            exit 1
+          fi
           node -e '
             const parse = (value) => {
               const match = /^v?(\d+)\.(\d+)\.(\d+)$/.exec(value);
@@ -108,6 +126,7 @@ jobs:
           echo "client_release_number=$client_release_number" >> "$GITHUB_OUTPUT"
           echo "expected_tag=$expected_tag" >> "$GITHUB_OUTPUT"
           echo "previous_release_tag=$previous_release_tag" >> "$GITHUB_OUTPUT"
+          echo "previous_release_source=$previous_release_source" >> "$GITHUB_OUTPUT"
           echo "web_build_id=release-${version//./_}-${commit:0:12}" >> "$GITHUB_OUTPUT"
 
       - name: Verify exact Main CI and recent Nightly evidence
@@ -223,6 +242,8 @@ jobs:
     env:
       OPENGROVE_EXPECTED_RELEASE_TAG: ${{ needs.resolve-candidate.outputs.expected_tag }}
       OPENGROVE_PREVIOUS_RELEASE_TAG: ${{ needs.resolve-candidate.outputs.previous_release_tag }}
+      OPENGROVE_PREVIOUS_RELEASE_SOURCE: ${{ needs.resolve-candidate.outputs.previous_release_source }}
+      OPENGROVE_DESKTOP_RELEASE_PUBLIC_ROOT: ${{ vars.OPENGROVE_DESKTOP_RELEASE_PUBLIC_ROOT }}
     strategy:
       fail-fast: false
       matrix:
@@ -409,12 +430,21 @@ jobs:
           previous='${{ needs.resolve-candidate.outputs.previous_release_tag }}'
           test -n "$previous"
           mkdir -p "$RUNNER_TEMP/previous-release"
-          gh release download "$previous" \
-            --pattern 'OpenGrove-*-mac-${{ matrix.arch }}.dmg' \
-            --dir "$RUNNER_TEMP/previous-release"
-          installer="$(find "$RUNNER_TEMP/previous-release" -type f -name '*.dmg' -print -quit)"
-          test -n "$installer"
-          echo "installer=$installer" >> "$GITHUB_OUTPUT"
+          if [ "$OPENGROVE_PREVIOUS_RELEASE_SOURCE" = bootstrap ]; then
+            node scripts/public-release-bootstrap.mjs download \
+              --expected-tag "$OPENGROVE_EXPECTED_RELEASE_TAG" \
+              --target '${{ matrix.target }}' \
+              --public-root "$OPENGROVE_DESKTOP_RELEASE_PUBLIC_ROOT" \
+              --output-dir "$RUNNER_TEMP/previous-release" \
+              --github-output "$GITHUB_OUTPUT"
+          else
+            gh release download "$previous" \
+              --pattern 'OpenGrove-*-mac-${{ matrix.arch }}.dmg' \
+              --dir "$RUNNER_TEMP/previous-release"
+            installer="$(find "$RUNNER_TEMP/previous-release" -type f -name '*.dmg' -print -quit)"
+            test -n "$installer"
+            echo "installer=$installer" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Update previous release through the real updater
         run: |
@@ -470,6 +500,8 @@ jobs:
       OPENGROVE_ALLOW_UNSIGNED_WINDOWS: "1"
       OPENGROVE_EXPECTED_RELEASE_TAG: ${{ needs.resolve-candidate.outputs.expected_tag }}
       OPENGROVE_PREVIOUS_RELEASE_TAG: ${{ needs.resolve-candidate.outputs.previous_release_tag }}
+      OPENGROVE_PREVIOUS_RELEASE_SOURCE: ${{ needs.resolve-candidate.outputs.previous_release_source }}
+      OPENGROVE_DESKTOP_RELEASE_PUBLIC_ROOT: ${{ vars.OPENGROVE_DESKTOP_RELEASE_PUBLIC_ROOT }}
 
     steps:
       - name: Check out authorized candidate commit
@@ -548,10 +580,14 @@ jobs:
           if (-not $previous) { throw "No previous release tag was found" }
           $directory = Join-Path $env:RUNNER_TEMP 'previous-release'
           New-Item -ItemType Directory -Force -Path $directory | Out-Null
-          gh release download $previous --pattern 'OpenGrove-*-win-x64.exe' --dir $directory
-          $installer = Get-ChildItem $directory -Filter '*.exe' | Select-Object -First 1
-          if (-not $installer) { throw "Previous Windows installer was not downloaded" }
-          "installer=$($installer.FullName)" >> $env:GITHUB_OUTPUT
+          if ($env:OPENGROVE_PREVIOUS_RELEASE_SOURCE -eq 'bootstrap') {
+            node scripts/public-release-bootstrap.mjs download --expected-tag $env:OPENGROVE_EXPECTED_RELEASE_TAG --target windows-x64 --public-root $env:OPENGROVE_DESKTOP_RELEASE_PUBLIC_ROOT --output-dir $directory --github-output $env:GITHUB_OUTPUT
+          } else {
+            gh release download $previous --pattern 'OpenGrove-*-win-x64.exe' --dir $directory
+            $installer = Get-ChildItem $directory -Filter '*.exe' | Select-Object -First 1
+            if (-not $installer) { throw "Previous Windows installer was not downloaded" }
+            "installer=$($installer.FullName)" >> $env:GITHUB_OUTPUT
+          }
 
       - name: Update previous release through the real updater
         timeout-minutes: 20

@@ -63,6 +63,21 @@ gh workflow run desktop-release.yml --ref main \
   -f platforms=all
 ```
 
+仅首次公开发布 `v0.6.6` 时，需要显式启用一次性引导参数：
+
+```bash
+gh workflow run desktop-release.yml --ref main \
+  -f ref=<current-main-commit> \
+  -f platforms=all \
+  -f first_public_release=true
+```
+
+只有公开仓尚无任何 GitHub Release、且候选 tag 恰好为 `v0.6.6` 时，这条
+路径才会被接受。它从受保护环境配置的正式发布根地址下载已审定的 `v0.6.5`
+安装包，并逐项校验固定文件名、大小和 SHA-256 后，再执行正常的 N-1 更新
+门禁。首个 GitHub Release 创建后，引导路径会被拒绝；后续候选会自动使用
+公开仓的上一个 GitHub Release。
+
 只有以下门禁全部通过，workflow 才会组装不可变候选版本：
 
 - 版本号和成对版本说明；
