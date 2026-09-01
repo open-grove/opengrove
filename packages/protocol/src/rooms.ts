@@ -59,9 +59,9 @@ export const createRoomMessageOperation = defineHostOperation({
     targetIds: z.array(z.string()).default([]).describe("Employee identifiers addressed by the message."),
     attachments: z.array(z.unknown()).default([]).describe("Structured message attachments."),
     selectedFile: z
-      .object({ path: z.string().min(1) })
+      .object({ path: z.string() })
       .optional()
-      .describe("Selected local file reference."),
+      .describe("Selected local file reference; an empty path means no selected file."),
     userMessageId: z.string().optional().describe("Caller-provided idempotent user message identifier."),
     assistantMessageIds: z.array(z.string()).optional().describe("Reserved assistant message identifiers."),
     inReplyToMessageId: z.string().optional().describe("Parent message identifier for a reply."),
@@ -105,6 +105,7 @@ export const createRoomMessageOperation = defineHostOperation({
   ],
 });
 
+export type CreateRoomMessageOperation = typeof createRoomMessageOperation;
 export type CreateRoomMessageRequest = z.input<typeof createRoomMessageOperation.body>;
 export type CreateRoomMessageResponse = z.output<NonNullable<typeof createRoomMessageOperation.success.body>>;
 

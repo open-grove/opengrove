@@ -22,6 +22,24 @@ for (const rule of packageRules) {
   }
 }
 
+const webForbiddenImports = new Set([
+  "#protocol/compiled",
+  "#protocol/compiler",
+  "@opengrove/protocol/compiled",
+  "@opengrove/protocol/compiler",
+]);
+for (const file of typescriptFiles(join(projectRoot, "web", "src"))) {
+  const source = readFileSync(file, "utf8");
+  for (const match of source.matchAll(/(?:from\s+|import\s*\()\s*["']([^"']+)["']/gu)) {
+    const specifier = match[1];
+    if (specifier && webForbiddenImports.has(specifier)) {
+      errors.push(
+        `Web runtime has a forbidden Protocol build import in ${file.slice(projectRoot.length + 1)}: ${specifier}`,
+      );
+    }
+  }
+}
+
 if (errors.length) {
   for (const error of errors) console.error(error);
   process.exit(1);

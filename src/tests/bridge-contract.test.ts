@@ -1,8 +1,19 @@
 import assert from "node:assert/strict";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { test } from "node:test";
+import { z } from "zod";
 import { askCancelContract, askCompactContract, askGuideContract, clientBootstrapContract } from "#agent-protocol";
-import { createRoomMessageOperation, findHostOperation, hostOperations } from "#protocol";
+import {
+  createRoomMessageOperation,
+  defineHostOperation,
+  defineHostOperationGroup,
+  defineHostOperationResource,
+  findHostOperation,
+  type HostOperation,
+  hostOperations,
+} from "#protocol";
+import { hostContractById } from "#protocol/compiled";
+import { compileHostProtocol, type CompiledHostOperation } from "#protocol/compiler";
 import { BridgeContractViolation, dispatchBridgeRoutes, type BridgeRouteContext } from "../server/router.js";
 import { operationRoute } from "../server/routes/registry-utils.js";
 
@@ -65,7 +76,7 @@ test("room-message operation owns method, path, risk, and JSON contracts", () =>
   assert.equal(createRoomMessageOperation.body.safeParse({ text: 42 }).success, false);
   assert.equal(createRoomMessageOperation.success.status, 200);
 
-  const registered = operationRoute(createRoomMessageOperation, () => true);
+  const registered = operationRoute(hostContractById["room.message.create"], () => true);
   const matchingContext = contractTestContext({ body: {} });
   matchingContext.url = new URL("http://127.0.0.1/rooms/room-1/messages");
   assert.equal(registered.path instanceof RegExp && registered.path.test(matchingContext.url.pathname), true);
@@ -90,9 +101,10 @@ test("Host operation routes validate path parameters and declared error response
   assert.equal(
     await dispatchBridgeRoutes(
       [
-        operationRoute(createRoomMessageOperation, (routeContext) => {
+        operationRoute(hostContractById["room.message.create"], (routeContext) => {
+          assert.deepEqual(routeContext.input.params, { roomId: "room-1" });
+          assert.deepEqual(routeContext.input.body, { text: "hello", targetIds: [], attachments: [] });
           routeContext.sendJson(routeContext.response, 404, { ok: false, error: "reply_message_not_found" });
-          return true;
         }),
       ],
       context,
@@ -100,6 +112,155 @@ test("Host operation routes validate path parameters and declared error response
     true,
   );
   assert.deepEqual(sent, [{ status: 404, data: { ok: false, error: "reply_message_not_found" } }]);
+});
+
+test("Host protocol compiler creates stable input IR without executing transforms", () => {
+  let transformCalls = 0;
+  const operation = defineHostOperation({
+    id: "test.item.create",
+    summary: "Create test item",
+    description: "Exercise compilation without running request-time behavior.",
+    method: "POST",
+    path: "/test/{itemId}",
+    risk: "write",
+    params: z.object({
+      itemId: z.string().transform((value) => {
+        transformCalls += 1;
+        return value.toUpperCase();
+      }),
+    }),
+    query: z.object({ page: z.coerce.number().int().positive().default(1) }),
+    body: z.object({
+      label: z.string().transform((value) => {
+        transformCalls += 1;
+        return value.trim();
+      }),
+      count: z.coerce.number().int().default(2),
+    }),
+    success: { status: 201, body: z.object({ ok: z.literal(true) }) },
+  });
+  const protocol = compileHostProtocol([
+    defineHostOperationGroup({
+      id: "test",
+      title: "Test",
+      description: "Test operations.",
+      resources: [
+        defineHostOperationResource({
+          id: "item",
+          title: "Items",
+          description: "Test items.",
+          operations: [operation],
+        }),
+      ],
+    }),
+  ] as const);
+  const compiled = protocol.operationById["test.item.create"];
+
+  assert.equal(transformCalls, 0);
+  assert.deepEqual(compiled.path.parameterNames, ["itemId"]);
+  assert.equal(compiled.input.mode, "flat");
+  assert.equal(compiled.input.optional, false);
+  assert.deepEqual(compiled.input.params?.fields, [{ name: "itemId", required: true }]);
+  assert.deepEqual(compiled.input.query?.fields, [{ name: "page", required: false }]);
+  assert.deepEqual(compiled.input.body?.fields, [
+    { name: "count", required: false },
+    { name: "label", required: true },
+  ]);
+});
+
+test("Host operation handlers receive decoded params, query, and body exactly once", async () => {
+  const operation = defineHostOperation({
+    id: "test.item.update",
+    summary: "Update test item",
+    description: "Exercise typed route input decoding.",
+    method: "POST",
+    path: "/test/{itemId}",
+    risk: "write",
+    params: z.object({ itemId: z.string().transform((value) => value.toUpperCase()) }),
+    query: z.object({ page: z.coerce.number().int().default(1) }),
+    body: z.object({ label: z.string().transform((value) => value.trim()), count: z.coerce.number().default(2) }),
+    success: { status: 200, body: z.object({ ok: z.literal(true) }) },
+  });
+  const compiled = compileTestOperation(operation);
+  let reads = 0;
+  const sent: unknown[] = [];
+  const context = contractTestContext({
+    body: { label: "  Grove  ", count: "3" },
+    onSend: (_status, data) => sent.push(data),
+  });
+  context.url = new URL("http://127.0.0.1/test/room%201?page=4");
+  const originalReadJsonBody = context.readJsonBody;
+  context.readJsonBody = async (request, maxBytes) => {
+    reads += 1;
+    return originalReadJsonBody(request, maxBytes);
+  };
+
+  await dispatchBridgeRoutes(
+    [
+      operationRoute(compiled, (routeContext) => {
+        assert.deepEqual(routeContext.input, {
+          params: { itemId: "ROOM 1" },
+          query: { page: 4 },
+          body: { label: "Grove", count: 3 },
+        });
+        routeContext.sendJson(routeContext.response, 200, { ok: true });
+      }),
+    ],
+    context,
+  );
+
+  assert.equal(reads, 1);
+  assert.deepEqual(sent, [{ ok: true }]);
+});
+
+test("Host protocol compiler rejects ambiguous or incomplete operations", () => {
+  const base = {
+    summary: "Invalid test",
+    description: "Invalid operation used to exercise compiler checks.",
+    method: "POST" as const,
+    risk: "write" as const,
+    success: { status: 200, body: z.object({ ok: z.literal(true) }) },
+  };
+  assert.throws(
+    () =>
+      compileTestOperation(
+        defineHostOperation({
+          ...base,
+          id: "test.item.missing-param",
+          path: "/test/{itemId}",
+          body: z.object({ label: z.string() }),
+        }),
+      ),
+    /path parameters do not match params schema/u,
+  );
+  assert.throws(
+    () =>
+      compileTestOperation(
+        defineHostOperation({
+          ...base,
+          id: "test.item.collision",
+          path: "/test/{itemId}",
+          params: z.object({ itemId: z.string() }),
+          body: z.object({ itemId: z.string() }),
+        }),
+      ),
+    /appears in both params and body/u,
+  );
+  assert.throws(
+    () =>
+      compileTestOperation(
+        defineHostOperation({
+          ...base,
+          id: "test.item.duplicate-status",
+          path: "/test",
+          errors: [
+            { status: 400, body: z.object({ error: z.string() }) },
+            { status: 400, body: z.object({ error: z.string() }) },
+          ],
+        }),
+      ),
+    /declares response status 400 more than once/u,
+  );
 });
 
 test("route contracts reject invalid request bodies before handlers receive them", async () => {
@@ -196,6 +357,27 @@ test("route contracts serialize only documented response fields", async () => {
   );
   assert.deepEqual(sent, [{ ok: true, cancelled: false }]);
 });
+
+function compileTestOperation<const TOperation extends HostOperation>(
+  operation: TOperation,
+): CompiledHostOperation<TOperation> {
+  const protocol = compileHostProtocol([
+    defineHostOperationGroup({
+      id: "test",
+      title: "Test",
+      description: "Test operations.",
+      resources: [
+        defineHostOperationResource({
+          id: "item",
+          title: "Items",
+          description: "Test items.",
+          operations: [operation],
+        }),
+      ],
+    }),
+  ] as const);
+  return protocol.operations[0] as CompiledHostOperation<TOperation>;
+}
 
 function contractTestContext(input: {
   body: unknown;

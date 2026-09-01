@@ -27,6 +27,14 @@
       "types": "./packages/protocol/dist/index.d.ts",
       "default": "./dist/protocol/index.js"
     },
+    "#protocol/compiled": {
+      "types": "./packages/protocol/dist/compiled.d.ts",
+      "default": "./dist/protocol/compiled.js"
+    },
+    "#protocol/compiler": {
+      "types": "./packages/protocol/dist/compiler.d.ts",
+      "default": "./dist/protocol/compiler.js"
+    },
     "#client": {
       "types": "./packages/client/dist/index.d.ts",
       "default": "./dist/client/index.js"

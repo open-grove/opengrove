@@ -119,6 +119,30 @@ test("OpenGrove Client preserves Host error messages and metadata", async () => 
   );
 });
 
+test("OpenGrove Client preserves legacy 200 business failures", async () => {
+  const client = createOpenGroveClient({
+    fetch: (async () =>
+      new Response(JSON.stringify({ ok: false, error: "room_message_rejected" }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      })) as typeof fetch,
+  });
+
+  await assert.rejects(
+    client.rooms.messages.create({
+      roomId: "room-1",
+      text: "hello",
+      targetIds: [],
+      attachments: [],
+    }),
+    (error) =>
+      error instanceof OpenGroveClientError &&
+      error.message === "room_message_rejected" &&
+      error.status === 200 &&
+      !error.declared,
+  );
+});
+
 test("low-level operations support query parameters without requiring a request body", async () => {
   const urls: string[] = [];
   const listRoomsOperation = defineHostOperation({

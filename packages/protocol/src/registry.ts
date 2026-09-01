@@ -35,9 +35,7 @@ function indexHostOperations<const TGroups extends readonly HostOperationGroup[]
             `Host operation ${operation.id} must start with ${operationPrefix} and include a method name.`,
           );
         }
-        if (operations.has(operation.id)) {
-          throw new Error(`Duplicate Host operation id: ${operation.id}`);
-        }
+        if (operations.has(operation.id)) throw new Error(`Duplicate Host operation id: ${operation.id}`);
         operations.set(operation.id, operation);
       }
     }

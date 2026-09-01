@@ -18,7 +18,7 @@ export type HostOperation = Readonly<{
   risk: HostOperationRisk;
   params?: z.ZodObject;
   query?: z.ZodObject;
-  body?: z.ZodType;
+  body?: z.ZodObject;
   success: HostOperationResponse;
   errors?: readonly HostOperationResponse[];
 }>;
@@ -53,6 +53,18 @@ export type HostOperationOutput<TOperation extends HostOperation> = TOperation["
 }
   ? z.output<TSchema>
   : undefined;
+
+type HostOperationDecodedPart<TOperation extends HostOperation, TKey extends "params" | "query" | "body"> =
+  TOperation extends Record<TKey, infer TSchema extends z.ZodType>
+    ? { readonly [TPart in TKey]: z.output<TSchema> }
+    : { readonly [TPart in TKey]?: never };
+
+export type HostOperationDecodedInput<TOperation extends HostOperation> = HostOperationDecodedPart<
+  TOperation,
+  "params"
+> &
+  HostOperationDecodedPart<TOperation, "query"> &
+  HostOperationDecodedPart<TOperation, "body">;
 
 export function defineHostOperation<const TOperation extends HostOperation>(operation: TOperation): TOperation {
   return operation;

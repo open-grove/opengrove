@@ -35,8 +35,7 @@ export type HostOperationRequest = <TOperation extends HostOperation>(
 ) => Promise<HostOperationOutput<TOperation>>;
 
 export function createHostOperationRequest(config: OpenGroveClientConfig): HostOperationRequest {
-  const fetchImplementation = config.fetch ?? globalThis.fetch?.bind(globalThis);
-  if (!fetchImplementation) {
+  if (!config.fetch && !globalThis.fetch) {
     throw new Error("OpenGrove Client requires a Fetch API implementation.");
   }
 
@@ -44,6 +43,8 @@ export function createHostOperationRequest(config: OpenGroveClientConfig): HostO
     operation: TOperation,
     input: HostOperationCall<TOperation>,
   ): Promise<HostOperationOutput<TOperation>> => {
+    const fetchImplementation = config.fetch ?? globalThis.fetch?.bind(globalThis);
+    if (!fetchImplementation) throw new Error("OpenGrove Client requires a Fetch API implementation.");
     const params = parseRequestPart(operation, "params", operation.params, input.params);
     const query = parseRequestPart(operation, "query", operation.query, input.query);
     const body = parseRequestPart(operation, "body", operation.body, input.body);
@@ -57,7 +58,14 @@ export function createHostOperationRequest(config: OpenGroveClientConfig): HostO
     });
     const payload = await readResponsePayload(response);
     if (response.status === operation.success.status) {
-      return parseOperationResponse(operation, operation.success.body, payload) as HostOperationOutput<TOperation>;
+      try {
+        return parseOperationResponse(operation, operation.success.body, payload) as HostOperationOutput<TOperation>;
+      } catch (error) {
+        if (error instanceof OpenGroveProtocolError && isBusinessFailure(payload)) {
+          throw createClientError(response, payload, false);
+        }
+        throw error;
+      }
     }
 
     const declaredError = operation.errors?.find((candidate) => candidate.status === response.status);
@@ -178,6 +186,10 @@ function createClientError(response: Response, payload: unknown, declared: boole
       undefined,
     payload,
   });
+}
+
+function isBusinessFailure(payload: unknown): boolean {
+  return isRecord(payload) && payload.ok === false && (typeof payload.error === "string" || isRecord(payload.error));
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

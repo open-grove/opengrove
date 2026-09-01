@@ -1,5 +1,6 @@
-import type { BridgeRoute } from "../router.js";
+import { decodeHostOperationInput, type BridgeRoute, type HostOperationRouteContext } from "../router.js";
 import type { BridgeJsonContract, HostOperation } from "#protocol";
+import type { CompiledHostOperation } from "#protocol/compiler";
 
 export function route(
   id: string,
@@ -15,18 +16,18 @@ export function moduleRoute(id: string, path: BridgeRoute["path"], handle: Bridg
   return { id, path, handle };
 }
 
-export function operationRoute(operation: HostOperation, handle: BridgeRoute["handle"]): BridgeRoute {
-  return route(operation.id, operation.method, operationPathPattern(operation.path), handle, operation);
-}
-
-function operationPathPattern(path: string): RegExp {
-  const expression = path
-    .split(/(\{[^/{}]+\})/u)
-    .map((part) => (/^\{[^/{}]+\}$/u.test(part) ? "[^/]+" : escapeRegExp(part)))
-    .join("");
-  return new RegExp(`^${expression}$`, "u");
-}
-
-function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+export function operationRoute<TOperation extends HostOperation>(
+  operation: CompiledHostOperation<TOperation>,
+  handle: (context: HostOperationRouteContext<TOperation>) => void | true | Promise<void | true>,
+): BridgeRoute {
+  return route(
+    operation.id,
+    operation.method,
+    new RegExp(operation.path.regexpSource, "u"),
+    async (context) => {
+      await handle(await decodeHostOperationInput(operation, context));
+      return true;
+    },
+    operation.operation,
+  );
 }

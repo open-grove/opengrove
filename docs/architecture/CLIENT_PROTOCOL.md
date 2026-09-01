@@ -72,11 +72,19 @@ layer and use natural resource namespaces:
 client.rooms.messages.create(...)
 ```
 
+`compileHostProtocol` validates the source catalog once and produces the
+environment-neutral Protocol IR. The compiler owns path parsing, flattened
+input fields, requiredness, JSON Schema projection, response statuses, and
+collision checks. Generators consume this IR; they must not inspect Zod internals
+or execute request-time defaults and transforms while generating code.
+The compiler and compiled catalog have dedicated package entry points; runtime
+Client consumers do not load or execute the compiler.
+
 `packages/client/client-map.json` contains only the naming differences between
 the canonical catalog and the public Client. `npm run generate:host-client`
-reads the compiled Protocol catalog and writes the typed Client resource tree.
+reads the compiled Protocol IR and writes the typed Client resource tree.
 `npm run check:client-generated` fails when the committed generated output is
-stale or when input fields collide across params, query, and body.
+stale or when the map refers to an operation that no longer exists.
 
 Do not hand-write a second resource method in the Client. A new operation is
 added to the Protocol catalog, given any necessary public naming override, and
@@ -124,10 +132,12 @@ in `@opengrove/protocol`.
 
 ## Migration rule
 
-Existing Bridge handlers do not need to be rewritten. Migrate one vertical
-operation at a time by adding its explicit Protocol definition, registering it
-on the existing Host handler, regenerating the Client, and replacing one real
-consumer call.
+Migrate one vertical operation at a time by adding its explicit Protocol
+definition, registering a typed Host operation handler, regenerating the
+Client, and replacing one real consumer call. Business logic can remain in its
+existing module, but the route boundary must consume `context.input.params`,
+`context.input.query`, and `context.input.body`; it must not parse the same URL
+or body again.
 
 An operation is complete only when the shared contract is registered by the
 Host route, generated into the Client, used by at least one real consumer,
