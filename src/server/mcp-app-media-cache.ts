@@ -237,6 +237,7 @@ export class McpAppMediaCache {
           this.failures.delete(destination);
           this.revokePath(destination);
         } catch {
+          // non-critical-fallback: a locked or concurrently changed cache file remains available for the next cleanup.
           result.retainedFiles += 1;
         }
       }
