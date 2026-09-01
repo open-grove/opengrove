@@ -62,7 +62,7 @@ import {
   type DesktopStripeDeepLink,
 } from "../src/desktop-stripe-deep-link.js";
 import { appendBoundedLog } from "./bounded-log.js";
-import { cleanupDesktopRebuildableFiles } from "./rebuildable-storage-cleanup.js";
+import { cleanupDesktopRebuildableFiles, measureDesktopPathBytes } from "./rebuildable-storage-cleanup.js";
 
 const MAIN_LOG_POLICY = { maxBytes: 10 * 1024 * 1024, retainedFiles: 2 } as const;
 
@@ -683,14 +683,7 @@ async function cleanupDesktopRebuildableStorage() {
       }),
     );
 
-    const chromiumCachePaths = [
-      "Cache",
-      "Code Cache",
-      "GPUCache",
-      "DawnCache",
-      "DawnWebGPUCache",
-      "DawnGraphiteCache",
-    ].map((name) => join(supervisor.paths.userDataDir, name));
+    const chromiumCachePaths = ["Cache", "Code Cache"].map((name) => join(supervisor.paths.userDataDir, name));
     const updaterStage = clientUpdateManager?.snapshot().stage;
     const updaterCacheDir =
       updaterStage === "downloading" || updaterStage === "downloaded" || updaterStage === "installing"
@@ -701,29 +694,33 @@ async function cleanupDesktopRebuildableStorage() {
     bridgeSupervisorLifecycleActive = false;
     bridgeHost.maintenance("storage_cleanup");
     await supervisor.stop();
+    const chromiumCacheBytesBefore = await measureDesktopPathsBestEffort(chromiumCachePaths);
+    await session.defaultSession.clearCache();
+    await session.defaultSession.clearCodeCaches({});
+    const chromiumCacheBytesAfter = await measureDesktopPathsBestEffort(chromiumCachePaths);
+    const chromiumCacheBytes = Math.max(0, chromiumCacheBytesBefore - chromiumCacheBytesAfter);
     const files = await cleanupDesktopRebuildableFiles({
       // Workspace media caches are removed by the Bridge while it still has
       // the authoritative mounted-workspace list. Desktop must not guess from
       // a broad Apps or Workspaces directory.
       workspaceRoots: [],
       logDir: supervisor.paths.logDir,
-      chromiumCacheDirs: chromiumCachePaths,
       updaterCacheDir,
     });
-    await session.defaultSession.clearCache();
     const bridge = await supervisor.start({ allowReuse: false });
     await verifyBridgeRuntime(bridge);
     activateBridgeInMainWindow(bridge);
     startReusedWatchdogIfNeeded();
     const orphanBlobBytes = orphanCleanup.reclaimedBytes;
     const bridgeCacheBytes = bridgeCacheCleanup.reclaimedBytes;
-    const reclaimedBytes = orphanBlobBytes + bridgeCacheBytes + files.reclaimedBytes;
+    const reclaimedBytes = orphanBlobBytes + bridgeCacheBytes + files.reclaimedBytes + chromiumCacheBytes;
     logMain(`safe storage cleanup completed (${reclaimedBytes} logical bytes removed)`);
     return {
       status: "cleaned" as const,
       orphanBlobBytes,
       bridgeCacheBytes,
       ...files,
+      chromiumCacheBytes,
       reclaimedBytes,
       updaterCacheSkipped: Boolean(supervisor.updaterCacheDirectory() && !updaterCacheDir),
     };
@@ -748,6 +745,19 @@ async function cleanupDesktopRebuildableStorage() {
   }
 }
 
+async function measureDesktopPathsBestEffort(paths: readonly string[]): Promise<number> {
+  const measured = await Promise.all(
+    paths.map(async (path) => {
+      try {
+        return await measureDesktopPathBytes(path);
+      } catch {
+        return 0;
+      }
+    }),
+  );
+  return measured.reduce((total, bytes) => total + bytes, 0);
+}
+
 async function postBridgeStorageAction(path: string, body: unknown): Promise<unknown> {
   const bridge = bridgeHost.runtime;
   if (!bridge) throw new Error("desktop_bridge_unavailable");
@@ -760,7 +770,6 @@ async function postBridgeStorageAction(path: string, body: unknown): Promise<unk
     cache: "no-store",
     headers,
     body: JSON.stringify(body),
-    signal: AbortSignal.timeout(10_000),
   });
   const payload = (await response.json().catch(() => undefined)) as { error?: unknown } | undefined;
   if (!response.ok) {

@@ -108,6 +108,19 @@ try {
     await page.waitForFunction(() => !document.body.textContent?.includes("升级备份"));
     assert.equal(await page.getByText("升级备份", { exact: true }).count(), 0, "empty update backups stay hidden");
     assert.equal(await page.getByRole("button", { name: "删除升级备份", exact: true }).count(), 0);
+
+    const fallbackPage = await browser.newPage({ viewport: { width: 1120, height: 900 } });
+    try {
+      await fallbackPage.goto(`${pathToFileURL(htmlPath).href}?browserFallback=1`);
+      await fallbackPage.getByRole("button", { name: /存储空间/ }).click();
+      await fallbackPage.getByText("6.0 GB", { exact: true }).waitFor();
+      await fallbackPage.getByRole("button", { name: "安全释放空间", exact: true }).click();
+      const fallbackDialog = fallbackPage.getByRole("dialog");
+      await fallbackDialog.getByRole("button", { name: "确认", exact: true }).click();
+      await fallbackPage.getByText("当前还有运行中的任务，请等任务结束后再清理。", { exact: true }).waitFor();
+    } finally {
+      await fallbackPage.close();
+    }
   } finally {
     await browser.close();
   }
@@ -157,15 +170,25 @@ function entrySource() {
       },
     };
     globalThis.storagePayload = storagePayload;
+    const browserFallback = location.search.includes("browserFallback=1");
     globalThis.fetch = async (input, init) => {
       const url = String(input);
       if (url.includes("/settings/storage")) {
         if (!init?.method || init.method === "GET") await new Promise((resolve) => setTimeout(resolve, 1500));
+        if (browserFallback && url.endsWith("/maintenance/start")) {
+          return new Response(JSON.stringify({ ok: true, leaseId: "lease-fallback" }), { status: 200, headers: { "content-type": "application/json" } });
+        }
+        if (browserFallback && url.endsWith("/cleanup")) {
+          return new Response(JSON.stringify({ ok: false, error: "desktop_storage_maintenance_active_runs:1" }), { status: 409, headers: { "content-type": "application/json" } });
+        }
+        if (browserFallback && url.endsWith("/maintenance/end")) {
+          return new Response(JSON.stringify({ ok: false, error: "maintenance_release_failed" }), { status: 500, headers: { "content-type": "application/json" } });
+        }
         return new Response(JSON.stringify(storagePayload), { status: 200, headers: { "content-type": "application/json" } });
       }
       return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { "content-type": "application/json" } });
     };
-    window.openGroveDesktop = {
+    if (!browserFallback) window.openGroveDesktop = {
       apiBase: "opengrove-desktop://ui/api",
       bridgeStartupState: { stage: "ready", generation: 1 },
       versions: { app: "0.6.5", clientReleaseNumber: 10030 },

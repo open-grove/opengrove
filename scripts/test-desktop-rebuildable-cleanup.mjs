@@ -10,6 +10,12 @@ const tempDir = await mkdtemp(join(tmpdir(), "opengrove-rebuildable-cleanup-"));
 const bundlePath = join(tempDir, "rebuildable-cleanup.mjs");
 
 try {
+  const desktopMainSource = await readFile(join(projectRoot, "desktop/main.ts"), "utf8");
+  assert.doesNotMatch(
+    desktopMainSource,
+    /postBridgeStorageAction[\s\S]*?signal:\s*AbortSignal\.timeout\(10_000\)/,
+    "destructive local storage actions must await the Bridge result instead of abandoning it after 10 seconds",
+  );
   await build({
     entryPoints: [join(projectRoot, "desktop/rebuildable-storage-cleanup.ts")],
     bundle: true,
@@ -49,10 +55,10 @@ try {
     chromiumCacheDirs,
     updaterCacheDir,
   });
-  assert.equal(result.reclaimedBytes, 115);
+  assert.equal(result.reclaimedBytes, 84);
   assert.equal(result.mediaCacheBytes, 23);
   assert.equal(result.logBytes, 30);
-  assert.equal(result.chromiumCacheBytes, 31);
+  assert.equal(result.chromiumCacheBytes, 0);
   assert.equal(result.updaterCacheBytes, 31);
   assert.equal(await readFile(programLookalike, "utf8"), "x".repeat(17));
   await assert.rejects(() => lstat(workspaceCache), { code: "ENOENT" });
@@ -74,7 +80,11 @@ try {
   assert.equal((await lstat(updaterCacheDir)).isDirectory(), true);
   for (const cacheDir of chromiumCacheDirs) {
     assert.equal((await lstat(cacheDir)).isDirectory(), true);
-    assert.deepEqual(await readdir(cacheDir), [], `${cacheDir} must be empty after deterministic disk cleanup`);
+    assert.equal(
+      (await readdir(cacheDir)).length,
+      1,
+      `${cacheDir} belongs to the live Electron session and must not be removed with raw filesystem rm`,
+    );
   }
 } finally {
   await rm(tempDir, { recursive: true, force: true });

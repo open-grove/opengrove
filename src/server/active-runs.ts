@@ -6,18 +6,20 @@ interface ActiveRunRegistry {
   leasesByRunId: Map<string, Set<symbol>>;
   executionStatesByRunId: Map<string, BridgeState>;
   adaptersByRunId: Map<string, BridgeState["kernelAdapter"]>;
-  maintenanceLeaseId?: string;
+  maintenanceLease?: { id: string; lastActivityAt: number };
 }
 
 const registries = new WeakMap<BridgeState, ActiveRunRegistry>();
+const BRIDGE_RUN_MAINTENANCE_IDLE_TTL_MS = 5 * 60_000;
 
 /**
  * Registers a producer that is still capable of resolving pending requests.
  * The returned release function is idempotent so terminal paths can share it.
  */
-export function registerActiveBridgeRun(state: BridgeState, runId: string): () => void {
+export function registerActiveBridgeRun(state: BridgeState, runId: string, now = Date.now()): () => void {
   const registry = registryForState(state);
-  if (registry.maintenanceLeaseId) {
+  expireIdleMaintenanceLease(registry, now);
+  if (registry.maintenanceLease) {
     throw new Error("bridge_runs_paused_for_storage_maintenance");
   }
   const lease = Symbol(runId);
@@ -52,32 +54,46 @@ export type BridgeRunMaintenanceAdmission =
  * JavaScript executes this check-and-set synchronously, so a new run cannot
  * enter between observing the empty registry and installing the gate.
  */
-export function beginBridgeRunMaintenance(state: BridgeState): BridgeRunMaintenanceAdmission {
+export function beginBridgeRunMaintenance(state: BridgeState, now = Date.now()): BridgeRunMaintenanceAdmission {
   const registry = registryForState(state);
-  if (registry.maintenanceLeaseId) {
+  expireIdleMaintenanceLease(registry, now);
+  if (registry.maintenanceLease) {
     return { ok: false, error: "storage_maintenance_in_progress", activeRuns: registry.leasesByRunId.size };
   }
   if (registry.leasesByRunId.size > 0) {
     return { ok: false, error: "storage_maintenance_active_runs", activeRuns: registry.leasesByRunId.size };
   }
   const leaseId = randomUUID();
-  registry.maintenanceLeaseId = leaseId;
+  registry.maintenanceLease = { id: leaseId, lastActivityAt: now };
   return { ok: true, leaseId };
 }
 
 export function endBridgeRunMaintenance(state: BridgeState, leaseId: string): boolean {
   const registry = registryForState(state);
-  if (!leaseId || registry.maintenanceLeaseId !== leaseId) return false;
-  registry.maintenanceLeaseId = undefined;
+  if (!leaseId || registry.maintenanceLease?.id !== leaseId) return false;
+  registry.maintenanceLease = undefined;
   return true;
 }
 
-export function bridgeRunMaintenanceActive(state: BridgeState): boolean {
-  return Boolean(registryForState(state).maintenanceLeaseId);
+export function bridgeRunMaintenanceActive(state: BridgeState, now = Date.now()): boolean {
+  const registry = registryForState(state);
+  expireIdleMaintenanceLease(registry, now);
+  return Boolean(registry.maintenanceLease);
 }
 
-export function bridgeRunMaintenanceLeaseMatches(state: BridgeState, leaseId: string): boolean {
-  return Boolean(leaseId) && registryForState(state).maintenanceLeaseId === leaseId;
+export function bridgeRunMaintenanceLeaseMatches(state: BridgeState, leaseId: string, now = Date.now()): boolean {
+  const registry = registryForState(state);
+  expireIdleMaintenanceLease(registry, now);
+  if (!leaseId || registry.maintenanceLease?.id !== leaseId) return false;
+  registry.maintenanceLease.lastActivityAt = now;
+  return true;
+}
+
+export function renewBridgeRunMaintenanceLease(state: BridgeState, leaseId: string, now = Date.now()): boolean {
+  const lease = registryForState(state).maintenanceLease;
+  if (!leaseId || lease?.id !== leaseId) return false;
+  lease.lastActivityAt = now;
+  return true;
 }
 
 export function activeBridgeRunIds(state: BridgeState): ReadonlySet<string> {
@@ -139,4 +155,11 @@ function registryForState(state: BridgeState): ActiveRunRegistry {
     registries.set(rootState, registry);
   }
   return registry;
+}
+
+function expireIdleMaintenanceLease(registry: ActiveRunRegistry, now: number): void {
+  const lease = registry.maintenanceLease;
+  if (lease && now - lease.lastActivityAt >= BRIDGE_RUN_MAINTENANCE_IDLE_TTL_MS) {
+    registry.maintenanceLease = undefined;
+  }
 }

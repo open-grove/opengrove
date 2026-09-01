@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import {
@@ -14,6 +14,7 @@ import type { BridgeState } from "../server/bridge-types.js";
 import { handleSettingsRoute } from "../server/routes/settings.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { ContentBlobStore } from "../storage/content-blob-store.js";
+import { inspectUnreferencedAppStoreArchives } from "../server/app-store.js";
 
 const rootState = {} as BridgeState;
 const scopedState = { rootState } as BridgeState;
@@ -47,6 +48,48 @@ assert.deepEqual(beginBridgeRunMaintenance(rootState), {
   activeRuns: 0,
 });
 assert.equal(secondAdmission.ok && endBridgeRunMaintenance(rootState, secondAdmission.leaseId), true);
+
+const abandonedRootState = {} as BridgeState;
+const beginMaintenanceAt = beginBridgeRunMaintenance as unknown as (
+  state: BridgeState,
+  now: number,
+) => ReturnType<typeof beginBridgeRunMaintenance>;
+const registerRunAt = registerActiveBridgeRun as unknown as (
+  state: BridgeState,
+  runId: string,
+  now: number,
+) => () => void;
+const abandonedAdmission = beginMaintenanceAt(abandonedRootState, 1_000);
+assert.equal(abandonedAdmission.ok, true);
+const releaseAfterAbandonedMaintenance = registerRunAt(
+  abandonedRootState,
+  "run-after-abandoned-maintenance",
+  Number.MAX_SAFE_INTEGER,
+);
+assert.deepEqual(
+  [...activeBridgeRunIds(abandonedRootState)],
+  ["run-after-abandoned-maintenance"],
+  "an abandoned idle maintenance lease must expire instead of blocking every future Run until restart",
+);
+releaseAfterAbandonedMaintenance();
+
+if (process.platform !== "win32") {
+  const inaccessibleStore = mkdtempSync(join(tmpdir(), "opengrove-inaccessible-archives-"));
+  const archiveRoot = join(inaccessibleStore, "archives");
+  try {
+    mkdirSync(archiveRoot, { recursive: true });
+    writeFileSync(join(inaccessibleStore, "catalog.json"), '{"packages":[]}\n', "utf8");
+    chmodSync(archiveRoot, 0);
+    assert.deepEqual(
+      inspectUnreferencedAppStoreArchives(inaccessibleStore),
+      { candidates: [], reclaimableBytes: 0 },
+      "an unreadable archive root must fail closed instead of failing the whole storage overview",
+    );
+  } finally {
+    chmodSync(archiveRoot, 0o700);
+    rmSync(inaccessibleStore, { recursive: true, force: true });
+  }
+}
 
 let cleanupCalls = 0;
 const routeDir = mkdtempSync(join(tmpdir(), "opengrove-storage-maintenance-route-"));

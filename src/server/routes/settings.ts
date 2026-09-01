@@ -10,6 +10,7 @@ import {
   beginBridgeRunMaintenance,
   bridgeRunMaintenanceLeaseMatches,
   endBridgeRunMaintenance,
+  renewBridgeRunMaintenanceLease,
 } from "../active-runs.js";
 import {
   appStoreDataRoot,
@@ -233,6 +234,7 @@ export async function handleSettingsRoute(options: {
           programCleanup.reclaimedBytes +
           archiveCleanup.reclaimedBytes,
       };
+      if (requestedLeaseId) renewBridgeRunMaintenanceLease(state, requestedLeaseId);
       sendJson(response, 200, {
         ok: true,
         cleanup,
@@ -271,6 +273,7 @@ export async function handleSettingsRoute(options: {
         const reclaimedBytes = removedProviderCache ? statSync(providerModelsCache).size : 0;
         if (removedProviderCache) unlinkSync(providerModelsCache);
         state.store.saveFrom(state.app);
+        if (requestedLeaseId) renewBridgeRunMaintenanceLease(state, requestedLeaseId);
         sendJson(response, 200, {
           ok: true,
           scope,

@@ -13,7 +13,6 @@ export interface DesktopRebuildableCleanupResult {
 export async function cleanupDesktopRebuildableFiles(input: {
   workspaceRoots: readonly string[];
   logDir: string;
-  chromiumCacheDirs?: readonly string[];
   updaterCacheDir?: string;
 }): Promise<DesktopRebuildableCleanupResult> {
   const workspaceCachePaths = [
@@ -23,9 +22,9 @@ export async function cleanupDesktopRebuildableFiles(input: {
     await Promise.all(workspaceCachePaths.map((path) => removePath(path, { recreate: false })))
   ).reduce((total, bytes) => total + bytes, 0);
   const logBytes = await removeRotatedLogs(resolve(input.logDir));
-  const chromiumCacheBytes = (
-    await Promise.all((input.chromiumCacheDirs ?? []).map((path) => removePath(resolve(path), { recreate: true })))
-  ).reduce((total, bytes) => total + bytes, 0);
+  // Chromium owns these paths while the retained renderer is alive. The desktop
+  // Host clears them through Electron's Session API instead of raw filesystem rm.
+  const chromiumCacheBytes = 0;
   const updaterCacheBytes = input.updaterCacheDir
     ? await removePath(resolve(input.updaterCacheDir), { recreate: true })
     : 0;

@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { inspectOpenGroveStorage } from "../server/storage-overview.js";
+import { bridgeUserDataDirectory } from "../server/storage-paths.js";
+import type { BridgeState } from "../server/bridge-types.js";
 
 const root = mkdtempSync(join(tmpdir(), "opengrove-storage-overview-"));
 
@@ -50,6 +52,36 @@ try {
     bytes: 60 + Buffer.byteLength(recoveryMetadata),
     createdAt: "2026-08-28T01:28:52.000Z",
   });
+
+  const customDataDir = join(root, "custom", "data");
+  assert.equal(
+    bridgeUserDataDirectory({
+      store: { kind: "sqlite", path: join(customDataDir, "local-state.sqlite") },
+    } as BridgeState),
+    customDataDir,
+    "a custom data directory named 'data' must not promote unrelated parent files into the storage scan",
+  );
+
+  if (process.platform !== "win32") {
+    const inaccessibleRoot = join(root, "inaccessible-workspace");
+    writeSized(join(inaccessibleRoot, "private.txt"), 37);
+    chmodSync(inaccessibleRoot, 0);
+    try {
+      const partialOverview = await inspectOpenGroveStorage({
+        roots: {
+          userDataDir,
+          programRoots: [currentProgramsRoot],
+          currentWorkspacesRoot,
+          legacyAppsRoot,
+          externalWorkspaceRoots: [inaccessibleRoot],
+          appStoreRoots: [],
+        },
+      });
+      assert.ok(partialOverview.totalBytes > 0, "one unreadable root must not hide all readable storage totals");
+    } finally {
+      chmodSync(inaccessibleRoot, 0o700);
+    }
+  }
 } finally {
   rmSync(root, { recursive: true, force: true });
 }
