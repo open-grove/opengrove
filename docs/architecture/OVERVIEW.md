@@ -30,7 +30,8 @@ user-facing categories:
   generations.
 - **Rebuildable temporary files**: media cache, browser cache, rotated logs,
   updater cache, and confirmed orphan blobs.
-- **Update backups**: data-migration rollback copies created before a database update.
+- **Update backups**: data-migration rollback copies created before a database
+  update.
 - **Conversations and system data**: Rooms, knowledge, settings, account state,
   diagnostics, indexes, and other Host-owned state.
 
@@ -38,7 +39,7 @@ Storage accounting does not grant cleanup authority. Safe cleanup may remove
 only data with an explicit regeneration or unreferenced-file contract, through
 one user-facing **Free space safely** action. It keeps
 App Workspaces, active App program generations, conversations, current diagnostic
-logs, and recovery backups. An obsolete App program generation is removable
+logs, and update backups. An obsolete App program generation is removable
 only when it is no longer mounted and carries the Host-authored committed
 cleanup marker. Registry archives referenced by the valid local catalog are
 retained; an archive is eligible only when that catalog is readable and proves

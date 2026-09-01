@@ -1185,6 +1185,10 @@ export const EN = {
   "settings.storageMaintenance": "Free up space",
   "settings.storageMigrationBackups": "Update backups",
   "settings.storageRefreshStats": "Refresh stats",
+  "settings.storageLoading": "Calculating storage…",
+  "settings.storageUnavailable": "Storage details are temporarily unavailable",
+  "settings.storageLoadError": "Storage details are temporarily unavailable. Try again shortly.",
+  "settings.storageBackupDeleteError": "Update backups could not be deleted. Try again shortly.",
   "settings.storageCleaning": "Cleaning…",
   "settings.storageCleanupEstimateMaximum": "About {size} can be cleared.",
   "settings.storageCleanupCompleted":
