@@ -190,7 +190,7 @@ export function roomExecutionState(
   const scopedState = {
     ...rootState,
     rootState,
-    appInitialized: false,
+    appInitialized: rootState.appInitialized,
     directAskExecutionStates: undefined,
     roomKernelAdapters: undefined,
     kernelAdapter: undefined,

@@ -880,7 +880,7 @@ assert.equal(staleRuntimeMessage?.status, "interrupted");
 assert.match(staleRuntimeMessage?.text ?? "", /运行已中断/);
 assert.equal(staleRuntimeMessage?.parts?.[0]?.status, "failed");
 assert.equal(staleRuntimeMessage?.parts?.[1]?.status, "canceled");
-assert.equal(staleRuntimeMessage?.parts?.[1]?.questionStatus, "declined");
+assert.equal(staleRuntimeMessage?.parts?.[1]?.questionStatus, "canceled");
 
 const restoredLiveRuntime = normalizePersistedAgentState(
   {
@@ -974,7 +974,7 @@ const restoredLivePendingState = normalizePersistedAgentState(
 assert.deepEqual(restoredLivePendingState.workingState.pendingApprovalIds, ["approval-live-runtime"]);
 assert.deepEqual(restoredLivePendingState.workingState.pendingQuestionIds, ["question-live-runtime"]);
 assert.equal(restoredLivePendingState.approvals[0]?.status, "pending");
-assert.equal(restoredLivePendingState.approvals[1]?.status, "rejected");
+assert.equal(restoredLivePendingState.approvals[1]?.status, "canceled");
 assert.equal(restoredLivePendingState.questions[0]?.status, "pending");
 assert.equal(restoredLivePendingState.workingState.updatedAt, "2026-01-01T00:00:00.000Z");
 
@@ -1078,8 +1078,39 @@ const restoredStaleQuestionState = normalizePersistedAgentState({
 });
 assert.deepEqual(restoredStaleQuestionState.workingState.pendingApprovalIds, []);
 assert.deepEqual(restoredStaleQuestionState.workingState.pendingQuestionIds, []);
-assert.equal(restoredStaleQuestionState.approvals[0]?.status, "rejected");
-assert.equal(restoredStaleQuestionState.questions[0]?.status, "declined");
+assert.equal(restoredStaleQuestionState.approvals[0]?.status, "canceled");
+assert.equal(restoredStaleQuestionState.questions[0]?.status, "canceled");
+
+const restoredProducerLostRun = normalizePersistedAgentState({
+  sessions: [
+    { id: "session-producer-lost", createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z" },
+  ],
+  runs: [
+    {
+      id: "run-producer-lost",
+      sessionId: "session-producer-lost",
+      input: "continue working",
+      lifecycle: { taskState: "TASK_STATE_WORKING", activity: "running" },
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+    },
+  ],
+});
+assert.deepEqual(restoredProducerLostRun.runs[0]?.lifecycle, {
+  taskState: "TASK_STATE_FAILED",
+  reasonCode: "producer_lost",
+  retryable: true,
+  outcomeUnknown: true,
+});
+assert.ok(
+  restoredProducerLostRun.events.some(
+    (event) =>
+      event.type === "turn.finished" &&
+      event.runId === "run-producer-lost" &&
+      event.outcome.reasonCode === "producer_lost" &&
+      event.outcome.outcomeUnknown === true,
+  ),
+);
 
 console.log(
   JSON.stringify(

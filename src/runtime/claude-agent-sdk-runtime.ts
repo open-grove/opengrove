@@ -389,7 +389,17 @@ export class ClaudeAgentSdkRuntime implements AgentRuntime {
         message: claudeSdkProcessErrorMessage(error, messageState.stderrText),
         ...(diagnostics ? { diagnostics } : {}),
       });
-      queue.push({ type: "turn.finished", runId, at: new Date().toISOString() });
+      const canceled = Boolean(request.signal?.aborted || abortController.signal.aborted);
+      queue.push({
+        type: "turn.finished",
+        runId,
+        at: new Date().toISOString(),
+        outcome: {
+          taskState: canceled ? "TASK_STATE_CANCELED" : "TASK_STATE_FAILED",
+          reasonCode: canceled ? "native_cancelled" : "claude_native_terminal_missing",
+          outcomeUnknown: true,
+        },
+      });
       return;
     }
 
@@ -441,7 +451,16 @@ export class ClaudeAgentSdkRuntime implements AgentRuntime {
         reason: "turn-final",
       }),
     );
-    queue.push({ type: "turn.finished", runId, at: new Date().toISOString() });
+    queue.push({
+      type: "turn.finished",
+      runId,
+      at: new Date().toISOString(),
+      outcome: messageState.resultIsError
+        ? { taskState: "TASK_STATE_FAILED", reasonCode: "claude_agent_sdk_failed" }
+        : request.signal?.aborted
+          ? { taskState: "TASK_STATE_CANCELED", reasonCode: "native_cancelled", retryable: false }
+          : { taskState: "TASK_STATE_COMPLETED" },
+    });
   }
 
   async compactSession(request: AgentCompactRequest): Promise<AgentCompactResult> {

@@ -58,8 +58,8 @@ export function OpsCenterSettingsPanel(
     props.selectedRunId && allRuns.some((run) => runRecordKey(run) === props.selectedRunId)
       ? props.selectedRunId
       : fallbackRunId;
-  const failedRuns = allRuns.filter((run) => isFailedStatus(run.status)).length;
-  const runningRuns = allRuns.filter((run) => isRunningStatus(run.status)).length;
+  const failedRuns = allRuns.filter((run) => isFailedStatus(runTaskState(run))).length;
+  const runningRuns = allRuns.filter((run) => isRunningStatus(runTaskState(run))).length;
   const latestRun = allRuns[0];
 
   return (
@@ -153,7 +153,7 @@ function OpsSettingsRunItem(props: {
   const contextRecords = props.contextRecords.filter((record) => String(record.runId || "") === props.runId);
   const finalAnswer = finalModelResponseText(props.run, runEvents);
   const sourceId = runSourceId(props.run);
-  const status = localizedStatus(props.run.status, t);
+  const status = localizedStatus(runTaskState(props.run), t);
   const activity = runActivitySignal(props.run, t);
   const date = formatDate(
     String(props.run.finishedAt || props.run.endedAt || props.run.startedAt || props.run.createdAt || ""),
@@ -161,7 +161,11 @@ function OpsSettingsRunItem(props: {
   const storedEventCount = Number(props.run.eventCount || 0);
   const eventCount = runEvents.length || (Number.isFinite(storedEventCount) ? storedEventCount : 0);
   const toolCount = toolEvents.length || (Array.isArray(props.run.toolIds) ? props.run.toolIds.length : 0);
-  const stateTone = isFailedStatus(props.run.status) ? "danger" : isRunningStatus(props.run.status) ? "live" : "good";
+  const stateTone = isFailedStatus(runTaskState(props.run))
+    ? "danger"
+    : isRunningStatus(runTaskState(props.run))
+      ? "live"
+      : "good";
   const input = runInput(props.run);
 
   return (
@@ -176,7 +180,7 @@ function OpsSettingsRunItem(props: {
       }}
     >
       <summary className="ops-settings-run-summary" title={runMeta(props.run)}>
-        <RunStateIcon status={props.run.status} />
+        <RunStateIcon status={runTaskState(props.run)} />
         <span className="ops-settings-run-summary-main">
           <strong>{runTitle(props.run)}</strong>
           <small>
@@ -358,12 +362,12 @@ export function OpsCenterSidebar(props: {
                         onClick={() => props.onSelectRun(runId)}
                         title={runMeta(run)}
                       >
-                        <RunStateIcon status={run.status} />
+                        <RunStateIcon status={runTaskState(run)} />
                         <span>
                           <strong>{runTitle(run)}</strong>
                           <small>{runMeta(run)}</small>
                         </span>
-                        <span>{String(run.status || "unknown")}</span>
+                        <span>{localizedStatus(runTaskState(run), t)}</span>
                       </button>
                     );
                   })}
@@ -430,7 +434,7 @@ export function OpsCenterView(props: { selectedRunId: string } & OpsCenterProps)
             {activeRun ? (
               <>
                 <div className="ops-run-heading">
-                  <RunStateIcon status={activeRun.status} />
+                  <RunStateIcon status={runTaskState(activeRun)} />
                   <div>
                     <h2>{runTitle(activeRun)}</h2>
                     <p>{[runSourceLabel(activeRun), runMeta(activeRun)].filter(Boolean).join(" · ")}</p>
@@ -440,7 +444,7 @@ export function OpsCenterView(props: { selectedRunId: string } & OpsCenterProps)
                 <section className="ops-document-section">
                   <div className="ops-run-summary-grid">
                     <SummaryCell label="Source" value={runSourceLabel(activeRun)} />
-                    <SummaryCell label="Status" value={String(activeRun.status || "unknown")} />
+                    <SummaryCell label="Status" value={localizedStatus(runTaskState(activeRun))} />
                     <SummaryCell label="Model" value={String(activeRun.modelId || "unknown")} />
                     <SummaryCell label="Duration" value={runDuration(activeRun)} />
                     <SummaryCell label="Run" value={activeRunId ? compactIdentifier(activeRunId) : "unknown"} />
@@ -588,13 +592,13 @@ export function OpsCenterView(props: { selectedRunId: string } & OpsCenterProps)
 
 function RunStateIcon(props: { status?: string }) {
   const state = String(props.status || "unknown").toLowerCase();
-  if (state === "failed" || state === "error") {
+  if (state === "task_state_failed" || state === "task_state_canceled" || state === "task_state_rejected") {
     return <AlertCircle className="ops-run-state-icon" data-state={state} size={15} />;
   }
-  if (state === "succeeded" || state === "success" || state === "finished" || state === "completed") {
+  if (state === "task_state_completed") {
     return <CheckCircle2 className="ops-run-state-icon" data-state="succeeded" size={15} />;
   }
-  if (state === "running" || state === "active") {
+  if (state === "task_state_working") {
     return <CircleDot className="ops-run-state-icon" data-state="running" size={15} />;
   }
   return <Clock3 className="ops-run-state-icon" data-state={state} size={15} />;
@@ -761,7 +765,7 @@ function runDuration(run: RunRecord): string {
 function runMeta(run: RunRecord): string {
   const runId = run.runId || run.id || "";
   const time = run.finishedAt || run.endedAt || run.startedAt || run.createdAt || "";
-  return [run.status || "unknown", runId ? `run ${compactIdentifier(runId)}` : "", formatDate(time)]
+  return [runTaskState(run) || "unknown", runId ? `run ${compactIdentifier(runId)}` : "", formatDate(time)]
     .filter(Boolean)
     .join(" · ");
 }
@@ -776,16 +780,16 @@ function runActivitySignal(
   const elapsedMs = Math.max(0, Date.now() - timestamp);
   const lastActivityLabel = relativeActivityLabel(elapsedMs, t);
   const error = String(run.error || "");
-  if (isFailedStatus(run.status) && /timed out|timeout/i.test(error)) {
+  if (isFailedStatus(runTaskState(run)) && /timed out|timeout/i.test(error)) {
     return { statusLabel: t("ops.statusTimedOut"), lastActivityLabel };
   }
-  if (isRunningStatus(run.status) && elapsedMs >= 5 * 60_000) {
+  if (isRunningStatus(runTaskState(run)) && elapsedMs >= 5 * 60_000) {
     return {
       statusLabel: `${t("ops.statusPossiblyStalled")} · ${lastActivityLabel}`,
       lastActivityLabel,
     };
   }
-  return { statusLabel: localizedStatus(run.status, t), lastActivityLabel };
+  return { statusLabel: localizedStatus(runTaskState(run), t), lastActivityLabel };
 }
 
 function relativeActivityLabel(elapsedMs: number, t: TranslationFn = translate): string {
@@ -822,22 +826,29 @@ function localizedSourceLabel(sourceId: RunSourceId, t: TranslationFn = translat
 
 function localizedStatus(status: unknown, t: TranslationFn = translate): string {
   const state = String(status || "unknown").toLowerCase();
-  if (state === "succeeded" || state === "success" || state === "finished" || state === "completed")
-    return t("ops.statusSucceeded");
-  if (state === "failed" || state === "error") return t("mountedApp.flowFailed");
-  if (state === "running" || state === "active") return t("settings.running");
-  if (state === "pending" || state === "queued") return t("ops.statusPending");
+  if (state === "task_state_completed") return t("ops.statusSucceeded");
+  if (state === "task_state_failed") return t("mountedApp.flowFailed");
+  if (state === "task_state_canceled") return t("ops.statusCanceled");
+  if (state === "task_state_rejected") return t("ops.statusRejected");
+  if (state === "task_state_working") return t("settings.running");
+  if (state === "task_state_submitted") return t("ops.statusPending");
+  if (state === "task_state_input_required") return t("ops.statusInputRequired");
+  if (state === "task_state_auth_required") return t("ops.statusAuthRequired");
   return state === "unknown" ? t("common.unknown") : state;
 }
 
 function isFailedStatus(status: unknown): boolean {
   const state = String(status || "").toLowerCase();
-  return state === "failed" || state === "error";
+  return state === "task_state_failed" || state === "task_state_canceled" || state === "task_state_rejected";
 }
 
 function isRunningStatus(status: unknown): boolean {
   const state = String(status || "").toLowerCase();
-  return state === "running" || state === "active";
+  return state === "task_state_working" || state === "task_state_submitted";
+}
+
+function runTaskState(run: RunRecord): string {
+  return String(run.lifecycle?.taskState || "");
 }
 
 function finalModelResponseText(run: RunRecord, events: AgentEventRecord[]): string {

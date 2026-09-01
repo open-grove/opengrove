@@ -62,7 +62,7 @@ export function createGatewayTurnState(input: {
 
 export async function waitForGatewayTurn(
   state: HermesGatewayTurnState,
-  options: { timeoutMs: number; signal?: AbortSignal },
+  options: { timeoutMs?: number; signal?: AbortSignal },
 ): Promise<void> {
   const completion = (state as HermesGatewayTurnState & { completion: Promise<void> }).completion;
   let timeout: ReturnType<typeof setTimeout> | undefined;
@@ -72,11 +72,13 @@ export async function waitForGatewayTurn(
     await Promise.race([
       completion,
       new Promise<void>((_, reject) => {
-        timeout = setTimeout(
-          () => reject(new Error("hermes_gateway_turn_timed_out")),
-          Math.max(100, options.timeoutMs),
-        );
-        timeout.unref?.();
+        if (options.timeoutMs !== undefined) {
+          timeout = setTimeout(
+            () => reject(new Error("hermes_gateway_turn_timed_out")),
+            Math.max(100, options.timeoutMs),
+          );
+          timeout.unref?.();
+        }
         if (options.signal) {
           const abortListener = () => {
             abortTimeout = setTimeout(() => reject(new Error("hermes_gateway_turn_aborted")), 15_000);

@@ -29,7 +29,12 @@ const app = createOpenGrove({
         },
       };
       yield { type: "assistant.delta", runId, text: "OpenGrove smoke runtime is alive." };
-      yield { type: "turn.finished", runId, at: new Date().toISOString() };
+      yield {
+        type: "turn.finished",
+        runId,
+        at: new Date().toISOString(),
+        outcome: { taskState: "TASK_STATE_COMPLETED" },
+      };
     },
   },
   sessionId: "smoke",

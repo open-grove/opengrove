@@ -390,6 +390,7 @@ function updatePersistedApprovalPart(
       part.status = "rejected";
       if (responseError) part.error = responseError;
     }
+    if (request.status === "canceled") part.status = "canceled";
     return;
   }
 }
@@ -407,6 +408,7 @@ function updatePersistedQuestionPart(
     if (question.response !== undefined) part.result = question.response;
     if (question.status === "answered" && part.status === "requires-action") part.status = "answered";
     if (question.status === "declined") part.status = "declined";
+    if (question.status === "canceled") part.status = "canceled";
     return;
   }
 }

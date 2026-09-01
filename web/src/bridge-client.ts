@@ -929,7 +929,7 @@ export async function guideAskStream(payload: {
 export async function compactAskSession(payload: {
   threadId: string;
   reason?: string;
-}): Promise<{ ok: boolean; compacted: boolean; error?: string }> {
+}): Promise<{ ok: boolean; compacted: boolean; error?: string; outcomeUnknown?: boolean }> {
   return postContractJson(askCompactContract, "/ask/compact", payload);
 }
 

@@ -279,10 +279,21 @@ export class ClaudeCodeRuntime implements AgentRuntime {
       stdoutReadError: stdoutReadError?.message,
     });
     if (aborted) {
+      const partialText = resultText || assistantText;
+      if (partialText) {
+        yield {
+          type: "assistant.final",
+          runId,
+          text: partialText,
+          at: new Date().toISOString(),
+          source: "runtime",
+        };
+      }
       yield {
-        type: "error",
+        type: "turn.finished",
         runId,
-        message: "claude_code_aborted",
+        at: new Date().toISOString(),
+        outcome: { taskState: "TASK_STATE_CANCELED", reasonCode: "native_cancelled", retryable: false },
       };
       return;
     }
@@ -344,7 +355,22 @@ export class ClaudeCodeRuntime implements AgentRuntime {
       exitCode,
       finalTextBytes: Buffer.byteLength(finalText, "utf8"),
     });
-    yield { type: "turn.finished", runId, at: new Date().toISOString() };
+    yield {
+      type: "turn.finished",
+      runId,
+      at: new Date().toISOString(),
+      outcome:
+        resultIsError || stdoutReadError || (exitCode !== null && exitCode !== 0)
+          ? { taskState: "TASK_STATE_FAILED", reasonCode: "claude_code_failed" }
+          : exitCode === null
+            ? {
+                taskState: "TASK_STATE_FAILED",
+                reasonCode: "producer_lost",
+                retryable: false,
+                outcomeUnknown: true,
+              }
+            : { taskState: "TASK_STATE_COMPLETED" },
+    };
   }
 
   private prepareLaunchConfig(

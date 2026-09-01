@@ -22,7 +22,7 @@ export async function handlePendingActionsRoute(options: {
   if (request.method === "GET" && url.pathname === "/approvals") {
     const status = url.searchParams.get("status");
     const approvals = presentApprovalSummaries(
-      (status === "pending" || status === "approved" || status === "rejected"
+      (status === "pending" || status === "approved" || status === "rejected" || status === "canceled"
         ? state.app.approvals.list(status)
         : state.app.approvals.list()
       )
@@ -36,7 +36,7 @@ export async function handlePendingActionsRoute(options: {
   if (request.method === "GET" && url.pathname === "/questions") {
     const status = url.searchParams.get("status");
     const questions = presentQuestionSummaries(
-      (status === "pending" || status === "answered" || status === "declined"
+      (status === "pending" || status === "answered" || status === "declined" || status === "canceled"
         ? state.app.questions.list(status)
         : state.app.questions.list()
       )
@@ -47,28 +47,28 @@ export async function handlePendingActionsRoute(options: {
     return true;
   }
 
-  const approvalAction = url.pathname.match(/^\/approvals\/([^/]+)\/(approve|reject)$/);
+  const approvalAction = url.pathname.match(/^\/approvals\/([^/]+)\/(approve|reject|cancel)$/);
   if (request.method === "POST" && approvalAction) {
     const [, approvalId, action] = approvalAction;
     const body = record(await readJsonBody(request));
     const result = await resolveApproval(
       state,
       decodeURIComponent(approvalId!),
-      action === "approve" ? "approved" : "rejected",
+      action === "approve" ? "approved" : action === "reject" ? "rejected" : "canceled",
       body.response as JsonValue | undefined,
     );
     sendJson(response, 200, result);
     return true;
   }
 
-  const questionAction = url.pathname.match(/^\/questions\/([^/]+)\/(answer|decline)$/);
+  const questionAction = url.pathname.match(/^\/questions\/([^/]+)\/(answer|decline|cancel)$/);
   if (request.method === "POST" && questionAction) {
     const [, questionId, action] = questionAction;
     const body = record(await readJsonBody(request));
     const result = await resolveQuestion(
       state,
       decodeURIComponent(questionId!),
-      action === "answer" ? "answered" : "declined",
+      action === "answer" ? "answered" : action === "decline" ? "declined" : "canceled",
       body.response as JsonValue | undefined,
     );
     sendJson(response, 200, result);

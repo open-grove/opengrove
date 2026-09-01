@@ -7,18 +7,19 @@ import {
   type JsonObject,
   type JsonValue,
   type ToolDefinition,
+  type ToolCallContext,
+  type ToolLivenessContract,
   type ToolResult,
 } from "../core.js";
 import type { AsyncEventQueue } from "./codex/async-event-queue.js";
 import { asJsonValue, isJsonObject } from "./codex/json.js";
-
-const HOST_TOOL_APPROVAL_TIMEOUT_MS = 120_000;
 
 export interface HostToolDescriptor {
   name: string;
   description: string;
   inputSchema: JsonObject;
   annotations: ToolAnnotations;
+  liveness: ToolLivenessContract;
 }
 
 export interface HostToolBridge {
@@ -48,6 +49,7 @@ export function createHostToolBridge(
       description: `${definition.spec.title}: ${definition.spec.description}`.trim(),
       inputSchema: definition.spec.input.schema,
       annotations: hostToolAnnotations(definition),
+      liveness: hostToolLiveness(definition),
     };
   });
 
@@ -104,7 +106,7 @@ export function createHostToolBridge(
       }
 
       try {
-        const result = await definition.execute(input as JsonObject, {
+        const result = await executeHostToolWithLiveness(definition, input as JsonObject, {
           runId,
           capabilityId,
           skillId: request.requestedSkillInvocation?.skillId,
@@ -114,6 +116,7 @@ export function createHostToolBridge(
           approvals: request.context.approvals,
           skills: request.context.skills,
           packs: request.context.packs,
+          signal: request.signal,
           policy:
             policy.mode === "allow"
               ? policy
@@ -131,6 +134,52 @@ export function createHostToolBridge(
       }
     },
   };
+}
+
+export async function executeHostToolWithLiveness(
+  definition: ToolDefinition,
+  input: JsonObject,
+  context: ToolCallContext,
+): Promise<ToolResult> {
+  const signal = context.signal;
+  if (signal?.aborted) {
+    return {
+      ok: false,
+      error: "host_tool_canceled_before_start",
+      value: { status: "canceled", outcomeUnknown: false },
+    };
+  }
+  const execution = definition.execute(input, context);
+  if (!signal) return await execution;
+
+  const liveness = hostToolLiveness(definition);
+  let cancelTimer: ReturnType<typeof setTimeout> | undefined;
+  let removeAbortListener: (() => void) | undefined;
+  const abandoned = new Promise<ToolResult>((resolvePromise) => {
+    let cancellationStarted = false;
+    const onAbort = () => {
+      if (cancellationStarted) return;
+      cancellationStarted = true;
+      cancelTimer = setTimeout(
+        () =>
+          resolvePromise({
+            ok: false,
+            error: "host_tool_cancel_outcome_unknown",
+            value: { status: "canceled", outcomeUnknown: true },
+          }),
+        Math.max(0, liveness.cancellationGraceMs ?? 1_500),
+      );
+    };
+    signal.addEventListener("abort", onAbort, { once: true });
+    removeAbortListener = () => signal.removeEventListener("abort", onAbort);
+    if (signal.aborted) onAbort();
+  });
+  try {
+    return await Promise.race([execution, abandoned]);
+  } finally {
+    if (cancelTimer) clearTimeout(cancelTimer);
+    removeAbortListener?.();
+  }
 }
 
 async function requestHostToolApproval(input: {
@@ -162,14 +211,15 @@ async function requestHostToolApproval(input: {
   let decided;
   try {
     decided = await input.request.context.approvals.waitForDecision(approval.id, {
-      timeoutMs: HOST_TOOL_APPROVAL_TIMEOUT_MS,
       signal: input.request.signal,
     });
   } catch (error) {
     const current = input.request.context.approvals.get(approval.id);
     decided =
       current?.status === "pending"
-        ? input.request.context.approvals.decide(approval.id, "rejected", {
+        ? input.request.context.approvals.decide(approval.id, "canceled", {
+            system: true,
+            reasonCode: input.request.signal?.aborted ? "run_canceled" : "host_tool_request_failed",
             error: error instanceof Error ? error.message : String(error),
           })
         : current;
@@ -206,6 +256,17 @@ function hostToolAnnotations(definition: ToolDefinition): ToolAnnotations {
     destructiveHint: definition.spec.risk === "delete",
     openWorldHint: definition.spec.activity === "browser" || definition.spec.activity === "computer",
   };
+}
+
+function hostToolLiveness(definition: ToolDefinition): ToolLivenessContract {
+  return (
+    definition.spec.liveness ?? {
+      cancellation: "run-signal",
+      deadlineSource: "none",
+      abandonOutcome: "outcome-unknown",
+      terminalConfirmation: "tool-result",
+    }
+  );
 }
 
 function capabilityMap(request: AgentTurnRequest): Map<string, string> {
@@ -248,6 +309,7 @@ function fingerprintHostTools(tools: ToolDefinition[]): string {
           schema: item.spec.input.schema,
           risk: item.spec.risk,
           permission: item.spec.permission,
+          liveness: hostToolLiveness(item),
         })),
       ),
     )

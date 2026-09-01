@@ -7,3 +7,4 @@ export * from "./employee-contract.js";
 export * from "./kernel-status.js";
 export * from "./locale-registry.js";
 export * from "./room-context.js";
+export * from "./run-lifecycle.js";

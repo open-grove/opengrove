@@ -3,7 +3,7 @@ import type { AgentEventRecord, RunRecord } from "../../bridge";
 import { useI18n } from "../../i18n";
 import type { MentionOption } from "./room-composer";
 import type { MentionMenuState } from "./room-chat-utils";
-import { groupEventsByRunId, isTerminalRunStatus, removedMemberForRoom, runRecordId } from "./rooms-guide";
+import { groupEventsByRunId, isTerminalRunLifecycle, removedMemberForRoom, runRecordId } from "./rooms-guide";
 import { visibleEmployeeDefinitions } from "./contacts-model";
 import { ROOM_OWNER_MEMBER, directRoomMember, roomMemberDisplayName, type Room, type RoomMember } from "./rooms-model";
 
@@ -147,7 +147,7 @@ export function useRoomsDerivedState(input: {
     const runIds = new Set<string>();
     for (const run of input.runs ?? []) {
       const runId = runRecordId(run);
-      if (runId && !isTerminalRunStatus(run.status)) {
+      if (runId && !isTerminalRunLifecycle(run)) {
         runIds.add(runId);
       }
     }

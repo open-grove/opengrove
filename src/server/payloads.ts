@@ -241,18 +241,6 @@ export function isSessionStatus(value: string): value is "active" | "idle" | "ar
   return value === "active" || value === "idle" || value === "archived";
 }
 
-export function isRunStatus(
-  value: string,
-): value is "running" | "waiting_for_approval" | "waiting_for_user" | "succeeded" | "failed" {
-  return (
-    value === "running" ||
-    value === "waiting_for_approval" ||
-    value === "waiting_for_user" ||
-    value === "succeeded" ||
-    value === "failed"
-  );
-}
-
 export function isExecutionKind(
   value: string,
 ): value is "loop" | "model" | "tool_call" | "approval" | "question" | "planning" | "artifact" | "memory" | "error" {

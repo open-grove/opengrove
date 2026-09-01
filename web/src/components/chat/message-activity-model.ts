@@ -481,6 +481,9 @@ export function activityItemTitle(item: ActivityItem): string {
     if (item.part.approvalStatus === "approved") {
       return translate("activity.confirmedLabel", { label });
     }
+    if (item.part.approvalStatus === "canceled") {
+      return translate("activity.canceledLabel", { label });
+    }
     if (approvalTimedOut(item.part)) {
       return translate("activity.timeoutLabel", { label });
     }
@@ -491,8 +494,11 @@ export function activityItemTitle(item: ActivityItem): string {
     if (item.part.questionStatus === "pending") {
       return translate("activity.waitingAnswerTitle", { title: questionTitle });
     }
-    return item.part.questionStatus === "answered"
-      ? translate("activity.answeredTitle", { title: questionTitle })
+    if (item.part.questionStatus === "answered") {
+      return translate("activity.answeredTitle", { title: questionTitle });
+    }
+    return item.part.questionStatus === "canceled"
+      ? translate("activity.canceledTitle", { title: questionTitle })
       : translate("activity.skippedTitle", { title: questionTitle });
   }
 

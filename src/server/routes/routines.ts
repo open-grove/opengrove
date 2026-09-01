@@ -117,19 +117,40 @@ function normalizeRoutineSteps(value: unknown): RoutineStep[] {
     const object = record(entry);
     const memberId = stringValue(object.memberId);
     const toolId = stringValue(object.toolId);
-    if (!memberId && !toolId) continue;
+    const flowApproval = normalizeFlowApproval(object.flowApproval);
+    if (!memberId && !toolId && !flowApproval) continue;
+    const approval = normalizeRoutineApproval(object.approval);
     steps.push({
       id: stringValue(object.id) || `step_${index + 1}`,
       title: stringValue(object.title) || stringValue(object.prompt).slice(0, 60) || `Step ${index + 1}`,
       ...(toolId ? { toolId } : {}),
+      ...(stringValue(object.capabilityId) ? { capabilityId: stringValue(object.capabilityId) } : {}),
+      ...(stringValue(object.skillId) ? { skillId: stringValue(object.skillId) } : {}),
       ...(memberId ? { memberId } : {}),
       ...(stringValue(object.roomId) ? { roomId: stringValue(object.roomId) } : {}),
       ...(stringValue(object.prompt) ? { prompt: stringValue(object.prompt) } : {}),
       ...(object.input !== undefined ? { input: object.input as RoutineStep["input"] } : {}),
       ...(normalizeRoutineStepCondition(object.when) ? { when: normalizeRoutineStepCondition(object.when) } : {}),
+      ...(approval ? { approval } : {}),
+      ...(flowApproval ? { flowApproval } : {}),
     });
   }
   return steps;
+}
+
+function normalizeRoutineApproval(value: unknown): RoutineStep["approval"] | undefined {
+  const object = record(value);
+  const mode = stringValue(object.mode);
+  const reason = stringValue(object.reason);
+  if ((mode !== "allow" && mode !== "ask" && mode !== "deny") || !reason) return undefined;
+  return { mode, reason };
+}
+
+function normalizeFlowApproval(value: unknown): RoutineStep["flowApproval"] | undefined {
+  const object = record(value);
+  const flowId = stringValue(object.flowId);
+  const stepId = stringValue(object.stepId);
+  return flowId && stepId ? { flowId, stepId } : undefined;
 }
 
 function normalizeRoutineStepCondition(value: unknown): RoutineStep["when"] | undefined {

@@ -89,9 +89,9 @@ type PendingGatewayRequest = {
   cleanup(): void;
 };
 
-const OPENCLAW_GATEWAY_TIMEOUT_MS = 900_000;
 const CONNECT_TIMEOUT_MS = 30_000;
 const DISCOVERY_TIMEOUT_MS = 3_000;
+const OPENCLAW_COMPACT_TIMEOUT_MS = 120_000;
 const CONNECT_CHALLENGE_GRACE_MS = 750;
 const DEFAULT_OPENCLAW_GATEWAY_PORT = 18789;
 const OPENCLAW_MIN_PROTOCOL = 3;
@@ -181,7 +181,7 @@ export class OpenClawGatewayRuntime implements AgentRuntime {
         await this.client.request(
           "sessions.compact",
           { key: sessionKey },
-          { timeoutMs: this.options.requestTimeoutMs ?? OPENCLAW_GATEWAY_TIMEOUT_MS },
+          { timeoutMs: this.options.requestTimeoutMs ?? OPENCLAW_COMPACT_TIMEOUT_MS },
         ),
       );
       if (result.compacted === true) return { ok: true, compacted: true };
@@ -204,13 +204,15 @@ export class OpenClawGatewayRuntime implements AgentRuntime {
     const runId = request.runId ?? `run_${Date.now()}`;
     let turnStarted = false;
     let turnFinished = false;
+    let producerFailure = "";
     const producer = this.produceGatewayTurn(request, queue, runId)
       .then(() => queue.close())
       .catch((error) => {
+        producerFailure = error instanceof Error ? error.message : String(error);
         queue.push({
           type: "error",
           runId,
-          message: error instanceof Error ? error.message : String(error),
+          message: producerFailure,
         });
         queue.close();
       });
@@ -222,7 +224,16 @@ export class OpenClawGatewayRuntime implements AgentRuntime {
     }
     await producer;
     if (turnStarted && !turnFinished) {
-      yield { type: "turn.finished", runId, at: new Date().toISOString() };
+      yield {
+        type: "turn.finished",
+        runId,
+        at: new Date().toISOString(),
+        outcome: {
+          taskState: "TASK_STATE_FAILED",
+          reasonCode: producerFailure ? "openclaw_gateway_failed" : "openclaw_native_terminal_missing",
+          outcomeUnknown: true,
+        },
+      };
     }
   }
 
@@ -346,7 +357,7 @@ export class OpenClawGatewayRuntime implements AgentRuntime {
             sessionId: request.context.sessionId,
             message: prompt,
             deliver: false,
-            timeoutMs: this.options.requestTimeoutMs ?? OPENCLAW_GATEWAY_TIMEOUT_MS,
+            ...(this.options.requestTimeoutMs !== undefined ? { timeoutMs: this.options.requestTimeoutMs } : {}),
             idempotencyKey: runId,
           },
           { timeoutMs: 30_000, signal: request.signal },
@@ -359,9 +370,9 @@ export class OpenClawGatewayRuntime implements AgentRuntime {
           "agent.wait",
           {
             runId: nativeRunId,
-            timeoutMs: this.options.requestTimeoutMs ?? OPENCLAW_GATEWAY_TIMEOUT_MS,
+            ...(this.options.requestTimeoutMs !== undefined ? { timeoutMs: this.options.requestTimeoutMs } : {}),
           },
-          { timeoutMs: this.options.requestTimeoutMs ?? OPENCLAW_GATEWAY_TIMEOUT_MS, signal: request.signal },
+          { timeoutMs: this.options.requestTimeoutMs, signal: request.signal },
         ),
       );
       const waitStatus = readString(wait, "status");
@@ -381,7 +392,25 @@ export class OpenClawGatewayRuntime implements AgentRuntime {
         queue.push({ type: "error", runId, message: "openclaw_gateway_empty_response" });
       }
       queue.push({ type: "model.response", runId, response: { text: assistantText.trimEnd() } });
-      queue.push({ type: "turn.finished", runId, at: new Date().toISOString() });
+      const normalizedWaitStatus = (waitStatus || "").trim().toLowerCase();
+      queue.push({
+        type: "turn.finished",
+        runId,
+        at: new Date().toISOString(),
+        outcome: sawTerminalError
+          ? { taskState: "TASK_STATE_FAILED", reasonCode: "openclaw_gateway_run_failed" }
+          : !assistantText.trim()
+            ? { taskState: "TASK_STATE_FAILED", reasonCode: "openclaw_gateway_empty_response" }
+            : ["ok", "complete", "completed", "success"].includes(normalizedWaitStatus)
+              ? { taskState: "TASK_STATE_COMPLETED" }
+              : ["aborted", "cancelled", "canceled", "interrupted"].includes(normalizedWaitStatus)
+                ? { taskState: "TASK_STATE_CANCELED", reasonCode: "native_interrupted", retryable: false }
+                : {
+                    taskState: "TASK_STATE_FAILED",
+                    reasonCode: "openclaw_gateway_terminal_unknown",
+                    outcomeUnknown: true,
+                  },
+      });
     } finally {
       cleanup();
       request.signal?.removeEventListener("abort", abort);

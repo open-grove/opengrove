@@ -353,7 +353,12 @@ const persistedParts = persistedRoomRunParts(
       toolId: "room.ledger.read",
       result: { ok: true, value: { messages: [] } },
     },
-    { type: "turn.finished", runId: "run-persist", at: new Date(1).toISOString() },
+    {
+      type: "turn.finished",
+      runId: "run-persist",
+      at: new Date(1).toISOString(),
+      outcome: { taskState: "TASK_STATE_COMPLETED" },
+    },
   ],
   "run-persist",
 );

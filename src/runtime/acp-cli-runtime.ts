@@ -260,7 +260,18 @@ export class AcpCliRuntime implements AgentRuntime {
       }
     }
     if (turnStarted && !turnFinished) {
-      yield { type: "turn.finished", runId, at: new Date().toISOString() };
+      yield {
+        type: "turn.finished",
+        runId,
+        at: new Date().toISOString(),
+        outcome: request.signal?.aborted
+          ? {
+              taskState: "TASK_STATE_FAILED",
+              reasonCode: "acp_cancel_outcome_unknown",
+              outcomeUnknown: true,
+            }
+          : { taskState: "TASK_STATE_FAILED", reasonCode: "acp_native_terminal_missing", outcomeUnknown: true },
+      };
     }
   }
 
@@ -443,7 +454,12 @@ export class AcpCliRuntime implements AgentRuntime {
           runId,
           message: diagnostic || `${this.options.kernelId}_empty_response`,
         });
-        queue.push({ type: "turn.finished", runId, at: new Date().toISOString() });
+        queue.push({
+          type: "turn.finished",
+          runId,
+          at: new Date().toISOString(),
+          outcome: { taskState: "TASK_STATE_FAILED", reasonCode: "acp_empty_response" },
+        });
         return;
       }
       queue.push({
@@ -451,7 +467,14 @@ export class AcpCliRuntime implements AgentRuntime {
         runId,
         response: { text: finalText, ...(usage ? { usage } : {}) },
       });
-      queue.push({ type: "turn.finished", runId, at: new Date().toISOString() });
+      queue.push({
+        type: "turn.finished",
+        runId,
+        at: new Date().toISOString(),
+        outcome: request.signal?.aborted
+          ? { taskState: "TASK_STATE_CANCELED", reasonCode: "native_cancelled", retryable: false }
+          : { taskState: "TASK_STATE_COMPLETED" },
+      });
     } catch (error) {
       for (const event of projector.flushReasoning()) {
         queue.push(event);

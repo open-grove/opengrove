@@ -138,6 +138,12 @@ export interface AgentTurnOptions {
   signal?: AbortSignal;
   runtimeEnv?: NodeJS.ProcessEnv;
   hostToolScope?: Omit<AgentHostToolScope, "sessionId">;
+  /**
+   * Event commit ownership for this Turn. The default keeps the App as the
+   * single writer. Bridge retry coordinators may select `caller` so a native
+   * failed terminal can be withheld before it becomes the Run's durable fact.
+   */
+  eventPersistence?: "app" | "caller";
 }
 
 export interface RecordEventOptions {
@@ -638,6 +644,14 @@ export function createOpenGrove(options: CreateOpenGroveOptions): OpenGroveApp {
       const sessionId = turnOptions.sessionId ?? options.sessionId ?? "local";
       const activity: ActivitySpace = hasComputerState(computer) ? "computer" : "browser";
       const runId = turnOptions.runId ?? createRunId();
+      const persistEvent = (event: AgentEvent): void => {
+        if (turnOptions.eventPersistence === "caller") return;
+        app.recordEvent(event, {
+          sessionId,
+          activity,
+          input: preparedInput.originalInput,
+        });
+      };
       const availableSkills = selectAvailableSkills(
         skills.list(),
         turnOptions.availableSkillNames,
@@ -752,11 +766,7 @@ export function createOpenGrove(options: CreateOpenGroveOptions): OpenGroveApp {
           });
           if (finalEvent) {
             turnEvents.push(finalEvent);
-            app.recordEvent(finalEvent, {
-              sessionId,
-              activity,
-              input: preparedInput.originalInput,
-            });
+            persistEvent(finalEvent);
             yield finalEvent;
           }
         }
@@ -773,11 +783,7 @@ export function createOpenGrove(options: CreateOpenGroveOptions): OpenGroveApp {
         if (event.type === "run.paused") {
           runPaused = true;
         }
-        app.recordEvent(event, {
-          sessionId,
-          activity,
-          input: preparedInput.originalInput,
-        });
+        persistEvent(event);
         yield event;
         if (!seededSkillEvents && event.type === "turn.started") {
           seededSkillEvents = true;
@@ -787,19 +793,11 @@ export function createOpenGrove(options: CreateOpenGroveOptions): OpenGroveApp {
               runId,
               skills: availableSkills,
             };
-            app.recordEvent(discovered, {
-              sessionId,
-              activity,
-              input: preparedInput.originalInput,
-            });
+            persistEvent(discovered);
             yield discovered;
           }
           for (const extra of preparedInput.prefixEvents) {
-            app.recordEvent(extra, {
-              sessionId,
-              activity,
-              input: preparedInput.originalInput,
-            });
+            persistEvent(extra);
             yield extra;
           }
         }
@@ -824,11 +822,7 @@ export function createOpenGrove(options: CreateOpenGroveOptions): OpenGroveApp {
             },
           });
           const memoryEvent: AgentEvent = { type: "memory.written", runId, record };
-          app.recordEvent(memoryEvent, {
-            sessionId,
-            activity,
-            input: preparedInput.originalInput,
-          });
+          persistEvent(memoryEvent);
           yield memoryEvent;
         }
       }
@@ -838,11 +832,7 @@ export function createOpenGrove(options: CreateOpenGroveOptions): OpenGroveApp {
       });
       if (trailingFinalEvent) {
         turnEvents.push(trailingFinalEvent);
-        app.recordEvent(trailingFinalEvent, {
-          sessionId,
-          activity,
-          input: preparedInput.originalInput,
-        });
+        persistEvent(trailingFinalEvent);
         yield trailingFinalEvent;
       }
       if (!runPaused) {

@@ -3,6 +3,7 @@ import { z } from "zod";
 export const A2A_PROTOCOL_VERSION = "1.0";
 
 export const a2aTaskStateSchema = z.enum([
+  "TASK_STATE_UNSPECIFIED",
   "TASK_STATE_SUBMITTED",
   "TASK_STATE_WORKING",
   "TASK_STATE_COMPLETED",

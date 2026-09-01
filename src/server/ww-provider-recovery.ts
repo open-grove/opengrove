@@ -17,6 +17,46 @@ export interface WwApiKeyRecoveryResult {
   keyState?: WwKeyReconciliationState;
 }
 
+export interface WwRetryableTurnAttemptResult {
+  attemptEvents: AgentEvent[];
+  withheldEvents: AgentEvent[];
+  withheldError?: Extract<AgentEvent, { type: "error" }>;
+}
+
+/**
+ * Consumes one caller-persisted Turn. On the first recovery attempt, the WW
+ * credential error and every later event (including the failed terminal) stay
+ * uncommitted until the Host decides whether retry is safe.
+ */
+export async function consumeWwRetryableTurnAttempt(input: {
+  events: AsyncIterable<AgentEvent>;
+  withholdWwKeyFailure: boolean;
+  onEvent(event: AgentEvent): void | Promise<void>;
+}): Promise<WwRetryableTurnAttemptResult> {
+  const attemptEvents: AgentEvent[] = [];
+  const withheldEvents: AgentEvent[] = [];
+  let withholding = false;
+  for await (const event of input.events) {
+    attemptEvents.push(event);
+    if (
+      input.withholdWwKeyFailure &&
+      (withholding || (event.type === "error" && isWwApiKeyInvalidError(event.message)))
+    ) {
+      withholding = true;
+      withheldEvents.push(event);
+      continue;
+    }
+    await input.onEvent(event);
+  }
+  return {
+    attemptEvents,
+    withheldEvents,
+    withheldError: withheldEvents.find(
+      (event): event is Extract<AgentEvent, { type: "error" }> => event.type === "error",
+    ),
+  };
+}
+
 export function isWwApiKeyInvalidError(value: string | undefined): boolean {
   const message = value?.trim();
   if (!message) return false;
@@ -24,14 +64,21 @@ export function isWwApiKeyInvalidError(value: string | undefined): boolean {
 }
 
 export function isSafeWwApiKeyRetry(events: AgentEvent[]): boolean {
+  const credentialFailureIndex = events.findIndex(
+    (event) => event.type === "error" && isWwApiKeyInvalidError(event.message),
+  );
+  if (credentialFailureIndex < 0) return false;
   return events.every(
-    (event) =>
+    (event, index) =>
       event.type === "turn.started" ||
       event.type === "context.assembled" ||
+      event.type === "skill.discovered" ||
       (event.type === "runtime.diagnostic" &&
-        !/(?:hook|tool|approval|question|elicitation|plugin_install)/i.test(event.name)) ||
+        (event.name === "claude.host_tools.configured" ||
+          !/(?:hook|tool|approval|question|elicitation|plugin_install)/i.test(event.name))) ||
       event.type === "model.requested" ||
       event.type === "error" ||
+      (index > credentialFailureIndex && (event.type === "model.response" || event.type === "assistant.final")) ||
       event.type === "turn.finished",
   );
 }

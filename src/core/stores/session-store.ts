@@ -1,3 +1,4 @@
+import { isA2ATerminalTaskState, lifecycleFromRunFact, type RunLifecycle } from "#agent-protocol";
 import type {
   ActivitySpace,
   AgentEvent,
@@ -10,13 +11,19 @@ import type {
 } from "../types.js";
 import { sanitizeDiagnosticProblemRef } from "../../diagnostics/problem-schema.js";
 import { MutationRevision } from "./mutation-revision.js";
+import { normalizePersistedRunLifecycle } from "../run-lifecycle.compat.js";
+
+type StoredRunRecord = Omit<RunRecord, "lifecycle"> & {
+  lifecycle?: RunRecord["lifecycle"];
+  status?: unknown;
+};
 
 export class SessionStore {
   private readonly sessions = new Map<string, SessionRecord>();
   private readonly runs = new Map<string, RunRecord>();
   private readonly mutationRevision = new MutationRevision();
 
-  restore(snapshot: { sessions?: SessionRecord[]; runs?: RunRecord[] } = {}): void {
+  restore(snapshot: { sessions?: SessionRecord[]; runs?: StoredRunRecord[] } = {}): void {
     this.sessions.clear();
     this.runs.clear();
 
@@ -85,7 +92,7 @@ export class SessionStore {
       .filter((run) => {
         if (ids && !ids.has(run.id)) return false;
         if (filter.sessionId && run.sessionId !== filter.sessionId) return false;
-        if (filter.status && run.status !== filter.status) return false;
+        if (filter.taskState && run.lifecycle.taskState !== filter.taskState) return false;
         return true;
       })
       .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
@@ -109,6 +116,20 @@ export class SessionStore {
     input: string;
     title?: string;
   }): RunRecord {
+    const existing = this.runs.get(input.id);
+    if (existing) {
+      if (isA2ATerminalTaskState(existing.lifecycle.taskState)) {
+        throw new Error(`Run terminal identity is immutable: ${input.id}`);
+      }
+      if (
+        existing.sessionId !== input.sessionId ||
+        existing.activity !== input.activity ||
+        existing.input !== input.input
+      ) {
+        throw new Error(`Run identity conflict: ${input.id}`);
+      }
+      return this.getRun(input.id)!;
+    }
     const now = new Date().toISOString();
     this.ensureSession({
       id: input.sessionId,
@@ -121,7 +142,7 @@ export class SessionStore {
       id: input.id,
       sessionId: input.sessionId,
       activity: input.activity,
-      status: "running",
+      lifecycle: lifecycleFromRunFact({ kind: "started" }),
       input: input.input,
       createdAt: now,
       updatedAt: now,
@@ -129,6 +150,7 @@ export class SessionStore {
       approvalIds: [],
       questionIds: [],
       toolIds: [],
+      resumeCount: 0,
       eventCount: 0,
     });
     this.runs.set(run.id, run);
@@ -145,6 +167,7 @@ export class SessionStore {
     const updated = normalizeRun({
       ...current,
       ...patch,
+      lifecycle: patch.lifecycle ?? current.lifecycle,
       id: current.id,
       sessionId: current.sessionId,
       createdAt: current.createdAt,
@@ -189,6 +212,9 @@ export class SessionStore {
     };
 
     switch (event.type) {
+      case "turn.started":
+        patch.lifecycle = lifecycleFromRunFact({ kind: "started" });
+        break;
       case "model.requested":
         patch.modelId = event.request.modelId;
         patch.summary = summarizeRunText(run.summary, event.request.userInput);
@@ -204,70 +230,62 @@ export class SessionStore {
         break;
       case "tool.finished":
         patch.toolIds = uniqueStrings([...run.toolIds, event.toolId]);
-        if (run.status === "waiting_for_approval" || run.endedAt) {
-          patch.status = event.result.ok ? "succeeded" : "failed";
-          patch.endedAt = new Date().toISOString();
-          if (!event.result.ok) {
-            patch.error = event.result.error ?? "tool_failed";
-          }
-        }
         break;
       case "approval.requested":
         patch.approvalIds = uniqueStrings([...run.approvalIds, event.request.id]);
-        patch.status = "waiting_for_approval";
+        patch.lifecycle = lifecycleFromRunFact({ kind: "input_required", reasonCode: "approval_required" });
         patch.lastApprovalId = event.request.id;
         break;
       case "question.requested":
         patch.questionIds = uniqueStrings([...run.questionIds, event.question.id]);
-        patch.status = "waiting_for_user";
-        patch.pausedAt = event.question.createdAt;
-        patch.pauseReason = event.question.prompt;
+        if (event.question.isBlocking !== false) {
+          patch.lifecycle = lifecycleFromRunFact({ kind: "input_required", reasonCode: "question_required" });
+          patch.pausedAt = event.question.createdAt;
+          patch.pauseReason = event.question.prompt;
+        }
         patch.lastQuestionId = event.question.id;
         break;
       case "question.answered":
-        patch.status = "running";
+        patch.lifecycle = lifecycleFromRunFact({ kind: "started" });
         patch.resumedAt = event.question.updatedAt;
         patch.pauseReason = undefined;
         patch.lastQuestionId = event.question.id;
         break;
       case "run.paused":
-        patch.status = "waiting_for_approval";
+        patch.lifecycle = lifecycleFromRunFact({ kind: "input_required", reasonCode: "approval_required" });
         patch.pausedAt = event.at;
         patch.pauseReason = event.reason;
         patch.lastApprovalId = event.approvalId ?? run.lastApprovalId;
         break;
       case "run.resumed":
-        patch.status = "running";
+        patch.lifecycle = lifecycleFromRunFact({ kind: "started" });
         patch.resumedAt = event.at;
         patch.pauseReason = undefined;
-        patch.endedAt = undefined;
         patch.lastApprovalId = event.approvalId ?? run.lastApprovalId;
         patch.resumeCount = run.resumeCount + 1;
         break;
       case "approval.resolved":
         patch.lastApprovalId = event.request.id;
-        if (event.request.status === "rejected") {
-          patch.status = "failed";
-          patch.error = event.request.reason;
-          patch.endedAt = event.request.updatedAt;
-        }
+        patch.lifecycle = lifecycleFromRunFact({ kind: "started" });
+        patch.resumedAt = event.request.updatedAt;
+        patch.pauseReason = undefined;
         break;
       case "error":
-        patch.status = "failed";
         patch.error = event.message;
         if (event.problem) patch.problem = event.problem;
         break;
       case "turn.finished":
         patch.endedAt = event.at;
-        patch.status =
-          run.status === "waiting_for_approval" || run.status === "waiting_for_user"
-            ? run.status
-            : run.status === "failed"
-              ? "failed"
-              : "succeeded";
+        patch.lifecycle = lifecycleAfterTurnFinished(run.lifecycle, event.outcome);
         break;
       default:
         break;
+    }
+
+    if (isA2ATerminalTaskState(run.lifecycle.taskState)) {
+      patch.lifecycle = run.lifecycle;
+      patch.endedAt = run.endedAt;
+      patch.error = run.error;
     }
 
     return this.updateRun(event.runId, patch);
@@ -307,12 +325,11 @@ export class SessionStore {
         runIds: [],
       });
     const runIds = uniqueStrings([...current.runIds, run.id]);
-    const activeRunId =
-      run.status === "running" || run.status === "waiting_for_approval" || run.status === "waiting_for_user"
-        ? run.id
-        : current.activeRunId === run.id
-          ? undefined
-          : current.activeRunId;
+    const activeRunId = !isA2ATerminalTaskState(run.lifecycle.taskState)
+      ? run.id
+      : current.activeRunId === run.id
+        ? undefined
+        : current.activeRunId;
     const session = normalizeSession({
       ...current,
       activity: run.activity,
@@ -344,13 +361,14 @@ function normalizeSession(input: Partial<SessionRecord> & Pick<SessionRecord, "i
   };
 }
 
-function normalizeRun(input: Partial<RunRecord> & Pick<RunRecord, "id" | "sessionId">): RunRecord {
+function normalizeRun(input: StoredRunRecord & Pick<RunRecord, "id" | "sessionId">): RunRecord {
   const now = new Date().toISOString();
+  const lifecycle = normalizePersistedRunLifecycle(input.lifecycle, input.status);
   return {
     id: input.id,
     sessionId: input.sessionId,
     activity: input.activity ?? "chat",
-    status: input.status ?? "running",
+    lifecycle,
     input: typeof input.input === "string" ? input.input : "",
     createdAt: typeof input.createdAt === "string" ? input.createdAt : now,
     updatedAt: typeof input.updatedAt === "string" ? input.updatedAt : now,
@@ -371,6 +389,21 @@ function normalizeRun(input: Partial<RunRecord> & Pick<RunRecord, "id" | "sessio
     toolIds: uniqueStrings(input.toolIds),
     eventCount: typeof input.eventCount === "number" ? input.eventCount : 0,
   };
+}
+
+function lifecycleAfterTurnFinished(current: RunLifecycle, outcome?: RunLifecycle): RunLifecycle {
+  if (outcome) {
+    return outcome;
+  }
+  if (isA2ATerminalTaskState(current.taskState)) {
+    return current;
+  }
+  return lifecycleFromRunFact({
+    kind: "failed",
+    reasonCode: "terminal_outcome_missing",
+    retryable: false,
+    outcomeUnknown: true,
+  });
 }
 
 function sessionIdFromEvent(event: AgentEvent): string | undefined {

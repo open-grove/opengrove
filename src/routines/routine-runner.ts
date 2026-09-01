@@ -503,7 +503,12 @@ export async function runRoutine(
         message: step.skillId ? `routine_skill_step_not_executable:${step.id}` : `routine_step_no_target:${step.id}`,
         ...(problem ? { problem } : {}),
       });
-      events.push({ type: "turn.finished", runId, at: new Date().toISOString() });
+      events.push({
+        type: "turn.finished",
+        runId,
+        at: new Date().toISOString(),
+        outcome: { taskState: "TASK_STATE_FAILED", reasonCode: "routine_step_not_executable" },
+      });
       const summary = finishRoutine(app, routine, {
         id: runId,
         routineId,
@@ -635,7 +640,16 @@ export async function runRoutine(
         message: result.error ?? "routine_step_failed",
         ...(problem ? { problem } : {}),
       });
-      events.push({ type: "turn.finished", runId, at: new Date().toISOString() });
+      events.push({
+        type: "turn.finished",
+        runId,
+        at: new Date().toISOString(),
+        outcome: {
+          taskState: "TASK_STATE_FAILED",
+          reasonCode: result.error ?? "routine_step_failed",
+          ...(result.error?.endsWith("_outcome_unknown") ? { outcomeUnknown: true } : {}),
+        },
+      });
       const summary = finishRoutine(app, routine, {
         id: runId,
         routineId,
@@ -660,7 +674,12 @@ export async function runRoutine(
     await notifyStepStatus(statusObserver, routine, runId, step, "done", { output });
   }
 
-  events.push({ type: "turn.finished", runId, at: new Date().toISOString() });
+  events.push({
+    type: "turn.finished",
+    runId,
+    at: new Date().toISOString(),
+    outcome: { taskState: "TASK_STATE_COMPLETED" },
+  });
   const summary = finishRoutine(app, routine, {
     id: runId,
     routineId,
@@ -841,7 +860,16 @@ async function executeMemberStep(
     message: result.error ?? "routine_member_step_failed",
     ...(problem ? { problem } : {}),
   });
-  context.events.push({ type: "turn.finished", runId: context.runId, at: new Date().toISOString() });
+  context.events.push({
+    type: "turn.finished",
+    runId: context.runId,
+    at: new Date().toISOString(),
+    outcome: {
+      taskState: "TASK_STATE_FAILED",
+      reasonCode: result.error ?? "routine_member_step_failed",
+      ...(result.error?.endsWith("_outcome_unknown") ? { outcomeUnknown: true } : {}),
+    },
+  });
   const summary = finishRoutine(app, routine, {
     id: context.runId,
     routineId: routine.id,
@@ -886,7 +914,7 @@ function finishRoutine(app: RoutineRunnerPorts, routine: Routine, summary: Routi
   app.routines.update(routine.id, {
     lastRun: summary,
     status:
-      summary.status === "failed"
+      summary.status === "failed" && routineFailureNeedsRepair(summary)
         ? "needs_repair"
         : summary.status === "paused_for_approval"
           ? "paused"
@@ -895,6 +923,10 @@ function finishRoutine(app: RoutineRunnerPorts, routine: Routine, summary: Routi
             : routine.status,
   });
   return summary;
+}
+
+function routineFailureNeedsRepair(summary: RoutineRunSummary): boolean {
+  return summary.error === "skill_step_not_executable" || summary.error === "step_no_target";
 }
 
 function approvalForTool(permission: PermissionRequirement): PermissionRequirement | undefined {

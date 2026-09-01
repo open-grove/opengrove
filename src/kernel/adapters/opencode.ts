@@ -193,7 +193,16 @@ export class OpenCodeKernelAdapter implements KernelAdapter {
     yield { type: "turn.started", runId, at: new Date().toISOString() };
     yield { type: "assistant.delta", runId, text: message };
     yield { type: "model.response", runId, response: { text: message } };
-    yield { type: "turn.finished", runId, at: new Date().toISOString() };
+    yield {
+      type: "turn.finished",
+      runId,
+      at: new Date().toISOString(),
+      outcome: {
+        taskState: "TASK_STATE_REJECTED",
+        reasonCode: "kernel_unavailable",
+        retryable: false,
+      },
+    };
   }
 
   compactSession(request: AgentCompactRequest): Promise<AgentCompactResult> {

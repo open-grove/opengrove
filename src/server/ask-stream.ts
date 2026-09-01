@@ -2,6 +2,7 @@ import type { ServerResponse } from "node:http";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { collectAssistantText, type AgentEvent, type PolicyRule } from "../core.js";
+import { createAgentEventCheckpointPolicy } from "../core/event-persistence.js";
 import { hasComputerState } from "../environment/computer-adapter.js";
 import type { BrowserPageAttachmentSnapshot, BrowserPageSnapshot } from "../environment/browser-adapter.js";
 import type { BridgeAskPayload, BridgeAskResult, BridgeState } from "./bridge-types.js";
@@ -25,15 +26,17 @@ import {
 } from "./state-presentation.js";
 import {
   blockWwApiKeyRecoveryForExecution,
+  consumeWwRetryableTurnAttempt,
   recoverWwApiKeyForExecution,
   isWwApiKeyInvalidError,
 } from "./ww-provider-recovery.js";
 import {
   clearActiveBridgeRunExecutionState,
   registerActiveBridgeRun,
+  registerActiveBridgeRunInteraction,
   setActiveBridgeRunExecutionState,
 } from "./active-runs.js";
-import { isPendingActionEvent, syncPendingActionEventToApp } from "./pending-action-sync.js";
+import { syncPendingActionEventToApp } from "./pending-action-sync.js";
 
 type AskStreamChunk =
   | { type: "start"; ok: true; threadId: string; runId: string }
@@ -133,7 +136,7 @@ export async function guideBackgroundAskRun(
 export async function compactBackgroundAskSession(
   state: BridgeState,
   input: { threadId?: string; reason?: string },
-): Promise<{ ok: boolean; compacted: boolean; error?: string }> {
+): Promise<{ ok: boolean; compacted: boolean; error?: string; outcomeUnknown?: boolean }> {
   const threadId = input.threadId?.trim();
   if (!threadId) {
     return { ok: false, compacted: false, error: "thread_id_required" };
@@ -149,6 +152,7 @@ export async function compactBackgroundAskSession(
       ok: false,
       compacted: false,
       error: result.error || "compact_not_confirmed",
+      ...(result.outcomeUnknown ? { outcomeUnknown: true } : {}),
     };
   }
 
@@ -178,15 +182,16 @@ function startBackgroundAskRun(
 ): BackgroundAskRun {
   const runId = createBackgroundRunId();
   const rootState = state.rootState ?? state;
+  const controller = new AbortController();
   const run: BackgroundAskRun = {
     runId,
     threadId: payload.threadId,
     payload,
     rootState,
-    releaseActiveRun: registerActiveBridgeRun(rootState, runId),
+    releaseActiveRun: registerActiveBridgeRun(rootState, runId, { cancel: () => controller.abort() }),
     runtimeEnv: options.runtimeEnv,
     ...(options.wwAuth ? { wwAuth: options.wwAuth } : {}),
-    controller: new AbortController(),
+    controller,
     chunks: [],
     events: [],
     mediaArtifactByUri: new Map(),
@@ -221,38 +226,30 @@ async function executeBackgroundAskRun(state: BridgeState, run: BackgroundAskRun
         ...(run.runtimeEnv ?? {}),
         ...(appRuntimeEnv?.env ?? {}),
       };
-      const attemptEvents: AgentEvent[] = [];
-      const withheldEvents: AgentEvent[] = [];
-
-      await runWithBridgeTurnContext(turnContext, async () => {
-        for await (const event of executionState.app.runTurn(payload.question, {
-          sessionId: payload.threadId,
-          runId: run.runId,
-          requestedModelId: payload.model,
-          requestedEffort: payload.effort,
-          responseSpeed: payload.responseSpeed,
-          budgetLimitUsd: payload.budgetLimitUsd,
-          accessMode: payload.accessMode,
-          planMode: payload.planMode,
-          goalMode: payload.goalMode,
-          requestedSkillName: payload.requestedSkill?.name,
-          requestedSkillArgs: payload.requestedSkill?.args,
-          policy: policyOverrides,
-          runtimeEnv,
-          signal: run.controller.signal,
-        })) {
-          attemptEvents.push(event);
-          if (attempt === 0 && event.type === "error" && isWwApiKeyInvalidError(event.message)) {
-            withheldEvents.push(event);
-            continue;
-          }
-          if (withheldEvents.length && event.type === "turn.finished") {
-            withheldEvents.push(event);
-            continue;
-          }
-          recordAskRunEvent(run, payload, event);
-        }
-      });
+      const attemptResult = await runWithBridgeTurnContext(turnContext, async () =>
+        consumeWwRetryableTurnAttempt({
+          events: executionState.app.runTurn(payload.question, {
+            sessionId: payload.threadId,
+            runId: run.runId,
+            requestedModelId: payload.model,
+            requestedEffort: payload.effort,
+            responseSpeed: payload.responseSpeed,
+            budgetLimitUsd: payload.budgetLimitUsd,
+            accessMode: payload.accessMode,
+            planMode: payload.planMode,
+            goalMode: payload.goalMode,
+            requestedSkillName: payload.requestedSkill?.name,
+            requestedSkillArgs: payload.requestedSkill?.args,
+            policy: policyOverrides,
+            runtimeEnv,
+            signal: run.controller.signal,
+            eventPersistence: "caller",
+          }),
+          withholdWwKeyFailure: attempt === 0,
+          onEvent: (event) => recordAskRunEvent(run, payload, event),
+        }),
+      );
+      const { attemptEvents, withheldEvents, withheldError } = attemptResult;
 
       if (attempt === 1) {
         const repeatedKeyError = attemptEvents.find(
@@ -278,9 +275,6 @@ async function executeBackgroundAskRun(state: BridgeState, run: BackgroundAskRun
         }
       }
 
-      const withheldError = withheldEvents.find(
-        (event): event is Extract<AgentEvent, { type: "error" }> => event.type === "error",
-      );
       if (!withheldError) break;
       const recovery = await recoverWwApiKeyForExecution({
         state: executionState,
@@ -318,10 +312,6 @@ async function executeBackgroundAskRun(state: BridgeState, run: BackgroundAskRun
         runId: run.runId,
         message,
       };
-      executionState.app.recordEvent(errorEvent, {
-        sessionId: payload.threadId,
-        input: payload.question,
-      });
       recordAskRunEvent(run, payload, errorEvent);
       emitAskRunChunk(run, {
         type: "final",
@@ -349,8 +339,28 @@ async function executeBackgroundAskRun(state: BridgeState, run: BackgroundAskRun
 function recordAskRunEvent(run: BackgroundAskRun, payload: BridgeAskPayload, event: AgentEvent): void {
   attachModelId([event], payload.model);
   run.events.push(event);
-  const executionApp = run.executionState?.app;
-  if (executionApp && executionApp !== run.rootState.app) {
+  if (event.type === "approval.requested") {
+    registerActiveBridgeRunInteraction(run.rootState, {
+      runId: event.runId,
+      kind: "approval",
+      interactionId: event.request.id,
+      nativeRequestId: event.request.nativeRequestId,
+    });
+  } else if (event.type === "question.requested") {
+    registerActiveBridgeRunInteraction(run.rootState, {
+      runId: event.runId,
+      kind: "question",
+      interactionId: event.question.id,
+      nativeRequestId: event.question.nativeRequestId,
+    });
+  }
+  const executionApp = run.executionState?.app ?? run.rootState.app;
+  executionApp.recordEvent(event, {
+    sessionId: payload.threadId,
+    activity: "browser",
+    input: payload.question,
+  });
+  if (executionApp !== run.rootState.app) {
     syncPendingActionEventToApp(run.rootState.app, event);
     if (event.type === "memory.written") {
       run.rootState.app.memory.upsert(event.record);
@@ -360,9 +370,11 @@ function recordAskRunEvent(run: BackgroundAskRun, payload: BridgeAskPayload, eve
       activity: "browser",
       input: payload.question,
     });
-    if (isPendingActionEvent(event) || event.type === "memory.written") {
-      run.rootState.store.saveFrom(run.rootState.app);
-    }
+  }
+  const checkpointPolicy =
+    run.rootState.eventCheckpointPolicy ?? (run.rootState.eventCheckpointPolicy = createAgentEventCheckpointPolicy());
+  if (checkpointPolicy.shouldCheckpoint(event) || event.type === "memory.written") {
+    run.rootState.store.saveFrom(run.rootState.app);
   }
   const artifactStore = run.rootState.app.artifacts;
   const mediaArtifactIds = persistAskMediaArtifacts(run.rootState, payload.question, event);

@@ -99,8 +99,16 @@ export function RoomsView(props: {
   focusRoomId?: string;
   onActiveRoomChange?(roomId: string): void;
   onboardingGuideVisible?: boolean;
-  onResolveApproval?(approvalId: string, action: "approve" | "reject", response?: unknown): Promise<unknown> | void;
-  onResolveQuestion?(questionId: string, action: "answer" | "decline", response?: unknown): Promise<unknown> | void;
+  onResolveApproval?(
+    approvalId: string,
+    action: "approve" | "reject" | "cancel",
+    response?: unknown,
+  ): Promise<unknown> | void;
+  onResolveQuestion?(
+    questionId: string,
+    action: "answer" | "decline" | "cancel",
+    response?: unknown,
+  ): Promise<unknown> | void;
   onOpenContacts(): void;
   onDismissOnboardingGuide?(): void;
   onCompleteOnboardingGuide?(): void;
@@ -455,7 +463,7 @@ export function RoomsView(props: {
       });
   }
 
-  async function resolveRoomApproval(approvalId: string, action: "approve" | "reject", response?: unknown) {
+  async function resolveRoomApproval(approvalId: string, action: "approve" | "reject" | "cancel", response?: unknown) {
     const result = await props.onResolveApproval?.(approvalId, action, response);
     if (!result) return;
     setRooms((current) =>
@@ -474,7 +482,7 @@ export function RoomsView(props: {
     );
   }
 
-  async function resolveRoomQuestion(questionId: string, action: "answer" | "decline", response?: unknown) {
+  async function resolveRoomQuestion(questionId: string, action: "answer" | "decline" | "cancel", response?: unknown) {
     const result = await props.onResolveQuestion?.(questionId, action, response);
     if (!result) return;
     setRooms((current) =>

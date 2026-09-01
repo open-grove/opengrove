@@ -13,8 +13,8 @@ export function ThreadShell(props: {
   runtimeEvents?: AgentEventRecord[];
   runs?: RunRecord[];
   pendingQuestionIds?: ReadonlySet<string>;
-  onResolveApproval(approvalId: string, action: "approve" | "reject", response?: unknown): void;
-  onResolveQuestion(questionId: string, action: "answer" | "decline", response?: unknown): void;
+  onResolveApproval(approvalId: string, action: "approve" | "reject" | "cancel", response?: unknown): void;
+  onResolveQuestion(questionId: string, action: "answer" | "decline" | "cancel", response?: unknown): void;
   onInsertPrompt(prompt: string): void;
   onSubmitPrompt?(prompt: string): void;
   onSaveImageArtifact?(image: ChatImagePayload): void;

@@ -31,6 +31,8 @@ import {
 } from "../rooms/run-liveness.js";
 import { hostMessage } from "../localization/host-messages.js";
 import type { SupportedLocale } from "../localization/locale-registry.js";
+import { lifecycleFromRunFact } from "#agent-protocol";
+import { normalizePersistedRunLifecycle } from "../core/run-lifecycle.compat.js";
 
 export const CURRENT_PERSISTED_AGENT_STATE_VERSION = 9 as const;
 
@@ -370,19 +372,44 @@ export function normalizePersistedAgentState(
   options: PersistedStateLoadOptions = {},
 ): PersistedAgentState {
   const object = input && typeof input === "object" && !Array.isArray(input) ? (input as Record<string, unknown>) : {};
-  const runs = Array.isArray(object.runs) ? (object.runs as RunRecord[]) : [];
   const restartedAt = new Date().toISOString();
+  const rawApprovals = Array.isArray(object.approvals) ? (object.approvals as ApprovalRequest[]) : [];
+  const rawQuestions = Array.isArray(object.questions) ? (object.questions as QuestionRequest[]) : [];
+  const durableContinuationRunIds = new Set(
+    options.preserveResumablePendingRequests === true
+      ? rawApprovals.flatMap((request) =>
+          request.status === "pending" && request.resume?.type === "routine.step" ? [request.resume.runId] : [],
+        )
+      : [],
+  );
+  const reconciledRunIds = new Set<string>();
+  const runs = (Array.isArray(object.runs) ? object.runs : []).map((value) => {
+    const stored = value as RunRecord & { status?: unknown };
+    const lifecycle = normalizePersistedRunLifecycle(stored.lifecycle, stored.status);
+    const { status: _legacyStatus, ...withoutLegacyStatus } = stored;
+    const producerIsLive = options.activeRunIds?.has(stored.id) === true;
+    const needsLiveProducer =
+      lifecycle.taskState === "TASK_STATE_SUBMITTED" ||
+      lifecycle.taskState === "TASK_STATE_WORKING" ||
+      ((lifecycle.taskState === "TASK_STATE_INPUT_REQUIRED" || lifecycle.taskState === "TASK_STATE_AUTH_REQUIRED") &&
+        !durableContinuationRunIds.has(stored.id));
+    if (!producerIsLive && needsLiveProducer) {
+      reconciledRunIds.add(stored.id);
+      return { ...withoutLegacyStatus, lifecycle: lifecycleFromRunFact({ kind: "producer_lost" }) } satisfies RunRecord;
+    }
+    return { ...withoutLegacyStatus, lifecycle } satisfies RunRecord;
+  });
   const restoredWorkingState =
     object.workingState && typeof object.workingState === "object"
       ? (object.workingState as Partial<WorkingStateRecord>)
       : undefined;
-  const approvals = Array.isArray(object.approvals)
-    ? (object.approvals as ApprovalRequest[]).map((approval) =>
+  const approvals = rawApprovals.length
+    ? rawApprovals.map((approval) =>
         shouldPreservePendingRequest(approval, options) ? approval : expireStaleApproval(approval, restartedAt),
       )
     : [];
-  const questions = Array.isArray(object.questions)
-    ? (object.questions as QuestionRequest[]).map((question) =>
+  const questions = rawQuestions.length
+    ? rawQuestions.map((question) =>
         shouldPreservePendingRequest(question, options) ? question : expireStaleQuestion(question, restartedAt),
       )
     : [];
@@ -470,7 +497,19 @@ export function normalizePersistedAgentState(
         },
     approvals,
     questions,
-    events: Array.isArray(object.events) ? (object.events as AgentEvent[]) : [],
+    events: [
+      ...(Array.isArray(object.events) ? (object.events as AgentEvent[]) : []),
+      ...Array.from(
+        reconciledRunIds,
+        (runId): AgentEvent => ({
+          type: "turn.finished",
+          runId,
+          at: restartedAt,
+          outcome: lifecycleFromRunFact({ kind: "producer_lost" }),
+          synthetic: true,
+        }),
+      ),
+    ],
     routines: Array.isArray(object.routines) ? (object.routines as Routine[]) : [],
     sessions: Array.isArray(object.sessions) ? (object.sessions as SessionRecord[]) : [],
     runs,
@@ -500,8 +539,8 @@ function expireStaleApproval(approval: ApprovalRequest, restartedAt: string): Ap
   if (approval.status !== "pending") return approval;
   return {
     ...approval,
-    status: "rejected",
-    response: { reason: "host_restarted" },
+    status: "canceled",
+    response: { system: true, reasonCode: "producer_lost" },
     updatedAt: restartedAt,
   };
 }
@@ -510,8 +549,8 @@ function expireStaleQuestion(question: QuestionRequest, restartedAt: string): Qu
   if (question.status !== "pending") return question;
   return {
     ...question,
-    status: "declined",
-    response: { reason: "host_restarted" },
+    status: "canceled",
+    response: { system: true, reasonCode: "producer_lost" },
     updatedAt: restartedAt,
   };
 }

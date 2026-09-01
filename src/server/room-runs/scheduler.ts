@@ -60,7 +60,10 @@ export function scheduleRoomAssistantRunsWithExecutor(
     const runId = createRoomRunId();
     const controller = new AbortController();
     controllerMapForState(state).set(runId, controller);
-    activeReleaseMapForState(state).set(runId, registerActiveBridgeRun(state, runId));
+    activeReleaseMapForState(state).set(
+      runId,
+      registerActiveBridgeRun(state, runId, { cancel: () => controller.abort() }),
+    );
     const updated = state.app.rooms.updateMessage(input.roomId, message.id, {
       runId,
       status: "running",

@@ -62,6 +62,7 @@ export const harnessInventory = [
   task("codex-app-server-client", "dist/tests/codex-app-server-client-harness.js", "kernels-providers"),
   task("codex-event-projector", "dist/tests/codex-event-projector-harness.js", "kernels-providers"),
   task("claude-code-runtime", "dist/tests/claude-code-runtime-harness.js", "kernels-providers"),
+  task("generic-cli-runtime", "dist/tests/generic-cli-runtime-harness.js", "kernels-providers"),
   task("claude-code-cli-resolution", "dist/tests/claude-code-cli-resolution-harness.js", "kernels-providers"),
   task("claude-agent-sdk-runtime", "dist/tests/claude-agent-sdk-runtime-harness.js", "kernels-providers"),
   task("claude-models-cache", "dist/tests/claude-models-cache-harness.js", "kernels-providers"),

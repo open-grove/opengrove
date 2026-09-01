@@ -105,8 +105,8 @@ export function RoomMessageStream(props: {
   pendingCancelRunIds?: ReadonlySet<string>;
   onCancelRun?(messageId: string, runId?: string): void;
   trailingContent?: ReactNode;
-  onResolveApproval(approvalId: string, action: "approve" | "reject", response?: unknown): void;
-  onResolveQuestion(questionId: string, action: "answer" | "decline", response?: unknown): void;
+  onResolveApproval(approvalId: string, action: "approve" | "reject" | "cancel", response?: unknown): void;
+  onResolveQuestion(questionId: string, action: "answer" | "decline" | "cancel", response?: unknown): void;
   onInsertPrompt(prompt: string): void;
   onSubmitPrompt?(prompt: string): void;
   onReplyMessage?(message: RoomMessage): void;
@@ -201,8 +201,8 @@ const RoomMessageItem = memo(function RoomMessageItem(props: {
   pendingCancelRunIds?: ReadonlySet<string>;
   onCancelRun?(messageId: string, runId?: string): void;
   activeChoiceFormKey?: string;
-  onResolveApproval(approvalId: string, action: "approve" | "reject", response?: unknown): void;
-  onResolveQuestion(questionId: string, action: "answer" | "decline", response?: unknown): void;
+  onResolveApproval(approvalId: string, action: "approve" | "reject" | "cancel", response?: unknown): void;
+  onResolveQuestion(questionId: string, action: "answer" | "decline" | "cancel", response?: unknown): void;
   onInsertPrompt(prompt: string): void;
   onSubmitPrompt?(prompt: string): void;
   onReplyMessage?(message: RoomMessage): void;
@@ -965,8 +965,8 @@ function RoomAgentMessageBody(props: {
   cancel?: RoomRunCancel;
   activeChoiceFormKey?: string;
   pendingQuestionIds?: ReadonlySet<string>;
-  onResolveApproval(approvalId: string, action: "approve" | "reject", response?: unknown): void;
-  onResolveQuestion(questionId: string, action: "answer" | "decline", response?: unknown): void;
+  onResolveApproval(approvalId: string, action: "approve" | "reject" | "cancel", response?: unknown): void;
+  onResolveQuestion(questionId: string, action: "answer" | "decline" | "cancel", response?: unknown): void;
   onInsertPrompt(prompt: string): void;
   onSubmitPrompt?(prompt: string): void;
   onPreviewImage?(image: ChatImagePayload): void;
@@ -1120,8 +1120,8 @@ function RoomActivityBlock(props: {
   entries: ActivityEntry[];
   activeChoiceFormKey?: string;
   pendingQuestionIds?: ReadonlySet<string>;
-  onResolveApproval(approvalId: string, action: "approve" | "reject", response?: unknown): void;
-  onResolveQuestion(questionId: string, action: "answer" | "decline", response?: unknown): void;
+  onResolveApproval(approvalId: string, action: "approve" | "reject" | "cancel", response?: unknown): void;
+  onResolveQuestion(questionId: string, action: "answer" | "decline" | "cancel", response?: unknown): void;
   onInsertPrompt(prompt: string): void;
   onSubmitPrompt?(prompt: string): void;
   onOpenResource?(resource: ChatResourceRef, action?: ChatResourceAction): void;
@@ -1180,8 +1180,8 @@ function RoomRunDetailsBlock(props: {
   cancel?: RoomRunCancel;
   activeChoiceFormKey?: string;
   pendingQuestionIds?: ReadonlySet<string>;
-  onResolveApproval(approvalId: string, action: "approve" | "reject", response?: unknown): void;
-  onResolveQuestion(questionId: string, action: "answer" | "decline", response?: unknown): void;
+  onResolveApproval(approvalId: string, action: "approve" | "reject" | "cancel", response?: unknown): void;
+  onResolveQuestion(questionId: string, action: "answer" | "decline" | "cancel", response?: unknown): void;
   onInsertPrompt(prompt: string): void;
   onSubmitPrompt?(prompt: string): void;
   onPreviewImage?(image: ChatImagePayload): void;

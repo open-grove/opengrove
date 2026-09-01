@@ -55,7 +55,7 @@ export function closeInterruptedRoomRunParts(
       return {
         ...part,
         status: "canceled",
-        questionStatus: "declined",
+        questionStatus: "canceled",
         result: { reason },
       };
     }
@@ -67,7 +67,7 @@ export function closeInterruptedRoomRunParts(
       return {
         ...part,
         status: "canceled",
-        approvalStatus: "rejected",
+        approvalStatus: "canceled",
         result: { reason },
       };
     }

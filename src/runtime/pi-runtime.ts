@@ -119,6 +119,7 @@ export class PiAgentRuntime implements AgentRuntime {
     });
     let assistantText = "";
     let emittedModelResponse = false;
+    let terminalError = "";
 
     yield { type: "turn.started", runId, at: new Date().toISOString() };
     if (request.assembledContext) {
@@ -137,7 +138,12 @@ export class PiAgentRuntime implements AgentRuntime {
         message: error instanceof Error ? error.message : String(error),
       };
       yield { type: "model.response", runId, response: { text: "" } };
-      yield { type: "turn.finished", runId, at: new Date().toISOString() };
+      yield {
+        type: "turn.finished",
+        runId,
+        at: new Date().toISOString(),
+        outcome: { taskState: "TASK_STATE_FAILED", reasonCode: "pi_session_trace_failed" },
+      };
       return;
     }
     if (!session.emitsModelRequests) {
@@ -207,10 +213,11 @@ export class PiAgentRuntime implements AgentRuntime {
         yield event;
       }
     } catch (error) {
+      terminalError = error instanceof Error ? error.message : String(error);
       yield {
         type: "error",
         runId,
-        message: error instanceof Error ? error.message : String(error),
+        message: terminalError,
       };
     }
 
@@ -218,7 +225,16 @@ export class PiAgentRuntime implements AgentRuntime {
       yield { type: "model.response", runId, response: { text: assistantText } };
     }
 
-    yield { type: "turn.finished", runId, at: new Date().toISOString() };
+    yield {
+      type: "turn.finished",
+      runId,
+      at: new Date().toISOString(),
+      outcome: terminalError
+        ? { taskState: "TASK_STATE_FAILED", reasonCode: "pi_native_turn_failed" }
+        : request.signal?.aborted
+          ? { taskState: "TASK_STATE_CANCELED", reasonCode: "native_cancelled", retryable: false }
+          : { taskState: "TASK_STATE_COMPLETED" },
+    };
   }
 
   compactSession(request: AgentCompactRequest): Promise<AgentCompactResult> {

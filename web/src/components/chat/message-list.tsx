@@ -42,8 +42,8 @@ export function MessageList(props: {
   runtimeEvents?: AgentEventRecord[];
   runs?: RunRecord[];
   pendingQuestionIds?: ReadonlySet<string>;
-  onResolveApproval(approvalId: string, action: "approve" | "reject", response?: unknown): void;
-  onResolveQuestion(questionId: string, action: "answer" | "decline", response?: unknown): void;
+  onResolveApproval(approvalId: string, action: "approve" | "reject" | "cancel", response?: unknown): void;
+  onResolveQuestion(questionId: string, action: "answer" | "decline" | "cancel", response?: unknown): void;
   onInsertPrompt?(prompt: string): void;
   onSubmitPrompt?(prompt: string): void;
   onTrySkill?(skillName: string): void;
@@ -146,8 +146,8 @@ const ThreadMessage = memo(function ThreadMessage(props: {
   precedingUserText?: string;
   activeChoiceFormKey?: string;
   pendingQuestionIds?: ReadonlySet<string>;
-  onResolveApproval(approvalId: string, action: "approve" | "reject", response?: unknown): void;
-  onResolveQuestion(questionId: string, action: "answer" | "decline", response?: unknown): void;
+  onResolveApproval(approvalId: string, action: "approve" | "reject" | "cancel", response?: unknown): void;
+  onResolveQuestion(questionId: string, action: "answer" | "decline" | "cancel", response?: unknown): void;
   onInsertPrompt?(prompt: string): void;
   onSubmitPrompt?(prompt: string): void;
   onTrySkill?(skillName: string): void;
@@ -447,8 +447,8 @@ function AssistantMessageBody(props: {
   precedingUserText?: string;
   activeChoiceFormKey?: string;
   pendingQuestionIds?: ReadonlySet<string>;
-  onResolveApproval(approvalId: string, action: "approve" | "reject", response?: unknown): void;
-  onResolveQuestion(questionId: string, action: "answer" | "decline", response?: unknown): void;
+  onResolveApproval(approvalId: string, action: "approve" | "reject" | "cancel", response?: unknown): void;
+  onResolveQuestion(questionId: string, action: "answer" | "decline" | "cancel", response?: unknown): void;
   onInsertPrompt?(prompt: string): void;
   onSubmitPrompt?(prompt: string): void;
   onTrySkill?(skillName: string): void;
@@ -575,8 +575,8 @@ function AssistantProcessTimeline(props: {
   showDuration?: boolean;
   activeChoiceFormKey?: string;
   pendingQuestionIds?: ReadonlySet<string>;
-  onResolveApproval(approvalId: string, action: "approve" | "reject", response?: unknown): void;
-  onResolveQuestion(questionId: string, action: "answer" | "decline", response?: unknown): void;
+  onResolveApproval(approvalId: string, action: "approve" | "reject" | "cancel", response?: unknown): void;
+  onResolveQuestion(questionId: string, action: "answer" | "decline" | "cancel", response?: unknown): void;
   onInsertPrompt?(prompt: string): void;
   onSubmitPrompt?(prompt: string): void;
   onOpenResource?(resource: ChatResourceRef, action?: ChatResourceAction): void;

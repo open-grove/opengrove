@@ -688,14 +688,15 @@ class NativePiSession implements PiSession {
           let resolved: ApprovalRequest;
           try {
             resolved = await context.agent.approvals.waitForDecision(request.id, {
-              timeoutMs: 120_000,
               signal: signal ?? context.signal,
             });
           } catch (error) {
             const pending = context.agent.approvals.get(request.id);
             resolved =
               pending?.status === "pending"
-                ? context.agent.approvals.decide(request.id, "rejected", {
+                ? context.agent.approvals.decide(request.id, "canceled", {
+                    system: true,
+                    reasonCode: (signal ?? context.signal)?.aborted ? "run_canceled" : "native_request_failed",
                     error: error instanceof Error ? error.message : String(error),
                   })
                 : (pending ?? request);

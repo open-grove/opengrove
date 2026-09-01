@@ -129,7 +129,16 @@ export class HermesKernelAdapter implements KernelAdapter {
       runId,
       message: `Hermes kernel adapter is selected, but no Hermes CLI command is configured. Install Hermes or set ${appEnvName("HERMES_BIN")}.`,
     };
-    yield { type: "turn.finished", runId, at: new Date().toISOString() };
+    yield {
+      type: "turn.finished",
+      runId,
+      at: new Date().toISOString(),
+      outcome: {
+        taskState: "TASK_STATE_REJECTED",
+        reasonCode: "kernel_unavailable",
+        retryable: false,
+      },
+    };
   }
 
   steerTurn(request: AgentSteerRequest): Promise<AgentSteerResult> {

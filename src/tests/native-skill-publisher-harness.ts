@@ -76,7 +76,12 @@ async function main() {
       customPiInput = request.input;
       const runId = request.runId || "custom-pi-contract";
       yield { type: "model.response", runId, response: { text: "ok" } };
-      yield { type: "turn.finished", runId, at: new Date().toISOString() };
+      yield {
+        type: "turn.finished",
+        runId,
+        at: new Date().toISOString(),
+        outcome: { taskState: "TASK_STATE_COMPLETED" },
+      };
     },
   };
   const customPiKernel = createRuntimeKernelAdapter({

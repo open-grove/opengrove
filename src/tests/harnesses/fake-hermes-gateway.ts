@@ -13,6 +13,7 @@ export interface FakeHermesGatewayOptions {
   reasoningText?: string;
   responseSuffix?: string;
   ambiguousSameNameTools?: boolean;
+  promptDelayMs?: number;
 }
 
 export function writeFakeHermesGateway(path: string, options: FakeHermesGatewayOptions = {}): void {
@@ -46,6 +47,9 @@ export function fakeHermesGatewaySource(options: FakeHermesGatewayOptions = {}):
     "  return path && existsSync(path) ? readFileSync(path, 'utf8') : '';",
     "}",
     "async function runPrompt(text) {",
+    ...(options.promptDelayMs
+      ? [`  await new Promise((resolve) => setTimeout(resolve, ${Math.max(1, options.promptDelayMs)}));`]
+      : []),
     holdUntilInterrupt
       ? "  await waitFor('interrupt');"
       : skipBlockingPrompts

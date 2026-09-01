@@ -8,6 +8,7 @@ import {
   type DiagnosticProblemRef,
   type RuntimeErrorDiagnostics,
 } from "../core.js";
+import { createAgentEventCheckpointPolicy } from "../core/event-persistence.js";
 import { isRetryableDiagnosticError, type DiagnosticFacts } from "../diagnostics/problem-schema.js";
 import { safeDiagnosticErrorCode } from "../diagnostics/redaction.js";
 import type { RoomLedgerCapability } from "#agent-protocol";
@@ -19,7 +20,7 @@ import { resolveMountedAppCliEnv } from "./app-cli-env.js";
 import { resolveMountedAppRuntimeEnv } from "./app-runtime-env.js";
 import type { BridgeResolvedProviderRoute } from "./provider-profiles.js";
 import { getBridgeTurnContext, runWithBridgeTurnContext } from "./bridge-turn-context.js";
-import { revokeRoomLedgerCapability } from "./room-ledger-capabilities.js";
+import { keepRoomLedgerCapabilityAlive, revokeRoomLedgerCapability } from "./room-ledger-capabilities.js";
 import { clearRoomDelegationBudget } from "./room-delegation-budget.js";
 import {
   cancelRoomAssistantRun,
@@ -40,6 +41,7 @@ import {
   resolveRoomExecutionTarget,
   resolveRoomTargetModel,
   resolveRoomTargetProviderRoute,
+  roomKernelCapabilityErrorMessage,
   roomProviderRouteErrorMessage,
   roomExecutionState,
 } from "./room-runs/execution-state.js";
@@ -59,11 +61,13 @@ import { withRoomLedgerAccessForRun } from "../tools/rooms.js";
 import { persistSnapshotAttachments } from "./ask-stream.js";
 import {
   blockWwApiKeyRecoveryForExecution,
+  consumeWwRetryableTurnAttempt,
   recoverWwApiKeyForExecution,
   isWwApiKeyInvalidError,
 } from "./ww-provider-recovery.js";
 import { problemRef, recordProblem } from "./problem-records.js";
-import { isPendingActionEvent, syncPendingActionEventToApp } from "./pending-action-sync.js";
+import { syncPendingActionEventToApp } from "./pending-action-sync.js";
+import { registerActiveBridgeRunInteraction } from "./active-runs.js";
 
 export { cancelRoomAssistantRun, hasActiveRoomRunController, isRunnableRoomAssistantTarget };
 
@@ -133,6 +137,7 @@ async function executeRoomRun(state: BridgeState, input: RoomRunExecutionInput):
   const userInput = envelope.userInput;
   const events: AgentEvent[] = [];
   let ledgerCapability: RoomLedgerCapability | undefined;
+  let stopLedgerCapabilityKeepalive: (() => void) | undefined;
 
   if (input.signal?.aborted) {
     await finalizeCanceledRoomRun(state, input, startedAt, events, model, execution.providerRoute);
@@ -147,6 +152,7 @@ async function executeRoomRun(state: BridgeState, input: RoomRunExecutionInput):
       roomId: input.roomId,
       internalBridgeBaseUrl: (state.rootState ?? state).internalBridgeBaseUrl,
     });
+    stopLedgerCapabilityKeepalive = keepRoomLedgerCapabilityAlive(ledgerCapability?.token);
     const turnContext = {
       threadId: sessionId,
       model,
@@ -196,64 +202,57 @@ async function executeRoomRun(state: BridgeState, input: RoomRunExecutionInput):
         OPENGROVE_SOURCE_ROOM_ID: input.roomId,
         ...(ledgerCapability ? { OPENGROVE_ROOM_LEDGER_CAPABILITY_JSON: JSON.stringify(ledgerCapability) } : {}),
       };
-      const attemptEvents: AgentEvent[] = [];
-      const withheldEvents: AgentEvent[] = [];
       // Keep the producing app identity stable for this attempt. A settings or
       // mounted-App reload can replace state.app while this iterator is alive.
       const eventSourceApp = activeExecutionState.app;
-      await runWithBridgeTurnContext(turnContext, async () => {
-        await withRoomLedgerAccessForRun(
+      const attemptResult = await runWithBridgeTurnContext(turnContext, async () =>
+        withRoomLedgerAccessForRun(
           input.runId,
           {
             sourceRoomId: input.roomId,
             ledgerCapability,
           },
-          async () => {
-            for await (const event of eventSourceApp.runTurn(userInput, {
-              sessionId,
-              runId: input.runId,
-              requestedModelId: model,
-              requestedEffort: roomRunRequestedEffort(target, triggerText, reasoningControls),
-              availableSkillNames,
-              requiredSkillNames,
-              sessionInstructions: envelope.sessionInstructions,
-              hostContextPromptBlock: [envelope.turnInstructions, cliEnvironmentContext].filter(Boolean).join("\n\n"),
-              accessMode: target.accessMode,
-              dynamicToolsMode: "always",
-              responseSpeed: roomRunResponseSpeed(),
-              contextTokenBudget: target.contextTokenBudget,
-              sessionHistoryMode,
-              policy: roomRunPolicy(target, triggerText),
-              signal: input.signal,
-              runtimeEnv,
-              hostToolScope: {
-                employeeId: target.id,
-                roomId: input.roomId,
-              },
-            })) {
-              attemptEvents.push(event);
-              if (attempt === 0 && event.type === "error" && isWwApiKeyInvalidError(event.message)) {
-                withheldEvents.push(event);
-                continue;
-              }
-              if (withheldEvents.length && event.type === "turn.finished") {
-                withheldEvents.push(event);
-                continue;
-              }
-              recordRoomRunEvent({
-                state,
-                activeExecutionState,
-                eventSourceApp,
-                event,
-                events,
-                model,
+          async () =>
+            consumeWwRetryableTurnAttempt({
+              events: eventSourceApp.runTurn(userInput, {
                 sessionId,
-                userInput,
-              });
-            }
-          },
-        );
-      });
+                runId: input.runId,
+                requestedModelId: model,
+                requestedEffort: roomRunRequestedEffort(target, triggerText, reasoningControls),
+                availableSkillNames,
+                requiredSkillNames,
+                sessionInstructions: envelope.sessionInstructions,
+                hostContextPromptBlock: [envelope.turnInstructions, cliEnvironmentContext].filter(Boolean).join("\n\n"),
+                accessMode: target.accessMode,
+                dynamicToolsMode: "always",
+                responseSpeed: roomRunResponseSpeed(),
+                contextTokenBudget: target.contextTokenBudget,
+                sessionHistoryMode,
+                policy: roomRunPolicy(target, triggerText),
+                signal: input.signal,
+                runtimeEnv,
+                hostToolScope: {
+                  employeeId: target.id,
+                  roomId: input.roomId,
+                },
+                eventPersistence: "caller",
+              }),
+              withholdWwKeyFailure: attempt === 0,
+              onEvent: (event) =>
+                recordRoomRunEvent({
+                  state,
+                  activeExecutionState,
+                  eventSourceApp,
+                  event,
+                  events,
+                  model,
+                  sessionId,
+                  userInput,
+                }),
+            }),
+        ),
+      );
+      const { attemptEvents, withheldEvents, withheldError } = attemptResult;
 
       if (attempt === 1) {
         const repeatedKeyError = attemptEvents.find(
@@ -288,9 +287,6 @@ async function executeRoomRun(state: BridgeState, input: RoomRunExecutionInput):
         }
       }
 
-      const withheldError = withheldEvents.find(
-        (event): event is Extract<AgentEvent, { type: "error" }> => event.type === "error",
-      );
       if (!withheldError) break;
       const recovery = await recoverWwApiKeyForExecution({
         state: activeExecutionState,
@@ -330,7 +326,6 @@ async function executeRoomRun(state: BridgeState, input: RoomRunExecutionInput):
         userInput,
       });
     }
-    appendRoomRunAssistantFinalEvent(events, input.runId);
     syncRoomExecutionSessionMetadata(state, executionState, sessionId);
 
     if (input.signal?.aborted) {
@@ -390,6 +385,7 @@ async function executeRoomRun(state: BridgeState, input: RoomRunExecutionInput):
       providerRoute: execution.providerRoute,
     });
   } finally {
+    stopLedgerCapabilityKeepalive?.();
     revokeRoomLedgerCapability(ledgerCapability?.token);
   }
 }
@@ -404,45 +400,60 @@ export function recordRoomRunEvent(input: {
   sessionId: string;
   userInput: string;
 }): void {
+  if (input.event.type === "turn.finished") {
+    const finalEvent = createAssistantFinalEvent(input.events, {
+      runId: input.event.runId,
+      at: input.event.at,
+      source: "adapter",
+    });
+    if (finalEvent) persistRoomRunEvent({ ...input, event: finalEvent });
+  }
+  persistRoomRunEvent(input);
+}
+
+function persistRoomRunEvent(input: {
+  state: BridgeState;
+  activeExecutionState: BridgeState;
+  eventSourceApp: BridgeState["app"];
+  event: AgentEvent;
+  events: AgentEvent[];
+  model: string;
+  sessionId: string;
+  userInput: string;
+}): void {
   attachModelId([input.event], input.model);
   input.events.push(input.event);
-  syncPendingActionEventToApp(input.state.app, input.event);
-  if (input.activeExecutionState !== input.state || input.eventSourceApp !== input.state.app) {
-    input.state.app.recordEvent(input.event, {
-      sessionId: input.sessionId,
-      activity: "chat",
-      input: input.userInput,
+  const producerRun = input.eventSourceApp.sessions.getRun(input.event.runId);
+  const runIdentity = {
+    sessionId: producerRun?.sessionId ?? input.sessionId,
+    activity: producerRun?.activity ?? "chat",
+    input: producerRun?.input ?? input.userInput,
+  };
+  input.eventSourceApp.recordEvent(input.event, runIdentity);
+  if (input.event.type === "approval.requested") {
+    registerActiveBridgeRunInteraction(input.state, {
+      runId: input.event.runId,
+      kind: "approval",
+      interactionId: input.event.request.id,
+      nativeRequestId: input.event.request.nativeRequestId,
+    });
+  } else if (input.event.type === "question.requested") {
+    registerActiveBridgeRunInteraction(input.state, {
+      runId: input.event.runId,
+      kind: "question",
+      interactionId: input.event.question.id,
+      nativeRequestId: input.event.question.nativeRequestId,
     });
   }
-  if (isPendingActionEvent(input.event)) {
+  if (input.eventSourceApp !== input.state.app) {
+    syncPendingActionEventToApp(input.state.app, input.event);
+    input.state.app.recordEvent(input.event, runIdentity);
+  }
+  const checkpointPolicy =
+    input.state.eventCheckpointPolicy ?? (input.state.eventCheckpointPolicy = createAgentEventCheckpointPolicy());
+  if (checkpointPolicy.shouldCheckpoint(input.event)) {
     input.state.store?.saveFrom(input.state.app);
   }
-}
-
-function appendRoomRunAssistantFinalEvent(events: AgentEvent[], runId: string): void {
-  const lastTurnFinishedIndex = lastTurnFinishedEventIndex(events);
-  const finalEvent = createAssistantFinalEvent(events, {
-    runId,
-    at: lastTurnFinishedIndex >= 0 ? eventTimestamp(events[lastTurnFinishedIndex]) : undefined,
-    source: "adapter",
-  });
-  if (!finalEvent) return;
-  if (lastTurnFinishedIndex >= 0) {
-    events.splice(lastTurnFinishedIndex, 0, finalEvent);
-    return;
-  }
-  events.push(finalEvent);
-}
-
-function lastTurnFinishedEventIndex(events: AgentEvent[]): number {
-  for (let index = events.length - 1; index >= 0; index -= 1) {
-    if (events[index]?.type === "turn.finished") return index;
-  }
-  return -1;
-}
-
-function eventTimestamp(event: AgentEvent | undefined): string | undefined {
-  return event && "at" in event && typeof event.at === "string" ? event.at : undefined;
 }
 
 async function handleRoomRunError(
@@ -462,7 +473,10 @@ async function handleRoomRunError(
 ): Promise<void> {
   const diagnosticMessage = context.error instanceof Error ? context.error.message : String(context.error);
   const language = resolveHostLanguageSettings(state.settings);
-  const message = roomProviderRouteErrorMessage(context.error, language) ?? diagnosticMessage;
+  const message =
+    roomProviderRouteErrorMessage(context.error, language) ??
+    roomKernelCapabilityErrorMessage(context.error, language) ??
+    diagnosticMessage;
   syncRoomExecutionSessionMetadata(state, context.executionState, context.sessionId);
   if (input.signal?.aborted) {
     await finalizeCanceledRoomRun(

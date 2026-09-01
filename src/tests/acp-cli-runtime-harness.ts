@@ -321,6 +321,12 @@ async function assertAcpHostToolCredentialsAreScoped(): Promise<void> {
         description: "Scoped bridge probe",
         inputSchema: { type: "object", properties: {} },
         annotations: { readOnlyHint: true },
+        liveness: {
+          cancellation: "run-signal",
+          deadlineSource: "none",
+          abandonOutcome: "outcome-unknown",
+          terminalConfirmation: "tool-result",
+        },
       },
     ],
     fingerprint: "probe-tools",

@@ -17,8 +17,10 @@ import type { StoredMessage } from "../../bridge";
 import { formatDate, sortedArtifacts, summarize, uniqueIds } from "../../format";
 import { rawDiagnosticText, translate } from "../../i18n";
 import type { TranslationKey } from "../../i18n";
+import type { RunRecord } from "../../bridge-inventory-types";
+import { runOverviewStatus, type RunOverviewStatus } from "../../runtime/run-lifecycle";
 
-export type OverviewStatus = "done" | "running" | "pending" | "blocked";
+export type OverviewStatus = RunOverviewStatus;
 
 export interface OverviewProgressItem {
   id: string;
@@ -122,7 +124,7 @@ export function OverviewSourceRow(props: { item: OverviewSourceItem }) {
 
 export function buildOverviewRuntimeItems(input: {
   currentSession: any;
-  latestRun: any;
+  latestRun: RunRecord | null | undefined;
   runtimeBlocker: any;
   kernelLabel?: string;
   pendingApprovals: any[];
@@ -165,9 +167,9 @@ export function buildOverviewRuntimeItems(input: {
       label: translate("workspace.run"),
       value: runTitle,
       detail: [
-        input.latestRun.status,
+        input.latestRun.lifecycle?.taskState,
         input.latestRun.modelId,
-        formatDate(input.latestRun.updatedAt || input.latestRun.startedAt),
+        formatDate(input.latestRun.updatedAt || input.latestRun.startedAt || input.latestRun.createdAt || ""),
       ]
         .filter(Boolean)
         .join(" · "),
@@ -214,7 +216,7 @@ export function buildOverviewRuntimeItems(input: {
 export function buildOverviewProgressItems(input: {
   messages: StoredMessage[];
   workingState: any;
-  latestRun: any;
+  latestRun: RunRecord | null | undefined;
   pendingApprovals: any[];
   events: any[];
   runtimeBlocker: any;
@@ -234,7 +236,7 @@ export function buildOverviewProgressItems(input: {
 export function buildRuntimeProgressItems(input: {
   messages: StoredMessage[];
   workingState: any;
-  latestRun: any;
+  latestRun: RunRecord | null | undefined;
   pendingApprovals: any[];
   events: any[];
   runtimeBlocker: any;
@@ -526,7 +528,7 @@ export function filterOverviewArtifacts(
 export function buildOverviewSourceItems(input: {
   messages: StoredMessage[];
   workingState: any;
-  latestRun: any;
+  latestRun: RunRecord | null | undefined;
   skills: any[];
   tools: any[];
   events: any[];
@@ -639,20 +641,8 @@ export function overviewSourceIcon(kind: OverviewSourceItem["kind"]) {
   return <Package size={16} />;
 }
 
-export function overviewStatusFromRun(run: any, runtimeBlocker: any): OverviewStatus {
-  if (runtimeBlocker || run?.status === "failed") {
-    return "blocked";
-  }
-  if (run?.status === "running") {
-    return "running";
-  }
-  if (run?.status === "waiting_for_approval" || run?.status === "waiting_for_user") {
-    return "pending";
-  }
-  if (run?.status === "succeeded") {
-    return "done";
-  }
-  return run ? "pending" : "running";
+export function overviewStatusFromRun(run: RunRecord | null | undefined, runtimeBlocker: unknown): OverviewStatus {
+  return runOverviewStatus(run?.lifecycle, Boolean(runtimeBlocker));
 }
 
 export function overviewStatusFromPartStatus(status: string): OverviewStatus {

@@ -1,11 +1,11 @@
 import { createHash } from "node:crypto";
+import { a2aTaskStateSchema } from "#agent-protocol";
 import { createAnnotationArtifact, createComputerSnapshotArtifact } from "../artifact-actions.js";
 import { syncBridgeWorkingState } from "../bridge-working-state.js";
 import {
   isActivitySpace,
   isExecutionKind,
   isMemoryScope,
-  isRunStatus,
   isSessionStatus,
   normalizeArtifactAnnotationPayload,
   normalizeArtifactCreatePayload,
@@ -162,9 +162,9 @@ function handleSessionsListRoute(context: BridgeRouteContext): boolean {
 
 function handleRunsListRoute(context: BridgeRouteContext): boolean {
   const sessionId = context.url.searchParams.get("sessionId") ?? "";
-  const status = context.url.searchParams.get("status") ?? "";
+  const taskState = context.url.searchParams.get("taskState") ?? "";
   const limit = readBoundedLimit(context.url, 200, 1_000);
-  const revision = `${context.state.app.sessions.revision()}:runs:${sessionId}:${status}:${limit}`;
+  const revision = `${context.state.app.sessions.revision()}:runs:${sessionId}:${taskState}:${limit}`;
   if (context.url.searchParams.get("afterRevision") === revision) {
     context.sendJson(context.response, 200, { ok: true, unchanged: true, revision });
     return true;
@@ -173,7 +173,7 @@ function handleRunsListRoute(context: BridgeRouteContext): boolean {
     ok: true,
     runs: context.state.app.sessions.listRuns({
       sessionId: sessionId || undefined,
-      status: isRunStatus(status) ? status : undefined,
+      taskState: a2aTaskStateSchema.safeParse(taskState).success ? a2aTaskStateSchema.parse(taskState) : undefined,
       limit,
     }),
     revision,

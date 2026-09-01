@@ -537,7 +537,18 @@ export class CodexRuntime implements AgentRuntime {
       };
       return;
     }
-    yield { type: "turn.finished", runId, at: new Date().toISOString() };
+    yield {
+      type: "turn.finished",
+      runId,
+      at: new Date().toISOString(),
+      outcome: projector.errorMessage()
+        ? { taskState: "TASK_STATE_FAILED", reasonCode: projector.errorMessage() || "codex_turn_failed" }
+        : request.signal?.aborted
+          ? { taskState: "TASK_STATE_FAILED", reasonCode: "cancel_outcome_unknown", outcomeUnknown: true }
+          : turnCompleted
+            ? { taskState: "TASK_STATE_COMPLETED" }
+            : { taskState: "TASK_STATE_FAILED", reasonCode: "codex_native_terminal_missing", outcomeUnknown: true },
+    };
   }
 
   async steerTurn(request: AgentSteerRequest): Promise<AgentSteerResult> {

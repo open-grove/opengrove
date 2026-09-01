@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import type { AgentEvent } from "../core.js";
+import type { AgentEvent, ToolCallContext, ToolDefinition } from "../core.js";
+import { executeHostToolWithLiveness } from "../runtime/host-tool-bridge.js";
 import {
   hasCorrelatedToolProgress,
   hasFinishedTool,
@@ -13,7 +14,12 @@ const cleanEvents: AgentEvent[] = [
   { type: "assistant.delta", runId, text: "hello " },
   { type: "assistant.delta", runId, text: "world" },
   { type: "model.response", runId, response: { text: "hello world" } },
-  { type: "turn.finished", runId, at: "2026-08-06T00:00:01.000Z" },
+  {
+    type: "turn.finished",
+    runId,
+    at: "2026-08-06T00:00:01.000Z",
+    outcome: { taskState: "TASK_STATE_COMPLETED" },
+  },
 ];
 const clean = inspectAgentTurnEvents(cleanEvents);
 assert.equal(clean.lifecycleClosedExactlyOnce, true);
@@ -92,5 +98,41 @@ assert.match(
 );
 assert.equal(providerUnavailableReason("tool_progress_lifecycle_not_observed"), undefined);
 assert.match(providerUnavailableReason("Provider is not configured: opengrove-google") ?? "", /not configured/i);
+
+const hostToolController = new AbortController();
+let observedHostToolSignal: AbortSignal | undefined;
+const blockedHostTool: ToolDefinition = {
+  spec: {
+    id: "host.blocked",
+    title: "Blocked Host Tool",
+    description: "Wait until the Run is canceled.",
+    activity: "local",
+    risk: "write",
+    input: { type: "json-schema", schema: { type: "object", properties: {} } },
+    permission: { mode: "allow", reason: "Harness" },
+    liveness: {
+      cancellation: "run-signal",
+      deadlineSource: "none",
+      abandonOutcome: "outcome-unknown",
+      terminalConfirmation: "tool-result",
+      cancellationGraceMs: 5,
+    },
+  },
+  async execute(_input, context) {
+    observedHostToolSignal = context.signal;
+    return await new Promise(() => undefined);
+  },
+};
+const blockedHostToolResult = executeHostToolWithLiveness(blockedHostTool, {}, {
+  runId,
+  signal: hostToolController.signal,
+} as ToolCallContext);
+hostToolController.abort("user canceled Run");
+assert.deepEqual(await blockedHostToolResult, {
+  ok: false,
+  error: "host_tool_cancel_outcome_unknown",
+  value: { status: "canceled", outcomeUnknown: true },
+});
+assert.equal(observedHostToolSignal, hostToolController.signal, "Host Tool must receive its owning Run signal");
 
 console.log("✓ normalized Kernel events enforce one terminal response and correlated tool progress");

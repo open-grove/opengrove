@@ -149,8 +149,16 @@ export function MountedAppWorkspaceView(props: {
   developerModeOpen?: boolean;
   onMarkRoomRead?(roomId: string): Promise<void> | void;
   onPendingCountChange?(count: number): void;
-  onResolveApproval?(approvalId: string, action: "approve" | "reject", response?: unknown): Promise<unknown> | void;
-  onResolveQuestion?(questionId: string, action: "answer" | "decline", response?: unknown): Promise<unknown> | void;
+  onResolveApproval?(
+    approvalId: string,
+    action: "approve" | "reject" | "cancel",
+    response?: unknown,
+  ): Promise<unknown> | void;
+  onResolveQuestion?(
+    questionId: string,
+    action: "answer" | "decline" | "cancel",
+    response?: unknown,
+  ): Promise<unknown> | void;
   onRetryInventory?(): void;
 }) {
   const [selectedPath, setSelectedPath] = useState("");

@@ -1,7 +1,16 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { once } from "node:events";
-import { appendFileSync, chmodSync, mkdirSync, mkdtempSync, rmSync, truncateSync, writeFileSync } from "node:fs";
+import {
+  appendFileSync,
+  chmodSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  truncateSync,
+  writeFileSync,
+} from "node:fs";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -10,6 +19,10 @@ import { readClientReleaseNumber, readPackageVersion } from "../server/client-re
 import { startLocalBridgeServer } from "../server/local-bridge.js";
 
 const root = mkdtempSync(join(tmpdir(), "opengrove-diagnostic-bundle-server-"));
+const packageJson = JSON.parse(readFileSync(join(process.cwd(), "package.json"), "utf8")) as {
+  dependencies?: Record<string, string>;
+};
+const expectedClaudeAgentSdkVersion = packageJson.dependencies?.["@anthropic-ai/claude-agent-sdk"];
 const token = "diagnostic-bundle-server-token";
 const diagnosticsDir = join(root, "desktop-diagnostics");
 mkdirSync(diagnosticsDir, { recursive: true });
@@ -494,7 +507,7 @@ try {
   assert.equal(manifest.credentials?.stateStoreIncluded, false);
   assert.equal(manifest.versions?.app, readPackageVersion());
   assert.equal(manifest.versions?.clientReleaseNumber, readClientReleaseNumber());
-  assert.equal(manifest.versions?.claudeAgentSdk, "0.3.231");
+  assert.equal(manifest.versions?.claudeAgentSdk, expectedClaudeAgentSdkVersion);
   assert.equal("electron" in (manifest.versions ?? {}), false);
   assert.equal("chrome" in (manifest.versions ?? {}), false);
   assert.equal("packaged" in (manifest.system ?? {}), false);

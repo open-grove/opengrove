@@ -119,7 +119,6 @@ export type ServerNotificationHandler = (notification: { method: string; params?
 
 export const DEFAULT_CODEX_MODEL = "gpt-5.5";
 export const MIN_CODEX_APP_SERVER_VERSION = "0.125.0";
-export const CODEX_NATIVE_APPROVAL_TIMEOUT_MS = 120_000;
 // Feature flags that older Codex CLIs accept via `--disable` but newer builds removed.
 // Passing one to a build that no longer knows it makes `codex app-server` abort at
 // startup with `Unknown feature flag: <name>` (exit code 1). We start with them enabled

@@ -1052,7 +1052,12 @@ async function runForgotMentionPmDispatchHarness(): Promise<void> {
       } else {
         yield { type: "error", runId, message: `unexpected_input:${input}` } as AgentEvent;
       }
-      yield { type: "turn.finished", runId, at: new Date().toISOString() };
+      yield {
+        type: "turn.finished",
+        runId,
+        at: new Date().toISOString(),
+        outcome: { taskState: "TASK_STATE_COMPLETED" },
+      };
     };
 
     const dispatched = await postRoomMessageRoute<{

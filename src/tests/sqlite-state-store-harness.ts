@@ -53,10 +53,16 @@ function verifyRestoredSnapshotNormalizesRuntimeState(rootDir: string): void {
 
   const restored = store.restoreSnapshotInto?.(fixture.ports, snapshot);
   assert.ok(restored);
-  assert.equal(
-    fixture.state().questions[0]?.status,
-    "declined",
-    "restoring an activation snapshot must apply the same stale-runtime policy as a cold load",
+  assert.deepEqual(
+    {
+      status: fixture.state().questions[0]?.status,
+      response: fixture.state().questions[0]?.response,
+    },
+    {
+      status: "canceled",
+      response: { system: true, reasonCode: "producer_lost" },
+    },
+    "restoring an activation snapshot must apply the same honest system-cancellation policy as a cold load",
   );
   void store.close?.();
 }

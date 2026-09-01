@@ -62,7 +62,7 @@ function isPendingActionRoute(context: BridgeRouteContext): boolean {
   return (
     context.url.pathname === "/approvals" ||
     context.url.pathname === "/questions" ||
-    /^\/approvals\/[^/]+\/(approve|reject)$/.test(context.url.pathname) ||
-    /^\/questions\/[^/]+\/(answer|decline)$/.test(context.url.pathname)
+    /^\/approvals\/[^/]+\/(approve|reject|cancel)$/.test(context.url.pathname) ||
+    /^\/questions\/[^/]+\/(answer|decline|cancel)$/.test(context.url.pathname)
   );
 }

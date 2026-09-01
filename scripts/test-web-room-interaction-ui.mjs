@@ -32,6 +32,7 @@ try {
     const desktopPage = await browser.newPage({ viewport: { width: 900, height: 700 } });
     await desktopPage.goto(pathToFileURL(htmlPath).href);
     await testDesktopStopAction(desktopPage);
+    await testPendingInteractionCancelAction(desktopPage);
     await testDisclosureMotionPolicy(desktopPage);
     await testResponsiveLayout(desktopPage);
     await testReactiveLanguage(desktopPage);
@@ -837,6 +838,15 @@ async function testResponsiveLayout(page) {
   );
 }
 
+async function testPendingInteractionCancelAction(page) {
+  const cancel = page.locator("#pending-cancel-root").getByRole("button", { name: "取消本次运行" });
+  await cancel.click();
+  assert.deepEqual(await page.evaluate(() => window.__pendingCancelAction), {
+    approvalId: "approval-cancel-fixture",
+    action: "cancel",
+  });
+}
+
 async function testReactiveLanguage(page) {
   const processIndicator = page.locator("#language-root .og-disclosure--process .agent-state-indicator");
   await processIndicator.waitFor();
@@ -1363,6 +1373,33 @@ function entrySource() {
         onResolveQuestion={() => {}}
       />,
     );
+    window.__pendingCancelAction = null;
+    createRoot(document.getElementById("pending-cancel-root")).render(
+      <MessageList
+        messages={[{
+          id: "pending-cancel-message",
+          role: "assistant",
+          text: "",
+          pending: true,
+          createdAt: "2026-09-01T00:00:00.000Z",
+          parts: [{
+            id: "pending-cancel-approval-part",
+            type: "tool",
+            phase: "approval",
+            approvalId: "approval-cancel-fixture",
+            approvalStatus: "pending",
+            status: "requires-action",
+            title: "Native approval",
+            toolId: "native.tool",
+            input: { command: "write workspace output" },
+          }],
+        }]}
+        onResolveApproval={(approvalId, action) => {
+          window.__pendingCancelAction = { approvalId, action };
+        }}
+        onResolveQuestion={() => {}}
+      />,
+    );
     window.__touchCancelCount = 0;
     window.__roomReplyCount = 0;
     window.__roomMentionCount = 0;
@@ -1597,6 +1634,7 @@ function fixtureHtml() {
             </div>
           </div>
           <div id="language-root"></div>
+          <div id="pending-cancel-root"></div>
           <div id="short-disclosure-root"></div>
           <div id="long-disclosure-root"></div>
           <div id="default-open-disclosure-root"></div>

@@ -6,6 +6,8 @@ import { join, resolve } from "node:path";
 import { createOpenGrove } from "../app/create-opengrove.js";
 import type { AgentContext, AgentEvent } from "../core.js";
 import { ClaudeAgentSdkRuntime, type ClaudeAgentSdkQueryFunction } from "../runtime/claude-agent-sdk-runtime.js";
+import { createClaudeSdkHostBridge } from "../runtime/claude-agent-sdk-tools.js";
+import { AsyncEventQueue } from "../runtime/codex/async-event-queue.js";
 import {
   claudePlanningEventsForToolFinished,
   claudePlanningEventsForToolStarted,
@@ -31,6 +33,95 @@ async function main() {
     }),
     sessionId: "claude-sdk-harness",
   });
+
+  const canceledPermissionController = new AbortController();
+  const canceledPermissionBridge = createClaudeSdkHostBridge(
+    {
+      runId: "run-system-canceled-permission",
+      input: "cancel the native permission request",
+      context: {
+        sessionId: "session-system-canceled-permission",
+        activity: "chat",
+        memory: app.memory,
+        artifacts: app.artifacts,
+        skills: app.skills,
+        packs: app.packs,
+        sessions: app.sessions,
+        executions: app.executions,
+        workingState: app.workingState,
+        approvals: app.approvals,
+        questions: app.questions,
+      },
+      tools: [],
+      signal: canceledPermissionController.signal,
+    },
+    "run-system-canceled-permission",
+    new AsyncEventQueue<AgentEvent>(),
+  );
+  const canceledPermission = canceledPermissionBridge.canUseTool(
+    "Bash",
+    { command: "pwd" },
+    {
+      signal: canceledPermissionController.signal,
+      toolUseID: "toolu-system-canceled-permission",
+      requestId: "request-system-canceled-permission",
+      description: "Run pwd",
+    },
+  );
+  canceledPermissionController.abort();
+  const canceledPermissionResult = await canceledPermission;
+  assert.equal(canceledPermissionResult?.behavior, "deny");
+  assert.equal(canceledPermissionResult?.decisionClassification, undefined);
+  assert.equal(canceledPermissionResult?.interrupt, true);
+  assert.match(canceledPermissionResult?.message ?? "", /No user decision was recorded/);
+  assert.doesNotMatch(canceledPermissionResult?.message ?? "", /Rejected by user/);
+
+  const userCanceledController = new AbortController();
+  const userCanceledBridge = createClaudeSdkHostBridge(
+    {
+      runId: "run-user-canceled-permission",
+      input: "let the user cancel the native permission request",
+      context: {
+        sessionId: "session-user-canceled-permission",
+        activity: "chat",
+        memory: app.memory,
+        artifacts: app.artifacts,
+        skills: app.skills,
+        packs: app.packs,
+        sessions: app.sessions,
+        executions: app.executions,
+        workingState: app.workingState,
+        approvals: app.approvals,
+        questions: app.questions,
+      },
+      tools: [],
+      signal: userCanceledController.signal,
+    },
+    "run-user-canceled-permission",
+    new AsyncEventQueue<AgentEvent>(),
+  );
+  const userCanceledPermission = userCanceledBridge.canUseTool(
+    "Bash",
+    { command: "pwd" },
+    {
+      signal: userCanceledController.signal,
+      toolUseID: "toolu-user-canceled-permission",
+      requestId: "request-user-canceled-permission",
+      description: "Run pwd",
+    },
+  );
+  const pendingUserCanceledApproval = app.approvals.list().find((item) => item.status === "pending");
+  assert.ok(pendingUserCanceledApproval);
+  app.approvals.decide(pendingUserCanceledApproval.id, "canceled", {
+    system: false,
+    reasonCode: "user_canceled",
+  });
+  const userCanceledPermissionResult = await userCanceledPermission;
+  assert.equal(userCanceledPermissionResult?.behavior, "deny");
+  assert.equal(userCanceledPermissionResult?.decisionClassification, undefined);
+  assert.equal(userCanceledPermissionResult?.interrupt, true);
+  assert.match(userCanceledPermissionResult?.message ?? "", /user canceled this Run/i);
+  assert.doesNotMatch(userCanceledPermissionResult?.message ?? "", /Rejected by user/);
 
   let capturedPrompt = "";
   let capturedSystemPrompt = "";
@@ -1279,6 +1370,57 @@ async function main() {
     false,
   );
   assert.ok(failureEvents.some((event) => event.type === "turn.finished"));
+
+  const abortFailureRuntime = new ClaudeAgentSdkRuntime({
+    cwd,
+    permissionMode: "default",
+    configuredModel: "opus",
+    query: (() => {
+      const iterator = {
+        [Symbol.asyncIterator]() {
+          return this;
+        },
+        async next(): Promise<IteratorResult<never>> {
+          throw new Error("native query exited while aborting");
+        },
+      };
+      return Object.assign(iterator, {
+        close() {},
+        interrupt: async () => {},
+        setPermissionMode: async () => {},
+        setModel: async () => {},
+        setMaxThinkingTokens: async () => {},
+        setMcpServers: async () => ({ added: [], removed: [], errors: {} }),
+        reloadPlugins: async () => ({ commands: [], agents: [], plugins: [], mcpServers: [] }),
+        getSettings: async () => ({}),
+      }) as unknown;
+    }) as ClaudeAgentSdkQueryFunction,
+  });
+  const abortFailureController = new AbortController();
+  abortFailureController.abort("user canceled");
+  const abortFailureEvents: AgentEvent[] = [];
+  for await (const event of abortFailureRuntime.runTurn({
+    runId: "run-claude-sdk-abort-failure",
+    input: "cancel this SDK turn",
+    context: { ...context, sessionId: "claude-sdk-abort-failure" },
+    tools: [],
+    requestedModelId: "opus",
+    skills: [],
+    packs: [],
+    capabilities: [],
+    signal: abortFailureController.signal,
+  })) {
+    abortFailureEvents.push(event);
+  }
+  assert.ok(
+    abortFailureEvents.some(
+      (event) =>
+        event.type === "turn.finished" &&
+        event.outcome.taskState === "TASK_STATE_CANCELED" &&
+        event.outcome.outcomeUnknown === true,
+    ),
+    "an SDK exception after abort must stay canceled and outcome-unknown instead of becoming failed",
+  );
 
   let activeQueries = 0;
   let maxActiveQueries = 0;

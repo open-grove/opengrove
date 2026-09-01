@@ -15,6 +15,7 @@ export class CodexEventProjector {
   private readonly generatedImages: Array<{ alt: string; src: string }> = [];
   private streamedAssistantText = false;
   private error?: string;
+  private terminalStatus?: string;
   private tokenUsage?: UsageStats;
 
   constructor(
@@ -199,6 +200,7 @@ export class CodexEventProjector {
         return false;
       }
       const status = readString(turn, "status");
+      this.terminalStatus = status;
       if (status === "failed") {
         const turnError = isJsonObject(turn.error) ? turn.error : undefined;
         this.error = readString(turnError ?? {}, "message") ?? "codex turn failed";
@@ -272,6 +274,10 @@ export class CodexEventProjector {
 
   errorMessage(): string | undefined {
     return this.error;
+  }
+
+  nativeTerminalStatus(): string | undefined {
+    return this.terminalStatus;
   }
 
   usage(): UsageStats | undefined {
