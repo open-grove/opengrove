@@ -428,6 +428,7 @@ export class DesktopBridgeSupervisor {
           ...env,
           ELECTRON_RUN_AS_NODE: process.versions.electron ? "1" : env.ELECTRON_RUN_AS_NODE,
           OPENGROVE_DATA_DIR: this.paths.dataDir,
+          OPENGROVE_USER_DATA_DIR: this.paths.userDataDir,
           OPENGROVE_LOG_DIR: this.paths.logDir,
           OPENGROVE_DIAGNOSTICS_DIR: this.paths.diagnosticsDir,
           OPENGROVE_STATE_PATH: this.paths.statePath,

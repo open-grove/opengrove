@@ -155,6 +155,7 @@ export function SettingsDesktopPanel() {
         const { leaseId } = parseSettingsStorageMaintenanceStartResponse(
           await postJson<unknown>("/settings/storage/maintenance/start", {}),
         );
+        let cleanupFailed = false;
         try {
           const unreferenced = parseSettingsStorageCleanupResponse(
             await postJson<unknown>("/settings/storage/cleanup", { leaseId }),
@@ -163,10 +164,17 @@ export function SettingsDesktopPanel() {
             await postJson<unknown>("/settings/storage/clear-history", { scope: "rebuildable-caches", leaseId }),
           );
           setStorageNotice(storageCleanupNotice(unreferenced.reclaimedBytes + rebuildable.reclaimedBytes, t));
+        } catch (error) {
+          cleanupFailed = true;
+          throw error;
         } finally {
-          parseSettingsStorageMaintenanceEndResponse(
-            await postJson<unknown>("/settings/storage/maintenance/end", { leaseId }),
-          );
+          try {
+            parseSettingsStorageMaintenanceEndResponse(
+              await postJson<unknown>("/settings/storage/maintenance/end", { leaseId }),
+            );
+          } catch (error) {
+            if (!cleanupFailed) throw error;
+          }
         }
       }
       await refreshStorage();

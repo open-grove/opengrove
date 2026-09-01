@@ -2280,7 +2280,12 @@ export function inspectUnreferencedAppStoreArchives(storeRoot: string): {
     referenced.add(resolve(path));
   }
   const candidates: Array<{ path: string; bytes: number }> = [];
-  collectUnreferencedArchiveFiles(archiveRoot, referenced, candidates);
+  try {
+    collectUnreferencedArchiveFiles(archiveRoot, referenced, candidates);
+  } catch {
+    // non-critical-fallback: an unreadable or concurrently changing archive root is retained in full.
+    return { candidates: [], reclaimableBytes: 0 };
+  }
   return {
     candidates,
     reclaimableBytes: candidates.reduce((total, candidate) => total + candidate.bytes, 0),

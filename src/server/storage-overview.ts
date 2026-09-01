@@ -86,7 +86,7 @@ async function inspectBackup(
   try {
     metadata = await lstat(path);
   } catch (error) {
-    if (isMissingPathError(error)) return undefined;
+    if (isSkippableScanError(error)) return undefined;
     throw error;
   }
   if (metadata.isSymbolicLink()) return undefined;
@@ -119,7 +119,7 @@ async function walkRegularFiles(root: string, visit: (path: string, bytes: numbe
   try {
     metadata = await lstat(root);
   } catch (error) {
-    if (isMissingPathError(error)) return;
+    if (isSkippableScanError(error)) return;
     throw error;
   }
   if (metadata.isSymbolicLink()) return;
@@ -128,7 +128,13 @@ async function walkRegularFiles(root: string, visit: (path: string, bytes: numbe
     return;
   }
   if (!metadata.isDirectory()) return;
-  const directory = await opendir(root);
+  let directory;
+  try {
+    directory = await opendir(root);
+  } catch (error) {
+    if (isSkippableScanError(error)) return;
+    throw error;
+  }
   for await (const entry of directory) {
     if (entry.isSymbolicLink()) continue;
     await walkRegularFiles(resolve(root, entry.name), visit);
@@ -172,7 +178,7 @@ function isCleanupCandidate(
   if (!pathIsInside(roots.userDataDir, path)) return false;
   const segments = normalizedRelative(roots.userDataDir, path).split("/");
   const topLevel = segments[0]?.toLowerCase() ?? "";
-  if (["cache", "code cache", "gpucache", "dawncache", "dawnwebgpucache", "dawngraphitecache"].includes(topLevel)) {
+  if (["cache", "code cache"].includes(topLevel)) {
     return true;
   }
   return topLevel === "logs" && /\.log\.\d+$/.test(segments.at(-1) ?? "");
@@ -241,11 +247,11 @@ function emptyCategoryBytes(): CategoryBytes {
   };
 }
 
-function isMissingPathError(error: unknown): boolean {
+function isSkippableScanError(error: unknown): boolean {
   return Boolean(
     error &&
       typeof error === "object" &&
       "code" in error &&
-      ((error as { code?: unknown }).code === "ENOENT" || (error as { code?: unknown }).code === "ENOTDIR"),
+      ["ENOENT", "ENOTDIR", "EACCES", "EPERM", "ESTALE"].includes(String((error as { code?: unknown }).code)),
   );
 }

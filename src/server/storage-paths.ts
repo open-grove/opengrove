@@ -1,6 +1,7 @@
-import { basename, dirname, resolve } from "node:path";
+import { dirname, resolve } from "node:path";
 import type { BridgeState } from "./bridge-types.js";
-import { defaultOpenGroveDataDir } from "../storage/default-data-dir.js";
+import { readAppEnv } from "../identity.js";
+import { defaultOpenGroveDataDir, defaultOpenGroveUserDataDir } from "../storage/default-data-dir.js";
 
 export function bridgeDataDirectory(state: BridgeState): string {
   if (state.store.kind === "json" || state.store.kind === "sqlite") {
@@ -14,6 +15,9 @@ export function bridgeDataPath(state: BridgeState, ...segments: string[]): strin
 }
 
 export function bridgeUserDataDirectory(state: BridgeState): string {
+  const explicitUserDataDir = readAppEnv("USER_DATA_DIR")?.trim();
+  if (explicitUserDataDir) return resolve(explicitUserDataDir);
   const dataDir = bridgeDataDirectory(state);
-  return basename(dataDir).toLowerCase() === "data" ? dirname(dataDir) : dataDir;
+  if (readAppEnv("DATA_DIR")?.trim()) return dataDir;
+  return resolve(dataDir) === resolve(defaultOpenGroveDataDir()) ? resolve(defaultOpenGroveUserDataDir()) : dataDir;
 }
