@@ -99,7 +99,8 @@ export function SettingsDesktopPanel() {
       const response = parseSettingsStorageResponse(await getJson<unknown>("/settings/storage"));
       setStorageOverview(response.overview);
       setStorageCleanupEstimates(response.cleanupEstimates);
-    } catch (innerError) {
+    } catch {
+      // non-critical-fallback: keep any last successful snapshot visible and offer a plain-language retry state.
       setStorageError(t("settings.storageLoadError"));
     } finally {
       setStorageLoading(false);
@@ -125,7 +126,8 @@ export function SettingsDesktopPanel() {
       );
       setStorageNotice(t("settings.storageMigrationBackupsDeleted", { size: formatBytes(response.reclaimedBytes) }));
       await refreshStorage();
-    } catch (innerError) {
+    } catch {
+      // non-critical-fallback: the backup remains intact and the user can retry without losing the storage snapshot.
       setStorageError(t("settings.storageBackupDeleteError"));
     } finally {
       setStorageBusy(false);
