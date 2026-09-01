@@ -44,6 +44,13 @@ try {
     await storageEntry.click();
 
     await page.getByRole("heading", { name: "存储空间", exact: true }).waitFor();
+    await page.getByText("正在统计存储空间…", { exact: true }).waitFor();
+    assert.equal(
+      await page.getByText("0 B", { exact: true }).count(),
+      0,
+      "loading must not masquerade as empty storage",
+    );
+    await page.getByText("6.0 GB", { exact: true }).waitFor();
     assert.equal(await page.getByText("6.0 GB", { exact: true }).count(), 1);
     for (const label of ["我的作品与文件", "App 与运行组件", "缓存和临时文件", "升级备份", "聊天与系统数据"]) {
       assert.ok((await page.getByText(label, { exact: true }).count()) > 0, `${label} must be visible`);
@@ -150,9 +157,10 @@ function entrySource() {
       },
     };
     globalThis.storagePayload = storagePayload;
-    globalThis.fetch = async (input) => {
+    globalThis.fetch = async (input, init) => {
       const url = String(input);
       if (url.includes("/settings/storage")) {
+        if (!init?.method || init.method === "GET") await new Promise((resolve) => setTimeout(resolve, 1500));
         return new Response(JSON.stringify(storagePayload), { status: 200, headers: { "content-type": "application/json" } });
       }
       return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { "content-type": "application/json" } });

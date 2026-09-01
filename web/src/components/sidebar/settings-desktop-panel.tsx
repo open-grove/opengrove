@@ -18,7 +18,6 @@ import {
   type SettingsStorageCleanupEstimates,
   type SettingsStorageCategoryId,
   type SettingsStorageOverview,
-  type SettingsStorageStats,
 } from "./settings-storage-model";
 
 declare const __OPENGROVE_PACKAGE_VERSION__: string | undefined;
@@ -36,9 +35,9 @@ export function SettingsDesktopPanel() {
   const [exportedFileName, setExportedFileName] = useState("");
   const [exportedEvidenceComplete, setExportedEvidenceComplete] = useState<boolean | undefined>();
   const [error, setError] = useState("");
-  const [storage, setStorage] = useState<SettingsStorageStats>();
   const [storageOverview, setStorageOverview] = useState<SettingsStorageOverview>();
   const [storageCleanupEstimates, setStorageCleanupEstimates] = useState<SettingsStorageCleanupEstimates>();
+  const [storageLoading, setStorageLoading] = useState(true);
   const [storageBusy, setStorageBusy] = useState(false);
   const [storageError, setStorageError] = useState("");
   const [storageNotice, setStorageNotice] = useState("");
@@ -94,14 +93,16 @@ export function SettingsDesktopPanel() {
   const runtime = runtimeSummary(desktop, diagnostics, hostVersion);
 
   async function refreshStorage() {
+    setStorageLoading(true);
     setStorageError("");
     try {
       const response = parseSettingsStorageResponse(await getJson<unknown>("/settings/storage"));
-      setStorage(response.stats);
       setStorageOverview(response.overview);
       setStorageCleanupEstimates(response.cleanupEstimates);
     } catch (innerError) {
-      setStorageError(innerError instanceof Error ? innerError.message : String(innerError));
+      setStorageError(t("settings.storageLoadError"));
+    } finally {
+      setStorageLoading(false);
     }
   }
 
@@ -125,7 +126,7 @@ export function SettingsDesktopPanel() {
       setStorageNotice(t("settings.storageMigrationBackupsDeleted", { size: formatBytes(response.reclaimedBytes) }));
       await refreshStorage();
     } catch (innerError) {
-      setStorageError(innerError instanceof Error ? innerError.message : String(innerError));
+      setStorageError(t("settings.storageBackupDeleteError"));
     } finally {
       setStorageBusy(false);
     }
@@ -203,6 +204,7 @@ export function SettingsDesktopPanel() {
         <StoragePanel
           overview={storageOverview}
           cleanupEstimates={storageCleanupEstimates}
+          loading={storageLoading}
           busy={storageBusy}
           error={storageError}
           notice={storageNotice}
@@ -245,7 +247,7 @@ export function SettingsDesktopPanel() {
             <p className="settings-warning">{t("settings.desktopExportIncomplete")}</p>
           ) : null}
         </section>
-        <StorageEntry stats={storage} overview={storageOverview} onOpen={() => setPage("storage")} />
+        <StorageEntry loading={storageLoading} overview={storageOverview} onOpen={() => setPage("storage")} />
       </div>
     );
   }
@@ -334,7 +336,7 @@ export function SettingsDesktopPanel() {
         ) : null}
       </section>
 
-      <StorageEntry stats={storage} overview={storageOverview} onOpen={() => setPage("storage")} />
+      <StorageEntry loading={storageLoading} overview={storageOverview} onOpen={() => setPage("storage")} />
 
       <section className="settings-list-section">
         <div className="settings-list-section-heading">
@@ -386,6 +388,7 @@ function runtimeSummary(
 function StoragePanel(props: {
   overview?: SettingsStorageOverview;
   cleanupEstimates?: SettingsStorageCleanupEstimates;
+  loading: boolean;
   busy: boolean;
   error: string;
   notice: string;
@@ -415,71 +418,83 @@ function StoragePanel(props: {
         <button
           className="settings-section-action"
           type="button"
-          disabled={props.busy}
+          disabled={props.busy || props.loading}
           onClick={() => void props.onRefresh()}
         >
           {t("settings.storageRefreshStats")}
         </button>
       </div>
       <p className="settings-help">{t("settings.localStorageCopy")}</p>
-      <div className="settings-storage-summary">
-        <div className="settings-storage-total">
-          <strong>{t("settings.storageTotalUsed")}</strong>
-          <span>{formatBytes(totalBytes)}</span>
+      {!props.overview ? (
+        <div className="settings-storage-summary">
+          <strong>{props.loading ? t("settings.storageLoading") : t("settings.storageUnavailable")}</strong>
+          {!props.loading && props.error ? <p className="settings-help">{props.error}</p> : null}
         </div>
-        <div className="settings-storage-bar" aria-hidden="true">
-          {storageSegments.map((segment) => (
-            <span key={segment.label} style={{ width: `${totalBytes ? (segment.bytes / totalBytes) * 100 : 0}%` }} />
-          ))}
-        </div>
-        <div className="settings-storage-legend">
-          {storageSegments.map((segment) => (
-            <span key={segment.label}>
-              <i aria-hidden="true" />
-              {segment.label}
-            </span>
-          ))}
-        </div>
-      </div>
-      <div className="settings-storage-grid">
-        {visibleStorageCategoryIds.map((id) => (
-          <StorageCard
-            key={id}
-            label={storageOverviewCategoryLabel(id, t)}
-            description={storageOverviewCategoryDescription(id, t, props.overview)}
-            value={formatBytes(settingsStorageCategoryBytes(props.overview, id))}
-          />
-        ))}
-      </div>
-      <div className="settings-storage-subheading">{t("settings.storageMaintenance")}</div>
-      <div className="settings-list settings-storage-list">
-        <DesktopActionRow
-          label={t("settings.storageSafeCleanup")}
-          description={`${t("settings.storageSafeCleanupCopy")} ${t("settings.storageCleanupEstimateMaximum", {
-            size: formatBytes(props.cleanupEstimates?.safeCleanupBytes ?? 0),
-          })}`}
-          actionLabel={props.busy ? t("settings.storageCleaning") : t("settings.storageSafeCleanup")}
-          disabled={props.busy || !(props.cleanupEstimates?.safeCleanupBytes ?? 0)}
-          onAction={() => void props.onCleanup()}
-        />
-        {(props.cleanupEstimates?.migrationBackupBytes ?? 0) > 0 ? (
-          <DesktopActionRow
-            label={t("settings.storageMigrationBackups")}
-            description={`${t("settings.storageMigrationBackupsCopy")} ${backupKindSummary(props.overview, t)}`}
-            actionLabel={t("settings.storageDeleteMigrationBackups")}
-            tone="danger"
-            disabled={props.busy}
-            onAction={() => void props.onClearHistory("migration-backups")}
-          />
-        ) : null}
-      </div>
-      {props.error ? <p className="settings-warning">{rawDiagnosticText(props.error)}</p> : null}
+      ) : (
+        <>
+          <div className="settings-storage-summary">
+            <div className="settings-storage-total">
+              <strong>{t("settings.storageTotalUsed")}</strong>
+              <span>{formatBytes(totalBytes)}</span>
+            </div>
+            <div className="settings-storage-bar" aria-hidden="true">
+              {storageSegments.map((segment) => (
+                <span
+                  key={segment.label}
+                  style={{ width: `${totalBytes ? (segment.bytes / totalBytes) * 100 : 0}%` }}
+                />
+              ))}
+            </div>
+            <div className="settings-storage-legend">
+              {storageSegments.map((segment) => (
+                <span key={segment.label}>
+                  <i aria-hidden="true" />
+                  {segment.label}
+                </span>
+              ))}
+            </div>
+          </div>
+          <div className="settings-storage-grid">
+            {visibleStorageCategoryIds.map((id) => (
+              <StorageCard
+                key={id}
+                label={storageOverviewCategoryLabel(id, t)}
+                description={storageOverviewCategoryDescription(id, t, props.overview)}
+                value={formatBytes(settingsStorageCategoryBytes(props.overview, id))}
+              />
+            ))}
+          </div>
+          <div className="settings-storage-subheading">{t("settings.storageMaintenance")}</div>
+          <div className="settings-list settings-storage-list">
+            <DesktopActionRow
+              label={t("settings.storageSafeCleanup")}
+              description={`${t("settings.storageSafeCleanupCopy")} ${t("settings.storageCleanupEstimateMaximum", {
+                size: formatBytes(props.cleanupEstimates?.safeCleanupBytes ?? 0),
+              })}`}
+              actionLabel={props.busy ? t("settings.storageCleaning") : t("settings.storageSafeCleanup")}
+              disabled={props.busy || !(props.cleanupEstimates?.safeCleanupBytes ?? 0)}
+              onAction={() => void props.onCleanup()}
+            />
+            {(props.cleanupEstimates?.migrationBackupBytes ?? 0) > 0 ? (
+              <DesktopActionRow
+                label={t("settings.storageMigrationBackups")}
+                description={`${t("settings.storageMigrationBackupsCopy")} ${backupKindSummary(props.overview, t)}`}
+                actionLabel={t("settings.storageDeleteMigrationBackups")}
+                tone="danger"
+                disabled={props.busy}
+                onAction={() => void props.onClearHistory("migration-backups")}
+              />
+            ) : null}
+          </div>
+        </>
+      )}
+      {props.overview && props.error ? <p className="settings-warning">{props.error}</p> : null}
       {props.notice ? <p className="settings-success">{props.notice}</p> : null}
     </section>
   );
 }
 
-function StorageEntry(props: { stats?: SettingsStorageStats; overview?: SettingsStorageOverview; onOpen(): void }) {
+function StorageEntry(props: { loading: boolean; overview?: SettingsStorageOverview; onOpen(): void }) {
   const { t } = useI18n();
   const totalBytes = settingsStorageTotalBytes(props.overview);
   return (
@@ -487,7 +502,7 @@ function StorageEntry(props: { stats?: SettingsStorageStats; overview?: Settings
       <button className="settings-storage-entry" type="button" onClick={props.onOpen}>
         <strong>{t("settings.storageSpaceTitle")}</strong>
         <span className="settings-storage-entry-meta">
-          <span>{props.stats ? formatBytes(totalBytes) : "—"}</span>
+          <span>{props.overview ? formatBytes(totalBytes) : props.loading ? "…" : "—"}</span>
           <ProductIcon name="next" size={17} />
         </span>
       </button>
@@ -495,15 +510,7 @@ function StorageEntry(props: { stats?: SettingsStorageStats; overview?: Settings
   );
 }
 
-function StorageCard(props: {
-  label: string;
-  description?: string;
-  value: string;
-  actionLabel?: string;
-  disabled?: boolean;
-  tone?: "default" | "danger";
-  onAction?(): void | Promise<void>;
-}) {
+function StorageCard(props: { label: string; description?: string; value: string }) {
   return (
     <div className="settings-storage-card">
       <span className="settings-storage-card-copy">
@@ -511,16 +518,6 @@ function StorageCard(props: {
         <span>{props.value}</span>
         {props.description ? <small>{props.description}</small> : null}
       </span>
-      {props.actionLabel && props.onAction ? (
-        <button
-          className={props.tone === "danger" ? "settings-row-button danger" : "settings-row-button"}
-          type="button"
-          disabled={props.disabled}
-          onClick={() => void props.onAction?.()}
-        >
-          {props.actionLabel}
-        </button>
-      ) : null}
     </div>
   );
 }
