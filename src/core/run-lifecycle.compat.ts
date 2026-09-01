@@ -2,6 +2,9 @@ import { lifecycleFromRunFact, runLifecycleSchema, type RunLifecycle } from "#ag
 
 type LegacyRunStatus = "running" | "waiting_for_approval" | "waiting_for_user" | "succeeded" | "failed";
 
+// Supports: OpenGrove 0.6.5 persisted RunRecord.status values.
+// Remove when: OpenGrove 0.7.0 no longer supports state last written by 0.6.5.
+
 // A2A accepts UNSPECIFIED at the wire boundary. Persisted Host state does not:
 // storing the sentinel would turn an upstream omission into an internal fact.
 const persistedRunLifecycleSchema = runLifecycleSchema.refine(

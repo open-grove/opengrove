@@ -1,5 +1,8 @@
 import type { A2ATaskState } from "#agent-protocol";
 
+// Supports: OpenGrove 0.6.5 Room message status projections.
+// Remove when: OpenGrove 0.7.0 no longer supports Room state last written by 0.6.5.
+
 /**
  * Reads Room task state written before RunRecord.lifecycle became authoritative
  * in OpenGrove 0.6.6. This is only used when no RunRecord exists, so current

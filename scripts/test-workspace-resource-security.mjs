@@ -309,6 +309,7 @@ try {
     outfile: bundlePath,
     absWorkingDir: projectRoot,
     alias: {
+      "#agent-protocol": join(projectRoot, "packages/agent-protocol/src/index.ts"),
       "#agent-protocol/locale-registry": join(projectRoot, "packages/agent-protocol/src/locale-registry.ts"),
     },
     nodePaths: [join(projectRoot, "node_modules")],

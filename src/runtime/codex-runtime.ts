@@ -130,8 +130,6 @@ export class CodexRuntime implements AgentRuntime {
         error: error instanceof Error ? error.message : String(error),
       };
     }
-    if (!client) return { ok: false, compacted: false, error: "codex_app_server_unavailable" };
-
     const runId = request.runId ?? `compact_${Date.now()}`;
     const queue = new AsyncEventQueue<AgentEvent>();
     const projector = new CodexEventProjector(runId, binding.threadId, queue);
