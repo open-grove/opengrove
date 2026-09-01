@@ -11,6 +11,9 @@ and workspace data kept on the user's machine.
   controls without replacing the Kernel's model loop.
 - The **Bridge** is a loopback HTTP service used by the desktop shell and Web
   UI. Desktop mode uses an in-memory token and a random loopback port.
+- The shared **Protocol** describes stable Host operations, while the public
+  **Client** executes them for Web, desktop, CLI, and integrations. See
+  [Client and protocol boundary](CLIENT_PROTOCOL.md).
 - An **App** is a portable local directory that can declare Employees, Skills,
   CLIs, MCP configuration, workspace boundaries, and UI surfaces.
 - For Store-managed Apps, the Host keeps replaceable program generations apart

@@ -1,4 +1,5 @@
 import type { BridgeRoute, BridgeRouteContext } from "../router.js";
+import { createRoomMessageOperation } from "#protocol";
 import { handleA2ARoute } from "./a2a.js";
 import { handleAppStoreRoute } from "./app-store.js";
 import { handleAppsRoute } from "./apps.js";
@@ -9,7 +10,7 @@ import { handleExtensionsRoute } from "./extensions.js";
 import { handleKnowledgeRoute } from "./knowledge.js";
 import { handleLocalResourceRoute } from "./local-resources.js";
 import { handlePendingActionsRoute } from "./pending-actions.js";
-import { moduleRoute } from "./registry-utils.js";
+import { moduleRoute, operationRoute } from "./registry-utils.js";
 import { handleRoomLedgerCapabilityRoute } from "./room-ledger.js";
 import { handleRoomsRoute } from "./rooms.js";
 import { createRoutineRoutes } from "./routines.js";
@@ -41,6 +42,7 @@ export function createBridgeRoutes(): BridgeRoute[] {
     moduleRoute("extensions", /^\/extensions(?:\/|$)/, (context) => handleExtensionsRoute(context)),
     moduleRoute("apps", /^\/apps\//, (context) => handleAppsRoute(context)),
     ...createInventoryRoutes(),
+    operationRoute(createRoomMessageOperation, (context) => handleRoomsRoute(context)),
     moduleRoute("rooms", /^\/rooms(?:\/|$)/, (context) => handleRoomsRoute(context)),
     ...createRoutineRoutes(),
     ...createAskRoutes(),

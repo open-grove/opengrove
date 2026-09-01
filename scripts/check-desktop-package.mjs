@@ -12,6 +12,8 @@ const packageJson = JSON.parse(readFileSync(join(projectRoot, "package.json"), "
 const requiredPaths = [
   "desktop-dist/main.cjs",
   "desktop-dist/preload.cjs",
+  "dist/protocol/index.js",
+  "dist/client/index.js",
   "dist/agent-protocol/index.js",
   "dist/agent-protocol/locale-registry.js",
   "dist/server/desktop-bridge-entry.js",
@@ -59,6 +61,12 @@ if (!configuredProtocolSchemes.includes("opengrove")) {
 }
 if (packageJson.imports?.["#agent-protocol"]?.default !== "./dist/agent-protocol/index.js") {
   errors.push("the desktop runtime must resolve #agent-protocol from the bundled dist tree");
+}
+if (packageJson.imports?.["#protocol"]?.default !== "./dist/protocol/index.js") {
+  errors.push("the desktop runtime must resolve #protocol from the bundled dist tree");
+}
+if (packageJson.imports?.["#client"]?.default !== "./dist/client/index.js") {
+  errors.push("the desktop runtime must resolve #client from the bundled dist tree");
 }
 if (packageJson.imports?.["#agent-protocol/locale-registry"]?.default !== "./dist/agent-protocol/locale-registry.js") {
   errors.push("the desktop runtime must resolve #agent-protocol/locale-registry from the bundled dist tree");

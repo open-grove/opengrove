@@ -2,7 +2,9 @@ import assert from "node:assert/strict";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { test } from "node:test";
 import { askCancelContract, askCompactContract, askGuideContract, clientBootstrapContract } from "#agent-protocol";
+import { createRoomMessageOperation, findHostOperation, hostOperations } from "#protocol";
 import { BridgeContractViolation, dispatchBridgeRoutes, type BridgeRouteContext } from "../server/router.js";
+import { operationRoute } from "../server/routes/registry-utils.js";
 
 test("shared Bridge contracts accept their documented payloads", () => {
   assert.equal(askCancelContract.request.safeParse({ threadId: "thread-1" }).success, true);
@@ -51,6 +53,53 @@ test("shared Bridge contracts reject missing or mistyped fields", () => {
     }).success,
     false,
   );
+});
+
+test("room-message operation owns method, path, risk, and JSON contracts", () => {
+  assert.equal(createRoomMessageOperation.id, "room.message.create");
+  assert.equal(createRoomMessageOperation.method, "POST");
+  assert.equal(createRoomMessageOperation.path, "/rooms/{roomId}/messages");
+  assert.equal(createRoomMessageOperation.risk, "write");
+  assert.equal(createRoomMessageOperation.params.safeParse({ roomId: "room-1" }).success, true);
+  assert.equal(createRoomMessageOperation.body.safeParse({ text: "hello" }).success, true);
+  assert.equal(createRoomMessageOperation.body.safeParse({ text: 42 }).success, false);
+  assert.equal(createRoomMessageOperation.success.status, 200);
+
+  const registered = operationRoute(createRoomMessageOperation, () => true);
+  const matchingContext = contractTestContext({ body: {} });
+  matchingContext.url = new URL("http://127.0.0.1/rooms/room-1/messages");
+  assert.equal(registered.path instanceof RegExp && registered.path.test(matchingContext.url.pathname), true);
+  assert.equal(registered.method, "POST");
+  assert.equal(registered.contract, createRoomMessageOperation);
+});
+
+test("Host operation catalog has stable unique ids", () => {
+  assert.equal(new Set(hostOperations.map((operation) => operation.id)).size, hostOperations.length);
+  assert.equal(findHostOperation("room.message.create"), createRoomMessageOperation);
+  assert.equal(findHostOperation("missing.operation"), undefined);
+});
+
+test("Host operation routes validate path parameters and declared error responses", async () => {
+  const sent: Array<{ status: number; data: unknown }> = [];
+  const context = contractTestContext({
+    body: { text: "hello" },
+    onSend: (status, data) => sent.push({ status, data }),
+  });
+  context.url = new URL("http://127.0.0.1/rooms/room-1/messages");
+
+  assert.equal(
+    await dispatchBridgeRoutes(
+      [
+        operationRoute(createRoomMessageOperation, (routeContext) => {
+          routeContext.sendJson(routeContext.response, 404, { ok: false, error: "reply_message_not_found" });
+          return true;
+        }),
+      ],
+      context,
+    ),
+    true,
+  );
+  assert.deepEqual(sent, [{ status: 404, data: { ok: false, error: "reply_message_not_found" } }]);
 });
 
 test("route contracts reject invalid request bodies before handlers receive them", async () => {

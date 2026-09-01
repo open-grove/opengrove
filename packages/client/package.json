@@ -1,8 +1,8 @@
 {
-  "name": "@opengrove/agent-protocol",
+  "name": "@opengrove/client",
   "version": "0.1.0",
   "type": "module",
-  "description": "Shared OpenGrove agent, A2A, room context, and employee contract protocol types.",
+  "description": "Typed OpenGrove Host client for Web, CLI, desktop, and integrations.",
   "license": "Apache-2.0",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -10,10 +10,6 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
-    },
-    "./locale-registry": {
-      "types": "./dist/locale-registry.d.ts",
-      "import": "./dist/locale-registry.js"
     }
   },
   "imports": {
@@ -25,12 +21,13 @@
   ],
   "scripts": {
     "build": "npm run clean && tsc6 -p tsconfig.json",
+    "generate": "node ../../scripts/generate-host-client.mjs",
+    "check:generated": "node ../../scripts/generate-host-client.mjs --check",
     "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@opengrove/protocol": "0.1.0",
-    "zod": "^4.4.3"
+    "@opengrove/protocol": "0.1.0"
   },
   "devDependencies": {
     "@typescript/native": "npm:typescript@7.0.2",

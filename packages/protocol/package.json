@@ -1,8 +1,8 @@
 {
-  "name": "@opengrove/agent-protocol",
+  "name": "@opengrove/protocol",
   "version": "0.1.0",
   "type": "module",
-  "description": "Shared OpenGrove agent, A2A, room context, and employee contract protocol types.",
+  "description": "Shared OpenGrove Host operation contracts for clients, CLIs, and servers.",
   "license": "Apache-2.0",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -10,14 +10,7 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
-    },
-    "./locale-registry": {
-      "types": "./dist/locale-registry.d.ts",
-      "import": "./dist/locale-registry.js"
     }
-  },
-  "imports": {
-    "#protocol": "@opengrove/protocol"
   },
   "files": [
     "dist",
@@ -29,7 +22,6 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@opengrove/protocol": "0.1.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {

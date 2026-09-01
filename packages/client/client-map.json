@@ -1,0 +1,9 @@
+{
+  "groups": {
+    "room": "rooms"
+  },
+  "resources": {
+    "room.message": "messages"
+  },
+  "operations": {}
+}
