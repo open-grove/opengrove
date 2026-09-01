@@ -1,5 +1,15 @@
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  closeSync,
+  existsSync,
+  fsyncSync,
+  mkdirSync,
+  openSync,
+  readFileSync,
+  renameSync,
+  unlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { homedir } from "node:os";
 import { dirname, resolve } from "node:path";
 import type {
@@ -16,7 +26,7 @@ import type {
   JsonValue,
 } from "../core.js";
 import { createCodexRpcCaptureRecorder } from "./codex-rpc-capture.js";
-import { CodexAppServerClient } from "./codex/app-server-client.js";
+import { CodexAppServerClient, CodexRequestFailure } from "./codex/app-server-client.js";
 import { AsyncEventQueue } from "./codex/async-event-queue.js";
 import {
   handleCodexApprovalRequest,
@@ -27,6 +37,7 @@ import {
 import { readCodexAuthRefreshResponse } from "./codex/auth.js";
 import { createCodexDynamicToolBridge, readDynamicToolCallParams } from "./codex/dynamic-tool-bridge.js";
 import { CodexEventProjector } from "./codex/event-projector.js";
+import { isJsonObject, readString } from "./codex/json.js";
 import {
   buildCodexDeveloperInstructions,
   buildCodexTurnInput,
@@ -77,6 +88,9 @@ type ActiveCodexTurn = {
 
 export class CodexRuntime implements AgentRuntime {
   private readonly clients = new Map<string, CodexAppServerClient>();
+  private readonly clientReady = new Map<string, Promise<CodexAppServerClient>>();
+  private readonly clientLeases = new Map<CodexAppServerClient, number>();
+  private readonly retiredClients = new Set<CodexAppServerClient>();
   private readonly bindings = new Map<string, CodexThreadBinding>();
   private readonly activeTurns = new Map<string, ActiveCodexTurn>();
   private bindingsLoaded = false;
@@ -95,48 +109,94 @@ export class CodexRuntime implements AgentRuntime {
     }
 
     const runtimeEnv = this.options.env;
-    let client: CodexAppServerClient;
+    let client: CodexAppServerClient | undefined;
+    const clientKey = envFingerprint(runtimeEnv);
     try {
       client = await this.ensureClient(runtimeEnv);
+      this.leaseClient(client);
       await client.request<CodexThreadStartResponse>(
         "thread/resume",
         { threadId: binding.threadId },
-        { timeoutMs: this.options.requestTimeoutMs ?? 60_000 },
+        { timeoutMs: this.options.requestTimeoutMs ?? 60_000, signal: request.signal },
       );
     } catch (error) {
+      if (client) {
+        if (isAbandonedMutatingRequest(error, request.signal)) this.poisonClient(clientKey, client);
+        this.releaseClient(client);
+      }
       return {
         ok: false,
         compacted: false,
         error: error instanceof Error ? error.message : String(error),
       };
     }
+    if (!client) return { ok: false, compacted: false, error: "codex_app_server_unavailable" };
 
     const runId = request.runId ?? `compact_${Date.now()}`;
     const queue = new AsyncEventQueue<AgentEvent>();
     const projector = new CodexEventProjector(runId, binding.threadId, queue);
     let compacted = false;
     let compactError = "";
+    let compactTurnId = "";
+    let cancelRequested = request.signal?.aborted === true;
+    let livenessTimer: ReturnType<typeof setTimeout> | undefined;
+    const armLivenessBoundary = () => {
+      if (livenessTimer) clearTimeout(livenessTimer);
+      livenessTimer = setTimeout(() => {
+        compactError = "codex_compact_liveness_timeout";
+        queue.close();
+      }, this.options.requestTimeoutMs ?? 60_000);
+      livenessTimer.unref?.();
+    };
     const notificationCleanup = client.addNotificationHandler((notification) => {
-      const completed = projector.handleNotification(notification, "*");
+      if (codexNotificationMatches(notification, binding.threadId, compactTurnId || undefined)) {
+        armLivenessBoundary();
+      }
+      const completed = projector.handleNotification(notification, compactTurnId || "*");
+      const params = isJsonObject(notification.params) ? notification.params : undefined;
+      if (notification.method === "thread/compacted" && readString(params ?? {}, "threadId") === binding.threadId) {
+        compacted = true;
+        queue.close();
+        return;
+      }
       if (completed) queue.close();
     });
-    const timeout = setTimeout(() => queue.close(), this.options.requestTimeoutMs ?? 60_000);
+    const closeCleanup = client.addCloseHandler((error) => {
+      compactError = `codex_compact_producer_lost:${error.message}`;
+      queue.close();
+    });
+    const abortCompact = () => {
+      cancelRequested = true;
+      if (compactTurnId) {
+        void client
+          .request("turn/interrupt", { threadId: binding.threadId, turnId: compactTurnId }, { timeoutMs: 15_000 })
+          .catch(() => undefined);
+      }
+    };
+    request.signal?.addEventListener("abort", abortCompact, { once: true });
 
     try {
-      await client.request(
+      const started = await client.request<CodexTurnStartResponse>(
         "thread/compact/start",
         { threadId: binding.threadId },
-        { timeoutMs: this.options.requestTimeoutMs ?? 60_000 },
+        { timeoutMs: this.options.requestTimeoutMs ?? 60_000, signal: request.signal },
       );
+      compactTurnId = started.turn?.id ?? "";
+      armLivenessBoundary();
+      if (cancelRequested && compactTurnId) abortCompact();
       for await (const event of queue) {
         if (event.type === "compaction.finished") compacted = true;
         if (event.type === "error") compactError = event.message;
       }
     } catch (error) {
       compactError = error instanceof Error ? error.message : String(error);
+      if (!compactTurnId && isAbandonedMutatingRequest(error, request.signal)) this.poisonClient(clientKey, client);
     } finally {
-      clearTimeout(timeout);
+      if (livenessTimer) clearTimeout(livenessTimer);
+      request.signal?.removeEventListener("abort", abortCompact);
+      closeCleanup();
       notificationCleanup();
+      this.releaseClient(client);
     }
 
     if (compacted) {
@@ -147,7 +207,12 @@ export class CodexRuntime implements AgentRuntime {
     return {
       ok: false,
       compacted: false,
-      error: compactError || projector.errorMessage() || "compact_boundary_not_observed",
+      ...(cancelRequested || compactError.startsWith("codex_compact_producer_lost:") ? { outcomeUnknown: true } : {}),
+      error:
+        compactError ||
+        (cancelRequested ? "codex_compact_canceled_outcome_unknown" : "") ||
+        projector.errorMessage() ||
+        "compact_boundary_not_observed",
     };
   }
 
@@ -222,8 +287,27 @@ export class CodexRuntime implements AgentRuntime {
       };
     }
 
-    const client = await this.ensureClient(runtimeEnv);
-    await refreshCodexNativeSkillList(client, cwd, request);
+    let client: CodexAppServerClient;
+    try {
+      client = await this.ensureClient(runtimeEnv);
+      await refreshCodexNativeSkillList(client, cwd, request);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      yield { type: "error", runId, message };
+      yield {
+        type: "turn.finished",
+        runId,
+        at: new Date().toISOString(),
+        outcome: {
+          taskState: "TASK_STATE_FAILED",
+          reasonCode: "codex_app_server_unavailable",
+          outcomeUnknown: true,
+        },
+      };
+      return;
+    }
+    const clientKey = envFingerprint(runtimeEnv);
+    this.leaseClient(client);
 
     const queue = new AsyncEventQueue<AgentEvent>();
     let activeThreadId = "";
@@ -327,7 +411,22 @@ export class CodexRuntime implements AgentRuntime {
       });
     } catch (error) {
       requestCleanup();
-      throw error;
+      const abandoned = isAbandonedMutatingRequest(error, request.signal);
+      if (abandoned) this.poisonClient(clientKey, client);
+      this.releaseClient(client);
+      const message = error instanceof Error ? error.message : String(error);
+      yield { type: "error", runId, message };
+      yield {
+        type: "turn.finished",
+        runId,
+        at: new Date().toISOString(),
+        outcome: {
+          taskState: "TASK_STATE_FAILED",
+          reasonCode: abandoned ? "codex_control_outcome_unknown" : "codex_thread_start_failed",
+          ...(abandoned ? { outcomeUnknown: true } : {}),
+        },
+      };
+      return;
     }
     activeThreadId = thread.threadId;
     activeTurn = {
@@ -385,14 +484,35 @@ export class CodexRuntime implements AgentRuntime {
     }
 
     const projector = new CodexEventProjector(runId, thread.threadId, queue);
+    let cancelRequested = false;
+    let runtimeFailure = "";
+    let compactLivenessTimer: ReturnType<typeof setTimeout> | undefined;
+    const armCompactLivenessBoundary = () => {
+      if (!compactTurn) return;
+      if (compactLivenessTimer) clearTimeout(compactLivenessTimer);
+      compactLivenessTimer = setTimeout(() => {
+        runtimeFailure = "codex_compact_liveness_timeout";
+        queue.close();
+      }, this.options.requestTimeoutMs ?? 60_000);
+      compactLivenessTimer.unref?.();
+    };
+    const closeCleanup = client.addCloseHandler((error) => {
+      runtimeFailure = `codex_app_server_producer_lost:${error.message}`;
+      queue.push({ type: "error", runId, message: runtimeFailure });
+      queue.close();
+    });
+    let cancellationGrace: ReturnType<typeof setTimeout> | undefined;
     const abortTurn = () => {
+      cancelRequested = true;
       if (activeTurnId) {
         void client
           .request("turn/interrupt", { threadId: thread.threadId, turnId: activeTurnId })
           .catch(() => undefined);
+        cancellationGrace ??= setTimeout(() => {
+          runtimeFailure = "codex_cancel_grace_expired";
+          queue.close();
+        }, 15_000);
       }
-      queue.push({ type: "error", runId, message: "run_cancelled" });
-      queue.close();
     };
     if (request.signal?.aborted) {
       abortTurn();
@@ -405,17 +525,12 @@ export class CodexRuntime implements AgentRuntime {
       }
     };
     const handleNotification = async (notification: { method: string; params?: JsonValue }) => {
-      if (compactTurn) {
-        const completed = projector.handleNotification(notification, "*");
-        if (completed) {
-          turnCompleted = true;
-          queue.close();
-        }
-        return;
-      }
       if (!activeTurnId) {
         pendingNotifications.push(notification);
         return;
+      }
+      if (codexNotificationMatches(notification, thread.threadId, activeTurnId)) {
+        armCompactLivenessBoundary();
       }
       const completed = projector.handleNotification(notification, activeTurnId);
       if (completed) {
@@ -427,11 +542,17 @@ export class CodexRuntime implements AgentRuntime {
 
     try {
       if (compactTurn) {
-        await client.request(
+        const turn = await client.request<CodexTurnStartResponse>(
           "thread/compact/start",
           { threadId: thread.threadId },
           { timeoutMs: this.options.requestTimeoutMs ?? 60_000, signal: request.signal },
         );
+        activeTurnId = turn.turn?.id ?? "";
+        if (!activeTurnId) throw new Error("codex_compact_turn_id_missing");
+        activeTurn.nativeTurnId = activeTurnId;
+        armCompactLivenessBoundary();
+        await replayPendingNotifications();
+        if (cancelRequested) abortTurn();
       } else {
         const turn = await client.request<CodexTurnStartResponse>(
           "turn/start",
@@ -448,14 +569,8 @@ export class CodexRuntime implements AgentRuntime {
         }
         activeTurn.nativeTurnId = activeTurnId;
         await replayPendingNotifications();
+        if (cancelRequested) abortTurn();
       }
-      const compactTimeout = compactTurn
-        ? setTimeout(() => {
-            if (!turnCompleted) {
-              queue.close();
-            }
-          }, this.options.requestTimeoutMs ?? 60_000)
-        : undefined;
       for await (const event of queue) {
         if (event.type === "compaction.started") {
           compactionTriggered = true;
@@ -470,19 +585,24 @@ export class CodexRuntime implements AgentRuntime {
         }
         yield event;
       }
-      if (compactTimeout) {
-        clearTimeout(compactTimeout);
-      }
     } catch (error) {
+      runtimeFailure = error instanceof Error ? error.message : String(error);
+      if (!activeTurnId && isAbandonedMutatingRequest(error, request.signal)) {
+        this.poisonClient(clientKey, client);
+      }
       yield {
         type: "error",
         runId,
-        message: error instanceof Error ? error.message : String(error),
+        message: runtimeFailure,
       };
     } finally {
+      if (cancellationGrace) clearTimeout(cancellationGrace);
+      if (compactLivenessTimer) clearTimeout(compactLivenessTimer);
       request.signal?.removeEventListener("abort", abortTurn);
       notificationCleanup();
       requestCleanup();
+      closeCleanup();
+      this.releaseClient(client);
       if (activeTurn) {
         for (const key of activeTurnKeys) {
           if (this.activeTurns.get(key) === activeTurn) {
@@ -543,11 +663,32 @@ export class CodexRuntime implements AgentRuntime {
       at: new Date().toISOString(),
       outcome: projector.errorMessage()
         ? { taskState: "TASK_STATE_FAILED", reasonCode: projector.errorMessage() || "codex_turn_failed" }
-        : request.signal?.aborted
-          ? { taskState: "TASK_STATE_FAILED", reasonCode: "cancel_outcome_unknown", outcomeUnknown: true }
-          : turnCompleted
-            ? { taskState: "TASK_STATE_COMPLETED" }
-            : { taskState: "TASK_STATE_FAILED", reasonCode: "codex_native_terminal_missing", outcomeUnknown: true },
+        : runtimeFailure
+          ? {
+              taskState: "TASK_STATE_FAILED",
+              reasonCode: "codex_runtime_failed",
+              outcomeUnknown: true,
+            }
+          : cancelRequested
+            ? isCodexCanceledTerminalStatus(projector.nativeTerminalStatus())
+              ? { taskState: "TASK_STATE_CANCELED", reasonCode: "user_canceled" }
+              : {
+                  taskState: "TASK_STATE_FAILED",
+                  reasonCode: "cancel_outcome_unknown",
+                  outcomeUnknown: true,
+                }
+            : turnCompleted && projector.nativeTerminalStatus() === "completed"
+              ? { taskState: "TASK_STATE_COMPLETED" }
+              : {
+                  taskState: "TASK_STATE_FAILED",
+                  reasonCode:
+                    projector.nativeTerminalStatus() && projector.nativeTerminalStatus() !== "completed"
+                      ? `codex_unknown_terminal_status:${projector.nativeTerminalStatus()}`
+                      : compactTurn
+                        ? "codex_compact_terminal_missing"
+                        : "codex_native_terminal_missing",
+                  outcomeUnknown: true,
+                },
     };
   }
 
@@ -684,6 +825,8 @@ export class CodexRuntime implements AgentRuntime {
 
   private async ensureClient(runtimeEnv?: NodeJS.ProcessEnv): Promise<CodexAppServerClient> {
     const clientKey = envFingerprint(runtimeEnv);
+    const initializing = this.clientReady.get(clientKey);
+    if (initializing) return await initializing;
     const existing = this.clients.get(clientKey);
     if (existing && !existing.isClosed()) {
       return existing;
@@ -697,14 +840,20 @@ export class CodexRuntime implements AgentRuntime {
       env.TERM = "dumb";
     }
     const command = this.options.command ?? "codex";
-    const client = await this.startAppServerWithFlagFallback(
+    const ready = this.startAppServerWithFlagFallback(
       command,
       this.options.args ?? DEFAULT_CODEX_APP_SERVER_ARGS,
       env,
       rpcCapture,
     );
-    this.clients.set(clientKey, client);
-    return client;
+    this.clientReady.set(clientKey, ready);
+    try {
+      const client = await ready;
+      this.clients.set(clientKey, client);
+      return client;
+    } finally {
+      if (this.clientReady.get(clientKey) === ready) this.clientReady.delete(clientKey);
+    }
   }
 
   // Newer Codex builds remove `--disable` feature flags that older ones require. If the
@@ -724,6 +873,7 @@ export class CodexRuntime implements AgentRuntime {
       const rejectedFlags = unknownCodexFeatureFlagsFromStderr(client.recentStderr());
       const reducedArgs = stripDisableFeatureFlags(args, rejectedFlags);
       if (!rejectedFlags.length || reducedArgs === args) {
+        client.close();
         throw error;
       }
       client.close();
@@ -731,16 +881,47 @@ export class CodexRuntime implements AgentRuntime {
         droppedFlags: rejectedFlags,
       });
       const retried = CodexAppServerClient.start({ command, args: reducedArgs, env, rpcCapture });
-      await retried.initialize();
-      return retried;
+      try {
+        await retried.initialize();
+        return retried;
+      } catch (retryError) {
+        retried.close();
+        throw retryError;
+      }
     }
   }
 
   close(): void {
-    for (const client of this.clients.values()) {
+    for (const client of new Set([...this.clients.values(), ...this.retiredClients])) {
       client.close();
     }
     this.clients.clear();
+    this.clientReady.clear();
+    this.clientLeases.clear();
+    this.retiredClients.clear();
+  }
+
+  private leaseClient(client: CodexAppServerClient): void {
+    this.clientLeases.set(client, (this.clientLeases.get(client) ?? 0) + 1);
+  }
+
+  private releaseClient(client: CodexAppServerClient): void {
+    const remaining = Math.max(0, (this.clientLeases.get(client) ?? 1) - 1);
+    if (remaining > 0) {
+      this.clientLeases.set(client, remaining);
+      return;
+    }
+    this.clientLeases.delete(client);
+    if (this.retiredClients.delete(client)) client.close();
+  }
+
+  private poisonClient(clientKey: string, client: CodexAppServerClient): void {
+    if (this.clients.get(clientKey) === client) this.clients.delete(clientKey);
+    this.retiredClients.add(client);
+    if ((this.clientLeases.get(client) ?? 0) === 0) {
+      this.retiredClients.delete(client);
+      client.close();
+    }
   }
 
   private async startOrResumeThread(
@@ -775,17 +956,21 @@ export class CodexRuntime implements AgentRuntime {
       existing.runtimeBindingFingerprint === options.runtimeBindingFingerprint
     ) {
       try {
-        const response = await client.request<CodexThreadStartResponse>("thread/resume", {
-          threadId: existing.threadId,
-          model: options.model,
-          ...(options.modelProvider ? { modelProvider: options.modelProvider } : {}),
-          approvalPolicy: options.approvalPolicy,
-          approvalsReviewer: options.approvalsReviewer,
-          sandbox: options.sandbox,
-          config: options.config,
-          ...(options.reasoningEffort ? { reasoningEffort: options.reasoningEffort } : {}),
-          ...(options.serviceTier ? { serviceTier: options.serviceTier } : {}),
-        });
+        const response = await client.request<CodexThreadStartResponse>(
+          "thread/resume",
+          {
+            threadId: existing.threadId,
+            model: options.model,
+            ...(options.modelProvider ? { modelProvider: options.modelProvider } : {}),
+            approvalPolicy: options.approvalPolicy,
+            approvalsReviewer: options.approvalsReviewer,
+            sandbox: options.sandbox,
+            config: options.config,
+            ...(options.reasoningEffort ? { reasoningEffort: options.reasoningEffort } : {}),
+            ...(options.serviceTier ? { serviceTier: options.serviceTier } : {}),
+          },
+          { timeoutMs: this.options.requestTimeoutMs ?? 60_000, signal: request.signal },
+        );
         const threadId = response.thread?.id ?? existing.threadId;
         const binding = {
           ...existing,
@@ -799,28 +984,33 @@ export class CodexRuntime implements AgentRuntime {
         this.bindings.set(bindingKey, binding);
         this.saveBindings();
         return binding;
-      } catch {
+      } catch (error) {
+        if (isAbandonedMutatingRequest(error, request.signal)) throw error;
         // non-critical-fallback: A rejected resume invalidates this binding and the normal path creates a fresh thread.
         this.bindings.delete(bindingKey);
         this.saveBindings();
       }
     }
 
-    const response = await client.request<CodexThreadStartResponse>("thread/start", {
-      model: options.model,
-      ...(options.modelProvider ? { modelProvider: options.modelProvider } : {}),
-      cwd: options.cwd,
-      approvalPolicy: options.approvalPolicy,
-      approvalsReviewer: options.approvalsReviewer,
-      sandbox: options.sandbox,
-      serviceName: "OpenGrove",
-      threadSource: options.threadSource,
-      developerInstructions: options.developerInstructions,
-      dynamicTools: options.dynamicTools,
-      config: options.config,
-      ...(options.reasoningEffort ? { reasoningEffort: options.reasoningEffort } : {}),
-      ...(options.serviceTier ? { serviceTier: options.serviceTier } : {}),
-    });
+    const response = await client.request<CodexThreadStartResponse>(
+      "thread/start",
+      {
+        model: options.model,
+        ...(options.modelProvider ? { modelProvider: options.modelProvider } : {}),
+        cwd: options.cwd,
+        approvalPolicy: options.approvalPolicy,
+        approvalsReviewer: options.approvalsReviewer,
+        sandbox: options.sandbox,
+        serviceName: "OpenGrove",
+        threadSource: options.threadSource,
+        developerInstructions: options.developerInstructions,
+        dynamicTools: options.dynamicTools,
+        config: options.config,
+        ...(options.reasoningEffort ? { reasoningEffort: options.reasoningEffort } : {}),
+        ...(options.serviceTier ? { serviceTier: options.serviceTier } : {}),
+      },
+      { timeoutMs: this.options.requestTimeoutMs ?? 60_000, signal: request.signal },
+    );
     const threadId = response.thread?.id;
     if (!threadId) {
       throw new Error("codex_thread_id_missing");
@@ -876,8 +1066,22 @@ export class CodexRuntime implements AgentRuntime {
           updatedAt: typeof object.updatedAt === "string" ? object.updatedAt : new Date().toISOString(),
         });
       }
-    } catch {
-      // non-critical-fallback: A corrupt binding file is ignored so the host can start a fresh Codex thread.
+    } catch (error) {
+      const quarantinePath = `${path}.corrupt-${Date.now()}`;
+      try {
+        renameSync(path, quarantinePath);
+        console.warn("codex_binding_state_quarantined", {
+          path,
+          quarantinePath,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      } catch (quarantineError) {
+        throw new Error(
+          `codex_binding_state_invalid:${error instanceof Error ? error.message : String(error)};quarantine_failed:${
+            quarantineError instanceof Error ? quarantineError.message : String(quarantineError)
+          }`,
+        );
+      }
     }
   }
 
@@ -886,8 +1090,27 @@ export class CodexRuntime implements AgentRuntime {
     if (!path) {
       return;
     }
-    mkdirSync(dirname(path), { recursive: true });
-    writeFileSync(path, `${JSON.stringify(Object.fromEntries(this.bindings.entries()), null, 2)}\n`, "utf8");
+    const directory = dirname(path);
+    mkdirSync(directory, { recursive: true });
+    const tempPath = `${path}.${process.pid}.${Date.now()}.tmp`;
+    let file: number | undefined;
+    try {
+      file = openSync(tempPath, "wx", 0o600);
+      writeFileSync(file, `${JSON.stringify(Object.fromEntries(this.bindings.entries()), null, 2)}\n`, "utf8");
+      fsyncSync(file);
+      closeSync(file);
+      file = undefined;
+      renameSync(tempPath, path);
+      const directoryHandle = openSync(directory, "r");
+      try {
+        fsyncSync(directoryHandle);
+      } finally {
+        closeSync(directoryHandle);
+      }
+    } finally {
+      if (file !== undefined) closeSync(file);
+      if (existsSync(tempPath)) unlinkSync(tempPath);
+    }
   }
 }
 
@@ -1026,6 +1249,34 @@ function envFingerprint(env: NodeJS.ProcessEnv | undefined): string {
     .sort(([left], [right]) => left.localeCompare(right));
   if (entries.length === 0) return "env:default";
   return `env:${createHash("sha256").update(JSON.stringify(entries)).digest("hex").slice(0, 16)}`;
+}
+
+function isAbandonedMutatingRequest(error: unknown, signal?: AbortSignal): boolean {
+  return (
+    signal?.aborted === true ||
+    (error instanceof CodexRequestFailure && (error.kind === "aborted" || error.kind === "timeout"))
+  );
+}
+
+function codexNotificationMatches(
+  notification: { method: string; params?: JsonValue },
+  threadId: string,
+  turnId?: string,
+): boolean {
+  const params = isJsonObject(notification.params) ? notification.params : undefined;
+  if (!params) return false;
+  const notificationThreadId = readString(params, "threadId");
+  const notificationTurnId = readString(params, "turnId");
+  const nestedTurn = isJsonObject(params.turn) ? params.turn : undefined;
+  const nestedTurnId = readString(nestedTurn ?? {}, "id");
+  return (
+    (!notificationThreadId || notificationThreadId === threadId) &&
+    (!turnId || (!notificationTurnId && !nestedTurnId) || notificationTurnId === turnId || nestedTurnId === turnId)
+  );
+}
+
+function isCodexCanceledTerminalStatus(status: string | undefined): boolean {
+  return status === "canceled" || status === "cancelled" || status === "interrupted";
 }
 
 function isVolatileOpenGroveRuntimeEnvKey(key: string): boolean {
