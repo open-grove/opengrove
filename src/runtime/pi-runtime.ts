@@ -17,8 +17,11 @@ import {
   type InvokedSkillRecord,
   type PackManifest,
   type PolicyDecision,
+  type PolicyRule,
   type SkillManifest,
   type ToolDefinition,
+  type ToolRisk,
+  type ToolSpec,
 } from "../core.js";
 import { renderSkillIndex } from "../skills/catalog.js";
 import { imageAttachmentsWithDataUrl } from "./media-input.js";
@@ -26,6 +29,7 @@ import { imageAttachmentsWithDataUrl } from "./media-input.js";
 export interface PiToolCallGate {
   toolId: string;
   capabilityId?: string;
+  source: "host" | "native";
 }
 
 export interface PiSessionContext {
@@ -178,6 +182,9 @@ export class PiAgentRuntime implements AgentRuntime {
         assembledContext: request.assembledContext,
         contextTokenBudget: request.contextTokenBudget,
         beforeToolCall: async (gate) => {
+          if (gate.source === "native") {
+            return evaluatePiNativeToolPolicy(gate.toolId, request.accessMode, policy);
+          }
           const tool = request.tools.find((candidate) => candidate.spec.id === gate.toolId);
           if (!tool) {
             return { mode: "deny", reason: `Unknown tool: ${gate.toolId}` };
@@ -269,6 +276,48 @@ export class PiAgentRuntime implements AgentRuntime {
       };
     }
   }
+}
+
+function evaluatePiNativeToolPolicy(
+  toolId: string,
+  accessMode: AgentTurnRequest["accessMode"],
+  policy: PolicyRule[],
+): PolicyDecision {
+  const spec = piNativeToolSpec(toolId);
+  if (!spec) return { mode: "deny", reason: `Unknown Pi native tool: ${toolId}` };
+  if (accessMode === "full-access") {
+    return { mode: "allow", reason: "OpenGrove full-access mode allows Pi native tool execution for this turn." };
+  }
+  if (accessMode === "auto-review" && toolId !== "bash") {
+    return {
+      mode: "allow",
+      reason: "OpenGrove auto-review mode allows Pi read and file-edit tools; shell commands still require review.",
+    };
+  }
+  return evaluateToolPolicy(spec, policy);
+}
+
+function piNativeToolSpec(toolId: string): ToolSpec | undefined {
+  const riskByTool: Record<string, ToolRisk> = {
+    read: "read",
+    write: "write",
+    edit: "write",
+    bash: "write",
+  };
+  const risk = riskByTool[toolId];
+  if (!risk) return undefined;
+  return {
+    id: toolId,
+    title: `Pi ${toolId}`,
+    description: `Pi native ${toolId} tool`,
+    activity: "local",
+    risk,
+    input: { type: "json-schema", schema: { type: "object" } },
+    permission: {
+      mode: risk === "read" ? "allow" : "ask",
+      reason: risk === "read" ? "Reading is safe by default." : `Pi ${toolId} changes local state and requires review.`,
+    },
+  };
 }
 
 function buildSystemPrompt(

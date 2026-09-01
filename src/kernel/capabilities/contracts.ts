@@ -614,12 +614,13 @@ export const KERNEL_CAPABILITY_CONTRACTS: KernelCapabilityContract[] = [
       ),
       map(
         "tools.nativeTool",
-        "suppressed",
+        "mapped",
         "pi-agent-core AgentHarness read/bash/edit/write tools",
-        undefined,
-        undefined,
+        "tool.started / tool.progress / tool.finished plus same-loop approval",
+        "pi.tools.nativeTool",
         [
-          "OpenGrove deliberately keeps one Host-owned tool execution and policy surface. Enabling the parallel AgentHarness coding-tool surface would duplicate permissions, progress, artifacts, and side-effect ownership.",
+          "Pi keeps its official read/write/edit/bash execution surface. OpenGrove Host Tools remain additive Room, delegation, App, and product capabilities.",
+          "Pi executes each native coding call exactly once; OpenGrove only projects policy, approval, progress, cancellation, and results.",
         ],
       ),
       map(

@@ -29,10 +29,24 @@ Nightly are covered by exact-SHA Main CI and the final candidate artifact gates.
 
 1. Start from a clean, current `main`.
 2. Update `version` and increment `clientReleaseNumber` in `package.json`.
-3. Add paired `docs/releases/vX.Y.Z.md` and
+3. Refresh every certified Kernel capability row whose
+   `legacyHostVersion` no longer matches the candidate version. Run the real
+   Runtime probes on that candidate, use
+   `scripts/import-kernel-evidence-receipt.mjs` to import only the passing
+   certification rows, then run `npm run generate:kernel-evidence` and
+   `npm run test:capabilities`. A release must not extend the legacy migration
+   version or hand-edit the generated ledger to keep a capability enabled.
+4. Add paired `docs/releases/vX.Y.Z.md` and
    `docs/releases/vX.Y.Z.zh-CN.md` notes.
-4. Update `CHANGELOG.md`.
-5. Run the focused checks for the changed areas.
+5. Update `CHANGELOG.md`.
+6. Run the focused checks for the changed areas.
+
+The imported baseline is deliberately valid only for the Host version named by
+`legacyHostVersion`. Imported rows bind `hostVersion`, `kernelVersion`,
+and `runtimeMode`; CI can verify their schema and reproducibility but does not
+pretend to rerun a locally configured real Kernel. The real-runtime run and its
+raw receipt remain untracked local release evidence. Only the importer's
+minimal certification batch enters the repository, after human review.
 
 The candidate workflow first verifies the exact Main CI and recent Nightly
 evidence. It then performs the required lightweight release-readiness checks

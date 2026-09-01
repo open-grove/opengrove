@@ -14,6 +14,7 @@ import type {
 } from "./channel-store.js";
 import { normalizedRoomMemberAvatarDataUrl } from "./avatar-data-url.js";
 import { normalizeModelForKernelDisplay } from "../server/kernel-registry.js";
+import { normalizeRequiredKernelCapabilities } from "../kernel/capabilities/requirements.js";
 
 const GROVE_ROOM_ID = "room-open-group";
 
@@ -90,6 +91,7 @@ export function normalizeMember(input: Partial<RoomChannelMember>): RoomChannelM
     workspaceRoot: readOptionalString(input.workspaceRoot),
     storePackageId: readOptionalString(input.storePackageId),
     toolIds: readStringArray(input.toolIds),
+    requiredKernelCapabilities: normalizeRequiredKernelCapabilities(input.requiredKernelCapabilities),
     accessMode: normalizeMemberAccessMode(input.accessMode),
     reasoningEffort: normalizeMemberReasoningEffort(input.reasoningEffort),
     contextTokenBudget: normalizeContextTokenBudget(input.contextTokenBudget),
@@ -127,6 +129,7 @@ function normalizeManifestDefaults(value: unknown): RoomMemberManifestDefaults |
     color: readOptionalString(input.color),
     availableSkillIds: readStringArray(input.availableSkillIds),
     defaultSkillIds: readStringArray(input.defaultSkillIds),
+    requiredKernelCapabilities: normalizeRequiredKernelCapabilities(input.requiredKernelCapabilities),
     reasoningEffort: normalizeMemberReasoningEffort(input.reasoningEffort),
     contextTokenBudget: normalizeContextTokenBudget(input.contextTokenBudget),
     accessMode: normalizeMemberAccessMode(input.accessMode),
@@ -253,6 +256,7 @@ export function cloneMember(member: RoomChannelMember): RoomChannelMember {
     availableSkillIds: member.availableSkillIds ? [...member.availableSkillIds] : undefined,
     defaultSkillIds: member.defaultSkillIds ? [...member.defaultSkillIds] : undefined,
     toolIds: member.toolIds ? [...member.toolIds] : undefined,
+    requiredKernelCapabilities: member.requiredKernelCapabilities ? [...member.requiredKernelCapabilities] : undefined,
     publicSkills: member.publicSkills ? [...member.publicSkills] : undefined,
     userOverrides: member.userOverrides ? [...member.userOverrides] : undefined,
     manifestDefaults: member.manifestDefaults
@@ -264,6 +268,9 @@ export function cloneMember(member: RoomChannelMember): RoomChannelMember {
             : undefined,
           defaultSkillIds: member.manifestDefaults.defaultSkillIds
             ? [...member.manifestDefaults.defaultSkillIds]
+            : undefined,
+          requiredKernelCapabilities: member.manifestDefaults.requiredKernelCapabilities
+            ? [...member.manifestDefaults.requiredKernelCapabilities]
             : undefined,
         }
       : undefined,

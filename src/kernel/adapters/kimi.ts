@@ -88,7 +88,7 @@ export const KIMI_KERNEL_CONTRACT: KernelAdapterContract = {
     nativeModelNormalization: false,
   },
   labels: { title: "Kimi Code", integrationMode: "acp" },
-  ownership: acpKernelOwnership("Kimi Code"),
+  ownership: acpKernelOwnership("Kimi Code", { hostTools: true }),
   diagnostics: {
     defaultModeId: "acp-bridge",
     modes: [

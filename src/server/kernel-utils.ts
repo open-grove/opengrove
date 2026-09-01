@@ -34,6 +34,7 @@ import {
 } from "./provider-profiles.js";
 import { providerModelForSelection } from "./models-dev-catalog.js";
 import { resolveBridgeWorkspaceRoot } from "./workspace-root.js";
+import { readPackageVersion } from "./client-release.js";
 
 // ===== Selection utilities (from kernel-selection-utils.ts) =====
 
@@ -311,9 +312,16 @@ export function buildKernelDiscoverySnapshot(
 }
 
 function withKernelCapabilityReport(kernel: BridgeKernelId, discovery: KernelDiscovery): KernelDiscovery {
+  const hostVersion = readPackageVersion();
   return {
     ...discovery,
-    capabilityReport: discovery.capabilityReport ?? buildKnownKernelCapabilityReport(kernel),
+    capabilityReport:
+      discovery.capabilityReport ??
+      buildKnownKernelCapabilityReport(kernel, undefined, {
+        ...(hostVersion ? { hostVersion } : {}),
+        ...(discovery.version ? { kernelVersion: discovery.version } : {}),
+        runtimeMode: getKernelContract(kernel).labels.integrationMode,
+      }),
   };
 }
 

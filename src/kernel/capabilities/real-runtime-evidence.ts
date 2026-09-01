@@ -80,12 +80,15 @@ export interface KernelRuntimeProbeRecord {
   status: KernelRuntimeProbeStatus;
   verification: "real_runtime";
   checkedAt: string;
+  hostVersion?: string;
+  kernelVersion?: string;
+  runtimeMode?: string;
   durationMs?: number;
   timedOut?: boolean;
   aborted?: boolean;
   marker?: string;
   provider?: {
-    kind: "native" | "openai-compatible" | "anthropic-compatible" | "unknown";
+    kind: "native" | "openai-compatible" | "anthropic-compatible" | "gemini-compatible" | "unknown";
     baseUrl?: string;
     model?: string;
   };

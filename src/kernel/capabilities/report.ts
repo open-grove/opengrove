@@ -6,6 +6,7 @@ import {
   type KernelCapabilityReport,
   type KernelCapabilityReportEntry,
   type KernelContractTestEvidence,
+  type KernelContractEvidenceContext,
   type KernelExposure,
   type KernelNativeCapabilityFact,
   type KernelNativeSupport,
@@ -18,11 +19,13 @@ export function buildKernelCapabilityReport(input: {
   contracts: KernelCapabilityContract[];
   contractTests: KernelContractTestEvidence[];
   generatedAt?: string;
+  evidenceContext?: KernelContractEvidenceContext;
 }): KernelCapabilityReport {
   const contract = input.contracts.find((item) => item.kernel === input.kernel);
+  const generatedAt = input.generatedAt ?? new Date().toISOString();
   return {
     schemaVersion: 2,
-    generatedAt: input.generatedAt ?? new Date().toISOString(),
+    generatedAt,
     kernel: input.kernel,
     capabilities: STANDARD_KERNEL_CAPABILITY_IDS.map((capability) =>
       buildCapabilityReportEntry({
@@ -33,6 +36,7 @@ export function buildKernelCapabilityReport(input: {
         contractTests: input.contractTests.filter(
           (test) => test.kernel === input.kernel && test.capability === capability,
         ),
+        evidenceContext: input.evidenceContext,
       }),
     ),
   };
@@ -44,10 +48,12 @@ function buildCapabilityReportEntry(input: {
   nativeFact?: KernelNativeCapabilityFact;
   mapping?: KernelCapabilityContract["mappings"][number];
   contractTests: KernelContractTestEvidence[];
+  evidenceContext?: KernelContractEvidenceContext;
 }): KernelCapabilityReportEntry {
   const native: KernelNativeSupport = input.nativeFact?.native ?? "unknown";
   const passingRealRuntimeTests = input.contractTests.filter(
-    (test) => test.passed && test.verification === "real_runtime",
+    (test) =>
+      test.passed && test.verification === "real_runtime" && evidenceMatchesCurrentContext(test, input.evidenceContext),
   );
   const exposed = exposureFromMapping(input.mapping?.status, passingRealRuntimeTests.length > 0);
   const auditStatuses = auditStatusesFor({
@@ -69,6 +75,29 @@ function buildCapabilityReportEntry(input: {
     ...(auditStatuses.length ? { auditStatuses } : {}),
     notes,
   };
+}
+
+function evidenceMatchesCurrentContext(
+  evidence: KernelContractTestEvidence,
+  context: KernelContractEvidenceContext | undefined,
+): boolean {
+  const checkedAt = Date.parse(evidence.checkedAt);
+  if (!Number.isFinite(checkedAt)) return false;
+  if (evidence.legacyHostVersion) {
+    return context?.hostVersion === evidence.legacyHostVersion;
+  }
+  if (!evidence.hostVersion || !evidence.kernelVersion || !evidence.runtimeMode) return false;
+  if (!context?.hostVersion || !context.kernelVersion || !context.runtimeMode) return false;
+  if (evidence.hostVersion !== context.hostVersion) return false;
+  if (evidence.kernelVersion !== context.kernelVersion) return false;
+  if (evidence.runtimeMode !== context.runtimeMode) return false;
+  if (evidence.provider && context.provider) {
+    if (evidence.provider.kind !== context.provider.kind) return false;
+    if (evidence.provider.model && context.provider.model && evidence.provider.model !== context.provider.model) {
+      return false;
+    }
+  }
+  return true;
 }
 
 function auditStatusesFor(input: {

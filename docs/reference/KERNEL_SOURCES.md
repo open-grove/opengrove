@@ -11,7 +11,7 @@ this repository.
 | Pi | Installed `@earendil-works/pi-agent-core` and `@earendil-works/pi-ai` `0.83.0` package documentation and types; upstream [`v0.83.0`](https://github.com/earendil-works/pi/tree/v0.83.0) |
 | Hermes | [`NousResearch/hermes-agent` `v2026.8.3`](https://github.com/NousResearch/hermes-agent/tree/v2026.8.3) |
 | OpenCode | [`anomalyco/opencode` `v1.18.3`](https://github.com/anomalyco/opencode/tree/v1.18.3) |
-| Kimi CLI | [`MoonshotAI/kimi-cli` at `4a550eff`](https://github.com/MoonshotAI/kimi-cli/tree/4a550effdfcb29a25a5d325bf935296cc50cd417) |
+| Kimi Code | [`MoonshotAI/kimi-code` `@moonshot-ai/kimi-code@0.36.1`](https://github.com/MoonshotAI/kimi-code/releases/tag/%40moonshot-ai%2Fkimi-code%400.36.1) |
 | OpenClaw | [`openclaw/openclaw` `v2026.7.1-2`](https://github.com/openclaw/openclaw/tree/v2026.7.1-2) |
 
 Version and verification dates remain attached to individual facts in

@@ -78,9 +78,27 @@ export interface KernelContractTestEvidence {
   testId: string;
   passed: boolean;
   checkedAt: string;
+  hostVersion?: string;
+  kernelVersion?: string;
+  runtimeMode?: string;
+  /** Temporary migration binding for imported evidence. It is valid only on this exact Host version. */
+  legacyHostVersion?: string;
+  provider?: KernelContractEvidenceProvider;
   verification?: "real_runtime" | "simulated" | "source_fixture";
   source?: string;
   sourcePath?: string;
+}
+
+export interface KernelContractEvidenceProvider {
+  kind: "native" | "openai-compatible" | "anthropic-compatible" | "gemini-compatible" | "unknown";
+  model?: string;
+}
+
+export interface KernelContractEvidenceContext {
+  hostVersion?: string;
+  kernelVersion?: string;
+  runtimeMode?: string;
+  provider?: KernelContractEvidenceProvider;
 }
 
 export type KernelCapabilityAuditStatus =

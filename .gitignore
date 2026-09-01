@@ -18,6 +18,7 @@ release/
 __pycache__/
 scripts/__pycache__/
 .opengrove/
+src/kernel/capabilities/evidence/
 scripts/.visual/
 test-results/
 playwright-report/

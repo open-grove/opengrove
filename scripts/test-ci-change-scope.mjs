@@ -93,6 +93,9 @@ for (const path of [
   "src/server/kernel-login.ts",
   "src/tests/kernel-capability-source-harness.ts",
   "src/tests/runtime-environment-harness.ts",
+  "scripts/generate-certified-kernel-evidence.mjs",
+  "scripts/import-kernel-evidence-receipt.mjs",
+  "scripts/check-real-runtime-evidence.mjs",
 ]) {
   assert.deepEqual(
     classifyCiChanges("pull_request", [path]),

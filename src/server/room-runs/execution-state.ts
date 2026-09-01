@@ -7,16 +7,75 @@ import { UNCONFIGURED_PROVIDER_BINDING_ID } from "../bridge-types.js";
 import { BridgeKernelUnavailableError, resolveKernelRuntimeModel } from "../kernel-selection.js";
 import {
   getBridgeKernelDescriptor,
+  getKernelContract,
   isKernelLoginRouteAvailable,
   readKernelLocalRouteProfile,
 } from "../kernel-registry.js";
-import { kernelConfigHome } from "../kernel-utils.js";
+import { buildKernelDiscoverySnapshot, kernelConfigHome } from "../kernel-utils.js";
 import { mountedAppSessionCompatibilityVersion, resolveMountedAppTarget } from "../mounted-apps.js";
 import { resolveProviderRoute, type BridgeResolvedProviderRoute } from "../provider-profiles.js";
 import { normalizeWorkspaceRootValue, resolveBridgeWorkspaceRoot } from "../workspace-root.js";
 import { ROOM_RUN_SESSION_SCHEMA_VERSION } from "./constants.js";
 import { hostMessage } from "../../localization/host-messages.js";
 import type { SupportedLocale } from "../../localization/locale-registry.js";
+import { evaluateKernelCapabilityRequirements } from "../../kernel/capabilities/requirements.js";
+import type { KernelCapabilityId } from "../../kernel/capabilities/types.js";
+import type { KernelCapabilityReport, KernelContractEvidenceProvider } from "../../kernel/capabilities/types.js";
+import { buildKnownKernelCapabilityReport } from "../../kernel/capabilities/report-for-kernel.js";
+import { readPackageVersion } from "../client-release.js";
+
+export class RoomKernelCapabilityError extends Error {
+  readonly details: {
+    kernel: string;
+    required: KernelCapabilityId[];
+    missing: KernelCapabilityId[];
+    invalid: string[];
+  };
+
+  constructor(details: {
+    kernel: string;
+    required?: KernelCapabilityId[];
+    missing?: KernelCapabilityId[];
+    invalid?: string[];
+  }) {
+    const required = details.required ?? [];
+    const missing = details.missing ?? [];
+    const invalid = details.invalid ?? [];
+    super(
+      invalid.length
+        ? `room_member_kernel_capabilities_invalid:${details.kernel}:${invalid.join(",")}`
+        : `room_member_kernel_capabilities_missing:${details.kernel}:${missing.join(",")}`,
+    );
+    this.name = "RoomKernelCapabilityError";
+    this.details = { kernel: details.kernel, required, missing, invalid };
+  }
+}
+
+export function assertRoomTargetKernelCapabilities(target: RoomChannelMember, report: KernelCapabilityReport): void {
+  const result = evaluateKernelCapabilityRequirements(target.kernel, target.requiredKernelCapabilities, report);
+  if (!result.ok) {
+    throw new RoomKernelCapabilityError({
+      kernel: target.kernel,
+      required: result.required,
+      missing: result.missing,
+      invalid: result.invalid,
+    });
+  }
+}
+
+export function roomKernelCapabilityErrorMessage(error: unknown, language: SupportedLocale): string | undefined {
+  if (!(error instanceof RoomKernelCapabilityError)) return undefined;
+  if (error.details.invalid.length) {
+    return hostMessage(language, "room.kernel_capabilities_invalid", {
+      kernel: error.details.kernel,
+      capabilities: error.details.invalid.join(", "),
+    });
+  }
+  return hostMessage(language, "room.kernel_capabilities_missing", {
+    kernel: error.details.kernel,
+    capabilities: error.details.missing.join(", "),
+  });
+}
 
 export class RoomProviderRouteError extends Error {
   constructor(
@@ -106,6 +165,19 @@ export function roomExecutionState(
       });
     }
   }
+  if (target.requiredKernelCapabilities?.length) {
+    const discovery = buildKernelDiscoverySnapshot(target.kernel, rootState);
+    const hostVersion = readPackageVersion();
+    assertRoomTargetKernelCapabilities(
+      target,
+      buildKnownKernelCapabilityReport(target.kernel, undefined, {
+        ...(hostVersion ? { hostVersion } : {}),
+        ...(discovery.version ? { kernelVersion: discovery.version } : {}),
+        runtimeMode: getKernelContract(target.kernel).labels.integrationMode,
+        provider: capabilityEvidenceProvider(providerRoute, target.model || rootState.model),
+      }),
+    );
+  }
   const concreteTargetModel = target.model || rootState.model;
   const modelScopesWorker = !getBridgeKernelDescriptor(target.kernel).thread.reuseAcrossModelChanges;
   const cacheKey = roomExecutionStateKey(
@@ -145,6 +217,19 @@ export function roomExecutionState(
   }
   rootState.roomKernelAdapters = pool;
   return scopedState;
+}
+
+function capabilityEvidenceProvider(route: BridgeResolvedProviderRoute, model: string): KernelContractEvidenceProvider {
+  if (route.binding.kind === "login") return { kind: "native", model };
+  if (route.binding.kind !== "provider") return { kind: "unknown", model };
+  const protocol = route.binding.profile?.protocol;
+  return {
+    kind:
+      protocol === "openai-compatible" || protocol === "anthropic-compatible" || protocol === "gemini-compatible"
+        ? protocol
+        : "unknown",
+    model,
+  };
 }
 
 export function resolveRoomExecutionTarget(

@@ -35,6 +35,7 @@ import type { JsonObject } from "../core.js";
 import { parseJsonLikeConfig } from "../extensions/scanner.js";
 import { APP_CONFIG_DIR, readAppEnv } from "../identity.js";
 import { isBridgeKernelId, type RoomChannelMember } from "../rooms/channel-store.js";
+import { normalizeRequiredKernelCapabilities } from "../kernel/capabilities/requirements.js";
 import {
   defaultOpenGroveDataDir,
   defaultOpenGroveProgramsDir,
@@ -1822,6 +1823,7 @@ function syncPublishedEmployeeDefaultsToLocalState(input: {
       color: stringOrUndefined(item.color),
       availableSkillIds: stringArray(item.availableSkillIds),
       defaultSkillIds: stringArray(item.defaultSkillIds),
+      requiredKernelCapabilities: normalizeRequiredKernelCapabilities(item.requiredKernelCapabilities),
       reasoningEffort: normalizeReasoningEffort(item.reasoningEffort),
       contextTokenBudget: positiveInteger(item.contextTokenBudget),
       accessMode: normalizeEmployeeAccessMode(item.accessMode),

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createAssistantMessageEventStream, createModels, createProvider } from "@earendil-works/pi-ai";
@@ -246,6 +246,7 @@ async function main() {
   );
 
   await assertNativePiCrossTurnBudgetEvents();
+  await assertNativePiKeepsOfficialCodingTools();
   await assertNativePiTerminalMessageBelongsToCurrentTurn();
   await assertNativePiNeverTruncatesOversizedInput();
   await assertNativePiUnconfiguredUsesModelWindow();
@@ -262,6 +263,76 @@ async function main() {
   await assertNativePiCompaction();
 
   console.log("pi runtime image-input harness: all assertions passed ✓");
+}
+
+async function assertNativePiKeepsOfficialCodingTools(): Promise<void> {
+  const cwd = mkdtempSync(join(tmpdir(), "opengrove-pi-native-tools-"));
+  const outputPath = join(cwd, "native-output.txt");
+  const observedToolNames = new Set<string>();
+  const model = nativeTestModel("pi-native-coding-tools-model");
+  const runtime = new PiAgentRuntime({
+    createSession: createNativePiSessionFactory({
+      cwd,
+      model,
+      streamFn: (_model, llmContext) => {
+        for (const tool of llmContext.tools ?? []) observedToolNames.add(tool.name);
+        const hasToolResult = llmContext.messages.some((message) => message.role === "toolResult");
+        if (!hasToolResult && llmContext.tools?.some((tool) => tool.name === "write")) {
+          return nativeAssistantStream(
+            model.id,
+            [
+              {
+                type: "toolCall",
+                id: "pi-native-write-call",
+                name: "write",
+                arguments: { path: "native-output.txt", content: "written by Pi native tool" },
+              },
+            ],
+            "toolUse",
+          );
+        }
+        return nativeAssistantStream(model.id, [{ type: "text", text: "native write complete" }], "stop");
+      },
+    }),
+  });
+
+  try {
+    const events: AgentEvent[] = [];
+    for await (const event of runtime.runTurn({
+      runId: "pi-native-coding-tools-run",
+      input: "write the requested file",
+      context: createContext("pi-native-coding-tools-session"),
+      tools: [],
+      skills: [],
+      packs: [],
+      capabilities: [],
+      accessMode: "full-access",
+    })) {
+      events.push(event);
+    }
+
+    assert.deepEqual(
+      [...observedToolNames].sort(),
+      ["bash", "edit", "read", "write"],
+      "Pi's official coding tools must remain available beside additive OpenGrove Host Tools",
+    );
+    assert.equal(readFileSync(outputPath, "utf8"), "written by Pi native tool");
+    assert.ok(
+      events.some(
+        (event) => event.type === "tool.started" && event.toolId === "write" && event.callId === "pi-native-write-call",
+      ),
+      "Pi native file operations must remain observable through the common tool lifecycle",
+    );
+    assert.ok(
+      events.some(
+        (event) =>
+          event.type === "tool.finished" && event.toolId === "write" && event.callId === "pi-native-write-call",
+      ),
+      "Pi native file operations must publish a terminal tool event",
+    );
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
 }
 
 function nativeTestModel(id: string, reasoning = false) {

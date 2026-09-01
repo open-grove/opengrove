@@ -10,7 +10,6 @@ const REFRESHED_AT = "2026-07-20";
 const CLAUDE_REFRESHED_AT = "2026-08-24";
 const PI_REFRESHED_AT = "2026-08-05";
 const HERMES_REFRESHED_AT = "2026-08-05";
-const KIMI_REFRESHED_AT = "2026-08-14";
 
 interface SourceEvidence {
   source: string;
@@ -253,10 +252,11 @@ const opencodeUsage = {
   checkedAt: REFRESHED_AT,
 };
 const linkedKernelSources = {
-  source: "Pinned official Kimi CLI and OpenClaw Gateway documentation plus checked local runtime versions.",
+  source:
+    "Official Kimi Code 0.36.1 and OpenClaw Gateway protocol references recorded in KERNEL_SOURCES; runtime exposure remains independently certified by version-bound receipts.",
   sourcePath: "docs/reference/KERNEL_SOURCES.md",
   kind: "linked_source" as const,
-  checkedAt: "2026-07-20",
+  checkedAt: "2026-08-31",
 };
 const linkedSkillSources = {
   source:
@@ -270,8 +270,8 @@ const kimiAcpMcp = {
     "ACP session setup defines per-session MCP server injection; Kimi Code implements this surface through kimi acp.",
   sourcePath: "docs/reference/KERNEL_SOURCES.md",
   kind: "linked_source" as const,
-  upstreamVersion: "Kimi Code 0.33.0",
-  checkedAt: KIMI_REFRESHED_AT,
+  upstreamVersion: "Kimi Code 0.36.1",
+  checkedAt: "2026-08-31",
 };
 
 export const KERNEL_NATIVE_CAPABILITY_FACTS: KernelNativeCapabilityFact[] = [
@@ -367,7 +367,8 @@ export const KERNEL_NATIVE_CAPABILITY_FACTS: KernelNativeCapabilityFact[] = [
     "OpenGrove uses Pi's native threshold, preparation, summarization, retained-tail, and compaction-entry APIs for configured and model-window pressure; no Host-side history trimming remains.",
   ]),
   fact("pi", "tools.nativeTool", "yes", piHarnessTools, [
-    "These optional AgentHarness coding tools are deliberately suppressed because OpenGrove Host tools are the single policy and side-effect surface.",
+    "OpenGrove binds the official tools to the employee working directory and projects their lifecycle through the common policy, approval, progress, and result surface.",
+    "OpenGrove Host Tools remain available beside native read, write, edit, and bash rather than replacing them.",
   ]),
   fact("pi", "knowledge.skills", "yes", piHarnessSkills, [
     "OpenGrove deliberately keeps its provenance-aware skill.invoke Host path as the single skill catalog instead of enabling a second native loader.",

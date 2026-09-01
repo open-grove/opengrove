@@ -25,6 +25,8 @@ import {
 } from "./product-employee-defaults.js";
 import { safeResolveInside } from "./workspace-store.js";
 import { localizedValue, type SupportedLocale } from "../localization/locale-registry.js";
+import { normalizeRequiredKernelCapabilities } from "../kernel/capabilities/requirements.js";
+import type { KernelCapabilityId } from "../kernel/capabilities/types.js";
 
 export interface MountedAppEmployeeSummary {
   id: string;
@@ -37,6 +39,7 @@ export interface MountedAppEmployeeSummary {
   displayRole?: string;
   availableSkillIds?: string[];
   defaultSkillIds?: string[];
+  requiredKernelCapabilities?: KernelCapabilityId[];
   appId?: string;
   color?: string;
   accessMode?: RoomChannelMember["accessMode"];
@@ -95,6 +98,9 @@ export function mountedAppEmployeeSummaries(settings: BridgeSettings): MountedAp
     displayRole: member.displayRole,
     availableSkillIds: member.availableSkillIds?.length ? [...member.availableSkillIds] : undefined,
     defaultSkillIds: member.defaultSkillIds?.length ? [...member.defaultSkillIds] : undefined,
+    requiredKernelCapabilities: member.requiredKernelCapabilities?.length
+      ? [...member.requiredKernelCapabilities]
+      : undefined,
     appId: member.appId,
     color: member.color,
     accessMode: member.accessMode,
@@ -210,6 +216,7 @@ function applyStoreEmployeeDefaults(members: RoomChannelMember[], manifest: Json
       color: stringOrUndefined(override.color) ?? member.color,
       availableSkillIds: stringArray(override.availableSkillIds),
       defaultSkillIds: stringArray(override.defaultSkillIds),
+      requiredKernelCapabilities: normalizeRequiredKernelCapabilities(override.requiredKernelCapabilities),
       visibility: normalizeVisibility(override.visibility) ?? member.visibility,
       publicDescription: stringOrUndefined(override.publicDescription),
       publicSkills: stringArray(override.publicSkills),
@@ -229,6 +236,7 @@ function applyStoreEmployeeDefaults(members: RoomChannelMember[], manifest: Json
         color: configured.color,
         availableSkillIds: configured.availableSkillIds,
         defaultSkillIds: configured.defaultSkillIds,
+        requiredKernelCapabilities: configured.requiredKernelCapabilities,
         reasoningEffort: configured.reasoningEffort,
         contextTokenBudget: configured.contextTokenBudget,
         accessMode: configured.accessMode,
@@ -269,6 +277,7 @@ export function employeeManifestDefaultsPatch(
     color: defaults.color ?? member.color,
     availableSkillIds: defaults.availableSkillIds,
     defaultSkillIds: defaults.defaultSkillIds,
+    requiredKernelCapabilities: defaults.requiredKernelCapabilities,
     reasoningEffort: defaults.reasoningEffort,
     contextTokenBudget: defaults.contextTokenBudget,
     accessMode: defaults.accessMode,
@@ -366,6 +375,7 @@ function normalizeManifestEmployee(
     lastActive: stringOrUndefined(input.lastActive) ?? "已配置",
     availableSkillIds,
     defaultSkillIds,
+    requiredKernelCapabilities: normalizeRequiredKernelCapabilities(input.requiredKernelCapabilities),
     appId,
     workspaceRoot: employeeWorkspaceRoot,
     accessMode: normalizeAccessMode(input.accessMode),

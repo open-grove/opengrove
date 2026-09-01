@@ -1,0 +1,671 @@
+{
+  "schemaVersion": 1,
+  "provenance": "Imported from the pre-generator certified ledger at d2550882; new or refreshed rows must come from probe receipts.",
+  "legacyHostVersion": "0.6.5",
+  "contractTests": [
+    {
+      "kernel": "claude-code",
+      "capability": "approval.request",
+      "testId": "claude-code.approval.request",
+      "passed": true,
+      "checkedAt": "2026-07-20",
+      "verification": "real_runtime"
+    },
+    {
+      "kernel": "claude-code",
+      "capability": "budget.limit",
+      "testId": "claude-code.budget.limit",
+      "passed": true,
+      "checkedAt": "2026-06-09",
+      "verification": "real_runtime"
+    },
+    {
+      "kernel": "claude-code",
+      "capability": "control.stop",
+      "testId": "claude-code.control.stop",
+      "passed": true,
+      "checkedAt": "2026-07-20",
+      "verification": "real_runtime"
+    },
+    {
+      "kernel": "claude-code",
+      "capability": "diagnostics.usage",
+      "testId": "claude-code.diagnostics.usage",
+      "passed": true,
+      "checkedAt": "2026-08-06",
+      "verification": "real_runtime"
+    },
+    {
+      "kernel": "claude-code",
+      "capability": "interaction.askUser",
+      "testId": "claude-code.interaction.askUser",
+      "passed": true,
+      "checkedAt": "2026-06-08",
+      "verification": "real_runtime"
+    },
+    {
+      "kernel": "claude-code",
+      "capability": "message.streamText",
+      "testId": "claude-code.message.streamText",
+      "passed": true,
+      "checkedAt": "2026-08-06",
+      "verification": "real_runtime"
+    },
+    {
+      "kernel": "claude-code",
+      "capability": "sandbox.policy",
+      "testId": "claude-code.sandbox.policy",
+      "passed": true,
+      "checkedAt": "2026-06-08",
+      "verification": "real_runtime"
+    },
+    {
+      "kernel": "claude-code",
+      "capability": "session.lifecycle",
+      "testId": "claude-code.session.lifecycle",
+      "passed": true,
+      "checkedAt": "2026-07-20",
+      "verification": "real_runtime"
+    },
+    {
+      "kernel": "claude-code",
+      "capability": "tools.hostTool",
+      "testId": "claude-code.tools.hostTool",
+      "passed": true,
+      "checkedAt": "2026-06-08",
+      "verification": "real_runtime"
+    },
+    {
+      "kernel": "claude-code",
+      "capability": "tools.mcpServers",
+      "testId": "claude-code.tools.mcpServers",
+      "passed": true,
+      "checkedAt": "2026-06-08",
+      "verification": "real_runtime"
+    },
+    {
+      "kernel": "claude-code",
+      "capability": "tools.nativeTool",
+      "testId": "claude-code.tools.nativeTool",
+      "passed": true,
+      "checkedAt": "2026-07-20",
+      "verification": "real_runtime"
+    },
+    {
+      "kernel": "claude-code",
+      "capability": "turn.lifecycle",
+      "testId": "claude-code.turn.lifecycle",
+      "passed": true,
+      "checkedAt": "2026-08-06",
+      "verification": "real_runtime"
+    },
+    {
+      "kernel": "codex",
+      "capability": "approval.request",
+      "testId": "codex.approval.request",
+      "passed": true,
+      "checkedAt": "2026-06-08",
+      "verification": "real_runtime"
+    },
+    {
+      "kernel": "codex",
+      "capability": "control.stop",
+      "testId": "codex.control.stop",
+      "passed": true,
+      "checkedAt": "2026-06-08",
+      "verification": "real_runtime"
+    },
+    {
+      "kernel": "codex",
+      "capability": "diagnostics.usage",
+      "testId": "codex.diagnostics.usage",
+      "passed": true,
+      "checkedAt": "2026-07-20",
+      "verification": "real_runtime"
+    },
+    {
+      "kernel": "codex",
+      "capability": "interaction.askUser",
+      "testId": "codex.interaction.askUser",
+      "passed": true,
+      "checkedAt": "2026-06-08",
+      "verification": "real_runtime"
+    },
+    {
+      "kernel": "codex",
+      "capability": "message.streamText",
+      "testId": "codex.message.streamText",
+      "passed": true,
+      "checkedAt": "2026-07-20",
+      "verification": "real_runtime"
+    },
+    {
+      "kernel": "codex",
+      "capability": "output.artifacts",
+      "testId": "codex.output.artifacts",
+      "passed": true,
+      "checkedAt": "2026-06-08",
+      "verification": "real_runtime"
+    },
+    {
+      "kernel": "codex",
+      "capability": "planning.plan",
+      "testId": "codex.planning.plan",
+      "passed": true,
+      "checkedAt": "2026-06-08",
+      "verification": "real_runtime"
+    },
+    {
+      "kernel": "codex",
+      "capability": "sandbox.policy",
+      "testId": "codex.sandbox.policy",
+      "passed": true,
+      "checkedAt": "2026-06-08",
+      "verification": "real_runtime"
+    },
+    {
+      "kernel": "codex",
+      "capability": "session.lifecycle",
+      "testId": "codex.session.lifecycle",
+      "passed": true,
+      "checkedAt": "2026-07-20",
+      "verification": "real_runtime"
+    },
+    {
+      "kernel": "codex",
+      "capability": "tools.hostTool",
+      "testId": "codex.tools.hostTool",
+      "passed": true,
+      "checkedAt": "2026-06-08",
+      "verification": "real_runtime"
+    },
+    {
+      "kernel": "codex",
+      "capability": "tools.nativeTool",
+      "testId": "codex.tools.nativeTool",
+      "passed": true,
+      "checkedAt": "2026-06-08",
+      "verification": "real_runtime"
+    },
+    {
+      "kernel": "codex",
+      "capability": "turn.lifecycle",
+      "testId": "codex.turn.lifecycle",
+      "passed": true,
+      "checkedAt": "2026-07-20",
+      "verification": "real_runtime"
+    },
+    {
+      "kernel": "hermes",
+      "capability": "tools.nativeTool",
+      "testId": "hermes.tools.nativeTool",
+      "passed": true,
+      "checkedAt": "2026-08-06",
+      "verification": "real_runtime"
+    },
+    {
+      "kernel": "kimi",
+      "capability": "approval.request",
+      "testId": "kimi.approval.request",
+      "passed": true,
+      "checkedAt": "2026-07-20",
+      "verification": "real_runtime"
+    },
+    {
+      "kernel": "kimi",
+      "capability": "control.stop",
+      "testId": "kimi.control.stop",
+      "passed": true,
+      "checkedAt": "2026-07-20",
+      "verification": "real_runtime"
+    },
+    {
+      "kernel": "kimi",
+      "capability": "message.streamText",
+      "testId": "kimi.message.streamText",
+      "passed": true,
+      "checkedAt": "2026-07-20",
+      "verification": "real_runtime"
+    },
+    {
+      "kernel": "kimi",
+      "capability": "session.lifecycle",
+      "testId": "kimi.session.lifecycle",
+      "passed": true,
+      "checkedAt": "2026-07-20",
+      "verification": "real_runtime"
+    },
+    {
+      "kernel": "kimi",
+      "capability": "tool.progress",
+      "testId": "kimi.tool.progress",
+      "passed": true,
+      "checkedAt": "2026-06-08",
+      "verification": "real_runtime"
+    },
+    {
+      "kernel": "kimi",
+      "capability": "tools.nativeTool",
+      "testId": "kimi.tools.nativeTool",
+      "passed": true,
+      "checkedAt": "2026-07-20",
+      "verification": "real_runtime"
+    },
+    {
+      "kernel": "kimi",
+      "capability": "turn.lifecycle",
+      "testId": "kimi.turn.lifecycle",
+      "passed": true,
+      "checkedAt": "2026-07-20",
+      "verification": "real_runtime"
+    },
+    {
+      "kernel": "openclaw",
+      "capability": "control.stop",
+      "testId": "openclaw.control.stop",
+      "passed": true,
+      "checkedAt": "2026-07-20",
+      "verification": "real_runtime"
+    },
+    {
+      "kernel": "openclaw",
+      "capability": "message.streamText",
+      "testId": "openclaw.message.streamText",
+      "passed": true,
+      "checkedAt": "2026-07-20",
+      "verification": "real_runtime"
+    },
+    {
+      "kernel": "openclaw",
+      "capability": "session.lifecycle",
+      "testId": "openclaw.session.lifecycle",
+      "passed": true,
+      "checkedAt": "2026-07-20",
+      "verification": "real_runtime"
+    },
+    {
+      "kernel": "openclaw",
+      "capability": "turn.lifecycle",
+      "testId": "openclaw.turn.lifecycle",
+      "passed": true,
+      "checkedAt": "2026-07-20",
+      "verification": "real_runtime"
+    },
+    {
+      "kernel": "opencode",
+      "capability": "approval.request",
+      "testId": "opencode.approval.request",
+      "passed": true,
+      "checkedAt": "2026-07-20",
+      "verification": "real_runtime"
+    },
+    {
+      "kernel": "opencode",
+      "capability": "control.stop",
+      "testId": "opencode.control.stop",
+      "passed": true,
+      "checkedAt": "2026-07-20",
+      "verification": "real_runtime"
+    },
+    {
+      "kernel": "opencode",
+      "capability": "session.lifecycle",
+      "testId": "opencode.session.lifecycle",
+      "passed": true,
+      "checkedAt": "2026-07-20",
+      "verification": "real_runtime"
+    },
+    {
+      "kernel": "opencode",
+      "capability": "tool.progress",
+      "testId": "opencode.tool.progress",
+      "passed": true,
+      "checkedAt": "2026-06-08",
+      "verification": "real_runtime"
+    },
+    {
+      "kernel": "opencode",
+      "capability": "turn.lifecycle",
+      "testId": "opencode.turn.lifecycle",
+      "passed": true,
+      "checkedAt": "2026-07-20",
+      "verification": "real_runtime"
+    },
+    {
+      "kernel": "pi",
+      "capability": "tools.hostTool",
+      "testId": "pi.tools.hostTool",
+      "passed": true,
+      "checkedAt": "2026-06-08",
+      "verification": "real_runtime"
+    },
+    {
+      "kernel": "codex",
+      "capability": "session.compact",
+      "testId": "codex.session.compact",
+      "passed": true,
+      "checkedAt": "2026-06-09",
+      "verification": "real_runtime"
+    },
+    {
+      "kernel": "opencode",
+      "capability": "session.compact",
+      "testId": "opencode.session.compact",
+      "passed": true,
+      "checkedAt": "2026-07-20",
+      "verification": "real_runtime"
+    },
+    {
+      "kernel": "opencode",
+      "capability": "message.streamText",
+      "testId": "opencode.message.streamText",
+      "passed": true,
+      "checkedAt": "2026-07-20",
+      "verification": "real_runtime"
+    },
+    {
+      "kernel": "opencode",
+      "capability": "diagnostics.usage",
+      "testId": "opencode.diagnostics.usage",
+      "passed": true,
+      "checkedAt": "2026-07-20",
+      "verification": "real_runtime"
+    },
+    {
+      "kernel": "opencode",
+      "capability": "tools.nativeTool",
+      "testId": "opencode.tools.nativeTool",
+      "passed": true,
+      "checkedAt": "2026-07-20",
+      "verification": "real_runtime"
+    },
+    {
+      "kernel": "opencode",
+      "capability": "planning.plan",
+      "testId": "opencode.planning.plan",
+      "passed": true,
+      "checkedAt": "2026-06-09",
+      "verification": "real_runtime"
+    },
+    {
+      "kernel": "codex",
+      "capability": "media.input",
+      "testId": "codex.media.input",
+      "passed": true,
+      "checkedAt": "2026-06-09",
+      "verification": "real_runtime"
+    },
+    {
+      "kernel": "codex",
+      "capability": "output.structured",
+      "testId": "codex.output.structured",
+      "passed": true,
+      "checkedAt": "2026-06-09",
+      "verification": "real_runtime"
+    },
+    {
+      "kernel": "hermes",
+      "capability": "approval.request",
+      "testId": "hermes.approval.request",
+      "passed": true,
+      "checkedAt": "2026-08-06",
+      "verification": "real_runtime"
+    },
+    {
+      "kernel": "hermes",
+      "capability": "interaction.askUser",
+      "testId": "hermes.interaction.askUser",
+      "passed": true,
+      "checkedAt": "2026-08-06",
+      "verification": "real_runtime"
+    },
+    {
+      "kernel": "hermes",
+      "capability": "session.lifecycle",
+      "testId": "hermes.session.lifecycle",
+      "passed": true,
+      "checkedAt": "2026-08-06",
+      "verification": "real_runtime"
+    },
+    {
+      "kernel": "hermes",
+      "capability": "session.compact",
+      "testId": "hermes.session.compact",
+      "passed": true,
+      "checkedAt": "2026-08-06",
+      "verification": "real_runtime"
+    },
+    {
+      "kernel": "hermes",
+      "capability": "control.stop",
+      "testId": "hermes.control.stop",
+      "passed": true,
+      "checkedAt": "2026-06-09",
+      "verification": "real_runtime"
+    },
+    {
+      "kernel": "pi",
+      "capability": "approval.request",
+      "testId": "pi.approval.request",
+      "passed": true,
+      "checkedAt": "2026-06-09",
+      "verification": "real_runtime"
+    },
+    {
+      "kernel": "pi",
+      "capability": "control.stop",
+      "testId": "pi.control.stop",
+      "passed": true,
+      "checkedAt": "2026-08-06",
+      "verification": "real_runtime"
+    },
+    {
+      "kernel": "pi",
+      "capability": "tools.parallelCalls",
+      "testId": "pi.tools.parallelCalls",
+      "passed": true,
+      "checkedAt": "2026-06-09",
+      "verification": "real_runtime"
+    },
+    {
+      "kernel": "codex",
+      "capability": "response.speed",
+      "testId": "codex.response.speed",
+      "passed": true,
+      "checkedAt": "2026-06-09",
+      "verification": "real_runtime"
+    },
+    {
+      "kernel": "codex",
+      "capability": "control.steer",
+      "testId": "codex.control.steer",
+      "passed": true,
+      "checkedAt": "2026-06-09",
+      "verification": "real_runtime"
+    },
+    {
+      "kernel": "codex",
+      "capability": "session.goal",
+      "testId": "codex.session.goal",
+      "passed": true,
+      "checkedAt": "2026-06-09",
+      "verification": "real_runtime"
+    },
+    {
+      "kernel": "claude-code",
+      "capability": "media.input",
+      "testId": "claude-code.media.input",
+      "passed": true,
+      "checkedAt": "2026-07-20",
+      "verification": "real_runtime"
+    },
+    {
+      "kernel": "opencode",
+      "capability": "media.input",
+      "testId": "opencode.media.input",
+      "passed": true,
+      "checkedAt": "2026-07-20",
+      "verification": "real_runtime"
+    },
+    {
+      "kernel": "kimi",
+      "capability": "media.input",
+      "testId": "kimi.media.input",
+      "passed": true,
+      "checkedAt": "2026-07-20",
+      "verification": "real_runtime"
+    },
+    {
+      "kernel": "openclaw",
+      "capability": "session.compact",
+      "testId": "openclaw.session.compact",
+      "passed": true,
+      "checkedAt": "2026-07-20",
+      "verification": "real_runtime"
+    },
+    {
+      "kernel": "kimi",
+      "capability": "session.compact",
+      "testId": "kimi.session.compact",
+      "passed": true,
+      "checkedAt": "2026-07-20",
+      "verification": "real_runtime"
+    },
+    {
+      "kernel": "hermes",
+      "capability": "message.streamText",
+      "testId": "hermes.message.streamText",
+      "passed": true,
+      "checkedAt": "2026-08-06",
+      "verification": "real_runtime"
+    },
+    {
+      "kernel": "hermes",
+      "capability": "turn.lifecycle",
+      "testId": "hermes.turn.lifecycle",
+      "passed": true,
+      "checkedAt": "2026-08-06",
+      "verification": "real_runtime"
+    },
+    {
+      "kernel": "hermes",
+      "capability": "diagnostics.usage",
+      "testId": "hermes.diagnostics.usage",
+      "passed": true,
+      "checkedAt": "2026-08-06",
+      "verification": "real_runtime"
+    },
+    {
+      "kernel": "pi",
+      "capability": "turn.lifecycle",
+      "testId": "pi.turn.lifecycle",
+      "passed": true,
+      "checkedAt": "2026-08-06",
+      "verification": "real_runtime"
+    },
+    {
+      "kernel": "pi",
+      "capability": "media.input",
+      "testId": "pi.media.input",
+      "passed": true,
+      "checkedAt": "2026-07-20",
+      "verification": "real_runtime"
+    },
+    {
+      "kernel": "pi",
+      "capability": "session.compact",
+      "testId": "pi.session.compact",
+      "passed": true,
+      "checkedAt": "2026-07-20",
+      "verification": "real_runtime"
+    },
+    {
+      "kernel": "claude-code",
+      "capability": "session.compact",
+      "testId": "claude-code.session.compact",
+      "passed": true,
+      "checkedAt": "2026-07-20",
+      "verification": "real_runtime"
+    },
+    {
+      "kernel": "openclaw",
+      "capability": "diagnostics.usage",
+      "testId": "openclaw.diagnostics.usage",
+      "passed": true,
+      "checkedAt": "2026-07-20",
+      "verification": "real_runtime"
+    },
+    {
+      "kernel": "codex",
+      "capability": "reasoning.summary",
+      "testId": "codex.reasoning.summary",
+      "passed": true,
+      "checkedAt": "2026-07-20",
+      "verification": "real_runtime"
+    },
+    {
+      "kernel": "kimi",
+      "capability": "reasoning.nativeText",
+      "testId": "kimi.reasoning.nativeText",
+      "passed": true,
+      "checkedAt": "2026-08-05",
+      "verification": "real_runtime"
+    },
+    {
+      "kernel": "opencode",
+      "capability": "reasoning.nativeText",
+      "testId": "opencode.reasoning.nativeText",
+      "passed": true,
+      "checkedAt": "2026-08-05",
+      "verification": "real_runtime"
+    },
+    {
+      "kernel": "pi",
+      "capability": "diagnostics.usage",
+      "testId": "pi.diagnostics.usage",
+      "passed": true,
+      "checkedAt": "2026-08-06",
+      "verification": "real_runtime"
+    },
+    {
+      "kernel": "pi",
+      "capability": "reasoning.nativeText",
+      "testId": "pi.reasoning.nativeText",
+      "passed": true,
+      "checkedAt": "2026-08-06",
+      "verification": "real_runtime"
+    },
+    {
+      "kernel": "claude-code",
+      "capability": "reasoning.nativeText",
+      "testId": "claude-code.reasoning.nativeText",
+      "passed": true,
+      "checkedAt": "2026-08-06",
+      "verification": "real_runtime"
+    },
+    {
+      "kernel": "hermes",
+      "capability": "reasoning.nativeText",
+      "testId": "hermes.reasoning.nativeText",
+      "passed": true,
+      "checkedAt": "2026-08-06",
+      "verification": "real_runtime"
+    },
+    {
+      "kernel": "kimi",
+      "capability": "tools.hostTool",
+      "testId": "kimi.tools.hostTool",
+      "passed": true,
+      "checkedAt": "2026-08-14",
+      "verification": "real_runtime"
+    },
+    {
+      "kernel": "kimi",
+      "capability": "tools.mcpServers",
+      "testId": "kimi.tools.mcpServers",
+      "passed": true,
+      "checkedAt": "2026-08-14",
+      "verification": "real_runtime"
+    }
+  ]
+}

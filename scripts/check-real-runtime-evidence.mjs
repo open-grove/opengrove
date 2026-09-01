@@ -13,7 +13,7 @@
 //      capability not-wired/suppressed, or the caller explicitly allow-lists it.
 //      Infrastructure skips (missing credential, binary not found, gateway not
 //      configured) are never accepted and fail the job.
-//   5. provider/model/checkedAt belong to this job (freshness, not the ledger).
+//   5. host/kernel/runtime-mode/provider/model/checkedAt belong to this job.
 //   6. No secret / Authorization / token / auth-home content leaked into evidence.
 //   7. Each `kernel + capability` appears exactly once in this run.
 //
@@ -243,6 +243,17 @@ function main() {
         errors.push(
           `probe ${probe.capability} checkedAt ${probe.checkedAt} is ${age.toFixed(1)} days old (max ${options.maxAgeDays})`,
         );
+      }
+    }
+    if (probe.status === "passed") {
+      if (typeof probe.hostVersion !== "string" || probe.hostVersion.length === 0) {
+        errors.push(`passed probe ${probe.capability} missing hostVersion`);
+      }
+      if (typeof probe.kernelVersion !== "string" || probe.kernelVersion.length === 0) {
+        errors.push(`passed probe ${probe.capability} missing kernelVersion`);
+      }
+      if (typeof probe.runtimeMode !== "string" || probe.runtimeMode.length === 0) {
+        errors.push(`passed probe ${probe.capability} missing runtimeMode`);
       }
     }
   }

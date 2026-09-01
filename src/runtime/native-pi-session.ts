@@ -3,6 +3,10 @@ import {
   Agent,
   compact as compactPiSession,
   convertToLlm as convertNativeSessionMessages,
+  createBashTool,
+  createEditTool,
+  createReadTool,
+  createWriteTool,
   DEFAULT_COMPACTION_SETTINGS,
   estimateContextTokens,
   estimateTokens,
@@ -14,8 +18,11 @@ import {
   type AgentMessage as NativeAgentMessage,
   type AgentEvent as NativePiEvent,
   type AgentOptions,
+  type AgentHarnessTool,
   type AgentTool,
   type CompactionSettings,
+  type ExecutionEnv,
+  type ExecutionToolContext,
   type StreamFn,
   type ThinkingLevel,
 } from "@earendil-works/pi-agent-core";
@@ -49,6 +56,7 @@ import type {
   AgentModelRequestTrace,
   AgentSessionTrace,
   AgentSessionInfo,
+  ApprovalKind,
   ApprovalRequest,
   ContextEnvelope,
   InvokedSkillRecord,
@@ -76,6 +84,8 @@ export interface NativePiSessionOptions {
   models?: MutableModels;
   /** Maximum time to wait for a provider to settle after Agent.abort(). */
   abortSettleTimeoutMs?: number;
+  /** Injectable execution boundary for Pi's official coding tools. */
+  executionEnv?: ExecutionEnv;
 }
 
 export function createNativePiSessionFactory(options: NativePiSessionOptions): PiAgentRuntimeOptions["createSession"] {
@@ -83,8 +93,10 @@ export function createNativePiSessionFactory(options: NativePiSessionOptions): P
   // sessionRoot across Host processes must provide external coordination.
   const sessions = new Map<string, NativePiSession>();
   const models = options.models ?? createNativePiModels(options.getApiKey);
-  const repository = new NativePiSessionRepository(options.sessionRoot, options.cwd);
-  const resolvedOptions = { ...options, models };
+  const cwd = options.cwd ?? process.cwd();
+  const executionEnv = options.executionEnv ?? new NodeExecutionEnv({ cwd });
+  const repository = new NativePiSessionRepository(options.sessionRoot, cwd, executionEnv);
+  const resolvedOptions = { ...options, cwd, models, executionEnv };
 
   const factory: PiAgentRuntimeOptions["createSession"] = (context) => {
     const sessionId = context.sessionId || "default";
@@ -558,54 +570,58 @@ class NativePiSession implements PiSession {
       model,
       resolveThinkingLevel(this.options.thinkingLevel, this.runtimeContext.requestedEffort),
     );
-    const tools = toNativeTools(this.runtimeContext.tools, context, this.nativeToolNames, {
-      onSkillInvoked: (invocation) => {
-        const manifest = context.agent.skills.get(invocation.skillId) ?? context.agent.skills.get(invocation.skillName);
-        if (manifest) {
-          push([{ type: "skill.invoked", runId: context.runId, skill: manifest, invocation }]);
+    const tools = [
+      ...toNativeTools(this.runtimeContext.tools, context, this.nativeToolNames, {
+        onSkillInvoked: (invocation) => {
+          const manifest =
+            context.agent.skills.get(invocation.skillId) ?? context.agent.skills.get(invocation.skillName);
+          if (manifest) {
+            push([{ type: "skill.invoked", runId: context.runId, skill: manifest, invocation }]);
+            push([
+              {
+                type: "skill.loaded",
+                runId: context.runId,
+                skillId: invocation.skillId,
+                contentPreview: invocation.contentPreview,
+                allowedTools: [...invocation.allowedTools],
+                model: invocation.model,
+                effort: invocation.effort,
+                context: invocation.context,
+              },
+            ]);
+          }
+          if (invocation.context === "inline") {
+            this.pendingSkillOverlay = invocation;
+            this.agent?.steer(createSkillSteeringMessage(invocation));
+          }
+        },
+        runForkedSkill: async (invocation) => {
+          const forkSessionId = `${this.sessionId}:skill:${invocation.skillName}:${Date.now()}`;
           push([
             {
-              type: "skill.loaded",
+              type: "skill.forked",
               runId: context.runId,
               skillId: invocation.skillId,
-              contentPreview: invocation.contentPreview,
-              allowedTools: [...invocation.allowedTools],
-              model: invocation.model,
-              effort: invocation.effort,
-              context: invocation.context,
+              forkSessionId,
+              status: "started",
             },
           ]);
-        }
-        if (invocation.context === "inline") {
-          this.pendingSkillOverlay = invocation;
-          this.agent?.steer(createSkillSteeringMessage(invocation));
-        }
-      },
-      runForkedSkill: async (invocation) => {
-        const forkSessionId = `${this.sessionId}:skill:${invocation.skillName}:${Date.now()}`;
-        push([
-          {
-            type: "skill.forked",
-            runId: context.runId,
-            skillId: invocation.skillId,
-            forkSessionId,
-            status: "started",
-          },
-        ]);
-        const result = await this.executeForkedSkill(invocation, context, forkSessionId);
-        push([
-          {
-            type: "skill.forked",
-            runId: context.runId,
-            skillId: invocation.skillId,
-            forkSessionId: result.forkSessionId,
-            status: "finished",
-            result: result.text,
-          },
-        ]);
-        return result;
-      },
-    });
+          const result = await this.executeForkedSkill(invocation, context, forkSessionId);
+          push([
+            {
+              type: "skill.forked",
+              runId: context.runId,
+              skillId: invocation.skillId,
+              forkSessionId: result.forkSessionId,
+              status: "finished",
+              result: result.text,
+            },
+          ]);
+          return result;
+        },
+      }),
+      ...createPiCodingTools(this.options.executionEnv!),
+    ];
     const streamFn = this.createTracingStreamFn(input, context, push);
 
     if (!this.agent) {
@@ -639,13 +655,14 @@ class NativePiSession implements PiSession {
       const decision = await context.beforeToolCall({
         toolId,
         capabilityId,
+        source: PI_CODING_TOOL_NAMES.has(toolId) ? "native" : "host",
       });
 
       if (decision.mode !== "allow") {
         if (decision.mode === "ask") {
           const approvalInput = enrichApprovalInput(toolId, nativeContext.args, context.agent);
           const request = context.agent.approvals.request({
-            kind: "tool",
+            kind: piApprovalKind(toolId),
             title: toolId,
             reason: decision.reason,
             toolId,
@@ -842,11 +859,11 @@ class NativePiSessionRepository {
   private readonly sessionPromises = new Map<string, Promise<Session<any>>>();
   private readonly openGroveIds = new Map<string, string>();
 
-  constructor(sessionRoot?: string, cwd = process.cwd()) {
+  constructor(sessionRoot?: string, cwd = process.cwd(), executionEnv: ExecutionEnv = new NodeExecutionEnv({ cwd })) {
     this.cwd = cwd;
     if (sessionRoot?.trim()) {
       this.jsonlRepo = new JsonlSessionRepo({
-        fs: new NodeExecutionEnv({ cwd }),
+        fs: executionEnv,
         sessionsRoot: sessionRoot.trim(),
       });
     } else {
@@ -1211,6 +1228,33 @@ function toNativeTools(
       },
     };
   });
+}
+
+const PI_CODING_TOOL_NAMES = new Set(["read", "write", "edit", "bash"]);
+
+function createPiCodingTools(env: ExecutionEnv): AgentTool[] {
+  const context: ExecutionToolContext = { env };
+  const tools: AgentHarnessTool<ExecutionToolContext>[] = [
+    createReadTool(),
+    createWriteTool(),
+    createEditTool(),
+    createBashTool(),
+  ];
+  return tools.map(
+    (tool): AgentTool => ({
+      name: tool.name,
+      label: tool.label,
+      description: tool.description,
+      parameters: tool.parameters,
+      execute: (toolCallId, params, signal, onUpdate) => tool.execute(toolCallId, params, signal, onUpdate, context),
+    }),
+  );
+}
+
+function piApprovalKind(toolId: string): ApprovalKind {
+  if (toolId === "bash") return "command";
+  if (toolId === "write" || toolId === "edit") return "file_change";
+  return "tool";
 }
 
 class PiNativeMessageProjector {
