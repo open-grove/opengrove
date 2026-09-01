@@ -210,7 +210,7 @@
     "test:harness:web-desktop": "npm run build:server && node scripts/run-built-harnesses.mjs web-desktop",
     "test:harness:release-contracts": "node scripts/run-built-harnesses.mjs release-contracts",
     "test:node": "npm run build:server && npm run test:node:built",
-    "test:client": "npm run build:server && node --test dist/tests/opengrove-client.test.js dist/tests/bridge-contract.test.js && npm run check:client-boundary",
+    "test:client": "npm run build:server && node --test dist/tests/opengrove-client.test.js dist/tests/bridge-contract.test.js dist/tests/host-operation-cli.test.js && node dist/tests/host-operation-cli-harness.js && npm run check:client-boundary",
     "test:node:built": "node --test dist/tests/*.test.js",
     "test:pack:web": "npm run test:pack:web:unit && node scripts/test-pack-web-artifact.mjs",
     "test:pack:web:unit": "node scripts/test-pack-web-artifact-unit.mjs",

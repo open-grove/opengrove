@@ -379,7 +379,15 @@ npm run pack:desktop
 ```bash
 node dist/cli.js start
 node dist/cli.js --version
+node dist/cli.js room message create --room-id <id> --text "Hello"
+node dist/cli.js room message create --room-id <id> --text "Hello" --dry-run
 ```
+
+标准 Host 命令默认连接 `http://127.0.0.1:37371/api`。可以通过
+`--base-url` 或 `OPENGROVE_BRIDGE_URL` 切换目标，通过 `--token` 或
+`OPENGROVE_BRIDGE_TOKEN` 提供 Bridge 认证。每个命令都可以用 `--help`
+查看从 Protocol 生成的参数；成功结果以 JSON 写入 stdout，类型化错误以
+JSON 写入 stderr。
 
 ---
 

@@ -386,7 +386,15 @@ After `npm run build:server`, the source CLI exposes the API bridge with:
 ```bash
 node dist/cli.js start
 node dist/cli.js --version
+node dist/cli.js room message create --room-id <id> --text "Hello"
+node dist/cli.js room message create --room-id <id> --text "Hello" --dry-run
 ```
+
+Canonical Host commands default to `http://127.0.0.1:37371/api`. Override the
+target with `--base-url` or `OPENGROVE_BRIDGE_URL`, and supply Bridge
+authentication with `--token` or `OPENGROVE_BRIDGE_TOKEN`. Run a command with
+`--help` to inspect Protocol-derived input flags. Successful commands write a
+JSON envelope to stdout; typed failures write JSON to stderr.
 
 ---
 

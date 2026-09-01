@@ -4,6 +4,11 @@ import { join } from "node:path";
 import { packageRoot } from "./package-root.js";
 import { runAppBuilderCli } from "./app-builder/cli.js";
 import { runEmployeeCli } from "./app-builder/employee-cli.js";
+import {
+  isHostOperationCommand,
+  renderHostOperationOverview,
+  runHostOperationCommand,
+} from "./cli/host-operation-command.js";
 import { startLocalProfile } from "./profiles/local.js";
 import { startWebSingleProfile } from "./profiles/web-single.js";
 
@@ -20,6 +25,7 @@ Usage:
   opengrove web [--host HOST] [--port PORT]
   opengrove app <inspect|validate|scaffold> ...
   opengrove employee pack <memberId> [--output FILE]
+  opengrove room message create [options]
   opengrove version
 
 Commands:
@@ -27,12 +33,24 @@ Commands:
   web             Start the authenticated single-user Web UI and local bridge.
   app             Inspect, scaffold, and validate portable OpenGrove Apps.
   employee        Package and publish Rooms employees.
+  room             Call Room capabilities exposed by the Host Protocol.
   version         Print the installed OpenGrove version.
+
+Host commands:
+${renderHostOperationOverview()}
 `;
 
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
   const command = args[0] && !args[0].startsWith("-") ? args[0] : "start";
+
+  if (isHostOperationCommand(args)) {
+    const result = await runHostOperationCommand(args);
+    if (result.stdout) process.stdout.write(`${result.stdout}\n`);
+    if (result.stderr) process.stderr.write(`${result.stderr}\n`);
+    process.exitCode = result.exitCode;
+    return;
+  }
 
   if (args.includes("--help") || args.includes("-h") || command === "help") {
     console.log(USAGE.trimEnd());

@@ -92,20 +92,41 @@ then generated.
 
 ## CLI projection
 
-The Protocol catalog supplies capability facts to the future CLI projection:
+The Protocol catalog supplies capability facts to the CLI projection:
 
 - stable operation identity and hierarchy;
 - input and output schemas;
 - summary and description;
 - risk classification.
 
+The source CLI registers the canonical `group resource method` tree directly
+from the compiled catalog. Adding a registered Protocol operation therefore
+adds its canonical CLI command without another handwritten command definition.
+Fields become kebab-case flags, while `--input` accepts the same flattened input
+as one JSON object. The CLI reconstructs the explicit params, query, and body
+sections and passes the validated operation to `@opengrove/client`; it never
+assembles a route URL itself.
+
+Every canonical command shares these behaviors:
+
+- `--base-url`, falling back to `OPENGROVE_BRIDGE_URL` and then the local
+  `http://127.0.0.1:37371/api` Bridge;
+- `--token`, falling back to `OPENGROVE_BRIDGE_TOKEN`;
+- JSON success on stdout and typed JSON errors on stderr;
+- `--dry-run`, which validates and applies Protocol defaults without network
+  access;
+- a `--yes` gate for `high-risk-write` operations, after validation and dry-run;
+- the lark-cli-compatible exit classes: API `1`, validation `2`, auth `3`,
+  network `4`, internal contract failure `5`, policy `6`, and confirmation
+  required `10`.
+
 CLI-only behavior stays outside the Protocol. Command aliases, shortcuts,
 examples, identity selection, policy, confirmation gates, dry-run rendering,
-and output formatting belong to the CLI package. A shortcut or workflow calls
-the generated Client instead of assembling Bridge URLs.
+and output formatting belong to the CLI implementation. A future shortcut or
+workflow calls the Client instead of assembling Bridge URLs.
 
-This allows both a predictable raw operation and a friendlier shortcut to use
-the same implementation:
+This allows both a predictable canonical operation and a future friendlier
+shortcut to use the same implementation:
 
 ```text
 opengrove room message create ...
@@ -121,7 +142,8 @@ opengrove room send ...
 - Protocol ids, public Client namespaces, and ergonomic CLI shortcuts are
   related but intentionally not forced to use the same grammatical form.
 - Risk uses the closed taxonomy `read`, `write`, or `high-risk-write`. Unknown
-  or missing values must fail closed when CLI policy enforcement is added.
+  or missing values fail closed in the Protocol compiler; high-risk writes do
+  not reach the Client without `--yes`.
 - Consumer code must not assemble Host route strings after its operation has
   migrated to the Client.
 
@@ -140,6 +162,7 @@ existing module, but the route boundary must consume `context.input.params`,
 or body again.
 
 An operation is complete only when the shared contract is registered by the
-Host route, generated into the Client, used by at least one real consumer,
-covered by contract and Client tests, and included in packaged runtime checks.
-Old generic request helpers shrink as operations move; do not add another one.
+Host route, generated into the Client, callable through the canonical CLI,
+used by at least one real consumer, covered by contract and Client tests, and
+included in packaged runtime checks. Old generic request helpers shrink as
+operations move; do not add another one.

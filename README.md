@@ -202,6 +202,8 @@ npm run build:server
 node dist/cli.js start              # Start local bridge/API
 node dist/cli.js app inspect <src>  # Inspect / scaffold / validate Apps
 node dist/cli.js employee pack <id> # Package and publish Rooms employees
+node dist/cli.js room message create --room-id <id> --text "Hello"
+node dist/cli.js room message create --room-id <id> --text "Hello" --dry-run
 
 npm run build:web                   # Required before serving the browser UI
 OPENGROVE_ENABLE_BROWSER_UI=1 node dist/cli.js start
@@ -209,6 +211,10 @@ OPENGROVE_ENABLE_BROWSER_UI=1 node dist/cli.js start
 
 The authenticated `web` profile additionally requires `OPENGROVE_WW_BASE_URL`;
 see [Building from Source](docs/development/BUILDING.md).
+Canonical Host commands are projected from the shared Protocol catalog and
+call the same Client as the Web UI. They default to JSON output and the local
+Bridge; use `OPENGROVE_BRIDGE_URL` and `OPENGROVE_BRIDGE_TOKEN` when targeting
+another configured Bridge.
 
 ## Configuration
 
