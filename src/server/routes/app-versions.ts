@@ -27,7 +27,7 @@ import {
 } from "../app-version-manager.js";
 import { MountedAppVersionStateStore, selectedFormalVersionFromMarker } from "../app-version-state.js";
 import type { BridgeSecurity } from "../bridge-security.js";
-import { isAppRevisionUnavailableError } from "../app-revision-store.js";
+import { appRevisionSourceIssue, isAppRevisionUnavailableError } from "../app-revision-store.js";
 import { LocalAppDraftStore } from "../local-app-drafts.js";
 import type { LocalAppDraftSummary } from "../local-app-drafts.js";
 import { resolveMountedAppTarget, type MountedAppTarget } from "../mounted-apps.js";
@@ -323,6 +323,14 @@ async function withAppRevisionStatus(
     };
   } catch (error) {
     if (isAppRevisionUnavailableError(error)) return status;
+    const sourceIssue = appRevisionSourceIssue(error);
+    if (sourceIssue) {
+      return {
+        ...status,
+        sourceStatusError: sourceIssue.code,
+        sourceStatusPath: sourceIssue.path,
+      };
+    }
     console.warn("[opengrove-app-revision] source status inspection failed", {
       localAppId: target.localAppId,
       error: errorText(error),

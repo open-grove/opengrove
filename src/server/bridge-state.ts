@@ -48,7 +48,14 @@ import {
   currentAppStoreProgramsRoot,
   defaultAppStoreRoot,
 } from "./app-store.js";
-import { AppRevisionStore, appRevisionWorkspacePath } from "./app-revision-store.js";
+import {
+  AppRevisionStore,
+  appRevisionWorkspacePath,
+  managedAppRevisionGitDirectory,
+  pruneManagedAppRevisionCheckpoints,
+  removeManagedAppRevisionCheckpoint,
+  restoreManagedAppRevisionCheckpoint,
+} from "./app-revision-store.js";
 import {
   type AppVersionActivationJournal,
   appVersionActivationJournalKey,
@@ -207,6 +214,23 @@ export function createBridgeState(
     saveBridgeSettings(state);
   }
   const versionActivationScan = scanAppVersionActivationJournals(appVersionActivationJournalRoot(appStoreRoot));
+  if (versionActivationScan.failures.length === 0) {
+    try {
+      pruneManagedAppRevisionCheckpoints({
+        revisionsRoot: join(appStoreRoot, "app-revisions"),
+        retainedCheckpointIds: new Set(
+          versionActivationScan.journals.flatMap((journal) =>
+            journal.record.previousSourceRevision ? [journal.record.previousSourceRevision.checkpointId] : [],
+          ),
+        ),
+      });
+    } catch (error) {
+      // non-critical-fallback: unreferenced recovery objects are inert and can be retried next startup.
+      console.warn("app_revision_recovery_cleanup_deferred", {
+        failure: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
   const corruptJournalKeys = new Set(
     versionActivationScan.failures.flatMap((failure) => (failure.journalKey ? [failure.journalKey] : [])),
   );
@@ -511,6 +535,13 @@ export function createBridgeState(
   }
   if (versionActivationJournal && versionActivationRecovered) {
     removeAppVersionActivationJournal(versionActivationJournal);
+    if (versionActivationJournal.record.previousSourceRevision) {
+      removeManagedAppRevisionCheckpoint({
+        revisionsRoot: join(appStoreRoot, "app-revisions"),
+        localAppId: versionActivationJournal.record.localAppId,
+        checkpoint: versionActivationJournal.record.previousSourceRevision,
+      });
+    }
   }
   if (needsLegacyProviderActivation) {
     const activatedSettings = activateLegacyProviderReferences(
@@ -594,6 +625,19 @@ function prepareInterruptedAppVersionActivationRecovery(
     journal.record.localAppId,
     journal.record.previousVersionState,
   );
+  if (journal.record.previousSourceRevision) {
+    restoreManagedAppRevisionCheckpoint({
+      revisionsRoot: join(appStoreRoot, "app-revisions"),
+      localAppId: journal.record.localAppId,
+      appRoot: journal.record.appRoot,
+      checkpoint: journal.record.previousSourceRevision,
+    });
+  } else if (
+    journal.record.legacySourceRevisionUnavailable === true &&
+    existsSync(managedAppRevisionGitDirectory(join(appStoreRoot, "app-revisions"), journal.record.localAppId))
+  ) {
+    throw new Error("app_version_activation_revision_recovery_required");
+  }
   saveBridgeSettings(state);
   const appId = readMountedAppManifest(journal.record.appRoot).manifest?.id;
   return {

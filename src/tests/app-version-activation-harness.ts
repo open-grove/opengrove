@@ -1,6 +1,15 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { appEnvName } from "../identity.js";
@@ -756,6 +765,27 @@ try {
     "version management must expose the current local source save point without a system Git dependency",
   );
   assert.equal(savedDraftStatus.data.status.sourceChangedFileCount, 0);
+
+  if (process.platform !== "win32") {
+    const linkedProgramPath = join(activeProgramRoot(), "linked-program.txt");
+    symlinkSync("program.txt", linkedProgramPath);
+    try {
+      const linkedSourceStatus = await callAppsRoute(state, "/apps/versioned-app/versions", "GET");
+      assert.equal(linkedSourceStatus.status, 200, JSON.stringify(linkedSourceStatus.data));
+      assert.equal(linkedSourceStatus.data.status.sourceStatusError, "app_revision_symlink_not_supported");
+      assert.equal(linkedSourceStatus.data.status.sourceStatusPath, "linked-program.txt");
+
+      const linkedSourceSave = await callAppsRoute(state, "/apps/versioned-app/draft", "PUT", {
+        app: preparedDraft.data.release.app,
+        employees: preparedDraft.data.release.employees,
+      });
+      assert.equal(linkedSourceSave.status, 422, JSON.stringify(linkedSourceSave.data));
+      assert.equal(linkedSourceSave.data.error, "app_revision_symlink_not_supported");
+      assert.equal(linkedSourceSave.data.path, "linked-program.txt");
+    } finally {
+      rmSync(linkedProgramPath, { force: true });
+    }
+  }
 
   const revisionGitDirectory = managedAppRevisionGitDirectory(
     join(appStoreDataRoot(state), "app-revisions"),

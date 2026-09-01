@@ -22,6 +22,7 @@ import type { BridgeState } from "../bridge-types.js";
 import { record } from "../http-utils.js";
 import type { MountedAppTarget } from "../mounted-apps.js";
 import { resolveReleaseControlConfig } from "../release-control-config.js";
+import { appRevisionSourceIssue } from "../app-revision-store.js";
 
 interface AppReleaseRouteContext {
   request: IncomingMessage;
@@ -257,8 +258,10 @@ async function isAdmin(context: AppReleaseRouteContext): Promise<boolean> {
 
 function sendReleaseError(context: AppReleaseRouteContext, error: unknown, coordinator?: AppReleaseCoordinator): void {
   const progress = error instanceof AppReleaseCoordinatorError ? error.progress : readProgressForError(coordinator);
-  const status =
-    error instanceof AppReleaseCoordinatorError
+  const sourceIssue = appRevisionSourceIssue(error);
+  const status = sourceIssue
+    ? 422
+    : error instanceof AppReleaseCoordinatorError
       ? error.status
       : error instanceof AppReleaseValidationError
         ? error.status
@@ -298,11 +301,17 @@ function sendReleaseError(context: AppReleaseRouteContext, error: unknown, coord
       ? { candidateStage: error.candidateStage }
       : {}),
     ...(progress ? { progress } : {}),
-    ...(error instanceof AppReleaseCoordinatorError && error.detail !== undefined ? { detail: error.detail } : {}),
+    ...(sourceIssue
+      ? { detail: { path: sourceIssue.path } }
+      : error instanceof AppReleaseCoordinatorError && error.detail !== undefined
+        ? { detail: error.detail }
+        : {}),
   });
 }
 
 function releaseDiagnosticErrorCode(error: unknown): string {
+  const sourceIssue = appRevisionSourceIssue(error);
+  if (sourceIssue) return sourceIssue.code;
   const value = error instanceof Error ? error.message : String(error);
   if (error instanceof ReleaseControlClientError) return value;
   if (error instanceof AppReleaseCoordinatorError || error instanceof AppReleaseValidationError) {

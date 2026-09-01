@@ -49,6 +49,8 @@ import {
   appRevisionWorkspacePath,
   isAppRevisionUnavailableError,
   isManagedAppRevisionWorkingCopy,
+  removeManagedAppRevisionCheckpoint,
+  type AppRevisionRecoveryCheckpoint,
   type AppSavePoint,
 } from "./app-revision-store.js";
 import { cancelRoomAssistantRun, hasActiveRoomRunController } from "./room-runs.js";
@@ -65,6 +67,8 @@ export interface MountedAppVersionStatus {
   workingDigestError?: string;
   sourceSavePoint?: AppSavePoint;
   sourceChangedFileCount?: number;
+  sourceStatusError?: string;
+  sourceStatusPath?: string;
 }
 
 export interface FormalAppVersionActivationResult {
@@ -95,6 +99,7 @@ export async function activateImportedFormalAppVersion(input: {
   const revisionsRoot = join(appStoreDataRoot(input.state), "app-revisions");
   const revisions = new AppRevisionStore(revisionsRoot);
   let previousSourceSavePoint: AppSavePoint | undefined;
+  let previousSourceRevision: AppRevisionRecoveryCheckpoint | undefined;
   const previousTarget = resolveMountedAppTarget(input.state, input.localAppId);
   if (previousTarget) {
     try {
@@ -107,6 +112,11 @@ export async function activateImportedFormalAppVersion(input: {
         commitSha: previousRevision.commitSha,
         savedAt: previousRevision.savedAt,
       };
+      previousSourceRevision = await revisions.captureRecoveryCheckpoint({
+        localAppId: input.localAppId,
+        appRoot: previousTarget.appRoot,
+        workspacePath: appRevisionWorkspacePath(previousTarget.manifest),
+      });
     } catch (error) {
       if (!isAppRevisionUnavailableError(error)) throw error;
     }
@@ -132,6 +142,7 @@ export async function activateImportedFormalAppVersion(input: {
       previousUninstalledStoreAppIds: previousSettings.uninstalledStoreAppIds,
       previousAgentState,
       previousVersionState,
+      ...(previousSourceRevision ? { previousSourceRevision } : {}),
     });
     const persistedAgentState = persistCapturedAgentState(input.state, previousAgentState);
     const install: AppStoreInstallResult = activatePreparedAppStorePackageInstall({
@@ -179,6 +190,13 @@ export async function activateImportedFormalAppVersion(input: {
     if (finalizeFormalProgramActivation(updatedInstall)) {
       removeAppVersionActivationJournal(activationJournal);
       activationJournal = undefined;
+      if (previousSourceRevision) {
+        removeManagedAppRevisionCheckpoint({
+          revisionsRoot,
+          localAppId: input.localAppId,
+          checkpoint: previousSourceRevision,
+        });
+      }
     }
     activated = { install, versionState, activeTarget };
   } catch (error) {
@@ -212,6 +230,14 @@ export async function activateImportedFormalAppVersion(input: {
     }
     if (rollbackCompleted && activationJournal) {
       removeAppVersionActivationJournal(activationJournal);
+      activationJournal = undefined;
+    }
+    if (rollbackCompleted && previousSourceRevision) {
+      removeManagedAppRevisionCheckpoint({
+        revisionsRoot,
+        localAppId: input.localAppId,
+        checkpoint: previousSourceRevision,
+      });
     }
     throw activationError;
   }

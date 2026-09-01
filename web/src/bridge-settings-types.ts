@@ -492,6 +492,8 @@ export interface MountedAppVersionStatus {
   workingDigestError?: string;
   sourceSavePoint?: AppSavePoint;
   sourceChangedFileCount?: number;
+  sourceStatusError?: string;
+  sourceStatusPath?: string;
 }
 
 export interface MountedAppVersionsResponse {

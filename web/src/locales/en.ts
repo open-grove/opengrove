@@ -1814,6 +1814,8 @@ export const EN = {
   "appStore.version.unsaved": "Unsaved changes",
   "appStore.version.saved": "Saved",
   "appStore.version.sourceSavedAt": "Source saved · {time}",
+  "appStore.version.sourceNeedsAttention": "Source needs attention · {path}",
+  "appStore.version.unknownSourcePath": "Unknown path",
   "appStore.version.registryUnavailable":
     "The formal version catalog is temporarily unavailable. Your local draft is still retained.",
   "appStore.version.localDraft": "My local draft",

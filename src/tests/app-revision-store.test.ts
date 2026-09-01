@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import * as fs from "node:fs";
 import {
   chmodSync,
@@ -20,6 +21,8 @@ import {
   AppRevisionStore,
   isManagedAppRevisionWorkingCopy,
   managedAppRevisionGitDirectory,
+  pruneManagedAppRevisionCheckpoints,
+  restoreManagedAppRevisionCheckpoint,
 } from "../server/app-revision-store.js";
 
 test("managed App revisions materialize source without local runtime state", async () => {
@@ -28,12 +31,16 @@ test("managed App revisions materialize source without local runtime state", asy
   const materializedRoot = join(root, "materialized");
   try {
     mkdirSync(join(appRoot, "ui"), { recursive: true });
+    mkdirSync(join(appRoot, "web"), { recursive: true });
+    mkdirSync(join(appRoot, "metadata"), { recursive: true });
     mkdirSync(join(appRoot, "workspace"), { recursive: true });
     writeFileSync(join(appRoot, "opengrove.app.json"), '{"id":"revision-fixture","version":"0.1.0"}\n', "utf8");
     writeFileSync(join(appRoot, "ui", "index.html"), "<h1>first save point</h1>\n", "utf8");
     writeFileSync(join(appRoot, ".gitignore"), "ignored.txt\n", "utf8");
     writeFileSync(join(appRoot, "workspace", "private.txt"), "local workspace data\n", "utf8");
     writeFileSync(join(appRoot, ".env"), "PRIVATE_TOKEN=not-for-history\n", "utf8");
+    writeFileSync(join(appRoot, "web", ".env"), "NESTED_TOKEN=not-for-history\n", "utf8");
+    writeFileSync(join(appRoot, "metadata", ".DS_Store"), "machine metadata\n", "utf8");
 
     const store = new AppRevisionStore(join(root, "revisions"));
     const savePoint = await store.ensureWorkingCopy({
@@ -49,6 +56,17 @@ test("managed App revisions materialize source without local runtime state", asy
     assert.match(excludeFile, /^\/workspace$/m);
 
     assert.match(savePoint.commitSha, /^[a-f0-9]{40}$/);
+    const savedFiles = await git.listFiles({
+      fs,
+      gitdir: managedAppRevisionGitDirectory(join(root, "revisions"), "local-revision-fixture"),
+      ref: savePoint.commitSha,
+    });
+    assert.equal(savedFiles.includes("web/.env"), false, "nested credentials must not enter the save point tree");
+    assert.equal(
+      savedFiles.includes("metadata/.DS_Store"),
+      false,
+      "nested machine files must not enter the save point tree",
+    );
     assert.equal(readFileSync(join(appRoot, ".git"), "utf8").startsWith("gitdir: "), true);
     assert.equal(
       isManagedAppRevisionWorkingCopy({
@@ -70,6 +88,8 @@ test("managed App revisions materialize source without local runtime state", asy
     assert.equal(readFileSync(join(materializedRoot, "ui", "index.html"), "utf8"), "<h1>first save point</h1>\n");
     assert.equal(existsSync(join(materializedRoot, "workspace")), false);
     assert.equal(existsSync(join(materializedRoot, ".env")), false);
+    assert.equal(existsSync(join(materializedRoot, "web", ".env")), false);
+    assert.equal(existsSync(join(materializedRoot, "metadata", ".DS_Store")), false);
     assert.equal(existsSync(join(materializedRoot, ".git")), false);
   } finally {
     rmSync(root, { recursive: true, force: true });
@@ -501,6 +521,184 @@ test("an App cannot redirect revision writes into an unrelated repository", asyn
           workspacePath: "workspace",
         }),
       /app_revision_existing_repository_requires_adoption/u,
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("a fabricated recovery checkpoint cannot move a managed App revision", async () => {
+  const root = mkdtempSync(join(tmpdir(), "opengrove-app-revision-fake-recovery-"));
+  const appRoot = join(root, "app");
+  const revisionsRoot = join(root, "revisions");
+  try {
+    mkdirSync(appRoot, { recursive: true });
+    writeFileSync(join(appRoot, "opengrove.app.json"), '{"id":"fake-recovery","version":"0.1.0"}\n', "utf8");
+    writeFileSync(join(appRoot, "program.txt"), "trusted source\n", "utf8");
+    const store = new AppRevisionStore(revisionsRoot);
+    const savePoint = await store.ensureWorkingCopy({
+      localAppId: "local-fake-recovery",
+      appRoot,
+      workspacePath: "workspace",
+    });
+
+    assert.throws(
+      () =>
+        restoreManagedAppRevisionCheckpoint({
+          revisionsRoot,
+          localAppId: "local-fake-recovery",
+          appRoot,
+          checkpoint: {
+            checkpointId: "f".repeat(32),
+            commitSha: "3".repeat(40),
+            indexSha256: "4".repeat(64),
+            objectManifestSha256: "5".repeat(64),
+          },
+        }),
+      /ENOENT|app_revision_recovery_checkpoint_invalid/u,
+    );
+    assert.equal(
+      (
+        await store.inspect({
+          localAppId: "local-fake-recovery",
+          appRoot,
+          workspacePath: "workspace",
+        })
+      ).commitSha,
+      savePoint.commitSha,
+      "an untrusted journal value must not move the private revision branch",
+    );
+
+    const checkpoint = await store.captureRecoveryCheckpoint({
+      localAppId: "local-fake-recovery",
+      appRoot,
+      workspacePath: "workspace",
+    });
+    const gitdir = managedAppRevisionGitDirectory(revisionsRoot, "local-fake-recovery");
+    const commit = await git.readCommit({ fs, gitdir, oid: savePoint.commitSha });
+    const tree = await git.readTree({ fs, gitdir, oid: commit.commit.tree });
+    const blobOid = tree.tree.find((entry) => entry.type === "blob")?.oid;
+    assert.ok(blobOid);
+    const poisonedManifest = Buffer.from(
+      `${JSON.stringify({ schemaVersion: 1, commitSha: blobOid, objectOids: [blobOid] })}\n`,
+      "utf8",
+    );
+    writeFileSync(join(gitdir, "opengrove-recovery", checkpoint.checkpointId, "objects.json"), poisonedManifest);
+    assert.throws(
+      () =>
+        restoreManagedAppRevisionCheckpoint({
+          revisionsRoot,
+          localAppId: "local-fake-recovery",
+          appRoot,
+          checkpoint: {
+            ...checkpoint,
+            commitSha: blobOid,
+            objectManifestSha256: createHash("sha256").update(poisonedManifest).digest("hex"),
+          },
+        }),
+      /app_revision_recovery_checkpoint_invalid/u,
+      "a hash-valid blob must not be accepted as a recovery commit",
+    );
+    assert.equal(
+      (await store.inspect({ localAppId: "local-fake-recovery", appRoot, workspacePath: "workspace" })).commitSha,
+      savePoint.commitSha,
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("a recovery checkpoint survives Git gc and an index v4 working copy", async () => {
+  const root = mkdtempSync(join(tmpdir(), "opengrove-app-revision-gc-recovery-"));
+  const appRoot = join(root, "app");
+  const revisionsRoot = join(root, "revisions");
+  try {
+    mkdirSync(appRoot, { recursive: true });
+    writeFileSync(join(appRoot, "opengrove.app.json"), '{"id":"gc-recovery","version":"0.1.0"}\n', "utf8");
+    writeFileSync(join(appRoot, "program.txt"), "before gc\n", "utf8");
+    const store = new AppRevisionStore(revisionsRoot);
+    const first = await store.ensureWorkingCopy({
+      localAppId: "local-gc-recovery",
+      appRoot,
+      workspacePath: "workspace",
+    });
+    runGit(appRoot, "gc", "--prune=now");
+    runGit(appRoot, "update-index", "--index-version=4");
+    const checkpoint = await store.captureRecoveryCheckpoint({
+      localAppId: "local-gc-recovery",
+      appRoot,
+      workspacePath: "workspace",
+    });
+
+    writeFileSync(join(appRoot, "program.txt"), "after checkpoint\n", "utf8");
+    const second = await store.save({
+      localAppId: "local-gc-recovery",
+      appRoot,
+      workspacePath: "workspace",
+      message: "Advance before recovery",
+    });
+    assert.notEqual(second.commitSha, first.commitSha);
+    runGit(appRoot, "gc", "--prune=now");
+
+    restoreManagedAppRevisionCheckpoint({
+      revisionsRoot,
+      localAppId: "local-gc-recovery",
+      appRoot,
+      checkpoint,
+    });
+    const recovered = await store.inspect({
+      localAppId: "local-gc-recovery",
+      appRoot,
+      workspacePath: "workspace",
+    });
+    assert.equal(recovered.commitSha, first.commitSha);
+    assert.equal(recovered.dirty, true, "recovery restores revision metadata without overwriting the program tree");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("startup cleanup removes only unreferenced recovery checkpoints", async () => {
+  const root = mkdtempSync(join(tmpdir(), "opengrove-app-revision-prune-recovery-"));
+  const appRoot = join(root, "app");
+  const revisionsRoot = join(root, "revisions");
+  try {
+    mkdirSync(appRoot, { recursive: true });
+    writeFileSync(join(appRoot, "opengrove.app.json"), '{"id":"prune-recovery","version":"0.1.0"}\n', "utf8");
+    const store = new AppRevisionStore(revisionsRoot);
+    await store.ensureWorkingCopy({ localAppId: "local-prune-recovery", appRoot, workspacePath: "workspace" });
+    const retained = await store.captureRecoveryCheckpoint({
+      localAppId: "local-prune-recovery",
+      appRoot,
+      workspacePath: "workspace",
+    });
+    const orphaned = await store.captureRecoveryCheckpoint({
+      localAppId: "local-prune-recovery",
+      appRoot,
+      workspacePath: "workspace",
+    });
+
+    pruneManagedAppRevisionCheckpoints({
+      revisionsRoot,
+      retainedCheckpointIds: new Set([retained.checkpointId]),
+    });
+    assert.doesNotThrow(() =>
+      restoreManagedAppRevisionCheckpoint({
+        revisionsRoot,
+        localAppId: "local-prune-recovery",
+        appRoot,
+        checkpoint: retained,
+      }),
+    );
+    assert.throws(
+      () =>
+        restoreManagedAppRevisionCheckpoint({
+          revisionsRoot,
+          localAppId: "local-prune-recovery",
+          appRoot,
+          checkpoint: orphaned,
+        }),
+      /ENOENT/u,
     );
   } finally {
     rmSync(root, { recursive: true, force: true });

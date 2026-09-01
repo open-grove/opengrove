@@ -1,7 +1,18 @@
-import { createHash } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import * as fs from "node:fs";
-import { chmodSync, lstatSync, mkdirSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  lstatSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  realpathSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import { dirname, isAbsolute, resolve, sep } from "node:path";
+import { deflateSync, inflateSync } from "node:zlib";
 import git from "isomorphic-git";
 import { canonicalPortableRelativePath } from "../app-builder/portable-path.js";
 import { appReleaseSourcePathExcluded } from "./app-release-source-exclusions.js";
@@ -32,6 +43,48 @@ export interface AppRevisionStatus {
   savedAt: string;
   dirty: boolean;
   changedFiles: string[];
+}
+
+export interface AppRevisionSourceIssue {
+  code: "app_revision_symlink_not_supported" | "app_revision_entry_type_invalid";
+  path: string;
+}
+
+export interface AppRevisionRecoveryCheckpoint {
+  checkpointId: string;
+  commitSha: string;
+  indexSha256: string;
+  objectManifestSha256: string;
+}
+
+export function validAppRevisionRecoveryCheckpoint(value: unknown): value is AppRevisionRecoveryCheckpoint {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const checkpoint = value as Partial<AppRevisionRecoveryCheckpoint>;
+  if (
+    typeof checkpoint.checkpointId !== "string" ||
+    !/^[a-f0-9]{32}$/u.test(checkpoint.checkpointId) ||
+    typeof checkpoint.commitSha !== "string" ||
+    !/^[a-f0-9]{40}$/u.test(checkpoint.commitSha) ||
+    typeof checkpoint.indexSha256 !== "string" ||
+    !/^[a-f0-9]{64}$/u.test(checkpoint.indexSha256) ||
+    typeof checkpoint.objectManifestSha256 !== "string" ||
+    !/^[a-f0-9]{64}$/u.test(checkpoint.objectManifestSha256)
+  ) {
+    return false;
+  }
+  return true;
+}
+
+export function appRevisionSourceIssue(error: unknown): AppRevisionSourceIssue | undefined {
+  const message = error instanceof Error ? error.message : String(error);
+  const match = /^(app_revision_(?:symlink_not_supported|entry_type_invalid)):(.+)$/u.exec(message);
+  if (!match?.[1] || !match[2]) return undefined;
+  const path = canonicalPortableRelativePath(match[2]);
+  if (!path || path === "." || path !== match[2]) return undefined;
+  return {
+    code: match[1] as AppRevisionSourceIssue["code"],
+    path,
+  };
 }
 
 export function appRevisionTarget(input: {
@@ -103,6 +156,91 @@ export function isManagedAppRevisionWorkingCopy(input: {
   return gitdir === managedAppRevisionGitDirectory(input.revisionsRoot, input.localAppId);
 }
 
+export function restoreManagedAppRevisionCheckpoint(input: {
+  revisionsRoot: string;
+  localAppId: string;
+  appRoot: string;
+  checkpoint: AppRevisionRecoveryCheckpoint;
+}): void {
+  if (!validAppRevisionRecoveryCheckpoint(input.checkpoint)) {
+    throw new Error("app_revision_recovery_checkpoint_invalid");
+  }
+  const gitdir = managedAppRevisionGitDirectory(input.revisionsRoot, input.localAppId);
+  const repository = pathEntry(gitdir);
+  if (!repository?.isDirectory() || repository.isSymbolicLink()) {
+    throw new Error("app_revision_recovery_repository_invalid");
+  }
+  const head = readFileSync(resolve(gitdir, "HEAD"), "utf8");
+  if (head !== `ref: refs/heads/${MANAGED_BRANCH}\n`) {
+    throw new Error("app_revision_recovery_branch_invalid");
+  }
+  const checkpointRoot = recoveryCheckpointRoot(gitdir, input.checkpoint.checkpointId);
+  const manifestBytes = readFileSync(resolve(checkpointRoot, "objects.json"));
+  if (createHash("sha256").update(manifestBytes).digest("hex") !== input.checkpoint.objectManifestSha256) {
+    throw new Error("app_revision_recovery_checkpoint_invalid");
+  }
+  const manifest = parseRecoveryObjectManifest(manifestBytes);
+  if (manifest.commitSha !== input.checkpoint.commitSha) throw new Error("app_revision_recovery_checkpoint_invalid");
+  const recoveryObjects = new Map<string, RecoveryGitObject>();
+  for (const oid of manifest.objectOids) {
+    recoveryObjects.set(oid, readRecoveryGitObject(resolve(checkpointRoot, "objects", oid), oid));
+  }
+  if (!validRecoveryGitCommitTree(recoveryObjects, input.checkpoint.commitSha)) {
+    throw new Error("app_revision_recovery_checkpoint_invalid");
+  }
+  const recoveryIndex = readFileSync(recoveryCheckpointIndexPath(gitdir, input.checkpoint.checkpointId));
+  if (
+    createHash("sha256").update(recoveryIndex).digest("hex") !== input.checkpoint.indexSha256 ||
+    !validGitIndexEnvelope(recoveryIndex)
+  ) {
+    throw new Error("app_revision_recovery_checkpoint_invalid");
+  }
+  for (const [oid, object] of recoveryObjects) {
+    writePrivateFileAtomically(resolve(gitdir, "objects", oid.slice(0, 2), oid.slice(2)), object.deflated);
+  }
+  writePrivateFileAtomically(resolve(gitdir, "refs", "heads", MANAGED_BRANCH), `${input.checkpoint.commitSha}\n`);
+  writePrivateFileAtomically(resolve(gitdir, "index"), recoveryIndex);
+}
+
+export function removeManagedAppRevisionCheckpoint(input: {
+  revisionsRoot: string;
+  localAppId: string;
+  checkpoint: AppRevisionRecoveryCheckpoint;
+}): void {
+  if (!validAppRevisionRecoveryCheckpoint(input.checkpoint)) return;
+  const gitdir = managedAppRevisionGitDirectory(input.revisionsRoot, input.localAppId);
+  rmSync(recoveryCheckpointRoot(gitdir, input.checkpoint.checkpointId), { recursive: true, force: true });
+}
+
+export function pruneManagedAppRevisionCheckpoints(input: {
+  revisionsRoot: string;
+  retainedCheckpointIds: ReadonlySet<string>;
+}): void {
+  const root = pathEntry(input.revisionsRoot);
+  if (!root) return;
+  if (!root.isDirectory() || root.isSymbolicLink()) throw new Error("app_revision_repository_root_invalid");
+  for (const repository of readdirSync(input.revisionsRoot, { withFileTypes: true })) {
+    if (!repository.isDirectory() || repository.isSymbolicLink() || !/^[a-f0-9]{64}\.git$/u.test(repository.name)) {
+      continue;
+    }
+    const gitdir = resolve(input.revisionsRoot, repository.name);
+    const recoveryRoot = resolve(gitdir, "opengrove-recovery");
+    const entry = pathEntry(recoveryRoot);
+    if (!entry) continue;
+    if (!entry.isDirectory() || entry.isSymbolicLink()) throw new Error("app_revision_recovery_directory_invalid");
+    for (const checkpointDirectory of readdirSync(recoveryRoot, { withFileTypes: true })) {
+      if (!checkpointDirectory.isDirectory() || checkpointDirectory.isSymbolicLink()) continue;
+      if (
+        !/^[a-f0-9]{32}$/u.test(checkpointDirectory.name) ||
+        input.retainedCheckpointIds.has(checkpointDirectory.name)
+      ) {
+        continue;
+      }
+      rmSync(resolve(recoveryRoot, checkpointDirectory.name), { recursive: true, force: true });
+    }
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Save-point lifecycle
 
@@ -129,6 +267,63 @@ export class AppRevisionStore {
       if ((error as { code?: string }).code !== "NotFoundError") throw error;
       await this.stageSourceTree(normalized, repository);
       return this.commit(normalized.appRoot, repository.gitdir, "Initial OpenGrove App save point");
+    }
+  }
+
+  async captureRecoveryCheckpoint(target: AppRevisionTarget): Promise<AppRevisionRecoveryCheckpoint> {
+    const normalized = this.normalizedTarget(target);
+    const gitdir = this.managedGitDirectory(normalized.localAppId);
+    const repository = pathEntry(gitdir);
+    if (!repository?.isDirectory() || repository.isSymbolicLink()) {
+      throw new Error("app_revision_recovery_repository_invalid");
+    }
+    const head = readFileSync(resolve(gitdir, "HEAD"), "utf8");
+    if (head !== `ref: refs/heads/${MANAGED_BRANCH}\n`) {
+      throw new Error("app_revision_recovery_branch_invalid");
+    }
+    const commitSha = await git.resolveRef({ fs, gitdir, ref: MANAGED_BRANCH });
+    if (!/^[a-f0-9]{40}$/u.test(commitSha)) throw new Error("app_revision_recovery_checkpoint_invalid");
+    const objectOids = await revisionObjectOids(gitdir, commitSha);
+    const recoveryIndex = readFileSync(resolve(gitdir, "index"));
+    if (!validGitIndexEnvelope(recoveryIndex)) throw new Error("app_revision_recovery_checkpoint_invalid");
+    const checkpointId = randomBytes(16).toString("hex");
+    const checkpointRoot = recoveryCheckpointRoot(gitdir, checkpointId);
+    const checkpointIndexPath = recoveryCheckpointIndexPath(gitdir, checkpointId);
+    try {
+      writePrivateFileAtomically(checkpointIndexPath, recoveryIndex);
+      for (const oid of objectOids) {
+        const object = await git.readObject({ fs, gitdir, oid, format: "content" });
+        if (
+          object.format !== "content" ||
+          (object.type !== "commit" && object.type !== "tree" && object.type !== "blob")
+        ) {
+          throw new Error("app_revision_recovery_checkpoint_invalid");
+        }
+        const content = Buffer.from(object.object);
+        const wrapped = Buffer.concat([Buffer.from(`${object.type} ${content.length}\0`, "ascii"), content]);
+        if (createHash("sha1").update(wrapped).digest("hex") !== oid) {
+          throw new Error("app_revision_recovery_checkpoint_invalid");
+        }
+        writePrivateFileAtomically(resolve(checkpointRoot, "objects", oid), deflateSync(wrapped));
+      }
+      const manifestBytes = Buffer.from(
+        `${JSON.stringify({ schemaVersion: 1, commitSha, objectOids: [...objectOids].sort() })}\n`,
+        "utf8",
+      );
+      writePrivateFileAtomically(resolve(checkpointRoot, "objects.json"), manifestBytes);
+      const checkpoint: AppRevisionRecoveryCheckpoint = {
+        checkpointId,
+        commitSha,
+        indexSha256: createHash("sha256").update(recoveryIndex).digest("hex"),
+        objectManifestSha256: createHash("sha256").update(manifestBytes).digest("hex"),
+      };
+      if (!validAppRevisionRecoveryCheckpoint(checkpoint)) {
+        throw new Error("app_revision_recovery_checkpoint_invalid");
+      }
+      return checkpoint;
+    } catch (error) {
+      rmSync(checkpointRoot, { recursive: true, force: true });
+      throw error;
     }
   }
 
@@ -304,6 +499,7 @@ export class AppRevisionStore {
     const gitdir = this.managedGitDirectory(target.localAppId);
     const entry = pathEntry(gitdir);
     if (!entry?.isDirectory() || entry.isSymbolicLink()) throw new Error("app_revision_repository_not_found");
+    normalizeManagedGitIndexVersion(gitdir);
     return { gitdir };
   }
 
@@ -317,6 +513,7 @@ export class AppRevisionStore {
     if (!pathEntry(resolve(gitdir, "HEAD"))) {
       await git.init({ fs, dir: target.appRoot, gitdir, defaultBranch: MANAGED_BRANCH });
     }
+    normalizeManagedGitIndexVersion(gitdir);
     ensureManagedGitExcludes(gitdir, target.workspacePath);
     return { gitdir };
   }
@@ -516,6 +713,23 @@ interface RevisionFile {
   executable: boolean;
 }
 
+async function revisionObjectOids(gitdir: string, commitSha: string): Promise<Set<string>> {
+  const commit = await git.readCommit({ fs, gitdir, oid: commitSha });
+  const objectOids = new Set<string>([commitSha]);
+  const visit = async (treeOid: string): Promise<void> => {
+    if (objectOids.has(treeOid)) return;
+    objectOids.add(treeOid);
+    const tree = await git.readTree({ fs, gitdir, oid: treeOid });
+    for (const entry of tree.tree) {
+      if (entry.type === "tree") await visit(entry.oid);
+      else if (entry.type === "blob") objectOids.add(entry.oid);
+      else throw new Error("app_revision_recovery_checkpoint_invalid");
+    }
+  };
+  await visit(commit.commit.tree);
+  return objectOids;
+}
+
 async function readRevisionFiles(gitdir: string, commitSha: string): Promise<Map<string, RevisionFile>> {
   const commit = await git.readCommit({ fs, gitdir, oid: commitSha });
   const files = new Map<string, RevisionFile>();
@@ -593,6 +807,177 @@ function pathEntry(path: string): ReturnType<typeof statSync> | undefined {
 
 function sha256(value: string): string {
   return createHash("sha256").update(value).digest("hex");
+}
+
+function validGitIndexEnvelope(index: Buffer): boolean {
+  if (index.length < 32 || index.subarray(0, 4).toString("ascii") !== "DIRC") return false;
+  const version = index.readUInt32BE(4);
+  if (version !== 2 && version !== 3 && version !== 4) return false;
+  const body = index.subarray(0, -20);
+  return createHash("sha1").update(body).digest().equals(index.subarray(-20));
+}
+
+function normalizeManagedGitIndexVersion(gitdir: string): void {
+  const indexPath = resolve(gitdir, "index");
+  const entry = pathEntry(indexPath);
+  if (!entry) return;
+  if (!entry.isFile() || entry.isSymbolicLink()) throw new Error("app_revision_index_invalid");
+  const index = readFileSync(indexPath);
+  if (!validGitIndexEnvelope(index)) throw new Error("app_revision_index_invalid");
+  if (index.readUInt32BE(4) !== 4) return;
+  writePrivateFileAtomically(indexPath, convertGitIndexV4ToV2(index));
+}
+
+function convertGitIndexV4ToV2(index: Buffer): Buffer {
+  if (!validGitIndexEnvelope(index) || index.readUInt32BE(4) !== 4) {
+    throw new Error("app_revision_index_invalid");
+  }
+  const body = index.subarray(0, -20);
+  const entryCount = body.readUInt32BE(8);
+  const entries: Buffer[] = [];
+  let offset = 12;
+  let previousPath = Buffer.alloc(0);
+  for (let entryIndex = 0; entryIndex < entryCount; entryIndex += 1) {
+    const entryStart = offset;
+    if (offset + 62 > body.length) throw new Error("app_revision_index_invalid");
+    const flags = body.readUInt16BE(offset + 60);
+    offset += 62;
+    if ((flags & 0x4000) !== 0) {
+      if (offset + 2 > body.length) throw new Error("app_revision_index_invalid");
+      offset += 2;
+    }
+    const header = body.subarray(entryStart, offset);
+    const decoded = readGitIndexV4RemoveCount(body, offset);
+    offset = decoded.offset;
+    const nul = body.indexOf(0, offset);
+    if (nul < offset || decoded.removeCount > previousPath.length) throw new Error("app_revision_index_invalid");
+    const path = Buffer.concat([
+      previousPath.subarray(0, previousPath.length - decoded.removeCount),
+      body.subarray(offset, nul),
+    ]);
+    const declaredPathLength = flags & 0x0fff;
+    if (!path.length || (declaredPathLength < 0x0fff && declaredPathLength !== path.length)) {
+      throw new Error("app_revision_index_invalid");
+    }
+    const unpadded = Buffer.concat([header, path, Buffer.from([0])]);
+    const padding = (8 - (unpadded.length % 8)) % 8;
+    entries.push(Buffer.concat([unpadded, Buffer.alloc(padding)]));
+    previousPath = path;
+    offset = nul + 1;
+  }
+  const header = Buffer.from(body.subarray(0, 12));
+  header.writeUInt32BE(2, 4);
+  const convertedBody = Buffer.concat([header, ...entries, body.subarray(offset)]);
+  return Buffer.concat([convertedBody, createHash("sha1").update(convertedBody).digest()]);
+}
+
+function readGitIndexV4RemoveCount(value: Buffer, start: number): { removeCount: number; offset: number } {
+  let offset = start;
+  if (offset >= value.length) throw new Error("app_revision_index_invalid");
+  let byte = value[offset++]!;
+  let removeCount = byte & 0x7f;
+  while ((byte & 0x80) !== 0) {
+    if (offset >= value.length || removeCount > 0x00ff_ffff) throw new Error("app_revision_index_invalid");
+    byte = value[offset++]!;
+    removeCount = ((removeCount + 1) << 7) | (byte & 0x7f);
+  }
+  return { removeCount, offset };
+}
+
+interface RecoveryGitObject {
+  type: "commit" | "tree" | "blob";
+  body: Buffer;
+  deflated: Buffer;
+}
+
+function readRecoveryGitObject(path: string, oid: string): RecoveryGitObject {
+  if (!/^[a-f0-9]{40}$/u.test(oid)) throw new Error("app_revision_recovery_checkpoint_invalid");
+  const entry = pathEntry(path);
+  if (!entry?.isFile() || entry.isSymbolicLink()) throw new Error("app_revision_recovery_checkpoint_invalid");
+  const deflated = readFileSync(path);
+  const inflated = inflateSync(deflated);
+  const nul = inflated.indexOf(0);
+  if (nul <= 0) throw new Error("app_revision_recovery_checkpoint_invalid");
+  const header = inflated.subarray(0, nul).toString("ascii");
+  const match = /^(commit|tree|blob) ([0-9]+)$/u.exec(header);
+  const body = inflated.subarray(nul + 1);
+  if (!match?.[1] || Number(match[2]) !== body.length) {
+    throw new Error("app_revision_recovery_checkpoint_invalid");
+  }
+  if (createHash("sha1").update(inflated).digest("hex") !== oid) {
+    throw new Error("app_revision_recovery_checkpoint_invalid");
+  }
+  return { type: match[1] as RecoveryGitObject["type"], body, deflated };
+}
+
+function validRecoveryGitCommitTree(objects: ReadonlyMap<string, RecoveryGitObject>, commitSha: string): boolean {
+  const commit = objects.get(commitSha);
+  if (commit?.type !== "commit") return false;
+  const treeMatch = /^tree ([a-f0-9]{40})$/mu.exec(commit.body.toString("utf8"));
+  if (!treeMatch?.[1]) return false;
+  const visitedObjects = new Set<string>([commitSha]);
+  const validatedTrees = new Set<string>();
+  const visitTree = (treeSha: string): boolean => {
+    if (validatedTrees.has(treeSha)) return true;
+    validatedTrees.add(treeSha);
+    visitedObjects.add(treeSha);
+    const tree = objects.get(treeSha);
+    if (tree?.type !== "tree") return false;
+    let offset = 0;
+    while (offset < tree.body.length) {
+      const space = tree.body.indexOf(0x20, offset);
+      const nul = space < 0 ? -1 : tree.body.indexOf(0, space + 1);
+      if (space <= offset || nul <= space + 1 || nul + 21 > tree.body.length) return false;
+      const mode = tree.body.subarray(offset, space).toString("ascii");
+      const name = tree.body.subarray(space + 1, nul).toString("utf8");
+      if (!name || name === "." || name === ".." || name.includes("/") || name.includes("\0")) return false;
+      const oid = tree.body.subarray(nul + 1, nul + 21).toString("hex");
+      const object = objects.get(oid);
+      if (mode === "40000") {
+        if (!visitTree(oid)) return false;
+      } else if ((mode !== "100644" && mode !== "100755") || object?.type !== "blob") {
+        return false;
+      } else {
+        visitedObjects.add(oid);
+      }
+      offset = nul + 21;
+    }
+    return offset === tree.body.length;
+  };
+  return visitTree(treeMatch[1]) && visitedObjects.size === objects.size;
+}
+
+function parseRecoveryObjectManifest(value: Buffer): { commitSha: string; objectOids: string[] } {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(value.toString("utf8"));
+  } catch {
+    throw new Error("app_revision_recovery_checkpoint_invalid");
+  }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    throw new Error("app_revision_recovery_checkpoint_invalid");
+  }
+  const record = parsed as Record<string, unknown>;
+  if (
+    record.schemaVersion !== 1 ||
+    typeof record.commitSha !== "string" ||
+    !/^[a-f0-9]{40}$/u.test(record.commitSha) ||
+    !Array.isArray(record.objectOids) ||
+    !record.objectOids.length ||
+    record.objectOids.some((oid) => typeof oid !== "string" || !/^[a-f0-9]{40}$/u.test(oid)) ||
+    new Set(record.objectOids).size !== record.objectOids.length
+  ) {
+    throw new Error("app_revision_recovery_checkpoint_invalid");
+  }
+  return { commitSha: record.commitSha, objectOids: record.objectOids as string[] };
+}
+
+function recoveryCheckpointRoot(gitdir: string, checkpointId: string): string {
+  return resolve(gitdir, "opengrove-recovery", checkpointId);
+}
+
+function recoveryCheckpointIndexPath(gitdir: string, checkpointId: string): string {
+  return resolve(recoveryCheckpointRoot(gitdir, checkpointId), "index");
 }
 
 function revisionRecord(value: unknown): Record<string, unknown> {

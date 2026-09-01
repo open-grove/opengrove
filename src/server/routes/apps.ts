@@ -59,7 +59,7 @@ import { resolveAppManifestPresentation } from "../../app-builder/manifest-local
 import { handleMountedAppVersionsRoute } from "./app-versions.js";
 import { handleMountedAppReleaseRoute } from "./app-release.js";
 import { appRevisionStore, localAppDraftStore, saveMountedAppDraftWithRevision } from "../mounted-app-draft-service.js";
-import { appRevisionTarget, type AppSavePoint } from "../app-revision-store.js";
+import { appRevisionSourceIssue, appRevisionTarget, type AppSavePoint } from "../app-revision-store.js";
 
 interface AppRouteContext {
   request: IncomingMessage;
@@ -407,10 +407,16 @@ async function handleMountedAppDraftRoute(
     });
     context.sendJson(context.response, 200, { ok: true, draft });
   } catch (error) {
-    context.sendJson(context.response, error instanceof AppReleaseValidationError ? error.status : 500, {
-      ok: false,
-      error: error instanceof Error ? error.message : String(error),
-    });
+    const sourceIssue = appRevisionSourceIssue(error);
+    context.sendJson(
+      context.response,
+      sourceIssue ? 422 : error instanceof AppReleaseValidationError ? error.status : 500,
+      {
+        ok: false,
+        error: sourceIssue?.code ?? (error instanceof Error ? error.message : String(error)),
+        ...(sourceIssue ? { path: sourceIssue.path } : {}),
+      },
+    );
   }
 }
 

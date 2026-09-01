@@ -291,6 +291,7 @@ const delayedCatalogRequestRelease = new Promise<void>((resolve) => {
 interface ReleaseHarnessResponseData {
   ok?: boolean;
   error: string;
+  detail?: unknown;
   appliedToCurrentApp?: boolean;
   release: MountedAppReleaseDraft;
   checks: AppReleaseCheck[];
@@ -4150,6 +4151,34 @@ try {
     false,
     "Git-backed App release drafts must not publish the publisher's local Provider route",
   );
+
+  if (process.platform !== "win32") {
+    const linkedPublishSource = join(firstPublishAppRoot, "linked-source.txt");
+    symlinkSync("source.txt", linkedPublishSource);
+    try {
+      const linkedPublishCalls: ReleaseHarnessCall[] = [];
+      assert.equal(
+        await handleAppsRoute({
+          request: adminRequest("POST") as any,
+          response: { once: () => undefined, off: () => undefined } as any,
+          url: new URL("http://opengrove.test/apps/first-publish-app/publish"),
+          state: firstPublishState,
+          security: adminSessionSecurity,
+          sendJson: captureReleaseResponse(linkedPublishCalls),
+          readJsonBody: async () => ({
+            release: gitPrepareCalls[0]?.data.release,
+            applyToCurrentApp: true,
+          }),
+        }),
+        true,
+      );
+      assert.equal(linkedPublishCalls[0]?.status, 422, JSON.stringify(linkedPublishCalls[0]?.data));
+      assert.equal(linkedPublishCalls[0]?.data.error, "app_revision_symlink_not_supported");
+      assert.deepEqual(linkedPublishCalls[0]?.data.detail, { path: "linked-source.txt" });
+    } finally {
+      rmSync(linkedPublishSource, { force: true });
+    }
+  }
 
   // 旧 mounted 直传入口虽已退役，升级前落盘的 published recovery 仍需安全收尾。
   for (const targetChanged of [false, true]) {
