@@ -4,6 +4,813 @@ export type ClientOptions = {
   baseUrl: `${string}://${string}/api` | (string & {});
 };
 
+export type AuthEmailCodeCreateData = {
+  body: {
+    /**
+     * OpenGrove account email address.
+     */
+    email: string;
+  };
+  path?: never;
+  query?: never;
+  url: "/auth/email-codes";
+};
+
+export type AuthEmailCodeCreateErrors = {
+  /**
+   * The login code could not be sent.
+   */
+  400: {
+    ok?: false;
+    error: string;
+    code?: string;
+    requestId?: string;
+    incidentId?: string;
+    traceId?: string;
+    retryAfter?: number;
+    [key: string]: unknown;
+  };
+  /**
+   * The login code could not be sent.
+   */
+  401: {
+    ok?: false;
+    error: string;
+    code?: string;
+    requestId?: string;
+    incidentId?: string;
+    traceId?: string;
+    retryAfter?: number;
+    [key: string]: unknown;
+  };
+  /**
+   * The login code could not be sent.
+   */
+  403: {
+    ok?: false;
+    error: string;
+    code?: string;
+    requestId?: string;
+    incidentId?: string;
+    traceId?: string;
+    retryAfter?: number;
+    [key: string]: unknown;
+  };
+  /**
+   * The login code could not be sent.
+   */
+  408: {
+    ok?: false;
+    error: string;
+    code?: string;
+    requestId?: string;
+    incidentId?: string;
+    traceId?: string;
+    retryAfter?: number;
+    [key: string]: unknown;
+  };
+  /**
+   * The login code could not be sent.
+   */
+  409: {
+    ok?: false;
+    error: string;
+    code?: string;
+    requestId?: string;
+    incidentId?: string;
+    traceId?: string;
+    retryAfter?: number;
+    [key: string]: unknown;
+  };
+  /**
+   * The login code could not be sent.
+   */
+  413: {
+    ok?: false;
+    error: string;
+    code?: string;
+    requestId?: string;
+    incidentId?: string;
+    traceId?: string;
+    retryAfter?: number;
+    [key: string]: unknown;
+  };
+  /**
+   * The login code could not be sent.
+   */
+  425: {
+    ok?: false;
+    error: string;
+    code?: string;
+    requestId?: string;
+    incidentId?: string;
+    traceId?: string;
+    retryAfter?: number;
+    [key: string]: unknown;
+  };
+  /**
+   * The login code could not be sent.
+   */
+  429: {
+    ok?: false;
+    error: string;
+    code?: string;
+    requestId?: string;
+    incidentId?: string;
+    traceId?: string;
+    retryAfter?: number;
+    [key: string]: unknown;
+  };
+  /**
+   * The login code could not be sent.
+   */
+  500: {
+    ok?: false;
+    error: string;
+    code?: string;
+    requestId?: string;
+    incidentId?: string;
+    traceId?: string;
+    retryAfter?: number;
+    [key: string]: unknown;
+  };
+  /**
+   * The login code could not be sent.
+   */
+  502: {
+    ok?: false;
+    error: string;
+    code?: string;
+    requestId?: string;
+    incidentId?: string;
+    traceId?: string;
+    retryAfter?: number;
+    [key: string]: unknown;
+  };
+  /**
+   * The login code could not be sent.
+   */
+  503: {
+    ok?: false;
+    error: string;
+    code?: string;
+    requestId?: string;
+    incidentId?: string;
+    traceId?: string;
+    retryAfter?: number;
+    [key: string]: unknown;
+  };
+  /**
+   * The login code could not be sent.
+   */
+  504: {
+    ok?: false;
+    error: string;
+    code?: string;
+    requestId?: string;
+    incidentId?: string;
+    traceId?: string;
+    retryAfter?: number;
+    [key: string]: unknown;
+  };
+};
+
+export type AuthEmailCodeCreateError = AuthEmailCodeCreateErrors[keyof AuthEmailCodeCreateErrors];
+
+export type AuthEmailCodeCreateResponses = {
+  /**
+   * Successful response.
+   */
+  200: {
+    ok: true;
+    requiresInvite?: boolean;
+    requiresCountry?: boolean;
+  };
+};
+
+export type AuthEmailCodeCreateResponse = AuthEmailCodeCreateResponses[keyof AuthEmailCodeCreateResponses];
+
+export type AuthSessionCreateData = {
+  body: {
+    /**
+     * OpenGrove account email address.
+     */
+    email: string;
+    /**
+     * Six-digit email verification code.
+     */
+    code: string;
+    /**
+     * Invite code when account registration requires one.
+     */
+    inviteCode?: string;
+    /**
+     * ISO country or region code for a new account.
+     */
+    countryCode?: string;
+    /**
+     * Human-readable name for this client session.
+     */
+    deviceName?: string;
+    /**
+     * Client platform identifier.
+     */
+    platform?: string;
+    languagePreference?: "system" | "zh-CN" | "en";
+    systemLanguage?: "zh-CN" | "en";
+  };
+  path?: never;
+  query?: never;
+  url: "/auth/login";
+};
+
+export type AuthSessionCreateErrors = {
+  /**
+   * The account session could not be created.
+   */
+  400: {
+    ok?: false;
+    error: string;
+    code?: string;
+    requestId?: string;
+    incidentId?: string;
+    traceId?: string;
+    retryAfter?: number;
+    [key: string]: unknown;
+  };
+  /**
+   * The account session could not be created.
+   */
+  401: {
+    ok?: false;
+    error: string;
+    code?: string;
+    requestId?: string;
+    incidentId?: string;
+    traceId?: string;
+    retryAfter?: number;
+    [key: string]: unknown;
+  };
+  /**
+   * The account session could not be created.
+   */
+  403: {
+    ok?: false;
+    error: string;
+    code?: string;
+    requestId?: string;
+    incidentId?: string;
+    traceId?: string;
+    retryAfter?: number;
+    [key: string]: unknown;
+  };
+  /**
+   * The account session could not be created.
+   */
+  408: {
+    ok?: false;
+    error: string;
+    code?: string;
+    requestId?: string;
+    incidentId?: string;
+    traceId?: string;
+    retryAfter?: number;
+    [key: string]: unknown;
+  };
+  /**
+   * The account session could not be created.
+   */
+  409: {
+    ok?: false;
+    error: string;
+    code?: string;
+    requestId?: string;
+    incidentId?: string;
+    traceId?: string;
+    retryAfter?: number;
+    [key: string]: unknown;
+  };
+  /**
+   * The account session could not be created.
+   */
+  413: {
+    ok?: false;
+    error: string;
+    code?: string;
+    requestId?: string;
+    incidentId?: string;
+    traceId?: string;
+    retryAfter?: number;
+    [key: string]: unknown;
+  };
+  /**
+   * The account session could not be created.
+   */
+  425: {
+    ok?: false;
+    error: string;
+    code?: string;
+    requestId?: string;
+    incidentId?: string;
+    traceId?: string;
+    retryAfter?: number;
+    [key: string]: unknown;
+  };
+  /**
+   * The account session could not be created.
+   */
+  429: {
+    ok?: false;
+    error: string;
+    code?: string;
+    requestId?: string;
+    incidentId?: string;
+    traceId?: string;
+    retryAfter?: number;
+    [key: string]: unknown;
+  };
+  /**
+   * The account session could not be created.
+   */
+  500: {
+    ok?: false;
+    error: string;
+    code?: string;
+    requestId?: string;
+    incidentId?: string;
+    traceId?: string;
+    retryAfter?: number;
+    [key: string]: unknown;
+  };
+  /**
+   * The account session could not be created.
+   */
+  502: {
+    ok?: false;
+    error: string;
+    code?: string;
+    requestId?: string;
+    incidentId?: string;
+    traceId?: string;
+    retryAfter?: number;
+    [key: string]: unknown;
+  };
+  /**
+   * The account session could not be created.
+   */
+  503: {
+    ok?: false;
+    error: string;
+    code?: string;
+    requestId?: string;
+    incidentId?: string;
+    traceId?: string;
+    retryAfter?: number;
+    [key: string]: unknown;
+  };
+  /**
+   * The account session could not be created.
+   */
+  504: {
+    ok?: false;
+    error: string;
+    code?: string;
+    requestId?: string;
+    incidentId?: string;
+    traceId?: string;
+    retryAfter?: number;
+    [key: string]: unknown;
+  };
+};
+
+export type AuthSessionCreateError = AuthSessionCreateErrors[keyof AuthSessionCreateErrors];
+
+export type AuthSessionCreateResponses = {
+  /**
+   * Successful response.
+   */
+  200: {
+    user: {
+      userId: string;
+      email: string;
+      countryCode?: string;
+      displayName: string;
+      avatarUrl?: string;
+      profileUpdatedAt?: string;
+      profileStatus?: "available" | "missing" | "unavailable";
+      role: string;
+      roles?: Array<string>;
+      createdAt?: string;
+      lastLoginAt?: string;
+      [key: string]: unknown;
+    };
+    isNewUser?: boolean;
+    providerProvisioning?: {
+      status: "configured" | "already-configured" | "skipped" | "failed";
+      providerId?: string;
+      createdApiKey?: boolean;
+      defaultedKernels?: Array<string>;
+      reason?: string;
+      error?: string;
+      [key: string]: unknown;
+    };
+    defaultStoreApps?: unknown;
+    appUpdates?: unknown;
+    [key: string]: unknown;
+  };
+};
+
+export type AuthSessionCreateResponse = AuthSessionCreateResponses[keyof AuthSessionCreateResponses];
+
+export type AuthSessionGetData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: "/auth/session";
+};
+
+export type AuthSessionGetErrors = {
+  /**
+   * The account session could not be read.
+   */
+  400: {
+    ok?: false;
+    error: string;
+    code?: string;
+    requestId?: string;
+    incidentId?: string;
+    traceId?: string;
+    retryAfter?: number;
+    [key: string]: unknown;
+  };
+  /**
+   * The account session could not be read.
+   */
+  401: {
+    ok?: false;
+    error: string;
+    code?: string;
+    requestId?: string;
+    incidentId?: string;
+    traceId?: string;
+    retryAfter?: number;
+    [key: string]: unknown;
+  };
+  /**
+   * The account session could not be read.
+   */
+  403: {
+    ok?: false;
+    error: string;
+    code?: string;
+    requestId?: string;
+    incidentId?: string;
+    traceId?: string;
+    retryAfter?: number;
+    [key: string]: unknown;
+  };
+  /**
+   * The account session could not be read.
+   */
+  408: {
+    ok?: false;
+    error: string;
+    code?: string;
+    requestId?: string;
+    incidentId?: string;
+    traceId?: string;
+    retryAfter?: number;
+    [key: string]: unknown;
+  };
+  /**
+   * The account session could not be read.
+   */
+  409: {
+    ok?: false;
+    error: string;
+    code?: string;
+    requestId?: string;
+    incidentId?: string;
+    traceId?: string;
+    retryAfter?: number;
+    [key: string]: unknown;
+  };
+  /**
+   * The account session could not be read.
+   */
+  413: {
+    ok?: false;
+    error: string;
+    code?: string;
+    requestId?: string;
+    incidentId?: string;
+    traceId?: string;
+    retryAfter?: number;
+    [key: string]: unknown;
+  };
+  /**
+   * The account session could not be read.
+   */
+  425: {
+    ok?: false;
+    error: string;
+    code?: string;
+    requestId?: string;
+    incidentId?: string;
+    traceId?: string;
+    retryAfter?: number;
+    [key: string]: unknown;
+  };
+  /**
+   * The account session could not be read.
+   */
+  429: {
+    ok?: false;
+    error: string;
+    code?: string;
+    requestId?: string;
+    incidentId?: string;
+    traceId?: string;
+    retryAfter?: number;
+    [key: string]: unknown;
+  };
+  /**
+   * The account session could not be read.
+   */
+  500: {
+    ok?: false;
+    error: string;
+    code?: string;
+    requestId?: string;
+    incidentId?: string;
+    traceId?: string;
+    retryAfter?: number;
+    [key: string]: unknown;
+  };
+  /**
+   * The account session could not be read.
+   */
+  502: {
+    ok?: false;
+    error: string;
+    code?: string;
+    requestId?: string;
+    incidentId?: string;
+    traceId?: string;
+    retryAfter?: number;
+    [key: string]: unknown;
+  };
+  /**
+   * The account session could not be read.
+   */
+  503: {
+    ok?: false;
+    error: string;
+    code?: string;
+    requestId?: string;
+    incidentId?: string;
+    traceId?: string;
+    retryAfter?: number;
+    [key: string]: unknown;
+  };
+  /**
+   * The account session could not be read.
+   */
+  504: {
+    ok?: false;
+    error: string;
+    code?: string;
+    requestId?: string;
+    incidentId?: string;
+    traceId?: string;
+    retryAfter?: number;
+    [key: string]: unknown;
+  };
+};
+
+export type AuthSessionGetError = AuthSessionGetErrors[keyof AuthSessionGetErrors];
+
+export type AuthSessionGetResponses = {
+  /**
+   * Successful response.
+   */
+  200:
+    | {
+        status: "authenticated";
+        authenticated: true;
+        verification: "verified" | "cached" | "stale";
+        user: {
+          userId: string;
+          email: string;
+          countryCode?: string;
+          displayName: string;
+          avatarUrl?: string;
+          profileUpdatedAt?: string;
+          profileStatus?: "available" | "missing" | "unavailable";
+          role: string;
+          roles?: Array<string>;
+          createdAt?: string;
+          lastLoginAt?: string;
+          [key: string]: unknown;
+        };
+        [key: string]: unknown;
+      }
+    | {
+        status: "unauthenticated";
+        authenticated: false;
+        reason: string;
+        [key: string]: unknown;
+      }
+    | {
+        status: "temporarily_unavailable";
+        error: string;
+        incidentId?: string;
+        traceId?: string;
+        [key: string]: unknown;
+      };
+};
+
+export type AuthSessionGetResponse = AuthSessionGetResponses[keyof AuthSessionGetResponses];
+
+export type AuthSessionDeleteData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: "/auth/logout";
+};
+
+export type AuthSessionDeleteErrors = {
+  /**
+   * The account session could not be deleted.
+   */
+  400: {
+    ok?: false;
+    error: string;
+    code?: string;
+    requestId?: string;
+    incidentId?: string;
+    traceId?: string;
+    retryAfter?: number;
+    [key: string]: unknown;
+  };
+  /**
+   * The account session could not be deleted.
+   */
+  401: {
+    ok?: false;
+    error: string;
+    code?: string;
+    requestId?: string;
+    incidentId?: string;
+    traceId?: string;
+    retryAfter?: number;
+    [key: string]: unknown;
+  };
+  /**
+   * The account session could not be deleted.
+   */
+  403: {
+    ok?: false;
+    error: string;
+    code?: string;
+    requestId?: string;
+    incidentId?: string;
+    traceId?: string;
+    retryAfter?: number;
+    [key: string]: unknown;
+  };
+  /**
+   * The account session could not be deleted.
+   */
+  408: {
+    ok?: false;
+    error: string;
+    code?: string;
+    requestId?: string;
+    incidentId?: string;
+    traceId?: string;
+    retryAfter?: number;
+    [key: string]: unknown;
+  };
+  /**
+   * The account session could not be deleted.
+   */
+  409: {
+    ok?: false;
+    error: string;
+    code?: string;
+    requestId?: string;
+    incidentId?: string;
+    traceId?: string;
+    retryAfter?: number;
+    [key: string]: unknown;
+  };
+  /**
+   * The account session could not be deleted.
+   */
+  413: {
+    ok?: false;
+    error: string;
+    code?: string;
+    requestId?: string;
+    incidentId?: string;
+    traceId?: string;
+    retryAfter?: number;
+    [key: string]: unknown;
+  };
+  /**
+   * The account session could not be deleted.
+   */
+  425: {
+    ok?: false;
+    error: string;
+    code?: string;
+    requestId?: string;
+    incidentId?: string;
+    traceId?: string;
+    retryAfter?: number;
+    [key: string]: unknown;
+  };
+  /**
+   * The account session could not be deleted.
+   */
+  429: {
+    ok?: false;
+    error: string;
+    code?: string;
+    requestId?: string;
+    incidentId?: string;
+    traceId?: string;
+    retryAfter?: number;
+    [key: string]: unknown;
+  };
+  /**
+   * The account session could not be deleted.
+   */
+  500: {
+    ok?: false;
+    error: string;
+    code?: string;
+    requestId?: string;
+    incidentId?: string;
+    traceId?: string;
+    retryAfter?: number;
+    [key: string]: unknown;
+  };
+  /**
+   * The account session could not be deleted.
+   */
+  502: {
+    ok?: false;
+    error: string;
+    code?: string;
+    requestId?: string;
+    incidentId?: string;
+    traceId?: string;
+    retryAfter?: number;
+    [key: string]: unknown;
+  };
+  /**
+   * The account session could not be deleted.
+   */
+  503: {
+    ok?: false;
+    error: string;
+    code?: string;
+    requestId?: string;
+    incidentId?: string;
+    traceId?: string;
+    retryAfter?: number;
+    [key: string]: unknown;
+  };
+  /**
+   * The account session could not be deleted.
+   */
+  504: {
+    ok?: false;
+    error: string;
+    code?: string;
+    requestId?: string;
+    incidentId?: string;
+    traceId?: string;
+    retryAfter?: number;
+    [key: string]: unknown;
+  };
+};
+
+export type AuthSessionDeleteError = AuthSessionDeleteErrors[keyof AuthSessionDeleteErrors];
+
+export type AuthSessionDeleteResponses = {
+  /**
+   * Successful response.
+   */
+  200: {
+    ok: true;
+  };
+};
+
+export type AuthSessionDeleteResponse = AuthSessionDeleteResponses[keyof AuthSessionDeleteResponses];
+
 export type RoomMessageCreateData = {
   body: {
     /**

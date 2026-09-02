@@ -4,11 +4,15 @@ import { test } from "node:test";
 import { z } from "zod";
 import { askCancelContract, askCompactContract, askGuideContract, clientBootstrapContract } from "#agent-protocol";
 import {
+  createAuthEmailCodeOperation,
+  createAuthSessionOperation,
   createRoomMessageOperation,
+  deleteAuthSessionOperation,
   defineHostOperation,
   defineHostOperationGroup,
   defineHostOperationResource,
   findHostOperation,
+  getAuthSessionOperation,
   type HostOperation,
   hostOperations,
 } from "#protocol";
@@ -84,6 +88,39 @@ test("room-message operation owns method, path, risk, and JSON contracts", () =>
   assert.equal(registered.contract, createRoomMessageOperation);
 });
 
+test("account authentication operations own the existing Bridge login contract", () => {
+  assert.equal(createAuthEmailCodeOperation.id, "auth.email-code.create");
+  assert.equal(createAuthEmailCodeOperation.path, "/auth/email-codes");
+  assert.deepEqual(createAuthEmailCodeOperation.body.parse({ email: "  user@example.test  " }), {
+    email: "user@example.test",
+  });
+
+  assert.equal(createAuthSessionOperation.id, "auth.session.create");
+  assert.equal(createAuthSessionOperation.path, "/auth/login");
+  assert.equal(createAuthSessionOperation.body.safeParse({ email: "user@example.test", code: "123456" }).success, true);
+  assert.equal(createAuthSessionOperation.body.safeParse({ email: "user@example.test", code: "123" }).success, false);
+
+  assert.equal(getAuthSessionOperation.id, "auth.session.get");
+  assert.equal(getAuthSessionOperation.path, "/auth/session");
+  assert.equal(deleteAuthSessionOperation.id, "auth.session.delete");
+  assert.equal(deleteAuthSessionOperation.path, "/auth/logout");
+
+  assert.equal(
+    getAuthSessionOperation.success.body.safeParse({
+      status: "authenticated",
+      authenticated: true,
+      verification: "verified",
+      user: {
+        userId: "user-1",
+        email: "user@example.test",
+        displayName: "User",
+        role: "admin",
+      },
+    }).success,
+    true,
+  );
+});
+
 test("room-message operation normalizes legacy nullable values and identifiers", () => {
   assert.deepEqual(createRoomMessageOperation.params.parse({ roomId: "  room-1  " }), { roomId: "room-1" });
   assert.deepEqual(
@@ -111,6 +148,7 @@ test("room-message operation normalizes legacy nullable values and identifiers",
 
 test("Host operation catalog has stable unique ids", () => {
   assert.equal(new Set(hostOperations.map((operation) => operation.id)).size, hostOperations.length);
+  assert.equal(findHostOperation("auth.session.get"), getAuthSessionOperation);
   assert.equal(findHostOperation("room.message.create"), createRoomMessageOperation);
   assert.equal(findHostOperation("missing.operation"), undefined);
 });

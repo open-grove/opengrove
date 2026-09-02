@@ -2,11 +2,62 @@
 import { hostOperationById, type HostOperationInput, type HostOperationOutput } from "#protocol";
 import type { HostOperationRequest, OpenGroveRequestOptions } from "../transport.js";
 
-export const openGroveClientOperationIds = ["room.message.create"] as const;
+export const openGroveClientOperationIds = [
+  "auth.email-code.create",
+  "auth.session.create",
+  "auth.session.get",
+  "auth.session.delete",
+  "room.message.create",
+] as const;
 
 export function bindOpenGroveClient(request: HostOperationRequest) {
   return {
     request,
+    auth: {
+      emailCodes: {
+        create: (
+          input: HostOperationInput<(typeof hostOperationById)["auth.email-code.create"]>,
+          options?: OpenGroveRequestOptions,
+        ): Promise<HostOperationOutput<(typeof hostOperationById)["auth.email-code.create"]>> =>
+          request(hostOperationById["auth.email-code.create"], {
+            body: {
+              email: input.email,
+            },
+            signal: options?.signal,
+          }),
+      },
+      session: {
+        create: (
+          input: HostOperationInput<(typeof hostOperationById)["auth.session.create"]>,
+          options?: OpenGroveRequestOptions,
+        ): Promise<HostOperationOutput<(typeof hostOperationById)["auth.session.create"]>> =>
+          request(hostOperationById["auth.session.create"], {
+            body: {
+              code: input.code,
+              countryCode: input.countryCode,
+              deviceName: input.deviceName,
+              email: input.email,
+              inviteCode: input.inviteCode,
+              languagePreference: input.languagePreference,
+              platform: input.platform,
+              systemLanguage: input.systemLanguage,
+            },
+            signal: options?.signal,
+          }),
+        get: (
+          options?: OpenGroveRequestOptions,
+        ): Promise<HostOperationOutput<(typeof hostOperationById)["auth.session.get"]>> =>
+          request(hostOperationById["auth.session.get"], {
+            signal: options?.signal,
+          }),
+        delete: (
+          options?: OpenGroveRequestOptions,
+        ): Promise<HostOperationOutput<(typeof hostOperationById)["auth.session.delete"]>> =>
+          request(hostOperationById["auth.session.delete"], {
+            signal: options?.signal,
+          }),
+      },
+    },
     rooms: {
       messages: {
         create: (

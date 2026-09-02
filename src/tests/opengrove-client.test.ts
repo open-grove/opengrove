@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { createOpenGroveClient, OpenGroveClientError, OpenGroveProtocolError } from "#client";
+import { createCookieAuthSession, createOpenGroveClient, OpenGroveClientError, OpenGroveProtocolError } from "#client";
 import { defineHostOperation } from "#protocol";
 import { z } from "zod";
 
@@ -234,4 +234,48 @@ test("low-level operations support query parameters without requiring a request 
   const result = await client.request(listRoomsOperation, { query: { limit: 20, tags: ["one", "two"] } });
   assert.deepEqual(result, { ok: true });
   assert.deepEqual(urls, ["/api/rooms?limit=20&tags=one&tags=two"]);
+});
+
+test("OpenGrove Client carries and rotates an injected cookie auth session", async () => {
+  const requestCookies: Array<string | null> = [];
+  const persisted: Array<Record<string, string>> = [];
+  const auth = createCookieAuthSession({
+    cookies: { opengrove_auth_refresh: "refresh-old" },
+    onChange: (cookies) => {
+      persisted.push({ ...cookies });
+    },
+  });
+  let requestCount = 0;
+  const client = createOpenGroveClient({
+    baseUrl: "http://127.0.0.1:37371/api",
+    auth,
+    fetch: (async (_input, init) => {
+      requestCookies.push(new Headers(init?.headers).get("cookie"));
+      requestCount += 1;
+      const headers = new Headers({ "content-type": "application/json" });
+      if (requestCount === 1) {
+        headers.append("set-cookie", "opengrove_auth_access=access-new; Path=/; Max-Age=300; HttpOnly");
+        headers.append("set-cookie", "opengrove_auth_refresh=refresh-new; Path=/; Max-Age=300; HttpOnly");
+      } else {
+        headers.append("set-cookie", "opengrove_auth_access=; Path=/; Max-Age=0; HttpOnly");
+      }
+      return new Response(JSON.stringify(messageResponse), { status: 200, headers });
+    }) as typeof fetch,
+  });
+
+  await client.rooms.messages.create({ roomId: "room-1" });
+  await client.rooms.messages.create({ roomId: "room-1" });
+
+  assert.deepEqual(requestCookies, [
+    "opengrove_auth_refresh=refresh-old",
+    "opengrove_auth_refresh=refresh-new; opengrove_auth_access=access-new",
+  ]);
+  assert.deepEqual(persisted, [
+    {
+      opengrove_auth_refresh: "refresh-new",
+      opengrove_auth_access: "access-new",
+    },
+    { opengrove_auth_refresh: "refresh-new" },
+  ]);
+  assert.deepEqual(auth.snapshot(), { opengrove_auth_refresh: "refresh-new" });
 });

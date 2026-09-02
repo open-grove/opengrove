@@ -7,6 +7,7 @@ import {
   type HostOperationParams,
   type HostOperationQuery,
 } from "#protocol";
+import type { OpenGroveAuthSession } from "./auth.js";
 import { OpenGroveClientError, OpenGroveProtocolError } from "./errors.js";
 
 export type OpenGroveClientConfig = {
@@ -14,6 +15,7 @@ export type OpenGroveClientConfig = {
   fetch?: typeof globalThis.fetch;
   headers?: HeadersInit | (() => HeadersInit | Promise<HeadersInit>);
   credentials?: RequestCredentials;
+  auth?: OpenGroveAuthSession;
 };
 
 export type OpenGroveRequestOptions = {
@@ -54,13 +56,14 @@ export function createHostOperationRequest(config: OpenGroveClientConfig): HostO
       resolveOperationUrl(config.baseUrl, operation, validated.params, validated.query),
       {
         method: operation.method,
-        headers: await resolveHeaders(config.headers, operation.body !== undefined),
+        headers: await resolveHeaders(config.headers, config.auth, operation.body !== undefined),
         credentials: config.credentials,
         cache: "no-store",
         signal: input.signal,
         ...(operation.body ? { body: JSON.stringify(validated.body) } : {}),
       },
     );
+    await config.auth?.updateFromResponse(response);
     const payload = await readResponsePayload(response);
     if (response.status === operation.success.status) {
       try {
@@ -161,10 +164,13 @@ function parameterValue(value: unknown): string {
 
 async function resolveHeaders(
   configured: OpenGroveClientConfig["headers"],
+  auth: OpenGroveAuthSession | undefined,
   includeContentType: boolean,
 ): Promise<Headers> {
   const initial = typeof configured === "function" ? await configured() : configured;
   const headers = new Headers(initial);
+  const authHeaders = new Headers(await auth?.requestHeaders());
+  authHeaders.forEach((value, name) => headers.set(name, value));
   if (includeContentType && !headers.has("content-type")) {
     headers.set("content-type", "application/json");
   }

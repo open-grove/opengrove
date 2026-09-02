@@ -4,7 +4,13 @@ import { handleA2ARoute } from "./a2a.js";
 import { handleAppStoreRoute } from "./app-store.js";
 import { handleAppsRoute } from "./apps.js";
 import { createAskRoutes } from "./ask.js";
-import { handleAuthRoute } from "./auth.js";
+import {
+  handleAuthRoute,
+  handleCreateAuthEmailCodeOperation,
+  handleCreateAuthSessionOperation,
+  handleDeleteAuthSessionOperation,
+  handleGetAuthSessionOperation,
+} from "./auth.js";
 import { createHealthRoutes, createInventoryRoutes } from "./core.js";
 import { handleExtensionsRoute } from "./extensions.js";
 import { handleKnowledgeRoute } from "./knowledge.js";
@@ -25,6 +31,10 @@ import { handleWorkspaceResourceRoute } from "./workspace-resources.js";
 export function createBridgeRoutes(): BridgeRoute[] {
   return [
     ...createHealthRoutes(),
+    operationRoute(hostContractById["auth.email-code.create"], handleCreateAuthEmailCodeOperation),
+    operationRoute(hostContractById["auth.session.create"], handleCreateAuthSessionOperation),
+    operationRoute(hostContractById["auth.session.get"], handleGetAuthSessionOperation),
+    operationRoute(hostContractById["auth.session.delete"], handleDeleteAuthSessionOperation),
     moduleRoute("auth", /^\/auth\//, (context) => handleAuthRoute(context)),
     moduleRoute("settings", /^\/settings(?:\/|$)/, (context) => handleSettingsRoute(context)),
     moduleRoute("voice", /^\/voice\//, (context) => handleVoiceRoute(context)),

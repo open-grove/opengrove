@@ -1,7 +1,11 @@
 import type { HostOperation, HostOperationGroup } from "./operation.js";
+import { authOperationGroup } from "./auth.js";
 import { roomOperationGroup } from "./rooms.js";
 
-export const hostOperationGroups = [roomOperationGroup] as const satisfies readonly HostOperationGroup[];
+export const hostOperationGroups = [
+  authOperationGroup,
+  roomOperationGroup,
+] as const satisfies readonly HostOperationGroup[];
 
 type OperationFromGroups<TGroups extends readonly HostOperationGroup[]> =
   TGroups[number]["resources"][number]["operations"][number];
@@ -12,9 +16,9 @@ type OperationById<TOperation extends HostOperation> = {
 export type RegisteredHostOperation = OperationFromGroups<typeof hostOperationGroups>;
 export type HostOperationId = RegisteredHostOperation["id"];
 
-export const hostOperations = hostOperationGroups.flatMap((group) =>
-  group.resources.flatMap((resource) => resource.operations),
-) as readonly RegisteredHostOperation[];
+export const hostOperations = collectHostOperations(
+  hostOperationGroups,
+) as unknown as readonly RegisteredHostOperation[];
 
 export const hostOperationById = indexHostOperations(hostOperationGroups);
 
@@ -41,4 +45,8 @@ function indexHostOperations<const TGroups extends readonly HostOperationGroup[]
     }
   }
   return Object.fromEntries(operations) as OperationById<OperationFromGroups<TGroups>>;
+}
+
+function collectHostOperations(groups: readonly HostOperationGroup[]): HostOperation[] {
+  return groups.flatMap((group) => group.resources.flatMap((resource) => resource.operations));
 }

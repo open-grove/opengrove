@@ -2,7 +2,23 @@
 
 import { client } from "./client.gen.js";
 import type { Client, ClientMeta, Options as Options2, RequestResult, TDataShape } from "./client/index.js";
-import type { RoomMessageCreateData, RoomMessageCreateErrors, RoomMessageCreateResponses } from "./types.gen.js";
+import type {
+  AuthEmailCodeCreateData,
+  AuthEmailCodeCreateErrors,
+  AuthEmailCodeCreateResponses,
+  AuthSessionCreateData,
+  AuthSessionCreateErrors,
+  AuthSessionCreateResponses,
+  AuthSessionDeleteData,
+  AuthSessionDeleteErrors,
+  AuthSessionDeleteResponses,
+  AuthSessionGetData,
+  AuthSessionGetErrors,
+  AuthSessionGetResponses,
+  RoomMessageCreateData,
+  RoomMessageCreateErrors,
+  RoomMessageCreateResponses,
+} from "./types.gen.js";
 
 export type Options<
   TData extends TDataShape = TDataShape,
@@ -50,6 +66,86 @@ class HeyApiRegistry<T> {
   }
 }
 
+export class EmailCode extends HeyApiClient {
+  /**
+   * Send an account login code
+   *
+   * Send an email verification code for the existing OpenGrove account login flow.
+   */
+  public create<ThrowOnError extends boolean = false>(
+    options: Options<AuthEmailCodeCreateData, ThrowOnError>,
+  ): RequestResult<AuthEmailCodeCreateResponses, AuthEmailCodeCreateErrors, ThrowOnError> {
+    return (options.client ?? this.client).post<AuthEmailCodeCreateResponses, AuthEmailCodeCreateErrors, ThrowOnError>({
+      url: "/auth/email-codes",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+}
+
+export class Session extends HeyApiClient {
+  /**
+   * Create an account session
+   *
+   * Exchange an email verification code for an OpenGrove account session.
+   */
+  public create<ThrowOnError extends boolean = false>(
+    options: Options<AuthSessionCreateData, ThrowOnError>,
+  ): RequestResult<AuthSessionCreateResponses, AuthSessionCreateErrors, ThrowOnError> {
+    return (options.client ?? this.client).post<AuthSessionCreateResponses, AuthSessionCreateErrors, ThrowOnError>({
+      url: "/auth/login",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Get the current account session
+   *
+   * Verify and return the current OpenGrove account session.
+   */
+  public get<ThrowOnError extends boolean = false>(
+    options?: Options<AuthSessionGetData, ThrowOnError>,
+  ): RequestResult<AuthSessionGetResponses, AuthSessionGetErrors, ThrowOnError> {
+    return (options?.client ?? this.client).get<AuthSessionGetResponses, AuthSessionGetErrors, ThrowOnError>({
+      url: "/auth/session",
+      ...options,
+    });
+  }
+
+  /**
+   * Delete the current account session
+   *
+   * Log out the current OpenGrove account session and clear its credentials.
+   */
+  public delete<ThrowOnError extends boolean = false>(
+    options?: Options<AuthSessionDeleteData, ThrowOnError>,
+  ): RequestResult<AuthSessionDeleteResponses, AuthSessionDeleteErrors, ThrowOnError> {
+    return (options?.client ?? this.client).post<AuthSessionDeleteResponses, AuthSessionDeleteErrors, ThrowOnError>({
+      url: "/auth/logout",
+      ...options,
+    });
+  }
+}
+
+export class Auth extends HeyApiClient {
+  private _emailCode?: EmailCode;
+  get emailCode(): EmailCode {
+    return (this._emailCode ??= new EmailCode({ client: this.client }));
+  }
+
+  private _session?: Session;
+  get session(): Session {
+    return (this._session ??= new Session({ client: this.client }));
+  }
+}
+
 export class Message extends HeyApiClient {
   /**
    * Send a Room message
@@ -86,6 +182,11 @@ export class OpenGroveApi extends HeyApiClient {
   }) {
     super(args);
     OpenGroveApi.__registry.set(this, args?.key);
+  }
+
+  private _auth?: Auth;
+  get auth(): Auth {
+    return (this._auth ??= new Auth({ client: this.client }));
   }
 
   private _room?: Room;
