@@ -5,8 +5,12 @@ import { join } from "node:path";
 import {
   analyzeSource,
   compatibilityMetadataProblems,
+  isGeneratedVendorSource,
   unnecessaryConditionProblems,
 } from "./check-agent-code-quality.mjs";
+
+assert.equal(isGeneratedVendorSource("packages/client/src/generated/hey-api/client/client.gen.ts"), true);
+assert.equal(isGeneratedVendorSource("packages/client/src/generated/client.ts"), false);
 
 assert.match(analyzeSource("try { run(); } catch {}", "src/example.ts")[0] ?? "", /silent catch/);
 assert.match(analyzeSource("const generated = `try { run(); } catch {}`;", "src/example.ts")[0] ?? "", /silent catch/);

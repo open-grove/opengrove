@@ -18,10 +18,12 @@
     "./compiler": {
       "types": "./dist/compiler.d.ts",
       "import": "./dist/compiler.js"
-    }
+    },
+    "./openapi.json": "./openapi.json"
   },
   "files": [
     "dist",
+    "openapi.json",
     "src"
   ],
   "scripts": {

@@ -70,6 +70,21 @@ test("OpenGrove Client calls the shared room-message operation", async () => {
   });
 });
 
+test("generated Client requests retain Protocol defaults", async () => {
+  let requestBody: unknown;
+  const client = createOpenGroveClient({
+    baseUrl: "https://host.example.test/api",
+    fetch: (async (_input, init) => {
+      requestBody = JSON.parse(String(init?.body)) as unknown;
+      return new Response(JSON.stringify(messageResponse), { status: 200 });
+    }) as typeof fetch,
+  });
+
+  await client.rooms.messages.create({ roomId: "room-1" });
+
+  assert.deepEqual(requestBody, { text: "", targetIds: [], attachments: [] });
+});
+
 test("OpenGrove Client rejects invalid input before sending a request", async () => {
   let requestCount = 0;
   const client = createOpenGroveClient({
@@ -140,6 +155,22 @@ test("OpenGrove Client preserves legacy 200 business failures", async () => {
       error.message === "room_message_rejected" &&
       error.status === 200 &&
       !error.declared,
+  );
+});
+
+test("OpenGrove Client rejects undeclared success status codes", async () => {
+  const client = createOpenGroveClient({
+    fetch: (async () => new Response(JSON.stringify(messageResponse), { status: 201 })) as typeof fetch,
+  });
+
+  await assert.rejects(
+    client.rooms.messages.create({
+      roomId: "room-1",
+      text: "hello",
+      targetIds: [],
+      attachments: [],
+    }),
+    (error) => error instanceof OpenGroveClientError && error.status === 201 && !error.declared,
   );
 });
 

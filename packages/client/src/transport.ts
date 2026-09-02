@@ -2,11 +2,14 @@ import {
   bridgeContractIssues,
   type HostOperation,
   type HostOperationBody,
+  type HostOperationDecodedInput,
   type HostOperationOutput,
   type HostOperationParams,
   type HostOperationQuery,
 } from "#protocol";
 import { OpenGroveClientError, OpenGroveProtocolError } from "./errors.js";
+import { createClient as createHeyApiClient } from "./generated/hey-api/client/index.js";
+import { OpenGroveApi } from "./generated/hey-api/sdk.gen.js";
 
 export type OpenGroveClientConfig = {
   baseUrl?: string;
@@ -34,6 +37,77 @@ export type HostOperationRequest = <TOperation extends HostOperation>(
   input: HostOperationCall<TOperation>,
 ) => Promise<HostOperationOutput<TOperation>>;
 
+export type OpenGroveGeneratedTransport = Readonly<{
+  api: OpenGroveApi;
+  headers?: OpenGroveClientConfig["headers"];
+}>;
+
+export type ValidatedHostOperationCall<TOperation extends HostOperation> = HostOperationDecodedInput<TOperation> &
+  Readonly<{ signal?: AbortSignal }>;
+
+type GeneratedOperationResult = Readonly<{
+  data?: unknown;
+  error?: unknown;
+  request?: Request;
+  response?: Response;
+}>;
+
+const RELATIVE_REQUEST_ORIGIN = "http://opengrove-relative.invalid";
+
+export function createOpenGroveGeneratedTransport(config: OpenGroveClientConfig): OpenGroveGeneratedTransport {
+  if (!config.fetch && !globalThis.fetch) throw new Error("OpenGrove Client requires a Fetch API implementation.");
+  const client = createHeyApiClient({
+    baseUrl: generatedBaseUrl(config.baseUrl),
+    fetch: generatedFetch(() => config.fetch ?? globalThis.fetch?.bind(globalThis)),
+    credentials: config.credentials,
+    cache: "no-store",
+    responseStyle: "fields",
+    throwOnError: false,
+  });
+  return { api: new OpenGroveApi({ client }), headers: config.headers };
+}
+
+export async function openGroveGeneratedRequestOptions(
+  transport: OpenGroveGeneratedTransport,
+  signal?: AbortSignal,
+): Promise<Readonly<{ headers: Record<string, string>; parseAs: "text"; signal?: AbortSignal; throwOnError: false }>> {
+  const headers = await resolveHeaders(transport.headers, false);
+  return { headers: Object.fromEntries(headers.entries()), parseAs: "text", signal, throwOnError: false };
+}
+
+export async function executeGeneratedHostOperation<TOperation extends HostOperation>(
+  operation: TOperation,
+  input: HostOperationCall<TOperation>,
+  invoke: (validated: ValidatedHostOperationCall<TOperation>) => Promise<GeneratedOperationResult>,
+): Promise<HostOperationOutput<TOperation>> {
+  const validated = validateHostOperationCall(operation, input);
+  const result = await invoke(validated);
+  if (!result.response) {
+    if (result.error instanceof Error) throw result.error;
+    throw new Error(typeof result.error === "string" && result.error ? result.error : `request_failed:${operation.id}`);
+  }
+  if (result.response.status !== operation.success.status) {
+    const declaredError = operation.errors?.find((candidate) => candidate.status === result.response?.status);
+    const responsePayload = result.response.ok ? decodeGeneratedResponseData(result.data) : result.error;
+    const errorPayload = declaredError?.body
+      ? parseOperationResponse(operation, declaredError.body, responsePayload)
+      : responsePayload;
+    throw createClientError(result.response, errorPayload, Boolean(declaredError));
+  }
+  if (result.error !== undefined) {
+    throw new OpenGroveProtocolError("response", operation.id, [{ path: "$", code: "response_body_unreadable" }]);
+  }
+  const payload = decodeGeneratedResponseData(result.data);
+  try {
+    return parseOperationResponse(operation, operation.success.body, payload) as HostOperationOutput<TOperation>;
+  } catch (error) {
+    if (error instanceof OpenGroveProtocolError && isBusinessFailure(payload)) {
+      throw createClientError(result.response, payload, false);
+    }
+    throw error;
+  }
+}
+
 export function createHostOperationRequest(config: OpenGroveClientConfig): HostOperationRequest {
   if (!config.fetch && !globalThis.fetch) {
     throw new Error("OpenGrove Client requires a Fetch API implementation.");
@@ -45,17 +119,18 @@ export function createHostOperationRequest(config: OpenGroveClientConfig): HostO
   ): Promise<HostOperationOutput<TOperation>> => {
     const fetchImplementation = config.fetch ?? globalThis.fetch?.bind(globalThis);
     if (!fetchImplementation) throw new Error("OpenGrove Client requires a Fetch API implementation.");
-    const params = parseRequestPart(operation, "params", operation.params, input.params);
-    const query = parseRequestPart(operation, "query", operation.query, input.query);
-    const body = parseRequestPart(operation, "body", operation.body, input.body);
-    const response = await fetchImplementation(resolveOperationUrl(config.baseUrl, operation, params, query), {
-      method: operation.method,
-      headers: await resolveHeaders(config.headers, operation.body !== undefined),
-      credentials: config.credentials,
-      cache: "no-store",
-      signal: input.signal,
-      ...(operation.body ? { body: JSON.stringify(body) } : {}),
-    });
+    const validated = validateHostOperationCall(operation, input);
+    const response = await fetchImplementation(
+      resolveOperationUrl(config.baseUrl, operation, validated.params, validated.query),
+      {
+        method: operation.method,
+        headers: await resolveHeaders(config.headers, operation.body !== undefined),
+        credentials: config.credentials,
+        cache: "no-store",
+        signal: input.signal,
+        ...(operation.body ? { body: JSON.stringify(validated.body) } : {}),
+      },
+    );
     const payload = await readResponsePayload(response);
     if (response.status === operation.success.status) {
       try {
@@ -72,6 +147,17 @@ export function createHostOperationRequest(config: OpenGroveClientConfig): HostO
     const errorPayload = declaredError?.body ? parseOperationResponse(operation, declaredError.body, payload) : payload;
     throw createClientError(response, errorPayload, Boolean(declaredError));
   };
+}
+
+function validateHostOperationCall<TOperation extends HostOperation>(
+  operation: TOperation,
+  input: HostOperationCall<TOperation>,
+): ValidatedHostOperationCall<TOperation> {
+  const validated: Record<string, unknown> = { signal: input.signal };
+  if (operation.params) validated.params = parseRequestPart(operation, "params", operation.params, input.params);
+  if (operation.query) validated.query = parseRequestPart(operation, "query", operation.query, input.query);
+  if (operation.body) validated.body = parseRequestPart(operation, "body", operation.body, input.body);
+  return validated as ValidatedHostOperationCall<TOperation>;
 }
 
 function parseRequestPart(
@@ -157,12 +243,49 @@ async function resolveHeaders(
 
 async function readResponsePayload(response: Response): Promise<unknown> {
   const text = await response.text();
-  if (!text) return undefined;
+  return decodeGeneratedResponseData(text);
+}
+
+function decodeGeneratedResponseData(value: unknown): unknown {
+  if (typeof value !== "string") return value;
+  if (!value) return undefined;
   try {
-    return JSON.parse(text) as unknown;
+    return JSON.parse(value) as unknown;
   } catch {
-    return text;
+    return value;
   }
+}
+
+function generatedBaseUrl(baseUrl: string | undefined): string {
+  if (!baseUrl) return RELATIVE_REQUEST_ORIGIN;
+  if (baseUrl.startsWith("/")) return `${RELATIVE_REQUEST_ORIGIN}${baseUrl}`;
+  return baseUrl;
+}
+
+function generatedFetch(resolveFetch: () => typeof globalThis.fetch | undefined): typeof globalThis.fetch {
+  return async (input, init) => {
+    const fetchImplementation = resolveFetch();
+    if (!fetchImplementation) throw new Error("OpenGrove Client requires a Fetch API implementation.");
+    const request = input instanceof Request ? input : new Request(input, init);
+    const url = new URL(request.url);
+    const requestUrl = url.origin === RELATIVE_REQUEST_ORIGIN ? `${url.pathname}${url.search}${url.hash}` : url.href;
+    const method = request.method.toUpperCase();
+    const body = method === "GET" || method === "HEAD" ? undefined : await request.clone().text();
+    return fetchImplementation(requestUrl, {
+      method: request.method,
+      headers: request.headers,
+      ...(body ? { body } : {}),
+      cache: request.cache,
+      credentials: request.credentials,
+      integrity: request.integrity,
+      keepalive: request.keepalive,
+      mode: request.mode,
+      redirect: request.redirect,
+      referrer: request.referrer,
+      referrerPolicy: request.referrerPolicy,
+      signal: request.signal,
+    });
+  };
 }
 
 function createClientError(response: Response, payload: unknown, declared: boolean): OpenGroveClientError {

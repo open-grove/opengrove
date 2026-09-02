@@ -10,13 +10,17 @@ OpenGrove exposes Host capabilities through two public workspace packages:
   request and response validation, error normalization, and the generated typed
   domain API used by Web, desktop, CLI, and integrations.
 
-The dependency direction is fixed:
+The generation and dependency direction is fixed:
 
 ```text
-Web / Desktop / CLI / integration
-              |
-              v
-      @opengrove/client ------> @opengrove/protocol <------ Host routes
+@opengrove/protocol
+     |       |       |
+     |       |       +----> Host routes
+     |       +------------> canonical CLI
+     +----> OpenAPI 3.1 ----> Hey API SDK ----> @opengrove/client
+                                                   |
+                                                   v
+                                  Web / Desktop / CLI / integration
 ```
 
 `@opengrove/protocol` must not perform I/O or import Host implementation code.
@@ -82,9 +86,19 @@ Client consumers do not load or execute the compiler.
 
 `packages/client/client-map.json` contains only the naming differences between
 the canonical catalog and the public Client. `npm run generate:host-client`
-reads the compiled Protocol IR and writes the typed Client resource tree.
-`npm run check:client-generated` fails when the committed generated output is
-stale or when the map refers to an operation that no longer exists.
+projects the compiled Protocol IR into the committed OpenAPI 3.1 document at
+`packages/protocol/openapi.json`, runs the exactly pinned Hey API generator for
+the canonical low-level SDK, and writes the thin public Client resource tree.
+The public facade retains natural names such as `client.rooms.messages.create`
+while the generated SDK follows canonical Protocol ids such as
+`room.message.create`.
+
+Runtime request and response validation remains at the OpenGrove Client
+boundary so Zod defaults and transforms keep their Protocol semantics. Hey API
+owns standard HTTP serialization and generated transport types; it does not
+become a second contract source. `npm run check:client-generated` regenerates
+all three artifacts in isolation and fails when any committed output is stale
+or when the naming map refers to an operation that no longer exists.
 
 Do not hand-write a second resource method in the Client. A new operation is
 added to the Protocol catalog, given any necessary public naming override, and
@@ -166,3 +180,7 @@ Host route, generated into the Client, callable through the canonical CLI,
 used by at least one real consumer, covered by contract and Client tests, and
 included in packaged runtime checks. Old generic request helpers shrink as
 operations move; do not add another one.
+
+`npm run check:host-contract-coverage` enforces the mechanical part of this
+rule in CI. It requires the exact Protocol operation-id set to match OpenAPI,
+registered Host routes, the generated Client manifest, and CLI help projection.

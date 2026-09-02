@@ -24,6 +24,9 @@ if (resolve(process.argv[1] ?? "") === resolve(import.meta.filename)) {
   for (const sourceRoot of sourceRoots) {
     for (const path of sourceFiles(join(projectRoot, sourceRoot))) {
       const projectPath = relative(projectRoot, path);
+      // Third-party generated sources are immutable here and are instead pinned,
+      // regenerated, typechecked, linted, and contract-tested by the Host API gates.
+      if (isGeneratedVendorSource(projectPath)) continue;
       const source = readFileSync(path, "utf8");
       problems.push(...analyzeSource(source, projectPath));
       if (isCompatibilityBoundary(projectPath)) {
@@ -40,6 +43,10 @@ if (resolve(process.argv[1] ?? "") === resolve(import.meta.filename)) {
     process.exit(1);
   }
   console.log("agent code-quality checks passed");
+}
+
+export function isGeneratedVendorSource(filePath) {
+  return filePath.replaceAll(sep, "/").startsWith("packages/client/src/generated/hey-api/");
 }
 
 export function analyzeSource(source, filePath) {
