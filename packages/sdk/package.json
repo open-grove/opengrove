@@ -1,8 +1,8 @@
 {
-  "name": "@opengrove/client",
+  "name": "@opengrove/sdk",
   "version": "0.1.0",
   "type": "module",
-  "description": "Typed OpenGrove Host client for first-party Web, CLI, and desktop runtimes.",
+  "description": "Generated JavaScript SDK for external OpenGrove Host API consumers.",
   "license": "Apache-2.0",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -10,10 +10,15 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./client": {
+      "types": "./dist/generated/client/index.d.ts",
+      "import": "./dist/generated/client/index.js"
+    },
+    "./types": {
+      "types": "./dist/generated/types.gen.d.ts",
+      "import": "./dist/generated/types.gen.js"
     }
-  },
-  "imports": {
-    "#protocol": "@opengrove/protocol"
   },
   "files": [
     "dist",
@@ -21,13 +26,8 @@
   ],
   "scripts": {
     "build": "npm run clean && tsc6 -p tsconfig.json",
-    "generate": "node ../../scripts/generate-host-client.mjs",
-    "check:generated": "node ../../scripts/generate-host-client.mjs --check",
     "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
     "typecheck": "tsc -p tsconfig.json --noEmit"
-  },
-  "dependencies": {
-    "@opengrove/protocol": "0.1.0"
   },
   "devDependencies": {
     "@typescript/native": "npm:typescript@7.0.2",

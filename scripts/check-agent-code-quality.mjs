@@ -46,7 +46,7 @@ if (resolve(process.argv[1] ?? "") === resolve(import.meta.filename)) {
 }
 
 export function isGeneratedVendorSource(filePath) {
-  return filePath.replaceAll(sep, "/").startsWith("packages/client/src/generated/hey-api/");
+  return filePath.replaceAll(sep, "/").startsWith("packages/sdk/src/generated/");
 }
 
 export function analyzeSource(source, filePath) {

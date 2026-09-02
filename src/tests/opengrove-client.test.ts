@@ -70,7 +70,7 @@ test("OpenGrove Client calls the shared room-message operation", async () => {
   });
 });
 
-test("generated Client requests retain Protocol defaults", async () => {
+test("OpenGrove Client requests retain Protocol defaults", async () => {
   let requestBody: unknown;
   const client = createOpenGroveClient({
     baseUrl: "https://host.example.test/api",

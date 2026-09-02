@@ -1,6 +1,6 @@
 # Client and protocol boundary
 
-OpenGrove exposes Host capabilities through two public workspace packages:
+OpenGrove exposes Host capabilities through three workspace packages:
 
 - `@opengrove/protocol` is the environment-neutral source of truth for Host
   operations. Each operation explicitly owns its stable id, summary, HTTP
@@ -8,7 +8,10 @@ OpenGrove exposes Host capabilities through two public workspace packages:
   request body, successful response, and declared error responses.
 - `@opengrove/client` executes those operations. It owns URL construction,
   request and response validation, error normalization, and the generated typed
-  domain API used by Web, desktop, CLI, and integrations.
+  domain API used by OpenGrove Web, desktop, and CLI runtimes.
+- `@opengrove/sdk` is the generated JavaScript SDK for external HTTP consumers.
+  It follows the OpenAPI document and is not part of OpenGrove's internal
+  runtime request path.
 
 The generation and dependency direction is fixed:
 
@@ -16,17 +19,22 @@ The generation and dependency direction is fixed:
 @opengrove/protocol
      |       |       |
      |       |       +----> Host routes
-     |       +------------> canonical CLI
-     +----> OpenAPI 3.1 ----> Hey API SDK ----> @opengrove/client
-                                                   |
-                                                   v
-                                  Web / Desktop / CLI / integration
+     |       +------------> generated Client facade
+     |                              |
+     |                              v
+     |                    one handwritten transport
+     |                              |
+     |                              v
+     |                      Web / Desktop / CLI
+     |
+     +----> OpenAPI 3.1 ----> @opengrove/sdk (Hey API, external)
 ```
 
 `@opengrove/protocol` must not perform I/O or import Host implementation code.
 `@opengrove/client` must not read browser storage, environment variables, or
 desktop APIs. Each consumer supplies its base URL, credentials, and headers at
-its adapter boundary. The package-boundary check enforces these import rules.
+its adapter boundary. It must not import `@opengrove/sdk` or contain Hey API
+generated code. The package-boundary check enforces these import rules.
 
 ## Operation shape
 
@@ -58,7 +66,7 @@ The Host validates the same request and response schemas that the Client uses.
 An undeclared status or a payload that does not match its declared schema is a
 contract violation, not a successful best-effort parse.
 
-## Catalog and generated Client
+## Catalog, internal Client, and external SDK
 
 `hostOperationGroups` organizes the Protocol as group, resource, and operation:
 
@@ -85,20 +93,24 @@ The compiler and compiled catalog have dedicated package entry points; runtime
 Client consumers do not load or execute the compiler.
 
 `packages/client/client-map.json` contains only the naming differences between
-the canonical catalog and the public Client. `npm run generate:host-client`
-projects the compiled Protocol IR into the committed OpenAPI 3.1 document at
-`packages/protocol/openapi.json`, runs the exactly pinned Hey API generator for
-the canonical low-level SDK, and writes the thin public Client resource tree.
-The public facade retains natural names such as `client.rooms.messages.create`
-while the generated SDK follows canonical Protocol ids such as
-`room.message.create`.
+the canonical catalog and the internal Client facade. `npm run
+generate:host-client` projects the compiled Protocol IR into the committed
+OpenAPI 3.1 document at `packages/protocol/openapi.json`, writes the thin Client
+resource tree, and runs the exactly pinned Hey API generator into the separate
+`@opengrove/sdk` package.
 
-Runtime request and response validation remains at the OpenGrove Client
-boundary so Zod defaults and transforms keep their Protocol semantics. Hey API
-owns standard HTTP serialization and generated transport types; it does not
-become a second contract source. `npm run check:client-generated` regenerates
-all three artifacts in isolation and fails when any committed output is stale
-or when the naming map refers to an operation that no longer exists.
+The internal facade retains natural names such as
+`client.rooms.messages.create`. Every method delegates directly to the one
+handwritten transport in `@opengrove/client`; that transport owns URL
+construction, Zod defaults and transforms, response validation, and OpenGrove
+error normalization. It never calls or wraps the external SDK.
+
+The external SDK follows canonical Protocol ids such as
+`room.message.create`. It is an OpenAPI interoperability output for third-party
+JavaScript consumers, not another layer beneath the internal Client. `npm run
+check:client-generated` regenerates OpenAPI, the Client facade, and the external
+SDK in isolation and fails when any committed output is stale or when the
+naming map refers to an operation that no longer exists.
 
 Do not hand-write a second resource method in the Client. A new operation is
 added to the Protocol catalog, given any necessary public naming override, and
