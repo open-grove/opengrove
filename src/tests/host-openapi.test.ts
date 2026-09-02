@@ -12,6 +12,22 @@ test("Host Protocol projects every operation into OpenAPI 3.1", () => {
   const responses = readRecord(operation.responses);
 
   assert.equal(document.openapi, "3.1.0");
+  const schemas = readRecord(readRecord(document).components).schemas;
+  assert.deepEqual(readRecord(readRecord(schemas).AuthError).properties, {
+    ok: { type: "boolean", const: false },
+    error: { type: "string" },
+    code: { type: "string" },
+    requestId: { type: "string" },
+    incidentId: { type: "string" },
+    traceId: { type: "string" },
+    retryAfter: { type: "number", minimum: 0 },
+  });
+  const authLogin = readRecord(readRecord(document.paths["/auth/login"]).post);
+  const authResponses = readRecord(authLogin.responses);
+  assert.deepEqual(
+    readRecord(readRecord(readRecord(readRecord(authResponses["400"]).content)["application/json"]).schema),
+    { $ref: "#/components/schemas/AuthError" },
+  );
   assert.deepEqual(document.servers, [{ url: "/api", description: "OpenGrove Host Bridge API base path." }]);
   assert.deepEqual(
     hostProtocol.operations.map((candidate) => candidate.id),

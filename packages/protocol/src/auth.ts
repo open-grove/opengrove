@@ -16,7 +16,7 @@ const authErrorSchema = z
 const authErrorStatuses = [400, 401, 403, 408, 409, 413, 425, 429, 500, 502, 503, 504] as const;
 
 function authErrors(description: string) {
-  return authErrorStatuses.map((status) => ({ status, body: authErrorSchema, description }));
+  return authErrorStatuses.map((status) => ({ status, body: authErrorSchema, description, schemaId: "AuthError" }));
 }
 
 const accountUserSchema = z

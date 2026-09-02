@@ -1,7 +1,7 @@
 import { hostname } from "node:os";
 import { createInterface } from "node:readline/promises";
 import { createCookieAuthSession, createOpenGroveClient } from "#client";
-import { deleteCliAuthState, hasCliAuthCookies, readCliAuthState, writeCliAuthState } from "./auth-state.js";
+import { createPersistedCliAuthSession, hasCliAuthCookies, readCliAuthState, writeCliAuthState } from "./auth-state.js";
 import { DEFAULT_CLI_BRIDGE_API_URL, resolveCliBridge, type CliBridgeBaseUrlSource } from "./bridge-connection.js";
 import { OpenGroveCliError } from "./errors.js";
 import {
@@ -24,6 +24,9 @@ Commands:
   login    Sign in with the existing OpenGrove email-code flow.
   status   Verify and display the saved CLI account session.
   logout   Revoke the CLI session when possible and always clear it locally.
+
+Recommended for checking login state: opengrove auth status
+The generated opengrove auth session get command exposes the same raw Host API.
 `;
 
 export type AuthCliOptions = Readonly<{
@@ -131,7 +134,7 @@ async function login(args: readonly string[], options: AuthCliOptions): Promise<
       "The verified session has no renewable CLI credential.",
     );
   }
-  writeCliAuthState(
+  await writeCliAuthState(
     { bridgeApiUrl: connection.apiUrl, stateId: connection.stateId, email, cookies: { ...cookies } },
     options.authPath,
   );
@@ -156,23 +159,10 @@ async function status(args: readonly string[], options: AuthCliOptions): Promise
     fetch: options.fetch,
     discoveryPaths: options.discoveryPaths,
   });
-  const auth = createCookieAuthSession({
-    cookies: saved.cookies,
-    onChange: (cookies) => {
-      writeCliAuthState(
-        {
-          bridgeApiUrl: connection.apiUrl,
-          stateId: connection.stateId,
-          ...(saved.email ? { email: saved.email } : {}),
-          cookies: { ...cookies },
-        },
-        options.authPath,
-      );
-    },
-  });
+  const auth = createPersistedCliAuthSession({ ...saved, bridgeApiUrl: connection.apiUrl }, options.authPath);
   const client = createOpenGroveClient({ baseUrl: connection.apiUrl, fetch: options.fetch, auth });
   const session = await client.auth.session.get();
-  if (session.status === "unauthenticated") deleteCliAuthState(options.authPath);
+  if (session.status === "unauthenticated") await auth.clearIfCurrent();
   return hostOperationCliSuccess({
     ok: true,
     identity: session.status === "authenticated" ? "user" : "none",
@@ -184,7 +174,6 @@ async function logout(args: readonly string[], options: AuthCliOptions): Promise
   const parsed = parseAuthOptions(args, ["base-url"], options.env);
   const saved = readCliAuthState(options.authPath);
   if (!hasCliAuthCookies(saved)) {
-    deleteCliAuthState(options.authPath);
     return hostOperationCliSuccess({
       ok: true,
       identity: "none",
@@ -193,6 +182,7 @@ async function logout(args: readonly string[], options: AuthCliOptions): Promise
   }
 
   let remoteRevocation: "succeeded" | "failed" = "failed";
+  const auth = createPersistedCliAuthSession(saved, options.authPath);
   try {
     const connection = await resolveCliBridge({
       baseUrl: parsed.baseUrl,
@@ -202,14 +192,13 @@ async function logout(args: readonly string[], options: AuthCliOptions): Promise
       fetch: options.fetch,
       discoveryPaths: options.discoveryPaths,
     });
-    const auth = createCookieAuthSession({ cookies: saved.cookies });
     const client = createOpenGroveClient({ baseUrl: connection.apiUrl, fetch: options.fetch, auth });
     await client.auth.session.delete();
     remoteRevocation = "succeeded";
   } catch {
     // non-critical-fallback: local logout must still remove credentials when the Bridge cannot revoke them.
   } finally {
-    deleteCliAuthState(options.authPath);
+    await auth.clearIfCurrent();
   }
   return hostOperationCliSuccess({
     ok: true,

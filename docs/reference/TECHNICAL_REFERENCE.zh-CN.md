@@ -388,13 +388,17 @@ node dist/cli.js room message create --room-id <id> --text "Hello" --dry-run
 标准 Host 命令会先发现正在运行的本机 Bridge，其次使用 `opengrove auth login`
 上次配对的 Bridge 地址，最后回落 `http://127.0.0.1:37371/api`。可以用
 `--base-url` 或 `OPENGROVE_BRIDGE_URL` 覆盖。默认使用已验证的 CLI 账号会话；
-Bridge-token 模式可用 `--token` 或 `OPENGROVE_BRIDGE_TOKEN`。每个命令都可以用
+Bridge-token 模式可用 `--token` 或 `OPENGROVE_BRIDGE_TOKEN`；显式传入的 token 会完全覆盖
+已保存的账号会话。查看登录状态推荐使用 `opengrove auth status`；
+`auth session get` 保留为生成的原始 Host API 命令。每个命令都可以用
 `--help` 查看从 Protocol 生成的参数；成功结果以 JSON 写入 stdout，类型化错误以
 JSON 写入 stderr。
 
 当前 `auth login` 复用现有邮箱验证码登录。CLI 只把自己的 Cookie 会话保存在
 `~/.opengrove/cli-auth.json`，文件仅本机用户可读写；不复制桌面渲染器的会话。
-会话绑定登录时探测到的本机 Bridge `stateId`，refresh Cookie 轮换后会在下一条命令前持久化。
+发送 Cookie 前，CLI 会用保存的 `stateId` 匹配当前本机 Bridge。这只是实例匹配，
+不是秘密或安全凭证。refresh Cookie 更新使用文件锁和修订号校验，过时的并发 CLI
+进程不会覆盖或删除较新的登录态。
 
 ---
 

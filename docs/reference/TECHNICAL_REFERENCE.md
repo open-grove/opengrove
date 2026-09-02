@@ -396,15 +396,20 @@ Canonical Host commands discover a running local Bridge, remember the Bridge
 paired by `opengrove auth login`, and finally fall back to
 `http://127.0.0.1:37371/api`. Override the target with `--base-url` or
 `OPENGROVE_BRIDGE_URL`. Authentication comes from the verified CLI account
-session, or from `--token` / `OPENGROVE_BRIDGE_TOKEN` for Bridge-token setups.
+session, or from `--token` / `OPENGROVE_BRIDGE_TOKEN` for Bridge-token setups;
+an explicit token completely overrides the saved account session. Prefer
+`opengrove auth status` when checking login state; `auth session get` remains
+the generated raw Host API command.
 Run a command with `--help` to inspect Protocol-derived input flags. Successful
 commands write a JSON envelope to stdout; typed failures write JSON to stderr.
 
 The current `auth login` command uses the existing email-code account flow. It
 stores only the CLI's own cookie session at `~/.opengrove/cli-auth.json` with
 owner-only permissions; it does not copy the desktop renderer session. The
-session is bound to the probed local Bridge `stateId`, and refresh-cookie
-rotation is persisted before the next command.
+saved `stateId` is matched against the live local Bridge before cookies are
+sent. This is local instance matching, not a secret or a security credential.
+Refresh-cookie updates use a file lock and revision check so a stale concurrent
+CLI process cannot overwrite or delete a newer login.
 
 ---
 

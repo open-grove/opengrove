@@ -18,6 +18,9 @@ export type HostOpenApiDocument = Readonly<{
   servers: readonly Readonly<{ url: string; description: string }>[];
   tags: readonly Readonly<{ name: string; description: string }>[];
   paths: Readonly<Record<string, Readonly<Record<string, unknown>>>>;
+  components: Readonly<{
+    schemas: Readonly<Record<string, JsonSchema>>;
+  }>;
 }>;
 
 export type HostOpenApiOptions = Readonly<{
@@ -31,6 +34,7 @@ export function hostProtocolToOpenApi(
   options: HostOpenApiOptions = {},
 ): HostOpenApiDocument {
   const paths: Record<string, Record<string, unknown>> = {};
+  const schemas = collectComponentSchemas(protocol);
 
   for (const operation of protocol.operations) {
     const method = operation.method.toLowerCase();
@@ -57,7 +61,25 @@ export function hostProtocolToOpenApi(
     ],
     tags: protocol.groups.map((group) => ({ name: group.id, description: group.description })),
     paths,
+    components: { schemas },
   };
+}
+
+function collectComponentSchemas(
+  protocol: CompiledHostProtocol<readonly HostOperationGroup[]>,
+): Readonly<Record<string, JsonSchema>> {
+  const schemas: Record<string, JsonSchema> = {};
+  for (const operation of protocol.operations) {
+    for (const response of [operation.success, ...operation.errors]) {
+      if (!response.schemaId || !response.jsonSchema) continue;
+      const existing = schemas[response.schemaId];
+      if (existing && JSON.stringify(existing) !== JSON.stringify(response.jsonSchema)) {
+        throw new Error(`Host response schemaId ${response.schemaId} refers to more than one JSON Schema.`);
+      }
+      schemas[response.schemaId] = response.jsonSchema;
+    }
+  }
+  return schemas;
 }
 
 function openApiOperation(operation: CompiledHostOperation): Readonly<Record<string, unknown>> {
@@ -118,7 +140,15 @@ function openApiParameters(
 function openApiResponse(response: CompiledHostResponse, success: boolean): Readonly<Record<string, unknown>> {
   return {
     description: response.description ?? (success ? "Successful response." : "Error response."),
-    ...(response.jsonSchema ? { content: { "application/json": { schema: response.jsonSchema } } } : {}),
+    ...(response.jsonSchema
+      ? {
+          content: {
+            "application/json": {
+              schema: response.schemaId ? { $ref: `#/components/schemas/${response.schemaId}` } : response.jsonSchema,
+            },
+          },
+        }
+      : {}),
   };
 }
 

@@ -81,35 +81,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$schema": "https://json-schema.org/draft/2020-12/schema",
-                  "type": "object",
-                  "properties": {
-                    "ok": {
-                      "type": "boolean",
-                      "const": false
-                    },
-                    "error": {
-                      "type": "string"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "requestId": {
-                      "type": "string"
-                    },
-                    "incidentId": {
-                      "type": "string"
-                    },
-                    "traceId": {
-                      "type": "string"
-                    },
-                    "retryAfter": {
-                      "type": "number",
-                      "minimum": 0
-                    }
-                  },
-                  "required": ["error"],
-                  "additionalProperties": {}
+                  "$ref": "#/components/schemas/AuthError"
                 }
               }
             }
@@ -119,35 +91,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$schema": "https://json-schema.org/draft/2020-12/schema",
-                  "type": "object",
-                  "properties": {
-                    "ok": {
-                      "type": "boolean",
-                      "const": false
-                    },
-                    "error": {
-                      "type": "string"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "requestId": {
-                      "type": "string"
-                    },
-                    "incidentId": {
-                      "type": "string"
-                    },
-                    "traceId": {
-                      "type": "string"
-                    },
-                    "retryAfter": {
-                      "type": "number",
-                      "minimum": 0
-                    }
-                  },
-                  "required": ["error"],
-                  "additionalProperties": {}
+                  "$ref": "#/components/schemas/AuthError"
                 }
               }
             }
@@ -157,35 +101,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$schema": "https://json-schema.org/draft/2020-12/schema",
-                  "type": "object",
-                  "properties": {
-                    "ok": {
-                      "type": "boolean",
-                      "const": false
-                    },
-                    "error": {
-                      "type": "string"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "requestId": {
-                      "type": "string"
-                    },
-                    "incidentId": {
-                      "type": "string"
-                    },
-                    "traceId": {
-                      "type": "string"
-                    },
-                    "retryAfter": {
-                      "type": "number",
-                      "minimum": 0
-                    }
-                  },
-                  "required": ["error"],
-                  "additionalProperties": {}
+                  "$ref": "#/components/schemas/AuthError"
                 }
               }
             }
@@ -195,35 +111,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$schema": "https://json-schema.org/draft/2020-12/schema",
-                  "type": "object",
-                  "properties": {
-                    "ok": {
-                      "type": "boolean",
-                      "const": false
-                    },
-                    "error": {
-                      "type": "string"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "requestId": {
-                      "type": "string"
-                    },
-                    "incidentId": {
-                      "type": "string"
-                    },
-                    "traceId": {
-                      "type": "string"
-                    },
-                    "retryAfter": {
-                      "type": "number",
-                      "minimum": 0
-                    }
-                  },
-                  "required": ["error"],
-                  "additionalProperties": {}
+                  "$ref": "#/components/schemas/AuthError"
                 }
               }
             }
@@ -233,35 +121,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$schema": "https://json-schema.org/draft/2020-12/schema",
-                  "type": "object",
-                  "properties": {
-                    "ok": {
-                      "type": "boolean",
-                      "const": false
-                    },
-                    "error": {
-                      "type": "string"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "requestId": {
-                      "type": "string"
-                    },
-                    "incidentId": {
-                      "type": "string"
-                    },
-                    "traceId": {
-                      "type": "string"
-                    },
-                    "retryAfter": {
-                      "type": "number",
-                      "minimum": 0
-                    }
-                  },
-                  "required": ["error"],
-                  "additionalProperties": {}
+                  "$ref": "#/components/schemas/AuthError"
                 }
               }
             }
@@ -271,35 +131,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$schema": "https://json-schema.org/draft/2020-12/schema",
-                  "type": "object",
-                  "properties": {
-                    "ok": {
-                      "type": "boolean",
-                      "const": false
-                    },
-                    "error": {
-                      "type": "string"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "requestId": {
-                      "type": "string"
-                    },
-                    "incidentId": {
-                      "type": "string"
-                    },
-                    "traceId": {
-                      "type": "string"
-                    },
-                    "retryAfter": {
-                      "type": "number",
-                      "minimum": 0
-                    }
-                  },
-                  "required": ["error"],
-                  "additionalProperties": {}
+                  "$ref": "#/components/schemas/AuthError"
                 }
               }
             }
@@ -309,35 +141,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$schema": "https://json-schema.org/draft/2020-12/schema",
-                  "type": "object",
-                  "properties": {
-                    "ok": {
-                      "type": "boolean",
-                      "const": false
-                    },
-                    "error": {
-                      "type": "string"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "requestId": {
-                      "type": "string"
-                    },
-                    "incidentId": {
-                      "type": "string"
-                    },
-                    "traceId": {
-                      "type": "string"
-                    },
-                    "retryAfter": {
-                      "type": "number",
-                      "minimum": 0
-                    }
-                  },
-                  "required": ["error"],
-                  "additionalProperties": {}
+                  "$ref": "#/components/schemas/AuthError"
                 }
               }
             }
@@ -347,35 +151,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$schema": "https://json-schema.org/draft/2020-12/schema",
-                  "type": "object",
-                  "properties": {
-                    "ok": {
-                      "type": "boolean",
-                      "const": false
-                    },
-                    "error": {
-                      "type": "string"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "requestId": {
-                      "type": "string"
-                    },
-                    "incidentId": {
-                      "type": "string"
-                    },
-                    "traceId": {
-                      "type": "string"
-                    },
-                    "retryAfter": {
-                      "type": "number",
-                      "minimum": 0
-                    }
-                  },
-                  "required": ["error"],
-                  "additionalProperties": {}
+                  "$ref": "#/components/schemas/AuthError"
                 }
               }
             }
@@ -385,35 +161,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$schema": "https://json-schema.org/draft/2020-12/schema",
-                  "type": "object",
-                  "properties": {
-                    "ok": {
-                      "type": "boolean",
-                      "const": false
-                    },
-                    "error": {
-                      "type": "string"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "requestId": {
-                      "type": "string"
-                    },
-                    "incidentId": {
-                      "type": "string"
-                    },
-                    "traceId": {
-                      "type": "string"
-                    },
-                    "retryAfter": {
-                      "type": "number",
-                      "minimum": 0
-                    }
-                  },
-                  "required": ["error"],
-                  "additionalProperties": {}
+                  "$ref": "#/components/schemas/AuthError"
                 }
               }
             }
@@ -423,35 +171,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$schema": "https://json-schema.org/draft/2020-12/schema",
-                  "type": "object",
-                  "properties": {
-                    "ok": {
-                      "type": "boolean",
-                      "const": false
-                    },
-                    "error": {
-                      "type": "string"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "requestId": {
-                      "type": "string"
-                    },
-                    "incidentId": {
-                      "type": "string"
-                    },
-                    "traceId": {
-                      "type": "string"
-                    },
-                    "retryAfter": {
-                      "type": "number",
-                      "minimum": 0
-                    }
-                  },
-                  "required": ["error"],
-                  "additionalProperties": {}
+                  "$ref": "#/components/schemas/AuthError"
                 }
               }
             }
@@ -461,35 +181,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$schema": "https://json-schema.org/draft/2020-12/schema",
-                  "type": "object",
-                  "properties": {
-                    "ok": {
-                      "type": "boolean",
-                      "const": false
-                    },
-                    "error": {
-                      "type": "string"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "requestId": {
-                      "type": "string"
-                    },
-                    "incidentId": {
-                      "type": "string"
-                    },
-                    "traceId": {
-                      "type": "string"
-                    },
-                    "retryAfter": {
-                      "type": "number",
-                      "minimum": 0
-                    }
-                  },
-                  "required": ["error"],
-                  "additionalProperties": {}
+                  "$ref": "#/components/schemas/AuthError"
                 }
               }
             }
@@ -499,35 +191,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$schema": "https://json-schema.org/draft/2020-12/schema",
-                  "type": "object",
-                  "properties": {
-                    "ok": {
-                      "type": "boolean",
-                      "const": false
-                    },
-                    "error": {
-                      "type": "string"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "requestId": {
-                      "type": "string"
-                    },
-                    "incidentId": {
-                      "type": "string"
-                    },
-                    "traceId": {
-                      "type": "string"
-                    },
-                    "retryAfter": {
-                      "type": "number",
-                      "minimum": 0
-                    }
-                  },
-                  "required": ["error"],
-                  "additionalProperties": {}
+                  "$ref": "#/components/schemas/AuthError"
                 }
               }
             }
@@ -691,35 +355,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$schema": "https://json-schema.org/draft/2020-12/schema",
-                  "type": "object",
-                  "properties": {
-                    "ok": {
-                      "type": "boolean",
-                      "const": false
-                    },
-                    "error": {
-                      "type": "string"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "requestId": {
-                      "type": "string"
-                    },
-                    "incidentId": {
-                      "type": "string"
-                    },
-                    "traceId": {
-                      "type": "string"
-                    },
-                    "retryAfter": {
-                      "type": "number",
-                      "minimum": 0
-                    }
-                  },
-                  "required": ["error"],
-                  "additionalProperties": {}
+                  "$ref": "#/components/schemas/AuthError"
                 }
               }
             }
@@ -729,35 +365,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$schema": "https://json-schema.org/draft/2020-12/schema",
-                  "type": "object",
-                  "properties": {
-                    "ok": {
-                      "type": "boolean",
-                      "const": false
-                    },
-                    "error": {
-                      "type": "string"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "requestId": {
-                      "type": "string"
-                    },
-                    "incidentId": {
-                      "type": "string"
-                    },
-                    "traceId": {
-                      "type": "string"
-                    },
-                    "retryAfter": {
-                      "type": "number",
-                      "minimum": 0
-                    }
-                  },
-                  "required": ["error"],
-                  "additionalProperties": {}
+                  "$ref": "#/components/schemas/AuthError"
                 }
               }
             }
@@ -767,35 +375,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$schema": "https://json-schema.org/draft/2020-12/schema",
-                  "type": "object",
-                  "properties": {
-                    "ok": {
-                      "type": "boolean",
-                      "const": false
-                    },
-                    "error": {
-                      "type": "string"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "requestId": {
-                      "type": "string"
-                    },
-                    "incidentId": {
-                      "type": "string"
-                    },
-                    "traceId": {
-                      "type": "string"
-                    },
-                    "retryAfter": {
-                      "type": "number",
-                      "minimum": 0
-                    }
-                  },
-                  "required": ["error"],
-                  "additionalProperties": {}
+                  "$ref": "#/components/schemas/AuthError"
                 }
               }
             }
@@ -805,35 +385,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$schema": "https://json-schema.org/draft/2020-12/schema",
-                  "type": "object",
-                  "properties": {
-                    "ok": {
-                      "type": "boolean",
-                      "const": false
-                    },
-                    "error": {
-                      "type": "string"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "requestId": {
-                      "type": "string"
-                    },
-                    "incidentId": {
-                      "type": "string"
-                    },
-                    "traceId": {
-                      "type": "string"
-                    },
-                    "retryAfter": {
-                      "type": "number",
-                      "minimum": 0
-                    }
-                  },
-                  "required": ["error"],
-                  "additionalProperties": {}
+                  "$ref": "#/components/schemas/AuthError"
                 }
               }
             }
@@ -843,35 +395,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$schema": "https://json-schema.org/draft/2020-12/schema",
-                  "type": "object",
-                  "properties": {
-                    "ok": {
-                      "type": "boolean",
-                      "const": false
-                    },
-                    "error": {
-                      "type": "string"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "requestId": {
-                      "type": "string"
-                    },
-                    "incidentId": {
-                      "type": "string"
-                    },
-                    "traceId": {
-                      "type": "string"
-                    },
-                    "retryAfter": {
-                      "type": "number",
-                      "minimum": 0
-                    }
-                  },
-                  "required": ["error"],
-                  "additionalProperties": {}
+                  "$ref": "#/components/schemas/AuthError"
                 }
               }
             }
@@ -881,35 +405,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$schema": "https://json-schema.org/draft/2020-12/schema",
-                  "type": "object",
-                  "properties": {
-                    "ok": {
-                      "type": "boolean",
-                      "const": false
-                    },
-                    "error": {
-                      "type": "string"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "requestId": {
-                      "type": "string"
-                    },
-                    "incidentId": {
-                      "type": "string"
-                    },
-                    "traceId": {
-                      "type": "string"
-                    },
-                    "retryAfter": {
-                      "type": "number",
-                      "minimum": 0
-                    }
-                  },
-                  "required": ["error"],
-                  "additionalProperties": {}
+                  "$ref": "#/components/schemas/AuthError"
                 }
               }
             }
@@ -919,35 +415,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$schema": "https://json-schema.org/draft/2020-12/schema",
-                  "type": "object",
-                  "properties": {
-                    "ok": {
-                      "type": "boolean",
-                      "const": false
-                    },
-                    "error": {
-                      "type": "string"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "requestId": {
-                      "type": "string"
-                    },
-                    "incidentId": {
-                      "type": "string"
-                    },
-                    "traceId": {
-                      "type": "string"
-                    },
-                    "retryAfter": {
-                      "type": "number",
-                      "minimum": 0
-                    }
-                  },
-                  "required": ["error"],
-                  "additionalProperties": {}
+                  "$ref": "#/components/schemas/AuthError"
                 }
               }
             }
@@ -957,35 +425,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$schema": "https://json-schema.org/draft/2020-12/schema",
-                  "type": "object",
-                  "properties": {
-                    "ok": {
-                      "type": "boolean",
-                      "const": false
-                    },
-                    "error": {
-                      "type": "string"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "requestId": {
-                      "type": "string"
-                    },
-                    "incidentId": {
-                      "type": "string"
-                    },
-                    "traceId": {
-                      "type": "string"
-                    },
-                    "retryAfter": {
-                      "type": "number",
-                      "minimum": 0
-                    }
-                  },
-                  "required": ["error"],
-                  "additionalProperties": {}
+                  "$ref": "#/components/schemas/AuthError"
                 }
               }
             }
@@ -995,35 +435,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$schema": "https://json-schema.org/draft/2020-12/schema",
-                  "type": "object",
-                  "properties": {
-                    "ok": {
-                      "type": "boolean",
-                      "const": false
-                    },
-                    "error": {
-                      "type": "string"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "requestId": {
-                      "type": "string"
-                    },
-                    "incidentId": {
-                      "type": "string"
-                    },
-                    "traceId": {
-                      "type": "string"
-                    },
-                    "retryAfter": {
-                      "type": "number",
-                      "minimum": 0
-                    }
-                  },
-                  "required": ["error"],
-                  "additionalProperties": {}
+                  "$ref": "#/components/schemas/AuthError"
                 }
               }
             }
@@ -1033,35 +445,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$schema": "https://json-schema.org/draft/2020-12/schema",
-                  "type": "object",
-                  "properties": {
-                    "ok": {
-                      "type": "boolean",
-                      "const": false
-                    },
-                    "error": {
-                      "type": "string"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "requestId": {
-                      "type": "string"
-                    },
-                    "incidentId": {
-                      "type": "string"
-                    },
-                    "traceId": {
-                      "type": "string"
-                    },
-                    "retryAfter": {
-                      "type": "number",
-                      "minimum": 0
-                    }
-                  },
-                  "required": ["error"],
-                  "additionalProperties": {}
+                  "$ref": "#/components/schemas/AuthError"
                 }
               }
             }
@@ -1071,35 +455,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$schema": "https://json-schema.org/draft/2020-12/schema",
-                  "type": "object",
-                  "properties": {
-                    "ok": {
-                      "type": "boolean",
-                      "const": false
-                    },
-                    "error": {
-                      "type": "string"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "requestId": {
-                      "type": "string"
-                    },
-                    "incidentId": {
-                      "type": "string"
-                    },
-                    "traceId": {
-                      "type": "string"
-                    },
-                    "retryAfter": {
-                      "type": "number",
-                      "minimum": 0
-                    }
-                  },
-                  "required": ["error"],
-                  "additionalProperties": {}
+                  "$ref": "#/components/schemas/AuthError"
                 }
               }
             }
@@ -1109,35 +465,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$schema": "https://json-schema.org/draft/2020-12/schema",
-                  "type": "object",
-                  "properties": {
-                    "ok": {
-                      "type": "boolean",
-                      "const": false
-                    },
-                    "error": {
-                      "type": "string"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "requestId": {
-                      "type": "string"
-                    },
-                    "incidentId": {
-                      "type": "string"
-                    },
-                    "traceId": {
-                      "type": "string"
-                    },
-                    "retryAfter": {
-                      "type": "number",
-                      "minimum": 0
-                    }
-                  },
-                  "required": ["error"],
-                  "additionalProperties": {}
+                  "$ref": "#/components/schemas/AuthError"
                 }
               }
             }
@@ -1273,35 +601,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$schema": "https://json-schema.org/draft/2020-12/schema",
-                  "type": "object",
-                  "properties": {
-                    "ok": {
-                      "type": "boolean",
-                      "const": false
-                    },
-                    "error": {
-                      "type": "string"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "requestId": {
-                      "type": "string"
-                    },
-                    "incidentId": {
-                      "type": "string"
-                    },
-                    "traceId": {
-                      "type": "string"
-                    },
-                    "retryAfter": {
-                      "type": "number",
-                      "minimum": 0
-                    }
-                  },
-                  "required": ["error"],
-                  "additionalProperties": {}
+                  "$ref": "#/components/schemas/AuthError"
                 }
               }
             }
@@ -1311,35 +611,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$schema": "https://json-schema.org/draft/2020-12/schema",
-                  "type": "object",
-                  "properties": {
-                    "ok": {
-                      "type": "boolean",
-                      "const": false
-                    },
-                    "error": {
-                      "type": "string"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "requestId": {
-                      "type": "string"
-                    },
-                    "incidentId": {
-                      "type": "string"
-                    },
-                    "traceId": {
-                      "type": "string"
-                    },
-                    "retryAfter": {
-                      "type": "number",
-                      "minimum": 0
-                    }
-                  },
-                  "required": ["error"],
-                  "additionalProperties": {}
+                  "$ref": "#/components/schemas/AuthError"
                 }
               }
             }
@@ -1349,35 +621,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$schema": "https://json-schema.org/draft/2020-12/schema",
-                  "type": "object",
-                  "properties": {
-                    "ok": {
-                      "type": "boolean",
-                      "const": false
-                    },
-                    "error": {
-                      "type": "string"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "requestId": {
-                      "type": "string"
-                    },
-                    "incidentId": {
-                      "type": "string"
-                    },
-                    "traceId": {
-                      "type": "string"
-                    },
-                    "retryAfter": {
-                      "type": "number",
-                      "minimum": 0
-                    }
-                  },
-                  "required": ["error"],
-                  "additionalProperties": {}
+                  "$ref": "#/components/schemas/AuthError"
                 }
               }
             }
@@ -1387,35 +631,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$schema": "https://json-schema.org/draft/2020-12/schema",
-                  "type": "object",
-                  "properties": {
-                    "ok": {
-                      "type": "boolean",
-                      "const": false
-                    },
-                    "error": {
-                      "type": "string"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "requestId": {
-                      "type": "string"
-                    },
-                    "incidentId": {
-                      "type": "string"
-                    },
-                    "traceId": {
-                      "type": "string"
-                    },
-                    "retryAfter": {
-                      "type": "number",
-                      "minimum": 0
-                    }
-                  },
-                  "required": ["error"],
-                  "additionalProperties": {}
+                  "$ref": "#/components/schemas/AuthError"
                 }
               }
             }
@@ -1425,35 +641,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$schema": "https://json-schema.org/draft/2020-12/schema",
-                  "type": "object",
-                  "properties": {
-                    "ok": {
-                      "type": "boolean",
-                      "const": false
-                    },
-                    "error": {
-                      "type": "string"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "requestId": {
-                      "type": "string"
-                    },
-                    "incidentId": {
-                      "type": "string"
-                    },
-                    "traceId": {
-                      "type": "string"
-                    },
-                    "retryAfter": {
-                      "type": "number",
-                      "minimum": 0
-                    }
-                  },
-                  "required": ["error"],
-                  "additionalProperties": {}
+                  "$ref": "#/components/schemas/AuthError"
                 }
               }
             }
@@ -1463,35 +651,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$schema": "https://json-schema.org/draft/2020-12/schema",
-                  "type": "object",
-                  "properties": {
-                    "ok": {
-                      "type": "boolean",
-                      "const": false
-                    },
-                    "error": {
-                      "type": "string"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "requestId": {
-                      "type": "string"
-                    },
-                    "incidentId": {
-                      "type": "string"
-                    },
-                    "traceId": {
-                      "type": "string"
-                    },
-                    "retryAfter": {
-                      "type": "number",
-                      "minimum": 0
-                    }
-                  },
-                  "required": ["error"],
-                  "additionalProperties": {}
+                  "$ref": "#/components/schemas/AuthError"
                 }
               }
             }
@@ -1501,35 +661,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$schema": "https://json-schema.org/draft/2020-12/schema",
-                  "type": "object",
-                  "properties": {
-                    "ok": {
-                      "type": "boolean",
-                      "const": false
-                    },
-                    "error": {
-                      "type": "string"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "requestId": {
-                      "type": "string"
-                    },
-                    "incidentId": {
-                      "type": "string"
-                    },
-                    "traceId": {
-                      "type": "string"
-                    },
-                    "retryAfter": {
-                      "type": "number",
-                      "minimum": 0
-                    }
-                  },
-                  "required": ["error"],
-                  "additionalProperties": {}
+                  "$ref": "#/components/schemas/AuthError"
                 }
               }
             }
@@ -1539,35 +671,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$schema": "https://json-schema.org/draft/2020-12/schema",
-                  "type": "object",
-                  "properties": {
-                    "ok": {
-                      "type": "boolean",
-                      "const": false
-                    },
-                    "error": {
-                      "type": "string"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "requestId": {
-                      "type": "string"
-                    },
-                    "incidentId": {
-                      "type": "string"
-                    },
-                    "traceId": {
-                      "type": "string"
-                    },
-                    "retryAfter": {
-                      "type": "number",
-                      "minimum": 0
-                    }
-                  },
-                  "required": ["error"],
-                  "additionalProperties": {}
+                  "$ref": "#/components/schemas/AuthError"
                 }
               }
             }
@@ -1577,35 +681,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$schema": "https://json-schema.org/draft/2020-12/schema",
-                  "type": "object",
-                  "properties": {
-                    "ok": {
-                      "type": "boolean",
-                      "const": false
-                    },
-                    "error": {
-                      "type": "string"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "requestId": {
-                      "type": "string"
-                    },
-                    "incidentId": {
-                      "type": "string"
-                    },
-                    "traceId": {
-                      "type": "string"
-                    },
-                    "retryAfter": {
-                      "type": "number",
-                      "minimum": 0
-                    }
-                  },
-                  "required": ["error"],
-                  "additionalProperties": {}
+                  "$ref": "#/components/schemas/AuthError"
                 }
               }
             }
@@ -1615,35 +691,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$schema": "https://json-schema.org/draft/2020-12/schema",
-                  "type": "object",
-                  "properties": {
-                    "ok": {
-                      "type": "boolean",
-                      "const": false
-                    },
-                    "error": {
-                      "type": "string"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "requestId": {
-                      "type": "string"
-                    },
-                    "incidentId": {
-                      "type": "string"
-                    },
-                    "traceId": {
-                      "type": "string"
-                    },
-                    "retryAfter": {
-                      "type": "number",
-                      "minimum": 0
-                    }
-                  },
-                  "required": ["error"],
-                  "additionalProperties": {}
+                  "$ref": "#/components/schemas/AuthError"
                 }
               }
             }
@@ -1653,35 +701,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$schema": "https://json-schema.org/draft/2020-12/schema",
-                  "type": "object",
-                  "properties": {
-                    "ok": {
-                      "type": "boolean",
-                      "const": false
-                    },
-                    "error": {
-                      "type": "string"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "requestId": {
-                      "type": "string"
-                    },
-                    "incidentId": {
-                      "type": "string"
-                    },
-                    "traceId": {
-                      "type": "string"
-                    },
-                    "retryAfter": {
-                      "type": "number",
-                      "minimum": 0
-                    }
-                  },
-                  "required": ["error"],
-                  "additionalProperties": {}
+                  "$ref": "#/components/schemas/AuthError"
                 }
               }
             }
@@ -1691,35 +711,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$schema": "https://json-schema.org/draft/2020-12/schema",
-                  "type": "object",
-                  "properties": {
-                    "ok": {
-                      "type": "boolean",
-                      "const": false
-                    },
-                    "error": {
-                      "type": "string"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "requestId": {
-                      "type": "string"
-                    },
-                    "incidentId": {
-                      "type": "string"
-                    },
-                    "traceId": {
-                      "type": "string"
-                    },
-                    "retryAfter": {
-                      "type": "number",
-                      "minimum": 0
-                    }
-                  },
-                  "required": ["error"],
-                  "additionalProperties": {}
+                  "$ref": "#/components/schemas/AuthError"
                 }
               }
             }
@@ -1761,35 +753,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$schema": "https://json-schema.org/draft/2020-12/schema",
-                  "type": "object",
-                  "properties": {
-                    "ok": {
-                      "type": "boolean",
-                      "const": false
-                    },
-                    "error": {
-                      "type": "string"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "requestId": {
-                      "type": "string"
-                    },
-                    "incidentId": {
-                      "type": "string"
-                    },
-                    "traceId": {
-                      "type": "string"
-                    },
-                    "retryAfter": {
-                      "type": "number",
-                      "minimum": 0
-                    }
-                  },
-                  "required": ["error"],
-                  "additionalProperties": {}
+                  "$ref": "#/components/schemas/AuthError"
                 }
               }
             }
@@ -1799,35 +763,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$schema": "https://json-schema.org/draft/2020-12/schema",
-                  "type": "object",
-                  "properties": {
-                    "ok": {
-                      "type": "boolean",
-                      "const": false
-                    },
-                    "error": {
-                      "type": "string"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "requestId": {
-                      "type": "string"
-                    },
-                    "incidentId": {
-                      "type": "string"
-                    },
-                    "traceId": {
-                      "type": "string"
-                    },
-                    "retryAfter": {
-                      "type": "number",
-                      "minimum": 0
-                    }
-                  },
-                  "required": ["error"],
-                  "additionalProperties": {}
+                  "$ref": "#/components/schemas/AuthError"
                 }
               }
             }
@@ -1837,35 +773,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$schema": "https://json-schema.org/draft/2020-12/schema",
-                  "type": "object",
-                  "properties": {
-                    "ok": {
-                      "type": "boolean",
-                      "const": false
-                    },
-                    "error": {
-                      "type": "string"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "requestId": {
-                      "type": "string"
-                    },
-                    "incidentId": {
-                      "type": "string"
-                    },
-                    "traceId": {
-                      "type": "string"
-                    },
-                    "retryAfter": {
-                      "type": "number",
-                      "minimum": 0
-                    }
-                  },
-                  "required": ["error"],
-                  "additionalProperties": {}
+                  "$ref": "#/components/schemas/AuthError"
                 }
               }
             }
@@ -1875,35 +783,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$schema": "https://json-schema.org/draft/2020-12/schema",
-                  "type": "object",
-                  "properties": {
-                    "ok": {
-                      "type": "boolean",
-                      "const": false
-                    },
-                    "error": {
-                      "type": "string"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "requestId": {
-                      "type": "string"
-                    },
-                    "incidentId": {
-                      "type": "string"
-                    },
-                    "traceId": {
-                      "type": "string"
-                    },
-                    "retryAfter": {
-                      "type": "number",
-                      "minimum": 0
-                    }
-                  },
-                  "required": ["error"],
-                  "additionalProperties": {}
+                  "$ref": "#/components/schemas/AuthError"
                 }
               }
             }
@@ -1913,35 +793,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$schema": "https://json-schema.org/draft/2020-12/schema",
-                  "type": "object",
-                  "properties": {
-                    "ok": {
-                      "type": "boolean",
-                      "const": false
-                    },
-                    "error": {
-                      "type": "string"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "requestId": {
-                      "type": "string"
-                    },
-                    "incidentId": {
-                      "type": "string"
-                    },
-                    "traceId": {
-                      "type": "string"
-                    },
-                    "retryAfter": {
-                      "type": "number",
-                      "minimum": 0
-                    }
-                  },
-                  "required": ["error"],
-                  "additionalProperties": {}
+                  "$ref": "#/components/schemas/AuthError"
                 }
               }
             }
@@ -1951,35 +803,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$schema": "https://json-schema.org/draft/2020-12/schema",
-                  "type": "object",
-                  "properties": {
-                    "ok": {
-                      "type": "boolean",
-                      "const": false
-                    },
-                    "error": {
-                      "type": "string"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "requestId": {
-                      "type": "string"
-                    },
-                    "incidentId": {
-                      "type": "string"
-                    },
-                    "traceId": {
-                      "type": "string"
-                    },
-                    "retryAfter": {
-                      "type": "number",
-                      "minimum": 0
-                    }
-                  },
-                  "required": ["error"],
-                  "additionalProperties": {}
+                  "$ref": "#/components/schemas/AuthError"
                 }
               }
             }
@@ -1989,35 +813,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$schema": "https://json-schema.org/draft/2020-12/schema",
-                  "type": "object",
-                  "properties": {
-                    "ok": {
-                      "type": "boolean",
-                      "const": false
-                    },
-                    "error": {
-                      "type": "string"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "requestId": {
-                      "type": "string"
-                    },
-                    "incidentId": {
-                      "type": "string"
-                    },
-                    "traceId": {
-                      "type": "string"
-                    },
-                    "retryAfter": {
-                      "type": "number",
-                      "minimum": 0
-                    }
-                  },
-                  "required": ["error"],
-                  "additionalProperties": {}
+                  "$ref": "#/components/schemas/AuthError"
                 }
               }
             }
@@ -2027,35 +823,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$schema": "https://json-schema.org/draft/2020-12/schema",
-                  "type": "object",
-                  "properties": {
-                    "ok": {
-                      "type": "boolean",
-                      "const": false
-                    },
-                    "error": {
-                      "type": "string"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "requestId": {
-                      "type": "string"
-                    },
-                    "incidentId": {
-                      "type": "string"
-                    },
-                    "traceId": {
-                      "type": "string"
-                    },
-                    "retryAfter": {
-                      "type": "number",
-                      "minimum": 0
-                    }
-                  },
-                  "required": ["error"],
-                  "additionalProperties": {}
+                  "$ref": "#/components/schemas/AuthError"
                 }
               }
             }
@@ -2065,35 +833,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$schema": "https://json-schema.org/draft/2020-12/schema",
-                  "type": "object",
-                  "properties": {
-                    "ok": {
-                      "type": "boolean",
-                      "const": false
-                    },
-                    "error": {
-                      "type": "string"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "requestId": {
-                      "type": "string"
-                    },
-                    "incidentId": {
-                      "type": "string"
-                    },
-                    "traceId": {
-                      "type": "string"
-                    },
-                    "retryAfter": {
-                      "type": "number",
-                      "minimum": 0
-                    }
-                  },
-                  "required": ["error"],
-                  "additionalProperties": {}
+                  "$ref": "#/components/schemas/AuthError"
                 }
               }
             }
@@ -2103,35 +843,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$schema": "https://json-schema.org/draft/2020-12/schema",
-                  "type": "object",
-                  "properties": {
-                    "ok": {
-                      "type": "boolean",
-                      "const": false
-                    },
-                    "error": {
-                      "type": "string"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "requestId": {
-                      "type": "string"
-                    },
-                    "incidentId": {
-                      "type": "string"
-                    },
-                    "traceId": {
-                      "type": "string"
-                    },
-                    "retryAfter": {
-                      "type": "number",
-                      "minimum": 0
-                    }
-                  },
-                  "required": ["error"],
-                  "additionalProperties": {}
+                  "$ref": "#/components/schemas/AuthError"
                 }
               }
             }
@@ -2141,35 +853,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$schema": "https://json-schema.org/draft/2020-12/schema",
-                  "type": "object",
-                  "properties": {
-                    "ok": {
-                      "type": "boolean",
-                      "const": false
-                    },
-                    "error": {
-                      "type": "string"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "requestId": {
-                      "type": "string"
-                    },
-                    "incidentId": {
-                      "type": "string"
-                    },
-                    "traceId": {
-                      "type": "string"
-                    },
-                    "retryAfter": {
-                      "type": "number",
-                      "minimum": 0
-                    }
-                  },
-                  "required": ["error"],
-                  "additionalProperties": {}
+                  "$ref": "#/components/schemas/AuthError"
                 }
               }
             }
@@ -2179,35 +863,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$schema": "https://json-schema.org/draft/2020-12/schema",
-                  "type": "object",
-                  "properties": {
-                    "ok": {
-                      "type": "boolean",
-                      "const": false
-                    },
-                    "error": {
-                      "type": "string"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "requestId": {
-                      "type": "string"
-                    },
-                    "incidentId": {
-                      "type": "string"
-                    },
-                    "traceId": {
-                      "type": "string"
-                    },
-                    "retryAfter": {
-                      "type": "number",
-                      "minimum": 0
-                    }
-                  },
-                  "required": ["error"],
-                  "additionalProperties": {}
+                  "$ref": "#/components/schemas/AuthError"
                 }
               }
             }
@@ -2735,6 +1391,41 @@
             }
           }
         }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AuthError": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "const": false
+          },
+          "error": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          },
+          "requestId": {
+            "type": "string"
+          },
+          "incidentId": {
+            "type": "string"
+          },
+          "traceId": {
+            "type": "string"
+          },
+          "retryAfter": {
+            "type": "number",
+            "minimum": 0
+          }
+        },
+        "required": ["error"],
+        "additionalProperties": {}
       }
     }
   }

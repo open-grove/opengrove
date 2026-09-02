@@ -7,6 +7,7 @@ export type {
   AuthEmailCodeCreateErrors,
   AuthEmailCodeCreateResponse,
   AuthEmailCodeCreateResponses,
+  AuthError,
   AuthSessionCreateData,
   AuthSessionCreateError,
   AuthSessionCreateErrors,

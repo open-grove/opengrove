@@ -7,6 +7,7 @@ export type HostOperationResponse = Readonly<{
   status: number;
   body?: z.ZodType;
   description?: string;
+  schemaId?: string;
 }>;
 
 export type HostOperation = Readonly<{

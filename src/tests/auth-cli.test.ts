@@ -23,6 +23,13 @@ test("friendly auth commands coexist with canonical Protocol commands", () => {
   assert.equal(isAuthWorkflowCommand(["auth", "session", "get"]), false);
 });
 
+test("auth help recommends the friendly status command", async () => {
+  const result = await runAuthCommand(["--help"]);
+
+  assert.equal(result.exitCode, 0);
+  assert.match(result.stdout ?? "", /Recommended for checking login state: opengrove auth status/u);
+});
+
 test("global auth login persists one CLI session used by later Host commands", async () => {
   const root = await mkdtemp(join(tmpdir(), "opengrove-auth-cli-"));
   const authPath = join(root, "cli-auth.json");
@@ -170,7 +177,7 @@ test("failed auth login never replaces an existing CLI session", async () => {
   const root = await mkdtemp(join(tmpdir(), "opengrove-auth-cli-failure-"));
   const authPath = join(root, "cli-auth.json");
   try {
-    writeCliAuthState(
+    await writeCliAuthState(
       {
         bridgeApiUrl,
         stateId: "state-old",
@@ -204,7 +211,7 @@ test("stored CLI credentials are never sent to a different Bridge identity", asy
   const authPath = join(root, "cli-auth.json");
   const cookiesSeen: Array<string | null> = [];
   try {
-    writeCliAuthState(
+    await writeCliAuthState(
       {
         bridgeApiUrl,
         stateId: "state-paired",
@@ -231,8 +238,163 @@ test("stored CLI credentials are never sent to a different Bridge identity", asy
   }
 });
 
-function createFetch(handler: (url: string, init?: RequestInit) => Response): typeof fetch {
+test("an explicit Bridge token overrides the saved account session", async () => {
+  const root = await mkdtemp(join(tmpdir(), "opengrove-auth-cli-token-"));
+  const authPath = join(root, "cli-auth.json");
+  const apiHeaders: Headers[] = [];
+  try {
+    await writeCliAuthState(
+      {
+        bridgeApiUrl,
+        stateId: "state-1",
+        cookies: { opengrove_auth_refresh: "refresh-secret" },
+      },
+      authPath,
+    );
+    const result = await runHostOperationCommand(
+      [
+        "room",
+        "message",
+        "create",
+        "--room-id",
+        "room-1",
+        "--text",
+        "hello",
+        "--base-url",
+        bridgeApiUrl,
+        "--token",
+        "bridge-token",
+      ],
+      {
+        createClient: (config) => createCliOpenGroveClient({ ...config, authPath }),
+        fetch: createFetch((url, init) => {
+          if (url.endsWith("/opengrove-probe")) {
+            return json({ ok: true, product: "OpenGrove", stateId: "state-1" });
+          }
+          apiHeaders.push(new Headers(init?.headers));
+          return json(roomMessageResponse);
+        }),
+      },
+    );
+
+    assert.equal(result.exitCode, 0, result.stderr);
+    assert.equal(apiHeaders[0]?.get("x-opengrove-token"), "bridge-token");
+    assert.equal(apiHeaders[0]?.get("cookie"), null);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("a stale cookie rotation cannot overwrite a newer CLI login", async () => {
+  const root = await mkdtemp(join(tmpdir(), "opengrove-auth-cli-rotation-race-"));
+  const authPath = join(root, "cli-auth.json");
+  const response = deferred<Response>();
+  const requestStarted = deferred<void>();
+  try {
+    await writeCliAuthState(
+      {
+        bridgeApiUrl,
+        stateId: "state-1",
+        email: "old@example.test",
+        cookies: { opengrove_auth_refresh: "refresh-old" },
+      },
+      authPath,
+    );
+    const command = runHostOperationCommand(["room", "message", "create", "--room-id", "room-1", "--text", "hello"], {
+      createClient: (config) => createCliOpenGroveClient({ ...config, authPath }),
+      fetch: createFetch((url) => {
+        if (url.endsWith("/opengrove-probe")) {
+          return json({ ok: true, product: "OpenGrove", stateId: "state-1" });
+        }
+        requestStarted.resolve();
+        return response.promise;
+      }),
+    });
+
+    await requestStarted.promise;
+    await writeCliAuthState(
+      {
+        bridgeApiUrl,
+        stateId: "state-1",
+        email: "new@example.test",
+        cookies: { opengrove_auth_refresh: "refresh-new" },
+      },
+      authPath,
+    );
+    response.resolve(
+      json(
+        roomMessageResponse,
+        200,
+        cookies("opengrove_auth_refresh=refresh-from-stale-request; Path=/; Max-Age=3600"),
+      ),
+    );
+
+    const result = await command;
+    assert.equal(result.exitCode, 0, result.stderr);
+    assert.equal(readCliAuthState(authPath)?.email, "new@example.test");
+    assert.equal(readCliAuthState(authPath)?.cookies.opengrove_auth_refresh, "refresh-new");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("a stale unauthenticated status cannot delete a newer CLI login", async () => {
+  const root = await mkdtemp(join(tmpdir(), "opengrove-auth-cli-status-race-"));
+  const authPath = join(root, "cli-auth.json");
+  const response = deferred<Response>();
+  const requestStarted = deferred<void>();
+  try {
+    await writeCliAuthState(
+      {
+        bridgeApiUrl,
+        stateId: "state-1",
+        email: "old@example.test",
+        cookies: { opengrove_auth_refresh: "refresh-old" },
+      },
+      authPath,
+    );
+    const command = runAuthCommand(["status", "--base-url", bridgeApiUrl], {
+      authPath,
+      fetch: createFetch((url) => {
+        if (url.endsWith("/opengrove-probe")) {
+          return json({ ok: true, product: "OpenGrove", stateId: "state-1" });
+        }
+        requestStarted.resolve();
+        return response.promise;
+      }),
+    });
+
+    await requestStarted.promise;
+    await writeCliAuthState(
+      {
+        bridgeApiUrl,
+        stateId: "state-1",
+        email: "new@example.test",
+        cookies: { opengrove_auth_refresh: "refresh-new" },
+      },
+      authPath,
+    );
+    response.resolve(json({ status: "unauthenticated", authenticated: false, reason: "expired" }));
+
+    const result = await command;
+    assert.equal(result.exitCode, 0, result.stderr);
+    assert.equal(readCliAuthState(authPath)?.email, "new@example.test");
+    assert.equal(readCliAuthState(authPath)?.cookies.opengrove_auth_refresh, "refresh-new");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+function createFetch(handler: (url: string, init?: RequestInit) => Response | Promise<Response>): typeof fetch {
   return (async (input, init) => handler(String(input), init)) as typeof fetch;
+}
+
+function deferred<T>(): { promise: Promise<T>; resolve(value: T): void } {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((next) => {
+    resolve = next;
+  });
+  return { promise, resolve };
 }
 
 function json(body: unknown, status = 200, headers = new Headers()): Response {

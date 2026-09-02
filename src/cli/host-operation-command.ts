@@ -226,7 +226,7 @@ function renderOperationHelp(operation: CompiledHostOperation): string {
     "Common options:",
     "  --input <json>     Provide all operation fields as one JSON object; explicit field flags override it.",
     `  --base-url <url>   Bridge API base URL. Default: OPENGROVE_BRIDGE_URL or ${DEFAULT_HOST_OPERATION_BRIDGE_API_URL}.`,
-    "  --token <token>    Bridge token. Default: OPENGROVE_BRIDGE_TOKEN.",
+    "  --token <token>    Bridge token. Overrides the saved account session. Default: OPENGROVE_BRIDGE_TOKEN.",
     "  --format <format>  Output format. Currently: json (default).",
     "  --dry-run          Validate and print the request without sending it.",
     "  --yes              Confirm a high-risk write.",

@@ -141,8 +141,9 @@ Every canonical command shares these behaviors:
 - `--base-url`, falling back to `OPENGROVE_BRIDGE_URL`, verified local Bridge
   discovery, the last paired address, and then
   `http://127.0.0.1:37371/api`;
-- `--token`, falling back to `OPENGROVE_BRIDGE_TOKEN`, or the verified CLI
-  account session created by `opengrove auth login`;
+- `--token`, falling back to `OPENGROVE_BRIDGE_TOKEN`; an explicit token takes
+  precedence over the verified CLI account session created by
+  `opengrove auth login`;
 - JSON success on stdout and typed JSON errors on stderr;
 - `--dry-run`, which validates and applies Protocol defaults without network
   access;

@@ -4,6 +4,17 @@ export type ClientOptions = {
   baseUrl: `${string}://${string}/api` | (string & {});
 };
 
+export type AuthError = {
+  ok?: false;
+  error: string;
+  code?: string;
+  requestId?: string;
+  incidentId?: string;
+  traceId?: string;
+  retryAfter?: number;
+  [key: string]: unknown;
+};
+
 export type AuthEmailCodeCreateData = {
   body: {
     /**
@@ -20,159 +31,51 @@ export type AuthEmailCodeCreateErrors = {
   /**
    * The login code could not be sent.
    */
-  400: {
-    ok?: false;
-    error: string;
-    code?: string;
-    requestId?: string;
-    incidentId?: string;
-    traceId?: string;
-    retryAfter?: number;
-    [key: string]: unknown;
-  };
+  400: AuthError;
   /**
    * The login code could not be sent.
    */
-  401: {
-    ok?: false;
-    error: string;
-    code?: string;
-    requestId?: string;
-    incidentId?: string;
-    traceId?: string;
-    retryAfter?: number;
-    [key: string]: unknown;
-  };
+  401: AuthError;
   /**
    * The login code could not be sent.
    */
-  403: {
-    ok?: false;
-    error: string;
-    code?: string;
-    requestId?: string;
-    incidentId?: string;
-    traceId?: string;
-    retryAfter?: number;
-    [key: string]: unknown;
-  };
+  403: AuthError;
   /**
    * The login code could not be sent.
    */
-  408: {
-    ok?: false;
-    error: string;
-    code?: string;
-    requestId?: string;
-    incidentId?: string;
-    traceId?: string;
-    retryAfter?: number;
-    [key: string]: unknown;
-  };
+  408: AuthError;
   /**
    * The login code could not be sent.
    */
-  409: {
-    ok?: false;
-    error: string;
-    code?: string;
-    requestId?: string;
-    incidentId?: string;
-    traceId?: string;
-    retryAfter?: number;
-    [key: string]: unknown;
-  };
+  409: AuthError;
   /**
    * The login code could not be sent.
    */
-  413: {
-    ok?: false;
-    error: string;
-    code?: string;
-    requestId?: string;
-    incidentId?: string;
-    traceId?: string;
-    retryAfter?: number;
-    [key: string]: unknown;
-  };
+  413: AuthError;
   /**
    * The login code could not be sent.
    */
-  425: {
-    ok?: false;
-    error: string;
-    code?: string;
-    requestId?: string;
-    incidentId?: string;
-    traceId?: string;
-    retryAfter?: number;
-    [key: string]: unknown;
-  };
+  425: AuthError;
   /**
    * The login code could not be sent.
    */
-  429: {
-    ok?: false;
-    error: string;
-    code?: string;
-    requestId?: string;
-    incidentId?: string;
-    traceId?: string;
-    retryAfter?: number;
-    [key: string]: unknown;
-  };
+  429: AuthError;
   /**
    * The login code could not be sent.
    */
-  500: {
-    ok?: false;
-    error: string;
-    code?: string;
-    requestId?: string;
-    incidentId?: string;
-    traceId?: string;
-    retryAfter?: number;
-    [key: string]: unknown;
-  };
+  500: AuthError;
   /**
    * The login code could not be sent.
    */
-  502: {
-    ok?: false;
-    error: string;
-    code?: string;
-    requestId?: string;
-    incidentId?: string;
-    traceId?: string;
-    retryAfter?: number;
-    [key: string]: unknown;
-  };
+  502: AuthError;
   /**
    * The login code could not be sent.
    */
-  503: {
-    ok?: false;
-    error: string;
-    code?: string;
-    requestId?: string;
-    incidentId?: string;
-    traceId?: string;
-    retryAfter?: number;
-    [key: string]: unknown;
-  };
+  503: AuthError;
   /**
    * The login code could not be sent.
    */
-  504: {
-    ok?: false;
-    error: string;
-    code?: string;
-    requestId?: string;
-    incidentId?: string;
-    traceId?: string;
-    retryAfter?: number;
-    [key: string]: unknown;
-  };
+  504: AuthError;
 };
 
 export type AuthEmailCodeCreateError = AuthEmailCodeCreateErrors[keyof AuthEmailCodeCreateErrors];
@@ -228,159 +131,51 @@ export type AuthSessionCreateErrors = {
   /**
    * The account session could not be created.
    */
-  400: {
-    ok?: false;
-    error: string;
-    code?: string;
-    requestId?: string;
-    incidentId?: string;
-    traceId?: string;
-    retryAfter?: number;
-    [key: string]: unknown;
-  };
+  400: AuthError;
   /**
    * The account session could not be created.
    */
-  401: {
-    ok?: false;
-    error: string;
-    code?: string;
-    requestId?: string;
-    incidentId?: string;
-    traceId?: string;
-    retryAfter?: number;
-    [key: string]: unknown;
-  };
+  401: AuthError;
   /**
    * The account session could not be created.
    */
-  403: {
-    ok?: false;
-    error: string;
-    code?: string;
-    requestId?: string;
-    incidentId?: string;
-    traceId?: string;
-    retryAfter?: number;
-    [key: string]: unknown;
-  };
+  403: AuthError;
   /**
    * The account session could not be created.
    */
-  408: {
-    ok?: false;
-    error: string;
-    code?: string;
-    requestId?: string;
-    incidentId?: string;
-    traceId?: string;
-    retryAfter?: number;
-    [key: string]: unknown;
-  };
+  408: AuthError;
   /**
    * The account session could not be created.
    */
-  409: {
-    ok?: false;
-    error: string;
-    code?: string;
-    requestId?: string;
-    incidentId?: string;
-    traceId?: string;
-    retryAfter?: number;
-    [key: string]: unknown;
-  };
+  409: AuthError;
   /**
    * The account session could not be created.
    */
-  413: {
-    ok?: false;
-    error: string;
-    code?: string;
-    requestId?: string;
-    incidentId?: string;
-    traceId?: string;
-    retryAfter?: number;
-    [key: string]: unknown;
-  };
+  413: AuthError;
   /**
    * The account session could not be created.
    */
-  425: {
-    ok?: false;
-    error: string;
-    code?: string;
-    requestId?: string;
-    incidentId?: string;
-    traceId?: string;
-    retryAfter?: number;
-    [key: string]: unknown;
-  };
+  425: AuthError;
   /**
    * The account session could not be created.
    */
-  429: {
-    ok?: false;
-    error: string;
-    code?: string;
-    requestId?: string;
-    incidentId?: string;
-    traceId?: string;
-    retryAfter?: number;
-    [key: string]: unknown;
-  };
+  429: AuthError;
   /**
    * The account session could not be created.
    */
-  500: {
-    ok?: false;
-    error: string;
-    code?: string;
-    requestId?: string;
-    incidentId?: string;
-    traceId?: string;
-    retryAfter?: number;
-    [key: string]: unknown;
-  };
+  500: AuthError;
   /**
    * The account session could not be created.
    */
-  502: {
-    ok?: false;
-    error: string;
-    code?: string;
-    requestId?: string;
-    incidentId?: string;
-    traceId?: string;
-    retryAfter?: number;
-    [key: string]: unknown;
-  };
+  502: AuthError;
   /**
    * The account session could not be created.
    */
-  503: {
-    ok?: false;
-    error: string;
-    code?: string;
-    requestId?: string;
-    incidentId?: string;
-    traceId?: string;
-    retryAfter?: number;
-    [key: string]: unknown;
-  };
+  503: AuthError;
   /**
    * The account session could not be created.
    */
-  504: {
-    ok?: false;
-    error: string;
-    code?: string;
-    requestId?: string;
-    incidentId?: string;
-    traceId?: string;
-    retryAfter?: number;
-    [key: string]: unknown;
-  };
+  504: AuthError;
 };
 
 export type AuthSessionCreateError = AuthSessionCreateErrors[keyof AuthSessionCreateErrors];
@@ -433,159 +228,51 @@ export type AuthSessionGetErrors = {
   /**
    * The account session could not be read.
    */
-  400: {
-    ok?: false;
-    error: string;
-    code?: string;
-    requestId?: string;
-    incidentId?: string;
-    traceId?: string;
-    retryAfter?: number;
-    [key: string]: unknown;
-  };
+  400: AuthError;
   /**
    * The account session could not be read.
    */
-  401: {
-    ok?: false;
-    error: string;
-    code?: string;
-    requestId?: string;
-    incidentId?: string;
-    traceId?: string;
-    retryAfter?: number;
-    [key: string]: unknown;
-  };
+  401: AuthError;
   /**
    * The account session could not be read.
    */
-  403: {
-    ok?: false;
-    error: string;
-    code?: string;
-    requestId?: string;
-    incidentId?: string;
-    traceId?: string;
-    retryAfter?: number;
-    [key: string]: unknown;
-  };
+  403: AuthError;
   /**
    * The account session could not be read.
    */
-  408: {
-    ok?: false;
-    error: string;
-    code?: string;
-    requestId?: string;
-    incidentId?: string;
-    traceId?: string;
-    retryAfter?: number;
-    [key: string]: unknown;
-  };
+  408: AuthError;
   /**
    * The account session could not be read.
    */
-  409: {
-    ok?: false;
-    error: string;
-    code?: string;
-    requestId?: string;
-    incidentId?: string;
-    traceId?: string;
-    retryAfter?: number;
-    [key: string]: unknown;
-  };
+  409: AuthError;
   /**
    * The account session could not be read.
    */
-  413: {
-    ok?: false;
-    error: string;
-    code?: string;
-    requestId?: string;
-    incidentId?: string;
-    traceId?: string;
-    retryAfter?: number;
-    [key: string]: unknown;
-  };
+  413: AuthError;
   /**
    * The account session could not be read.
    */
-  425: {
-    ok?: false;
-    error: string;
-    code?: string;
-    requestId?: string;
-    incidentId?: string;
-    traceId?: string;
-    retryAfter?: number;
-    [key: string]: unknown;
-  };
+  425: AuthError;
   /**
    * The account session could not be read.
    */
-  429: {
-    ok?: false;
-    error: string;
-    code?: string;
-    requestId?: string;
-    incidentId?: string;
-    traceId?: string;
-    retryAfter?: number;
-    [key: string]: unknown;
-  };
+  429: AuthError;
   /**
    * The account session could not be read.
    */
-  500: {
-    ok?: false;
-    error: string;
-    code?: string;
-    requestId?: string;
-    incidentId?: string;
-    traceId?: string;
-    retryAfter?: number;
-    [key: string]: unknown;
-  };
+  500: AuthError;
   /**
    * The account session could not be read.
    */
-  502: {
-    ok?: false;
-    error: string;
-    code?: string;
-    requestId?: string;
-    incidentId?: string;
-    traceId?: string;
-    retryAfter?: number;
-    [key: string]: unknown;
-  };
+  502: AuthError;
   /**
    * The account session could not be read.
    */
-  503: {
-    ok?: false;
-    error: string;
-    code?: string;
-    requestId?: string;
-    incidentId?: string;
-    traceId?: string;
-    retryAfter?: number;
-    [key: string]: unknown;
-  };
+  503: AuthError;
   /**
    * The account session could not be read.
    */
-  504: {
-    ok?: false;
-    error: string;
-    code?: string;
-    requestId?: string;
-    incidentId?: string;
-    traceId?: string;
-    retryAfter?: number;
-    [key: string]: unknown;
-  };
+  504: AuthError;
 };
 
 export type AuthSessionGetError = AuthSessionGetErrors[keyof AuthSessionGetErrors];
@@ -643,159 +330,51 @@ export type AuthSessionDeleteErrors = {
   /**
    * The account session could not be deleted.
    */
-  400: {
-    ok?: false;
-    error: string;
-    code?: string;
-    requestId?: string;
-    incidentId?: string;
-    traceId?: string;
-    retryAfter?: number;
-    [key: string]: unknown;
-  };
+  400: AuthError;
   /**
    * The account session could not be deleted.
    */
-  401: {
-    ok?: false;
-    error: string;
-    code?: string;
-    requestId?: string;
-    incidentId?: string;
-    traceId?: string;
-    retryAfter?: number;
-    [key: string]: unknown;
-  };
+  401: AuthError;
   /**
    * The account session could not be deleted.
    */
-  403: {
-    ok?: false;
-    error: string;
-    code?: string;
-    requestId?: string;
-    incidentId?: string;
-    traceId?: string;
-    retryAfter?: number;
-    [key: string]: unknown;
-  };
+  403: AuthError;
   /**
    * The account session could not be deleted.
    */
-  408: {
-    ok?: false;
-    error: string;
-    code?: string;
-    requestId?: string;
-    incidentId?: string;
-    traceId?: string;
-    retryAfter?: number;
-    [key: string]: unknown;
-  };
+  408: AuthError;
   /**
    * The account session could not be deleted.
    */
-  409: {
-    ok?: false;
-    error: string;
-    code?: string;
-    requestId?: string;
-    incidentId?: string;
-    traceId?: string;
-    retryAfter?: number;
-    [key: string]: unknown;
-  };
+  409: AuthError;
   /**
    * The account session could not be deleted.
    */
-  413: {
-    ok?: false;
-    error: string;
-    code?: string;
-    requestId?: string;
-    incidentId?: string;
-    traceId?: string;
-    retryAfter?: number;
-    [key: string]: unknown;
-  };
+  413: AuthError;
   /**
    * The account session could not be deleted.
    */
-  425: {
-    ok?: false;
-    error: string;
-    code?: string;
-    requestId?: string;
-    incidentId?: string;
-    traceId?: string;
-    retryAfter?: number;
-    [key: string]: unknown;
-  };
+  425: AuthError;
   /**
    * The account session could not be deleted.
    */
-  429: {
-    ok?: false;
-    error: string;
-    code?: string;
-    requestId?: string;
-    incidentId?: string;
-    traceId?: string;
-    retryAfter?: number;
-    [key: string]: unknown;
-  };
+  429: AuthError;
   /**
    * The account session could not be deleted.
    */
-  500: {
-    ok?: false;
-    error: string;
-    code?: string;
-    requestId?: string;
-    incidentId?: string;
-    traceId?: string;
-    retryAfter?: number;
-    [key: string]: unknown;
-  };
+  500: AuthError;
   /**
    * The account session could not be deleted.
    */
-  502: {
-    ok?: false;
-    error: string;
-    code?: string;
-    requestId?: string;
-    incidentId?: string;
-    traceId?: string;
-    retryAfter?: number;
-    [key: string]: unknown;
-  };
+  502: AuthError;
   /**
    * The account session could not be deleted.
    */
-  503: {
-    ok?: false;
-    error: string;
-    code?: string;
-    requestId?: string;
-    incidentId?: string;
-    traceId?: string;
-    retryAfter?: number;
-    [key: string]: unknown;
-  };
+  503: AuthError;
   /**
    * The account session could not be deleted.
    */
-  504: {
-    ok?: false;
-    error: string;
-    code?: string;
-    requestId?: string;
-    incidentId?: string;
-    traceId?: string;
-    retryAfter?: number;
-    [key: string]: unknown;
-  };
+  504: AuthError;
 };
 
 export type AuthSessionDeleteError = AuthSessionDeleteErrors[keyof AuthSessionDeleteErrors];

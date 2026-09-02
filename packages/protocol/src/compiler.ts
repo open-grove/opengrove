@@ -17,6 +17,7 @@ export type CompiledHostInputSection = Readonly<{
 export type CompiledHostResponse = Readonly<{
   status: number;
   description?: string;
+  schemaId?: string;
   jsonSchema?: Readonly<Record<string, unknown>>;
 }>;
 
@@ -208,9 +209,18 @@ function compileResponse(operationId: string, kind: "success" | "error", respons
   if (!Number.isInteger(response.status) || response.status < 100 || response.status > 599) {
     throw new Error(`Host operation ${operationId} ${kind} status must be an HTTP status code.`);
   }
+  if (response.schemaId && !/^[A-Z][A-Za-z0-9]*$/u.test(response.schemaId)) {
+    throw new Error(
+      `Host operation ${operationId} ${kind} schemaId ${response.schemaId} must use PascalCase identifier syntax.`,
+    );
+  }
+  if (response.schemaId && !response.body) {
+    throw new Error(`Host operation ${operationId} ${kind} schemaId requires a response body.`);
+  }
   return {
     status: response.status,
     ...(response.description ? { description: response.description } : {}),
+    ...(response.schemaId ? { schemaId: response.schemaId } : {}),
     ...(response.body
       ? { jsonSchema: compileJsonSchema(operationId, `${kind} response`, response.body, "output") }
       : {}),

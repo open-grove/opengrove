@@ -20,7 +20,10 @@ and Data.
   must not be committed or packaged into public Apps.
 - The CLI keeps a separate account session in an owner-only local credential
   file. It probes the loopback Bridge and matches its persisted `stateId` before
-  sending cookies; failed login attempts never replace the previous session.
+  sending cookies. The identifier matches a local Bridge instance; it is not a
+  secret or an authentication boundary. Revision-checked, locked updates keep a
+  stale concurrent CLI process from overwriting a newer session, and failed
+  login attempts never replace the previous session.
 - Risky Kernel actions remain subject to the Kernel and Host approval policies.
 
 ## Background network boundary
