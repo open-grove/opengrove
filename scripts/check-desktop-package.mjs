@@ -28,6 +28,7 @@ const requiredPaths = [
   "node_modules/@anthropic-ai/claude-agent-sdk/LICENSE.md",
   "node_modules/yaml/dist/doc/directives.js",
 ];
+const forbiddenDesktopPackagePaths = ["dist/sdk", "desktop-dist/sdk", "web-dist/sdk"];
 
 const forbiddenNamePattern =
   /(^|[\\/])(\.env(?:\..*)?|data|node_modules|docs[\\/]reference[\\/]kernel-integration-references)([\\/]|$)/;
@@ -36,6 +37,11 @@ const errors = [];
 for (const path of requiredPaths) {
   if (!existsSync(join(projectRoot, path))) {
     errors.push(`missing required desktop package input: ${path}`);
+  }
+}
+for (const path of forbiddenDesktopPackagePaths) {
+  if (existsSync(join(projectRoot, path))) {
+    errors.push(`desktop package inputs must not contain the external SDK: ${path}`);
   }
 }
 
@@ -54,6 +60,23 @@ if (existsSync(webIndexPath)) {
 
 const electronBuilderConfig = readFileSync(join(projectRoot, "electron-builder.yml"), "utf8");
 const parsedElectronBuilderConfig = yaml.load(electronBuilderConfig);
+const desktopPackageFileRules = [
+  ...(parsedElectronBuilderConfig?.files ?? []),
+  ...(parsedElectronBuilderConfig?.mac?.files ?? []),
+  ...(parsedElectronBuilderConfig?.win?.files ?? []),
+  ...(parsedElectronBuilderConfig?.linux?.files ?? []),
+];
+for (const rule of desktopPackageFileRules) {
+  const serializedRule = typeof rule === "string" ? rule : JSON.stringify(rule);
+  if (!serializedRule.startsWith("!") && /(?:packages[\\/]sdk|@hey-api)/u.test(serializedRule)) {
+    errors.push(`electron-builder.yml must not include the external SDK: ${serializedRule}`);
+  }
+}
+for (const dependency of Object.keys(packageJson.dependencies ?? {})) {
+  if (dependency === "@opengrove/sdk" || dependency.startsWith("@hey-api/")) {
+    errors.push(`desktop runtime dependencies must not include the external SDK: ${dependency}`);
+  }
+}
 const configuredProtocolSchemes =
   parsedElectronBuilderConfig?.protocols?.flatMap((entry) => entry?.schemes ?? []) ?? [];
 if (!configuredProtocolSchemes.includes("opengrove")) {

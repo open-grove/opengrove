@@ -7,7 +7,23 @@ const packageRules = [
   { name: "client", externalImports: new Set(["#protocol"]) },
   { name: "sdk", externalImports: new Set() },
 ];
+const runtimeRules = [
+  { name: "Web runtime", sourceRoot: join(projectRoot, "web", "src") },
+  { name: "Server and CLI runtime", sourceRoot: join(projectRoot, "src") },
+  { name: "Desktop runtime", sourceRoot: join(projectRoot, "desktop") },
+];
 const errors = [];
+
+const importScannerFixtures = [
+  ['import sdk from "@opengrove/sdk";', "@opengrove/sdk"],
+  ["import '@hey-api/client-fetch';", "@hey-api/client-fetch"],
+  ["void import(`@opengrove/sdk`);", "@opengrove/sdk"],
+];
+for (const [source, expected] of importScannerFixtures) {
+  if (!moduleSpecifiers(source).includes(expected)) {
+    errors.push(`client boundary import scanner must recognize ${expected}`);
+  }
+}
 
 if (existsSync(join(projectRoot, "packages", "client", "src", "generated", "hey-api"))) {
   errors.push("packages/client must not contain the external Hey API SDK");
@@ -19,18 +35,10 @@ for (const rule of packageRules) {
     errors.push(`packages/${rule.name}/src must exist`);
     continue;
   }
-  for (const file of typescriptFiles(sourceRoot)) {
+  for (const file of moduleSourceFiles(sourceRoot)) {
     const source = readFileSync(file, "utf8");
-    for (const match of source.matchAll(/(?:from\s+|import\s*\()\s*["']([^"']+)["']/gu)) {
-      const specifier = match[1];
-      if (
-        rule.name === "client" &&
-        specifier &&
-        (specifier.includes("hey-api") ||
-          specifier === "@opengrove/sdk" ||
-          specifier.startsWith("@opengrove/sdk/") ||
-          relativeImportTargetsPackage(file, specifier, "sdk"))
-      ) {
+    for (const specifier of moduleSpecifiers(source)) {
+      if (rule.name === "client" && (isExternalSdkImport(file, specifier) || specifier.includes("hey-api"))) {
         errors.push(`packages/client must not depend on the external SDK in ${file.slice(projectRoot.length + 1)}`);
         continue;
       }
@@ -63,14 +71,20 @@ const webForbiddenImports = new Set([
   "@opengrove/protocol/compiled",
   "@opengrove/protocol/compiler",
 ]);
-for (const file of typescriptFiles(join(projectRoot, "web", "src"))) {
-  const source = readFileSync(file, "utf8");
-  for (const match of source.matchAll(/(?:from\s+|import\s*\()\s*["']([^"']+)["']/gu)) {
-    const specifier = match[1];
-    if (specifier && webForbiddenImports.has(specifier)) {
-      errors.push(
-        `Web runtime has a forbidden Protocol build import in ${file.slice(projectRoot.length + 1)}: ${specifier}`,
-      );
+for (const rule of runtimeRules) {
+  for (const file of moduleSourceFiles(rule.sourceRoot)) {
+    const source = readFileSync(file, "utf8");
+    for (const specifier of moduleSpecifiers(source)) {
+      if (isExternalSdkImport(file, specifier)) {
+        errors.push(
+          `${rule.name} must not depend on the external SDK in ${file.slice(projectRoot.length + 1)}: ${specifier}`,
+        );
+      }
+      if (rule.name === "Web runtime" && webForbiddenImports.has(specifier)) {
+        errors.push(
+          `Web runtime has a forbidden Protocol build import in ${file.slice(projectRoot.length + 1)}: ${specifier}`,
+        );
+      }
     }
   }
 }
@@ -82,16 +96,33 @@ if (errors.length) {
 
 console.log("Client package boundaries passed.");
 
+function moduleSpecifiers(source) {
+  return Array.from(
+    source.matchAll(/(?:\bfrom\s+|\bimport\s*(?:\(\s*)?|\brequire\s*\(\s*)(["'`])([^"'`]+)\1/gu),
+    (match) => match[2],
+  ).filter(Boolean);
+}
+
+function isExternalSdkImport(file, specifier) {
+  return (
+    specifier === "@opengrove/sdk" ||
+    specifier.startsWith("@opengrove/sdk/") ||
+    specifier === "@hey-api" ||
+    specifier.startsWith("@hey-api/") ||
+    relativeImportTargetsPackage(file, specifier, "sdk")
+  );
+}
+
 function relativeImportTargetsPackage(file, specifier, packageName) {
   if (!specifier.startsWith(".")) return false;
   const target = relative(projectRoot, resolve(dirname(file), specifier)).replaceAll("\\", "/");
   return target === `packages/${packageName}` || target.startsWith(`packages/${packageName}/`);
 }
 
-function typescriptFiles(directory) {
+function moduleSourceFiles(directory) {
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
     const path = join(directory, entry.name);
-    if (entry.isDirectory()) return typescriptFiles(path);
-    return entry.isFile() && entry.name.endsWith(".ts") ? [path] : [];
+    if (entry.isDirectory()) return moduleSourceFiles(path);
+    return entry.isFile() && /\.(?:[cm]?[jt]s|[jt]sx)$/u.test(entry.name) ? [path] : [];
   });
 }
