@@ -200,7 +200,8 @@ export function decodeHostOperationCall(
 export function hostOperationSchemaValueLabel(schema: Readonly<Record<string, unknown>>): string {
   const type = schemaType(schema);
   if (type !== "array") return type ?? "json";
-  const items = isRecord(schema.items) ? schema.items : {};
+  const arraySchema = nonNullSchema(schema);
+  const items = isRecord(arraySchema.items) ? arraySchema.items : {};
   return `${schemaType(items) ?? "json"}...`;
 }
 
@@ -260,7 +261,8 @@ function parseFieldValue(field: HostOperationCliField, value: string): unknown {
         }
         return parsed;
       }
-      const items = isRecord(field.schema.items) ? field.schema.items : {};
+      const arraySchema = nonNullSchema(field.schema);
+      const items = isRecord(arraySchema.items) ? arraySchema.items : {};
       return parseScalarValue(items, value, `--${field.flag}`);
     }
     case "object": {
@@ -344,11 +346,20 @@ function parseJson(value: string, owner: string): unknown {
 }
 
 function schemaType(schema: Readonly<Record<string, unknown>>): string | undefined {
+  const normalized = nonNullSchema(schema);
+  if (normalized !== schema) return schemaType(normalized);
   if (typeof schema.type === "string") return schema.type;
   if (Array.isArray(schema.type)) {
     return schema.type.find((value): value is string => typeof value === "string" && value !== "null");
   }
   return undefined;
+}
+
+function nonNullSchema(schema: Readonly<Record<string, unknown>>): Readonly<Record<string, unknown>> {
+  if (!Array.isArray(schema.anyOf)) return schema;
+  const variants = schema.anyOf.filter(isRecord);
+  const nonNullVariants = variants.filter((variant) => schemaType(variant) !== "null");
+  return nonNullVariants.length === 1 ? nonNullVariants[0]! : schema;
 }
 
 function arrayValue(value: unknown): unknown[] {

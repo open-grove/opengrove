@@ -1,6 +1,40 @@
 import { z } from "zod";
 import { defineHostOperation, defineHostOperationGroup, defineHostOperationResource } from "./operation.js";
 
+const roomIdentifierSchema = z.string().trim().min(1);
+
+function optionalRoomIdentifier(description: string) {
+  return roomIdentifierSchema
+    .nullish()
+    .transform((value) => value ?? undefined)
+    .describe(description);
+}
+
+function roomIdentifierList(description: string) {
+  return z
+    .array(z.string())
+    .nullable()
+    .default([])
+    .transform((values) => [...new Set((values ?? []).map((value) => value.trim()).filter(Boolean))])
+    .describe(description);
+}
+
+const roomMessageAttachmentsSchema = z
+  .array(z.unknown())
+  .nullable()
+  .default([])
+  .transform((value) => value ?? [])
+  .describe("Structured message attachments; null is treated as an empty list.");
+
+const roomSelectedFileSchema = z
+  .object({ path: z.string() })
+  .nullish()
+  .transform((value) => {
+    const path = value?.path.trim() ?? "";
+    return path ? { path } : undefined;
+  })
+  .describe("Selected local file reference; null or an empty path means no selected file.");
+
 const roomSchema = z
   .object({
     id: z.string(),
@@ -52,19 +86,24 @@ export const createRoomMessageOperation = defineHostOperation({
   path: "/rooms/{roomId}/messages",
   risk: "write",
   params: z.object({
-    roomId: z.string().min(1).describe("Room identifier."),
+    roomId: roomIdentifierSchema.describe("Room identifier; surrounding whitespace is ignored."),
   }),
   body: z.object({
     text: z.string().default("").describe("Message text."),
-    targetIds: z.array(z.string()).default([]).describe("Employee identifiers addressed by the message."),
-    attachments: z.array(z.unknown()).default([]).describe("Structured message attachments."),
-    selectedFile: z
-      .object({ path: z.string() })
-      .optional()
-      .describe("Selected local file reference; an empty path means no selected file."),
-    userMessageId: z.string().optional().describe("Caller-provided idempotent user message identifier."),
-    assistantMessageIds: z.array(z.string()).optional().describe("Reserved assistant message identifiers."),
-    inReplyToMessageId: z.string().optional().describe("Parent message identifier for a reply."),
+    targetIds: roomIdentifierList(
+      "Employee identifiers addressed by the message; surrounding whitespace is ignored, and empty or duplicate values are removed.",
+    ),
+    attachments: roomMessageAttachmentsSchema,
+    selectedFile: roomSelectedFileSchema,
+    userMessageId: optionalRoomIdentifier(
+      "Caller-provided idempotent user message identifier; surrounding whitespace is ignored.",
+    ),
+    assistantMessageIds: roomIdentifierList(
+      "Reserved assistant message identifiers; surrounding whitespace is ignored, and empty or duplicate values are removed.",
+    ),
+    inReplyToMessageId: optionalRoomIdentifier(
+      "Parent message identifier for a reply; surrounding whitespace is ignored.",
+    ),
   }),
   success: {
     status: 200,

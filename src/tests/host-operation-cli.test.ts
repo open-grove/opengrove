@@ -150,6 +150,31 @@ test("Host CLI dry-run validates input, applies defaults, and never sends a requ
       targetIds: ["employee-1", "employee-2"],
       attachments: [],
       selectedFile: { path: "notes/plan.md" },
+      assistantMessageIds: [],
+    },
+  });
+});
+
+test("Host CLI dry-run shows the Protocol-normalized room message request", async () => {
+  const result = await runHostOperationCommand([
+    "room",
+    "message",
+    "create",
+    "--input",
+    '{"roomId":"  room-1  ","text":"hello","targetIds":[" employee-1 ","","employee-1"],"attachments":null,"selectedFile":null}',
+    "--dry-run",
+  ]);
+
+  assert.equal(result.exitCode, HOST_OPERATION_CLI_EXIT.success, result.stderr);
+  assert.deepEqual(readOutput(result).request, {
+    method: "POST",
+    path: "/rooms/{roomId}/messages",
+    params: { roomId: "room-1" },
+    body: {
+      text: "hello",
+      targetIds: ["employee-1"],
+      attachments: [],
+      assistantMessageIds: [],
     },
   });
 });
@@ -188,6 +213,7 @@ test("Host CLI sends validated commands through OpenGrove Client", async () => {
     text: "hello",
     targetIds: ["employee-1", "employee-2"],
     attachments: [],
+    assistantMessageIds: [],
   });
   assert.equal(readOutput(result).operation, "room.message.create");
 });

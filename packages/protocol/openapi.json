@@ -32,11 +32,11 @@
             "name": "roomId",
             "in": "path",
             "required": true,
-            "description": "Room identifier.",
+            "description": "Room identifier; surrounding whitespace is ignored.",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "Room identifier."
+              "description": "Room identifier; surrounding whitespace is ignored."
             }
           }
         ],
@@ -54,43 +54,88 @@
                     "type": "string"
                   },
                   "targetIds": {
+                    "description": "Employee identifiers addressed by the message; surrounding whitespace is ignored, and empty or duplicate values are removed.",
                     "default": [],
-                    "description": "Employee identifiers addressed by the message.",
-                    "type": "array",
-                    "items": {
-                      "type": "string"
-                    }
+                    "anyOf": [
+                      {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   },
                   "attachments": {
+                    "description": "Structured message attachments; null is treated as an empty list.",
                     "default": [],
-                    "description": "Structured message attachments.",
-                    "type": "array",
-                    "items": {}
+                    "anyOf": [
+                      {
+                        "type": "array",
+                        "items": {}
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   },
                   "selectedFile": {
-                    "description": "Selected local file reference; an empty path means no selected file.",
-                    "type": "object",
-                    "properties": {
-                      "path": {
-                        "type": "string"
+                    "description": "Selected local file reference; null or an empty path means no selected file.",
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "path": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["path"]
+                      },
+                      {
+                        "type": "null"
                       }
-                    },
-                    "required": ["path"]
+                    ]
                   },
                   "userMessageId": {
-                    "description": "Caller-provided idempotent user message identifier.",
-                    "type": "string"
+                    "description": "Caller-provided idempotent user message identifier; surrounding whitespace is ignored.",
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   },
                   "assistantMessageIds": {
-                    "description": "Reserved assistant message identifiers.",
-                    "type": "array",
-                    "items": {
-                      "type": "string"
-                    }
+                    "description": "Reserved assistant message identifiers; surrounding whitespace is ignored, and empty or duplicate values are removed.",
+                    "default": [],
+                    "anyOf": [
+                      {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   },
                   "inReplyToMessageId": {
-                    "description": "Parent message identifier for a reply.",
-                    "type": "string"
+                    "description": "Parent message identifier for a reply; surrounding whitespace is ignored.",
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   }
                 }
               }

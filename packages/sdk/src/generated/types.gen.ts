@@ -11,35 +11,35 @@ export type RoomMessageCreateData = {
      */
     text?: string;
     /**
-     * Employee identifiers addressed by the message.
+     * Employee identifiers addressed by the message; surrounding whitespace is ignored, and empty or duplicate values are removed.
      */
-    targetIds?: Array<string>;
+    targetIds?: Array<string> | null;
     /**
-     * Structured message attachments.
+     * Structured message attachments; null is treated as an empty list.
      */
-    attachments?: Array<unknown>;
+    attachments?: Array<unknown> | null;
     /**
-     * Selected local file reference; an empty path means no selected file.
+     * Selected local file reference; null or an empty path means no selected file.
      */
     selectedFile?: {
       path: string;
-    };
+    } | null;
     /**
-     * Caller-provided idempotent user message identifier.
+     * Caller-provided idempotent user message identifier; surrounding whitespace is ignored.
      */
-    userMessageId?: string;
+    userMessageId?: string | null;
     /**
-     * Reserved assistant message identifiers.
+     * Reserved assistant message identifiers; surrounding whitespace is ignored, and empty or duplicate values are removed.
      */
-    assistantMessageIds?: Array<string>;
+    assistantMessageIds?: Array<string> | null;
     /**
-     * Parent message identifier for a reply.
+     * Parent message identifier for a reply; surrounding whitespace is ignored.
      */
-    inReplyToMessageId?: string;
+    inReplyToMessageId?: string | null;
   };
   path: {
     /**
-     * Room identifier.
+     * Room identifier; surrounding whitespace is ignored.
      */
     roomId: string;
   };

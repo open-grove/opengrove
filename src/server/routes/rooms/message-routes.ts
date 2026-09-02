@@ -120,7 +120,7 @@ export async function handleCreateRoomMessageOperation(
   const { roomId } = context.input.params;
   const body = context.input.body;
   const text = body.text;
-  const selectedFile = normalizeRoomSelectedFile(body.selectedFile);
+  const selectedFile = body.selectedFile;
   const inReplyToMessageId = body.inReplyToMessageId;
   const replyParent = inReplyToMessageId ? state.app.rooms.getMessage(roomId, inReplyToMessageId) : undefined;
   if (inReplyToMessageId && !replyParent) {
@@ -164,7 +164,7 @@ export async function handleCreateRoomMessageOperation(
         attachments: readAttachments(body.attachments),
         assistantTargets: pmAssistantTargets,
         userMessageId: body.userMessageId,
-        assistantMessageIds: body.assistantMessageIds ?? [],
+        assistantMessageIds: body.assistantMessageIds,
         deliveryKind: "pm_auto_route",
         inReplyToMessageId,
         rootMessageId,
@@ -189,7 +189,7 @@ export async function handleCreateRoomMessageOperation(
       attachments: readAttachments(body.attachments),
       assistantTargets,
       userMessageId: body.userMessageId,
-      assistantMessageIds: body.assistantMessageIds ?? [],
+      assistantMessageIds: body.assistantMessageIds,
       deliveryKind: userDeliveryKind,
       inReplyToMessageId,
       rootMessageId,
@@ -204,7 +204,7 @@ export async function handleCreateRoomMessageOperation(
     attachments: readAttachments(body.attachments),
     assistantTargets,
     userMessageId: body.userMessageId,
-    assistantMessageIds: body.assistantMessageIds ?? [],
+    assistantMessageIds: body.assistantMessageIds,
     deliveryKind: userDeliveryKind,
     inReplyToMessageId,
     rootMessageId,

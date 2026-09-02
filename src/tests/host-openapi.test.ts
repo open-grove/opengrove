@@ -26,12 +26,23 @@ test("Host Protocol projects every operation into OpenAPI 3.1", () => {
       name: "roomId",
       in: "path",
       required: true,
-      description: "Room identifier.",
-      schema: { type: "string", minLength: 1, description: "Room identifier." },
+      description: "Room identifier; surrounding whitespace is ignored.",
+      schema: {
+        type: "string",
+        minLength: 1,
+        description: "Room identifier; surrounding whitespace is ignored.",
+      },
     },
   ]);
   assert.equal(requestBody.required, true);
-  assert.equal(readRecord(requestContent.schema).type, "object");
+  const requestSchema = readRecord(requestContent.schema);
+  assert.equal(requestSchema.type, "object");
+  const requestProperties = readRecord(requestSchema.properties);
+  assert.deepEqual(readRecord(requestProperties.targetIds).anyOf, [
+    { type: "array", items: { type: "string" } },
+    { type: "null" },
+  ]);
+  assert.deepEqual(readRecord(requestProperties.attachments).anyOf, [{ type: "array", items: {} }, { type: "null" }]);
   assert.deepEqual(Object.keys(responses), ["200", "400", "401", "403", "404", "503"]);
 });
 

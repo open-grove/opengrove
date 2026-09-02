@@ -84,6 +84,31 @@ test("room-message operation owns method, path, risk, and JSON contracts", () =>
   assert.equal(registered.contract, createRoomMessageOperation);
 });
 
+test("room-message operation normalizes legacy nullable values and identifiers", () => {
+  assert.deepEqual(createRoomMessageOperation.params.parse({ roomId: "  room-1  " }), { roomId: "room-1" });
+  assert.deepEqual(
+    createRoomMessageOperation.body.parse({
+      text: "  hello  ",
+      targetIds: [" employee-1 ", "", "employee-1", "  employee-2"],
+      attachments: null,
+      selectedFile: null,
+      userMessageId: " user-message-1 ",
+      assistantMessageIds: [" assistant-1 ", "", "assistant-1"],
+      inReplyToMessageId: " parent-message-1 ",
+    }),
+    {
+      text: "  hello  ",
+      targetIds: ["employee-1", "employee-2"],
+      attachments: [],
+      selectedFile: undefined,
+      userMessageId: "user-message-1",
+      assistantMessageIds: ["assistant-1"],
+      inReplyToMessageId: "parent-message-1",
+    },
+  );
+  assert.equal(createRoomMessageOperation.body.safeParse({ userMessageId: " " }).success, false);
+});
+
 test("Host operation catalog has stable unique ids", () => {
   assert.equal(new Set(hostOperations.map((operation) => operation.id)).size, hostOperations.length);
   assert.equal(findHostOperation("room.message.create"), createRoomMessageOperation);
@@ -93,17 +118,28 @@ test("Host operation catalog has stable unique ids", () => {
 test("Host operation routes validate path parameters and declared error responses", async () => {
   const sent: Array<{ status: number; data: unknown }> = [];
   const context = contractTestContext({
-    body: { text: "hello" },
+    body: {
+      text: "hello",
+      targetIds: [" agent-1 ", "", "agent-1"],
+      attachments: null,
+      selectedFile: null,
+    },
     onSend: (status, data) => sent.push({ status, data }),
   });
-  context.url = new URL("http://127.0.0.1/rooms/room-1/messages");
+  context.url = new URL("http://127.0.0.1/rooms/%20room-1%20/messages");
 
   assert.equal(
     await dispatchBridgeRoutes(
       [
         operationRoute(hostContractById["room.message.create"], (routeContext) => {
           assert.deepEqual(routeContext.input.params, { roomId: "room-1" });
-          assert.deepEqual(routeContext.input.body, { text: "hello", targetIds: [], attachments: [] });
+          assert.deepEqual(routeContext.input.body, {
+            text: "hello",
+            targetIds: ["agent-1"],
+            attachments: [],
+            selectedFile: undefined,
+            assistantMessageIds: [],
+          });
           routeContext.sendJson(routeContext.response, 404, { ok: false, error: "reply_message_not_found" });
         }),
       ],

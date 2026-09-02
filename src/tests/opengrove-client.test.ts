@@ -67,6 +67,7 @@ test("OpenGrove Client calls the shared room-message operation", async () => {
     text: "hello",
     targetIds: ["agent-1"],
     attachments: [],
+    assistantMessageIds: [],
   });
 });
 
@@ -82,7 +83,41 @@ test("OpenGrove Client requests retain Protocol defaults", async () => {
 
   await client.rooms.messages.create({ roomId: "room-1" });
 
-  assert.deepEqual(requestBody, { text: "", targetIds: [], attachments: [] });
+  assert.deepEqual(requestBody, { text: "", targetIds: [], attachments: [], assistantMessageIds: [] });
+});
+
+test("OpenGrove Client sends the Protocol-normalized room message request", async () => {
+  let requestUrl = "";
+  let requestBody: unknown;
+  const client = createOpenGroveClient({
+    baseUrl: "https://host.example.test/api",
+    fetch: (async (input, init) => {
+      requestUrl = String(input);
+      requestBody = JSON.parse(String(init?.body)) as unknown;
+      return new Response(JSON.stringify(messageResponse), { status: 200 });
+    }) as typeof fetch,
+  });
+
+  await client.rooms.messages.create({
+    roomId: "  room / one  ",
+    text: "hello",
+    targetIds: [" agent-1 ", "", "agent-1"],
+    attachments: null,
+    selectedFile: null,
+    userMessageId: " user-message-1 ",
+    assistantMessageIds: [" assistant-1 ", "", "assistant-1"],
+    inReplyToMessageId: " parent-message-1 ",
+  });
+
+  assert.equal(requestUrl, "https://host.example.test/api/rooms/room%20%2F%20one/messages");
+  assert.deepEqual(requestBody, {
+    text: "hello",
+    targetIds: ["agent-1"],
+    attachments: [],
+    userMessageId: "user-message-1",
+    assistantMessageIds: ["assistant-1"],
+    inReplyToMessageId: "parent-message-1",
+  });
 });
 
 test("OpenGrove Client rejects invalid input before sending a request", async () => {
