@@ -183,7 +183,7 @@ test("low-level operations support query parameters without requiring a request 
     method: "GET",
     path: "/rooms",
     risk: "read",
-    query: z.object({ limit: z.number().int().positive().optional() }),
+    query: z.object({ limit: z.number().int().positive().optional(), tags: z.array(z.string()).optional() }),
     success: { status: 200, body: z.object({ ok: z.literal(true) }) },
   });
   const client = createOpenGroveClient({
@@ -196,7 +196,7 @@ test("low-level operations support query parameters without requiring a request 
     }) as typeof fetch,
   });
 
-  const result = await client.request(listRoomsOperation, { query: { limit: 20 } });
+  const result = await client.request(listRoomsOperation, { query: { limit: 20, tags: ["one", "two"] } });
   assert.deepEqual(result, { ok: true });
-  assert.deepEqual(urls, ["/api/rooms?limit=20"]);
+  assert.deepEqual(urls, ["/api/rooms?limit=20&tags=one&tags=two"]);
 });

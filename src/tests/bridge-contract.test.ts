@@ -213,6 +213,62 @@ test("Host operation handlers receive decoded params, query, and body exactly on
   assert.deepEqual(sent, [{ ok: true }]);
 });
 
+test("Host operation query arrays keep their declared shape", async () => {
+  const operation = defineHostOperation({
+    id: "test.item.list",
+    summary: "List test items",
+    description: "Exercise query array decoding with one value.",
+    method: "POST",
+    path: "/test",
+    risk: "read",
+    query: z.object({ tags: z.array(z.string()) }),
+    success: { status: 200, body: z.object({ ok: z.literal(true) }) },
+  });
+  const compiled = compileTestOperation(operation);
+  const receivedQueries: unknown[] = [];
+  const route = operationRoute(compiled, (routeContext) => {
+    receivedQueries.push(routeContext.input.query);
+  });
+  for (const query of ["tags=one", "tags=one&tags=two"]) {
+    const context = contractTestContext({ body: {} });
+    context.url = new URL(`http://127.0.0.1/test?${query}`);
+    await dispatchBridgeRoutes([route], context);
+  }
+
+  assert.deepEqual(receivedQueries, [{ tags: ["one"] }, { tags: ["one", "two"] }]);
+});
+
+test("Host operation query scalars reject repeated values", async () => {
+  const operation = defineHostOperation({
+    id: "test.item.list",
+    summary: "List test items",
+    description: "Reject repeated values for a scalar query field.",
+    method: "POST",
+    path: "/test",
+    risk: "read",
+    query: z.object({ page: z.coerce.number().int() }),
+    success: { status: 200, body: z.object({ ok: z.literal(true) }) },
+  });
+  const compiled = compileTestOperation(operation);
+  const context = contractTestContext({ body: {} });
+  context.url = new URL("http://127.0.0.1/test?page=1&page=2");
+
+  await assert.rejects(
+    dispatchBridgeRoutes(
+      [
+        operationRoute(compiled, () => {
+          throw new Error("handler_must_not_run");
+        }),
+      ],
+      context,
+    ),
+    (error) =>
+      error instanceof BridgeContractViolation &&
+      error.contractId === operation.id &&
+      error.issues.some((issue) => issue.path === "query.page" && issue.code === "query_parameter_repeated"),
+  );
+});
+
 test("Host protocol compiler rejects ambiguous or incomplete operations", () => {
   const base = {
     summary: "Invalid test",

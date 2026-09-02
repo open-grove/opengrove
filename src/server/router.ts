@@ -152,7 +152,12 @@ export async function decodeHostOperationInput<TOperation extends HostOperation>
     );
   }
   if (operation.query) {
-    input.query = parseHostOperationPart(operation, "query", operation.query, operationQueryParams(context.url));
+    input.query = parseHostOperationPart(
+      operation,
+      "query",
+      operation.query,
+      operationQueryParams(compiled, context.url),
+    );
   }
   if (operation.body) {
     const value = await context.readJsonBody(context.request);
@@ -198,13 +203,29 @@ function operationPathParams(operation: CompiledHostOperation, pathname: string)
   );
 }
 
-function operationQueryParams(url: URL): Record<string, string | string[]> {
+function operationQueryParams(operation: CompiledHostOperation, url: URL): Record<string, string | string[]> {
+  const properties = operation.input.query?.jsonSchema.properties;
+  const schemas = isRecord(properties) ? properties : {};
   const query: Record<string, string | string[]> = {};
   for (const name of new Set(url.searchParams.keys())) {
     const values = url.searchParams.getAll(name);
+    const schema = schemas[name];
+    if (isArraySchema(schema)) {
+      query[name] = values;
+      continue;
+    }
+    if (schema && values.length > 1) {
+      throw new BridgeContractViolation("request", operation.id, [
+        { path: `query.${name}`, code: "query_parameter_repeated" },
+      ]);
+    }
     query[name] = values.length === 1 ? values[0]! : values;
   }
   return query;
+}
+
+function isArraySchema(value: unknown): boolean {
+  return isRecord(value) && value.type === "array";
 }
 
 function reportHostResponseViolation(
@@ -224,6 +245,10 @@ function reportHostResponseViolation(
 
 function isHostOperation(contract: BridgeJsonContract | HostOperation): contract is HostOperation {
   return "method" in contract && "path" in contract && "success" in contract;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 export function routeMatches(route: BridgeRoute, context: BridgeRouteContext): boolean {
