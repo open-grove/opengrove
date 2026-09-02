@@ -386,15 +386,25 @@ After `npm run build:server`, the source CLI exposes the API bridge with:
 ```bash
 node dist/cli.js start
 node dist/cli.js --version
+node dist/cli.js auth login --email you@example.com
+node dist/cli.js auth status
 node dist/cli.js room message create --room-id <id> --text "Hello"
 node dist/cli.js room message create --room-id <id> --text "Hello" --dry-run
 ```
 
-Canonical Host commands default to `http://127.0.0.1:37371/api`. Override the
-target with `--base-url` or `OPENGROVE_BRIDGE_URL`, and supply Bridge
-authentication with `--token` or `OPENGROVE_BRIDGE_TOKEN`. Run a command with
-`--help` to inspect Protocol-derived input flags. Successful commands write a
-JSON envelope to stdout; typed failures write JSON to stderr.
+Canonical Host commands discover a running local Bridge, remember the Bridge
+paired by `opengrove auth login`, and finally fall back to
+`http://127.0.0.1:37371/api`. Override the target with `--base-url` or
+`OPENGROVE_BRIDGE_URL`. Authentication comes from the verified CLI account
+session, or from `--token` / `OPENGROVE_BRIDGE_TOKEN` for Bridge-token setups.
+Run a command with `--help` to inspect Protocol-derived input flags. Successful
+commands write a JSON envelope to stdout; typed failures write JSON to stderr.
+
+The current `auth login` command uses the existing email-code account flow. It
+stores only the CLI's own cookie session at `~/.opengrove/cli-auth.json` with
+owner-only permissions; it does not copy the desktop renderer session. The
+session is bound to the probed local Bridge `stateId`, and refresh-cookie
+rotation is persisted before the next command.
 
 ---
 

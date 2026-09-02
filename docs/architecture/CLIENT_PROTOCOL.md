@@ -33,8 +33,11 @@ The generation and dependency direction is fixed:
 `@opengrove/protocol` must not perform I/O or import Host implementation code.
 `@opengrove/client` must not read browser storage, environment variables, or
 desktop APIs. Each consumer supplies its base URL, credentials, and headers at
-its adapter boundary. It must not import `@opengrove/sdk` or contain Hey API
-generated code. The package-boundary check enforces these import rules.
+its adapter boundary. An injected auth session may add request credentials and
+consume credential rotation from responses, but persistence remains owned by
+the browser, desktop, or CLI adapter. The Client must not import
+`@opengrove/sdk` or contain Hey API generated code. The package-boundary check
+enforces these import rules.
 
 ## Operation shape
 
@@ -135,9 +138,11 @@ assembles a route URL itself.
 
 Every canonical command shares these behaviors:
 
-- `--base-url`, falling back to `OPENGROVE_BRIDGE_URL` and then the local
-  `http://127.0.0.1:37371/api` Bridge;
-- `--token`, falling back to `OPENGROVE_BRIDGE_TOKEN`;
+- `--base-url`, falling back to `OPENGROVE_BRIDGE_URL`, verified local Bridge
+  discovery, the last paired address, and then
+  `http://127.0.0.1:37371/api`;
+- `--token`, falling back to `OPENGROVE_BRIDGE_TOKEN`, or the verified CLI
+  account session created by `opengrove auth login`;
 - JSON success on stdout and typed JSON errors on stderr;
 - `--dry-run`, which validates and applies Protocol defaults without network
   access;
@@ -150,6 +155,16 @@ CLI-only behavior stays outside the Protocol. Command aliases, shortcuts,
 examples, identity selection, policy, confirmation gates, dry-run rendering,
 and output formatting belong to the CLI implementation. A future shortcut or
 workflow calls the Client instead of assembling Bridge URLs.
+
+The current account endpoints are ordinary Protocol operations, while
+`opengrove auth login|status|logout` is the human-facing workflow around them.
+The login workflow stages cookies in memory, verifies `/auth/session`, then
+atomically stores the CLI session with owner-only file permissions. Every later
+Host command injects that same session through the Client. Rotated cookies are
+persisted after every response. Stored cookies are sent only to the loopback
+Bridge identity recorded at login; they are never copied from the desktop
+renderer session or sent to a different Bridge. A future OAuth device flow can
+replace credential acquisition without changing Protocol consumers.
 
 This allows both a predictable canonical operation and a future friendlier
 shortcut to use the same implementation:

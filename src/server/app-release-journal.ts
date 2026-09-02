@@ -13,7 +13,7 @@ import {
   type AppReleaseSourceSnapshot,
 } from "./app-release-source-snapshot.js";
 import { compareUtf8Bytes } from "./utf8-byte-order.js";
-import { writePrivateFileAtomically, writePrivateJsonAtomically } from "./private-file.js";
+import { writePrivateFileAtomically, writePrivateJsonAtomically } from "../storage/private-file.js";
 import { normalizeLocalAppReleasePublishBase, validLocalAppReleasePublishBase } from "./app-release-publish-base.js";
 import type { LocalAppDraftPublishBase } from "./local-app-drafts.js";
 import {

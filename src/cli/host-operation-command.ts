@@ -1,4 +1,9 @@
-import { createOpenGroveClient, type HostOperationCall, type OpenGroveClient } from "#client";
+import {
+  createOpenGroveClient,
+  type HostOperationCall,
+  type OpenGroveClient,
+  type OpenGroveClientConfig,
+} from "#client";
 import type { HostOperation } from "#protocol";
 import { hostProtocol } from "#protocol/compiled";
 import type { CompiledHostOperation, CompiledHostOperationGroup } from "#protocol/compiler";
@@ -32,6 +37,13 @@ export type HostOperationCliOptions = Readonly<{
   catalog?: HostOperationCliCatalog;
   env?: Readonly<Record<string, string | undefined>>;
   fetch?: typeof globalThis.fetch;
+  createClient?: (
+    config: OpenGroveClientConfig & {
+      baseUrl: string;
+      baseUrlSource: "flag" | "environment" | "default";
+      token?: string;
+    },
+  ) => OpenGroveClient | Promise<OpenGroveClient>;
 }>;
 
 export function isHostOperationCommand(
@@ -110,11 +122,16 @@ export async function runHostOperationCommand(
       );
     }
 
-    const client = createOpenGroveClient({
+    const clientConfig = {
       baseUrl: parsed.baseUrl,
+      baseUrlSource: parsed.baseUrlSource,
       fetch: options.fetch,
+      token: parsed.token,
       headers: parsed.token ? { [APP_BRIDGE_TOKEN_HEADER]: parsed.token } : undefined,
-    });
+    };
+    const client = options.createClient
+      ? await options.createClient(clientConfig)
+      : createOpenGroveClient(clientConfig);
     const data = await requestOperation(client, operation.operation, call);
     return hostOperationCliSuccess({ ok: true, operation: operation.id, data });
   } catch (error) {

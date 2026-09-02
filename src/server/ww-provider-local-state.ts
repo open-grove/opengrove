@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import type { BridgeState } from "./bridge-types.js";
-import { writePrivateFileAtomically } from "./private-file.js";
+import { writePrivateFileAtomically } from "../storage/private-file.js";
 import { bridgeDataPath } from "./storage-paths.js";
 
 const WW_PROVIDER_LOCAL_STATE_VERSION = 1;

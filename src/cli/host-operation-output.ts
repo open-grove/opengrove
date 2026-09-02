@@ -1,4 +1,5 @@
 import { OpenGroveClientError, OpenGroveProtocolError } from "#client";
+import { OpenGroveCliError } from "./errors.js";
 import { HostOperationCliUsageError } from "./host-operation-input.js";
 
 export const HOST_OPERATION_CLI_EXIT = {
@@ -53,6 +54,20 @@ export function hostOperationCliError(
 }
 
 export function hostOperationCliFailure(operationId: string, error: unknown): HostOperationCliResult {
+  if (error instanceof OpenGroveCliError) {
+    const exitCode =
+      error.type === "authentication"
+        ? HOST_OPERATION_CLI_EXIT.authentication
+        : error.type === "network"
+          ? HOST_OPERATION_CLI_EXIT.network
+          : error.type === "internal"
+            ? HOST_OPERATION_CLI_EXIT.internal
+            : HOST_OPERATION_CLI_EXIT.validation;
+    return hostOperationCliError(exitCode, error.type, error.code, error.message, {
+      operation: operationId,
+      ...error.details,
+    });
+  }
   if (error instanceof HostOperationCliUsageError) {
     return hostOperationCliError(HOST_OPERATION_CLI_EXIT.validation, "validation", error.code, error.message, {
       operation: operationId,

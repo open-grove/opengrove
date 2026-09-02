@@ -18,6 +18,9 @@ and Data.
   identity, path traversal, archive integrity, and declared workspace rules.
 - Provider credentials, session cookies, local paths, and diagnostic evidence
   must not be committed or packaged into public Apps.
+- The CLI keeps a separate account session in an owner-only local credential
+  file. It probes the loopback Bridge and matches its persisted `stateId` before
+  sending cookies; failed login attempts never replace the previous session.
 - Risky Kernel actions remain subject to the Kernel and Host approval policies.
 
 ## Background network boundary

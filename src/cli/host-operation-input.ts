@@ -14,6 +14,7 @@ export type HostOperationCliField = Readonly<{
 
 export type HostOperationParsedOptions = Readonly<{
   baseUrl: string;
+  baseUrlSource: "flag" | "environment" | "default";
   token?: string;
   dryRun: boolean;
   yes: boolean;
@@ -74,6 +75,9 @@ export function parseHostOperationOptions(
   let input: Record<string, unknown> = {};
   let inputSeen = false;
   let baseUrl = env.OPENGROVE_BRIDGE_URL?.trim() || DEFAULT_HOST_OPERATION_BRIDGE_API_URL;
+  let baseUrlSource: HostOperationParsedOptions["baseUrlSource"] = env.OPENGROVE_BRIDGE_URL?.trim()
+    ? "environment"
+    : "default";
   let token = env.OPENGROVE_BRIDGE_TOKEN?.trim() || undefined;
   let dryRun = false;
   let yes = false;
@@ -106,6 +110,7 @@ export function parseHostOperationOptions(
       const value = readOptionValue(args, index, flag, inlineValue);
       index += inlineValue === undefined ? 1 : 0;
       baseUrl = value;
+      baseUrlSource = "flag";
       continue;
     }
     if (flag === "--token") {
@@ -162,6 +167,7 @@ export function parseHostOperationOptions(
 
   return {
     baseUrl: validateBaseUrl(baseUrl),
+    baseUrlSource,
     ...(token ? { token } : {}),
     dryRun,
     yes,
