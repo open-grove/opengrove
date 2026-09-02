@@ -1109,10 +1109,42 @@ try {
       assert.equal(publicClientUpdate.latest, null);
     }
 
+    const refreshRequestsBeforeExpiredClientUpdate = refreshRequests;
+    const expiredClientUpdateResponse = await fetch(`${baseUrl}/api/auth/client-update`, {
+      headers: {
+        cookie:
+          "opengrove_auth_access=expired; opengrove_auth_refresh=refresh-client-update; opengrove_auth_session=client-update-session",
+        "x-opengrove-token": "desktop-token",
+      },
+    });
+    assert.equal(expiredClientUpdateResponse.status, 200);
+    const expiredClientUpdate = await expiredClientUpdateResponse.json();
+    assert.equal(expiredClientUpdate.ok, true);
+    assert.equal(
+      refreshRequests,
+      refreshRequestsBeforeExpiredClientUpdate,
+      "a client update check must not rotate the saved Cloud session",
+    );
+    assert.deepEqual(
+      setCookieHeader(expiredClientUpdateResponse),
+      [],
+      "a client update check must not replace or clear auth cookies",
+    );
+    if (process.platform === "darwin" || process.platform === "win32") {
+      assert.equal(expiredClientUpdate.latest.version, 10002);
+      assert.equal(expiredClientUpdate.latest.releaseNotes, undefined);
+      assert.equal(expiredClientUpdate.latest.updaterFeedUrl, undefined);
+    } else {
+      assert.equal(expiredClientUpdate.latest, null);
+    }
+
+    const refreshRequestsBeforeAuthenticatedClientUpdate = refreshRequests;
     const clientUpdateResponse = await fetch(`${baseUrl}/api/auth/client-update`, { headers: { cookie } });
     assert.equal(clientUpdateResponse.status, 200);
     const clientUpdate = await clientUpdateResponse.json();
     assert.equal(clientUpdate.ok, true);
+    assert.equal(refreshRequests, refreshRequestsBeforeAuthenticatedClientUpdate);
+    assert.deepEqual(setCookieHeader(clientUpdateResponse), []);
     assert.equal(typeof clientUpdate.current, "number");
     if (process.platform === "darwin" || process.platform === "win32" || process.platform === "linux") {
       assert.equal(clientUpdate.latest.version, 10002);

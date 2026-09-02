@@ -6,6 +6,7 @@ import {
   clearAuthTokens,
   readAuthTokens,
   resolveWwRuntimeAuth,
+  resolveWwRuntimeAuthWithoutRefresh,
   hasBridgeTokenAccess,
   writeAuthTokens,
   type BridgeSecurity,
@@ -602,7 +603,7 @@ async function handleClientUpdate(
 ): Promise<void> {
   const services = wwServicesOrUnavailable(security, response, sendJson);
   if (!services) return;
-  const authResult = await resolveWwRuntimeAuth(request, response, security);
+  const authResult = await resolveWwRuntimeAuthWithoutRefresh(request, security);
   if (authResult.status === "temporarily_unavailable") {
     sendAuthError(response, sendJson, state, traceId, "client-update", authResult.error);
     return;
@@ -621,9 +622,7 @@ async function handleClientUpdate(
   try {
     const latest =
       authResult.status === "authenticated"
-        ? await createWwHostedServices(authResult.session.auth.baseUrl).clientUpdates.readLatestClientVersion(
-            authResult.session.auth.accessToken,
-          )
+        ? await services.clientUpdates.readLatestClientVersion(authResult.session.auth.accessToken)
         : await services.clientUpdates.readPublicLatestClientVersion();
     const platform = selectClientVersionForCurrentPlatform(latest);
     sendJson(response, 200, {
