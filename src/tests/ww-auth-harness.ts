@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
+import { once } from "node:events";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { once } from "node:events";
-import type { AddressInfo } from "node:net";
-import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { startOpenGroveServer } from "../server/create-server.js";
 
 const dir = mkdtempSync(join(tmpdir(), "opengrove-ww-auth-"));
@@ -198,26 +198,41 @@ const fakeWw = createServer((request, response) => {
         version: 10002,
         released_at: "2026-07-08T00:00:00Z",
         download_url: "https://download.example.test/OpenGrove-mac.dmg",
+        release_notes: "Public release notes",
+        updater_base_url: "https://download.example.test/mac/",
+        updater_feed_url: "https://download.example.test/mac/latest-mac.yml",
       },
       mac_arm64: {
         version: 10002,
         released_at: "2026-07-08T00:00:00Z",
         download_url: "https://download.example.test/OpenGrove-mac-arm64.dmg",
+        release_notes: "Public release notes",
+        updater_base_url: "https://download.example.test/mac-arm64/",
+        updater_feed_url: "https://download.example.test/mac-arm64/latest-mac.yml",
       },
       mac_x64: {
         version: 10002,
         released_at: "2026-07-08T00:00:00Z",
         download_url: "https://download.example.test/OpenGrove-mac-x64.dmg",
+        release_notes: "Public release notes",
+        updater_base_url: "https://download.example.test/mac-x64/",
+        updater_feed_url: "https://download.example.test/mac-x64/latest-mac.yml",
       },
       windows: {
         version: 10002,
         released_at: "2026-07-08T00:00:00Z",
         download_url: "https://download.example.test/OpenGrove-win.exe",
+        release_notes: "Public release notes",
+        updater_base_url: "https://download.example.test/windows/",
+        updater_feed_url: "https://download.example.test/windows/latest.yml",
       },
       windows_x64: {
         version: 10002,
         released_at: "2026-07-08T00:00:00Z",
         download_url: "https://download.example.test/OpenGrove-win-x64.exe",
+        release_notes: "Public release notes",
+        updater_base_url: "https://download.example.test/windows-x64/",
+        updater_feed_url: "https://download.example.test/windows-x64/latest.yml",
       },
     });
     return;
@@ -1103,8 +1118,8 @@ try {
     assert.equal(typeof publicClientUpdate.current, "number");
     if (process.platform === "darwin" || process.platform === "win32") {
       assert.equal(publicClientUpdate.latest.version, 10002);
-      assert.equal(publicClientUpdate.latest.releaseNotes, undefined);
-      assert.equal(publicClientUpdate.latest.updaterFeedUrl, undefined);
+      assert.equal(publicClientUpdate.latest.releaseNotes, "Public release notes");
+      assert.match(publicClientUpdate.latest.updaterFeedUrl, /latest-mac\.yml$|latest\.yml$/);
     } else {
       assert.equal(publicClientUpdate.latest, null);
     }
@@ -1132,8 +1147,8 @@ try {
     );
     if (process.platform === "darwin" || process.platform === "win32") {
       assert.equal(expiredClientUpdate.latest.version, 10002);
-      assert.equal(expiredClientUpdate.latest.releaseNotes, undefined);
-      assert.equal(expiredClientUpdate.latest.updaterFeedUrl, undefined);
+      assert.equal(expiredClientUpdate.latest.releaseNotes, "Public release notes");
+      assert.match(expiredClientUpdate.latest.updaterFeedUrl, /latest-mac\.yml$|latest\.yml$/);
     } else {
       assert.equal(expiredClientUpdate.latest, null);
     }

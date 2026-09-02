@@ -1,47 +1,47 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { safeDiagnosticErrorCode } from "../../diagnostics/redaction.js";
+import { readAppEnv } from "../../identity.js";
+import { scheduleInstalledAppStoreUpdatesAfterAuth } from "../app-store-auto-updates.js";
+import { releaseControlRegistryConfig } from "../app-store-registry.js";
 import {
   authSessionFingerprint,
+  type BridgeSecurity,
   cacheAuthSessionUser,
   clearAuthSessionCache,
   clearAuthTokens,
+  hasBridgeTokenAccess,
   readAuthTokens,
   resolveWwRuntimeAuth,
   resolveWwRuntimeAuthWithoutRefresh,
-  hasBridgeTokenAccess,
   writeAuthTokens,
-  type BridgeSecurity,
 } from "../bridge-security.js";
+import { saveBridgeSettings } from "../bridge-state.js";
+import type { BridgeState } from "../bridge-types.js";
+import { readClientReleaseNumber, readPackageVersion } from "../client-release.js";
+import { scheduleDefaultStoreAppsInstalledAfterAuth } from "../default-store-apps.js";
+import { record, stringValue } from "../http-utils.js";
+import {
+  type HostLanguagePreference,
+  type HostSystemLanguage,
+  normalizeHostLanguagePreference,
+  normalizeHostSystemLanguage,
+} from "../language-preference.js";
+import { recordProblem } from "../problem-records.js";
 import {
   createLocalSessionId,
   createWwHostedServices,
-  wwDiagnosticFacts,
   type WwApiError,
-  type WwLatestClientVersion,
   type WwClientPlatformVersion,
+  type WwLatestClientVersion,
+  wwDiagnosticFacts,
 } from "../ww/index.js";
-import { record, stringValue } from "../http-utils.js";
-import { saveBridgeSettings } from "../bridge-state.js";
-import type { BridgeState } from "../bridge-types.js";
-import {
-  normalizeHostLanguagePreference,
-  normalizeHostSystemLanguage,
-  type HostLanguagePreference,
-  type HostSystemLanguage,
-} from "../language-preference.js";
-import { provisionWwProviderAfterLogin } from "../ww-provider-provisioning.js";
 import {
   claimWwProviderAccount,
   clearWwProviderRecoveryBlock,
   readWwProviderLocalState,
   wwProviderAccountMatches,
 } from "../ww-provider-local-state.js";
-import { scheduleDefaultStoreAppsInstalledAfterAuth } from "../default-store-apps.js";
-import { scheduleInstalledAppStoreUpdatesAfterAuth } from "../app-store-auto-updates.js";
-import { releaseControlRegistryConfig } from "../app-store-registry.js";
-import { recordProblem } from "../problem-records.js";
-import { safeDiagnosticErrorCode } from "../../diagnostics/redaction.js";
-import { readClientReleaseNumber, readPackageVersion } from "../client-release.js";
-import { readAppEnv } from "../../identity.js";
+import { provisionWwProviderAfterLogin } from "../ww-provider-provisioning.js";
 
 type SendJson = (response: ServerResponse, status: number, data: unknown) => void;
 type ReadJsonBody = (request: IncomingMessage, maxBytes?: number) => Promise<unknown>;
@@ -609,8 +609,10 @@ async function handleClientUpdate(
     return;
   }
   if (authResult.status === "authenticated") {
-    // The open Web client polls this GET every six hours. Reuse that
-    // authenticated request as the periodic wake-up for background App updates.
+    // The packaged desktop client polls this GET every six hours. Reuse the
+    // heartbeat for background App updates only while its access token remains
+    // valid; login and session restoration own refresh and schedule updates
+    // after rotating credentials.
     scheduleInstalledAppStoreUpdatesAfterAuth({
       state,
       request,
@@ -620,6 +622,9 @@ async function handleClientUpdate(
     });
   }
   try {
+    // Keep this background endpoint read-only with respect to auth cookies.
+    // A main-process request can be abandoned after the server rotates a
+    // one-time refresh token, leaving the durable desktop cookie jar behind.
     const latest =
       authResult.status === "authenticated"
         ? await services.clientUpdates.readLatestClientVersion(authResult.session.auth.accessToken)
