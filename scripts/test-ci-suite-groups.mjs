@@ -28,6 +28,16 @@ assert.equal(
   "the independently scheduled desktop group must materialize protocol declarations itself",
 );
 assert.equal(
+  packageJson.scripts.prepare,
+  "npm run build:workspace-packages",
+  "dependency installation must materialize the workspace packages consumed by independently scheduled jobs",
+);
+assert.equal(
+  packageJson.scripts["build:workspace-packages"],
+  "npm run build:protocol && npm --workspace @opengrove/client run build",
+  "workspace package preparation must cover the protocol, Agent protocol, and generated Host client",
+);
+assert.equal(
   packageJson.scripts["check:web"],
   "npm run check:web:static && npm run test:contract:web",
   "the Web ownership group should include static analysis and behavior contracts",
