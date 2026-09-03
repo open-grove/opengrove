@@ -31,7 +31,6 @@ assert.deepEqual(inspectRequiredKernelCapabilities(["tools.nativeTool", "tools.n
 assert.deepEqual(inspectRequiredKernelCapabilities(["tools.nativeTool", 7]).invalid, ["1:not_a_string"]);
 
 const piCapabilityReport = buildKnownKernelCapabilityReport("pi", undefined, {
-  hostVersion: "0.6.6",
   kernelVersion: "0.83.0",
   runtimeMode: "sdk",
 });

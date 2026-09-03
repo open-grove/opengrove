@@ -348,6 +348,35 @@ test("a cancel-requested Run cannot be revived by a late same-loop decision", ()
   });
 });
 
+test("cancel pending outranks late pause and interaction events", () => {
+  const store = startedStore();
+  const request: ApprovalRequest = {
+    id: "approval-after-cancel",
+    kind: "tool",
+    title: "Late approval",
+    reason: "Arrived after cancellation",
+    status: "canceled",
+    createdAt: at,
+    updatedAt: at,
+    resume: { type: "kernel.native", kernelId: "codex", runId: "run-1", continuation: "same-loop" },
+  };
+  store.recordEvent({ type: "run.cancel_requested", runId: "run-1", at, reason: "user_requested" });
+  store.recordEvent({ type: "approval.requested", runId: "run-1", request: { ...request, status: "pending" } });
+  store.recordEvent({
+    type: "run.paused",
+    runId: "run-1",
+    at,
+    reason: "Late native pause",
+    approvalId: request.id,
+  });
+  store.recordEvent({ type: "approval.resolved", runId: "run-1", request });
+
+  assert.deepEqual(store.getRun("run-1")?.lifecycle, {
+    taskState: "TASK_STATE_WORKING",
+    activity: "cancel_pending",
+  });
+});
+
 test("approved interaction resumes working without guessing a terminal outcome", () => {
   const store = startedStore();
   const request: ApprovalRequest = {

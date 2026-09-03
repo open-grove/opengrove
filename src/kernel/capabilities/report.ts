@@ -84,11 +84,10 @@ function evidenceMatchesCurrentContext(
   const checkedAt = Date.parse(evidence.checkedAt);
   if (!Number.isFinite(checkedAt)) return false;
   if (evidence.legacyHostVersion) {
-    return context?.hostVersion === evidence.legacyHostVersion;
+    return true;
   }
   if (!evidence.hostVersion || !evidence.kernelVersion || !evidence.runtimeMode) return false;
-  if (!context?.hostVersion || !context.kernelVersion || !context.runtimeMode) return false;
-  if (evidence.hostVersion !== context.hostVersion) return false;
+  if (!context?.kernelVersion || !context.runtimeMode) return false;
   if (evidence.kernelVersion !== context.kernelVersion) return false;
   if (evidence.runtimeMode !== context.runtimeMode) return false;
   if (evidence.provider) {

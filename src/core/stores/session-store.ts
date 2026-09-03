@@ -295,6 +295,14 @@ export class SessionStore {
         break;
     }
 
+    if (
+      run.lifecycle.activity === "cancel_pending" &&
+      patch.lifecycle &&
+      !isA2ATerminalTaskState(patch.lifecycle.taskState)
+    ) {
+      patch.lifecycle = run.lifecycle;
+    }
+
     if (isA2ATerminalTaskState(run.lifecycle.taskState)) {
       patch.lifecycle = run.lifecycle;
       patch.endedAt = run.endedAt;

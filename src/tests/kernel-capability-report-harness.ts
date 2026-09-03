@@ -6,6 +6,7 @@ import {
 } from "../kernel/capabilities/contract-test-evidence.js";
 import { KERNEL_NATIVE_CAPABILITY_FACTS } from "../kernel/capabilities/native-facts.js";
 import { buildKernelCapabilityReport } from "../kernel/capabilities/report.js";
+import { buildKnownKernelCapabilityReport } from "../kernel/capabilities/report-for-kernel.js";
 import { STANDARD_KERNEL_CAPABILITY_IDS } from "../kernel/capabilities/types.js";
 
 async function main() {
@@ -124,7 +125,6 @@ async function main() {
     contractTests: [versionBoundEvidence],
     generatedAt: "2026-08-31T00:00:00.000Z",
     evidenceContext: {
-      hostVersion: "0.6.5",
       kernelVersion: "1.2.3",
       runtimeMode: "app-server",
       provider: { kind: "native" },
@@ -133,6 +133,7 @@ async function main() {
   assert.equal(
     matchingBoundReport.capabilities.find((entry) => entry.capability === "interaction.askUser")?.exposed,
     "yes",
+    "an unrelated Host release must not invalidate evidence for an unchanged Kernel integration",
   );
   const mismatchedBoundReport = buildKernelCapabilityReport({
     kernel: "codex",
@@ -141,7 +142,6 @@ async function main() {
     contractTests: [versionBoundEvidence],
     generatedAt: "2026-08-31T00:00:00.000Z",
     evidenceContext: {
-      hostVersion: "0.6.5",
       kernelVersion: "2.0.0",
       runtimeMode: "app-server",
       provider: { kind: "native" },
@@ -158,7 +158,7 @@ async function main() {
     contracts: KERNEL_CAPABILITY_CONTRACTS,
     contractTests: [versionBoundEvidence],
     generatedAt: "2026-08-31T00:00:00.000Z",
-    evidenceContext: { hostVersion: "0.6.5" },
+    evidenceContext: {},
   });
   assert.equal(
     partiallyKnownRuntimeReport.capabilities.find((entry) => entry.capability === "interaction.askUser")?.exposed,
@@ -195,28 +195,28 @@ async function main() {
     legacyHostVersion: "0.6.5",
     verification: "real_runtime" as const,
   };
-  const legacyCurrentHostReport = buildKernelCapabilityReport({
+  const legacyCertifiedReport = buildKernelCapabilityReport({
     kernel: "codex",
     nativeFacts: KERNEL_NATIVE_CAPABILITY_FACTS,
     contracts: KERNEL_CAPABILITY_CONTRACTS,
     contractTests: [legacyMigrationEvidence],
-    evidenceContext: { hostVersion: "0.6.5" },
   });
   assert.equal(
-    legacyCurrentHostReport.capabilities.find((entry) => entry.capability === "interaction.askUser")?.exposed,
+    legacyCertifiedReport.capabilities.find((entry) => entry.capability === "interaction.askUser")?.exposed,
     "yes",
+    "a Host release must not erase an existing passing capability certification",
   );
-  const legacyNextHostReport = buildKernelCapabilityReport({
-    kernel: "codex",
-    nativeFacts: KERNEL_NATIVE_CAPABILITY_FACTS,
-    contracts: KERNEL_CAPABILITY_CONTRACTS,
-    contractTests: [legacyMigrationEvidence],
-    evidenceContext: { hostVersion: "0.6.6" },
-  });
-  assert.equal(
-    legacyNextHostReport.capabilities.find((entry) => entry.capability === "interaction.askUser")?.exposed,
-    "unknown",
-    "imported legacy evidence must fail closed on the next Host release until a bound receipt replaces it",
+
+  const defaultClaudeReport = buildKnownKernelCapabilityReport("claude-code");
+  assert.deepEqual(
+    Object.fromEntries(
+      ["enable", "fallback", "hide"].map((behavior) => [
+        behavior,
+        defaultClaudeReport.capabilities.filter((entry) => entry.productBehavior === behavior).length,
+      ]),
+    ),
+    { enable: 13, fallback: 2, hide: 11 },
+    "the default production report must retain the certified Claude Code product surface",
   );
   const claudeReportWithoutTests = buildKernelCapabilityReport({
     kernel: "claude-code",
@@ -238,7 +238,7 @@ async function main() {
     contracts: KERNEL_CAPABILITY_CONTRACTS,
     contractTests: CERTIFIED_KERNEL_CONTRACT_TESTS,
     generatedAt: "2026-08-14T00:00:00.000Z",
-    evidenceContext: { hostVersion: "0.6.5", kernelVersion: "0.36.1", runtimeMode: "acp" },
+    evidenceContext: { kernelVersion: "0.36.1", runtimeMode: "acp" },
   });
   for (const capability of ["tools.hostTool", "tools.mcpServers"] as const) {
     const entry = kimiReport.capabilities.find((candidate) => candidate.capability === capability);
@@ -252,7 +252,7 @@ async function main() {
     contracts: KERNEL_CAPABILITY_CONTRACTS,
     contractTests: CERTIFIED_KERNEL_CONTRACT_TESTS,
     generatedAt: "2026-09-01T00:00:00.000Z",
-    evidenceContext: { hostVersion: "0.6.6", kernelVersion: "0.83.0", runtimeMode: "sdk" },
+    evidenceContext: { kernelVersion: "0.83.0", runtimeMode: "sdk" },
   });
   const piNativeTools = piReport.capabilities.find((entry) => entry.capability === "tools.nativeTool");
   assert.equal(piNativeTools?.native, "yes");
