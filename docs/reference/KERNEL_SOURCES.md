@@ -7,7 +7,7 @@ this repository.
 | Kernel/source | Reviewed source |
 | --- | --- |
 | Codex | [`openai/codex` app-server protocol at `3f615700`](https://github.com/openai/codex/tree/3f6157004419e21547962670026c6f6001d06fe8/codex-rs/app-server-protocol) |
-| Claude Agent SDK | Installed `@anthropic-ai/claude-agent-sdk` `0.3.235` package types; bundled engine [`v2.1.235`](https://github.com/anthropics/claude-code/tree/v2.1.235) |
+| Claude Agent SDK | Installed `@anthropic-ai/claude-agent-sdk` `0.3.251` package types; bundled engine [`v2.1.251`](https://github.com/anthropics/claude-code/tree/v2.1.251) |
 | Pi | Installed `@earendil-works/pi-agent-core` and `@earendil-works/pi-ai` `0.83.0` package documentation and types; upstream [`v0.83.0`](https://github.com/earendil-works/pi/tree/v0.83.0) |
 | Hermes | [`NousResearch/hermes-agent` `v2026.8.3`](https://github.com/NousResearch/hermes-agent/tree/v2026.8.3) |
 | OpenCode | [`anomalyco/opencode` `v1.18.3`](https://github.com/anomalyco/opencode/tree/v1.18.3) |

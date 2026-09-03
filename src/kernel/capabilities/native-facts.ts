@@ -7,7 +7,7 @@ import type {
 
 const CHECKED_AT = "2026-07-06";
 const REFRESHED_AT = "2026-07-20";
-const CLAUDE_REFRESHED_AT = "2026-08-24";
+const CLAUDE_REFRESHED_AT = "2026-09-03";
 const PI_REFRESHED_AT = "2026-08-05";
 const HERMES_REFRESHED_AT = "2026-08-05";
 
@@ -96,14 +96,14 @@ const claudeSdk = {
     "Claude Agent SDK types expose query sessions, permission callbacks, MCP servers, thinking controls, budgets, output format, resume, and interrupt.",
   sourcePath: "node_modules/@anthropic-ai/claude-agent-sdk/sdk.d.ts",
   kind: "local_package" as const,
-  upstreamVersion: "@anthropic-ai/claude-agent-sdk 0.3.235 (Claude Code 2.1.235)",
+  upstreamVersion: "@anthropic-ai/claude-agent-sdk 0.3.251 (Claude Code 2.1.251)",
   checkedAt: CLAUDE_REFRESHED_AT,
 };
 const claudeTools = {
   source: "Claude Agent SDK tool types include AskUserQuestion and native tool schemas.",
   sourcePath: "node_modules/@anthropic-ai/claude-agent-sdk/sdk-tools.d.ts",
   kind: "local_package" as const,
-  upstreamVersion: "@anthropic-ai/claude-agent-sdk 0.3.235 (Claude Code 2.1.235)",
+  upstreamVersion: "@anthropic-ai/claude-agent-sdk 0.3.251 (Claude Code 2.1.251)",
   checkedAt: CLAUDE_REFRESHED_AT,
 };
 
@@ -340,7 +340,7 @@ export const KERNEL_NATIVE_CAPABILITY_FACTS: KernelNativeCapabilityFact[] = [
       "Claude Agent SDK query() accepts AsyncIterable<SDKUserMessage> whose MessageParam content carries Anthropic ImageBlockParam (base64 image source).",
     sourcePath: "node_modules/@anthropic-ai/claude-agent-sdk/sdk.d.ts",
     kind: "local_package",
-    upstreamVersion: "@anthropic-ai/claude-agent-sdk 0.3.235 (Claude Code 2.1.235)",
+    upstreamVersion: "@anthropic-ai/claude-agent-sdk 0.3.251 (Claude Code 2.1.251)",
     checkedAt: CLAUDE_REFRESHED_AT,
   }),
   fact("claude-code", "interaction.askUser", "yes", claudeTools),
