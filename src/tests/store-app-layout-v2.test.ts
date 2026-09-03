@@ -71,6 +71,65 @@ test("Store layout migration copies, validates, renames, and only then switches 
   }
 });
 
+test("direct OpenGrove 0.6.4 Store layout migrates and retires the old App directory", () => {
+  const fixture = createDirectLegacyFixture("direct-legacy-app");
+  try {
+    const result = migrateStoreAppLayoutsV2({ mountedApps: [fixture.mount], roots: fixture.roots });
+    assert.equal(result.changed, true);
+    assert.deepEqual(result.failures, []);
+    assert.deepEqual(result.migratedAppIds, ["direct-legacy-app"]);
+
+    const migrated = result.mountedApps[0];
+    assert.equal(
+      migrated?.path,
+      join(fixture.roots.programsRoot, "direct-legacy-app", `0.1.32-${"b".repeat(12)}-legacy-v1`, "app"),
+    );
+    assert.equal(migrated?.workspacePath, join(fixture.roots.workspacesRoot, "direct-legacy-app", "workspace"));
+    assert.equal(readFileSync(join(migrated?.workspacePath ?? "", "story.md"), "utf8"), "user-owned\n");
+    assert.equal(readFileSync(join(migrated?.path ?? "", "index.js"), "utf8"), "export default true;\n");
+    assert.equal(
+      resolve(realpathSync.native(join(migrated?.path ?? "", "workspace"))),
+      resolve(realpathSync.native(migrated?.workspacePath ?? "")),
+    );
+    assert.deepEqual(
+      validateStoreAppLayoutWorkspaceCopiesV2({
+        appIds: result.migratedAppIds,
+        previousMountedApps: [fixture.mount],
+        mountedApps: result.mountedApps,
+        roots: fixture.roots,
+      }),
+      [],
+    );
+
+    const retirement = retireLegacyStoreAppLayoutsV2({ mountedApps: result.mountedApps, roots: fixture.roots });
+    assert.deepEqual(retirement.retained, []);
+    assert.equal(existsSync(fixture.legacyProgramRoot), false);
+    assert.equal(existsSync(`${fixture.legacyProgramRoot}.legacy-v2`), true);
+  } finally {
+    rmSync(fixture.root, { recursive: true, force: true });
+  }
+});
+
+test("direct legacy directories without a verified Store marker remain untouched", () => {
+  const fixture = createDirectLegacyFixture("manual-direct-app");
+  try {
+    writeFileSync(
+      join(fixture.legacyProgramRoot, ".opengrove-store-package.json"),
+      JSON.stringify({ schemaVersion: 1, source: "manual", appId: "manual-direct-app" }),
+      "utf8",
+    );
+    const result = migrateStoreAppLayoutsV2({ mountedApps: [fixture.mount], roots: fixture.roots });
+    assert.equal(result.changed, false);
+    assert.deepEqual(result.failures, []);
+    assert.equal(result.mountedApps[0]?.path, fixture.legacyProgramRoot);
+    assert.equal(existsSync(fixture.legacyProgramRoot), true);
+    assert.equal(existsSync(join(fixture.roots.programsRoot, "manual-direct-app")), false);
+    assert.equal(existsSync(join(fixture.roots.workspacesRoot, "manual-direct-app")), false);
+  } finally {
+    rmSync(fixture.root, { recursive: true, force: true });
+  }
+});
+
 test("Store layout migration keeps legacy paths authoritative when a Windows-style rename fails", () => {
   const fixture = createLegacyFixture("rename-failure-app");
   try {
@@ -354,6 +413,29 @@ test("Store layout diagnostics expose versions, bindings, and migration remnants
   }
 });
 
+test("Store layout diagnostics classify a direct OpenGrove 0.6.4 program as legacy", () => {
+  const fixture = createDirectLegacyFixture("diagnostic-direct-app");
+  try {
+    const diagnostics = inspectStoreAppLayoutV2Diagnostics({
+      roots: fixture.roots,
+      mountedApps: [fixture.mount],
+    });
+    assert.deepEqual(diagnostics.mountedApps, [
+      {
+        appId: "diagnostic-direct-app",
+        enabled: true,
+        program: {
+          location: "legacy",
+          state: { path: fixture.legacyProgramRoot, kind: "directory" },
+        },
+        workspace: { location: "unset" },
+      },
+    ]);
+  } finally {
+    rmSync(fixture.root, { recursive: true, force: true });
+  }
+});
+
 test("the default Programs root stays distinct from the legacy Store root without a desktop override", () => {
   const root = mkdtempSync(join(tmpdir(), "opengrove-store-roots-"));
   const previousEnv = captureEnv(["OPENGROVE_DATA_DIR", "OPENGROVE_PROGRAMS_DIR"]);
@@ -459,6 +541,59 @@ test("Bridge startup persists the new pointer before retiring legacy paths", asy
   }
 });
 
+test("Bridge startup migrates a direct OpenGrove 0.6.4 Store mount", async () => {
+  const root = mkdtempSync(join(tmpdir(), "opengrove-store-layout-direct-startup-"));
+  const statePath = join(root, "state", "local-state.sqlite");
+  const legacyWorkspacesRoot = join(root, "legacy-apps");
+  const programsRoot = join(root, "local-data", "programs");
+  const workspacesRoot = join(root, "user", "OpenGrove", "workspaces");
+  const previousEnv = captureEnv([
+    "OPENGROVE_PROGRAMS_DIR",
+    "OPENGROVE_WORKSPACES_DIR",
+    "OPENGROVE_LEGACY_APPS_DIR",
+    "OPENGROVE_APP_STORE_APPS_DIR",
+    "OPENGROVE_BRIDGE_SETTINGS_PATH",
+  ]);
+  let seedState: ReturnType<typeof createBridgeState> | undefined;
+  let migratedState: ReturnType<typeof createBridgeState> | undefined;
+  try {
+    delete process.env.OPENGROVE_PROGRAMS_DIR;
+    delete process.env.OPENGROVE_WORKSPACES_DIR;
+    delete process.env.OPENGROVE_BRIDGE_SETTINGS_PATH;
+    process.env.OPENGROVE_LEGACY_APPS_DIR = legacyWorkspacesRoot;
+    process.env.OPENGROVE_APP_STORE_APPS_DIR = legacyWorkspacesRoot;
+    seedState = createBridgeState({ statePath });
+    const fixture = writeDirectLegacyFixture(root, {
+      appId: "startup-direct-app",
+      legacyProgramsRoot: join(appStoreDataRoot(seedState), "programs"),
+      legacyWorkspacesRoot,
+      programsRoot,
+      workspacesRoot,
+    });
+    seedState.settings.mountedApps = [fixture.mount];
+    saveBridgeSettings(seedState);
+    await seedState.store.close?.();
+    seedState = undefined;
+
+    process.env.OPENGROVE_PROGRAMS_DIR = programsRoot;
+    process.env.OPENGROVE_WORKSPACES_DIR = workspacesRoot;
+    process.env.OPENGROVE_APP_STORE_APPS_DIR = workspacesRoot;
+    migratedState = createBridgeState({ statePath });
+    const mount = migratedState.settings.mountedApps.find((item) => item.id === "startup-direct-app");
+    assert.ok(mount);
+    assert.equal(mount.path, join(programsRoot, "startup-direct-app", `0.1.32-${"b".repeat(12)}-legacy-v1`, "app"));
+    assert.equal(mount.workspacePath, join(workspacesRoot, "startup-direct-app", "workspace"));
+    assert.equal(loadBridgeSettings(migratedState).mountedApps[0]?.path, mount.path);
+    assert.equal(existsSync(fixture.legacyProgramRoot), false);
+    assert.equal(existsSync(`${fixture.legacyProgramRoot}.legacy-v2`), true);
+  } finally {
+    await seedState?.store.close?.();
+    await migratedState?.store.close?.();
+    restoreEnv(previousEnv);
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 function createLegacyFixture(appId: string) {
   const root = mkdtempSync(join(tmpdir(), "opengrove-store-layout-v2-"));
   const roots = {
@@ -468,6 +603,63 @@ function createLegacyFixture(appId: string) {
     workspacesRoot: join(root, "user", "OpenGrove", "workspaces"),
   };
   return writeLegacyFixture(root, { appId, ...roots });
+}
+
+function createDirectLegacyFixture(appId: string) {
+  const root = mkdtempSync(join(tmpdir(), "opengrove-store-layout-v2-direct-"));
+  const roots = {
+    legacyProgramsRoot: join(root, "state", "app-store", "programs"),
+    legacyWorkspacesRoot: join(root, "apps"),
+    programsRoot: join(root, "local-data", "programs"),
+    workspacesRoot: join(root, "user", "OpenGrove", "workspaces"),
+  };
+  return writeDirectLegacyFixture(root, { appId, ...roots });
+}
+
+function writeDirectLegacyFixture(
+  root: string,
+  input: {
+    appId: string;
+    legacyProgramsRoot: string;
+    legacyWorkspacesRoot: string;
+    programsRoot: string;
+    workspacesRoot: string;
+  },
+) {
+  const { appId, ...roots } = input;
+  const legacyProgramRoot = join(roots.legacyWorkspacesRoot, appId);
+  const legacyWorkspaceRoot = join(legacyProgramRoot, "workspace");
+  mkdirSync(legacyWorkspaceRoot, { recursive: true });
+  writeFileSync(join(legacyWorkspaceRoot, "story.md"), "user-owned\n", "utf8");
+  writeFileSync(
+    join(legacyProgramRoot, "opengrove.app.json"),
+    JSON.stringify({ id: appId, title: "Fixture", ui: { surface: "file-workbench", workspace: "workspace" } }),
+    "utf8",
+  );
+  writeFileSync(join(legacyProgramRoot, "index.js"), "export default true;\n", "utf8");
+  writeFileSync(
+    join(legacyProgramRoot, ".opengrove-store-package.json"),
+    JSON.stringify({
+      schemaVersion: 1,
+      source: "registry",
+      appId,
+      packageId: appId,
+      version: "0.1.32",
+      archiveSha256: "b".repeat(64),
+    }),
+    "utf8",
+  );
+  return {
+    root,
+    roots,
+    legacyProgramRoot: resolve(legacyProgramRoot),
+    legacyWorkspaceRoot: resolve(legacyWorkspaceRoot),
+    mount: {
+      id: appId,
+      path: resolve(legacyProgramRoot),
+      enabled: true,
+    },
+  };
 }
 
 function writeLegacyFixture(

@@ -1,5 +1,6 @@
 import { lstatSync, readdirSync, realpathSync, type Dirent } from "node:fs";
 import { isAbsolute, join, relative, resolve, sep } from "node:path";
+import { isValidAppStoreAppId } from "../app-store-app-id.js";
 import type { BridgeMountedAppSettings } from "../bridge-types.js";
 import type { StoreAppLayoutRoots } from "./store-app-layout-v2.js";
 import { STORE_APP_LAYOUT_V2, STORE_APP_LAYOUT_V2_LOG_EVENTS } from "./store-app-layout-v2-metadata.js";
@@ -68,7 +69,7 @@ export function inspectStoreAppLayoutV2Diagnostics(input: {
     return {
       appId: mountedApp.id,
       enabled: mountedApp.enabled !== false,
-      program: diagnosticMountPath(programPath, roots.programsRoot, roots.legacyProgramsRoot, inspectionErrors),
+      program: diagnosticProgramPath(programPath, mountedApp.id, roots, inspectionErrors),
       workspace: diagnosticMountPath(workspacePath, roots.workspacesRoot, roots.legacyWorkspacesRoot, inspectionErrors),
     };
   });
@@ -93,6 +94,18 @@ export function inspectStoreAppLayoutV2Diagnostics(input: {
     inspectionErrors,
     logEvents: Object.values(STORE_APP_LAYOUT_V2_LOG_EVENTS),
   };
+}
+
+function diagnosticProgramPath(
+  path: string | undefined,
+  appId: string,
+  roots: StoreAppLayoutRoots,
+  errors: StoreAppLayoutInspectionError[],
+): { location: StoreAppLayoutLocation; state?: StoreAppLayoutPathState } {
+  if (path && isValidAppStoreAppId(appId) && pathsEqual(path, join(roots.legacyWorkspacesRoot, appId))) {
+    return { location: "legacy", state: inspectPath(path, errors) };
+  }
+  return diagnosticMountPath(path, roots.programsRoot, roots.legacyProgramsRoot, errors);
 }
 
 function diagnosticMountPath(
