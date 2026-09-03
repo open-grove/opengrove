@@ -8,6 +8,7 @@ import {
   scheduleRoomAssistantRunsWithExecutor,
   type RoomRunExecutionInput,
 } from "../server/room-runs/scheduler.js";
+import { beginBridgeRunMaintenance, endBridgeRunMaintenance } from "../server/active-runs.js";
 
 const NOW = "2026-07-10T00:00:00.000Z";
 
@@ -19,7 +20,42 @@ async function main(): Promise<void> {
   await assertRejectedRunDoesNotLeakOrPoisonQueue();
   await assertInactiveMessagesAreReapedWithoutInterruptingLiveRuns();
   await assertScopedSchedulingUsesTheRootControllerRegistry();
+  await assertMaintenanceRejectionDoesNotLeakControllerOrPlaceholder();
   console.log("room-run-scheduler-harness passed");
+}
+
+async function assertMaintenanceRejectionDoesNotLeakControllerOrPlaceholder(): Promise<void> {
+  const rooms = new RoomChannelStore();
+  const member = createMember("member-app-demo-maintenance");
+  rooms.upsertMember(member);
+  const room = rooms.createRoom({ title: "Maintenance", memberIds: [member.id] });
+  const placeholder = rooms.createAssistantPlaceholder({ roomId: room.id, target: member, id: "message-maintenance" });
+  const state = {
+    app: { rooms },
+    settings: { language: "zh-CN" },
+    store: { saveFrom: () => ({}) },
+  } as unknown as BridgeState;
+  state.rootState = state;
+  const admission = beginBridgeRunMaintenance(state);
+  assert.equal(admission.ok, true);
+  let executed = false;
+  const [message] = scheduleRoomAssistantRunsWithExecutor(
+    state,
+    {
+      roomId: room.id,
+      triggerMessageId: "user-maintenance",
+      targets: [member],
+      assistantMessages: [placeholder],
+    },
+    async () => {
+      executed = true;
+    },
+  );
+  assert.equal(executed, false);
+  assert.equal(message?.status, "failed");
+  assert.match(message?.text ?? "", /maintenance|清理|稍后/i);
+  assert.equal(activeRoomRunIds(state).size, 0, "maintenance rejection must not leak an AbortController");
+  assert.equal(admission.ok && endBridgeRunMaintenance(state, admission.leaseId), true);
 }
 
 async function assertScopedSchedulingUsesTheRootControllerRegistry(): Promise<void> {

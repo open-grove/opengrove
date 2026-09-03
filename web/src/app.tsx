@@ -37,7 +37,7 @@ import { setHostSystemTheme } from "./theme";
 import { detectSystemLanguage, rawDiagnosticText, useI18n } from "./i18n";
 import { applyApprovalResultToMessages, applyQuestionResultToMessages } from "./messages";
 import { buildContextPayload } from "./runtime/composer-context";
-import { desktopBridgeReadyForBootstrap } from "./runtime/desktop-bootstrap-policy";
+import { desktopBridgeReadyForBootstrap, desktopBridgeRequiresStartupGate } from "./runtime/desktop-bootstrap-policy";
 import { modelBindingKey, readStoredModelBindings, writeStoredModelBinding } from "./runtime/app-shell-state";
 import { useAppLayoutResize } from "./runtime/app-layout-resize";
 import {
@@ -143,6 +143,9 @@ export function App() {
   const [accountLoginRequested, setAccountLoginRequested] = useState(false);
   const [desktopBridgeStartupState, setDesktopBridgeStartupState] = useState(readDesktopBridgeStartupState(desktopApi));
   const desktopBridgeReady = desktopBridgeReadyForBootstrap({
+    bridgeStartupState: desktopBridgeStartupState,
+  });
+  const desktopBridgeStartupGateRequired = desktopBridgeRequiresStartupGate({
     bridgeStartupState: desktopBridgeStartupState,
   });
   const { toast } = useToast();
@@ -1728,7 +1731,7 @@ export function App() {
     setRoomsOnboardingGuideDismissed(true);
   }
 
-  if (desktopApi && !desktopBridgeReady) {
+  if (desktopApi && desktopBridgeStartupGateRequired) {
     const blocker =
       desktopBridgeStartupState?.stage === "blocked"
         ? {

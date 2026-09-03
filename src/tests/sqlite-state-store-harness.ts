@@ -138,6 +138,9 @@ function verifyMigrationAndBlobArchive(rootDir: string): void {
   writeFileSync(`${databasePath}.before-unscoped-migration.json`, "sqlite migration backup", "utf8");
   writeFileSync(`${legacyPath}.before-unscoped-migration.json`, "legacy migration backup", "utf8");
   writeFileSync(`${databasePath}.before-app-pm-purge.json`, "app PM purge backup", "utf8");
+  writeFileSync(`${databasePath}.before-app-room-scopes-v1.json`, "app room scope backup", "utf8");
+  writeFileSync(`${databasePath}.before-app-member-identities-v1.json`, "app member identity backup", "utf8");
+  writeFileSync(`${databasePath}.before-native-employee-model-v1.json`, "native employee backup", "utf8");
   const initialStats = store.storageStats?.();
   assert.equal(initialStats?.kind, "sqlite");
   assert.ok((initialStats?.blobBytes ?? 0) > 0, "large message text should be stored in a compressed Blob");
@@ -193,12 +196,15 @@ function verifyMigrationAndBlobArchive(rootDir: string): void {
     [2],
   );
   const backupCleanup = restarted.clearMigrationBackups?.();
-  assert.equal(backupCleanup?.removedFiles, 4);
+  assert.equal(backupCleanup?.removedFiles, 7);
   assert.ok((backupCleanup?.reclaimedBytes ?? 0) > 0);
   assert.equal(existsSync(join(dataDir, "local-state.before-sqlite-migration.json")), false);
   assert.equal(existsSync(`${databasePath}.before-unscoped-migration.json`), false);
   assert.equal(existsSync(`${legacyPath}.before-unscoped-migration.json`), false);
   assert.equal(existsSync(`${databasePath}.before-app-pm-purge.json`), false);
+  assert.equal(existsSync(`${databasePath}.before-app-room-scopes-v1.json`), false);
+  assert.equal(existsSync(`${databasePath}.before-app-member-identities-v1.json`), false);
+  assert.equal(existsSync(`${databasePath}.before-native-employee-model-v1.json`), false);
   assert.equal(restarted.storageStats?.().migrationBackupBytes, 0);
   void restarted.close?.();
 }

@@ -220,6 +220,20 @@ assert.equal(
   false,
   "desktop bootstrap must not infer readiness when the Host startup state is unavailable",
 );
+assert.equal(
+  desktopBootstrapPolicy.desktopBridgeRequiresStartupGate({
+    bridgeStartupState: { stage: "maintenance", operation: "storage_cleanup" },
+  }),
+  false,
+  "planned storage maintenance must keep the already-mounted application UI visible",
+);
+assert.equal(
+  desktopBootstrapPolicy.desktopBridgeRequiresStartupGate({
+    bridgeStartupState: { stage: "starting", attempt: 1 },
+  }),
+  true,
+  "an actual startup wait still uses the startup recovery gate",
+);
 
 const originalFetch = globalThis.fetch;
 let bridgeStateListener;

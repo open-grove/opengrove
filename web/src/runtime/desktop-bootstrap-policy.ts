@@ -6,3 +6,9 @@ export function desktopBridgeReadyForBootstrap(desktop: DesktopBootstrapApi | un
   if (!desktop) return true;
   return (desktop.getBridgeStartupState?.() ?? desktop.bridgeStartupState)?.stage === "ready";
 }
+
+export function desktopBridgeRequiresStartupGate(desktop: DesktopBootstrapApi | undefined): boolean {
+  if (!desktop) return false;
+  const stage = (desktop.getBridgeStartupState?.() ?? desktop.bridgeStartupState)?.stage;
+  return stage !== "ready" && stage !== "maintenance";
+}

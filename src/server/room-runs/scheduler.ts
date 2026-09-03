@@ -58,9 +58,23 @@ export function scheduleRoomAssistantRunsWithExecutor(
     const message = input.assistantMessages[index];
     if (!message) continue;
     const runId = createRoomRunId();
+    let releaseActiveRun: () => void;
+    try {
+      releaseActiveRun = registerActiveBridgeRun(state, runId);
+    } catch (error) {
+      if (!(error instanceof Error) || error.message !== "bridge_runs_paused_for_storage_maintenance") throw error;
+      const language = resolveHostLanguageSettings((state.rootState ?? state).settings);
+      const updated = state.app.rooms.updateMessage(input.roomId, message.id, {
+        text: hostMessage(language, "room.run_paused_for_maintenance"),
+        status: "failed",
+        finishedAt: new Date().toISOString(),
+      });
+      updatedMessages.push(updated);
+      continue;
+    }
     const controller = new AbortController();
     controllerMapForState(state).set(runId, controller);
-    activeReleaseMapForState(state).set(runId, registerActiveBridgeRun(state, runId));
+    activeReleaseMapForState(state).set(runId, releaseActiveRun);
     const updated = state.app.rooms.updateMessage(input.roomId, message.id, {
       runId,
       status: "running",

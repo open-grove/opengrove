@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { existsSync, lstatSync, readdirSync, rmSync, statSync } from "node:fs";
-import { basename, dirname, extname, join, resolve } from "node:path";
+import { dirname, join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { ContentBlobStore, type ContentBlobMetadata } from "./content-blob-store.js";
 import { defaultOpenGroveStatePath } from "./default-data-dir.js";
@@ -20,6 +20,7 @@ import {
   type PersistedStateLoadOptions,
 } from "./json-state-store.js";
 import { migrateLegacyJsonToSqliteV1 } from "./migrations/sqlite-json-v1.js";
+import { listStateMigrationBackupPaths, resolveStateMigrationPaths } from "./migration-backups.js";
 import { acquireStateFileLock, type StateFileLock } from "./state-file-lock.js";
 import { canonicalizeStatePath } from "./state-identity.js";
 
@@ -116,7 +117,7 @@ export function createSqliteStateStore(
   requestedPath = defaultOpenGroveStatePath(),
   options: SqliteStateStoreOptions = {},
 ): SqliteStateStore {
-  const paths = resolveStatePaths(requestedPath);
+  const paths = resolveStateMigrationPaths(requestedPath);
   const databasePath = canonicalizeStatePath(paths.databasePath);
   const legacyPath = canonicalizeStatePath(paths.legacyPath);
   const databaseLock = acquireStateFileLock(databasePath);
@@ -822,7 +823,7 @@ function readStorageStats(
     ),
     blobBytes,
     orphanBlobBytes,
-    migrationBackupBytes: migrationBackupPaths(databasePath, legacyPath).reduce(
+    migrationBackupBytes: listStateMigrationBackupPaths(databasePath, legacyPath).reduce(
       (total, path) => total + pathSize(path),
       0,
     ),
@@ -1005,7 +1006,7 @@ function tailPrefixOverlap(previous: string[], current: string[]): number {
 }
 
 function clearMigrationBackups(databasePath: string, legacyPath: string): AgentFileCleanupResult {
-  const backups = migrationBackupPaths(databasePath, legacyPath);
+  const backups = listStateMigrationBackupPaths(databasePath, legacyPath);
   let reclaimedBytes = 0;
   for (const path of backups) {
     reclaimedBytes += pathSize(path);
@@ -1014,65 +1015,10 @@ function clearMigrationBackups(databasePath: string, legacyPath: string): AgentF
   return { removedFiles: backups.length, reclaimedBytes };
 }
 
-function migrationBackupPaths(databasePath: string, legacyPath: string): string[] {
-  const extension = extname(legacyPath) || ".json";
-  const stem = basename(legacyPath, extname(legacyPath));
-  const prefix = `${stem}.before-sqlite-migration`;
-  const recoveryPrefix = `${stem}.before-legacy-recovery`;
-  if (!existsSync(dirname(legacyPath))) return [];
-  const entries = readdirSync(dirname(legacyPath));
-  const sqliteMigrationBackups = entries
-    .filter(
-      (entry) =>
-        entry === `${prefix}${extension}` ||
-        (entry.startsWith(`${prefix}-`) &&
-          entry.endsWith(extension) &&
-          /^\d+$/.test(entry.slice(prefix.length + 1, -extension.length))),
-    )
-    .map((entry) => join(dirname(legacyPath), entry));
-  const recoveryBackups = entries
-    .filter(
-      (entry) =>
-        entry === recoveryPrefix ||
-        (entry.startsWith(`${recoveryPrefix}-`) && /^\d+$/.test(entry.slice(recoveryPrefix.length + 1))),
-    )
-    .map((entry) => join(dirname(legacyPath), entry));
-  const persistedStateMigrationSteps = [
-    "unscoped-migration",
-    "app-pm-purge",
-    "room-administrators-v1",
-    "kernel-native-resume-v1",
-    "routine-app-command-id-v1",
-  ];
-  const candidates = new Set([
-    ...sqliteMigrationBackups,
-    ...recoveryBackups,
-    ...persistedStateMigrationSteps.flatMap((step) => [
-      `${databasePath}.before-${step}.json`,
-      `${legacyPath}.before-${step}.json`,
-    ]),
-  ]);
-  return [...candidates].filter((path) => existsSync(path));
-}
-
 function pathSize(path: string): number {
   const stats = lstatSync(path);
   if (!stats.isDirectory()) return stats.size;
   return readdirSync(path).reduce((total, entry) => total + pathSize(join(path, entry)), 0);
-}
-
-function resolveStatePaths(requestedPath: string): { databasePath: string; legacyPath: string } {
-  const resolved = resolve(requestedPath);
-  if (extname(resolved).toLowerCase() === ".json") {
-    return {
-      databasePath: join(dirname(resolved), `${basename(resolved, extname(resolved))}.sqlite`),
-      legacyPath: resolved,
-    };
-  }
-  return {
-    databasePath: resolved,
-    legacyPath: join(dirname(resolved), `${basename(resolved, extname(resolved))}.json`),
-  };
 }
 
 function spec(

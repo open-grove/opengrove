@@ -640,15 +640,12 @@ export const EN = {
   "confirm.resetDesktopDataTitle": "Reset desktop data?",
   "confirm.resetDesktopDataBody":
     "The current desktop data directory will be deleted, then a new empty data directory will be created.",
-  "confirm.clearRuntimeEventsTitle": "Clear agent events and execution records?",
-  "confirm.clearRuntimeEventsBody": "Rooms conversations and artifacts are kept.",
-  "confirm.clearRoomArchiveTitle": "Trim the Rooms event archive?",
-  "confirm.clearRoomArchiveBody": "Messages are fully kept; only events beyond the fast-sync window are removed.",
-  "confirm.clearCachesTitle": "Clear rebuildable model and tool caches?",
-  "confirm.clearCachesBody": "They are rebuilt automatically on next use.",
-  "confirm.clearMigrationBackupsTitle": "Delete the pre-migration JSON backups?",
+  "confirm.safeStorageCleanupTitle": "Free space safely?",
+  "confirm.safeStorageCleanupBody":
+    "Clear only caches and temporary files that OpenGrove can recreate. Works, Apps, conversations, Knowledge, account, and settings are kept.",
+  "confirm.clearMigrationBackupsTitle": "Delete update backups?",
   "confirm.clearMigrationBackupsBody":
-    "Continue only after confirming history looks right on SQLite; once deleted, you can't roll back with an older OpenGrove.",
+    "Delete only after confirming OpenGrove works normally after the update. You won't be able to return to the data from before the update.",
   "confirm.publishEmployeeTitle": "Publish this employee pack?",
   "confirm.publishEmployeeBody":
     "Publishing creates a hireable employee pack. The persona and responsibilities ship with the pack; the public summary, capabilities, inputs and outputs appear in the catalog and A2A card. The pack contains no API keys or local secrets — hires configure dependencies on their own machines.",
@@ -1183,38 +1180,55 @@ export const EN = {
     "Use only when local data is corrupted and restarting the service does not recover it. This clears the current desktop data.",
   "settings.storageSpaceTitle": "Storage",
   "settings.localStorageCopy":
-    "History is kept in full by default. SQLite stores indexes and small records; larger messages and tool results are compressed into separate blob files.",
+    "See how much space OpenGrove uses on this computer. Clearing cache never deletes works or conversations.",
   "settings.storageTotalUsed": "Storage used by OpenGrove",
-  "settings.storageMaintenance": "Storage maintenance",
-  "settings.storageDatabase": "Database",
-  "settings.storageBlobFiles": "Blob files",
-  "settings.storageSafeToClean": "Safe to clean",
-  "settings.storageMigrationBackups": "JSON migration rollback backups",
-  "settings.storageCategoryValue": "{records} records · {size}",
+  "settings.storageMaintenance": "Free up space",
+  "settings.storageMigrationBackups": "Update backups",
   "settings.storageRefreshStats": "Refresh stats",
+  "settings.storageLoading": "Calculating storage…",
+  "settings.storageUnavailable": "Storage details are temporarily unavailable",
+  "settings.storageLoadError": "Storage details are temporarily unavailable. Try again shortly.",
+  "settings.storageBackupDeleteError": "Update backups could not be deleted. Try again shortly.",
   "settings.storageCleaning": "Cleaning…",
-  "settings.storageCleanOrphans": "Clean unreferenced files",
-  "settings.storageCleanCaches": "Clean rebuildable caches",
-  "settings.storageRebuildableCopy": "Remove temporary data that the system can generate again automatically.",
-  "settings.storageTrimRoomArchive": "Trim Rooms event archive",
-  "settings.storageRoomArchiveCopy": "Keep conversation messages and remove only events outside the fast-sync window.",
-  "settings.storageDeleteMigrationBackups": "Delete migration rollback backups",
-  "settings.storageClearRuntimeEvents": "Clear runtime event history",
-  "settings.storageRuntimeEventsCopy":
-    "Clear agent events and execution records without affecting conversations or artifacts.",
-  "settings.storageClearRuntimeEventsConfirm":
-    "Clear agent events and execution records? Rooms conversations and artifacts are not deleted.",
-  "settings.storageClearRoomArchiveConfirm":
-    "Trim the Rooms event archive? Conversation messages are kept in full; only event records beyond the fast-sync window are deleted.",
-  "settings.storageClearCachesConfirm":
-    "Clean rebuildable model and tool caches? They will be rebuilt automatically on next use.",
-  "settings.storageClearMigrationBackupsConfirm":
-    "Delete pre-migration JSON backups? Continue only if you have confirmed history works after the SQLite upgrade; once deleted, you cannot roll back with an older OpenGrove.",
-  "settings.storageCategoryRoomMessages": "Rooms messages",
-  "settings.storageCategoryRoomEvents": "Rooms event archive",
-  "settings.storageCategoryExecutions": "Execution records",
-  "settings.storageCategoryAgentEvents": "Agent events",
-  "settings.storageCategoryKnowledge": "Knowledge base",
+  "settings.storageCleanupEstimateMaximum": "About {size} can be cleared.",
+  "settings.storageCleanupCompleted":
+    "Cleanup finished; no measurable files were removed. Check the operating system for current free disk space.",
+  "settings.storageCleanupFreed":
+    "Cleared about {size} of cache and temporary files. Check the operating system for current free disk space.",
+  "settings.storageCleanupFreedUpdaterSkipped":
+    "Removed about {size} of safe-cleanup items. Update cache was kept because an update is in progress. Check the operating system for current free disk space.",
+  "settings.storageCleanupErrorActiveRuns": "A task is still running. Wait for it to finish before cleaning storage.",
+  "settings.storageCleanupErrorReusedBridge":
+    "This window is connected to another OpenGrove service, so desktop cache cannot be paused and cleaned safely here. Use the client that started that service.",
+  "settings.storageCleanupErrorInProgress": "Storage maintenance is already in progress. Try again later.",
+  "settings.storageCleanupErrorRestart":
+    "The local service did not recover after cleanup. Restart OpenGrove and inspect diagnostics.",
+  "settings.storageCleanupErrorGeneric": "Cleanup failed: {error}",
+  "settings.storageSafeCleanup": "Free space safely",
+  "settings.storageSafeCleanupCopy":
+    "Clear cache and temporary files without deleting works, Apps, conversations, Knowledge, account, or settings.",
+  "settings.storageDeleteMigrationBackups": "Delete update backups",
+  "settings.storageMigrationBackupsCopy":
+    "OpenGrove saves old data automatically before an update. Delete it after confirming the update works normally.",
+  "settings.storageMigrationBackupsDeleted": "Deleted about {size} of update backups.",
+  "settings.storageBackupNone": "No backups of this type.",
+  "settings.storageBackupKindSummary": "{count} backups; latest saved {time}.",
+  "settings.storageCategoryWorksAndFiles": "My works and files",
+  "settings.storageCategoryWorksAndFilesCopy":
+    "Content you create, download, or save in Apps. It is never cleaned automatically.",
+  "settings.storageCategoryAppsAndRuntime": "Apps and runtime components",
+  "settings.storageCategoryAppsAndRuntimeCopy": "Installed Apps and the files they need to run.",
+  "settings.storageCategoryConversationsAndSystem": "Conversations and system data",
+  "settings.storageCategoryConversationsAndSystemCopy":
+    "Conversations, Knowledge, account, and settings. Never cleaned automatically.",
+  "settings.storageCategoryRebuildable": "Cache and temporary files",
+  "settings.storageCategoryRebuildableCopy":
+    "OpenGrove can recreate them; some content may need to be downloaded again.",
+  "settings.storageCategoryBackups": "Update backups",
+  "settings.storageCategoryBackupsCopy":
+    "Old data saved automatically before an update, so OpenGrove can recover if the update fails.",
+  "settings.storageBackupReasonMigration": "saved before update",
+  "settings.storageBackupSummary": "{count} backups; latest saved {time}.",
   "workspace.kernel": "Kernel",
   "workspace.namedKernel": "{name} kernel",
   "workspace.kernelConnected": "Connected",

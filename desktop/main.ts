@@ -1,5 +1,6 @@
 import { randomBytes } from "node:crypto";
-import { appendFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { homedir } from "node:os";
 import { isAbsolute, join, resolve } from "node:path";
 import { app, BrowserWindow, dialog, ipcMain, Menu, nativeTheme, session, shell } from "electron";
 import {
@@ -60,6 +61,10 @@ import {
   parseDesktopStripeDeepLink,
   type DesktopStripeDeepLink,
 } from "../src/desktop-stripe-deep-link.js";
+import { appendBoundedLog } from "./bounded-log.js";
+import { cleanupDesktopRebuildableFiles, measureDesktopPathBytes } from "./rebuildable-storage-cleanup.js";
+
+const MAIN_LOG_POLICY = { maxBytes: 10 * 1024 * 1024, retainedFiles: 2 } as const;
 
 type DesktopChannel = "stable" | "dev";
 
@@ -129,6 +134,7 @@ let clientUpdateStartupTimer: NodeJS.Timeout | undefined;
 let clientUpdatePoller: NodeJS.Timeout | undefined;
 let clientUpdateChecking = false;
 let clientUpdateLastCheckStartedAt = 0;
+let desktopStorageCleanupActive = false;
 let desktopStartupTimeoutProblem: { code: string; incidentId: string } | undefined;
 let desktopLanguage: DesktopLanguage = "en";
 let pendingStripeDeepLink = findDesktopStripeDeepLink(process.argv, DESKTOP_STRIPE_DEEP_LINK_SCHEME);
@@ -186,6 +192,7 @@ if (!hasSingleInstanceLock) {
         userDataDir: desktopUserDataDir,
         programsDir: app.isPackaged ? defaultOpenGroveProgramsDir() : join(desktopUserDataDir, "programs"),
         workspacesDir: app.isPackaged ? defaultOpenGroveWorkspacesDir() : join(desktopUserDataDir, "workspaces"),
+        updaterCacheDir: desktopUpdaterCacheDir(),
         token: bridgeToken,
         isPackaged: app.isPackaged,
         channel: DESKTOP_CHANNEL,
@@ -632,6 +639,7 @@ function registerDesktopIpc(): void {
     void checkClientUpdates("bridge-restart");
     return diagnostics();
   });
+  handle("opengrove:desktop:cleanup-rebuildable-storage", () => cleanupDesktopRebuildableStorage());
   handle("opengrove:desktop:open-data-dir", async () => {
     await openPathOrThrow(requireBridgeSupervisor().paths.dataDir);
   });
@@ -655,6 +663,169 @@ function registerDesktopIpc(): void {
     startReusedWatchdogIfNeeded();
     void checkClientUpdates("data-reset");
   });
+}
+
+async function cleanupDesktopRebuildableStorage() {
+  if (desktopStorageCleanupActive) throw new Error("desktop_storage_maintenance_in_progress");
+  desktopStorageCleanupActive = true;
+  const supervisor = requireBridgeSupervisor();
+  let maintenanceLeaseId: string | undefined;
+  try {
+    if (bridgeHost.runtime?.mode === "reused") throw new Error("rebuildable_cleanup_reused_bridge_unsupported");
+    maintenanceLeaseId = await acquireDesktopStorageMaintenanceGate();
+    const orphanCleanup = parseDesktopStorageCleanupResponse(
+      await postBridgeStorageAction("/settings/storage/cleanup", { leaseId: maintenanceLeaseId }),
+    );
+    const bridgeCacheCleanup = parseDesktopStorageCleanupResponse(
+      await postBridgeStorageAction("/settings/storage/clear-history", {
+        scope: "rebuildable-caches",
+        leaseId: maintenanceLeaseId,
+      }),
+    );
+
+    const chromiumCachePaths = ["Cache", "Code Cache"].map((name) => join(supervisor.paths.userDataDir, name));
+    const updaterStage = clientUpdateManager?.snapshot().stage;
+    const updaterCacheDir =
+      updaterStage === "downloading" || updaterStage === "downloaded" || updaterStage === "installing"
+        ? undefined
+        : supervisor.updaterCacheDirectory();
+
+    stopReusedWatchdog();
+    bridgeSupervisorLifecycleActive = false;
+    bridgeHost.maintenance("storage_cleanup");
+    await supervisor.stop();
+    const chromiumCacheBytesBefore = await measureDesktopPathsBestEffort(chromiumCachePaths);
+    await session.defaultSession.clearCache();
+    await session.defaultSession.clearCodeCaches({});
+    const chromiumCacheBytesAfter = await measureDesktopPathsBestEffort(chromiumCachePaths);
+    const chromiumCacheBytes = Math.max(0, chromiumCacheBytesBefore - chromiumCacheBytesAfter);
+    const files = await cleanupDesktopRebuildableFiles({
+      // Workspace media caches are removed by the Bridge while it still has
+      // the authoritative mounted-workspace list. Desktop must not guess from
+      // a broad Apps or Workspaces directory.
+      workspaceRoots: [],
+      logDir: supervisor.paths.logDir,
+      updaterCacheDir,
+    });
+    const bridge = await supervisor.start({ allowReuse: false });
+    await verifyBridgeRuntime(bridge);
+    activateBridgeInMainWindow(bridge);
+    startReusedWatchdogIfNeeded();
+    const orphanBlobBytes = orphanCleanup.reclaimedBytes;
+    const bridgeCacheBytes = bridgeCacheCleanup.reclaimedBytes;
+    const reclaimedBytes = orphanBlobBytes + bridgeCacheBytes + files.reclaimedBytes + chromiumCacheBytes;
+    logMain(`safe storage cleanup completed (${reclaimedBytes} logical bytes removed)`);
+    return {
+      status: "cleaned" as const,
+      orphanBlobBytes,
+      bridgeCacheBytes,
+      ...files,
+      chromiumCacheBytes,
+      reclaimedBytes,
+      updaterCacheSkipped: Boolean(supervisor.updaterCacheDirectory() && !updaterCacheDir),
+    };
+  } catch (error) {
+    if (supervisor.diagnostics().status !== "running") {
+      try {
+        const bridge = await supervisor.start({ allowReuse: false });
+        await verifyBridgeRuntime(bridge);
+        activateBridgeInMainWindow(bridge);
+        startReusedWatchdogIfNeeded();
+      } catch (restartError) {
+        bridgeSupervisorLifecycleActive = true;
+        throw new Error(`rebuildable_cleanup_and_restart_failed:${messageOf(error)}:${messageOf(restartError)}`);
+      }
+    } else if (maintenanceLeaseId) {
+      await releaseDesktopStorageMaintenanceGate(maintenanceLeaseId);
+      if (bridgeHost.runtime) bridgeHost.activate(bridgeHost.runtime);
+    }
+    throw error;
+  } finally {
+    desktopStorageCleanupActive = false;
+  }
+}
+
+async function measureDesktopPathsBestEffort(paths: readonly string[]): Promise<number> {
+  const measured = await Promise.all(
+    paths.map(async (path) => {
+      try {
+        return await measureDesktopPathBytes(path);
+      } catch {
+        return 0;
+      }
+    }),
+  );
+  return measured.reduce((total, bytes) => total + bytes, 0);
+}
+
+async function postBridgeStorageAction(path: string, body: unknown): Promise<unknown> {
+  const bridge = bridgeHost.runtime;
+  if (!bridge) throw new Error("desktop_bridge_unavailable");
+  const headers: Record<string, string> = { "content-type": "application/json" };
+  if (bridgeToken) headers[APP_BRIDGE_TOKEN_HEADER] = bridgeToken;
+  const cookies = bridgeAuthCookies.mergeRequestCookieHeader(undefined);
+  if (cookies) headers.cookie = cookies;
+  const response = await fetch(`${bridge.apiBase}${path}`, {
+    method: "POST",
+    cache: "no-store",
+    headers,
+    body: JSON.stringify(body),
+  });
+  const payload = (await response.json().catch(() => undefined)) as { error?: unknown } | undefined;
+  if (!response.ok) {
+    throw new Error(
+      typeof payload?.error === "string" ? payload.error : `desktop_storage_action_failed:http_${response.status}`,
+    );
+  }
+  return payload;
+}
+
+async function acquireDesktopStorageMaintenanceGate(): Promise<string> {
+  return parseDesktopStorageMaintenanceStartResponse(
+    await postBridgeStorageAction("/settings/storage/maintenance/start", {}),
+  ).leaseId;
+}
+
+async function releaseDesktopStorageMaintenanceGate(leaseId: string): Promise<void> {
+  try {
+    parseDesktopStorageOkResponse(
+      await postBridgeStorageAction("/settings/storage/maintenance/end", { leaseId }),
+      "desktop_storage_maintenance_end_response_invalid",
+    );
+  } catch (error) {
+    logMain(`storage maintenance gate release failed: ${messageOf(error)}`);
+  }
+}
+
+function parseDesktopStorageMaintenanceStartResponse(value: unknown): { leaseId: string } {
+  const response = desktopStorageResponseRecord(value, "desktop_storage_maintenance_start_response_invalid");
+  if (response.ok !== true || typeof response.leaseId !== "string" || !response.leaseId) {
+    throw new Error("desktop_storage_maintenance_start_response_invalid");
+  }
+  return { leaseId: response.leaseId };
+}
+
+function parseDesktopStorageCleanupResponse(value: unknown): { reclaimedBytes: number } {
+  const response = desktopStorageResponseRecord(value, "desktop_storage_cleanup_response_invalid");
+  const cleanup = desktopStorageResponseRecord(response.cleanup, "desktop_storage_cleanup_response_invalid");
+  if (
+    response.ok !== true ||
+    typeof cleanup.reclaimedBytes !== "number" ||
+    !Number.isFinite(cleanup.reclaimedBytes) ||
+    cleanup.reclaimedBytes < 0
+  ) {
+    throw new Error("desktop_storage_cleanup_response_invalid");
+  }
+  return { reclaimedBytes: cleanup.reclaimedBytes };
+}
+
+function parseDesktopStorageOkResponse(value: unknown, errorCode: string): void {
+  if (desktopStorageResponseRecord(value, errorCode).ok !== true) throw new Error(errorCode);
+}
+
+function desktopStorageResponseRecord(value: unknown, errorCode: string): Record<string, unknown> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error(errorCode);
+  return value as Record<string, unknown>;
 }
 
 async function readBridgeDiagnosticSummary(): Promise<unknown> {
@@ -1168,8 +1339,24 @@ function logMain(message: string): void {
   if (!mainLogPath) return;
   const line = `[${new Date().toISOString()}] ${message}\n`;
   try {
-    appendFileSync(mainLogPath, redactText(line, [bridgeToken]), "utf8");
-  } catch {
+    appendBoundedLog(mainLogPath, redactText(line, [bridgeToken]), MAIN_LOG_POLICY);
+  } catch (error) {
     // Logging must never block startup or bridge recovery.
+    console.warn("desktop_main_log_write_failed", {
+      path: mainLogPath,
+      error: error instanceof Error ? error.message : String(error),
+    });
   }
+}
+
+function desktopUpdaterCacheDir(): string {
+  const home = homedir();
+  const base =
+    process.platform === "win32"
+      ? process.env.LOCALAPPDATA || join(home, "AppData", "Local")
+      : process.platform === "darwin"
+        ? join(home, "Library", "Caches")
+        : process.env.XDG_CACHE_HOME || join(home, ".cache");
+  // electron-builder writes this exact directory name to app-update.yml.
+  return join(base, "opengrove-updater");
 }

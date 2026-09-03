@@ -79,6 +79,7 @@ export const ZH_CN_HOST_MESSAGES = {
   "room.run_empty": "这次没有返回可显示的回复。",
   "room.run_failed": "这次运行失败了，请查看运行详情。",
   "room.run_inactive": "这次运行未返回最终结果就停止了，请重新发送。",
+  "room.run_paused_for_maintenance": "OpenGrove 正在完成存储清理，请稍后再试。",
   "room.run_host_restarted": "运行已中断：本地服务重启后这次运行无法继续，请重新发送。",
   "workspace.new_folder": "新建文件夹",
   "workspace.untitled_markdown": "未命名.md",
