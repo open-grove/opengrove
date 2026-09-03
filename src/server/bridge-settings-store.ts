@@ -37,7 +37,7 @@ import { CURRENT_PROVIDER_ROUTE_MIGRATION_VERSION } from "./migrations/implicit-
 import { CURRENT_EMPLOYEE_MODEL_MIGRATION_VERSION } from "./migrations/native-employee-model-v1.js";
 import { normalizeKernelPathOverrides } from "./kernel-utils.js";
 import { normalizeWorkspaceRootValue, resolveBridgeWorkspaceRoot } from "./workspace-root.js";
-import { writePrivateFileAtomically } from "./private-file.js";
+import { writePrivateFileAtomically } from "../storage/private-file.js";
 import {
   defaultBridgeVoiceSettings,
   getBridgeSttProviderCatalog,

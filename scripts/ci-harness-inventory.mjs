@@ -101,6 +101,7 @@ export const harnessInventory = [
   }),
   task("room-run-history-mode", "dist/tests/room-run-history-mode-harness.js", "rooms-routines"),
   task("room-agent-runtime-fingerprint", "dist/tests/room-agent-runtime-fingerprint-harness.js", "rooms-routines"),
+  task("host-operation-cli", "dist/tests/host-operation-cli-harness.js", "rooms-routines", { suite: "critical" }),
   task("a2a-local", "dist/tests/a2a-local-harness.js", "rooms-routines"),
   task("web-login-provider-choice", "scripts/test-web-login-provider-choice.mjs", "web-desktop"),
   task("web-composer-capability-gating", "scripts/test-web-composer-capability-gating.mjs", "web-desktop"),

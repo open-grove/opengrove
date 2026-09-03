@@ -1,0 +1,12 @@
+{
+  "groups": {
+    "auth": "auth",
+    "room": "rooms"
+  },
+  "resources": {
+    "auth.email-code": "emailCodes",
+    "auth.session": "session",
+    "room.message": "messages"
+  },
+  "operations": {}
+}

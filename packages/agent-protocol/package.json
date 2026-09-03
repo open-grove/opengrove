@@ -16,6 +16,9 @@
       "import": "./dist/locale-registry.js"
     }
   },
+  "imports": {
+    "#protocol": "@opengrove/protocol"
+  },
   "files": [
     "dist",
     "src"
@@ -26,6 +29,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@opengrove/protocol": "0.1.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {

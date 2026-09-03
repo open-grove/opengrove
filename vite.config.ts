@@ -58,6 +58,9 @@ export default defineConfig(({ command }) => {
     },
     resolve: {
       alias: {
+        "#protocol": resolve(import.meta.dirname, "packages/protocol/src/index.ts"),
+        "@opengrove/client": resolve(import.meta.dirname, "packages/client/src/index.ts"),
+        "@opengrove/protocol": resolve(import.meta.dirname, "packages/protocol/src/index.ts"),
         "@opengrove/agent-protocol/locale-registry": resolve(
           import.meta.dirname,
           "packages/agent-protocol/src/locale-registry.ts",

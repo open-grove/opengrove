@@ -16,7 +16,7 @@ import { deflateSync, inflateSync } from "node:zlib";
 import git from "isomorphic-git";
 import { canonicalPortableRelativePath } from "../app-builder/portable-path.js";
 import { appReleaseSourcePathExcluded } from "./app-release-source-exclusions.js";
-import { writePrivateFileAtomically } from "./private-file.js";
+import { writePrivateFileAtomically } from "../storage/private-file.js";
 
 const MANAGED_BRANCH = "opengrove-work";
 const DEFAULT_AUTHOR = {
