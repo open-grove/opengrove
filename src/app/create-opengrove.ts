@@ -761,6 +761,7 @@ export function createOpenGrove(options: CreateOpenGroveOptions): OpenGroveApp {
           hostToolScope: turnOptions.hostToolScope ? { sessionId, ...turnOptions.hostToolScope } : { sessionId },
         }),
         runId,
+        turnOptions.signal,
       )) {
         if (event.type === "turn.finished") {
           const finalEvent = createAssistantFinalEvent(turnEvents, {
@@ -942,7 +943,11 @@ function kernelRuntimeExceptionMessage(error: unknown): string {
   return `${code}: ${message}`;
 }
 
-async function* closeRuntimeOnException(events: AsyncIterable<AgentEvent>, runId: string): AsyncIterable<AgentEvent> {
+async function* closeRuntimeOnException(
+  events: AsyncIterable<AgentEvent>,
+  runId: string,
+  signal?: AbortSignal,
+): AsyncIterable<AgentEvent> {
   const observed: AgentEvent[] = [];
   try {
     for await (const event of events) {
@@ -950,7 +955,6 @@ async function* closeRuntimeOnException(events: AsyncIterable<AgentEvent>, runId
       yield event;
     }
   } catch (error) {
-    if (observed.some((event) => event.type === "turn.finished")) return;
     const failureAt = new Date().toISOString();
     const errorEvent: AgentEvent = {
       type: "error",
@@ -959,6 +963,7 @@ async function* closeRuntimeOnException(events: AsyncIterable<AgentEvent>, runId
     };
     observed.push(errorEvent);
     yield errorEvent;
+    if (observed.some((event) => event.type === "turn.finished")) return;
     const finalEvent = createAssistantFinalEvent(observed, {
       runId,
       at: failureAt,
@@ -974,7 +979,7 @@ async function* closeRuntimeOnException(events: AsyncIterable<AgentEvent>, runId
       at: failureAt,
       outcome: {
         taskState: "TASK_STATE_FAILED",
-        reasonCode: "kernel_runtime_exception",
+        reasonCode: signal?.aborted ? "cancel_outcome_unknown" : "kernel_runtime_exception",
         outcomeUnknown: true,
       },
       synthetic: true,

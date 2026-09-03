@@ -122,6 +122,34 @@ test("last producer release terminalizes a non-terminal Run without inventing su
   }
 });
 
+test("producer loss terminalizes both root and hot-rebuild execution Run records", async () => {
+  const directory = mkdtempSync(join(tmpdir(), "opengrove-producer-dual-record-"));
+  const state = createBridgeState({ statePath: join(directory, "state.sqlite") });
+  const runId = "run-producer-dual-record";
+  const release = registerActiveBridgeRun(state, runId);
+  const producerApp = state.app;
+  try {
+    producerApp.sessions.startRun({
+      id: runId,
+      sessionId: "session-producer-dual-record",
+      activity: "chat",
+      input: "survive a hot rebuild",
+    });
+    state.store.saveFrom(producerApp);
+    setActiveBridgeRunExecutionState(state, runId, { ...state, rootState: state, app: producerApp });
+    recreateBridgeApp(state);
+    assert.notEqual(state.app, producerApp);
+
+    release();
+    assert.equal(producerApp.sessions.getRun(runId)?.lifecycle.taskState, "TASK_STATE_FAILED");
+    assert.equal(state.app.sessions.getRun(runId)?.lifecycle.taskState, "TASK_STATE_FAILED");
+  } finally {
+    release();
+    await state.store.close?.();
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
 test("shutdown reconciliation cancels orphan interactions and records an unknown failed outcome", async () => {
   const directory = mkdtempSync(join(tmpdir(), "opengrove-shutdown-reconcile-"));
   const state = createBridgeState({ statePath: join(directory, "state.sqlite") });
@@ -381,6 +409,12 @@ test("a user can cancel live native approval and question waiters without disgui
     },
   });
   try {
+    state.app.sessions.startRun({
+      id: runId,
+      sessionId: "session-native-interaction-cancel",
+      activity: "chat",
+      input: "cancel the native interaction",
+    });
     setActiveBridgeRunExecutionState(state, runId, { ...state, rootState: state, app: state.app });
     const approval = state.app.approvals.request({
       kind: "tool",
@@ -411,6 +445,12 @@ test("a user can cancel live native approval and question waiters without disgui
     assert.equal(questionResult.question.status, "canceled");
     assert.equal((await questionDecision).status, "canceled");
     assert.equal(nativeCancelCount, 2, "each explicit user cancellation must reach the live Run producer");
+    assert.equal(state.app.sessions.getRun(runId)?.lifecycle.activity, "cancel_pending");
+    assert.equal(
+      state.app.events.list().filter((event) => event.type === "run.cancel_requested" && event.runId === runId).length,
+      2,
+      "each cancellation request must enter the AgentEvent fact stream",
+    );
   } finally {
     releaseRun();
     await state.store.close?.();

@@ -1,4 +1,4 @@
-import { isA2ATerminalTaskState, lifecycleFromRunFact } from "#agent-protocol";
+import { isA2ATerminalTaskState } from "#agent-protocol";
 import type { AgentEvent, JsonObject } from "../core.js";
 import type { BridgeState } from "./bridge-types.js";
 import { releaseBridgeKernelAdapter, retainBridgeKernelAdapter } from "./kernel-lifecycle.js";
@@ -86,12 +86,17 @@ export function activeBridgeRunIds(state: BridgeState): ReadonlySet<string> {
 
 export function cancelAllActiveBridgeRuns(state: BridgeState): string[] {
   const canceled: string[] = [];
+  let lifecycleChanged = false;
   for (const [runId, handle] of registryForState(state).handlesByRunId) {
     if (!handle.cancel) continue;
     handle.cancelRequested = true;
-    markRunCancelPending(state, runId);
+    lifecycleChanged = markRunCancelPending(state, handle, "host_shutdown") || lifecycleChanged;
     handle.cancel();
     canceled.push(runId);
+  }
+  if (lifecycleChanged) {
+    const rootState = state.rootState ?? state;
+    rootState.store.saveFrom(rootState.app);
   }
   return canceled;
 }
@@ -102,8 +107,15 @@ export function cancelActiveBridgeRun(state: BridgeState, runId: string | undefi
   const handle = registryForState(state).handlesByRunId.get(runId);
   if (!handle?.cancel) return false;
   handle.cancelRequested = true;
-  markRunCancelPending(state, runId);
-  handle.cancel();
+  const lifecycleChanged = markRunCancelPending(state, handle, "user_requested");
+  try {
+    handle.cancel();
+  } finally {
+    if (lifecycleChanged) {
+      const rootState = state.rootState ?? state;
+      rootState.store.saveFrom(rootState.app);
+    }
+  }
   return true;
 }
 
@@ -299,39 +311,64 @@ function hasDurablePendingInteraction(state: BridgeState, handle: ActiveRunHandl
 function terminalizeRunWithoutProducer(state: BridgeState, handle: ActiveRunHandle, reasonCode: string): boolean {
   const rootState = state.rootState ?? state;
   if (!rootState.app?.sessions) return false;
-  const run = rootState.app.sessions.getRun(handle.runId);
-  if (!run || isA2ATerminalTaskState(run.lifecycle.taskState)) return false;
-  if (run.lifecycle.taskState === "TASK_STATE_AUTH_REQUIRED") return false;
-  rootState.app.recordEvent(
-    {
-      type: "turn.finished",
-      runId: handle.runId,
-      at: new Date().toISOString(),
-      outcome: {
-        taskState: "TASK_STATE_FAILED",
-        reasonCode,
-        ...(reasonCode === "producer_lost" || reasonCode === "host_shutdown" ? { retryable: true } : {}),
-        outcomeUnknown: true,
-      },
-      synthetic: true,
+  const event: AgentEvent = {
+    type: "turn.finished",
+    runId: handle.runId,
+    at: new Date().toISOString(),
+    outcome: {
+      taskState: "TASK_STATE_FAILED",
+      reasonCode,
+      ...(reasonCode === "producer_lost" || reasonCode === "host_shutdown" ? { retryable: true } : {}),
+      outcomeUnknown: true,
     },
-    {
+    synthetic: true,
+  };
+  let changed = false;
+  for (const app of runApps(rootState, handle)) {
+    const run = app.sessions.getRun(handle.runId);
+    if (
+      !run ||
+      isA2ATerminalTaskState(run.lifecycle.taskState) ||
+      run.lifecycle.taskState === "TASK_STATE_AUTH_REQUIRED"
+    ) {
+      continue;
+    }
+    app.recordEvent(event, {
       sessionId: run.sessionId,
       input: "The Run producer ended before confirming a terminal outcome.",
-    },
-  );
-  return true;
+    });
+    changed = true;
+  }
+  return changed;
 }
 
 function nativeRequestOwnerKey(kind: InteractionKind, runId: string, nativeRequestId: string): string {
   return `${kind}:${runId}:${nativeRequestId}`;
 }
 
-function markRunCancelPending(state: BridgeState, runId: string): void {
+function markRunCancelPending(state: BridgeState, handle: ActiveRunHandle, reason: string): boolean {
   const rootState = state.rootState ?? state;
-  const run = rootState.app.sessions.getRun(runId);
-  if (!run || isA2ATerminalTaskState(run.lifecycle.taskState)) return;
-  rootState.app.sessions.updateRun(runId, { lifecycle: lifecycleFromRunFact({ kind: "cancel_requested" }) });
+  const event: AgentEvent = {
+    type: "run.cancel_requested",
+    runId: handle.runId,
+    at: new Date().toISOString(),
+    reason,
+  };
+  let changed = false;
+  for (const app of runApps(rootState, handle)) {
+    const run = app.sessions.getRun(handle.runId);
+    if (!run || isA2ATerminalTaskState(run.lifecycle.taskState)) continue;
+    app.recordEvent(event, { sessionId: run.sessionId, input: run.input });
+    changed = true;
+  }
+  return changed;
+}
+
+function runApps(rootState: BridgeState, handle: ActiveRunHandle): BridgeState["app"][] {
+  const apps = [rootState.app];
+  const executionApp = handle.executionState?.app;
+  if (executionApp && executionApp !== rootState.app) apps.push(executionApp);
+  return apps;
 }
 
 function removeHandle(registry: ActiveRunRegistry, handle: ActiveRunHandle): void {
