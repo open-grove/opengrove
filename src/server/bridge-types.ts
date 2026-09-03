@@ -21,6 +21,7 @@ import type {
   QuestionRequest,
   UserLanguagePreference,
 } from "../core.js";
+import type { AgentEventCheckpointPolicy } from "../core/event-persistence.js";
 import type { AgentStateStore } from "../storage/json-state-store.js";
 import type { DesktopBridgeStartupActivity } from "../desktop-bridge-startup-state.js";
 import type { OpenGroveProfile } from "../profiles/profile.js";
@@ -379,6 +380,8 @@ export interface BridgeState {
   /** True after the required App store graph has been constructed at least once. */
   appInitialized?: boolean;
   store: AgentStateStore;
+  /** Per-Host persistence cadence; never shared across Bridge instances. */
+  eventCheckpointPolicy?: AgentEventCheckpointPolicy;
   rootState?: BridgeState;
   /** Runtime-only direct Ask states, keyed by the complete runtime boundary. */
   directAskExecutionStates?: Map<string, BridgeState>;

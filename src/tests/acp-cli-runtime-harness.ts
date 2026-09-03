@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -112,6 +112,9 @@ async function main() {
   await assertAcpHostToolBridgeFailureClosesLifecycle(cwd);
   await assertAcpHostToolActivationFailureCleansUp(cwd);
   await assertAcpClientGenerationRevokesHostToolBindings(cwd);
+  await assertCleanAcpSessionErrorKeepsTransportHealthy(cwd);
+  await assertAcpControlTimeoutDoesNotKillSiblingRun(cwd);
+  await assertAcpNativeCancellationCanConfirmOneRun(cwd);
   await assertAbortedHostToolTurnCancelsScopedSession(cwd);
 
   const runtime = new AcpCliRuntime({
@@ -304,6 +307,7 @@ async function main() {
   await assertAbortedAcpTurnCloses(cwd, "kimi");
   await assertAcpImageInput(cwd);
   await assertKimiNativeCompaction(cwd);
+  await assertKimiNativeCompactionForwardsCancellation(cwd);
   await assertKimiNativeSkillInvocation(cwd);
   await assertKimiUnconfirmedCompactionFailsOpen(cwd);
   await assertAcpHostToolsAcrossNewAndLoad(cwd);
@@ -321,6 +325,12 @@ async function assertAcpHostToolCredentialsAreScoped(): Promise<void> {
         description: "Scoped bridge probe",
         inputSchema: { type: "object", properties: {} },
         annotations: { readOnlyHint: true },
+        liveness: {
+          cancellation: "run-signal",
+          deadlineSource: "none",
+          abandonOutcome: "outcome-unknown",
+          terminalConfirmation: "tool-result",
+        },
       },
     ],
     fingerprint: "probe-tools",
@@ -587,7 +597,7 @@ async function assertAcpClientGenerationRevokesHostToolBindings(cwd: string): Pr
     hostToolBridgeProvider: provider,
   });
   const context = createContext("kimi-host-generation-session");
-  for (const [index, generation] of ["one", "two"].entries()) {
+  for (const generation of ["one", "two"]) {
     const events: AgentEvent[] = [];
     for await (const event of runtime.runTurn({
       runId: `run-kimi-host-generation-${generation}`,
@@ -601,10 +611,219 @@ async function assertAcpClientGenerationRevokesHostToolBindings(cwd: string): Pr
     }))
       events.push(event);
     assert.ok(events.some((event) => event.type === "model.response"));
-    assert.equal(closes, index, "Only a replaced ACP client generation may revoke Session tokens");
+    assert.equal(closes, 0, "Replacing an ACP process generation must not close the shared Host Tool server");
   }
   runtime.close();
-  assert.equal(closes, 2, "Runtime close must revoke the final ACP client generation");
+  assert.equal(closes, 1, "Runtime close must revoke the shared Host Tool server exactly once");
+}
+
+async function assertAcpControlTimeoutDoesNotKillSiblingRun(cwd: string): Promise<void> {
+  const server = join(cwd, "fake-kimi-control-timeout-concurrency.mjs");
+  const cli = fakeAcpCommandPath(cwd, "fake-kimi-control-timeout-concurrency-cli");
+  const timeoutMarker = join(cwd, "fake-kimi-control-timeout-once.marker");
+  writeFileSync(
+    server,
+    [
+      "import { createInterface } from 'node:readline';",
+      "import { existsSync, writeFileSync } from 'node:fs';",
+      `const timeoutMarker = ${JSON.stringify(timeoutMarker)};`,
+      "const rl = createInterface({ input: process.stdin });",
+      "const send = (message) => process.stdout.write(JSON.stringify(message) + '\\n');",
+      "rl.on('line', (line) => {",
+      "  if (!line.trim()) return;",
+      "  const msg = JSON.parse(line);",
+      "  if (msg.method === 'initialize') {",
+      "    send({ jsonrpc: '2.0', id: msg.id, result: { protocolVersion: 1, agentCapabilities: {} } });",
+      "    return;",
+      "  }",
+      "  if (msg.method === 'session/new') {",
+      "    const delay = existsSync(timeoutMarker) ? 0 : 350;",
+      "    if (delay) writeFileSync(timeoutMarker, 'timed-out-once');",
+      "    setTimeout(() => send({ jsonrpc: '2.0', id: msg.id, result: { sessionId: 'session-' + msg.id } }), delay);",
+      "    return;",
+      "  }",
+      "  if (msg.method === 'session/prompt') {",
+      "    const sessionId = msg.params.sessionId;",
+      "    setTimeout(() => {",
+      "      send({ jsonrpc: '2.0', method: 'session/update', params: { sessionId, update: { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: 'SIBLING_COMPLETED' } } } });",
+      "      send({ jsonrpc: '2.0', id: msg.id, result: { stopReason: 'end_turn' } });",
+      "    }, 220);",
+      "    return;",
+      "  }",
+      "  if (msg.method === 'session/cancel') return;",
+      "  send({ jsonrpc: '2.0', id: msg.id, error: { code: -32601, message: 'Method not found' } });",
+      "});",
+    ].join("\n"),
+    "utf8",
+  );
+  writeFakeAcpCommand(cli, server, { commandName: "kimi", acpSubcommand: "acp" });
+  const runtime = new AcpCliRuntime({
+    kernelId: "kimi",
+    title: "Kimi",
+    command: cli,
+    cwd,
+    controlRequestTimeoutMs: 50,
+  });
+  const collect = async (runId: string, sessionId: string): Promise<AgentEvent[]> => {
+    const events: AgentEvent[] = [];
+    for await (const event of runtime.runTurn({
+      runId,
+      input: runId,
+      context: createContext(sessionId),
+      tools: [],
+      skills: [],
+      packs: [],
+      capabilities: [],
+    }))
+      events.push(event);
+    return events;
+  };
+  const abandoned = collect("run-acp-control-timeout", "thread-acp-control-timeout");
+  await new Promise((resolvePromise) => setTimeout(resolvePromise, 10));
+  const sibling = collect("run-acp-sibling", "thread-acp-sibling");
+  const [abandonedEvents, siblingEvents] = await Promise.all([abandoned, sibling]);
+  const replacementEvents = await collect("run-acp-replacement", "thread-acp-replacement");
+  runtime.close();
+
+  assert.ok(
+    abandonedEvents.some((event) => event.type === "error" && /timed out/i.test(event.message)),
+    JSON.stringify(abandonedEvents),
+  );
+  assert.ok(
+    siblingEvents.some((event) => event.type === "model.response" && event.response.text.includes("SIBLING_COMPLETED")),
+    "a poisoned ACP generation must drain an already-leased sibling Run",
+  );
+  assert.ok(
+    siblingEvents.some((event) => event.type === "turn.finished" && event.outcome.taskState === "TASK_STATE_COMPLETED"),
+  );
+  assert.ok(
+    replacementEvents.some(
+      (event) => event.type === "turn.finished" && event.outcome.taskState === "TASK_STATE_COMPLETED",
+    ),
+    "a new Run must use a healthy replacement generation after the timed-out transport is retired",
+  );
+}
+
+async function assertCleanAcpSessionErrorKeepsTransportHealthy(cwd: string): Promise<void> {
+  const server = join(cwd, "fake-kimi-clean-session-error.mjs");
+  const cli = fakeAcpCommandPath(cwd, "fake-kimi-clean-session-error-cli");
+  writeFileSync(
+    server,
+    [
+      "import { createInterface } from 'node:readline';",
+      "const rl = createInterface({ input: process.stdin });",
+      "let newCount = 0;",
+      "const send = (message) => process.stdout.write(JSON.stringify(message) + '\\n');",
+      "rl.on('line', (line) => {",
+      "  if (!line.trim()) return;",
+      "  const msg = JSON.parse(line);",
+      "  if (msg.method === 'initialize') return send({ jsonrpc: '2.0', id: msg.id, result: { protocolVersion: 1, agentCapabilities: {} } });",
+      "  if (msg.method === 'session/new') {",
+      "    newCount += 1;",
+      "    return send({ jsonrpc: '2.0', id: msg.id, result: newCount === 1 ? {} : { sessionId: 'healthy-session' } });",
+      "  }",
+      "  if (msg.method === 'session/prompt') {",
+      "    const sessionId = msg.params.sessionId;",
+      "    send({ jsonrpc: '2.0', method: 'session/update', params: { sessionId, update: { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: 'TRANSPORT_REUSED_AFTER_CLEAN_ERROR' } } } });",
+      "    return send({ jsonrpc: '2.0', id: msg.id, result: { stopReason: 'end_turn' } });",
+      "  }",
+      "});",
+    ].join("\n"),
+    "utf8",
+  );
+  writeFakeAcpCommand(cli, server, { commandName: "kimi", acpSubcommand: "acp" });
+  const runtime = new AcpCliRuntime({ kernelId: "kimi", title: "Kimi", command: cli, cwd });
+  const collect = async (runId: string): Promise<AgentEvent[]> => {
+    const events: AgentEvent[] = [];
+    for await (const event of runtime.runTurn({
+      runId,
+      input: runId,
+      context: createContext(runId),
+      tools: [],
+      skills: [],
+      packs: [],
+      capabilities: [],
+    }))
+      events.push(event);
+    return events;
+  };
+  const failed = await collect("run-acp-clean-session-error");
+  const recovered = await collect("run-acp-clean-session-recovery");
+  runtime.close();
+  assert.ok(failed.some((event) => event.type === "error" && /session_id_missing/.test(event.message)));
+  assert.ok(
+    recovered.some(
+      (event) => event.type === "model.response" && event.response.text.includes("TRANSPORT_REUSED_AFTER_CLEAN_ERROR"),
+    ),
+    "a clean session response validation failure must not retire a healthy shared ACP transport",
+  );
+}
+
+async function assertAcpNativeCancellationCanConfirmOneRun(cwd: string): Promise<void> {
+  const server = join(cwd, "fake-kimi-confirmed-cancel-acp-server.mjs");
+  const cli = fakeAcpCommandPath(cwd, "fake-kimi-confirmed-cancel-acp-cli");
+  writeFileSync(
+    server,
+    [
+      "import { createInterface } from 'node:readline';",
+      "const rl = createInterface({ input: process.stdin });",
+      "let prompt;",
+      "const send = (message) => process.stdout.write(JSON.stringify(message) + '\\n');",
+      "rl.on('line', (line) => {",
+      "  if (!line.trim()) return;",
+      "  const msg = JSON.parse(line);",
+      "  if (msg.method === 'initialize') {",
+      "    send({ jsonrpc: '2.0', id: msg.id, result: { protocolVersion: 1, agentCapabilities: {} } });",
+      "    return;",
+      "  }",
+      "  if (msg.method === 'session/new') {",
+      "    send({ jsonrpc: '2.0', id: msg.id, result: { sessionId: 'confirmed-cancel-session' } });",
+      "    return;",
+      "  }",
+      "  if (msg.method === 'session/prompt') {",
+      "    prompt = msg;",
+      "    send({ jsonrpc: '2.0', method: 'session/update', params: { sessionId: msg.params.sessionId, update: { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: 'PARTIAL_BEFORE_CANCEL' } } } });",
+      "    return;",
+      "  }",
+      "  if (msg.method === 'session/cancel' && prompt) {",
+      "    send({ jsonrpc: '2.0', id: prompt.id, result: { stopReason: 'cancelled' } });",
+      "    prompt = undefined;",
+      "    return;",
+      "  }",
+      "});",
+    ].join("\n"),
+    "utf8",
+  );
+  writeFakeAcpCommand(cli, server, { commandName: "kimi", acpSubcommand: "acp" });
+  const runtime = new AcpCliRuntime({
+    kernelId: "kimi",
+    title: "Kimi",
+    command: cli,
+    cwd,
+    cancelGraceMs: 1_000,
+  });
+  const controller = new AbortController();
+  const events: AgentEvent[] = [];
+  for await (const event of runtime.runTurn({
+    runId: "run-acp-confirmed-cancel",
+    input: "cancel this turn",
+    context: createContext("thread-acp-confirmed-cancel"),
+    tools: [],
+    skills: [],
+    packs: [],
+    capabilities: [],
+    signal: controller.signal,
+  })) {
+    events.push(event);
+    if (event.type === "assistant.delta") controller.abort();
+  }
+  runtime.close();
+
+  const terminal = events.find(
+    (event): event is Extract<AgentEvent, { type: "turn.finished" }> => event.type === "turn.finished",
+  );
+  assert.equal(terminal?.outcome.taskState, "TASK_STATE_CANCELED", JSON.stringify(events));
+  assert.notEqual(terminal?.outcome.outcomeUnknown, true);
 }
 
 async function assertAbortedHostToolTurnCancelsScopedSession(cwd: string): Promise<void> {
@@ -776,6 +995,8 @@ async function assertAcpHostToolsAcrossNewAndLoad(cwd: string): Promise<void> {
   writeFakeAcpCommand(cli, server, { commandName: "kimi", acpSubcommand: "acp" });
 
   let calls = 0;
+  const hostToolController = new AbortController();
+  const observedHostToolSignals: Array<AbortSignal | undefined> = [];
   const rooms = new RoomChannelStore();
   const member = rooms.upsertMember({
     id: "employee-kimi",
@@ -831,6 +1052,7 @@ async function assertAcpHostToolsAcrossNewAndLoad(cwd: string): Promise<void> {
     ...ledgerTool,
     async execute(input, context) {
       calls += 1;
+      observedHostToolSignals.push(context.signal);
       return await ledgerTool.execute(input, context);
     },
   };
@@ -846,6 +1068,7 @@ async function assertAcpHostToolsAcrossNewAndLoad(cwd: string): Promise<void> {
         skills: [],
         packs: [],
         capabilities: [],
+        signal: hostToolController.signal,
         hostToolScope: {
           sessionId: context.sessionId,
           employeeId: member.id,
@@ -880,6 +1103,11 @@ async function assertAcpHostToolsAcrossNewAndLoad(cwd: string): Promise<void> {
   );
   assert.ok(sessionSetup.every((entry) => entry.params.mcpServers?.length === 1));
   assert.equal(calls, 2, "Host Tool dispatcher must execute once in the new and restored ACP sessions");
+  assert.deepEqual(
+    observedHostToolSignals,
+    [hostToolController.signal, hostToolController.signal],
+    "ACP Host Tools must receive the owning Run cancellation signal",
+  );
 }
 
 async function assertAbortedAcpTurnCloses(cwd: string, kernelId: "opencode" | "kimi"): Promise<void> {
@@ -911,12 +1139,17 @@ async function assertAbortedAcpTurnCloses(cwd: string, kernelId: "opencode" | "k
     `${kernelId} abort must expose turn.started`,
   );
   assert.ok(
-    events.some((event) => event.type === "error"),
-    `${kernelId} abort must expose its terminal error`,
+    events.some(
+      (event) =>
+        event.type === "turn.finished" &&
+        event.outcome.taskState === "TASK_STATE_CANCELED" &&
+        event.outcome.reasonCode === "user_canceled",
+    ),
+    `${kernelId} pre-start abort must be an explicit cancellation`,
   );
-  assert.ok(
-    events.some((event) => event.type === "turn.finished"),
-    `${kernelId} abort must close the started turn`,
+  assert.equal(
+    events.some((event) => event.type === "error"),
+    false,
   );
 }
 
@@ -1017,6 +1250,93 @@ async function assertKimiNativeCompaction(cwd: string): Promise<void> {
     compacted: true,
   });
   runtime.close();
+}
+
+async function assertKimiNativeCompactionForwardsCancellation(cwd: string): Promise<void> {
+  const server = join(cwd, "fake-kimi-cancel-compact-acp-server.mjs");
+  const cli = fakeAcpCommandPath(cwd, "fake-kimi-cancel-compact-acp-cli");
+  const compactReady = join(cwd, "kimi-cancel-compact-ready");
+  const cancelRecord = join(cwd, "kimi-cancel-compact-record");
+  writeFileSync(
+    server,
+    [
+      "import { createInterface } from 'node:readline';",
+      "import { writeFileSync } from 'node:fs';",
+      "const rl = createInterface({ input: process.stdin });",
+      "const send = (message) => process.stdout.write(JSON.stringify(message) + '\\n');",
+      "for await (const line of rl) {",
+      "  if (!line.trim()) continue;",
+      "  const msg = JSON.parse(line);",
+      "  if (msg.method === 'initialize') {",
+      "    send({ jsonrpc: '2.0', id: msg.id, result: { protocolVersion: 1, agentCapabilities: {} } });",
+      "    continue;",
+      "  }",
+      "  if (msg.method === 'session/new' || msg.method === 'session/load') {",
+      "    send({ jsonrpc: '2.0', id: msg.id, result: { sessionId: 'kimi-cancel-compact-session' } });",
+      "    continue;",
+      "  }",
+      "  if (msg.method === 'session/set_model') {",
+      "    send({ jsonrpc: '2.0', id: msg.id, result: {} });",
+      "    continue;",
+      "  }",
+      "  if (msg.method === 'session/cancel') {",
+      `    writeFileSync(${JSON.stringify(cancelRecord)}, JSON.stringify(msg.params));`,
+      "    continue;",
+      "  }",
+      "  if (msg.method === 'session/prompt') {",
+      "    const prompt = msg.params.prompt?.[0]?.text || '';",
+      "    if (prompt === '/compact') {",
+      `      writeFileSync(${JSON.stringify(compactReady)}, 'ready');`,
+      "      continue;",
+      "    }",
+      "    send({ jsonrpc: '2.0', method: 'session/update', params: { sessionId: msg.params.sessionId, update: { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: 'PRIMED' } } } });",
+      "    send({ jsonrpc: '2.0', id: msg.id, result: { stopReason: 'end_turn' } });",
+      "    continue;",
+      "  }",
+      "  send({ jsonrpc: '2.0', id: msg.id, error: { code: -32601, message: 'Method not found' } });",
+      "}",
+    ].join("\n"),
+    "utf8",
+  );
+  writeFakeAcpCommand(cli, server, { commandName: "kimi", acpSubcommand: "acp" });
+  const runtime = new AcpCliRuntime({ kernelId: "kimi", title: "Kimi", command: cli, cwd });
+  for await (const _event of runtime.runTurn({
+    runId: "run-kimi-cancel-compact-prime",
+    input: "prime session",
+    context: createContext("kimi-cancel-compact-thread"),
+    tools: [],
+    skills: [],
+    packs: [],
+    capabilities: [],
+  })) {
+    // Establish the native session binding used by manual compaction.
+  }
+
+  const controller = new AbortController();
+  const compactPromise = runtime.compactSession({
+    threadId: "kimi-cancel-compact-thread",
+    reason: "cancel compact harness",
+    signal: controller.signal,
+  });
+  await waitForHarnessFile(compactReady, "Kimi compact request was not observed");
+  controller.abort("user canceled compact");
+  const compactResult = await compactPromise;
+  assert.equal(compactResult.ok, false);
+  assert.equal(compactResult.compacted, false);
+  assert.equal(compactResult.outcomeUnknown, true);
+  await waitForHarnessFile(cancelRecord, "Kimi compact cancellation was not forwarded to ACP");
+  assert.deepEqual(JSON.parse(readFileSync(cancelRecord, "utf8")), {
+    sessionId: "kimi-cancel-compact-session",
+  });
+  runtime.close();
+}
+
+async function waitForHarnessFile(path: string, message: string): Promise<void> {
+  const deadline = Date.now() + 2_000;
+  while (!existsSync(path) && Date.now() < deadline) {
+    await new Promise((resolvePromise) => setTimeout(resolvePromise, 5));
+  }
+  assert.equal(existsSync(path), true, message);
 }
 
 async function assertKimiUnconfirmedCompactionFailsOpen(cwd: string): Promise<void> {

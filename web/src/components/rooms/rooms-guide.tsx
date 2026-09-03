@@ -9,14 +9,16 @@ export function runRecordUpdatedAt(run: RunRecord): string {
   return String(run.finishedAt || run.endedAt || run.updatedAt || run.startedAt || run.createdAt || "");
 }
 
-export function isTerminalRunStatus(status: unknown): boolean {
-  return !["", "running", "pending", "queued", "waiting_for_approval", "waiting_for_user"].includes(
-    String(status || "").toLowerCase(),
+export function isTerminalRunLifecycle(run: RunRecord | undefined): boolean {
+  return ["TASK_STATE_COMPLETED", "TASK_STATE_FAILED", "TASK_STATE_CANCELED", "TASK_STATE_REJECTED"].includes(
+    String(run?.lifecycle?.taskState || ""),
   );
 }
 
-export function isFailedRunStatus(status: unknown): boolean {
-  return ["failed", "error", "cancelled", "canceled"].includes(String(status || "").toLowerCase());
+export function isFailedRunLifecycle(run: RunRecord | undefined): boolean {
+  return ["TASK_STATE_FAILED", "TASK_STATE_CANCELED", "TASK_STATE_REJECTED"].includes(
+    String(run?.lifecycle?.taskState || ""),
+  );
 }
 
 export function runDurationLabel(run: RunRecord | undefined): string | undefined {
@@ -67,8 +69,8 @@ export function finalRoomAnswerFromEvents(events: AgentEventRecord[] | undefined
 }
 
 export function runRecordFinalAnswer(run: RunRecord | undefined): string {
-  if (!run || !isTerminalRunStatus(run.status)) return "";
-  if (isFailedRunStatus(run.status)) return String(run.error || "").trim();
+  if (!run || !isTerminalRunLifecycle(run)) return "";
+  if (isFailedRunLifecycle(run)) return String(run.error || "").trim();
   const summary = String(run.summary || "").trim();
   const input = String(run.input || "").trim();
   return summary && summary !== input ? summary : "";

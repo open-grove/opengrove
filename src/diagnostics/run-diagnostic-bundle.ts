@@ -3,7 +3,7 @@ import { existsSync, lstatSync, readdirSync, realpathSync, statSync, type Stats 
 import { readFile } from "node:fs/promises";
 import { homedir, platform, arch, release } from "node:os";
 import { basename, dirname, extname, isAbsolute, join, relative, resolve } from "node:path";
-import type { AgentEvent, JsonValue } from "../core.js";
+import type { AgentEvent, JsonValue, RunRecord } from "../core.js";
 import type { RoomChannelMember } from "../rooms/channel-store.js";
 import type { BridgeState } from "../server/bridge-types.js";
 import { readClientReleaseNumber, readInstalledPackageVersion, readPackageVersion } from "../server/client-release.js";
@@ -798,13 +798,13 @@ function buildRunDiagnosticSummary(input: {
   targetRun: {
     id: string;
     sessionId: string;
-    status: string;
+    lifecycle: RunRecord["lifecycle"];
     error?: string;
     problem?: { incidentId: string; code: string };
   };
   runs: Array<{
     id: string;
-    status: string;
+    lifecycle: RunRecord["lifecycle"];
     modelId?: string;
     error?: string;
     problem?: { incidentId: string; code: string };
@@ -865,7 +865,7 @@ function buildRunDiagnosticSummary(input: {
       messageId: input.messageId,
       runId: input.targetRun.id,
       sessionId: input.targetRun.sessionId,
-      status: input.targetRun.status,
+      lifecycle: input.targetRun.lifecycle,
       error: input.targetRun.error,
       problem: input.targetRun.problem,
     },
@@ -875,7 +875,7 @@ function buildRunDiagnosticSummary(input: {
     },
     runs: input.runs.map((run) => ({
       id: run.id,
-      status: run.status,
+      lifecycle: run.lifecycle,
       modelId: run.modelId,
       error: run.error,
       problem: run.problem,

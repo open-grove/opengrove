@@ -1,3 +1,4 @@
+import type { A2ATaskState, RunLifecycle } from "#agent-protocol";
 import type {
   ApprovalInbox,
   ArtifactStore,
@@ -108,6 +109,18 @@ export interface PermissionRequirement {
   reason: string;
 }
 
+export interface ToolLivenessContract {
+  /** Whether the implementation observes ToolCallContext.signal cooperatively. */
+  cancellation: "run-signal" | "none";
+  /** Host Tools have no implicit wall-clock deadline; any deadline must name its real owner. */
+  deadlineSource: "kernel-native" | "upstream-service" | "business-rule" | "none";
+  /** What the Host may conclude after cancellation grace expires without a ToolResult. */
+  abandonOutcome: "outcome-unknown";
+  /** A returned ToolResult is the only confirmed Host Tool terminal receipt. */
+  terminalConfirmation: "tool-result";
+  cancellationGraceMs?: number;
+}
+
 export interface ToolSpec {
   id: string;
   title: string;
@@ -117,6 +130,8 @@ export interface ToolSpec {
   input: SchemaSpec;
   output?: SchemaSpec;
   permission: PermissionRequirement;
+  /** Optional override; the Host bridge applies a conservative run-signal/no-deadline contract by default. */
+  liveness?: ToolLivenessContract;
 }
 
 export interface PolicyRule {
@@ -229,7 +244,7 @@ export interface ModelAdapter {
   request(input: ModelRequest): AsyncIterable<ModelEvent>;
 }
 
-export type ApprovalStatus = "pending" | "approved" | "rejected";
+export type ApprovalStatus = "pending" | "approved" | "rejected" | "canceled";
 
 export type ApprovalKind =
   | "tool"
@@ -267,9 +282,13 @@ export interface ApprovalRequest {
   input?: JsonValue;
   response?: JsonValue;
   resume?: ApprovalResume;
+  nativeRequestId?: string;
+  deadlineAt?: string;
+  isBlocking?: boolean;
+  autoResolutionMs?: number;
 }
 
-export type QuestionStatus = "pending" | "answered" | "declined";
+export type QuestionStatus = "pending" | "answered" | "declined" | "canceled";
 
 export type AgentRequestSource = { type: "kernel.native"; kernelId: string } | { type: "host" } | { type: "unknown" };
 
@@ -284,6 +303,10 @@ export interface QuestionRequest {
   response?: JsonValue;
   source?: AgentRequestSource;
   resume?: ApprovalResume;
+  nativeRequestId?: string;
+  deadlineAt?: string;
+  isBlocking?: boolean;
+  autoResolutionMs?: number;
 }
 
 export interface PlanningUpdate {
@@ -617,8 +640,6 @@ export interface ArtifactFilter {
 }
 
 export type SessionStatus = "active" | "idle" | "archived";
-export type RunStatus = "running" | "waiting_for_approval" | "waiting_for_user" | "succeeded" | "failed";
-
 export interface SessionRecord {
   id: string;
   title?: string;
@@ -637,7 +658,8 @@ export interface RunRecord {
   id: string;
   sessionId: string;
   activity: ActivitySpace;
-  status: RunStatus;
+  /** Canonical run state. Old persisted `status` values are migrated on read. */
+  lifecycle: RunLifecycle;
   input: string;
   createdAt: string;
   updatedAt: string;
@@ -669,7 +691,7 @@ export interface SessionFilter {
 export interface RunFilter {
   ids?: string[];
   sessionId?: string;
-  status?: RunStatus;
+  taskState?: A2ATaskState;
   limit?: number;
 }
 
@@ -902,10 +924,18 @@ export type AgentEvent =
   | { type: "question.requested"; runId: string; question: QuestionRequest }
   | { type: "question.answered"; runId: string; question: QuestionRequest }
   | { type: "planning.updated"; runId: string; plan: PlanningUpdate }
+  | { type: "run.cancel_requested"; runId: string; at: string; reason?: string }
   | { type: "run.paused"; runId: string; at: string; reason: string; approvalId?: string }
   | { type: "run.resumed"; runId: string; at: string; reason?: string; approvalId?: string }
   | { type: "memory.written"; runId: string; record: MemoryRecord }
-  | { type: "turn.finished"; runId: string; at: string }
+  | {
+      type: "turn.finished";
+      runId: string;
+      at: string;
+      outcome: RunLifecycle;
+      /** True only when the Host synthesized this terminal fact during recovery or shutdown reconciliation. */
+      synthetic?: boolean;
+    }
   | {
       type: "error";
       runId: string;
@@ -966,10 +996,13 @@ export interface AgentCompactRequest {
   /** Requested upper bound for the post-compaction context, not the number of recent tokens to retain. */
   maxTokens?: number;
   metadata?: JsonObject;
+  signal?: AbortSignal;
 }
 
 export interface AgentCompactResult {
   ok: boolean;
   compacted?: boolean;
   error?: string;
+  /** The Host stopped waiting without a confirmed native compaction outcome. */
+  outcomeUnknown?: boolean;
 }

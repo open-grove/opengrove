@@ -7,11 +7,15 @@ import type {
   QuestionRequest,
 } from "../../core.js";
 import type { AsyncEventQueue } from "./async-event-queue.js";
-import { isJsonObject, readBoolean, readString, truncateText } from "./json.js";
-import { CODEX_NATIVE_APPROVAL_TIMEOUT_MS } from "./types.js";
+import { isJsonObject, readBoolean, readNumber, readString, truncateText } from "./json.js";
+
+// Codex marks non-blocking questions as eligible for automatic empty answers.
+// Its native TUI currently grants a two-minute answer window; OpenGrove keeps
+// the request answerable for the same period instead of immediately declining.
+const CODEX_NON_BLOCKING_QUESTION_GRACE_MS = 120_000;
 
 export async function handleCodexApprovalRequest(
-  serverRequest: { method: string; params?: JsonValue },
+  serverRequest: { id?: number | string; method: string; params?: JsonValue },
   context: {
     threadId: string;
     turnId: string;
@@ -35,33 +39,40 @@ export async function handleCodexApprovalRequest(
       runId: context.runId,
       continuation: "same-loop",
     },
+    nativeRequestId:
+      serverRequest.id === undefined ? readString(requestParams ?? {}, "requestId") : String(serverRequest.id),
   });
   context.queue.push({ type: "approval.requested", runId: context.runId, request: approval });
 
   try {
     const decided = await context.request.context.approvals.waitForDecision(approval.id, {
-      timeoutMs: CODEX_NATIVE_APPROVAL_TIMEOUT_MS,
+      signal: context.request.signal,
     });
     context.queue.push({ type: "approval.resolved", runId: context.runId, request: decided });
     return buildCodexApprovalResponse(serverRequest.method, requestParams, decided);
   } catch (error) {
     const current = context.request.context.approvals.get(approval.id);
-    const rejected =
-      current?.status === "pending" ? context.request.context.approvals.decide(approval.id, "rejected") : current;
-    if (rejected) {
-      context.queue.push({ type: "approval.resolved", runId: context.runId, request: rejected });
+    const canceled =
+      current?.status === "pending"
+        ? context.request.context.approvals.decide(approval.id, "canceled", {
+            system: true,
+            reasonCode: context.request.signal?.aborted ? "run_canceled" : "native_request_failed",
+          })
+        : current;
+    if (canceled) {
+      context.queue.push({ type: "approval.resolved", runId: context.runId, request: canceled });
     }
     context.queue.push({
       type: "error",
       runId: context.runId,
       message: error instanceof Error ? error.message : String(error),
     });
-    return buildCodexApprovalResponse(serverRequest.method, requestParams, rejected ?? false);
+    return buildCodexApprovalResponse(serverRequest.method, requestParams, canceled ?? false);
   }
 }
 
 export async function handleCodexUserInputRequest(
-  serverRequest: { method: string; params?: JsonValue },
+  serverRequest: { id?: number | string; method: string; params?: JsonValue },
   context: {
     runId: string;
     request: AgentTurnRequest;
@@ -69,6 +80,7 @@ export async function handleCodexUserInputRequest(
   },
 ): Promise<JsonValue> {
   const requestParams = isJsonObject(serverRequest.params) ? serverRequest.params : undefined;
+  const waiting = codexQuestionWaitingSemantics(serverRequest, requestParams);
   const question = context.request.context.questions.request({
     title: "Codex 用户输入请求",
     prompt: codexUserInputReason(requestParams),
@@ -80,6 +92,7 @@ export async function handleCodexUserInputRequest(
       continuation: "same-loop",
     },
     source: { type: "kernel.native", kernelId: "codex" },
+    ...waiting,
   });
   context.queue.push({ type: "question.requested", runId: context.runId, question });
   const decided = await waitForCodexQuestionDecision(context, question);
@@ -90,7 +103,7 @@ export async function handleCodexUserInputRequest(
 }
 
 export async function handleCodexElicitationRequest(
-  serverRequest: { method: string; params?: JsonValue },
+  serverRequest: { id?: number | string; method: string; params?: JsonValue },
   context: {
     runId: string;
     request: AgentTurnRequest;
@@ -98,6 +111,7 @@ export async function handleCodexElicitationRequest(
   },
 ): Promise<JsonValue> {
   const requestParams = isJsonObject(serverRequest.params) ? serverRequest.params : undefined;
+  const waiting = codexQuestionWaitingSemantics(serverRequest, requestParams);
   const question = context.request.context.questions.request({
     title: "Codex MCP 提问请求",
     prompt: codexUserInputReason(requestParams),
@@ -109,6 +123,7 @@ export async function handleCodexElicitationRequest(
       continuation: "same-loop",
     },
     source: { type: "kernel.native", kernelId: "codex" },
+    ...waiting,
   });
   context.queue.push({ type: "question.requested", runId: context.runId, question });
   const decided = await waitForCodexQuestionDecision(context, question);
@@ -238,36 +253,65 @@ async function waitForCodexQuestionDecision(
   },
   question: QuestionRequest,
 ): Promise<QuestionRequest> {
+  const timeoutMs =
+    question.isBlocking === false
+      ? (question.autoResolutionMs ?? CODEX_NON_BLOCKING_QUESTION_GRACE_MS)
+      : question.autoResolutionMs;
   try {
     return await context.request.context.questions.waitForDecision(question.id, {
-      timeoutMs: CODEX_NATIVE_APPROVAL_TIMEOUT_MS,
+      timeoutMs,
       signal: context.request.signal,
     });
   } catch (error) {
     const current = context.request.context.questions.get(question.id);
     const message = error instanceof Error ? error.message : String(error);
-    const declined =
+    const canceled =
       current?.status === "pending"
-        ? context.request.context.questions.decide(question.id, "declined", {
-            reason: message.includes("aborted") ? "aborted" : "timeout",
+        ? context.request.context.questions.decide(question.id, "canceled", {
+            system: true,
+            reasonCode: message.includes("aborted") ? "run_canceled" : "native_auto_resolved",
           })
         : current;
-    return declined ?? question;
+    return canceled ?? question;
   }
 }
 
-function matchesCurrentCodexTurn(requestParams: JsonObject | undefined, threadId: string, turnId: string): boolean {
-  if (!requestParams) {
-    return true;
-  }
+function codexQuestionWaitingSemantics(
+  serverRequest: { id?: number | string },
+  requestParams: JsonObject | undefined,
+): Pick<QuestionRequest, "nativeRequestId" | "isBlocking" | "autoResolutionMs" | "deadlineAt"> {
+  const autoResolutionMs = readNumber(requestParams, "autoResolutionMs");
+  const isBlocking = readBoolean(requestParams, "isBlocking");
+  const effectiveAutoResolutionMs =
+    autoResolutionMs !== undefined && autoResolutionMs > 0
+      ? autoResolutionMs
+      : isBlocking === false
+        ? CODEX_NON_BLOCKING_QUESTION_GRACE_MS
+        : undefined;
+  return {
+    nativeRequestId: serverRequest.id === undefined ? readString(requestParams, "requestId") : String(serverRequest.id),
+    isBlocking,
+    ...(autoResolutionMs !== undefined && autoResolutionMs > 0
+      ? {
+          autoResolutionMs,
+        }
+      : {}),
+    ...(effectiveAutoResolutionMs !== undefined
+      ? { deadlineAt: new Date(Date.now() + effectiveAutoResolutionMs).toISOString() }
+      : {}),
+  };
+}
+
+export function matchesCurrentCodexTurn(
+  requestParams: JsonObject | undefined,
+  threadId: string,
+  turnId: string,
+): boolean {
+  if (!requestParams) return false;
   const requestThreadId = readString(requestParams, "threadId") ?? readString(requestParams, "conversationId");
   const requestTurnId = readString(requestParams, "turnId");
-  if (requestThreadId && requestThreadId !== threadId) {
-    return false;
-  }
-  if (requestTurnId && turnId && requestTurnId !== turnId) {
-    return false;
-  }
+  if (!requestThreadId || requestThreadId !== threadId) return false;
+  if (requestTurnId && (!turnId || requestTurnId !== turnId)) return false;
   return true;
 }
 
@@ -333,6 +377,7 @@ function buildCodexApprovalResponse(
   decision: ApprovalRequest | boolean,
 ): JsonValue {
   const approved = typeof decision === "boolean" ? decision : decision.status === "approved";
+  const canceled = typeof decision !== "boolean" && decision.status === "canceled";
   const response =
     typeof decision === "boolean" ? undefined : isJsonObject(decision.response) ? decision.response : undefined;
   if (method === "item/permissions/requestApproval") {
@@ -344,10 +389,10 @@ function buildCodexApprovalResponse(
       : { permissions: {}, scope: "turn" };
   }
   if (method === "item/commandExecution/requestApproval") {
-    return { decision: commandApprovalDecision(requestParams, approved, response) };
+    return { decision: commandApprovalDecision(requestParams, approved, canceled, response) };
   }
   if (method === "item/fileChange/requestApproval") {
-    return { decision: fileChangeApprovalDecision(approved, response) };
+    return { decision: fileChangeApprovalDecision(approved, canceled, response) };
   }
   return { decision: approved ? "accept" : "decline" };
 }
@@ -355,10 +400,13 @@ function buildCodexApprovalResponse(
 function commandApprovalDecision(
   requestParams: JsonObject | undefined,
   approved: boolean,
+  canceled: boolean,
   response: JsonObject | undefined,
 ): JsonValue {
   if (!approved) {
-    return hasAvailableDecision(requestParams, "cancel") && readBoolean(response, "cancel") ? "cancel" : "decline";
+    return hasAvailableDecision(requestParams, "cancel") && (canceled || readBoolean(response, "cancel"))
+      ? "cancel"
+      : "decline";
   }
   const requested = response?.decision;
   if (isAvailableDecision(requestParams, requested)) {
@@ -370,9 +418,9 @@ function commandApprovalDecision(
   return hasAvailableDecision(requestParams, "accept") ? "accept" : "decline";
 }
 
-function fileChangeApprovalDecision(approved: boolean, response: JsonObject | undefined): JsonValue {
+function fileChangeApprovalDecision(approved: boolean, canceled: boolean, response: JsonObject | undefined): JsonValue {
   if (!approved) {
-    return readBoolean(response, "cancel") ? "cancel" : "decline";
+    return canceled || readBoolean(response, "cancel") ? "cancel" : "decline";
   }
   return readString(response, "scope") === "session" ? "acceptForSession" : "accept";
 }

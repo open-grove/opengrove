@@ -14,7 +14,6 @@ import { asJsonValue, isJsonObject, readString, truncateText } from "./codex/jso
 import { createHostToolBridge } from "./host-tool-bridge.js";
 
 export const CLAUDE_OPENGROVE_MCP_SERVER = "opengrove";
-export const CLAUDE_NATIVE_APPROVAL_TIMEOUT_MS = 120_000;
 
 type ZodSchema = z.ZodType<unknown>;
 type ZodShape = Record<string, ZodSchema>;
@@ -142,15 +141,19 @@ async function handleClaudeNativeToolPermission(
     const decided = await waitForQuestionDecision(context.request, question.id, context.signal);
     context.queue.push({ type: "question.answered", runId: context.runId, question: decided });
     if (decided.status !== "answered") {
-      const noAnswerReason = isJsonObject(decided.response) ? readString(decided.response, "reason") : undefined;
+      const systemCancellation = systemCancellationDetails(decided.response);
+      const userCancellation = decided.status === "canceled" && !systemCancellation;
       return {
         behavior: "deny",
-        message:
-          noAnswerReason === "timeout"
-            ? "No answer was received before the OpenGrove timeout. Continue with the safest reasonable default and do not immediately ask the same question again."
-            : "The question was declined through OpenGrove. Continue with the safest reasonable default and do not immediately ask the same question again.",
+        message: systemCancellation
+          ? `OpenGrove stopped waiting for this question because ${systemCancellation.reasonCode}. No user decision was recorded.`
+          : userCancellation
+            ? "The user canceled this Run through OpenGrove. Stop the current Turn."
+            : "The user declined this question through OpenGrove. Continue with the safest reasonable default and do not immediately ask the same question again.",
         toolUseID: context.toolUseID,
-        decisionClassification: "user_reject",
+        ...(systemCancellation || userCancellation
+          ? { interrupt: userCancellation || systemCancellation?.reasonCode === "run_canceled" }
+          : { decisionClassification: "user_reject" as const }),
       };
     }
     return {
@@ -191,11 +194,19 @@ async function handleClaudeNativeToolPermission(
   const decided = await waitForInlineDecision(context.request, approval.id, context.signal);
   context.queue.push({ type: "approval.resolved", runId: context.runId, request: decided });
   if (decided.status !== "approved") {
+    const systemCancellation = systemCancellationDetails(decided.response);
+    const userCancellation = decided.status === "canceled" && !systemCancellation;
     return {
       behavior: "deny",
-      message: "Rejected by user through OpenGrove.",
+      message: systemCancellation
+        ? `OpenGrove stopped waiting for this permission because ${systemCancellation.reasonCode}. No user decision was recorded.`
+        : userCancellation
+          ? "The user canceled this Run through OpenGrove. Stop the current Turn."
+          : "Rejected by user through OpenGrove.",
       toolUseID: context.toolUseID,
-      decisionClassification: "user_reject",
+      ...(systemCancellation || userCancellation
+        ? { interrupt: userCancellation || systemCancellation?.reasonCode === "run_canceled" }
+        : { decisionClassification: "user_reject" as const }),
     };
   }
 
@@ -254,13 +265,14 @@ async function handleClaudeElicitation(
 async function waitForInlineDecision(request: AgentTurnRequest, approvalId: string, signal?: AbortSignal) {
   try {
     return await request.context.approvals.waitForDecision(approvalId, {
-      timeoutMs: CLAUDE_NATIVE_APPROVAL_TIMEOUT_MS,
       signal,
     });
   } catch (error) {
     const current = request.context.approvals.get(approvalId);
     if (current?.status === "pending") {
-      return request.context.approvals.decide(approvalId, "rejected", {
+      return request.context.approvals.decide(approvalId, "canceled", {
+        system: true,
+        reasonCode: signal?.aborted ? "run_canceled" : "native_request_failed",
         error: error instanceof Error ? error.message : String(error),
       });
     }
@@ -274,13 +286,14 @@ async function waitForInlineDecision(request: AgentTurnRequest, approvalId: stri
 async function waitForQuestionDecision(request: AgentTurnRequest, questionId: string, signal?: AbortSignal) {
   try {
     return await request.context.questions.waitForDecision(questionId, {
-      timeoutMs: CLAUDE_NATIVE_APPROVAL_TIMEOUT_MS,
       signal,
     });
   } catch (error) {
     const current = request.context.questions.get(questionId);
     if (current?.status === "pending") {
-      return request.context.questions.decide(questionId, "declined", {
+      return request.context.questions.decide(questionId, "canceled", {
+        system: true,
+        reasonCode: signal?.aborted ? "run_canceled" : "native_request_failed",
         error: error instanceof Error ? error.message : String(error),
       });
     }
@@ -289,6 +302,11 @@ async function waitForQuestionDecision(request: AgentTurnRequest, questionId: st
     }
     throw error;
   }
+}
+
+function systemCancellationDetails(response: JsonValue | undefined): { reasonCode: string } | undefined {
+  if (!isJsonObject(response) || response.system !== true) return undefined;
+  return { reasonCode: readString(response, "reasonCode") ?? "system_canceled" };
 }
 
 function jsonSchemaToZodShape(schema: JsonObject): ZodShape {

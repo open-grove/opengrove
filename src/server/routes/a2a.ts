@@ -4,11 +4,11 @@ import {
   a2aAgentCardSchema,
   a2aMessageSchema,
   a2aTaskStateSchema,
+  isA2ATerminalTaskState,
   type A2AAgentCard,
   type A2AMessage,
   type A2APart,
   type A2ATask,
-  type A2ATaskState,
 } from "#agent-protocol";
 import type { RoomChannelMember, RoomChannelMessage } from "../../rooms/channel-store.js";
 import type { BridgeState } from "../bridge-types.js";
@@ -16,6 +16,7 @@ import { record, stringValue } from "../http-utils.js";
 import { resolveHostLanguageSettings } from "../language-preference.js";
 import { cancelRoomAssistantRun, isRunnableRoomAssistantTarget, scheduleRoomAssistantRuns } from "../room-runs.js";
 import { roomRunCanceledMessage } from "../room-runs/constants.js";
+import { taskStateFromLegacyRoomMessageStatus } from "./a2a.compat.js";
 
 export async function handleA2ARoute(input: {
   request: IncomingMessage;
@@ -141,7 +142,7 @@ export async function handleA2ARoute(input: {
       sendJson(response, 404, { error: "task_not_found" });
       return true;
     }
-    if (!isTerminalTaskState(roomMessageStatusToTaskState(found.message.status))) {
+    if (!isA2ATerminalTaskState(taskFromMessage(state, found.message).status.state)) {
       cancelRoomAssistantRun(state, runId);
       state.app.rooms.updateMessage(found.message.roomId, found.message.id, {
         text: found.message.text || roomRunCanceledMessage(resolveHostLanguageSettings(state.settings)),
@@ -263,14 +264,15 @@ function findA2ATaskRecord(state: BridgeState, runId: string): { message: RoomCh
 }
 
 function taskFromMessage(state: BridgeState, message: RoomChannelMessage): A2ATask {
-  const statusState = roomMessageStatusToTaskState(message.status);
+  const run = message.runId ? state.app.sessions.getRun(message.runId) : undefined;
+  const statusState = run?.lifecycle.taskState ?? taskStateFromLegacyRoomMessageStatus(message.status);
   const responseMessage = message.text ? roomMessageToA2AMessage(message) : undefined;
   return {
     id: message.runId || message.id,
     contextId: message.roomId,
     status: {
       state: statusState,
-      ...(responseMessage && isTerminalTaskState(statusState) ? { message: responseMessage } : {}),
+      ...(responseMessage && isA2ATerminalTaskState(statusState) ? { message: responseMessage } : {}),
       timestamp: message.updatedAt || message.finishedAt || message.createdAt,
     },
     history: state.app.rooms.listVisibleMessages(message.roomId, { limit: 20 }).map(roomMessageToA2AMessage),
@@ -290,23 +292,6 @@ function roomMessageToA2AMessage(message: RoomChannelMessage): A2AMessage {
     contextId: message.roomId,
     taskId: message.runId,
   };
-}
-
-function roomMessageStatusToTaskState(status: string): A2ATaskState {
-  if (status === "running") return "TASK_STATE_WORKING";
-  if (status === "done") return "TASK_STATE_COMPLETED";
-  if (status === "interrupted") return "TASK_STATE_CANCELED";
-  if (status === "failed") return "TASK_STATE_FAILED";
-  return "TASK_STATE_SUBMITTED";
-}
-
-function isTerminalTaskState(status: A2ATaskState): boolean {
-  return (
-    status === "TASK_STATE_COMPLETED" ||
-    status === "TASK_STATE_FAILED" ||
-    status === "TASK_STATE_CANCELED" ||
-    status === "TASK_STATE_REJECTED"
-  );
 }
 
 function messageText(message: A2AMessage): string {

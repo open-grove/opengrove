@@ -79,7 +79,12 @@ export function createAnnotationArtifact(
     },
   );
   app.recordEvent(
-    { type: "turn.finished", runId, at: new Date().toISOString() },
+    {
+      type: "turn.finished",
+      runId,
+      at: new Date().toISOString(),
+      outcome: { taskState: "TASK_STATE_COMPLETED" },
+    },
     {
       sessionId,
       activity: "local",
@@ -148,7 +153,12 @@ export function createComputerSnapshotArtifact(app: OpenGroveApp, snapshot: Comp
     },
   );
   app.recordEvent(
-    { type: "turn.finished", runId, at: new Date().toISOString() },
+    {
+      type: "turn.finished",
+      runId,
+      at: new Date().toISOString(),
+      outcome: { taskState: "TASK_STATE_COMPLETED" },
+    },
     {
       sessionId,
       activity: "computer",

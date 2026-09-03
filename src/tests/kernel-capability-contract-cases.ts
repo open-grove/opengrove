@@ -145,6 +145,49 @@ async function assertCodexAskUserContract(): Promise<void> {
   assert.equal(answered.done, false);
   assert.equal(answered.value.type, "question.answered");
 
+  const { request: nonBlockingRequest, app: nonBlockingApp } = createContractRequest(
+    "capability-codex-ask-user-non-blocking",
+  );
+  const nonBlockingQueue = new AsyncEventQueue<AgentEvent>();
+  const nonBlockingResponsePromise = handleCodexUserInputRequest(
+    {
+      method: "item/tool/requestUserInput",
+      params: {
+        questions: [{ id: "optional", prompt: "Optional context?" }],
+        isBlocking: false,
+        autoResolutionMs: 1_000,
+      },
+    },
+    {
+      runId: "run-capability-ask-user-non-blocking",
+      request: nonBlockingRequest,
+      queue: nonBlockingQueue,
+    },
+  );
+  const nonBlockingIterator = nonBlockingQueue[Symbol.asyncIterator]();
+  const nonBlockingRequested = await nonBlockingIterator.next();
+  assert.equal(nonBlockingRequested.value.type, "question.requested");
+  if (nonBlockingRequested.value.type !== "question.requested") {
+    throw new Error("expected non-blocking question.requested");
+  }
+  assert.equal(
+    nonBlockingApp.questions.get(nonBlockingRequested.value.question.id)?.status,
+    "pending",
+    "a non-blocking Codex request must remain answerable during its native auto-resolution window",
+  );
+  nonBlockingApp.questions.decide(nonBlockingRequested.value.question.id, "answered", {
+    answers: { optional: "extra context" },
+  });
+  assert.deepEqual(await nonBlockingResponsePromise, {
+    answers: { optional: { answers: ["extra context"] } },
+  });
+  const nonBlockingAnswered = await nonBlockingIterator.next();
+  assert.equal(nonBlockingAnswered.value.type, "question.answered");
+  if (nonBlockingAnswered.value.type === "question.answered") {
+    assert.equal(nonBlockingAnswered.value.question.status, "answered");
+  }
+  nonBlockingQueue.close();
+
   const noAnswerController = new AbortController();
   const { request: noAnswerRequest, app: noAnswerApp } = createContractRequest("capability-codex-ask-user-no-answer");
   noAnswerRequest.signal = noAnswerController.signal;
@@ -170,8 +213,11 @@ async function assertCodexAskUserContract(): Promise<void> {
   const noAnswerResolved = await noAnswerIterator.next();
   assert.equal(noAnswerResolved.value.type, "question.answered");
   if (noAnswerResolved.value.type === "question.answered") {
-    assert.equal(noAnswerResolved.value.question.status, "declined");
-    assert.deepEqual(noAnswerResolved.value.question.response, { reason: "aborted" });
+    assert.equal(noAnswerResolved.value.question.status, "canceled");
+    assert.deepEqual(noAnswerResolved.value.question.response, {
+      system: true,
+      reasonCode: "run_canceled",
+    });
   }
   assert.equal(noAnswerApp.questions.list("pending").length, 0);
   noAnswerQueue.close();

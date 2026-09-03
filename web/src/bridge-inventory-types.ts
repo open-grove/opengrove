@@ -55,11 +55,22 @@ export interface RunRecord {
   runId?: string;
   sessionId?: string;
   input?: string;
-  status?: string;
+  summary?: string;
+  modelId?: string;
+  lifecycle?: {
+    taskState?: string;
+    activity?: string;
+    reasonCode?: string;
+    retryable?: boolean;
+    outcomeUnknown?: boolean;
+    childRunId?: string;
+  };
   startedAt?: string;
   createdAt?: string;
+  updatedAt?: string;
   endedAt?: string;
   finishedAt?: string;
+  toolIds?: string[];
   [key: string]: unknown;
 }
 

@@ -153,6 +153,51 @@ async function main() {
     secondEvents.push(event);
   }
 
+  const cancelingClaude = join(cwd, "fake-claude-cancel.mjs");
+  writeFileSync(
+    cancelingClaude,
+    [
+      "#!/usr/bin/env node",
+      "console.log(JSON.stringify({ type: 'assistant', message: { content: [{ type: 'text', text: 'partial before cancel' }] } }));",
+      "setInterval(() => {}, 1_000);",
+    ].join("\n"),
+    "utf8",
+  );
+  chmodSync(cancelingClaude, 0o755);
+  const cancelingRuntime = new ClaudeCodeRuntime({
+    cliPath: cancelingClaude,
+    cliKind: "node-script",
+    cwd,
+    permissionMode: "bypassPermissions",
+  });
+  const cancelController = new AbortController();
+  const canceledEvents: AgentEvent[] = [];
+  for await (const event of cancelingRuntime.runTurn({
+    runId: "run-claude-code-canceled-partial",
+    input: "produce a partial response",
+    context: { ...context, sessionId: "claude-code-canceled-partial" },
+    tools: [],
+    skills: [],
+    packs: [],
+    capabilities: [],
+    signal: cancelController.signal,
+  })) {
+    canceledEvents.push(event);
+    if (event.type === "assistant.delta") cancelController.abort();
+  }
+  assert.ok(
+    canceledEvents.some((event) => event.type === "assistant.final" && event.text.includes("partial before cancel")),
+    "a canceled Claude CLI turn should preserve partial text as an incomplete artifact",
+  );
+  assert.equal(
+    canceledEvents.some((event) => event.type === "model.response"),
+    false,
+    "a canceled Claude CLI turn must not promote partial output to a successful model.response",
+  );
+  assert.ok(
+    canceledEvents.some((event) => event.type === "turn.finished" && event.outcome.taskState === "TASK_STATE_CANCELED"),
+  );
+
   const argvCalls = JSON.parse(readFileSync(argvPath, "utf8")) as string[][];
   const providerEnvCalls = JSON.parse(readFileSync(providerEnvPath, "utf8")) as Array<Record<string, string | null>>;
   assert.deepEqual(

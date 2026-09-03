@@ -39,8 +39,8 @@ export function RoomChatSurface(props: {
   mentionOpen: boolean;
   mentionOptions: MentionOption[];
   activeMentionIndex: number;
-  onResolveApproval(approvalId: string, action: "approve" | "reject", response?: unknown): void;
-  onResolveQuestion(questionId: string, action: "answer" | "decline", response?: unknown): void;
+  onResolveApproval(approvalId: string, action: "approve" | "reject" | "cancel", response?: unknown): void;
+  onResolveQuestion(questionId: string, action: "answer" | "decline" | "cancel", response?: unknown): void;
   onInsertPrompt(prompt: string): void;
   onSubmitPrompt?(prompt: string): void;
   onReplyMessage?(message: RoomMessage): void;

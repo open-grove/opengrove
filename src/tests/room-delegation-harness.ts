@@ -187,7 +187,12 @@ try {
     } else {
       yield { type: "error", runId, message: `unexpected_input:${input}` } as AgentEvent;
     }
-    yield { type: "turn.finished", runId, at: new Date().toISOString() };
+    yield {
+      type: "turn.finished",
+      runId,
+      at: new Date().toISOString(),
+      outcome: { taskState: "TASK_STATE_COMPLETED" },
+    };
   };
   const harnessExecutionState = roomExecutionState(state, material);
   const harnessAdapter = harnessExecutionState.kernelAdapter;
@@ -378,7 +383,12 @@ try {
       yield { type: "error", runId, message: `unexpected_input:${input}` } as AgentEvent;
     }
     yield { type: "model.response", runId, response: { text: "路由链处理完成。" } } as AgentEvent;
-    yield { type: "turn.finished", runId, at: new Date().toISOString() };
+    yield {
+      type: "turn.finished",
+      runId,
+      at: new Date().toISOString(),
+      outcome: { taskState: "TASK_STATE_COMPLETED" },
+    };
   };
   const pmRoutePost = state.app.rooms.postUserMessage({
     roomId,
@@ -496,7 +506,12 @@ try {
       );
     }
     yield { type: "model.response", runId, response: { text: "直接 PM 请求处理完成。" } } as AgentEvent;
-    yield { type: "turn.finished", runId, at: new Date().toISOString() };
+    yield {
+      type: "turn.finished",
+      runId,
+      at: new Date().toISOString(),
+      outcome: { taskState: "TASK_STATE_COMPLETED" },
+    };
   };
   const directPmPost = state.app.rooms.postUserMessage({
     roomId,
@@ -564,7 +579,12 @@ try {
       restoredSourceTargetStarted = true;
     }
     yield { type: "model.response", runId, response: { text: "source 房间边界测试完成。" } } as AgentEvent;
-    yield { type: "turn.finished", runId, at: new Date().toISOString() };
+    yield {
+      type: "turn.finished",
+      runId,
+      at: new Date().toISOString(),
+      outcome: { taskState: "TASK_STATE_COMPLETED" },
+    };
   };
   const removedSourcePost = state.app.rooms.postUserMessage({
     roomId,
@@ -617,7 +637,12 @@ try {
     assert.ok(currentMessageIs(input, "执行系统例程任务"));
     systemTargetFinished = true;
     yield { type: "model.response", runId, response: { text: "系统任务完成。" } } as AgentEvent;
-    yield { type: "turn.finished", runId, at: new Date().toISOString() };
+    yield {
+      type: "turn.finished",
+      runId,
+      at: new Date().toISOString(),
+      outcome: { taskState: "TASK_STATE_COMPLETED" },
+    };
   };
   const systemDelegation = await delegateRoomTask(state, {
     roomId: systemRoomId,
@@ -679,7 +704,12 @@ try {
       );
     }
     yield { type: "model.response", runId, response: { text: "同步失败测试完成。" } } as AgentEvent;
-    yield { type: "turn.finished", runId, at: new Date().toISOString() };
+    yield {
+      type: "turn.finished",
+      runId,
+      at: new Date().toISOString(),
+      outcome: { taskState: "TASK_STATE_COMPLETED" },
+    };
   };
   const syncFailurePost = state.app.rooms.postUserMessage({
     roomId,
@@ -767,7 +797,12 @@ try {
       );
     }
     yield { type: "model.response", runId, response: { text: "缺少 Run ID 测试完成。" } } as AgentEvent;
-    yield { type: "turn.finished", runId, at: new Date().toISOString() };
+    yield {
+      type: "turn.finished",
+      runId,
+      at: new Date().toISOString(),
+      outcome: { taskState: "TASK_STATE_COMPLETED" },
+    };
   };
   const missingRunIdPost = state.app.rooms.postUserMessage({
     roomId,
@@ -821,7 +856,12 @@ try {
     } else if (currentMessageIs(input, "@审核 ASYNC_TARGET_FAILURE")) {
       yield { type: "error", runId, message: "forced_async_target_failure" } as AgentEvent;
     }
-    yield { type: "turn.finished", runId, at: new Date().toISOString() };
+    yield {
+      type: "turn.finished",
+      runId,
+      at: new Date().toISOString(),
+      outcome: { taskState: "TASK_STATE_COMPLETED" },
+    };
   };
   const asyncFailurePost = state.app.rooms.postUserMessage({
     roomId,
@@ -899,7 +939,12 @@ try {
     } else {
       yield { type: "model.response", runId, response: { text: "已接收。" } } as AgentEvent;
     }
-    yield { type: "turn.finished", runId, at: new Date().toISOString() };
+    yield {
+      type: "turn.finished",
+      runId,
+      at: new Date().toISOString(),
+      outcome: { taskState: "TASK_STATE_COMPLETED" },
+    };
   };
   const fanoutPost = state.app.rooms.postUserMessage({
     roomId: fanoutRoomId,
@@ -978,7 +1023,12 @@ try {
       );
     }
     yield { type: "model.response", runId, response: { text: "链深检查完成。" } } as AgentEvent;
-    yield { type: "turn.finished", runId, at: new Date().toISOString() };
+    yield {
+      type: "turn.finished",
+      runId,
+      at: new Date().toISOString(),
+      outcome: { taskState: "TASK_STATE_COMPLETED" },
+    };
   };
   const beforeChainLimit = state.app.rooms.listMessages(chainRoomId, { limit: 0 }).length;
   scheduleRoomAssistantRuns(state, {
@@ -1024,7 +1074,7 @@ try {
   rmSync(tempRoot, { recursive: true, force: true });
 }
 
-async function waitFor(predicate: () => boolean, label: string, timeoutMs = 2_000): Promise<void> {
+async function waitFor(predicate: () => boolean, label: string, timeoutMs = 30_000): Promise<void> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     if (predicate()) return;

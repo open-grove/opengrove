@@ -83,6 +83,10 @@ export const EN_HOST_MESSAGES = {
   "room.provider_status_missing_provider": "configuration missing",
   "room.provider_status_unknown": "configuration missing",
   "room.provider_status_unsupported": "model or Kernel unsupported",
+  "room.kernel_capabilities_invalid":
+    "This employee declares unsupported Kernel capabilities for {kernel}: {capabilities}. Update or reinstall the App before running it.",
+  "room.kernel_capabilities_missing":
+    "{kernel} has not proven the capabilities required by this employee: {capabilities}. Choose a compatible Kernel or verify its runtime support.",
   "room.reply_target_required":
     "This message does not specify an employee to reply. Mention an employee in the group, or enter @everyone.",
   "room.run_canceled": "This reply was canceled.",

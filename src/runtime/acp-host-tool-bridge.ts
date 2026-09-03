@@ -80,6 +80,7 @@ export class AcpHostToolBridgeServer implements AcpHostToolBridgeProvider {
           description: descriptor.description,
           inputSchema: descriptor.inputSchema,
           annotations: descriptor.annotations,
+          liveness: descriptor.liveness,
         })),
       };
       this.bindingsByFingerprint.set(fingerprint, created);

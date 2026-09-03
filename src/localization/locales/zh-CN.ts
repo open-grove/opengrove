@@ -74,6 +74,10 @@ export const ZH_CN_HOST_MESSAGES = {
   "room.provider_status_missing_provider": "配置不存在",
   "room.provider_status_unknown": "配置不存在",
   "room.provider_status_unsupported": "不支持当前模型或 Kernel",
+  "room.kernel_capabilities_invalid":
+    "这位员工为 {kernel} 声明了无法识别的 Kernel 能力：{capabilities}。请更新或重新安装 App 后再运行。",
+  "room.kernel_capabilities_missing":
+    "{kernel} 尚未证明这位员工所需的能力：{capabilities}。请选择兼容的 Kernel，或先完成真实运行验证。",
   "room.reply_target_required": "这条消息还没有指定要回复的员工。请在群聊里 @员工，或输入 @所有人。",
   "room.run_canceled": "这次回复已取消。",
   "room.run_empty": "这次没有返回可显示的回复。",

@@ -69,6 +69,7 @@ export function createPiKernelAdapter(options: PiKernelAdapterOptions = {}): Ker
     id: "pi",
     title: "Pi",
     runtime: new PiAgentRuntime({
+      workspaceRoot: options.cwd,
       createSession: createNativePiSessionFactory({
         model: (requestedModelId) => resolvePiRuntimeModel(env, requestedModelId ?? options.configuredModel),
         getApiKey: (provider) => resolvePiApiKey(env, provider),

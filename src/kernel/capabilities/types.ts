@@ -78,15 +78,34 @@ export interface KernelContractTestEvidence {
   testId: string;
   passed: boolean;
   checkedAt: string;
+  hostVersion?: string;
+  kernelVersion?: string;
+  runtimeMode?: string;
+  /** Host version that produced legacy evidence. Provenance only; unrelated Host releases do not invalidate it. */
+  legacyHostVersion?: string;
+  provider?: KernelContractEvidenceProvider;
   verification?: "real_runtime" | "simulated" | "source_fixture";
   source?: string;
   sourcePath?: string;
 }
 
+export interface KernelContractEvidenceProvider {
+  kind: "native" | "openai-compatible" | "anthropic-compatible" | "gemini-compatible" | "unknown";
+  model?: string;
+}
+
+export interface KernelContractEvidenceContext {
+  kernelVersion?: string;
+  runtimeMode?: string;
+  provider?: KernelContractEvidenceProvider;
+}
+
 export type KernelCapabilityAuditStatus =
   | "needs_native_verification"
   | "needs_contract_test"
-  | "needs_real_runtime_verification";
+  | "needs_real_runtime_verification"
+  | "needs_context_reverification"
+  | "current_context_verification_failed";
 
 export interface KernelCapabilityReportEntry {
   kernel: string;

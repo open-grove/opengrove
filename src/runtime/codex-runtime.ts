@@ -1,5 +1,15 @@
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  closeSync,
+  existsSync,
+  fsyncSync,
+  mkdirSync,
+  openSync,
+  readFileSync,
+  renameSync,
+  unlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { homedir } from "node:os";
 import { dirname, resolve } from "node:path";
 import type {
@@ -16,17 +26,20 @@ import type {
   JsonValue,
 } from "../core.js";
 import { createCodexRpcCaptureRecorder } from "./codex-rpc-capture.js";
-import { CodexAppServerClient } from "./codex/app-server-client.js";
+import { CodexAppServerClient, CodexRequestFailure } from "./codex/app-server-client.js";
 import { AsyncEventQueue } from "./codex/async-event-queue.js";
 import {
   handleCodexApprovalRequest,
   handleCodexElicitationRequest,
   handleCodexUserInputRequest,
   isCodexApprovalRequest,
+  matchesCurrentCodexTurn,
 } from "./codex/approval-bridge.js";
 import { readCodexAuthRefreshResponse } from "./codex/auth.js";
+import { resolveRuntimeRunId } from "./run-id.js";
 import { createCodexDynamicToolBridge, readDynamicToolCallParams } from "./codex/dynamic-tool-bridge.js";
 import { CodexEventProjector } from "./codex/event-projector.js";
+import { isJsonObject, readString } from "./codex/json.js";
 import {
   buildCodexDeveloperInstructions,
   buildCodexTurnInput,
@@ -77,6 +90,9 @@ type ActiveCodexTurn = {
 
 export class CodexRuntime implements AgentRuntime {
   private readonly clients = new Map<string, CodexAppServerClient>();
+  private readonly clientReady = new Map<string, Promise<CodexAppServerClient>>();
+  private readonly clientLeases = new Map<CodexAppServerClient, number>();
+  private readonly retiredClients = new Set<CodexAppServerClient>();
   private readonly bindings = new Map<string, CodexThreadBinding>();
   private readonly activeTurns = new Map<string, ActiveCodexTurn>();
   private bindingsLoaded = false;
@@ -95,48 +111,92 @@ export class CodexRuntime implements AgentRuntime {
     }
 
     const runtimeEnv = this.options.env;
-    let client: CodexAppServerClient;
+    let client: CodexAppServerClient | undefined;
+    const clientKey = envFingerprint(runtimeEnv);
     try {
       client = await this.ensureClient(runtimeEnv);
+      this.leaseClient(client);
       await client.request<CodexThreadStartResponse>(
         "thread/resume",
         { threadId: binding.threadId },
         { timeoutMs: this.options.requestTimeoutMs ?? 60_000 },
       );
     } catch (error) {
+      if (client) {
+        if (shouldPoisonCodexClient(error)) this.poisonClient(clientKey, client);
+        this.releaseClient(client);
+      }
       return {
         ok: false,
         compacted: false,
         error: error instanceof Error ? error.message : String(error),
       };
     }
-
-    const runId = request.runId ?? `compact_${Date.now()}`;
+    const runId = resolveRuntimeRunId(request.runId, "compact");
     const queue = new AsyncEventQueue<AgentEvent>();
     const projector = new CodexEventProjector(runId, binding.threadId, queue);
     let compacted = false;
     let compactError = "";
+    let compactTurnId = "";
+    let cancelRequested = request.signal?.aborted === true;
+    let livenessTimer: ReturnType<typeof setTimeout> | undefined;
+    const armLivenessBoundary = () => {
+      if (livenessTimer) clearTimeout(livenessTimer);
+      livenessTimer = setTimeout(() => {
+        compactError = "codex_compact_liveness_timeout";
+        queue.close();
+      }, this.options.requestTimeoutMs ?? 60_000);
+      livenessTimer.unref?.();
+    };
     const notificationCleanup = client.addNotificationHandler((notification) => {
-      const completed = projector.handleNotification(notification, "*");
+      if (codexNotificationMatches(notification, binding.threadId, compactTurnId || undefined)) {
+        armLivenessBoundary();
+      }
+      const completed = projector.handleNotification(notification, compactTurnId || "*");
+      const params = isJsonObject(notification.params) ? notification.params : undefined;
+      if (notification.method === "thread/compacted" && readString(params ?? {}, "threadId") === binding.threadId) {
+        compacted = true;
+        queue.close();
+        return;
+      }
       if (completed) queue.close();
     });
-    const timeout = setTimeout(() => queue.close(), this.options.requestTimeoutMs ?? 60_000);
+    const closeCleanup = client.addCloseHandler((error) => {
+      compactError = `codex_compact_producer_lost:${error.message}`;
+      queue.close();
+    });
+    const abortCompact = () => {
+      cancelRequested = true;
+      if (compactTurnId) {
+        void client
+          .request("turn/interrupt", { threadId: binding.threadId, turnId: compactTurnId }, { timeoutMs: 15_000 })
+          .catch(() => undefined);
+      }
+    };
+    request.signal?.addEventListener("abort", abortCompact, { once: true });
 
     try {
-      await client.request(
+      const started = await client.request<CodexTurnStartResponse>(
         "thread/compact/start",
         { threadId: binding.threadId },
         { timeoutMs: this.options.requestTimeoutMs ?? 60_000 },
       );
+      compactTurnId = started.turn?.id ?? "";
+      armLivenessBoundary();
+      if (cancelRequested && compactTurnId) abortCompact();
       for await (const event of queue) {
         if (event.type === "compaction.finished") compacted = true;
         if (event.type === "error") compactError = event.message;
       }
     } catch (error) {
       compactError = error instanceof Error ? error.message : String(error);
+      if (!compactTurnId && shouldPoisonCodexClient(error)) this.poisonClient(clientKey, client);
     } finally {
-      clearTimeout(timeout);
+      if (livenessTimer) clearTimeout(livenessTimer);
+      request.signal?.removeEventListener("abort", abortCompact);
+      closeCleanup();
       notificationCleanup();
+      this.releaseClient(client);
     }
 
     if (compacted) {
@@ -147,12 +207,17 @@ export class CodexRuntime implements AgentRuntime {
     return {
       ok: false,
       compacted: false,
-      error: compactError || projector.errorMessage() || "compact_boundary_not_observed",
+      ...(cancelRequested || compactError.startsWith("codex_compact_producer_lost:") ? { outcomeUnknown: true } : {}),
+      error:
+        compactError ||
+        (cancelRequested ? "codex_compact_canceled_outcome_unknown" : "") ||
+        projector.errorMessage() ||
+        "compact_boundary_not_observed",
     };
   }
 
   async *runTurn(request: AgentTurnRequest): AsyncIterable<AgentEvent> {
-    const runId = request.runId ?? `run_${Date.now()}`;
+    const runId = resolveRuntimeRunId(request.runId);
     const cwd = this.options.cwd ?? process.cwd();
     const model = normalizeCodexModelId(request.requestedModelId, this.options.configuredModel);
     const modelProvider = this.options.configuredModelProvider?.trim() || undefined;
@@ -222,8 +287,27 @@ export class CodexRuntime implements AgentRuntime {
       };
     }
 
-    const client = await this.ensureClient(runtimeEnv);
-    await refreshCodexNativeSkillList(client, cwd, request);
+    let client: CodexAppServerClient;
+    try {
+      client = await this.ensureClient(runtimeEnv);
+      await refreshCodexNativeSkillList(client, cwd, request);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      yield { type: "error", runId, message };
+      yield {
+        type: "turn.finished",
+        runId,
+        at: new Date().toISOString(),
+        outcome: {
+          taskState: "TASK_STATE_FAILED",
+          reasonCode: "codex_app_server_unavailable",
+          outcomeUnknown: true,
+        },
+      };
+      return;
+    }
+    const clientKey = envFingerprint(runtimeEnv);
+    this.leaseClient(client);
 
     const queue = new AsyncEventQueue<AgentEvent>();
     let activeThreadId = "";
@@ -235,6 +319,18 @@ export class CodexRuntime implements AgentRuntime {
     let compactionSucceeded = false;
     const pendingNotifications: Array<{ method: string; params?: JsonValue }> = [];
     const requestCleanup = client.addRequestHandler(async (serverRequest) => {
+      const runScopedRequest =
+        isCodexApprovalRequest(serverRequest.method) ||
+        serverRequest.method === "item/tool/requestUserInput" ||
+        serverRequest.method === "mcpServer/elicitation/request" ||
+        serverRequest.method === "item/tool/call";
+      const requestParams = isJsonObject(serverRequest.params) ? serverRequest.params : undefined;
+      if (
+        runScopedRequest &&
+        (!activeThreadId || !matchesCurrentCodexTurn(requestParams, activeThreadId, activeTurnId))
+      ) {
+        return undefined;
+      }
       queue.push({
         type: "runtime.diagnostic",
         runId,
@@ -296,193 +392,314 @@ export class CodexRuntime implements AgentRuntime {
       return undefined;
     });
 
-    let thread: CodexThreadBinding;
+    let activeTurnKeys: string[] = [];
     try {
-      const runtimeBindingInput = {
-        base: this.options.runtimeBindingFingerprint,
-        model,
-        modelProvider,
-        dynamicToolsFingerprint: toolBridge.fingerprint,
-        developerInstructionsFingerprint: textFingerprint(staticDeveloperInstructions),
-        cwd,
-        runtimeEnvFingerprint,
+      let thread: CodexThreadBinding;
+      try {
+        const runtimeBindingInput = {
+          base: this.options.runtimeBindingFingerprint,
+          model,
+          modelProvider,
+          dynamicToolsFingerprint: toolBridge.fingerprint,
+          developerInstructionsFingerprint: textFingerprint(staticDeveloperInstructions),
+          cwd,
+          runtimeEnvFingerprint,
+        };
+        thread = await this.startOrResumeThread(client, request, {
+          cwd,
+          model,
+          modelProvider,
+          runtimeBindingFingerprint: codexRuntimeBindingFingerprint(runtimeBindingInput),
+          sandbox,
+          developerInstructions,
+          dynamicTools: toolBridge.specs,
+          dynamicToolsFingerprint: toolBridge.fingerprint,
+          approvalPolicy,
+          approvalsReviewer,
+          reasoningEffort,
+          serviceTier,
+          config: threadConfig,
+          // OpenGrove room chats are first-class in OpenGrove, but they are
+          // host-owned agent runs from Codex Desktop's thread-list perspective.
+          threadSource: this.options.threadSource ?? "subagent",
+        });
+      } catch (error) {
+        const abandoned = isAbandonedMutatingRequest(error, request.signal);
+        if (shouldPoisonCodexClient(error)) this.poisonClient(clientKey, client);
+        const message = error instanceof Error ? error.message : String(error);
+        yield { type: "error", runId, message };
+        yield {
+          type: "turn.finished",
+          runId,
+          at: new Date().toISOString(),
+          outcome: {
+            taskState: "TASK_STATE_FAILED",
+            reasonCode: abandoned ? "codex_control_outcome_unknown" : "codex_thread_start_failed",
+            ...(abandoned ? { outcomeUnknown: true } : {}),
+          },
+        };
+        return;
+      }
+      activeThreadId = thread.threadId;
+      activeTurn = {
+        client,
+        nativeThreadId: thread.threadId,
+        nativeTurnId: "",
       };
-      thread = await this.startOrResumeThread(client, request, {
-        cwd,
-        model,
-        modelProvider,
-        runtimeBindingFingerprint: codexRuntimeBindingFingerprint(runtimeBindingInput),
-        sandbox,
-        developerInstructions,
-        dynamicTools: toolBridge.specs,
-        dynamicToolsFingerprint: toolBridge.fingerprint,
-        approvalPolicy,
-        approvalsReviewer,
-        reasoningEffort,
-        serviceTier,
-        config: threadConfig,
-        // OpenGrove room chats are first-class in OpenGrove, but they are
-        // host-owned agent runs from Codex Desktop's thread-list perspective.
-        threadSource: this.options.threadSource ?? "subagent",
+      activeTurnKeys = this.activeTurnKeys(request, runId);
+      for (const key of activeTurnKeys) {
+        this.activeTurns.set(key, activeTurn);
+      }
+      const sessionTrace: AgentSessionTrace = {
+        provider: "codex",
+        sessionId: thread.threadId,
+        persistent: true,
+        priorMessageCount: 0,
+        priorMessages: [],
+      };
+
+      yield {
+        type: "model.requested",
+        runId,
+        request: {
+          systemPrompt: developerInstructions,
+          userInput: request.input,
+          modelId: model,
+          session: sessionTrace,
+          context: request.assembledContext,
+          tools: request.tools.map((tool) => tool.spec),
+          skills: request.skills ?? [],
+          packs: request.packs ?? [],
+          capabilities: request.capabilities ?? [],
+        },
+      };
+      yield {
+        type: "runtime.diagnostic",
+        runId,
+        at: new Date().toISOString(),
+        name: "codex.policy.configured",
+        data: {
+          accessMode: request.accessMode ?? "default",
+          sandbox,
+          approvalPolicy,
+          approvalsReviewer,
+          ...(reasoningEffort ? { reasoningEffort } : {}),
+          responseSpeed: request.responseSpeed ?? "standard",
+          ...(serviceTier ? { serviceTier } : {}),
+          threadId: thread.threadId,
+          appliedTo: "thread",
+        },
+      };
+      const threadGoalDiagnostic = await this.applyThreadGoal(client, thread.threadId, request);
+      if (threadGoalDiagnostic) {
+        yield threadGoalDiagnostic;
+      }
+
+      const projector = new CodexEventProjector(runId, thread.threadId, queue);
+      let cancelRequested = false;
+      let runtimeFailure = "";
+      let compactLivenessTimer: ReturnType<typeof setTimeout> | undefined;
+      const armCompactLivenessBoundary = () => {
+        if (!compactTurn) return;
+        if (compactLivenessTimer) clearTimeout(compactLivenessTimer);
+        compactLivenessTimer = setTimeout(() => {
+          runtimeFailure = "codex_compact_liveness_timeout";
+          queue.close();
+        }, this.options.requestTimeoutMs ?? 60_000);
+        compactLivenessTimer.unref?.();
+      };
+      const closeCleanup = client.addCloseHandler((error) => {
+        runtimeFailure = `codex_app_server_producer_lost:${error.message}`;
+        queue.push({ type: "error", runId, message: runtimeFailure });
+        queue.close();
       });
-    } catch (error) {
-      requestCleanup();
-      throw error;
-    }
-    activeThreadId = thread.threadId;
-    activeTurn = {
-      client,
-      nativeThreadId: thread.threadId,
-      nativeTurnId: "",
-    };
-    const activeTurnKeys = this.activeTurnKeys(request, runId);
-    for (const key of activeTurnKeys) {
-      this.activeTurns.set(key, activeTurn);
-    }
-    const sessionTrace: AgentSessionTrace = {
-      provider: "codex",
-      sessionId: thread.threadId,
-      persistent: true,
-      priorMessageCount: 0,
-      priorMessages: [],
-    };
-
-    yield {
-      type: "model.requested",
-      runId,
-      request: {
-        systemPrompt: developerInstructions,
-        userInput: request.input,
-        modelId: model,
-        session: sessionTrace,
-        context: request.assembledContext,
-        tools: request.tools.map((tool) => tool.spec),
-        skills: request.skills ?? [],
-        packs: request.packs ?? [],
-        capabilities: request.capabilities ?? [],
-      },
-    };
-    yield {
-      type: "runtime.diagnostic",
-      runId,
-      at: new Date().toISOString(),
-      name: "codex.policy.configured",
-      data: {
-        accessMode: request.accessMode ?? "default",
-        sandbox,
-        approvalPolicy,
-        approvalsReviewer,
-        ...(reasoningEffort ? { reasoningEffort } : {}),
-        responseSpeed: request.responseSpeed ?? "standard",
-        ...(serviceTier ? { serviceTier } : {}),
-        threadId: thread.threadId,
-        appliedTo: "thread",
-      },
-    };
-    const threadGoalDiagnostic = await this.applyThreadGoal(client, thread.threadId, request);
-    if (threadGoalDiagnostic) {
-      yield threadGoalDiagnostic;
-    }
-
-    const projector = new CodexEventProjector(runId, thread.threadId, queue);
-    const abortTurn = () => {
-      if (activeTurnId) {
-        void client
-          .request("turn/interrupt", { threadId: thread.threadId, turnId: activeTurnId })
-          .catch(() => undefined);
+      let cancellationGrace: ReturnType<typeof setTimeout> | undefined;
+      const abortTurn = () => {
+        cancelRequested = true;
+        if (activeTurnId) {
+          void client
+            .request("turn/interrupt", { threadId: thread.threadId, turnId: activeTurnId })
+            .catch(() => undefined);
+          cancellationGrace ??= setTimeout(() => {
+            runtimeFailure = "codex_cancel_grace_expired";
+            queue.close();
+          }, 15_000);
+        }
+      };
+      if (request.signal?.aborted) {
+        abortTurn();
       }
-      queue.push({ type: "error", runId, message: "run_cancelled" });
-      queue.close();
-    };
-    if (request.signal?.aborted) {
-      abortTurn();
-    }
-    request.signal?.addEventListener("abort", abortTurn, { once: true });
+      request.signal?.addEventListener("abort", abortTurn, { once: true });
 
-    const replayPendingNotifications = async () => {
-      for (const notification of pendingNotifications.splice(0)) {
-        await handleNotification(notification);
-      }
-    };
-    const handleNotification = async (notification: { method: string; params?: JsonValue }) => {
-      if (compactTurn) {
-        const completed = projector.handleNotification(notification, "*");
+      const replayPendingNotifications = async () => {
+        for (const notification of pendingNotifications.splice(0)) {
+          await handleNotification(notification);
+        }
+      };
+      const handleNotification = async (notification: { method: string; params?: JsonValue }) => {
+        if (!activeTurnId) {
+          pendingNotifications.push(notification);
+          return;
+        }
+        if (codexNotificationMatches(notification, thread.threadId, activeTurnId)) {
+          armCompactLivenessBoundary();
+        }
+        const completed = projector.handleNotification(notification, activeTurnId);
         if (completed) {
           turnCompleted = true;
           queue.close();
         }
-        return;
+      };
+      const notificationCleanup = client.addNotificationHandler(handleNotification);
+
+      try {
+        if (compactTurn) {
+          const turn = await client.request<CodexTurnStartResponse>(
+            "thread/compact/start",
+            { threadId: thread.threadId },
+            { timeoutMs: this.options.requestTimeoutMs ?? 60_000 },
+          );
+          activeTurnId = turn.turn?.id ?? "";
+          if (!activeTurnId) throw new Error("codex_compact_turn_id_missing");
+          activeTurn.nativeTurnId = activeTurnId;
+          armCompactLivenessBoundary();
+          await replayPendingNotifications();
+          if (cancelRequested) abortTurn();
+        } else {
+          const turn = await client.request<CodexTurnStartResponse>(
+            "turn/start",
+            {
+              threadId: thread.threadId,
+              input: turnInputItems as unknown as JsonValue,
+              ...(request.structuredOutputSchema ? { outputSchema: request.structuredOutputSchema } : {}),
+            },
+            { timeoutMs: this.options.requestTimeoutMs ?? 60_000 },
+          );
+          activeTurnId = turn.turn?.id ?? "";
+          if (!activeTurnId) {
+            throw new Error("codex_turn_id_missing");
+          }
+          activeTurn.nativeTurnId = activeTurnId;
+          await replayPendingNotifications();
+          if (cancelRequested) abortTurn();
+        }
+        for await (const event of queue) {
+          if (event.type === "compaction.started") {
+            compactionTriggered = true;
+          } else if (event.type === "compaction.finished") {
+            compactionTriggered = true;
+            compactionSucceeded = true;
+          }
+          if (event.type === "approval.requested" && event.request.resume?.type !== "kernel.native") {
+            pauseRequest = event.request;
+          } else if (event.type === "approval.resolved" && pauseRequest?.id === event.request.id) {
+            pauseRequest = undefined;
+          }
+          yield event;
+        }
+      } catch (error) {
+        runtimeFailure = error instanceof Error ? error.message : String(error);
+        if (!activeTurnId && shouldPoisonCodexClient(error)) {
+          this.poisonClient(clientKey, client);
+        }
+        yield {
+          type: "error",
+          runId,
+          message: runtimeFailure,
+        };
+      } finally {
+        if (cancellationGrace) clearTimeout(cancellationGrace);
+        if (compactLivenessTimer) clearTimeout(compactLivenessTimer);
+        request.signal?.removeEventListener("abort", abortTurn);
+        notificationCleanup();
+        closeCleanup();
       }
-      if (!activeTurnId) {
-        pendingNotifications.push(notification);
-        return;
-      }
-      const completed = projector.handleNotification(notification, activeTurnId);
-      if (completed) {
-        turnCompleted = true;
+
+      if (!turnCompleted && !projector.finalText()) {
         queue.close();
       }
-    };
-    const notificationCleanup = client.addNotificationHandler(handleNotification);
-
-    try {
-      if (compactTurn) {
-        await client.request(
-          "thread/compact/start",
-          { threadId: thread.threadId },
-          { timeoutMs: this.options.requestTimeoutMs ?? 60_000, signal: request.signal },
-        );
-      } else {
-        const turn = await client.request<CodexTurnStartResponse>(
-          "turn/start",
-          {
-            threadId: thread.threadId,
-            input: turnInputItems as unknown as JsonValue,
-            ...(request.structuredOutputSchema ? { outputSchema: request.structuredOutputSchema } : {}),
-          },
-          { timeoutMs: this.options.requestTimeoutMs ?? 60_000, signal: request.signal },
-        );
-        activeTurnId = turn.turn?.id ?? "";
-        if (!activeTurnId) {
-          throw new Error("codex_turn_id_missing");
-        }
-        activeTurn.nativeTurnId = activeTurnId;
-        await replayPendingNotifications();
+      const baseFinalText = projector.finalText();
+      const truthCorrection = imageGenerationTruthCorrection(request, baseFinalText, projector.generatedImageCount());
+      const finalText = truthCorrection ? [baseFinalText, truthCorrection].filter(Boolean).join("\n\n") : baseFinalText;
+      if (projector.errorMessage()) {
+        yield { type: "error", runId, message: projector.errorMessage() ?? "codex_turn_failed" };
       }
-      const compactTimeout = compactTurn
-        ? setTimeout(() => {
-            if (!turnCompleted) {
-              queue.close();
-            }
-          }, this.options.requestTimeoutMs ?? 60_000)
-        : undefined;
-      for await (const event of queue) {
-        if (event.type === "compaction.started") {
-          compactionTriggered = true;
-        } else if (event.type === "compaction.finished") {
-          compactionTriggered = true;
-          compactionSucceeded = true;
-        }
-        if (event.type === "approval.requested" && event.request.resume?.type !== "kernel.native") {
-          pauseRequest = event.request;
-        } else if (event.type === "approval.resolved" && pauseRequest?.id === event.request.id) {
-          pauseRequest = undefined;
-        }
-        yield event;
+      if (truthCorrection && projector.didStreamAssistantText()) {
+        yield { type: "assistant.delta", runId, text: `\n\n${truthCorrection}` };
+      } else if (finalText && !projector.didStreamAssistantText()) {
+        yield { type: "assistant.delta", runId, text: finalText };
       }
-      if (compactTimeout) {
-        clearTimeout(compactTimeout);
-      }
-    } catch (error) {
       yield {
-        type: "error",
+        type: "model.response",
         runId,
-        message: error instanceof Error ? error.message : String(error),
+        response: {
+          text: finalText,
+          usage: projector.usage(),
+        },
+      };
+      const finalUsage = projector.usage();
+      const finalContextBudget = resolveContextTokenBudget(request.contextTokenBudget, finalUsage?.contextWindowSize);
+      yield contextBudgetDiagnostic({
+        runId,
+        kernel: "codex",
+        ...finalContextBudget,
+        usageSource: finalUsage?.contextUsedTokens !== undefined ? "native" : "unavailable",
+        enforcementMode: "native-auto",
+        contextUsedTokens: finalUsage?.contextUsedTokens,
+        compactionTriggered,
+        compactionSucceeded,
+        reason: "turn-final",
+      });
+      if (pauseRequest) {
+        yield {
+          type: "run.paused",
+          runId,
+          at: new Date().toISOString(),
+          reason: pauseRequest.reason,
+          approvalId: pauseRequest.id,
+        };
+        return;
+      }
+      yield {
+        type: "turn.finished",
+        runId,
+        at: new Date().toISOString(),
+        outcome: projector.errorMessage()
+          ? { taskState: "TASK_STATE_FAILED", reasonCode: "codex_turn_failed" }
+          : runtimeFailure
+            ? {
+                taskState: "TASK_STATE_FAILED",
+                reasonCode: "codex_runtime_failed",
+                outcomeUnknown: true,
+              }
+            : turnCompleted && projector.nativeTerminalStatus() === "completed"
+              ? { taskState: "TASK_STATE_COMPLETED" }
+              : isCodexCanceledTerminalStatus(projector.nativeTerminalStatus())
+                ? {
+                    taskState: "TASK_STATE_CANCELED",
+                    reasonCode: cancelRequested ? "user_canceled" : "native_interrupted",
+                    retryable: false,
+                  }
+                : cancelRequested
+                  ? {
+                      taskState: "TASK_STATE_FAILED",
+                      reasonCode: "cancel_outcome_unknown",
+                      outcomeUnknown: true,
+                    }
+                  : {
+                      taskState: "TASK_STATE_FAILED",
+                      reasonCode:
+                        projector.nativeTerminalStatus() && projector.nativeTerminalStatus() !== "completed"
+                          ? `codex_unknown_terminal_status:${projector.nativeTerminalStatus()}`
+                          : compactTurn
+                            ? "codex_compact_terminal_missing"
+                            : "codex_native_terminal_missing",
+                      outcomeUnknown: true,
+                    },
       };
     } finally {
-      request.signal?.removeEventListener("abort", abortTurn);
-      notificationCleanup();
       requestCleanup();
+      this.releaseClient(client);
       if (activeTurn) {
         for (const key of activeTurnKeys) {
           if (this.activeTurns.get(key) === activeTurn) {
@@ -491,53 +708,6 @@ export class CodexRuntime implements AgentRuntime {
         }
       }
     }
-
-    if (!turnCompleted && !projector.finalText()) {
-      queue.close();
-    }
-    const baseFinalText = projector.finalText();
-    const truthCorrection = imageGenerationTruthCorrection(request, baseFinalText, projector.generatedImageCount());
-    const finalText = truthCorrection ? [baseFinalText, truthCorrection].filter(Boolean).join("\n\n") : baseFinalText;
-    if (projector.errorMessage()) {
-      yield { type: "error", runId, message: projector.errorMessage() ?? "codex_turn_failed" };
-    }
-    if (truthCorrection && projector.didStreamAssistantText()) {
-      yield { type: "assistant.delta", runId, text: `\n\n${truthCorrection}` };
-    } else if (finalText && !projector.didStreamAssistantText()) {
-      yield { type: "assistant.delta", runId, text: finalText };
-    }
-    yield {
-      type: "model.response",
-      runId,
-      response: {
-        text: finalText,
-        usage: projector.usage(),
-      },
-    };
-    const finalUsage = projector.usage();
-    const finalContextBudget = resolveContextTokenBudget(request.contextTokenBudget, finalUsage?.contextWindowSize);
-    yield contextBudgetDiagnostic({
-      runId,
-      kernel: "codex",
-      ...finalContextBudget,
-      usageSource: finalUsage?.contextUsedTokens !== undefined ? "native" : "unavailable",
-      enforcementMode: "native-auto",
-      contextUsedTokens: finalUsage?.contextUsedTokens,
-      compactionTriggered,
-      compactionSucceeded,
-      reason: "turn-final",
-    });
-    if (pauseRequest) {
-      yield {
-        type: "run.paused",
-        runId,
-        at: new Date().toISOString(),
-        reason: pauseRequest.reason,
-        approvalId: pauseRequest.id,
-      };
-      return;
-    }
-    yield { type: "turn.finished", runId, at: new Date().toISOString() };
   }
 
   async steerTurn(request: AgentSteerRequest): Promise<AgentSteerResult> {
@@ -673,6 +843,8 @@ export class CodexRuntime implements AgentRuntime {
 
   private async ensureClient(runtimeEnv?: NodeJS.ProcessEnv): Promise<CodexAppServerClient> {
     const clientKey = envFingerprint(runtimeEnv);
+    const initializing = this.clientReady.get(clientKey);
+    if (initializing) return await initializing;
     const existing = this.clients.get(clientKey);
     if (existing && !existing.isClosed()) {
       return existing;
@@ -686,14 +858,20 @@ export class CodexRuntime implements AgentRuntime {
       env.TERM = "dumb";
     }
     const command = this.options.command ?? "codex";
-    const client = await this.startAppServerWithFlagFallback(
+    const ready = this.startAppServerWithFlagFallback(
       command,
       this.options.args ?? DEFAULT_CODEX_APP_SERVER_ARGS,
       env,
       rpcCapture,
     );
-    this.clients.set(clientKey, client);
-    return client;
+    this.clientReady.set(clientKey, ready);
+    try {
+      const client = await ready;
+      this.clients.set(clientKey, client);
+      return client;
+    } finally {
+      if (this.clientReady.get(clientKey) === ready) this.clientReady.delete(clientKey);
+    }
   }
 
   // Newer Codex builds remove `--disable` feature flags that older ones require. If the
@@ -713,6 +891,7 @@ export class CodexRuntime implements AgentRuntime {
       const rejectedFlags = unknownCodexFeatureFlagsFromStderr(client.recentStderr());
       const reducedArgs = stripDisableFeatureFlags(args, rejectedFlags);
       if (!rejectedFlags.length || reducedArgs === args) {
+        client.close();
         throw error;
       }
       client.close();
@@ -720,16 +899,47 @@ export class CodexRuntime implements AgentRuntime {
         droppedFlags: rejectedFlags,
       });
       const retried = CodexAppServerClient.start({ command, args: reducedArgs, env, rpcCapture });
-      await retried.initialize();
-      return retried;
+      try {
+        await retried.initialize();
+        return retried;
+      } catch (retryError) {
+        retried.close();
+        throw retryError;
+      }
     }
   }
 
   close(): void {
-    for (const client of this.clients.values()) {
+    for (const client of new Set([...this.clients.values(), ...this.retiredClients])) {
       client.close();
     }
     this.clients.clear();
+    this.clientReady.clear();
+    this.clientLeases.clear();
+    this.retiredClients.clear();
+  }
+
+  private leaseClient(client: CodexAppServerClient): void {
+    this.clientLeases.set(client, (this.clientLeases.get(client) ?? 0) + 1);
+  }
+
+  private releaseClient(client: CodexAppServerClient): void {
+    const remaining = Math.max(0, (this.clientLeases.get(client) ?? 1) - 1);
+    if (remaining > 0) {
+      this.clientLeases.set(client, remaining);
+      return;
+    }
+    this.clientLeases.delete(client);
+    if (this.retiredClients.delete(client)) client.close();
+  }
+
+  private poisonClient(clientKey: string, client: CodexAppServerClient): void {
+    if (this.clients.get(clientKey) === client) this.clients.delete(clientKey);
+    this.retiredClients.add(client);
+    if ((this.clientLeases.get(client) ?? 0) === 0) {
+      this.retiredClients.delete(client);
+      client.close();
+    }
   }
 
   private async startOrResumeThread(
@@ -764,17 +974,21 @@ export class CodexRuntime implements AgentRuntime {
       existing.runtimeBindingFingerprint === options.runtimeBindingFingerprint
     ) {
       try {
-        const response = await client.request<CodexThreadStartResponse>("thread/resume", {
-          threadId: existing.threadId,
-          model: options.model,
-          ...(options.modelProvider ? { modelProvider: options.modelProvider } : {}),
-          approvalPolicy: options.approvalPolicy,
-          approvalsReviewer: options.approvalsReviewer,
-          sandbox: options.sandbox,
-          config: options.config,
-          ...(options.reasoningEffort ? { reasoningEffort: options.reasoningEffort } : {}),
-          ...(options.serviceTier ? { serviceTier: options.serviceTier } : {}),
-        });
+        const response = await client.request<CodexThreadStartResponse>(
+          "thread/resume",
+          {
+            threadId: existing.threadId,
+            model: options.model,
+            ...(options.modelProvider ? { modelProvider: options.modelProvider } : {}),
+            approvalPolicy: options.approvalPolicy,
+            approvalsReviewer: options.approvalsReviewer,
+            sandbox: options.sandbox,
+            config: options.config,
+            ...(options.reasoningEffort ? { reasoningEffort: options.reasoningEffort } : {}),
+            ...(options.serviceTier ? { serviceTier: options.serviceTier } : {}),
+          },
+          { timeoutMs: this.options.requestTimeoutMs ?? 60_000 },
+        );
         const threadId = response.thread?.id ?? existing.threadId;
         const binding = {
           ...existing,
@@ -788,28 +1002,33 @@ export class CodexRuntime implements AgentRuntime {
         this.bindings.set(bindingKey, binding);
         this.saveBindings();
         return binding;
-      } catch {
+      } catch (error) {
+        if (isAbandonedMutatingRequest(error, request.signal)) throw error;
         // non-critical-fallback: A rejected resume invalidates this binding and the normal path creates a fresh thread.
         this.bindings.delete(bindingKey);
         this.saveBindings();
       }
     }
 
-    const response = await client.request<CodexThreadStartResponse>("thread/start", {
-      model: options.model,
-      ...(options.modelProvider ? { modelProvider: options.modelProvider } : {}),
-      cwd: options.cwd,
-      approvalPolicy: options.approvalPolicy,
-      approvalsReviewer: options.approvalsReviewer,
-      sandbox: options.sandbox,
-      serviceName: "OpenGrove",
-      threadSource: options.threadSource,
-      developerInstructions: options.developerInstructions,
-      dynamicTools: options.dynamicTools,
-      config: options.config,
-      ...(options.reasoningEffort ? { reasoningEffort: options.reasoningEffort } : {}),
-      ...(options.serviceTier ? { serviceTier: options.serviceTier } : {}),
-    });
+    const response = await client.request<CodexThreadStartResponse>(
+      "thread/start",
+      {
+        model: options.model,
+        ...(options.modelProvider ? { modelProvider: options.modelProvider } : {}),
+        cwd: options.cwd,
+        approvalPolicy: options.approvalPolicy,
+        approvalsReviewer: options.approvalsReviewer,
+        sandbox: options.sandbox,
+        serviceName: "OpenGrove",
+        threadSource: options.threadSource,
+        developerInstructions: options.developerInstructions,
+        dynamicTools: options.dynamicTools,
+        config: options.config,
+        ...(options.reasoningEffort ? { reasoningEffort: options.reasoningEffort } : {}),
+        ...(options.serviceTier ? { serviceTier: options.serviceTier } : {}),
+      },
+      { timeoutMs: this.options.requestTimeoutMs ?? 60_000 },
+    );
     const threadId = response.thread?.id;
     if (!threadId) {
       throw new Error("codex_thread_id_missing");
@@ -865,8 +1084,22 @@ export class CodexRuntime implements AgentRuntime {
           updatedAt: typeof object.updatedAt === "string" ? object.updatedAt : new Date().toISOString(),
         });
       }
-    } catch {
-      // non-critical-fallback: A corrupt binding file is ignored so the host can start a fresh Codex thread.
+    } catch (error) {
+      const quarantinePath = `${path}.corrupt-${Date.now()}`;
+      try {
+        renameSync(path, quarantinePath);
+        console.warn("codex_binding_state_quarantined", {
+          path,
+          quarantinePath,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      } catch (quarantineError) {
+        throw new Error(
+          `codex_binding_state_invalid:${error instanceof Error ? error.message : String(error)};quarantine_failed:${
+            quarantineError instanceof Error ? quarantineError.message : String(quarantineError)
+          }`,
+        );
+      }
     }
   }
 
@@ -875,8 +1108,27 @@ export class CodexRuntime implements AgentRuntime {
     if (!path) {
       return;
     }
-    mkdirSync(dirname(path), { recursive: true });
-    writeFileSync(path, `${JSON.stringify(Object.fromEntries(this.bindings.entries()), null, 2)}\n`, "utf8");
+    const directory = dirname(path);
+    mkdirSync(directory, { recursive: true });
+    const tempPath = `${path}.${process.pid}.${Date.now()}.tmp`;
+    let file: number | undefined;
+    try {
+      file = openSync(tempPath, "wx", 0o600);
+      writeFileSync(file, `${JSON.stringify(Object.fromEntries(this.bindings.entries()), null, 2)}\n`, "utf8");
+      fsyncSync(file);
+      closeSync(file);
+      file = undefined;
+      renameSync(tempPath, path);
+      const directoryHandle = openSync(directory, "r");
+      try {
+        fsyncSync(directoryHandle);
+      } finally {
+        closeSync(directoryHandle);
+      }
+    } finally {
+      if (file !== undefined) closeSync(file);
+      if (existsSync(tempPath)) unlinkSync(tempPath);
+    }
   }
 }
 
@@ -1015,6 +1267,38 @@ function envFingerprint(env: NodeJS.ProcessEnv | undefined): string {
     .sort(([left], [right]) => left.localeCompare(right));
   if (entries.length === 0) return "env:default";
   return `env:${createHash("sha256").update(JSON.stringify(entries)).digest("hex").slice(0, 16)}`;
+}
+
+function isAbandonedMutatingRequest(error: unknown, signal?: AbortSignal): boolean {
+  return (
+    signal?.aborted === true ||
+    (error instanceof CodexRequestFailure && (error.kind === "aborted" || error.kind === "timeout"))
+  );
+}
+
+function shouldPoisonCodexClient(error: unknown): boolean {
+  return error instanceof CodexRequestFailure && error.kind === "timeout";
+}
+
+function codexNotificationMatches(
+  notification: { method: string; params?: JsonValue },
+  threadId: string,
+  turnId?: string,
+): boolean {
+  const params = isJsonObject(notification.params) ? notification.params : undefined;
+  if (!params) return false;
+  const notificationThreadId = readString(params, "threadId");
+  const notificationTurnId = readString(params, "turnId");
+  const nestedTurn = isJsonObject(params.turn) ? params.turn : undefined;
+  const nestedTurnId = readString(nestedTurn ?? {}, "id");
+  return (
+    (!notificationThreadId || notificationThreadId === threadId) &&
+    (!turnId || (!notificationTurnId && !nestedTurnId) || notificationTurnId === turnId || nestedTurnId === turnId)
+  );
+}
+
+function isCodexCanceledTerminalStatus(status: string | undefined): boolean {
+  return status === "canceled" || status === "cancelled" || status === "interrupted";
 }
 
 function isVolatileOpenGroveRuntimeEnvKey(key: string): boolean {

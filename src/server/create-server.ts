@@ -241,8 +241,19 @@ function attachStoreLifecycle(server: ReturnType<typeof createServer>, state: Br
   let storeClosing: Promise<void> | undefined;
   const closeStore = () => {
     storeClosing ??= (async () => {
+      const { cancelAllActiveBridgeRuns, reconcileActiveBridgeRunsAsProducerLost, waitForActiveBridgeRuns } =
+        await import("./active-runs.js");
       const { disposeBridgeKernelWorkers } = await import("./kernel-lifecycle.js");
+      cancelAllActiveBridgeRuns(state);
+      const remaining = await waitForActiveBridgeRuns(state, shutdownGraceMs());
+      if (remaining.size > 0) {
+        console.warn("bridge_shutdown_runs_outcome_unknown", { runIds: [...remaining] });
+        reconcileActiveBridgeRunsAsProducerLost(state, remaining, "host_shutdown");
+      }
+      state.store.saveFrom(state.app);
+      await state.store.flush?.();
       await disposeBridgeKernelWorkers(state);
+      state.store.saveFrom(state.app);
       if (state.store.close) {
         await state.store.close();
       } else {
@@ -277,6 +288,11 @@ function attachStoreLifecycle(server: ReturnType<typeof createServer>, state: Br
   };
   process.once("SIGINT", shutdown);
   process.once("SIGTERM", shutdown);
+}
+
+function shutdownGraceMs(): number {
+  const value = Number(process.env.OPENGROVE_SHUTDOWN_GRACE_MS ?? 5_000);
+  return Number.isFinite(value) && value >= 0 ? Math.min(Math.floor(value), 60_000) : 5_000;
 }
 
 const BRIDGE_PROCESS_STARTED_AT = new Date().toISOString();

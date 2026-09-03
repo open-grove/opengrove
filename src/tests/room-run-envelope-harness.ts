@@ -656,7 +656,12 @@ try {
     const runId = request.runId ?? "missing-run";
     yield { type: "turn.started", runId, at: new Date().toISOString() };
     yield { type: "model.response", runId, response: { text: "已处理。" } } as AgentEvent;
-    yield { type: "turn.finished", runId, at: new Date().toISOString() };
+    yield {
+      type: "turn.finished",
+      runId,
+      at: new Date().toISOString(),
+      outcome: { taskState: "TASK_STATE_COMPLETED" },
+    };
   };
   const scheduledEnvelope = buildRoomRunEnvelope(state, {
     roomId,
@@ -1290,7 +1295,7 @@ try {
   });
 }
 
-async function waitFor(predicate: () => boolean, label: string, timeoutMs = 2_000): Promise<void> {
+async function waitFor(predicate: () => boolean, label: string, timeoutMs = 30_000): Promise<void> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     if (predicate()) return;

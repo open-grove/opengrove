@@ -120,6 +120,7 @@ function inferExecutionKind(event: AgentEvent): ExecutionKind {
       return "loop";
     case "approval.requested":
     case "approval.resolved":
+    case "run.cancel_requested":
     case "run.paused":
     case "run.resumed":
       return "approval";
@@ -196,6 +197,8 @@ function executionTitle(event: AgentEvent): string {
       return `Plan updated · ${event.plan.title || event.plan.id}`;
     case "run.paused":
       return "Run paused";
+    case "run.cancel_requested":
+      return "Run cancellation requested";
     case "run.resumed":
       return "Run resumed";
     case "memory.written":
@@ -225,6 +228,7 @@ function inferExecutionTimestamp(event: AgentEvent, recordedAt = new Date().toIS
     case "planning.updated":
       return event.plan.updatedAt;
     case "run.paused":
+    case "run.cancel_requested":
     case "run.resumed":
       return event.at;
     case "memory.written":
@@ -246,6 +250,8 @@ function executionStatus(event: AgentEvent): string | undefined {
       return event.plan.status || "updated";
     case "run.paused":
       return "paused";
+    case "run.cancel_requested":
+      return "cancel_pending";
     case "run.resumed":
       return "running";
     case "skill.forked":
@@ -389,6 +395,8 @@ function executionData(event: AgentEvent): JsonObject | undefined {
         reason: event.reason,
         approvalId: event.approvalId ?? "",
       };
+    case "run.cancel_requested":
+      return { reason: event.reason ?? "" };
     case "run.resumed":
       return {
         reason: event.reason ?? "",

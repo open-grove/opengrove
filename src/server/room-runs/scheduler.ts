@@ -7,6 +7,7 @@ import { interruptRoomRunMessage, resetInactiveRoomMember } from "../../rooms/ru
 import { hostMessage } from "../../localization/host-messages.js";
 import { resolveHostLanguageSettings } from "../language-preference.js";
 import {
+  cancelActiveBridgeRun,
   clearActiveBridgeRunExecutionState,
   registerActiveBridgeRun,
   setActiveBridgeRunExecutionState,
@@ -60,27 +61,63 @@ export function scheduleRoomAssistantRunsWithExecutor(
     const runId = createRoomRunId();
     const controller = new AbortController();
     controllerMapForState(state).set(runId, controller);
-    activeReleaseMapForState(state).set(runId, registerActiveBridgeRun(state, runId));
+    activeReleaseMapForState(state).set(
+      runId,
+      registerActiveBridgeRun(state, runId, { cancel: () => controller.abort() }),
+    );
     const updated = state.app.rooms.updateMessage(input.roomId, message.id, {
       runId,
       status: "running",
       startedAt: new Date().toISOString(),
     });
     updatedMessages.push(updated);
-    enqueueRoomRun(state, input.roomId, target.id, () =>
-      executeRoomRun(state, {
-        roomId: input.roomId,
-        triggerMessageId: input.triggerMessageId,
-        assistantMessageId: message.id,
-        assistantMessage: updated,
-        runId,
-        target,
-        ...(input.wwAuth ? { wwAuth: input.wwAuth } : {}),
-        traceId: input.traceId,
-        signal: controller.signal,
-        onMessageFinalized: input.onMessageFinalized,
-      }),
-    );
+    let finalizationObserved = false;
+    const notifyFinalized: RoomRunInput["onMessageFinalized"] = input.onMessageFinalized
+      ? (result) => {
+          if (finalizationObserved) return;
+          finalizationObserved = true;
+          return input.onMessageFinalized?.(result);
+        }
+      : undefined;
+    enqueueRoomRun(state, input.roomId, target.id, async () => {
+      try {
+        await executeRoomRun(state, {
+          roomId: input.roomId,
+          triggerMessageId: input.triggerMessageId,
+          assistantMessageId: message.id,
+          assistantMessage: updated,
+          runId,
+          target,
+          ...(input.wwAuth ? { wwAuth: input.wwAuth } : {}),
+          traceId: input.traceId,
+          signal: controller.signal,
+          onMessageFinalized: notifyFinalized,
+        });
+      } finally {
+        if (notifyFinalized && !finalizationObserved) {
+          const rootState = state.rootState ?? state;
+          const latest = rootState.app.rooms.getMessage?.(input.roomId, message.id) ?? updated;
+          const error =
+            latest.status === "done"
+              ? undefined
+              : latest.status === "interrupted"
+                ? "member_step_canceled"
+                : latest.status === "failed"
+                  ? latest.text || "member_step_failed"
+                  : "room_run_finalization_missing";
+          try {
+            await notifyFinalized({
+              target,
+              message: latest,
+              events: [],
+              ...(error ? { error } : {}),
+            });
+          } catch (error) {
+            console.error("room run finalization callback failed:", error instanceof Error ? error.message : error);
+          }
+        }
+      }
+    });
   }
   return updatedMessages;
 }
@@ -88,7 +125,7 @@ export function scheduleRoomAssistantRunsWithExecutor(
 export function cancelRoomAssistantRun(state: BridgeState, runId: string): boolean {
   const controller = controllerMapForState(state).get(runId);
   if (!controller) return false;
-  controller.abort();
+  if (!cancelActiveBridgeRun(state, runId)) controller.abort();
   return true;
 }
 

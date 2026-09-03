@@ -38,6 +38,19 @@ export type JsonRpcRequestHandler = (request: {
 
 export type JsonRpcNotificationHandler = (notification: { method: string; params?: JsonValue }) => Promise<void> | void;
 
+export type JsonRpcRequestFailureKind = "aborted" | "timeout" | "remote" | "transport" | "closed";
+
+export class JsonRpcRequestFailure extends Error {
+  constructor(
+    readonly kind: JsonRpcRequestFailureKind,
+    readonly method: string,
+    message: string,
+  ) {
+    super(message);
+    this.name = "JsonRpcRequestFailure";
+  }
+}
+
 export class StdioJsonRpcClient {
   private readonly child: ChildProcessWithoutNullStreams;
   private readonly lines: ReadlineInterface;
@@ -52,6 +65,7 @@ export class StdioJsonRpcClient {
   >();
   private readonly requestHandlers = new Set<JsonRpcRequestHandler>();
   private readonly notificationHandlers = new Set<JsonRpcNotificationHandler>();
+  private readonly closeHandlers = new Set<(error: Error) => void>();
   private nextId = 1;
   private closed = false;
   private stderrBuffer = "";
@@ -75,8 +89,12 @@ export class StdioJsonRpcClient {
     child.once("exit", (code, signal) => {
       this.closeWithError(new Error(`json-rpc process exited: code=${code ?? "null"} signal=${signal ?? "null"}`));
     });
+    child.once("close", (code, signal) => {
+      this.closeWithError(new Error(`json-rpc process exited: code=${code ?? "null"} signal=${signal ?? "null"}`));
+    });
     child.stdin.on("error", (error) => {
       this.closeWithError(error instanceof Error ? error : new Error(String(error)));
+      this.terminateChild("SIGTERM");
     });
   }
 
@@ -110,10 +128,10 @@ export class StdioJsonRpcClient {
     options: { timeoutMs?: number; signal?: AbortSignal } = {},
   ): Promise<T> {
     if (this.closed) {
-      return Promise.reject(new Error("json-rpc client is closed"));
+      return Promise.reject(new JsonRpcRequestFailure("closed", method, "json-rpc client is closed"));
     }
     if (options.signal?.aborted) {
-      return Promise.reject(new Error(`${method} aborted`));
+      return Promise.reject(new JsonRpcRequestFailure("aborted", method, `${method} aborted`));
     }
     const id = this.nextId++;
     return new Promise<T>((resolve, reject) => {
@@ -134,11 +152,14 @@ export class StdioJsonRpcClient {
         reject(error);
       };
       if (options.timeoutMs && Number.isFinite(options.timeoutMs) && options.timeoutMs > 0) {
-        timeout = setTimeout(() => rejectPending(new Error(`${method} timed out`)), Math.max(100, options.timeoutMs));
+        timeout = setTimeout(
+          () => rejectPending(new JsonRpcRequestFailure("timeout", method, `${method} timed out`)),
+          Math.max(100, options.timeoutMs),
+        );
         timeout.unref?.();
       }
       if (options.signal) {
-        const abortListener = () => rejectPending(new Error(`${method} aborted`));
+        const abortListener = () => rejectPending(new JsonRpcRequestFailure("aborted", method, `${method} aborted`));
         options.signal.addEventListener("abort", abortListener, { once: true });
         cleanupAbort = () => options.signal?.removeEventListener("abort", abortListener);
       }
@@ -172,15 +193,21 @@ export class StdioJsonRpcClient {
     return () => this.notificationHandlers.delete(handler);
   }
 
+  addCloseHandler(handler: (error: Error) => void): () => void {
+    this.closeHandlers.add(handler);
+    return () => this.closeHandlers.delete(handler);
+  }
+
   close(): void {
     if (this.closed) return;
     this.closed = true;
     this.lines.close();
     for (const pending of this.pending.values()) {
       pending.cleanup();
-      pending.reject(new Error("json-rpc client closed"));
+      pending.reject(new JsonRpcRequestFailure("closed", pending.method, "json-rpc client closed"));
     }
     this.pending.clear();
+    this.notifyCloseHandlers(new Error("json-rpc client closed by host"));
     this.child.stdin.destroy();
     this.child.stdout.destroy();
     this.child.stderr.destroy();
@@ -231,7 +258,13 @@ export class StdioJsonRpcClient {
     this.pending.delete(id);
     if (response.error) {
       const data = response.error.data === undefined ? "" : `: ${JSON.stringify(response.error.data)}`;
-      pending.reject(new Error(`${response.error.message || `${pending.method} failed`}${data}`));
+      pending.reject(
+        new JsonRpcRequestFailure(
+          "remote",
+          pending.method,
+          `${response.error.message || `${pending.method} failed`}${data}`,
+        ),
+      );
       return;
     }
     pending.resolve(response.result);
@@ -279,9 +312,15 @@ export class StdioJsonRpcClient {
     this.lines.close();
     for (const pending of this.pending.values()) {
       pending.cleanup();
-      pending.reject(error);
+      pending.reject(new JsonRpcRequestFailure("transport", pending.method, error.message));
     }
     this.pending.clear();
+    this.notifyCloseHandlers(error);
+  }
+
+  private notifyCloseHandlers(error: Error): void {
+    for (const handler of this.closeHandlers) handler(error);
+    this.closeHandlers.clear();
   }
 
   private terminateChild(signal: NodeJS.Signals): void {

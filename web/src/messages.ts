@@ -686,6 +686,9 @@ export function updateApprovalMessagePart(
         part.error = responseError;
       }
     }
+    if (request.status === "canceled") {
+      part.status = "canceled";
+    }
     message.pending = false;
     return true;
   }
@@ -716,6 +719,9 @@ export function updateQuestionMessagePart(
     }
     if (question.status === "declined") {
       part.status = "declined";
+    }
+    if (question.status === "canceled") {
+      part.status = "canceled";
     }
     return true;
   }

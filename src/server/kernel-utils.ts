@@ -313,7 +313,12 @@ export function buildKernelDiscoverySnapshot(
 function withKernelCapabilityReport(kernel: BridgeKernelId, discovery: KernelDiscovery): KernelDiscovery {
   return {
     ...discovery,
-    capabilityReport: discovery.capabilityReport ?? buildKnownKernelCapabilityReport(kernel),
+    capabilityReport:
+      discovery.capabilityReport ??
+      buildKnownKernelCapabilityReport(kernel, undefined, {
+        ...(discovery.version ? { kernelVersion: discovery.version } : {}),
+        runtimeMode: getKernelContract(kernel).labels.integrationMode,
+      }),
   };
 }
 

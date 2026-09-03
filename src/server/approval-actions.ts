@@ -26,12 +26,18 @@ import {
   presentSessionSummaries,
   presentWorkingState,
 } from "./state-presentation.js";
-import { activeBridgeRunExecutionState, activeBridgeRunExecutionStateForApproval } from "./active-runs.js";
+import {
+  activeBridgeRunExecutionState,
+  activeBridgeRunExecutionStateForApproval,
+  activeBridgeRunOwnsInteraction,
+  activeBridgeRunOwnsNativeRequest,
+  cancelActiveBridgeRun,
+} from "./active-runs.js";
 
 export async function resolveApproval(
   state: BridgeState,
   approvalId: string,
-  status: "approved" | "rejected",
+  status: "approved" | "rejected" | "canceled",
   approvalResponse?: JsonValue,
 ): Promise<{
   ok: true;
@@ -48,17 +54,10 @@ export async function resolveApproval(
   executions: ReturnType<BridgeState["app"]["executions"]["list"]>;
 }> {
   const { app } = state;
-  const approval = app.approvals.get(approvalId) ?? restoreApprovalFromEvents(state, approvalId);
-  const resumeRunId = approval?.resume?.runId;
-  const executionState =
-    activeBridgeRunExecutionState(state, resumeRunId) ?? activeBridgeRunExecutionStateForApproval(state, approvalId);
-  if (executionState && approvalBelongsToLiveProducer(executionState, approvalId, approval)) {
-    return resolveScopedApproval(state, executionState, approvalId, status, approvalResponse);
-  }
+  const approval = app.approvals.get(approvalId) ?? latestApprovalEvent(state, approvalId);
   if (!approval) {
     throw new Error(`approval_not_found:${approvalId}`);
   }
-
   if (approval.status !== "pending") {
     if (approval.status !== status) {
       throw new Error(`approval_already_${approval.status}:${approvalId}`);
@@ -66,28 +65,52 @@ export async function resolveApproval(
     return bridgeApprovalState(app, approval, { alreadyResolved: true });
   }
 
+  const resumeRunId = approval.resume?.runId;
+  const executionState =
+    activeBridgeRunExecutionState(state, resumeRunId) ?? activeBridgeRunExecutionStateForApproval(state, approvalId);
+  if (
+    isSameLoopKernelResume(approval.resume) &&
+    (!activeBridgeRunOwnsInteraction(state, approvalId, "approval") ||
+      !activeBridgeRunOwnsNativeRequest(state, resumeRunId, approval.nativeRequestId, "approval") ||
+      !executionState?.app.approvals.hasDecisionWaiter(approvalId))
+  ) {
+    throw new Error(`approval_producer_not_live:${approvalId}`);
+  }
+  if (
+    executionState &&
+    (isSameLoopKernelResume(approval.resume) || executionState.app.approvals.hasDecisionWaiter(approvalId))
+  ) {
+    const result = resolveScopedApproval(state, executionState, approvalId, status, approvalResponse);
+    if (status === "canceled") cancelActiveBridgeRun(state, resumeRunId);
+    return result;
+  }
+
+  if (!app.approvals.get(approvalId)) app.approvals.upsert(approval);
+
   const runId = approval.resume?.runId ?? `approval_${approvalId}`;
   const sessionId = app.workingState.get().sessionId ?? "browser-bridge";
 
   if (isSameLoopKernelResume(approval.resume)) {
     const resolved = app.approvals.decide(approvalId, status, approvalResponse);
+    if (status === "canceled") cancelActiveBridgeRun(state, resumeRunId);
     syncBridgeWorkingState(app);
     state.store.saveFrom(app);
     return bridgeApprovalState(app, resolved);
   }
 
-  if (status === "rejected") {
-    const rejected = app.approvals.decide(approvalId, "rejected", approvalResponse);
+  if (status === "rejected" || status === "canceled") {
+    const resolved = app.approvals.decide(approvalId, status, approvalResponse);
+    if (status === "canceled") cancelActiveBridgeRun(state, resumeRunId);
     app.recordEvent(
       {
         type: "approval.resolved",
         runId,
-        request: rejected,
+        request: resolved,
       },
       {
         sessionId,
         activity: "browser",
-        input: rejected.title,
+        input: resolved.title,
       },
     );
     app.recordEvent(
@@ -95,16 +118,20 @@ export async function resolveApproval(
         type: "turn.finished",
         runId,
         at: new Date().toISOString(),
+        outcome:
+          status === "canceled"
+            ? { taskState: "TASK_STATE_CANCELED", reasonCode: "user_canceled_approval", retryable: false }
+            : { taskState: "TASK_STATE_FAILED", reasonCode: "user_rejected_approval", retryable: false },
       },
       {
         sessionId,
         activity: "browser",
-        input: rejected.title,
+        input: resolved.title,
       },
     );
     syncBridgeWorkingState(app);
     state.store.saveFrom(app);
-    return bridgeApprovalState(app, rejected);
+    return bridgeApprovalState(app, resolved);
   }
 
   const approved = app.approvals.decide(approvalId, "approved", approvalResponse);
@@ -147,6 +174,12 @@ export async function resolveApproval(
         type: "turn.finished",
         runId,
         at: new Date().toISOString(),
+        outcome: toolResult?.ok
+          ? { taskState: "TASK_STATE_COMPLETED" }
+          : {
+              taskState: "TASK_STATE_FAILED",
+              reasonCode: toolResult?.error || "approved_tool_replay_failed",
+            },
       },
       {
         sessionId,
@@ -164,30 +197,17 @@ function isSameLoopKernelResume(resume: ApprovalRequest["resume"]): boolean {
   return resume?.type === "kernel.native" && resume.continuation === "same-loop";
 }
 
-function approvalBelongsToLiveProducer(
-  executionState: BridgeState,
-  approvalId: string,
-  approval: ApprovalRequest | undefined,
-): boolean {
-  if (isSameLoopKernelResume(approval?.resume)) return true;
-  // Generic tool approvals have two continuation modes. Some runtimes wait
-  // on the inbox and continue the original producer; others stop and require
-  // Bridge replay. The waiter is the authoritative distinction, not the
-  // identity of a wrapper BridgeState object.
-  return executionState.app.approvals.hasDecisionWaiter(approvalId);
-}
-
 function resolveScopedApproval(
   rootState: BridgeState,
   executionState: BridgeState,
   approvalId: string,
-  status: "approved" | "rejected",
+  status: "approved" | "rejected" | "canceled",
   approvalResponse?: JsonValue,
 ): ReturnType<typeof bridgeApprovalState> {
   const scopedApproval =
-    executionState.app.approvals.get(approvalId) ?? restoreApprovalFromEvents(executionState, approvalId);
+    executionState.app.approvals.get(approvalId) ?? latestApprovalEvent(executionState, approvalId);
   if (!scopedApproval) {
-    const rootApproval = rootState.app.approvals.get(approvalId) ?? restoreApprovalFromEvents(rootState, approvalId);
+    const rootApproval = rootState.app.approvals.get(approvalId) ?? latestApprovalEvent(rootState, approvalId);
     if (!rootApproval) {
       throw new Error(`approval_not_found:${approvalId}`);
     }
@@ -212,14 +232,6 @@ function resolveScopedApproval(
   syncBridgeWorkingState(rootState.app);
   rootState.store.saveFrom(rootState.app);
   return bridgeApprovalState(rootState.app, resolved);
-}
-
-function restoreApprovalFromEvents(state: BridgeState, approvalId: string): ApprovalRequest | undefined {
-  const approval = latestApprovalEvent(state, approvalId);
-  if (approval) {
-    state.app.approvals.upsert(approval);
-  }
-  return approval;
 }
 
 function latestApprovalEvent(state: BridgeState, approvalId: string): ApprovalRequest | undefined {

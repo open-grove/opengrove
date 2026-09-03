@@ -8,8 +8,8 @@ import {
 import {
   finalRoomAnswerFromEvents,
   hasTerminalRoomEvent,
-  isFailedRunStatus,
-  isTerminalRunStatus,
+  isFailedRunLifecycle,
+  isTerminalRunLifecycle,
   runDurationLabel,
   runRecordFinalAnswer,
   runRecordId,
@@ -33,7 +33,7 @@ export function useRoomRunReconciliation(input: {
     const terminalRuns = new Map<string, RunRecord>();
     for (const run of input.runs ?? []) {
       const runId = runRecordId(run);
-      if (runId && input.runningRoomRunIds.has(runId) && isTerminalRunStatus(run.status)) {
+      if (runId && input.runningRoomRunIds.has(runId) && isTerminalRunLifecycle(run)) {
         terminalRuns.set(runId, run);
       }
     }
@@ -77,7 +77,7 @@ export function useRoomRunReconciliation(input: {
           const events = input.runningRoomEventsByRunId.get(message.runId);
           const normalizedEvents = normalizeConnectorRunEvents(events);
           const status: MessageStatus =
-            isFailedRunStatus(run?.status) || events?.some((event) => event?.type === "error") ? "failed" : "done";
+            isFailedRunLifecycle(run) || events?.some((event) => event?.type === "error") ? "failed" : "done";
           const answer = normalizeConnectorRunAnswer(
             finalRoomAnswerFromEvents(normalizedEvents) || runRecordFinalAnswer(run),
           );
@@ -125,7 +125,7 @@ export function useRoomRunReconciliation(input: {
             return message;
           }
           const status: MessageStatus =
-            isFailedRunStatus(run?.status) || events?.some((event) => event?.type === "error") ? "failed" : "done";
+            isFailedRunLifecycle(run) || events?.some((event) => event?.type === "error") ? "failed" : "done";
           roomChanged = true;
           changed = true;
           return normalizeConnectorRoomMessage(

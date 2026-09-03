@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+
 export interface PendingRequestBase<TStatus extends string> {
   id: string;
   status: TStatus;
@@ -13,7 +15,6 @@ export class PendingRequestStore<
 > {
   private readonly requests = new Map<string, TRequest>();
   private readonly waiters = new Map<string, Set<(request: TRequest) => void>>();
-  private sequence = 0;
 
   constructor(
     private readonly options: {
@@ -27,7 +28,10 @@ export class PendingRequestStore<
     const now = new Date().toISOString();
     const request = {
       ...input,
-      id: `${this.options.prefix}_${++this.sequence}`,
+      // Stores are scoped per mounted app, while requests are routed through a
+      // shared Host registry. A process-wide UUID prevents two concurrent apps
+      // from producing the same approval_1/question_1 identifier.
+      id: `${this.options.prefix}_${randomUUID()}`,
       status: this.options.pendingStatus,
       createdAt: now,
       updatedAt: now,
@@ -38,17 +42,14 @@ export class PendingRequestStore<
 
   restore(requests: TRequest[] = []): void {
     this.requests.clear();
-    this.sequence = 0;
 
     for (const request of requests) {
       this.requests.set(request.id, request);
-      this.trackSequence(request.id);
     }
   }
 
   upsert(request: TRequest): TRequest {
     this.requests.set(request.id, request);
-    this.trackSequence(request.id);
     if (request.status !== this.options.pendingStatus) {
       this.notifyWaiters(request);
     }
@@ -158,13 +159,6 @@ export class PendingRequestStore<
     }
     for (const waiter of Array.from(waiters)) {
       waiter(request);
-    }
-  }
-
-  private trackSequence(id: string): void {
-    const match = id.match(new RegExp(`^${this.options.prefix}_(\\d+)$`));
-    if (match) {
-      this.sequence = Math.max(this.sequence, Number(match[1]));
     }
   }
 }

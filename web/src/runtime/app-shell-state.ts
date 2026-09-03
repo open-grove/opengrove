@@ -46,8 +46,13 @@ export function runRecordId(run: { id?: string; runId?: string } | undefined): s
   return String(run?.id || run?.runId || "");
 }
 
-export function isActiveRunRecord(run: { status?: string } | undefined): boolean {
-  return run?.status === "running" || run?.status === "waiting_for_approval" || run?.status === "waiting_for_user";
+export function isActiveRunRecord(run: { lifecycle?: { taskState?: string } } | undefined): boolean {
+  return [
+    "TASK_STATE_SUBMITTED",
+    "TASK_STATE_WORKING",
+    "TASK_STATE_INPUT_REQUIRED",
+    "TASK_STATE_AUTH_REQUIRED",
+  ].includes(String(run?.lifecycle?.taskState || ""));
 }
 
 export function isFreshRunRecord(

@@ -1123,7 +1123,7 @@ export function App() {
       response,
     }: {
       approvalId: string;
-      action: "approve" | "reject";
+      action: "approve" | "reject" | "cancel";
       response?: unknown;
     }) =>
       postJson<any>(
@@ -1157,7 +1157,7 @@ export function App() {
       response,
     }: {
       questionId: string;
-      action: "answer" | "decline";
+      action: "answer" | "decline" | "cancel";
       response?: unknown;
     }) =>
       postJson<any>(

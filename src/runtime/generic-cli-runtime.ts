@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 import type { AgentEvent, AgentRuntime, AgentSessionTrace, AgentTurnRequest } from "../core.js";
 import { agentTurnHostContextPromptBlock, agentTurnReplyLanguageInstruction } from "../core.js";
 import { resolveCommandInvocation } from "../kernel/discovery.js";
+import { resolveRuntimeRunId } from "./run-id.js";
 import { recentSessionMessages, recentSessionPromptBlock } from "./session-history.js";
 
 export interface GenericCliRuntimeOptions {
@@ -21,7 +22,7 @@ export class GenericCliRuntime implements AgentRuntime {
   constructor(private readonly options: GenericCliRuntimeOptions) {}
 
   async *runTurn(request: AgentTurnRequest): AsyncIterable<AgentEvent> {
-    const runId = request.runId ?? `run_${Date.now()}`;
+    const runId = resolveRuntimeRunId(request.runId);
     const runtimeEnv = mergeRuntimeEnv(this.options.env, request.runtimeEnv);
     const prompt = buildPrompt(request, this.options.promptLayout);
     const priorMessages = recentSessionMessages(request);
@@ -100,7 +101,22 @@ export class GenericCliRuntime implements AgentRuntime {
     });
     request.signal?.removeEventListener("abort", abort);
     if (aborted) {
-      yield { type: "error", runId, message: `${this.options.kernelId}_aborted` };
+      const partialText = safelyFormatPartialCliOutput(stdout.trimEnd(), this.options.outputFormat);
+      if (partialText) {
+        yield {
+          type: "assistant.final",
+          runId,
+          text: partialText,
+          at: new Date().toISOString(),
+          source: "runtime",
+        };
+      }
+      yield {
+        type: "turn.finished",
+        runId,
+        at: new Date().toISOString(),
+        outcome: { taskState: "TASK_STATE_CANCELED", reasonCode: "native_cancelled", retryable: false },
+      };
       return;
     }
     const text = formatCliOutput(stdout.trimEnd(), this.options.outputFormat);
@@ -113,7 +129,22 @@ export class GenericCliRuntime implements AgentRuntime {
       };
     }
     yield { type: "model.response", runId, response: { text } };
-    yield { type: "turn.finished", runId, at: new Date().toISOString() };
+    yield {
+      type: "turn.finished",
+      runId,
+      at: new Date().toISOString(),
+      outcome:
+        spawnError || (exitCode !== null && exitCode !== 0)
+          ? { taskState: "TASK_STATE_FAILED", reasonCode: `${this.options.kernelId}_failed` }
+          : exitCode === null
+            ? {
+                taskState: "TASK_STATE_FAILED",
+                reasonCode: "producer_lost",
+                retryable: false,
+                outcomeUnknown: true,
+              }
+            : { taskState: "TASK_STATE_COMPLETED" },
+    };
   }
 }
 
@@ -136,6 +167,24 @@ function formatCliOutput(stdout: string, outputFormat: GenericCliRuntimeOptions[
     return extractAgentJsonlText(stdout);
   }
   return stdout;
+}
+
+function safelyFormatPartialCliOutput(stdout: string, outputFormat: GenericCliRuntimeOptions["outputFormat"]): string {
+  try {
+    return formatCliOutput(stdout, outputFormat);
+  } catch {
+    // A canceled JSONL producer can end in the middle of a record. Preserve
+    // only complete assistant records; never project protocol fragments as a
+    // successful model.response.
+    if (outputFormat !== "agent-jsonl") return stdout;
+    const completeLines = stdout.includes("\n") ? stdout.slice(0, stdout.lastIndexOf("\n")) : "";
+    if (!completeLines) return "";
+    try {
+      return extractAgentJsonlText(completeLines);
+    } catch {
+      return "";
+    }
+  }
 }
 
 function extractAgentJsonlText(stdout: string): string {

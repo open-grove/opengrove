@@ -75,6 +75,8 @@ npm start
 
 OpenGrove 会先使用显式的 `OPENGROVE_OPENCLAW_GATEWAY_URL` / `OPENGROVE_OPENCLAW_GATEWAY_TOKEN` 覆盖；如果没设置，就读取本机 `~/.openclaw/openclaw.json`，连接其中配置的本地或远端 Gateway。Bridge 会在启动、打开设置页和每六小时读取一次已配置模型目录，只保存 Provider/model 元数据；凭据继续由 OpenClaw 保管。
 
+Gateway bridge 已针对 OpenClaw `2026.8.2` 做升级认证。它会等待 Gateway challenge，并精确协商 wire protocol v4；`npm run certify:openclaw:2026.8.2` 会在隔离的本地状态目录中启动精确版本的上游包，验证真实 challenge 握手和 `models.list`。长时间的 `agent.wait` 继续遵循 Kernel 语义：OpenGrove 不施加固定 Run 截止时间，用户取消是 Host 的存活边界。
+
 ## Kernel 集成层
 
 Kernel integrations 分成四层：

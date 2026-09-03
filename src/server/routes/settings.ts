@@ -135,9 +135,13 @@ export async function handleSettingsRoute(options: {
     if (scope === "runtime-events") {
       const activeRun = state.app.sessions
         .listRuns()
-        .some(
-          (run) =>
-            run.status === "running" || run.status === "waiting_for_approval" || run.status === "waiting_for_user",
+        .some((run) =>
+          [
+            "TASK_STATE_SUBMITTED",
+            "TASK_STATE_WORKING",
+            "TASK_STATE_INPUT_REQUIRED",
+            "TASK_STATE_AUTH_REQUIRED",
+          ].includes(run.lifecycle.taskState),
         );
       if (activeRun) {
         sendJson(response, 409, { ok: false, error: "history_clear_blocked_by_active_run" });

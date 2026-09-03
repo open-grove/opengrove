@@ -10,6 +10,11 @@ import { mountedAppSkillNames, publicEmployeeRole } from "./bridge-mounted-app-e
 import type { BridgeState } from "./bridge-types.js";
 import { resolveMountedAppTarget } from "./mounted-apps.js";
 import { validateAppReleaseBuildContract } from "./app-release-build-contract.js";
+import {
+  KERNEL_CAPABILITY_REQUIREMENTS_MIN_HOST_RELEASE,
+  normalizeRequiredKernelCapabilities,
+} from "../kernel/capabilities/requirements.js";
+import type { KernelCapabilityId } from "../kernel/capabilities/types.js";
 
 // ===== Release contract and lifecycle =====
 
@@ -39,6 +44,7 @@ export interface AppReleaseEmployeeDefaults {
   color: string;
   availableSkillIds: string[];
   defaultSkillIds: string[];
+  requiredKernelCapabilities?: KernelCapabilityId[];
   visibility: RoomChannelMember["visibility"];
   publicDescription?: string;
   publicSkills: string[];
@@ -121,13 +127,16 @@ function mountedAppReleaseBaseline(input: {
     normalizeAppStorePackageKey(marker?.packageKey) ?? normalizeAppStorePackageKey(manifestStore.packageKey);
   const latestPackage = latestRegistryPackage(input.registryPackages, target.id, packageKey);
   const latestPublishedVersion = latestPackage?.version;
-  const minHostReleaseNumber =
+  const declaredMinHostReleaseNumber =
     typeof manifestStore.minHostReleaseNumber === "number" &&
     Number.isSafeInteger(manifestStore.minHostReleaseNumber) &&
     manifestStore.minHostReleaseNumber > 0
       ? manifestStore.minHostReleaseNumber
       : 0;
   const employees = mountedAppEffectiveEmployeeDefaults(input.state, target.id);
+  const minHostReleaseNumber = employees.some((employee) => Boolean(employee.requiredKernelCapabilities?.length))
+    ? Math.max(declaredMinHostReleaseNumber, KERNEL_CAPABILITY_REQUIREMENTS_MIN_HOST_RELEASE)
+    : declaredMinHostReleaseNumber;
   const version = latestPublishedVersion ? incrementPatch(latestPublishedVersion) : "0.1.0";
   return {
     identity: {
@@ -207,6 +216,7 @@ const RELEASE_EMPLOYEE_FIELDS = [
   "color",
   "availableSkillIds",
   "defaultSkillIds",
+  "requiredKernelCapabilities",
   "visibility",
   "publicDescription",
   "publicSkills",
@@ -280,6 +290,7 @@ function releaseEmployeeDefaults(member: RoomChannelMember): AppReleaseEmployeeD
     color: member.color,
     availableSkillIds: [...(member.availableSkillIds ?? [])],
     defaultSkillIds: [...(member.defaultSkillIds ?? [])],
+    requiredKernelCapabilities: [...(member.requiredKernelCapabilities ?? [])],
     visibility: member.visibility,
     ...(member.publicDescription ? { publicDescription: member.publicDescription } : {}),
     publicSkills: [...(member.publicSkills ?? [])],
@@ -491,6 +502,7 @@ export function normalizeReleaseEmployee(input: Record<string, unknown>): AppRel
     color: boundedRequiredString(input.color, "app_store_release_color_required", 64),
     availableSkillIds: stringArray(input.availableSkillIds),
     defaultSkillIds: stringArray(input.defaultSkillIds),
+    requiredKernelCapabilities: normalizeRequiredKernelCapabilities(input.requiredKernelCapabilities),
     visibility: input.visibility === "public" ? "public" : "private",
     ...(publicDescription ? { publicDescription } : {}),
     publicSkills: stringArray(input.publicSkills),
@@ -513,6 +525,9 @@ export function mountedAppReleaseManifest(source: JsonObject, release: MountedAp
     ...(release.identity.packageKey ? { packageKey: release.identity.packageKey } : {}),
     visibility: release.visibility,
     releaseNotes: release.releaseNotes,
+    ...(release.minHostReleaseNumber && release.minHostReleaseNumber > 0
+      ? { minHostReleaseNumber: release.minHostReleaseNumber }
+      : {}),
     employeeDefaults: release.employees.map((employee) => ({ ...employee })),
   };
   return manifest;

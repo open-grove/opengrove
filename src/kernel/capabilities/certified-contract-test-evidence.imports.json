@@ -1,0 +1,73 @@
+{
+  "schemaVersion": 1,
+  "source": "import-kernel-evidence-receipt",
+  "batches": [
+    {
+      "kernel": "kimi",
+      "receiptSha256": "8498be08dcae3a299ff78644e5a3a5aabf2007ac5a3deb8c93a32bf751766d3e",
+      "certifications": [
+        {
+          "kernel": "kimi",
+          "capability": "control.stop",
+          "testId": "kimi.control.stop",
+          "passed": true,
+          "checkedAt": "2026-08-31",
+          "hostVersion": "0.6.5",
+          "kernelVersion": "0.36.1",
+          "runtimeMode": "acp",
+          "verification": "real_runtime"
+        },
+        {
+          "kernel": "kimi",
+          "capability": "message.streamText",
+          "testId": "kimi.message.streamText",
+          "passed": true,
+          "checkedAt": "2026-08-31",
+          "hostVersion": "0.6.5",
+          "kernelVersion": "0.36.1",
+          "runtimeMode": "acp",
+          "verification": "real_runtime"
+        },
+        {
+          "kernel": "kimi",
+          "capability": "turn.lifecycle",
+          "testId": "kimi.turn.lifecycle",
+          "passed": true,
+          "checkedAt": "2026-08-31",
+          "hostVersion": "0.6.5",
+          "kernelVersion": "0.36.1",
+          "runtimeMode": "acp",
+          "verification": "real_runtime"
+        },
+        {
+          "kernel": "kimi",
+          "capability": "tools.hostTool",
+          "testId": "kimi.tools.hostTool",
+          "passed": true,
+          "checkedAt": "2026-08-31",
+          "hostVersion": "0.6.5",
+          "kernelVersion": "0.36.1",
+          "runtimeMode": "acp",
+          "verification": "real_runtime"
+        }
+      ]
+    },
+    {
+      "kernel": "pi",
+      "receiptSha256": "1add7cef32a247391904e94e5396091e46894b2f79d79a85a68005ec841dd52d",
+      "certifications": [
+        {
+          "kernel": "pi",
+          "capability": "tools.nativeTool",
+          "testId": "pi.tools.nativeTool",
+          "passed": true,
+          "checkedAt": "2026-09-01",
+          "hostVersion": "0.6.6",
+          "kernelVersion": "0.83.0",
+          "runtimeMode": "sdk",
+          "verification": "real_runtime"
+        }
+      ]
+    }
+  ]
+}

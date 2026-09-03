@@ -360,6 +360,7 @@ const runtime: AgentRuntime = {
       type: "turn.finished",
       runId: request.runId ?? "language-preference-test",
       at: new Date().toISOString(),
+      outcome: { taskState: "TASK_STATE_COMPLETED" },
     };
   },
 };

@@ -77,6 +77,7 @@ import {
   readOptions,
   stringValue,
 } from "../kernel/adapters/profile-utils.js";
+import { bridgeKernelSupportsHostTools } from "../kernel/host-tools.js";
 import { usesKernelManagedProviderConfig, planProviderBinding } from "./provider-binding.js";
 import { providerModelForSelection } from "./models-dev-catalog.js";
 import { resolveBridgeWorkspaceRoot } from "./workspace-root.js";
@@ -121,7 +122,7 @@ const KERNEL_DESCRIPTORS: Record<BridgeKernelId, BridgeKernelDescriptor> = {
   codex: {
     id: "codex",
     label: "Codex",
-    hostTools: true,
+    hostTools: bridgeKernelSupportsHostTools("codex"),
     accountLogin: true,
     externalProviderRoutes: [{ protocol: "openai-compatible", credentialKinds: API_CREDENTIALS }],
     bindingMode: "config-file",
@@ -132,7 +133,7 @@ const KERNEL_DESCRIPTORS: Record<BridgeKernelId, BridgeKernelDescriptor> = {
   "claude-code": {
     id: "claude-code",
     label: "Claude Agent",
-    hostTools: true,
+    hostTools: bridgeKernelSupportsHostTools("claude-code"),
     accountLogin: true,
     externalProviderRoutes: [
       {
@@ -148,7 +149,7 @@ const KERNEL_DESCRIPTORS: Record<BridgeKernelId, BridgeKernelDescriptor> = {
   hermes: {
     id: "hermes",
     label: "Hermes",
-    hostTools: false,
+    hostTools: bridgeKernelSupportsHostTools("hermes"),
     accountLogin: false,
     externalProviderRoutes: [
       { protocol: "openai-compatible", credentialKinds: API_CREDENTIALS },
@@ -162,7 +163,7 @@ const KERNEL_DESCRIPTORS: Record<BridgeKernelId, BridgeKernelDescriptor> = {
   pi: {
     id: "pi",
     label: "Pi",
-    hostTools: true,
+    hostTools: bridgeKernelSupportsHostTools("pi"),
     accountLogin: false,
     externalProviderRoutes: [
       { protocol: "openai-compatible", credentialKinds: API_CREDENTIALS },
@@ -177,7 +178,7 @@ const KERNEL_DESCRIPTORS: Record<BridgeKernelId, BridgeKernelDescriptor> = {
   openclaw: {
     id: "openclaw",
     label: "OpenClaw",
-    hostTools: false,
+    hostTools: bridgeKernelSupportsHostTools("openclaw"),
     accountLogin: false,
     externalProviderRoutes: [{ protocol: "custom-gateway", credentialKinds: ["gateway-managed"] }],
     bindingMode: "gateway",
@@ -188,7 +189,7 @@ const KERNEL_DESCRIPTORS: Record<BridgeKernelId, BridgeKernelDescriptor> = {
   opencode: {
     id: "opencode",
     label: "OpenCode",
-    hostTools: false,
+    hostTools: bridgeKernelSupportsHostTools("opencode"),
     accountLogin: false,
     externalProviderRoutes: [
       { protocol: "openai-compatible", credentialKinds: API_CREDENTIALS },
@@ -202,7 +203,7 @@ const KERNEL_DESCRIPTORS: Record<BridgeKernelId, BridgeKernelDescriptor> = {
   kimi: {
     id: "kimi",
     label: "Kimi Code",
-    hostTools: false,
+    hostTools: bridgeKernelSupportsHostTools("kimi"),
     accountLogin: true,
     externalProviderRoutes: [
       { protocol: "openai-compatible", credentialKinds: API_CREDENTIALS },

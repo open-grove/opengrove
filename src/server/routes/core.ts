@@ -158,20 +158,25 @@ export function buildDiagnosticsSummary(context: Pick<BridgeRouteContext, "state
   const recentRuns = context.state.app.sessions.listRuns({ limit: 100 });
   const counts = {
     total: recentRuns.length,
-    succeeded: recentRuns.filter((run) => run.status === "succeeded").length,
-    failed: recentRuns.filter((run) => run.status === "failed").length,
-    running: recentRuns.filter((run) => run.status === "running").length,
-    waiting: recentRuns.filter((run) => run.status === "waiting_for_approval" || run.status === "waiting_for_user")
-      .length,
+    succeeded: recentRuns.filter((run) => run.lifecycle.taskState === "TASK_STATE_COMPLETED").length,
+    failed: recentRuns.filter((run) => run.lifecycle.taskState === "TASK_STATE_FAILED").length,
+    running: recentRuns.filter((run) => run.lifecycle.taskState === "TASK_STATE_WORKING").length,
+    waiting: recentRuns.filter(
+      (run) =>
+        run.lifecycle.taskState === "TASK_STATE_INPUT_REQUIRED" ||
+        run.lifecycle.taskState === "TASK_STATE_AUTH_REQUIRED",
+    ).length,
     stalled: 0,
   };
   const failures = recentRuns.flatMap((run) => {
     const lastActivityAt = run.updatedAt || run.endedAt || run.startedAt;
     const lastActivityMs = Date.parse(lastActivityAt);
     const possiblyStalled =
-      run.status === "running" && Number.isFinite(lastActivityMs) && now - lastActivityMs >= 5 * 60_000;
+      run.lifecycle.taskState === "TASK_STATE_WORKING" &&
+      Number.isFinite(lastActivityMs) &&
+      now - lastActivityMs >= 5 * 60_000;
     if (possiblyStalled) counts.stalled += 1;
-    if (run.status !== "failed" && !possiblyStalled) return [];
+    if (run.lifecycle.taskState !== "TASK_STATE_FAILED" && !possiblyStalled) return [];
     const startedAtMs = Date.parse(run.startedAt);
     const endedAtMs = run.endedAt ? Date.parse(run.endedAt) : Number.NaN;
     const durationMs =
@@ -180,7 +185,7 @@ export function buildDiagnosticsSummary(context: Pick<BridgeRouteContext, "state
     return [
       {
         runId: safeDiagnosticIdentifier(run.id) ?? "unknown",
-        status: run.status,
+        lifecycle: run.lifecycle,
         createdAt: run.createdAt,
         startedAt: run.startedAt,
         updatedAt: run.updatedAt,

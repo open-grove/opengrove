@@ -26,10 +26,22 @@ Nightly 证据证明近期祖先提交上的额外平台和真实服务健康状
 
 1. 从干净、最新的 `main` 开始。
 2. 更新 `package.json` 的 `version`，并递增 `clientReleaseNumber`。
-3. 成对添加 `docs/releases/vX.Y.Z.md` 和
+3. 刷新所有 `legacyHostVersion` 已不匹配候选版本的 Kernel 能力证据：
+   在该候选版本上运行真实 Runtime 探针，使用
+   `scripts/import-kernel-evidence-receipt.mjs` 只导入通过的最小认证行，
+   再运行 `npm run generate:kernel-evidence` 和
+   `npm run test:capabilities`。不得通过延长旧迁移版本或手改生成账本来继续
+   宣称能力可用。
+4. 成对添加 `docs/releases/vX.Y.Z.md` 和
    `docs/releases/vX.Y.Z.zh-CN.md`。
-4. 更新 `CHANGELOG.md`。
-5. 运行能覆盖本次改动的针对性检查。
+5. 更新 `CHANGELOG.md`。
+6. 运行能覆盖本次改动的针对性检查。
+
+导入的旧基线只对 `legacyHostVersion` 指定的 Host 版本有效。新认证行会绑定
+`hostVersion`、`kernelVersion` 与 `runtimeMode`；CI
+能够检查其结构和可重复生成，但不会假装重新运行一套只在本机配置好的真实
+Kernel。真实 Runtime 运行和原始 receipt 只作为本机未跟踪发布证据；人工复核后，
+仓库中只保存导入器生成的最小认证批次。
 
 候选 workflow 会先验证精确 SHA 的 Main CI 和近期 Nightly 证据，然后对已授权
 的候选 commit 执行必需的轻量发布就绪检查：

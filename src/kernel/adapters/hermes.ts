@@ -6,6 +6,7 @@ import {
   resolveInstalledHermesCommandPath,
   type HermesRuntimeOptions,
 } from "../../runtime/hermes-runtime.js";
+import { resolveRuntimeRunId } from "../../runtime/run-id.js";
 import { APP_CONFIG_DIR, APP_PRODUCT_NAME, APP_PROTOCOL_ID, appEnvName, readAppEnv } from "../../identity.js";
 import {
   commandDiscoveryHealth,
@@ -119,7 +120,7 @@ export class HermesKernelAdapter implements KernelAdapter {
       return;
     }
 
-    const runId = request.runId ?? `run_${Date.now()}`;
+    const runId = resolveRuntimeRunId(request.runId);
     yield { type: "turn.started", runId, at: new Date().toISOString() };
     if (request.assembledContext) {
       yield { type: "context.assembled", runId, context: request.assembledContext };
@@ -129,7 +130,16 @@ export class HermesKernelAdapter implements KernelAdapter {
       runId,
       message: `Hermes kernel adapter is selected, but no Hermes CLI command is configured. Install Hermes or set ${appEnvName("HERMES_BIN")}.`,
     };
-    yield { type: "turn.finished", runId, at: new Date().toISOString() };
+    yield {
+      type: "turn.finished",
+      runId,
+      at: new Date().toISOString(),
+      outcome: {
+        taskState: "TASK_STATE_REJECTED",
+        reasonCode: "kernel_unavailable",
+        retryable: false,
+      },
+    };
   }
 
   steerTurn(request: AgentSteerRequest): Promise<AgentSteerResult> {

@@ -16,12 +16,18 @@ import {
   presentSessionSummaries,
   presentWorkingState,
 } from "./state-presentation.js";
-import { activeBridgeRunExecutionState, activeBridgeRunExecutionStateForQuestion } from "./active-runs.js";
+import {
+  activeBridgeRunExecutionState,
+  activeBridgeRunExecutionStateForQuestion,
+  activeBridgeRunOwnsInteraction,
+  activeBridgeRunOwnsNativeRequest,
+  cancelActiveBridgeRun,
+} from "./active-runs.js";
 
 export async function resolveQuestion(
   state: BridgeState,
   questionId: string,
-  status: "answered" | "declined",
+  status: "answered" | "declined" | "canceled",
   response?: JsonValue,
 ): Promise<{
   ok: true;
@@ -35,41 +41,56 @@ export async function resolveQuestion(
   executions: ReturnType<BridgeState["app"]["executions"]["list"]>;
 }> {
   const { app } = state;
-  const question = app.questions.get(questionId) ?? restoreQuestionFromEvents(state, questionId);
-  const runId = question?.resume?.runId;
-  const executionState =
-    activeBridgeRunExecutionState(state, runId) ?? activeBridgeRunExecutionStateForQuestion(state, questionId);
-  if (executionState && executionState.app !== state.app) {
-    return resolveScopedQuestion(state, executionState, questionId, status, response);
-  }
+  const question = app.questions.get(questionId) ?? latestQuestionEvent(state, questionId);
   if (!question) {
     throw new Error(`question_not_found:${questionId}`);
   }
-
   if (question.status !== "pending") {
     if (question.status !== status) {
       throw new Error(`question_already_${question.status}:${questionId}`);
     }
     return bridgeQuestionState(app, question, { alreadyResolved: true });
   }
+  const runId = question?.resume?.runId;
+  const executionState =
+    activeBridgeRunExecutionState(state, runId) ?? activeBridgeRunExecutionStateForQuestion(state, questionId);
+  if (
+    isSameLoopKernelQuestion(question) &&
+    (!activeBridgeRunOwnsInteraction(state, questionId, "question") ||
+      !activeBridgeRunOwnsNativeRequest(state, runId, question.nativeRequestId, "question") ||
+      !executionState?.app.questions.hasDecisionWaiter(questionId))
+  ) {
+    throw new Error(`question_producer_not_live:${questionId}`);
+  }
+  if (executionState && executionState.app !== state.app) {
+    const result = resolveScopedQuestion(state, executionState, questionId, status, response);
+    if (status === "canceled") cancelActiveBridgeRun(state, runId);
+    return result;
+  }
 
+  if (!app.questions.get(questionId)) app.questions.upsert(question);
   const resolved = app.questions.decide(questionId, status, response);
+  if (status === "canceled") cancelActiveBridgeRun(state, runId);
   syncBridgeWorkingState(app);
   state.store.saveFrom(app);
   return bridgeQuestionState(app, resolved);
+}
+
+function isSameLoopKernelQuestion(question: QuestionRequest): boolean {
+  return question.resume?.type === "kernel.native" && question.resume.continuation === "same-loop";
 }
 
 function resolveScopedQuestion(
   rootState: BridgeState,
   executionState: BridgeState,
   questionId: string,
-  status: "answered" | "declined",
+  status: "answered" | "declined" | "canceled",
   response?: JsonValue,
 ): ReturnType<typeof bridgeQuestionState> {
   const scopedQuestion =
-    executionState.app.questions.get(questionId) ?? restoreQuestionFromEvents(executionState, questionId);
+    executionState.app.questions.get(questionId) ?? latestQuestionEvent(executionState, questionId);
   if (!scopedQuestion) {
-    const rootQuestion = rootState.app.questions.get(questionId) ?? restoreQuestionFromEvents(rootState, questionId);
+    const rootQuestion = rootState.app.questions.get(questionId) ?? latestQuestionEvent(rootState, questionId);
     if (!rootQuestion) {
       throw new Error(`question_not_found:${questionId}`);
     }
@@ -94,14 +115,6 @@ function resolveScopedQuestion(
   syncBridgeWorkingState(rootState.app);
   rootState.store.saveFrom(rootState.app);
   return bridgeQuestionState(rootState.app, resolved);
-}
-
-function restoreQuestionFromEvents(state: BridgeState, questionId: string): QuestionRequest | undefined {
-  const question = latestQuestionEvent(state, questionId);
-  if (question) {
-    state.app.questions.upsert(question);
-  }
-  return question;
 }
 
 function latestQuestionEvent(state: BridgeState, questionId: string): QuestionRequest | undefined {

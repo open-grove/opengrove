@@ -11,6 +11,7 @@ import {
 } from "../../core.js";
 import type { AsyncEventQueue } from "./async-event-queue.js";
 import { asJsonValue, isJsonObject } from "./json.js";
+import { executeHostToolWithLiveness } from "../host-tool-bridge.js";
 import type { CodexDynamicToolCallParams, CodexDynamicToolCallResponse, CodexDynamicToolSpec } from "./types.js";
 
 export function createCodexDynamicToolBridge(request: AgentTurnRequest, runId: string) {
@@ -83,7 +84,7 @@ export function createCodexDynamicToolBridge(request: AgentTurnRequest, runId: s
       }
 
       try {
-        const result = await tool.execute(input as JsonObject, {
+        const result = await executeHostToolWithLiveness(tool, input as JsonObject, {
           runId,
           capabilityId,
           skillId: request.requestedSkillInvocation?.skillId,
@@ -93,6 +94,7 @@ export function createCodexDynamicToolBridge(request: AgentTurnRequest, runId: s
           approvals: request.context.approvals,
           skills: request.context.skills,
           packs: request.context.packs,
+          signal: request.signal,
           policy: decision,
         });
         callbacks.queue.push({ type: "tool.finished", runId, toolId: tool.spec.id, callId: call.callId, result });

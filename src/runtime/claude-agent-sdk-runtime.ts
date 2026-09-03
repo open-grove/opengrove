@@ -32,6 +32,7 @@ import { agentTurnHostContextPromptBlock, agentTurnReplyLanguageInstruction } fr
 import { AsyncEventQueue } from "./codex/async-event-queue.js";
 import { asJsonValue, isJsonObject, readString } from "./codex/json.js";
 import { createClaudeSdkHostBridge, type ClaudeSdkHostBridge } from "./claude-agent-sdk-tools.js";
+import { resolveRuntimeRunId } from "./run-id.js";
 import {
   applyClaudeBedrockHelperEnv,
   applyClaudeHostManagedProviderEnv,
@@ -142,7 +143,7 @@ export class ClaudeAgentSdkRuntime implements AgentRuntime {
     queue: AsyncEventQueue<AgentEvent>,
     abortController: AbortController,
   ): Promise<void> {
-    const runId = request.runId ?? `run_${Date.now()}`;
+    const runId = resolveRuntimeRunId(request.runId);
     const requestedModel = resolveClaudeRuntimeModel(
       request.requestedModelId,
       this.options.configuredModel,
@@ -389,7 +390,17 @@ export class ClaudeAgentSdkRuntime implements AgentRuntime {
         message: claudeSdkProcessErrorMessage(error, messageState.stderrText),
         ...(diagnostics ? { diagnostics } : {}),
       });
-      queue.push({ type: "turn.finished", runId, at: new Date().toISOString() });
+      const canceled = Boolean(request.signal?.aborted || abortController.signal.aborted);
+      queue.push({
+        type: "turn.finished",
+        runId,
+        at: new Date().toISOString(),
+        outcome: {
+          taskState: canceled ? "TASK_STATE_CANCELED" : "TASK_STATE_FAILED",
+          reasonCode: canceled ? "native_cancelled" : "claude_native_terminal_missing",
+          outcomeUnknown: true,
+        },
+      });
       return;
     }
 
@@ -441,7 +452,16 @@ export class ClaudeAgentSdkRuntime implements AgentRuntime {
         reason: "turn-final",
       }),
     );
-    queue.push({ type: "turn.finished", runId, at: new Date().toISOString() });
+    queue.push({
+      type: "turn.finished",
+      runId,
+      at: new Date().toISOString(),
+      outcome: messageState.resultIsError
+        ? { taskState: "TASK_STATE_FAILED", reasonCode: "claude_agent_sdk_failed" }
+        : request.signal?.aborted
+          ? { taskState: "TASK_STATE_CANCELED", reasonCode: "native_cancelled", retryable: false }
+          : { taskState: "TASK_STATE_COMPLETED" },
+    });
   }
 
   async compactSession(request: AgentCompactRequest): Promise<AgentCompactResult> {

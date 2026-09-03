@@ -75,8 +75,16 @@ export function AssistantProcessBlock(props: {
   unwrapEmbeddedList?: boolean;
   showArtifactCards?: boolean;
   pendingQuestionIds?: ReadonlySet<string>;
-  onResolveApproval(approvalId: string, action: "approve" | "reject", response?: unknown): PendingActionResult;
-  onResolveQuestion(questionId: string, action: "answer" | "decline", response?: unknown): PendingActionResult;
+  onResolveApproval(
+    approvalId: string,
+    action: "approve" | "reject" | "cancel",
+    response?: unknown,
+  ): PendingActionResult;
+  onResolveQuestion(
+    questionId: string,
+    action: "answer" | "decline" | "cancel",
+    response?: unknown,
+  ): PendingActionResult;
   onInsertPrompt?(prompt: string): void;
   onSubmitPrompt?(prompt: string): void;
   onOpenResource?(resource: ChatResourceRef, action?: ChatResourceAction): void;
@@ -293,8 +301,16 @@ function ActivityEntryList(props: {
   includeReasoningInSummary?: boolean;
   showArtifactCards?: boolean;
   pendingQuestionIds?: ReadonlySet<string>;
-  onResolveApproval(approvalId: string, action: "approve" | "reject", response?: unknown): PendingActionResult;
-  onResolveQuestion(questionId: string, action: "answer" | "decline", response?: unknown): PendingActionResult;
+  onResolveApproval(
+    approvalId: string,
+    action: "approve" | "reject" | "cancel",
+    response?: unknown,
+  ): PendingActionResult;
+  onResolveQuestion(
+    questionId: string,
+    action: "answer" | "decline" | "cancel",
+    response?: unknown,
+  ): PendingActionResult;
   onInsertPrompt?(prompt: string): void;
   onSubmitPrompt?(prompt: string): void;
   onOpenResource?(resource: ChatResourceRef, action?: ChatResourceAction): void;
@@ -353,8 +369,16 @@ function ActivityCluster(props: {
   includeReasoningInSummary?: boolean;
   showArtifactCards?: boolean;
   pendingQuestionIds?: ReadonlySet<string>;
-  onResolveApproval(approvalId: string, action: "approve" | "reject", response?: unknown): PendingActionResult;
-  onResolveQuestion(questionId: string, action: "answer" | "decline", response?: unknown): PendingActionResult;
+  onResolveApproval(
+    approvalId: string,
+    action: "approve" | "reject" | "cancel",
+    response?: unknown,
+  ): PendingActionResult;
+  onResolveQuestion(
+    questionId: string,
+    action: "answer" | "decline" | "cancel",
+    response?: unknown,
+  ): PendingActionResult;
   onInsertPrompt?(prompt: string): void;
   onSubmitPrompt?(prompt: string): void;
   onOpenResource?(resource: ChatResourceRef, action?: ChatResourceAction): void;
@@ -431,8 +455,16 @@ function ActivityItemRow(props: {
   detailMode?: "summary" | "full";
   showArtifactCards?: boolean;
   pendingQuestionIds?: ReadonlySet<string>;
-  onResolveApproval(approvalId: string, action: "approve" | "reject", response?: unknown): PendingActionResult;
-  onResolveQuestion(questionId: string, action: "answer" | "decline", response?: unknown): PendingActionResult;
+  onResolveApproval(
+    approvalId: string,
+    action: "approve" | "reject" | "cancel",
+    response?: unknown,
+  ): PendingActionResult;
+  onResolveQuestion(
+    questionId: string,
+    action: "answer" | "decline" | "cancel",
+    response?: unknown,
+  ): PendingActionResult;
   onInsertPrompt?(prompt: string): void;
   onSubmitPrompt?(prompt: string): void;
   onOpenResource?(resource: ChatResourceRef, action?: ChatResourceAction): void;
@@ -498,7 +530,7 @@ function ActivityItemRow(props: {
   const [approvalResolutionError, setApprovalResolutionError] = useState("");
   // 与 QuestionRequestCard 的 resolutionPending 同一模式：提交期间禁止重复点击，
   // 失败时把错误留在卡片上（红色小字），而不是只写进全局消息流。
-  const runApprovalResolution = (action: "approve" | "reject") => {
+  const runApprovalResolution = (action: "approve" | "reject" | "cancel") => {
     if (!interactivePart || approvalResolutionPending) return;
     setApprovalResolutionPending(true);
     setApprovalResolutionError("");
@@ -649,6 +681,12 @@ function ActivityItemRow(props: {
               );
             }}
             onDecline={() => props.onResolveQuestion(pendingQuestionPart.questionId, "decline")}
+            onCancel={() =>
+              props.onResolveQuestion(pendingQuestionPart.questionId, "cancel", {
+                system: false,
+                reasonCode: "user_canceled",
+              })
+            }
           />
         ) : null}
         {interactivePart && !pendingQuestionPart ? (
@@ -670,6 +708,14 @@ function ActivityItemRow(props: {
                 }}
               >
                 {t("activity.reject")}
+              </Button>
+              <Button
+                disabled={approvalResolutionPending}
+                onClick={() => {
+                  runApprovalResolution("cancel");
+                }}
+              >
+                {t("activity.cancelRun")}
               </Button>
             </div>
             {approvalResolutionError ? (
@@ -776,7 +822,11 @@ function ArtifactCardList(props: {
 export function QuestionInteractionCard(props: {
   part: ToolPart;
   pendingQuestionIds?: ReadonlySet<string>;
-  onResolveQuestion(questionId: string, action: "answer" | "decline", response?: unknown): PendingActionResult;
+  onResolveQuestion(
+    questionId: string,
+    action: "answer" | "decline" | "cancel",
+    response?: unknown,
+  ): PendingActionResult;
 }) {
   const { t } = useI18n();
   const status = props.part.questionStatus || "pending";
@@ -797,23 +847,33 @@ export function QuestionInteractionCard(props: {
           props.onResolveQuestion(props.part.questionId, "answer", buildQuestionResponse(props.part, answer))
         }
         onDecline={() => props.onResolveQuestion(props.part.questionId, "decline")}
+        onCancel={() =>
+          props.onResolveQuestion(props.part.questionId, "cancel", {
+            system: false,
+            reasonCode: "user_canceled",
+          })
+        }
       />
     );
   }
 
+  const canceled = status === "canceled";
   const declined = status === "declined";
-  const rows = declined
+  const unresolved = declined || canceled;
+  const rows = unresolved
     ? questionPages(props.part).map((page) => ({ id: page.id, prompt: page.title, answer: "" }))
     : questionAnswerRows(props.part, t);
   return (
     <section
-      className={clsx("thread-question-summary", declined ? "is-declined" : "is-answered")}
-      aria-label={declined ? t("activity.skippedQuestionAria") : t("activity.answeredQuestionAria")}
+      className={clsx("thread-question-summary", unresolved ? "is-declined" : "is-answered")}
+      aria-label={unresolved ? t("activity.skippedQuestionAria") : t("activity.answeredQuestionAria")}
     >
       {rows.map((row) => (
         <div className="thread-question-summary-item" key={row.id}>
           <div className="thread-question-summary-prompt">{row.prompt}</div>
-          <div className="thread-question-summary-answer">{declined ? t("activity.skipped") : row.answer}</div>
+          <div className="thread-question-summary-answer">
+            {canceled ? t("activity.runCanceled") : declined ? t("activity.skipped") : row.answer}
+          </div>
         </div>
       ))}
     </section>
@@ -822,7 +882,11 @@ export function QuestionInteractionCard(props: {
 
 export function ApprovalInteractionCard(props: {
   part: ToolPart;
-  onResolveApproval(approvalId: string, action: "approve" | "reject", response?: unknown): PendingActionResult;
+  onResolveApproval(
+    approvalId: string,
+    action: "approve" | "reject" | "cancel",
+    response?: unknown,
+  ): PendingActionResult;
 }) {
   const item = buildActivityItems([props.part])[0];
   if (!item || item.type !== "approval") {
@@ -846,6 +910,7 @@ function QuestionRequestCard(props: {
   disabledReason?: string;
   onAnswer(answer: string | Record<string, string>): PendingActionResult;
   onDecline(): PendingActionResult;
+  onCancel(): PendingActionResult;
 }) {
   const { t } = useI18n();
   const questions = questionPages(props.part);
@@ -1163,6 +1228,9 @@ function QuestionRequestCard(props: {
               : hasMultipleQuestions
                 ? t("activity.cancelAll")
                 : t("activity.skip")}
+          </Button>
+          <Button disabled={disabled} onClick={() => runResolution(props.onCancel)}>
+            {resolutionPending ? t("activity.cancelling") : t("activity.cancelRun")}
           </Button>
         </div>
       )}

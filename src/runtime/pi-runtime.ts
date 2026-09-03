@@ -1,3 +1,7 @@
+import { existsSync, realpathSync } from "node:fs";
+import { homedir } from "node:os";
+import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
+import { fileURLToPath } from "node:url";
 import {
   evaluateToolPolicy,
   agentTurnReplyLanguageInstruction,
@@ -15,17 +19,24 @@ import {
   type CapabilityManifest,
   type ContextEnvelope,
   type InvokedSkillRecord,
+  type JsonObject,
   type PackManifest,
   type PolicyDecision,
+  type PolicyRule,
   type SkillManifest,
   type ToolDefinition,
+  type ToolRisk,
+  type ToolSpec,
 } from "../core.js";
 import { renderSkillIndex } from "../skills/catalog.js";
 import { imageAttachmentsWithDataUrl } from "./media-input.js";
+import { resolveRuntimeRunId } from "./run-id.js";
 
 export interface PiToolCallGate {
   toolId: string;
   capabilityId?: string;
+  input?: JsonObject;
+  source: "host" | "native";
 }
 
 export interface PiSessionContext {
@@ -73,6 +84,8 @@ export interface PiSessionFactory {
 export interface PiAgentRuntimeOptions {
   createSession: PiSessionFactory;
   system?: string;
+  /** OpenGrove workspace boundary for Pi's in-process native coding tools. */
+  workspaceRoot?: string;
 }
 
 const DEFAULT_SYSTEM = [
@@ -85,7 +98,7 @@ export class PiAgentRuntime implements AgentRuntime {
   constructor(private readonly options: PiAgentRuntimeOptions) {}
 
   async *runTurn(request: AgentTurnRequest): AsyncIterable<AgentEvent> {
-    const runId = request.runId ?? `run_${Date.now()}`;
+    const runId = resolveRuntimeRunId(request.runId);
     const skills = request.skills ?? [];
     const packs = request.packs ?? [];
     const capabilities = request.capabilities ?? [];
@@ -115,6 +128,7 @@ export class PiAgentRuntime implements AgentRuntime {
     });
     let assistantText = "";
     let emittedModelResponse = false;
+    let terminalError = "";
 
     yield { type: "turn.started", runId, at: new Date().toISOString() };
     if (request.assembledContext) {
@@ -133,7 +147,12 @@ export class PiAgentRuntime implements AgentRuntime {
         message: error instanceof Error ? error.message : String(error),
       };
       yield { type: "model.response", runId, response: { text: "" } };
-      yield { type: "turn.finished", runId, at: new Date().toISOString() };
+      yield {
+        type: "turn.finished",
+        runId,
+        at: new Date().toISOString(),
+        outcome: { taskState: "TASK_STATE_FAILED", reasonCode: "pi_session_trace_failed" },
+      };
       return;
     }
     if (!session.emitsModelRequests) {
@@ -178,6 +197,15 @@ export class PiAgentRuntime implements AgentRuntime {
         assembledContext: request.assembledContext,
         contextTokenBudget: request.contextTokenBudget,
         beforeToolCall: async (gate) => {
+          if (gate.source === "native") {
+            return evaluatePiNativeToolPolicy(
+              gate.toolId,
+              gate.input,
+              this.options.workspaceRoot ?? process.cwd(),
+              request.accessMode,
+              policy,
+            );
+          }
           const tool = request.tools.find((candidate) => candidate.spec.id === gate.toolId);
           if (!tool) {
             return { mode: "deny", reason: `Unknown tool: ${gate.toolId}` };
@@ -200,10 +228,11 @@ export class PiAgentRuntime implements AgentRuntime {
         yield event;
       }
     } catch (error) {
+      terminalError = error instanceof Error ? error.message : String(error);
       yield {
         type: "error",
         runId,
-        message: error instanceof Error ? error.message : String(error),
+        message: terminalError,
       };
     }
 
@@ -211,7 +240,16 @@ export class PiAgentRuntime implements AgentRuntime {
       yield { type: "model.response", runId, response: { text: assistantText } };
     }
 
-    yield { type: "turn.finished", runId, at: new Date().toISOString() };
+    yield {
+      type: "turn.finished",
+      runId,
+      at: new Date().toISOString(),
+      outcome: terminalError
+        ? { taskState: "TASK_STATE_FAILED", reasonCode: "pi_native_turn_failed" }
+        : request.signal?.aborted
+          ? { taskState: "TASK_STATE_CANCELED", reasonCode: "native_cancelled", retryable: false }
+          : { taskState: "TASK_STATE_COMPLETED" },
+    };
   }
 
   compactSession(request: AgentCompactRequest): Promise<AgentCompactResult> {
@@ -269,6 +307,102 @@ export class PiAgentRuntime implements AgentRuntime {
       };
     }
   }
+}
+
+function evaluatePiNativeToolPolicy(
+  toolId: string,
+  input: JsonObject | undefined,
+  workspaceRoot: string,
+  accessMode: AgentTurnRequest["accessMode"],
+  policy: PolicyRule[],
+): PolicyDecision {
+  const spec = piNativeToolSpec(toolId);
+  if (!spec) return { mode: "deny", reason: `Unknown Pi native tool: ${toolId}` };
+  if (accessMode === "full-access") {
+    return { mode: "allow", reason: "OpenGrove full-access mode allows Pi native tool execution for this turn." };
+  }
+  if (piNativeFileTargetEscapesWorkspace(toolId, input, workspaceRoot)) {
+    return {
+      mode: "ask",
+      reason: "Pi requested a file outside the OpenGrove workspace. Explicit approval is required.",
+    };
+  }
+  if (accessMode === "auto-review" && toolId !== "bash") {
+    return {
+      mode: "allow",
+      reason: "OpenGrove auto-review mode allows Pi read and file-edit tools; shell commands still require review.",
+    };
+  }
+  return evaluateToolPolicy(spec, policy);
+}
+
+function piNativeFileTargetEscapesWorkspace(
+  toolId: string,
+  input: JsonObject | undefined,
+  workspaceRoot: string,
+): boolean {
+  if (toolId !== "read" && toolId !== "write" && toolId !== "edit") return false;
+  const requestedPath = typeof input?.path === "string" ? input.path.trim() : "";
+  if (!requestedPath) return false;
+  const target = resolvePiNativePath(requestedPath, workspaceRoot);
+  const root = canonicalPath(workspaceRoot);
+  const canonicalTarget = canonicalPath(target);
+  const relation = relative(root, canonicalTarget);
+  return relation === ".." || relation.startsWith(`..${sep}`) || isAbsolute(relation);
+}
+
+function resolvePiNativePath(requestedPath: string, workspaceRoot: string): string {
+  if (requestedPath.startsWith("file://")) {
+    try {
+      return fileURLToPath(requestedPath);
+    } catch {
+      return resolve(workspaceRoot, requestedPath);
+    }
+  }
+  if (requestedPath === "~") return homedir();
+  if (requestedPath.startsWith(`~${sep}`) || requestedPath.startsWith("~/")) {
+    return resolve(homedir(), requestedPath.slice(2));
+  }
+  return isAbsolute(requestedPath) ? resolve(requestedPath) : resolve(workspaceRoot, requestedPath);
+}
+
+function canonicalPath(input: string): string {
+  const suffix: string[] = [];
+  let cursor = resolve(input);
+  while (!existsSync(cursor)) {
+    const parent = dirname(cursor);
+    if (parent === cursor) break;
+    suffix.unshift(cursor.slice(parent.length + (parent.endsWith(sep) ? 0 : 1)));
+    cursor = parent;
+  }
+  try {
+    return resolve(realpathSync.native(cursor), ...suffix);
+  } catch {
+    return resolve(input);
+  }
+}
+
+function piNativeToolSpec(toolId: string): ToolSpec | undefined {
+  const riskByTool: Record<string, ToolRisk> = {
+    read: "read",
+    write: "write",
+    edit: "write",
+    bash: "write",
+  };
+  const risk = riskByTool[toolId];
+  if (!risk) return undefined;
+  return {
+    id: toolId,
+    title: `Pi ${toolId}`,
+    description: `Pi native ${toolId} tool`,
+    activity: "local",
+    risk,
+    input: { type: "json-schema", schema: { type: "object" } },
+    permission: {
+      mode: risk === "read" ? "allow" : "ask",
+      reason: risk === "read" ? "Reading is safe by default." : `Pi ${toolId} changes local state and requires review.`,
+    },
+  };
 }
 
 function buildSystemPrompt(

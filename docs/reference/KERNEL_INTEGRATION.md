@@ -87,6 +87,11 @@ UI behavior, and reports are sourced from
 [`docs/reference/KERNEL_SOURCES.md`](KERNEL_SOURCES.md), and
 [`web/src/runtime/kernel-capability-ui-policy.ts`](../../web/src/runtime/kernel-capability-ui-policy.ts).
 
+A passing real-runtime certification is sticky. A Kernel version, runtime mode,
+or Provider change schedules context revalidation but does not hide the feature
+from users by itself. Only a newer failed certification for the current context,
+or an explicit `not-wired` / `suppressed` contract mapping, revokes exposure.
+
 ## Event projection
 
 Maintain an explicit mapping for the native protocol. At minimum:

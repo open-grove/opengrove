@@ -10,6 +10,21 @@ import { isSafeAppCliTargetPath } from "./cli-targets.js";
 import { normalizeMcpAppView } from "./ui-runtime.js";
 import { legacyAppUiKind, normalizeCompatibleAppUi, retiredWebAppUiIssue } from "./compat/legacy-app-ui.compat.js";
 import { isRetiredKnowledgeVaultPackage } from "../retired-app-identity.js";
+import { STANDARD_KERNEL_CAPABILITY_IDS } from "../kernel/capabilities/types.js";
+
+const kernelCapabilityIdSchema = z.enum(STANDARD_KERNEL_CAPABILITY_IDS);
+const requiredKernelCapabilitiesSchema = z
+  .array(kernelCapabilityIdSchema)
+  .max(STANDARD_KERNEL_CAPABILITY_IDS.length)
+  .superRefine((capabilities, context) => {
+    const seen = new Set<string>();
+    capabilities.forEach((capability, index) => {
+      if (seen.has(capability)) {
+        context.addIssue({ code: "custom", path: [index], message: `duplicate capability: ${capability}` });
+      }
+      seen.add(capability);
+    });
+  });
 
 const cliTargetPathSchema = z
   .string()
@@ -99,6 +114,7 @@ const appStoreEmployeeDefaultsSchema = z
     publicSkills: z.array(z.string().min(1).max(240)).max(256).optional(),
     inputSpec: z.string().max(8_000).optional(),
     outputSpec: z.string().max(8_000).optional(),
+    requiredKernelCapabilities: requiredKernelCapabilitiesSchema.optional(),
   })
   .passthrough();
 
@@ -289,6 +305,7 @@ export const employeeDeclarationSchema = z
     publicSkills: z.array(z.string()).optional(),
     inputSpec: z.string().optional(),
     outputSpec: z.string().optional(),
+    requiredKernelCapabilities: requiredKernelCapabilitiesSchema.optional(),
     workspace: z.union([z.string().min(1), z.object({ path: z.string().min(1).optional() }).passthrough()]).optional(),
     workspaceRoot: z.string().min(1).optional(),
   })

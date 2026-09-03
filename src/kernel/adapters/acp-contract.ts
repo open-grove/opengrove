@@ -1,6 +1,6 @@
 import type { KernelHarnessOwnershipRule } from "../types.js";
 
-export function acpKernelOwnership(title: string): KernelHarnessOwnershipRule[] {
+export function acpKernelOwnership(title: string, options: { hostTools?: boolean } = {}): KernelHarnessOwnershipRule[] {
   return [
     {
       feature: "session",
@@ -31,8 +31,15 @@ export function acpKernelOwnership(title: string): KernelHarnessOwnershipRule[] 
     },
     {
       feature: "host_tool_execution",
-      owner: "unsupported",
-      notes: "The generic ACP bridge does not inject OpenGrove Host Tools.",
+      owner: options.hostTools ? "shared" : "unsupported",
+      ...(options.hostTools
+        ? {
+            appResponsibility: "Own scoped OpenGrove Host Tools and their product-side effects.",
+            kernelResponsibility: `Call the injected MCP tools from ${title}'s native agent loop.`,
+            adapterResponsibility:
+              "Inject the per-session MCP server and project calls without replacing native coding tools.",
+          }
+        : { notes: "This ACP integration does not inject OpenGrove Host Tools." }),
     },
     {
       feature: "approval",

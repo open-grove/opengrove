@@ -1,4 +1,5 @@
 import { readAppEnv } from "../identity.js";
+import { KERNEL_CAPABILITY_CONTRACTS } from "./capabilities/contracts.js";
 
 export type ClaudeCodeRuntimeMode = "cli" | "sdk";
 
@@ -16,6 +17,10 @@ export function resolveClaudeCodeRuntimeMode(): ClaudeCodeRuntimeMode {
  * Keep this resolver free of adapter construction, CLI probes, and state I/O.
  */
 export function bridgeKernelSupportsHostTools(kernelId: string): boolean {
-  if (kernelId === "claude-code") return resolveClaudeCodeRuntimeMode() === "sdk";
-  return kernelId === "codex" || kernelId === "pi" || kernelId === "kimi";
+  if (kernelId === "claude-code" && resolveClaudeCodeRuntimeMode() !== "sdk") return false;
+  return (
+    KERNEL_CAPABILITY_CONTRACTS.find((contract) => contract.kernel === kernelId)?.mappings.some(
+      (mapping) => mapping.capability === "tools.hostTool" && mapping.status === "mapped",
+    ) === true
+  );
 }

@@ -107,7 +107,12 @@ const mockRuntime: AgentRuntime = {
     yield { type: "turn.started", runId: currentRunId, at: new Date(4).toISOString() };
     yield { type: "assistant.delta", runId: currentRunId, text: "streaming detail" };
     yield { type: "model.response", runId: currentRunId, response: { text: "adapter synthesized final" } };
-    yield { type: "turn.finished", runId: currentRunId, at: new Date(5).toISOString() };
+    yield {
+      type: "turn.finished",
+      runId: currentRunId,
+      at: new Date(5).toISOString(),
+      outcome: { taskState: "TASK_STATE_COMPLETED" },
+    };
   },
 };
 const adapter = createRuntimeKernelAdapter({
@@ -151,7 +156,12 @@ const mockRuntimeWithFinal: AgentRuntime = {
       runId: currentRunId,
       response: { text: "model response should not duplicate final" },
     };
-    yield { type: "turn.finished", runId: currentRunId, at: new Date(8).toISOString() };
+    yield {
+      type: "turn.finished",
+      runId: currentRunId,
+      at: new Date(8).toISOString(),
+      outcome: { taskState: "TASK_STATE_COMPLETED" },
+    };
   },
 };
 const noDuplicateAdapter = createRuntimeKernelAdapter({

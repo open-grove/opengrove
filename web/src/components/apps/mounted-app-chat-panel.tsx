@@ -122,8 +122,16 @@ export function MountedAppChatPanel(props: {
   roomsState: RoomsState;
   roomsHydrated: boolean;
   setRoomsState: Dispatch<SetStateAction<RoomsState>>;
-  onResolveApproval?(approvalId: string, action: "approve" | "reject", response?: unknown): Promise<unknown> | void;
-  onResolveQuestion?(questionId: string, action: "answer" | "decline", response?: unknown): Promise<unknown> | void;
+  onResolveApproval?(
+    approvalId: string,
+    action: "approve" | "reject" | "cancel",
+    response?: unknown,
+  ): Promise<unknown> | void;
+  onResolveQuestion?(
+    questionId: string,
+    action: "answer" | "decline" | "cancel",
+    response?: unknown,
+  ): Promise<unknown> | void;
   queuedAttachment?: AttachmentPayload | null;
   onOpenWorkspacePath?(path: string): void;
   onPendingCountChange?(count: number): void;
@@ -929,7 +937,7 @@ export function MountedAppChatPanel(props: {
 
   // 审批解决：调用宿主回传的 /approvals 决策，再就地把本地会话里的审批卡片翻成已解决，
   // 避免要等下一次 /events 轮询(≤2s)才更新。镜像 RoomsView 的 resolveRoomApproval。
-  async function resolveAppApproval(approvalId: string, action: "approve" | "reject", response?: unknown) {
+  async function resolveAppApproval(approvalId: string, action: "approve" | "reject" | "cancel", response?: unknown) {
     try {
       const result = await props.onResolveApproval?.(approvalId, action, response);
       if (!result) return;
@@ -955,7 +963,7 @@ export function MountedAppChatPanel(props: {
 
   // 问题解决：和审批一样就地回写 App 聊天里的问题卡片，否则提交成功后会等不到本地 UI 状态更新，
   // 看起来像按钮没有反应。
-  async function resolveAppQuestion(questionId: string, action: "answer" | "decline", response?: unknown) {
+  async function resolveAppQuestion(questionId: string, action: "answer" | "decline" | "cancel", response?: unknown) {
     try {
       const result = await props.onResolveQuestion?.(questionId, action, response);
       if (!result) return;

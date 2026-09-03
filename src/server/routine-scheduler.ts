@@ -7,47 +7,83 @@ import { isRunnableRoomAssistantTarget, scheduleRoomAssistantRuns } from "./room
 import { resolveWorkflowMemberRef } from "./workflow-member-ref.js";
 
 const SCHEDULER_TICK_MS = 30_000;
-const MEMBER_STEP_TIMEOUT_MS = 30 * 60_000;
 
-export function startRoutineScheduler(state: BridgeState): () => void {
-  let running = false;
+interface RoutineSchedulerOptions {
+  tickMs?: number;
+  executeRoutine?: (state: BridgeState, routine: Routine) => Promise<void>;
+}
+
+/**
+ * Start the background scheduler without making one long-lived Kernel turn the
+ * liveness boundary for every other Routine. Individual turns retain their
+ * native waiting semantics; producer loss and Host shutdown settle them.
+ */
+export function startRoutineScheduler(state: BridgeState, options: RoutineSchedulerOptions = {}): () => void {
+  const activeRoutineIds = new Set<string>();
   const timer = setInterval(() => {
-    if (running) return;
-    running = true;
-    void tickRoutineScheduler(state)
-      .catch((error: unknown) => {
-        console.error("routine scheduler tick failed:", error instanceof Error ? error.message : error);
-      })
-      .finally(() => {
-        running = false;
-      });
-  }, SCHEDULER_TICK_MS);
+    for (const routine of claimDueRoutines(state, new Date(), activeRoutineIds)) {
+      activeRoutineIds.add(routine.id);
+      void executeScheduledRoutine(state, routine, options.executeRoutine)
+        .catch((error: unknown) => {
+          console.error(`scheduled routine ${routine.id} failed:`, error instanceof Error ? error.message : error);
+        })
+        .finally(() => {
+          activeRoutineIds.delete(routine.id);
+        });
+    }
+  }, options.tickMs ?? SCHEDULER_TICK_MS);
   timer.unref?.();
   return () => clearInterval(timer);
 }
 
-export async function tickRoutineScheduler(state: BridgeState, now = new Date()): Promise<string[]> {
-  const fired: string[] = [];
+export async function tickRoutineScheduler(
+  state: BridgeState,
+  now = new Date(),
+  options: Pick<RoutineSchedulerOptions, "executeRoutine"> = {},
+): Promise<string[]> {
+  const claimed = claimDueRoutines(state, now);
+  await Promise.all(
+    claimed.map(async (routine) => {
+      try {
+        await executeScheduledRoutine(state, routine, options.executeRoutine);
+      } catch (error) {
+        console.error(`scheduled routine ${routine.id} failed:`, error instanceof Error ? error.message : error);
+      }
+    }),
+  );
+  return claimed.map((routine) => routine.id);
+}
+
+function claimDueRoutines(state: BridgeState, now: Date, activeRoutineIds = new Set<string>()): Routine[] {
+  const claimed: Routine[] = [];
   for (const routine of state.app.routines.list("active")) {
+    if (activeRoutineIds.has(routine.id)) continue;
     if (routine.trigger !== "schedule") continue;
     if (!isRoutineDue(routine, now)) continue;
     state.app.routines.update(routine.id, {
       schedule: { ...routine.schedule!, lastFiredAt: now.toISOString() },
     });
     state.store.saveFrom(state.app);
-    fired.push(routine.id);
-    try {
-      await runRoutine(state.app, routine.id, {
-        memberExecutor: createRoutineMemberExecutor(state),
-        problemReporter: createRoutineProblemReporter(state),
-        statusObserver: createRoutineFlowInstanceObserver(state),
-      });
-    } catch (error) {
-      console.error(`scheduled routine ${routine.id} failed:`, error instanceof Error ? error.message : error);
-    }
-    state.store.saveFrom(state.app);
+    claimed.push(routine);
   }
-  return fired;
+  return claimed;
+}
+
+async function executeScheduledRoutine(
+  state: BridgeState,
+  routine: Routine,
+  executeRoutine: RoutineSchedulerOptions["executeRoutine"],
+): Promise<void> {
+  if (executeRoutine) {
+    await executeRoutine(state, routine);
+  } else {
+    await runRoutine(state.app, routine.id, {
+      memberExecutor: createRoutineMemberExecutor(state),
+      problemReporter: createRoutineProblemReporter(state),
+      statusObserver: createRoutineFlowInstanceObserver(state),
+    });
+  }
+  state.store.saveFrom(state.app);
 }
 
 export function isRoutineDue(routine: Routine, now: Date): boolean {
@@ -115,21 +151,18 @@ export function createRoutineMemberExecutor(state: BridgeState) {
     state.store.saveFrom(state.app);
 
     return new Promise<ToolResult>((resolve) => {
-      const timeout = setTimeout(() => {
-        resolve({ ok: false, error: "member_step_timeout" });
-      }, MEMBER_STEP_TIMEOUT_MS);
-      timeout.unref?.();
       const scheduled = scheduleRoomAssistantRuns(state, {
         roomId,
         triggerMessageId: posted.userMessage.id,
         targets: [member],
         assistantMessages: posted.assistantMessages,
         onMessageFinalized: ({ message, error, problem }) => {
-          clearTimeout(timeout);
-          if (error || message.status === "failed") {
+          if (error || message.status !== "done") {
             resolve({
               ok: false,
-              error: error ?? message.text ?? "member_step_failed",
+              error:
+                error ??
+                (message.status === "interrupted" ? "member_step_canceled" : message.text || "member_step_failed"),
               ...(problem ? { problem } : {}),
             });
             return;
@@ -148,7 +181,6 @@ export function createRoutineMemberExecutor(state: BridgeState) {
         },
       });
       if (scheduled.length === 0) {
-        clearTimeout(timeout);
         resolve({ ok: false, error: `member_run_not_scheduled:${request.memberId}` });
         return;
       }

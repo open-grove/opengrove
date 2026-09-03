@@ -1,4 +1,5 @@
 import type { AgentAttachmentContext, JsonObject } from "../core.js";
+import type { KernelCapabilityId } from "../kernel/capabilities/types.js";
 import type { RoomMemberSource, RoomMessageDeliveryKind, RoomMessageSenderType } from "./channel-types.js";
 import {
   cloneEvent,
@@ -64,6 +65,8 @@ export interface RoomChannelMember {
   workspaceRoot?: string;
   storePackageId?: string;
   toolIds?: string[];
+  /** Certified Kernel capabilities this employee requires for correct execution. */
+  requiredKernelCapabilities?: KernelCapabilityId[];
   accessMode?: RoomMemberAccessMode;
   reasoningEffort?: RoomMemberReasoningEffort;
   /** Per-employee conversation context budget. Missing values use the product default. */
@@ -104,6 +107,7 @@ export interface RoomMemberManifestDefaults {
   color?: string;
   availableSkillIds?: string[];
   defaultSkillIds?: string[];
+  requiredKernelCapabilities?: KernelCapabilityId[];
   reasoningEffort?: RoomMemberReasoningEffort;
   contextTokenBudget?: number;
   accessMode?: RoomMemberAccessMode;

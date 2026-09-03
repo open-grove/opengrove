@@ -78,6 +78,7 @@ import { createKnowledgeBackedArtifactStore } from "../knowledge/artifact-view.j
 import { createKnowledgeBackedMemoryLedger } from "../knowledge/memory-view.js";
 import { createKnowledgeFeedbackScorer, type KnowledgeFeedbackScorer } from "../knowledge/feedback-scorer.js";
 import { createKnowledgeOrganizer, type KnowledgeOrganizer } from "../knowledge/organizer.js";
+import { safeDiagnosticErrorCode } from "../diagnostics/redaction.js";
 import { createKnowledgeSkillCatalogView, skillKnowledgeId } from "../knowledge/skill-view.js";
 import { skillFileKnowledgeDocuments, skillTreeMetadata } from "./skill-tree.js";
 import { createKnowledgeStore, type KnowledgeStore } from "../knowledge/store.js";
@@ -138,6 +139,12 @@ export interface AgentTurnOptions {
   signal?: AbortSignal;
   runtimeEnv?: NodeJS.ProcessEnv;
   hostToolScope?: Omit<AgentHostToolScope, "sessionId">;
+  /**
+   * Event commit ownership for this Turn. The default keeps the App as the
+   * single writer. Bridge retry coordinators may select `caller` so a native
+   * failed terminal can be withheld before it becomes the Run's durable fact.
+   */
+  eventPersistence?: "app" | "caller";
 }
 
 export interface RecordEventOptions {
@@ -638,6 +645,14 @@ export function createOpenGrove(options: CreateOpenGroveOptions): OpenGroveApp {
       const sessionId = turnOptions.sessionId ?? options.sessionId ?? "local";
       const activity: ActivitySpace = hasComputerState(computer) ? "computer" : "browser";
       const runId = turnOptions.runId ?? createRunId();
+      const persistEvent = (event: AgentEvent): void => {
+        if (turnOptions.eventPersistence === "caller") return;
+        app.recordEvent(event, {
+          sessionId,
+          activity,
+          input: preparedInput.originalInput,
+        });
+      };
       const availableSkills = selectAvailableSkills(
         skills.list(),
         turnOptions.availableSkillNames,
@@ -716,34 +731,38 @@ export function createOpenGrove(options: CreateOpenGroveOptions): OpenGroveApp {
       let seededSkillEvents = false;
       let runPaused = false;
       const turnEvents: AgentEvent[] = [];
-      for await (const event of runtime.runTurn({
-        input: preparedInput.runtimeInput,
+      for await (const event of closeRuntimeOnException(
+        runtime.runTurn({
+          input: preparedInput.runtimeInput,
+          runId,
+          context,
+          sessionInstructions: turnOptions.sessionInstructions,
+          assembledContext,
+          replyLanguagePreference: options.readReplyLanguagePreference?.(),
+          requestedModelId: turnOptions.requestedModelId ?? preparedInput.requestedModelId,
+          requestedEffort: turnOptions.requestedEffort ?? preparedInput.requestedEffort,
+          responseSpeed: turnOptions.responseSpeed,
+          budgetLimitUsd: turnOptions.budgetLimitUsd,
+          contextTokenBudget: turnOptions.contextTokenBudget,
+          threadGoal: preparedInput.threadGoal,
+          accessMode: turnOptions.accessMode,
+          dynamicToolsMode: turnOptions.dynamicToolsMode,
+          sessionHistoryMode: resolveSessionHistoryMode(runtimeKernel.capabilities, turnOptions.sessionHistoryMode),
+          requestedSkillInvocation: preparedInput.invocation,
+          requiredSkills: requiredSkillPreparation.loadedSkills,
+          requiredSkillRequirements: requiredSkillPreparation.requirements,
+          signal: turnOptions.signal,
+          tools: tools.list(),
+          capabilities: capabilities.list(),
+          skills: availableSkills,
+          packs: packs.list(),
+          policy: [...(options.policy ?? []), ...(turnOptions.policy ?? []), ...capabilities.policy()],
+          runtimeEnv: turnOptions.runtimeEnv,
+          hostToolScope: turnOptions.hostToolScope ? { sessionId, ...turnOptions.hostToolScope } : { sessionId },
+        }),
         runId,
-        context,
-        sessionInstructions: turnOptions.sessionInstructions,
-        assembledContext,
-        replyLanguagePreference: options.readReplyLanguagePreference?.(),
-        requestedModelId: turnOptions.requestedModelId ?? preparedInput.requestedModelId,
-        requestedEffort: turnOptions.requestedEffort ?? preparedInput.requestedEffort,
-        responseSpeed: turnOptions.responseSpeed,
-        budgetLimitUsd: turnOptions.budgetLimitUsd,
-        contextTokenBudget: turnOptions.contextTokenBudget,
-        threadGoal: preparedInput.threadGoal,
-        accessMode: turnOptions.accessMode,
-        dynamicToolsMode: turnOptions.dynamicToolsMode,
-        sessionHistoryMode: resolveSessionHistoryMode(runtimeKernel.capabilities, turnOptions.sessionHistoryMode),
-        requestedSkillInvocation: preparedInput.invocation,
-        requiredSkills: requiredSkillPreparation.loadedSkills,
-        requiredSkillRequirements: requiredSkillPreparation.requirements,
-        signal: turnOptions.signal,
-        tools: tools.list(),
-        capabilities: capabilities.list(),
-        skills: availableSkills,
-        packs: packs.list(),
-        policy: [...(options.policy ?? []), ...(turnOptions.policy ?? []), ...capabilities.policy()],
-        runtimeEnv: turnOptions.runtimeEnv,
-        hostToolScope: turnOptions.hostToolScope ? { sessionId, ...turnOptions.hostToolScope } : { sessionId },
-      })) {
+        turnOptions.signal,
+      )) {
         if (event.type === "turn.finished") {
           const finalEvent = createAssistantFinalEvent(turnEvents, {
             runId,
@@ -752,11 +771,7 @@ export function createOpenGrove(options: CreateOpenGroveOptions): OpenGroveApp {
           });
           if (finalEvent) {
             turnEvents.push(finalEvent);
-            app.recordEvent(finalEvent, {
-              sessionId,
-              activity,
-              input: preparedInput.originalInput,
-            });
+            persistEvent(finalEvent);
             yield finalEvent;
           }
         }
@@ -773,11 +788,7 @@ export function createOpenGrove(options: CreateOpenGroveOptions): OpenGroveApp {
         if (event.type === "run.paused") {
           runPaused = true;
         }
-        app.recordEvent(event, {
-          sessionId,
-          activity,
-          input: preparedInput.originalInput,
-        });
+        persistEvent(event);
         yield event;
         if (!seededSkillEvents && event.type === "turn.started") {
           seededSkillEvents = true;
@@ -787,19 +798,11 @@ export function createOpenGrove(options: CreateOpenGroveOptions): OpenGroveApp {
               runId,
               skills: availableSkills,
             };
-            app.recordEvent(discovered, {
-              sessionId,
-              activity,
-              input: preparedInput.originalInput,
-            });
+            persistEvent(discovered);
             yield discovered;
           }
           for (const extra of preparedInput.prefixEvents) {
-            app.recordEvent(extra, {
-              sessionId,
-              activity,
-              input: preparedInput.originalInput,
-            });
+            persistEvent(extra);
             yield extra;
           }
         }
@@ -824,11 +827,7 @@ export function createOpenGrove(options: CreateOpenGroveOptions): OpenGroveApp {
             },
           });
           const memoryEvent: AgentEvent = { type: "memory.written", runId, record };
-          app.recordEvent(memoryEvent, {
-            sessionId,
-            activity,
-            input: preparedInput.originalInput,
-          });
+          persistEvent(memoryEvent);
           yield memoryEvent;
         }
       }
@@ -838,11 +837,7 @@ export function createOpenGrove(options: CreateOpenGroveOptions): OpenGroveApp {
       });
       if (trailingFinalEvent) {
         turnEvents.push(trailingFinalEvent);
-        app.recordEvent(trailingFinalEvent, {
-          sessionId,
-          activity,
-          input: preparedInput.originalInput,
-        });
+        persistEvent(trailingFinalEvent);
         yield trailingFinalEvent;
       }
       if (!runPaused) {
@@ -938,6 +933,58 @@ function toAgentPageContext(page: BrowserPageSnapshot) {
 
 function createRunId(): string {
   return `run_${Date.now()}_${Math.random().toString(16).slice(2, 8)}`;
+}
+
+function kernelRuntimeExceptionMessage(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error);
+  if (!error || typeof error !== "object" || !("code" in error)) return message;
+  const code = safeDiagnosticErrorCode((error as { code?: unknown }).code);
+  if (code === "unknown_error" || message.startsWith(`${code}:`)) return message;
+  return `${code}: ${message}`;
+}
+
+async function* closeRuntimeOnException(
+  events: AsyncIterable<AgentEvent>,
+  runId: string,
+  signal?: AbortSignal,
+): AsyncIterable<AgentEvent> {
+  const observed: AgentEvent[] = [];
+  try {
+    for await (const event of events) {
+      observed.push(event);
+      yield event;
+    }
+  } catch (error) {
+    const failureAt = new Date().toISOString();
+    const errorEvent: AgentEvent = {
+      type: "error",
+      runId,
+      message: kernelRuntimeExceptionMessage(error),
+    };
+    observed.push(errorEvent);
+    yield errorEvent;
+    if (observed.some((event) => event.type === "turn.finished")) return;
+    const finalEvent = createAssistantFinalEvent(observed, {
+      runId,
+      at: failureAt,
+      source: "fallback",
+    });
+    if (finalEvent) {
+      observed.push(finalEvent);
+      yield finalEvent;
+    }
+    yield {
+      type: "turn.finished",
+      runId,
+      at: failureAt,
+      outcome: {
+        taskState: "TASK_STATE_FAILED",
+        reasonCode: signal?.aborted ? "cancel_outcome_unknown" : "kernel_runtime_exception",
+        outcomeUnknown: true,
+      },
+      synthetic: true,
+    };
+  }
 }
 
 function recordRequestedSkillDelivery(options: {

@@ -126,6 +126,86 @@ try {
   const safeEvents: AgentEvent[] = [{ type: "error", runId: "run-1", message: "API_KEY_INVALID" }];
   assert.equal(isSafeWwApiKeyRetry(safeEvents), true);
   assert.equal(
+    isSafeWwApiKeyRetry([
+      {
+        type: "skill.discovered",
+        runId: "run-1",
+        skills: [
+          {
+            id: "story-seed",
+            name: "story-seed",
+            title: "Story Seed",
+            description: "Installed App skill discovered before the model request.",
+            format: "markdown-v2",
+            entry: "SKILL.md",
+            skillRoot: "/fixtures/story-seed",
+            activities: ["chat"],
+            toolIds: [],
+            memoryHooks: [],
+            allowedTools: [],
+            userInvocable: true,
+            disableModelInvocation: false,
+            context: "inline",
+            source: "project",
+            trust: "trusted",
+          },
+        ],
+      },
+      ...safeEvents,
+    ]),
+    true,
+    "skill discovery is read-only context assembly and must not make an otherwise safe WW retry unsafe",
+  );
+  assert.equal(
+    isSafeWwApiKeyRetry([
+      {
+        type: "model.requested",
+        runId: "run-1",
+        request: {
+          systemPrompt: "",
+          userInput: "hello",
+          modelId: "claude-opus-4-8",
+          tools: [],
+          skills: [],
+          packs: [],
+          capabilities: [],
+        },
+      },
+      {
+        type: "runtime.diagnostic",
+        runId: "run-1",
+        at: new Date().toISOString(),
+        name: "claude.host_tools.configured",
+        data: { runtimeMode: "cli", available: false, transport: "none" },
+      },
+      ...safeEvents,
+      { type: "model.response", runId: "run-1", response: { text: "API_KEY_INVALID" } },
+      {
+        type: "assistant.final",
+        runId: "run-1",
+        text: "API_KEY_INVALID",
+        at: new Date().toISOString(),
+        source: "adapter",
+      },
+      {
+        type: "turn.finished",
+        runId: "run-1",
+        at: new Date().toISOString(),
+        outcome: { taskState: "TASK_STATE_FAILED", reasonCode: "claude_code_failed" },
+      },
+    ]),
+    true,
+    "a withheld credential failure may include the adapter's read-only response and final events",
+  );
+  assert.equal(
+    isSafeWwApiKeyRetry([
+      { type: "model.response", runId: "run-1", response: { text: "partial answer" } },
+      ...safeEvents,
+    ]),
+    false,
+    "model output before the credential failure must still block an automatic retry",
+  );
+  assert.equal(
     isSafeWwApiKeyRetry([...safeEvents, { type: "assistant.delta", runId: "run-1", text: "partial" }]),
     false,
   );

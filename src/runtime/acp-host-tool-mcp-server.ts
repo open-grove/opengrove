@@ -36,7 +36,6 @@ await server.connect(new StdioServerTransport());
 async function bridgeRequest<T>(path: string, init: RequestInit): Promise<T> {
   const response = await fetch(`${endpoint}${path}`, {
     ...init,
-    signal: AbortSignal.timeout(900_000),
     headers: {
       authorization: `Bearer ${token}`,
       ...(init.body ? { "content-type": "application/json" } : {}),

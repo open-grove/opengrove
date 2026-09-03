@@ -548,7 +548,12 @@ function createHarnessRuntime(onRequest?: (request: AgentTurnRequest) => void): 
         },
       };
       yield { type: "assistant.delta", runId, text: "ok" };
-      yield { type: "turn.finished", runId, at: new Date().toISOString() };
+      yield {
+        type: "turn.finished",
+        runId,
+        at: new Date().toISOString(),
+        outcome: { taskState: "TASK_STATE_COMPLETED" },
+      };
     },
   };
 }

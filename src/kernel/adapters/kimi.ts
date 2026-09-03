@@ -4,6 +4,7 @@ import type { AgentEvent } from "../../core.js";
 import type { AgentCompactRequest, AgentCompactResult, AgentRuntime } from "../../core.js";
 import { appEnvName, readAppEnv } from "../../identity.js";
 import { AcpCliRuntime } from "../../runtime/acp-cli-runtime.js";
+import { resolveRuntimeRunId } from "../../runtime/run-id.js";
 import {
   commandDiscoveryHealth,
   directorySource,
@@ -88,7 +89,7 @@ export const KIMI_KERNEL_CONTRACT: KernelAdapterContract = {
     nativeModelNormalization: false,
   },
   labels: { title: "Kimi Code", integrationMode: "acp" },
-  ownership: acpKernelOwnership("Kimi Code"),
+  ownership: acpKernelOwnership("Kimi Code", { hostTools: true }),
   diagnostics: {
     defaultModeId: "acp-bridge",
     modes: [
@@ -175,7 +176,7 @@ export class KimiKernelAdapter implements KernelAdapter {
       yield* this.runtime.runTurn(request);
       return;
     }
-    const runId = request.runId ?? `run_${Date.now()}`;
+    const runId = resolveRuntimeRunId(request.runId);
     const health = await this.healthCheck();
     const message =
       health.status !== "ok" && health.message
@@ -184,7 +185,16 @@ export class KimiKernelAdapter implements KernelAdapter {
     yield { type: "turn.started", runId, at: new Date().toISOString() };
     yield { type: "assistant.delta", runId, text: message };
     yield { type: "model.response", runId, response: { text: message } };
-    yield { type: "turn.finished", runId, at: new Date().toISOString() };
+    yield {
+      type: "turn.finished",
+      runId,
+      at: new Date().toISOString(),
+      outcome: {
+        taskState: "TASK_STATE_REJECTED",
+        reasonCode: "kernel_unavailable",
+        retryable: false,
+      },
+    };
   }
 
   compactSession(request: AgentCompactRequest): Promise<AgentCompactResult> {

@@ -76,6 +76,12 @@ try {
         text: "A2A_LOCAL_OK",
       },
     } as AgentEvent;
+    yield {
+      type: "turn.finished",
+      runId,
+      at: new Date().toISOString(),
+      outcome: { taskState: "TASK_STATE_COMPLETED" },
+    };
   };
 
   const card = await routeJson<{
@@ -128,6 +134,22 @@ try {
     "A2A_LOCAL_OK",
   );
 
+  const completedMessage = state.app.rooms
+    .snapshot()
+    .messages.find((message) => message.runId === sent.body.id && message.senderType === "agent");
+  assert.ok(completedMessage);
+  state.app.rooms.updateMessage(completedMessage.roomId, completedMessage.id, { status: "running" });
+  const completedFromLifecycle = await routeJson<A2ATask>(
+    state,
+    "GET",
+    `/a2a/tasks/${encodeURIComponent(sent.body.id)}`,
+  );
+  assert.equal(
+    completedFromLifecycle.body.status.state,
+    "TASK_STATE_COMPLETED",
+    "A2A task state must come from the Run lifecycle rather than a stale Room message projection",
+  );
+
   assert.ok(completed.contextId);
   state.app.rooms.postSystemTargetedMessage({
     roomId: completed.contextId,
@@ -169,10 +191,10 @@ try {
     {},
   );
   assert.equal(canceled.status, 200);
-  assert.equal(canceled.body.status.state, "TASK_STATE_CANCELED");
+  const canceledTask = await waitForTask(state, cancelSent.body.id, "TASK_STATE_CANCELED");
   assert.equal(
-    canceled.body.status.message?.parts[0] && "text" in canceled.body.status.message.parts[0]
-      ? canceled.body.status.message.parts[0].text
+    canceledTask.status.message?.parts[0] && "text" in canceledTask.status.message.parts[0]
+      ? canceledTask.status.message.parts[0].text
       : "",
     "This reply was canceled.",
   );

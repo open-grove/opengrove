@@ -3,7 +3,7 @@ import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { AgentEvent, AgentRuntime, AgentTurnRequest, Routine } from "../core.js";
-import { createRoutineMemberExecutor, isRoutineDue } from "../server/routine-scheduler.js";
+import { createRoutineMemberExecutor, isRoutineDue, startRoutineScheduler } from "../server/routine-scheduler.js";
 import { runRoutine, type RoutineStepActivityRef } from "../routines/routine-runner.js";
 import { createOpenGrove } from "../app/create-opengrove.js";
 import { createBridgeState } from "../server/bridge-state.js";
@@ -17,7 +17,12 @@ function createHarnessRuntime(): AgentRuntime {
       const runId = request.runId ?? "routine-scheduler-harness-run";
       yield { type: "turn.started", runId, at: new Date().toISOString() };
       yield { type: "assistant.delta", runId, text: "ok" };
-      yield { type: "turn.finished", runId, at: new Date().toISOString() };
+      yield {
+        type: "turn.finished",
+        runId,
+        at: new Date().toISOString(),
+        outcome: { taskState: "TASK_STATE_COMPLETED" },
+      };
     },
   };
 }
@@ -83,6 +88,44 @@ assert.equal(isRoutineDue(intervalRoutine(0), wednesdayMorning), false);
 assert.equal(isRoutineDue({ ...scheduledRoutine("09:00"), schedule: undefined }, wednesdayMorning), false);
 assert.equal(isRoutineDue(scheduledRoutine("25:99"), wednesdayMorning), false);
 
+// A Kernel turn that legitimately waits indefinitely must not block the
+// scheduler from launching another due Routine. The Host owns scheduler
+// liveness, not an invented wall-clock deadline for the native turn.
+const detachedRoutines = [
+  { ...intervalRoutine(1), id: "routine_waiting" },
+  { ...intervalRoutine(1), id: "routine_ready" },
+];
+const launchedRoutineIds: string[] = [];
+let releaseWaitingRoutine: (() => void) | undefined;
+const waitingRoutine = new Promise<void>((resolve) => {
+  releaseWaitingRoutine = resolve;
+});
+const schedulerState = {
+  app: {
+    routines: {
+      list: () => detachedRoutines,
+      update: (routineId: string, patch: Partial<Routine>) => {
+        const index = detachedRoutines.findIndex((routine) => routine.id === routineId);
+        if (index < 0) return undefined;
+        detachedRoutines[index] = { ...detachedRoutines[index]!, ...patch } as Routine;
+        return detachedRoutines[index];
+      },
+    },
+  },
+  store: { saveFrom: () => undefined },
+} as unknown as Parameters<typeof startRoutineScheduler>[0];
+const stopDetachedScheduler = startRoutineScheduler(schedulerState, {
+  tickMs: 5,
+  executeRoutine: async (_state, routine) => {
+    launchedRoutineIds.push(routine.id);
+    if (routine.id === "routine_waiting") await waitingRoutine;
+  },
+});
+await new Promise((resolve) => setTimeout(resolve, 30));
+stopDetachedScheduler();
+releaseWaitingRoutine?.();
+assert.deepEqual(new Set(launchedRoutineIds), new Set(["routine_waiting", "routine_ready"]));
+
 // Member steps run through the injected executor; results land in toolResults.
 const app = createOpenGrove({
   cwd: mkdtempSync(join(tmpdir(), "opengrove-routine-scheduler-")),
@@ -132,6 +175,11 @@ assert.deepEqual(failedRun.summary.problem, {
   code: "employee_routine_member_timeout",
 });
 assert.deepEqual(app.sessions.getRun(failedRun.summary.id)?.problem, failedRun.summary.problem);
+assert.equal(
+  app.routines.get(memberRoutine.id)?.status,
+  "active",
+  "an operational Run failure must not mark a valid Routine definition as needs_repair",
+);
 
 // No executor wired → fails fast instead of silently skipping.
 const noExecutorRun = await runRoutine(app, memberRoutine.id, {
@@ -140,6 +188,7 @@ const noExecutorRun = await runRoutine(app, memberRoutine.id, {
 assert.equal(noExecutorRun.summary.status, "failed");
 assert.equal(noExecutorRun.summary.error, "member_step_executor_unavailable");
 assert.equal(noExecutorRun.summary.problem?.code, "employee_routine_member_executor_unavailable");
+assert.equal(app.routines.get(memberRoutine.id)?.status, "active");
 
 const previousDiagnosticsDir = process.env.OPENGROVE_DIAGNOSTICS_DIR;
 const previousCodexBin = process.env.OPENGROVE_CODEX_BIN;
@@ -215,7 +264,12 @@ bridgeState.app.runTurn = async function* runFakeRoomTurn(input: string, options
         upstreamRequestId: "req-room-run-test",
       },
     };
-    yield { type: "turn.finished", runId, at: new Date().toISOString() };
+    yield {
+      type: "turn.finished",
+      runId,
+      at: new Date().toISOString(),
+      outcome: { taskState: "TASK_STATE_COMPLETED" },
+    };
     return;
   }
   yield {
@@ -232,7 +286,12 @@ bridgeState.app.runTurn = async function* runFakeRoomTurn(input: string, options
     },
   };
   yield { type: "model.response", runId, response: { text: "LIVE_TODO_DONE" } };
-  yield { type: "turn.finished", runId, at: new Date().toISOString() };
+  yield {
+    type: "turn.finished",
+    runId,
+    at: new Date().toISOString(),
+    outcome: { taskState: "TASK_STATE_COMPLETED" },
+  };
 };
 const liveMember = bridgeState.app.rooms.listMembers().find((member) => member.id === "employee-live-todo");
 assert.ok(liveMember);

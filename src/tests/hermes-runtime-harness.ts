@@ -307,6 +307,80 @@ async function main() {
     "turn should finish",
   );
   await assertCompressionFailureFailsOpen(cwd);
+  await assertEnvChangeDoesNotCloseSibling(cwd);
+}
+
+async function assertEnvChangeDoesNotCloseSibling(cwd: string): Promise<void> {
+  const fakeHermes = join(cwd, process.platform === "win32" ? "fake-hermes-siblings.mjs" : "fake-hermes-siblings.sh");
+  const fakeGateway = join(cwd, "fake-hermes-siblings-gateway.mjs");
+  writeFakeHermesGateway(fakeGateway, {
+    sessionId: "fake-hermes-siblings-session",
+    marker: "FAKE_HERMES_SIBLING_OK",
+    skipBlockingPrompts: true,
+    promptDelayMs: 75,
+  });
+  writeFakeAcpCommand(fakeHermes, fakeGateway, {
+    commandName: "hermes-siblings-fake",
+    version: "hermes-siblings-fake 0.0.0",
+  });
+  const runtime = new HermesRuntime({
+    command: fakeHermes,
+    gatewayCommand: process.execPath,
+    gatewayArgs: [fakeGateway],
+    cwd,
+  });
+  const app = createOpenGrove({
+    cwd,
+    readPage: async () => ({}),
+    runtime: { async *runTurn() {} },
+  });
+  let resolveStarted: (() => void) | undefined;
+  const started = new Promise<void>((resolve) => {
+    resolveStarted = resolve;
+  });
+  const run = async (suffix: string, onStarted?: () => void) => {
+    const events = [];
+    for await (const event of runtime.runTurn({
+      runId: `hermes-sibling-${suffix}`,
+      input: `sibling ${suffix}`,
+      context: {
+        sessionId: `hermes-sibling-session-${suffix}`,
+        activity: "chat",
+        memory: app.memory,
+        artifacts: app.artifacts,
+        skills: app.skills,
+        packs: app.packs,
+        sessions: app.sessions,
+        executions: app.executions,
+        workingState: app.workingState,
+        approvals: app.approvals,
+        questions: app.questions,
+      },
+      tools: [],
+      skills: [],
+      packs: [],
+      capabilities: [],
+      runtimeEnv: { OPENGROVE_HERMES_GENERATION: suffix },
+    })) {
+      events.push(event);
+      if (event.type === "turn.started") onStarted?.();
+    }
+    return events;
+  };
+  try {
+    const first = run("a", () => resolveStarted?.());
+    await started;
+    const second = run("b");
+    const [firstEvents, secondEvents] = await Promise.all([first, second]);
+    for (const events of [firstEvents, secondEvents]) {
+      assert.ok(
+        events.some((event) => event.type === "turn.finished" && event.outcome.taskState === "TASK_STATE_COMPLETED"),
+        "changing the Hermes env fingerprint must not terminate an in-flight sibling Run",
+      );
+    }
+  } finally {
+    runtime.close();
+  }
 }
 
 async function assertCompressionFailureFailsOpen(cwd: string): Promise<void> {

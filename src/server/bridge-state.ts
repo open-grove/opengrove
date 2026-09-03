@@ -6,6 +6,7 @@ import { hasFlowApprovalStep, listMountedAppFlows } from "../app-builder/flow-di
 import { importProjectAsApp } from "../app-builder/importer.js";
 import { validateAppManifestFile } from "../app-builder/manifest.js";
 import type { JsonObject } from "../core.js";
+import { createAgentEventCheckpointPolicy } from "../core/event-persistence.js";
 import { createUnavailableKernelAdapter } from "../kernel/adapters/unavailable.js";
 import { hostMessage } from "../localization/host-messages.js";
 import { DEFAULT_LOCALE, type SupportedLocale } from "../localization/locale-registry.js";
@@ -149,6 +150,7 @@ export function createBridgeState(
       state.appInitialized = true;
     },
     store: options.store ?? createSqliteStateStore(options.statePath),
+    eventCheckpointPolicy: createAgentEventCheckpointPolicy(),
     profile,
     runtimeEnvironment: resolveHostRuntimeEnvironment({
       preset: options.runtimeEnvironment,

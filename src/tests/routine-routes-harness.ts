@@ -82,6 +82,48 @@ assert.equal(createRoutine.handled, true);
 assert.equal(createRoutine.status, 200);
 const routineId = (createRoutine.data as { routine: { id: string } }).routine.id;
 
+const safetyFieldsState = createState();
+const safetyFieldsCreate = await dispatch({
+  method: "POST",
+  path: "/routines",
+  state: safetyFieldsState,
+  body: {
+    title: "Safety fields round trip",
+    steps: [
+      {
+        id: "tool-step",
+        title: "Tool step",
+        toolId: "ads.create",
+        capabilityId: "ads.write",
+        skillId: "ads-operator",
+        approval: { mode: "ask", reason: "Creates an external campaign" },
+      },
+      {
+        id: "flow-gate",
+        title: "Business gate",
+        flowApproval: { flowId: "ads-create", stepId: "approve-create" },
+      },
+    ],
+  },
+});
+assert.equal(safetyFieldsCreate.status, 200);
+const safetyRoutine = (safetyFieldsCreate.data as { routine: { steps: unknown[] } }).routine;
+assert.deepEqual(safetyRoutine.steps, [
+  {
+    id: "tool-step",
+    title: "Tool step",
+    toolId: "ads.create",
+    capabilityId: "ads.write",
+    skillId: "ads-operator",
+    approval: { mode: "ask", reason: "Creates an external campaign" },
+  },
+  {
+    id: "flow-gate",
+    title: "Business gate",
+    flowApproval: { flowId: "ads-create", stepId: "approve-create" },
+  },
+]);
+
 const enableSchedule = await dispatch({
   method: "POST",
   path: `/routines/${routineId}/schedule`,
