@@ -5,6 +5,7 @@ import type { AgentEvent, RuntimeAccessMode } from "../../core.js";
 import type { AgentCompactRequest, AgentCompactResult, AgentRuntime } from "../../core.js";
 import { appEnvName, readAppEnv } from "../../identity.js";
 import { AcpCliRuntime } from "../../runtime/acp-cli-runtime.js";
+import { resolveRuntimeRunId } from "../../runtime/run-id.js";
 import {
   commandDiscoveryHealth,
   directorySource,
@@ -184,7 +185,7 @@ export class OpenCodeKernelAdapter implements KernelAdapter {
       yield* this.runtime.runTurn(normalizeOpenCodeTurnRequest(request, this.options.env));
       return;
     }
-    const runId = request.runId ?? `run_${Date.now()}`;
+    const runId = resolveRuntimeRunId(request.runId);
     const health = await this.healthCheck();
     const message =
       health.status !== "ok" && health.message

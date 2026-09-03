@@ -6,6 +6,7 @@ import { test } from "node:test";
 import {
   registerActiveBridgeRun,
   registerActiveBridgeRunInteraction,
+  activeBridgeRunOwnsNativeRequest,
   reconcileActiveBridgeRunsAsProducerLost,
   setActiveBridgeRunExecutionState,
 } from "../server/active-runs.js";
@@ -49,6 +50,12 @@ test("hot rebuild preserves and resolves a pending request on its live producer"
     recreateBridgeApp(state);
     assert.notEqual(state.app, producerApp);
     assert.equal(state.app.approvals.get(approval.id)?.status, "pending");
+    const rebuiltRequest = state.app.approvals.request({
+      kind: "tool",
+      title: "Second scoped approval",
+      reason: "Concurrent stores must not reuse interaction ids",
+    });
+    assert.notEqual(rebuiltRequest.id, approval.id);
 
     await resolveApproval(state, approval.id, "approved");
     assert.equal((await producerDecision).status, "approved");
@@ -56,6 +63,88 @@ test("hot rebuild preserves and resolves a pending request on its live producer"
     assert.equal(state.app.approvals.get(approval.id)?.status, "approved");
   } finally {
     releaseRun();
+    await state.store.close?.();
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test("native request ownership is scoped by Run even when Kernels reuse their request ids", async () => {
+  const directory = mkdtempSync(join(tmpdir(), "opengrove-native-request-owner-"));
+  const state = createBridgeState({ statePath: join(directory, "state.sqlite") });
+  const releaseFirst = registerActiveBridgeRun(state, "run-owner-first");
+  const releaseSecond = registerActiveBridgeRun(state, "run-owner-second");
+  try {
+    registerActiveBridgeRunInteraction(state, {
+      runId: "run-owner-first",
+      kind: "question",
+      interactionId: "question-first",
+      nativeRequestId: "request-1",
+    });
+    registerActiveBridgeRunInteraction(state, {
+      runId: "run-owner-second",
+      kind: "question",
+      interactionId: "question-second",
+      nativeRequestId: "request-1",
+    });
+    assert.equal(activeBridgeRunOwnsNativeRequest(state, "run-owner-first", "request-1", "question"), true);
+    assert.equal(activeBridgeRunOwnsNativeRequest(state, "run-owner-second", "request-1", "question"), true);
+  } finally {
+    releaseFirst();
+    releaseSecond();
+    await state.store.close?.();
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test("last producer release terminalizes a non-terminal Run without inventing success", async () => {
+  const directory = mkdtempSync(join(tmpdir(), "opengrove-producer-release-"));
+  const state = createBridgeState({ statePath: join(directory, "state.sqlite") });
+  const runId = "run-producer-release";
+  const release = registerActiveBridgeRun(state, runId);
+  try {
+    state.app.sessions.startRun({
+      id: runId,
+      sessionId: "session-producer-release",
+      activity: "chat",
+      input: "producer exits unexpectedly",
+    });
+    release();
+    assert.deepEqual(state.app.sessions.getRun(runId)?.lifecycle, {
+      taskState: "TASK_STATE_FAILED",
+      reasonCode: "producer_lost",
+      retryable: true,
+      outcomeUnknown: true,
+    });
+  } finally {
+    release();
+    await state.store.close?.();
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test("producer loss terminalizes both root and hot-rebuild execution Run records", async () => {
+  const directory = mkdtempSync(join(tmpdir(), "opengrove-producer-dual-record-"));
+  const state = createBridgeState({ statePath: join(directory, "state.sqlite") });
+  const runId = "run-producer-dual-record";
+  const release = registerActiveBridgeRun(state, runId);
+  const producerApp = state.app;
+  try {
+    producerApp.sessions.startRun({
+      id: runId,
+      sessionId: "session-producer-dual-record",
+      activity: "chat",
+      input: "survive a hot rebuild",
+    });
+    state.store.saveFrom(producerApp);
+    setActiveBridgeRunExecutionState(state, runId, { ...state, rootState: state, app: producerApp });
+    recreateBridgeApp(state);
+    assert.notEqual(state.app, producerApp);
+
+    release();
+    assert.equal(producerApp.sessions.getRun(runId)?.lifecycle.taskState, "TASK_STATE_FAILED");
+    assert.equal(state.app.sessions.getRun(runId)?.lifecycle.taskState, "TASK_STATE_FAILED");
+  } finally {
+    release();
     await state.store.close?.();
     rmSync(directory, { recursive: true, force: true });
   }
@@ -90,6 +179,7 @@ test("shutdown reconciliation cancels orphan interactions and records an unknown
     assert.deepEqual(state.app.sessions.getRun(runId)?.lifecycle, {
       taskState: "TASK_STATE_FAILED",
       reasonCode: "host_shutdown",
+      retryable: true,
       outcomeUnknown: true,
     });
     assert.ok(
@@ -111,6 +201,12 @@ test("hot rebuild preserves a resumable Routine approval without a live producer
   const releaseRun = registerActiveBridgeRun(state, runId);
   let released = false;
   try {
+    state.app.sessions.startRun({
+      id: runId,
+      sessionId: "routine:test",
+      activity: "browser",
+      input: "Run a Routine that waits durably",
+    });
     const approval = state.app.approvals.request({
       kind: "routine_step",
       title: "Routine approval",
@@ -122,10 +218,15 @@ test("hot rebuild preserves a resumable Routine approval without a live producer
         runId,
       },
     });
+    state.app.recordEvent(
+      { type: "approval.requested", runId, request: approval },
+      { sessionId: "routine:test", activity: "browser", input: "Pause for approval" },
+    );
     registerActiveBridgeRunInteraction(state, { runId, kind: "approval", interactionId: approval.id });
     releaseRun();
     released = true;
     assert.equal(state.app.approvals.get(approval.id)?.status, "pending");
+    assert.equal(state.app.sessions.getRun(runId)?.lifecycle.taskState, "TASK_STATE_INPUT_REQUIRED");
     state.store.saveFrom(state.app);
 
     recreateBridgeApp(state);
@@ -308,6 +409,12 @@ test("a user can cancel live native approval and question waiters without disgui
     },
   });
   try {
+    state.app.sessions.startRun({
+      id: runId,
+      sessionId: "session-native-interaction-cancel",
+      activity: "chat",
+      input: "cancel the native interaction",
+    });
     setActiveBridgeRunExecutionState(state, runId, { ...state, rootState: state, app: state.app });
     const approval = state.app.approvals.request({
       kind: "tool",
@@ -338,6 +445,12 @@ test("a user can cancel live native approval and question waiters without disgui
     assert.equal(questionResult.question.status, "canceled");
     assert.equal((await questionDecision).status, "canceled");
     assert.equal(nativeCancelCount, 2, "each explicit user cancellation must reach the live Run producer");
+    assert.equal(state.app.sessions.getRun(runId)?.lifecycle.activity, "cancel_pending");
+    assert.equal(
+      state.app.events.list().filter((event) => event.type === "run.cancel_requested" && event.runId === runId).length,
+      2,
+      "each cancellation request must enter the AgentEvent fact stream",
+    );
   } finally {
     releaseRun();
     await state.store.close?.();

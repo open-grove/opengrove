@@ -81,7 +81,7 @@ export interface KernelContractTestEvidence {
   hostVersion?: string;
   kernelVersion?: string;
   runtimeMode?: string;
-  /** Temporary migration binding for imported evidence. It is valid only on this exact Host version. */
+  /** Host version that produced legacy evidence. Provenance only; unrelated Host releases do not invalidate it. */
   legacyHostVersion?: string;
   provider?: KernelContractEvidenceProvider;
   verification?: "real_runtime" | "simulated" | "source_fixture";
@@ -95,7 +95,6 @@ export interface KernelContractEvidenceProvider {
 }
 
 export interface KernelContractEvidenceContext {
-  hostVersion?: string;
   kernelVersion?: string;
   runtimeMode?: string;
   provider?: KernelContractEvidenceProvider;
@@ -104,7 +103,9 @@ export interface KernelContractEvidenceContext {
 export type KernelCapabilityAuditStatus =
   | "needs_native_verification"
   | "needs_contract_test"
-  | "needs_real_runtime_verification";
+  | "needs_real_runtime_verification"
+  | "needs_context_reverification"
+  | "current_context_verification_failed";
 
 export interface KernelCapabilityReportEntry {
   kernel: string;

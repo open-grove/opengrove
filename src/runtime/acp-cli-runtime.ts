@@ -23,6 +23,7 @@ import {
 import { JsonRpcRequestFailure, StdioJsonRpcClient } from "./stdio-json-rpc-client.js";
 import { recentSessionMessages, recentSessionPromptBlock } from "./session-history.js";
 import { imageAttachmentsWithDataUrl } from "./media-input.js";
+import { resolveRuntimeRunId } from "./run-id.js";
 import {
   contextBudgetDiagnostic,
   contextBudgetExceeded,
@@ -234,8 +235,18 @@ export class AcpCliRuntime implements AgentRuntime {
   }
 
   async *runTurn(request: AgentTurnRequest): AsyncIterable<AgentEvent> {
+    const runId = resolveRuntimeRunId(request.runId);
+    if (request.signal?.aborted) {
+      yield { type: "turn.started", runId, at: new Date().toISOString() };
+      yield {
+        type: "turn.finished",
+        runId,
+        at: new Date().toISOString(),
+        outcome: { taskState: "TASK_STATE_CANCELED", reasonCode: "user_canceled", retryable: false },
+      };
+      return;
+    }
     const queue = new AsyncEventQueue<AgentEvent>();
-    const runId = request.runId ?? `run_${Date.now()}`;
     let turnStarted = false;
     let turnFinished = false;
     let producerFailure = "";
@@ -942,7 +953,8 @@ function isAbandonedAcpControlRequest(error: unknown, signal?: AbortSignal): boo
 function shouldPoisonAcpTransport(error: unknown, client: StdioJsonRpcClient): boolean {
   return (
     client.isClosed() ||
-    (error instanceof JsonRpcRequestFailure && (error.kind === "transport" || error.kind === "closed"))
+    (error instanceof JsonRpcRequestFailure &&
+      (error.kind === "transport" || error.kind === "closed" || error.kind === "timeout"))
   );
 }
 

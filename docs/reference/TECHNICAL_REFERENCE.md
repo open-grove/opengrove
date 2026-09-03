@@ -76,6 +76,8 @@ npm start
 
 OpenGrove first honors explicit `OPENGROVE_OPENCLAW_GATEWAY_URL` / `OPENGROVE_OPENCLAW_GATEWAY_TOKEN` overrides. If they are not set, it reads the local OpenClaw config at `~/.openclaw/openclaw.json` and connects to the configured local or remote Gateway. The Bridge reads the configured model catalog at startup, whenever Settings is opened, and every six hours. It stores only Provider/model metadata; OpenClaw keeps the credentials.
 
+The Gateway bridge is certified against OpenClaw `2026.8.2`. It waits for the Gateway challenge and negotiates wire protocol v4 exactly; `npm run certify:openclaw:2026.8.2` launches the exact upstream package in an isolated local state directory and verifies the real challenge handshake plus `models.list`. Existing long-running `agent.wait` behavior remains Kernel-owned: OpenGrove adds no fixed Run deadline, and user cancellation is the Host liveness boundary.
+
 ## Kernel Integration Layers
 
 Kernel integrations are split into four layers:

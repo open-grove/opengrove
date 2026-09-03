@@ -54,6 +54,10 @@ async function main() {
   const events = app.events.list();
   assert.ok(events.some((event) => event.type === "compaction.started"));
   assert.ok(events.some((event) => event.type === "compaction.finished"));
+  assert.ok(
+    events.some((event) => event.type === "turn.finished" && event.outcome.taskState === "TASK_STATE_COMPLETED"),
+    "manual compaction must not leave a synthetic Run in WORKING",
+  );
 
   const failing = await compactBackgroundAskSession(state, { threadId: "" });
   assert.deepEqual(failing, { ok: false, compacted: false, error: "thread_id_required" });

@@ -21,7 +21,7 @@ assert(baseline?.schemaVersion === 1, "baseline schemaVersion must be 1");
 assert(Array.isArray(baseline.contractTests), "baseline contractTests must be an array");
 assert(
   stringValue(baseline.legacyHostVersion),
-  "baseline legacyHostVersion must bind the migration to one Host version",
+  "baseline legacyHostVersion must record the Host version that produced the imported evidence",
 );
 
 const replacements = new Map();

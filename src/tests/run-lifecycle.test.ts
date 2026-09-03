@@ -3,7 +3,7 @@ import test from "node:test";
 import { a2aTaskStateSchema, lifecycleFromRunFact } from "#agent-protocol";
 import { createOpenGrove } from "../app/create-opengrove.js";
 import { SessionStore } from "../core/stores/session-store.js";
-import type { AgentEvent, AgentRuntime, ApprovalRequest } from "../core/types.js";
+import type { AgentEvent, AgentRuntime, ApprovalRequest, QuestionRequest } from "../core/types.js";
 import { createAgentEventCheckpointPolicy } from "../core/event-persistence.js";
 import { consumeWwRetryableTurnAttempt } from "../server/ww-provider-recovery.js";
 
@@ -163,6 +163,81 @@ test("a WW credential retry withholds the failed terminal before persistence and
   );
 });
 
+test("a Runtime exception is converted into an explicit failed terminal event", async () => {
+  const runtime: AgentRuntime = {
+    async *runTurn() {
+      throw new Error("runtime exploded");
+    },
+  };
+  const app = createOpenGrove({ readPage: async () => ({}), runtime, cwd: process.cwd() });
+  const events: AgentEvent[] = [];
+  for await (const event of app.runTurn("hello", {
+    runId: "run-runtime-exception",
+    sessionId: "session-runtime-exception",
+  }))
+    events.push(event);
+
+  assert.ok(events.some((event) => event.type === "error" && event.message === "runtime exploded"));
+  assert.ok(
+    events.some(
+      (event) =>
+        event.type === "turn.finished" &&
+        event.outcome.taskState === "TASK_STATE_FAILED" &&
+        event.outcome.reasonCode === "kernel_runtime_exception" &&
+        event.outcome.outcomeUnknown === true,
+    ),
+  );
+  assert.equal(app.sessions.getRun("run-runtime-exception")?.lifecycle.taskState, "TASK_STATE_FAILED");
+});
+
+test("an exception after cancellation records an unknown cancel outcome", async () => {
+  const runtime: AgentRuntime = {
+    async *runTurn() {
+      throw new Error("runtime aborted before native settlement");
+    },
+  };
+  const controller = new AbortController();
+  controller.abort();
+  const app = createOpenGrove({ readPage: async () => ({}), runtime, cwd: process.cwd() });
+  const events: AgentEvent[] = [];
+  for await (const event of app.runTurn("hello", {
+    runId: "run-runtime-aborted",
+    sessionId: "session-runtime-aborted",
+    signal: controller.signal,
+  }))
+    events.push(event);
+
+  assert.ok(
+    events.some(
+      (event) =>
+        event.type === "turn.finished" &&
+        event.outcome.reasonCode === "cancel_outcome_unknown" &&
+        event.outcome.outcomeUnknown === true,
+    ),
+  );
+});
+
+test("an exception after a terminal event remains visible without changing the terminal outcome", async () => {
+  const runtime: AgentRuntime = {
+    async *runTurn(request) {
+      const runId = request.runId ?? "run-terminal-then-throw";
+      yield { type: "turn.started", runId, at };
+      yield { type: "turn.finished", runId, at, outcome: { taskState: "TASK_STATE_COMPLETED" } };
+      throw new Error("runtime threw after terminal");
+    },
+  };
+  const app = createOpenGrove({ readPage: async () => ({}), runtime, cwd: process.cwd() });
+  const events: AgentEvent[] = [];
+  for await (const event of app.runTurn("hello", {
+    runId: "run-terminal-then-throw",
+    sessionId: "session-terminal-then-throw",
+  }))
+    events.push(event);
+
+  assert.ok(events.some((event) => event.type === "error" && event.message === "runtime threw after terminal"));
+  assert.equal(app.sessions.getRun("run-terminal-then-throw")?.lifecycle.taskState, "TASK_STATE_COMPLETED");
+});
+
 test("turn.finished owns the terminal outcome after an earlier error", () => {
   const store = startedStore();
   store.recordEvent({ type: "error", runId: "run-1", message: "native process interrupted" });
@@ -194,7 +269,7 @@ test("terminal lifecycle is monotonic under late events", () => {
   assert.equal(store.getRun("run-1")?.error, undefined);
 });
 
-test("interaction resolution resumes working without guessing a terminal outcome", () => {
+test("a replayed approval rejection remains paused until its explicit terminal outcome", () => {
   const store = startedStore();
   const request: ApprovalRequest = {
     id: "approval-1",
@@ -211,6 +286,111 @@ test("interaction resolution resumes working without guessing a terminal outcome
     { type: "approval.resolved", runId: "run-1", request },
   ];
   for (const event of events) store.recordEvent(event);
+  assert.equal(store.getRun("run-1")?.lifecycle.taskState, "TASK_STATE_INPUT_REQUIRED");
+});
+
+test("a same-loop approval rejection resumes the Kernel turn", () => {
+  const store = startedStore();
+  const request: ApprovalRequest = {
+    id: "approval-same-loop",
+    kind: "tool",
+    title: "Approve tool",
+    reason: "Test",
+    toolId: "tool-1",
+    status: "rejected",
+    createdAt: at,
+    updatedAt: at,
+    resume: { type: "kernel.native", kernelId: "codex", runId: "run-1", continuation: "same-loop" },
+  };
+  store.recordEvent({ type: "approval.requested", runId: "run-1", request: { ...request, status: "pending" } });
+  store.recordEvent({ type: "approval.resolved", runId: "run-1", request });
+  store.recordEvent({ type: "assistant.delta", runId: "run-1", text: "Skipping that tool and continuing." });
+  assert.deepEqual(store.getRun("run-1")?.lifecycle, {
+    taskState: "TASK_STATE_WORKING",
+    activity: "running",
+  });
+});
+
+test("a declined same-loop question resumes the Kernel turn", () => {
+  const store = startedStore();
+  const question: QuestionRequest = {
+    id: "question-same-loop",
+    title: "Need input",
+    prompt: "Continue?",
+    status: "declined",
+    createdAt: at,
+    updatedAt: at,
+    resume: { type: "kernel.native", kernelId: "claude-code", runId: "run-1", continuation: "same-loop" },
+  };
+  store.recordEvent({ type: "question.requested", runId: "run-1", question: { ...question, status: "pending" } });
+  store.recordEvent({ type: "question.answered", runId: "run-1", question });
+  assert.equal(store.getRun("run-1")?.lifecycle.taskState, "TASK_STATE_WORKING");
+});
+
+test("a cancel-requested Run cannot be revived by a late same-loop decision", () => {
+  const store = startedStore();
+  const request: ApprovalRequest = {
+    id: "approval-cancel-pending",
+    kind: "tool",
+    title: "Cancel tool",
+    reason: "Test",
+    status: "canceled",
+    createdAt: at,
+    updatedAt: at,
+    resume: { type: "kernel.native", kernelId: "codex", runId: "run-1", continuation: "same-loop" },
+  };
+  store.recordEvent({ type: "approval.requested", runId: "run-1", request: { ...request, status: "pending" } });
+  store.recordEvent({ type: "run.cancel_requested", runId: "run-1", at, reason: "user_requested" });
+  store.recordEvent({ type: "approval.resolved", runId: "run-1", request });
+  assert.deepEqual(store.getRun("run-1")?.lifecycle, {
+    taskState: "TASK_STATE_WORKING",
+    activity: "cancel_pending",
+  });
+});
+
+test("cancel pending outranks late pause and interaction events", () => {
+  const store = startedStore();
+  const request: ApprovalRequest = {
+    id: "approval-after-cancel",
+    kind: "tool",
+    title: "Late approval",
+    reason: "Arrived after cancellation",
+    status: "canceled",
+    createdAt: at,
+    updatedAt: at,
+    resume: { type: "kernel.native", kernelId: "codex", runId: "run-1", continuation: "same-loop" },
+  };
+  store.recordEvent({ type: "run.cancel_requested", runId: "run-1", at, reason: "user_requested" });
+  store.recordEvent({ type: "approval.requested", runId: "run-1", request: { ...request, status: "pending" } });
+  store.recordEvent({
+    type: "run.paused",
+    runId: "run-1",
+    at,
+    reason: "Late native pause",
+    approvalId: request.id,
+  });
+  store.recordEvent({ type: "approval.resolved", runId: "run-1", request });
+
+  assert.deepEqual(store.getRun("run-1")?.lifecycle, {
+    taskState: "TASK_STATE_WORKING",
+    activity: "cancel_pending",
+  });
+});
+
+test("approved interaction resumes working without guessing a terminal outcome", () => {
+  const store = startedStore();
+  const request: ApprovalRequest = {
+    id: "approval-1",
+    kind: "tool",
+    title: "Approve tool",
+    reason: "Test",
+    toolId: "tool-1",
+    status: "approved",
+    createdAt: at,
+    updatedAt: at,
+  };
+  store.recordEvent({ type: "approval.requested", runId: "run-1", request: { ...request, status: "pending" } });
+  store.recordEvent({ type: "approval.resolved", runId: "run-1", request });
   assert.equal(store.getRun("run-1")?.lifecycle.taskState, "TASK_STATE_WORKING");
 });
 
@@ -239,6 +419,14 @@ test("streaming deltas checkpoint a bounded tail without a second journal", () =
   const runId = "run-delta-checkpoint";
   const checkpointPolicy = createAgentEventCheckpointPolicy();
   assert.equal(checkpointPolicy.shouldCheckpoint({ type: "turn.started", runId, at }, { now: 1_000 }), true);
+  assert.equal(
+    checkpointPolicy.shouldCheckpoint(
+      { type: "run.cancel_requested", runId, at, reason: "user_requested" },
+      { now: 1_050 },
+    ),
+    true,
+    "cancellation intent is a durable lifecycle fact",
+  );
   assert.equal(
     checkpointPolicy.shouldCheckpoint(
       { type: "assistant.delta", runId, text: "a" },

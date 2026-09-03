@@ -22,7 +22,6 @@ import { evaluateKernelCapabilityRequirements } from "../../kernel/capabilities/
 import type { KernelCapabilityId } from "../../kernel/capabilities/types.js";
 import type { KernelCapabilityReport, KernelContractEvidenceProvider } from "../../kernel/capabilities/types.js";
 import { buildKnownKernelCapabilityReport } from "../../kernel/capabilities/report-for-kernel.js";
-import { readPackageVersion } from "../client-release.js";
 
 export class RoomKernelCapabilityError extends Error {
   readonly details: {
@@ -167,11 +166,9 @@ export function roomExecutionState(
   }
   if (target.requiredKernelCapabilities?.length) {
     const discovery = buildKernelDiscoverySnapshot(target.kernel, rootState);
-    const hostVersion = readPackageVersion();
     assertRoomTargetKernelCapabilities(
       target,
       buildKnownKernelCapabilityReport(target.kernel, undefined, {
-        ...(hostVersion ? { hostVersion } : {}),
         ...(discovery.version ? { kernelVersion: discovery.version } : {}),
         runtimeMode: getKernelContract(target.kernel).labels.integrationMode,
         provider: capabilityEvidenceProvider(providerRoute, target.model || rootState.model),

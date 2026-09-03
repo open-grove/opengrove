@@ -8,6 +8,7 @@ const DURABLE_AGENT_EVENT_TYPES = new Set<AgentEvent["type"]>([
   "question.answered",
   "tool.started",
   "tool.finished",
+  "run.cancel_requested",
   "assistant.final",
   "error",
   "turn.finished",

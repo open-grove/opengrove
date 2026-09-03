@@ -246,9 +246,14 @@ export class SessionStore {
         patch.lastQuestionId = event.question.id;
         break;
       case "question.answered":
-        patch.lifecycle = lifecycleFromRunFact({ kind: "started" });
-        patch.resumedAt = event.question.updatedAt;
-        patch.pauseReason = undefined;
+        if (
+          event.question.status === "answered" ||
+          (isSameLoopKernelInteraction(event.question.resume) && run.lifecycle.activity !== "cancel_pending")
+        ) {
+          patch.lifecycle = lifecycleFromRunFact({ kind: "started" });
+          patch.resumedAt = event.question.updatedAt;
+          patch.pauseReason = undefined;
+        }
         patch.lastQuestionId = event.question.id;
         break;
       case "run.paused":
@@ -256,6 +261,9 @@ export class SessionStore {
         patch.pausedAt = event.at;
         patch.pauseReason = event.reason;
         patch.lastApprovalId = event.approvalId ?? run.lastApprovalId;
+        break;
+      case "run.cancel_requested":
+        patch.lifecycle = lifecycleFromRunFact({ kind: "cancel_requested" });
         break;
       case "run.resumed":
         patch.lifecycle = lifecycleFromRunFact({ kind: "started" });
@@ -266,9 +274,14 @@ export class SessionStore {
         break;
       case "approval.resolved":
         patch.lastApprovalId = event.request.id;
-        patch.lifecycle = lifecycleFromRunFact({ kind: "started" });
-        patch.resumedAt = event.request.updatedAt;
-        patch.pauseReason = undefined;
+        if (
+          event.request.status === "approved" ||
+          (isSameLoopKernelInteraction(event.request.resume) && run.lifecycle.activity !== "cancel_pending")
+        ) {
+          patch.lifecycle = lifecycleFromRunFact({ kind: "started" });
+          patch.resumedAt = event.request.updatedAt;
+          patch.pauseReason = undefined;
+        }
         break;
       case "error":
         patch.error = event.message;
@@ -280,6 +293,14 @@ export class SessionStore {
         break;
       default:
         break;
+    }
+
+    if (
+      run.lifecycle.activity === "cancel_pending" &&
+      patch.lifecycle &&
+      !isA2ATerminalTaskState(patch.lifecycle.taskState)
+    ) {
+      patch.lifecycle = run.lifecycle;
     }
 
     if (isA2ATerminalTaskState(run.lifecycle.taskState)) {
@@ -389,6 +410,10 @@ function normalizeRun(input: StoredRunRecord & Pick<RunRecord, "id" | "sessionId
     toolIds: uniqueStrings(input.toolIds),
     eventCount: typeof input.eventCount === "number" ? input.eventCount : 0,
   };
+}
+
+function isSameLoopKernelInteraction(resume: { type: string; continuation?: string } | undefined): boolean {
+  return resume?.type === "kernel.native" && resume.continuation === "same-loop";
 }
 
 function lifecycleAfterTurnFinished(current: RunLifecycle, outcome?: RunLifecycle): RunLifecycle {

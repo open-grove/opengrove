@@ -78,6 +78,7 @@ import { createKnowledgeBackedArtifactStore } from "../knowledge/artifact-view.j
 import { createKnowledgeBackedMemoryLedger } from "../knowledge/memory-view.js";
 import { createKnowledgeFeedbackScorer, type KnowledgeFeedbackScorer } from "../knowledge/feedback-scorer.js";
 import { createKnowledgeOrganizer, type KnowledgeOrganizer } from "../knowledge/organizer.js";
+import { safeDiagnosticErrorCode } from "../diagnostics/redaction.js";
 import { createKnowledgeSkillCatalogView, skillKnowledgeId } from "../knowledge/skill-view.js";
 import { skillFileKnowledgeDocuments, skillTreeMetadata } from "./skill-tree.js";
 import { createKnowledgeStore, type KnowledgeStore } from "../knowledge/store.js";
@@ -730,34 +731,38 @@ export function createOpenGrove(options: CreateOpenGroveOptions): OpenGroveApp {
       let seededSkillEvents = false;
       let runPaused = false;
       const turnEvents: AgentEvent[] = [];
-      for await (const event of runtime.runTurn({
-        input: preparedInput.runtimeInput,
+      for await (const event of closeRuntimeOnException(
+        runtime.runTurn({
+          input: preparedInput.runtimeInput,
+          runId,
+          context,
+          sessionInstructions: turnOptions.sessionInstructions,
+          assembledContext,
+          replyLanguagePreference: options.readReplyLanguagePreference?.(),
+          requestedModelId: turnOptions.requestedModelId ?? preparedInput.requestedModelId,
+          requestedEffort: turnOptions.requestedEffort ?? preparedInput.requestedEffort,
+          responseSpeed: turnOptions.responseSpeed,
+          budgetLimitUsd: turnOptions.budgetLimitUsd,
+          contextTokenBudget: turnOptions.contextTokenBudget,
+          threadGoal: preparedInput.threadGoal,
+          accessMode: turnOptions.accessMode,
+          dynamicToolsMode: turnOptions.dynamicToolsMode,
+          sessionHistoryMode: resolveSessionHistoryMode(runtimeKernel.capabilities, turnOptions.sessionHistoryMode),
+          requestedSkillInvocation: preparedInput.invocation,
+          requiredSkills: requiredSkillPreparation.loadedSkills,
+          requiredSkillRequirements: requiredSkillPreparation.requirements,
+          signal: turnOptions.signal,
+          tools: tools.list(),
+          capabilities: capabilities.list(),
+          skills: availableSkills,
+          packs: packs.list(),
+          policy: [...(options.policy ?? []), ...(turnOptions.policy ?? []), ...capabilities.policy()],
+          runtimeEnv: turnOptions.runtimeEnv,
+          hostToolScope: turnOptions.hostToolScope ? { sessionId, ...turnOptions.hostToolScope } : { sessionId },
+        }),
         runId,
-        context,
-        sessionInstructions: turnOptions.sessionInstructions,
-        assembledContext,
-        replyLanguagePreference: options.readReplyLanguagePreference?.(),
-        requestedModelId: turnOptions.requestedModelId ?? preparedInput.requestedModelId,
-        requestedEffort: turnOptions.requestedEffort ?? preparedInput.requestedEffort,
-        responseSpeed: turnOptions.responseSpeed,
-        budgetLimitUsd: turnOptions.budgetLimitUsd,
-        contextTokenBudget: turnOptions.contextTokenBudget,
-        threadGoal: preparedInput.threadGoal,
-        accessMode: turnOptions.accessMode,
-        dynamicToolsMode: turnOptions.dynamicToolsMode,
-        sessionHistoryMode: resolveSessionHistoryMode(runtimeKernel.capabilities, turnOptions.sessionHistoryMode),
-        requestedSkillInvocation: preparedInput.invocation,
-        requiredSkills: requiredSkillPreparation.loadedSkills,
-        requiredSkillRequirements: requiredSkillPreparation.requirements,
-        signal: turnOptions.signal,
-        tools: tools.list(),
-        capabilities: capabilities.list(),
-        skills: availableSkills,
-        packs: packs.list(),
-        policy: [...(options.policy ?? []), ...(turnOptions.policy ?? []), ...capabilities.policy()],
-        runtimeEnv: turnOptions.runtimeEnv,
-        hostToolScope: turnOptions.hostToolScope ? { sessionId, ...turnOptions.hostToolScope } : { sessionId },
-      })) {
+        turnOptions.signal,
+      )) {
         if (event.type === "turn.finished") {
           const finalEvent = createAssistantFinalEvent(turnEvents, {
             runId,
@@ -928,6 +933,58 @@ function toAgentPageContext(page: BrowserPageSnapshot) {
 
 function createRunId(): string {
   return `run_${Date.now()}_${Math.random().toString(16).slice(2, 8)}`;
+}
+
+function kernelRuntimeExceptionMessage(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error);
+  if (!error || typeof error !== "object" || !("code" in error)) return message;
+  const code = safeDiagnosticErrorCode((error as { code?: unknown }).code);
+  if (code === "unknown_error" || message.startsWith(`${code}:`)) return message;
+  return `${code}: ${message}`;
+}
+
+async function* closeRuntimeOnException(
+  events: AsyncIterable<AgentEvent>,
+  runId: string,
+  signal?: AbortSignal,
+): AsyncIterable<AgentEvent> {
+  const observed: AgentEvent[] = [];
+  try {
+    for await (const event of events) {
+      observed.push(event);
+      yield event;
+    }
+  } catch (error) {
+    const failureAt = new Date().toISOString();
+    const errorEvent: AgentEvent = {
+      type: "error",
+      runId,
+      message: kernelRuntimeExceptionMessage(error),
+    };
+    observed.push(errorEvent);
+    yield errorEvent;
+    if (observed.some((event) => event.type === "turn.finished")) return;
+    const finalEvent = createAssistantFinalEvent(observed, {
+      runId,
+      at: failureAt,
+      source: "fallback",
+    });
+    if (finalEvent) {
+      observed.push(finalEvent);
+      yield finalEvent;
+    }
+    yield {
+      type: "turn.finished",
+      runId,
+      at: failureAt,
+      outcome: {
+        taskState: "TASK_STATE_FAILED",
+        reasonCode: signal?.aborted ? "cancel_outcome_unknown" : "kernel_runtime_exception",
+        outcomeUnknown: true,
+      },
+      synthetic: true,
+    };
+  }
 }
 
 function recordRequestedSkillDelivery(options: {

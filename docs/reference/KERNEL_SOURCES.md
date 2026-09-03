@@ -12,7 +12,7 @@ this repository.
 | Hermes | [`NousResearch/hermes-agent` `v2026.8.3`](https://github.com/NousResearch/hermes-agent/tree/v2026.8.3) |
 | OpenCode | [`anomalyco/opencode` `v1.18.3`](https://github.com/anomalyco/opencode/tree/v1.18.3) |
 | Kimi Code | [`MoonshotAI/kimi-code` `@moonshot-ai/kimi-code@0.36.1`](https://github.com/MoonshotAI/kimi-code/releases/tag/%40moonshot-ai%2Fkimi-code%400.36.1) |
-| OpenClaw | [`openclaw/openclaw` `v2026.7.1-2`](https://github.com/openclaw/openclaw/tree/v2026.7.1-2) |
+| OpenClaw | [`openclaw/openclaw` `v2026.8.2`](https://github.com/openclaw/openclaw/tree/v2026.8.2); exact Gateway v4 challenge-handshake certification via `npm run certify:openclaw:2026.8.2` |
 
 Version and verification dates remain attached to individual facts in
 `src/kernel/capabilities/native-facts.ts`.

@@ -13,6 +13,7 @@ import {
   type AgentEvent,
   type AgentRuntime,
   type InvokedSkillRecord,
+  type PolicyDecision,
   type SkillManifest,
   type ToolDefinition,
 } from "../core.js";
@@ -246,6 +247,7 @@ async function main() {
   );
 
   await assertNativePiCrossTurnBudgetEvents();
+  await assertPiWorkspaceBoundaryGate();
   await assertNativePiKeepsOfficialCodingTools();
   await assertNativePiTerminalMessageBelongsToCurrentTurn();
   await assertNativePiNeverTruncatesOversizedInput();
@@ -263,6 +265,50 @@ async function main() {
   await assertNativePiCompaction();
 
   console.log("pi runtime image-input harness: all assertions passed ✓");
+}
+
+async function assertPiWorkspaceBoundaryGate(): Promise<void> {
+  const workspaceRoot = mkdtempSync(join(tmpdir(), "opengrove-pi-workspace-boundary-"));
+  const decisions: PolicyDecision[] = [];
+  const session: PiSession = {
+    async *run(_input, context) {
+      decisions.push(
+        await context.beforeToolCall({
+          toolId: "write",
+          input: { path: "inside.txt" },
+          source: "native",
+        }),
+        await context.beforeToolCall({
+          toolId: "read",
+          input: { path: join(tmpdir(), "outside-opengrove-workspace.txt") },
+          source: "native",
+        }),
+      );
+      yield { type: "model.response", runId: context.runId, response: { text: "boundary checked" } };
+    },
+  };
+  const runtime = new PiAgentRuntime({
+    workspaceRoot,
+    createSession: () => session,
+  });
+  try {
+    for await (const _event of runtime.runTurn({
+      runId: "pi-workspace-boundary-run",
+      input: "check workspace boundary",
+      context: createContext("pi-workspace-boundary-session"),
+      tools: [],
+      skills: [],
+      packs: [],
+      capabilities: [],
+      accessMode: "auto-review",
+    })) {
+      // Drain the Run so the session can exercise both native tool decisions.
+    }
+    assert.equal(decisions[0]?.mode, "allow", "auto-review should keep normal in-workspace Pi writes available");
+    assert.equal(decisions[1]?.mode, "ask", "Pi file access outside the OpenGrove workspace must require approval");
+  } finally {
+    rmSync(workspaceRoot, { recursive: true, force: true });
+  }
 }
 
 async function assertNativePiKeepsOfficialCodingTools(): Promise<void> {

@@ -620,12 +620,14 @@ async function assertAcpClientGenerationRevokesHostToolBindings(cwd: string): Pr
 async function assertAcpControlTimeoutDoesNotKillSiblingRun(cwd: string): Promise<void> {
   const server = join(cwd, "fake-kimi-control-timeout-concurrency.mjs");
   const cli = fakeAcpCommandPath(cwd, "fake-kimi-control-timeout-concurrency-cli");
+  const timeoutMarker = join(cwd, "fake-kimi-control-timeout-once.marker");
   writeFileSync(
     server,
     [
       "import { createInterface } from 'node:readline';",
+      "import { existsSync, writeFileSync } from 'node:fs';",
+      `const timeoutMarker = ${JSON.stringify(timeoutMarker)};`,
       "const rl = createInterface({ input: process.stdin });",
-      "let newCount = 0;",
       "const send = (message) => process.stdout.write(JSON.stringify(message) + '\\n');",
       "rl.on('line', (line) => {",
       "  if (!line.trim()) return;",
@@ -635,8 +637,8 @@ async function assertAcpControlTimeoutDoesNotKillSiblingRun(cwd: string): Promis
       "    return;",
       "  }",
       "  if (msg.method === 'session/new') {",
-      "    newCount += 1;",
-      "    const delay = newCount === 1 ? 350 : 0;",
+      "    const delay = existsSync(timeoutMarker) ? 0 : 350;",
+      "    if (delay) writeFileSync(timeoutMarker, 'timed-out-once');",
       "    setTimeout(() => send({ jsonrpc: '2.0', id: msg.id, result: { sessionId: 'session-' + msg.id } }), delay);",
       "    return;",
       "  }",
@@ -677,9 +679,10 @@ async function assertAcpControlTimeoutDoesNotKillSiblingRun(cwd: string): Promis
     return events;
   };
   const abandoned = collect("run-acp-control-timeout", "thread-acp-control-timeout");
-  await new Promise((resolvePromise) => setTimeout(resolvePromise, 50));
+  await new Promise((resolvePromise) => setTimeout(resolvePromise, 10));
   const sibling = collect("run-acp-sibling", "thread-acp-sibling");
   const [abandonedEvents, siblingEvents] = await Promise.all([abandoned, sibling]);
+  const replacementEvents = await collect("run-acp-replacement", "thread-acp-replacement");
   runtime.close();
 
   assert.ok(
@@ -692,6 +695,12 @@ async function assertAcpControlTimeoutDoesNotKillSiblingRun(cwd: string): Promis
   );
   assert.ok(
     siblingEvents.some((event) => event.type === "turn.finished" && event.outcome.taskState === "TASK_STATE_COMPLETED"),
+  );
+  assert.ok(
+    replacementEvents.some(
+      (event) => event.type === "turn.finished" && event.outcome.taskState === "TASK_STATE_COMPLETED",
+    ),
+    "a new Run must use a healthy replacement generation after the timed-out transport is retired",
   );
 }
 
@@ -1130,12 +1139,17 @@ async function assertAbortedAcpTurnCloses(cwd: string, kernelId: "opencode" | "k
     `${kernelId} abort must expose turn.started`,
   );
   assert.ok(
-    events.some((event) => event.type === "error"),
-    `${kernelId} abort must expose its terminal error`,
+    events.some(
+      (event) =>
+        event.type === "turn.finished" &&
+        event.outcome.taskState === "TASK_STATE_CANCELED" &&
+        event.outcome.reasonCode === "user_canceled",
+    ),
+    `${kernelId} pre-start abort must be an explicit cancellation`,
   );
-  assert.ok(
-    events.some((event) => event.type === "turn.finished"),
-    `${kernelId} abort must close the started turn`,
+  assert.equal(
+    events.some((event) => event.type === "error"),
+    false,
   );
 }
 

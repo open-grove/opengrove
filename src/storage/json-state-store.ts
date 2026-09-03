@@ -395,7 +395,12 @@ export function normalizePersistedAgentState(
         !durableContinuationRunIds.has(stored.id));
     if (!producerIsLive && needsLiveProducer) {
       reconciledRunIds.add(stored.id);
-      return { ...withoutLegacyStatus, lifecycle: lifecycleFromRunFact({ kind: "producer_lost" }) } satisfies RunRecord;
+      return {
+        ...withoutLegacyStatus,
+        lifecycle: lifecycleFromRunFact({ kind: "producer_lost" }),
+        endedAt: restartedAt,
+        updatedAt: restartedAt,
+      } satisfies RunRecord;
     }
     return { ...withoutLegacyStatus, lifecycle } satisfies RunRecord;
   });

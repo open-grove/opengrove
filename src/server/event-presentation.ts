@@ -169,6 +169,11 @@ export function presentAgentEvent(event: AgentEvent, options: { preserveAssistan
         ...event,
         reason: event.reason ? truncateString(event.reason, 2_000) : undefined,
       };
+    case "run.cancel_requested":
+      return {
+        ...event,
+        reason: event.reason ? truncateString(event.reason, 2_000) : undefined,
+      };
     case "error":
       return { ...event, message: truncateString(event.message, MAX_EVENT_STRING_CHARACTERS) };
     default:

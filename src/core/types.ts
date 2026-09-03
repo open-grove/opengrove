@@ -924,6 +924,7 @@ export type AgentEvent =
   | { type: "question.requested"; runId: string; question: QuestionRequest }
   | { type: "question.answered"; runId: string; question: QuestionRequest }
   | { type: "planning.updated"; runId: string; plan: PlanningUpdate }
+  | { type: "run.cancel_requested"; runId: string; at: string; reason?: string }
   | { type: "run.paused"; runId: string; at: string; reason: string; approvalId?: string }
   | { type: "run.resumed"; runId: string; at: string; reason?: string; approvalId?: string }
   | { type: "memory.written"; runId: string; record: MemoryRecord }

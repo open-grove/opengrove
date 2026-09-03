@@ -302,18 +302,16 @@ function codexQuestionWaitingSemantics(
   };
 }
 
-function matchesCurrentCodexTurn(requestParams: JsonObject | undefined, threadId: string, turnId: string): boolean {
-  if (!requestParams) {
-    return true;
-  }
+export function matchesCurrentCodexTurn(
+  requestParams: JsonObject | undefined,
+  threadId: string,
+  turnId: string,
+): boolean {
+  if (!requestParams) return false;
   const requestThreadId = readString(requestParams, "threadId") ?? readString(requestParams, "conversationId");
   const requestTurnId = readString(requestParams, "turnId");
-  if (requestThreadId && requestThreadId !== threadId) {
-    return false;
-  }
-  if (requestTurnId && turnId && requestTurnId !== turnId) {
-    return false;
-  }
+  if (!requestThreadId || requestThreadId !== threadId) return false;
+  if (requestTurnId && (!turnId || requestTurnId !== turnId)) return false;
   return true;
 }
 

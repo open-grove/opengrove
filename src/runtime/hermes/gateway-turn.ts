@@ -37,6 +37,10 @@ export function createGatewayTurnState(input: {
     resolveCompletion = resolve;
     rejectCompletion = reject;
   });
+  // The gateway can die before runTurn reaches waitForGatewayTurn. Attach a
+  // rejection observer immediately so Node does not promote that short window
+  // to an unhandled rejection; callers still await the original promise.
+  void completion.catch(() => undefined);
   const state = {
     ...input,
     assistantText: "",

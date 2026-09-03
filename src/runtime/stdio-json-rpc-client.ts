@@ -86,6 +86,9 @@ export class StdioJsonRpcClient {
     child.once("error", (error) => {
       this.closeWithError(error instanceof Error ? error : new Error(String(error)));
     });
+    child.once("exit", (code, signal) => {
+      this.closeWithError(new Error(`json-rpc process exited: code=${code ?? "null"} signal=${signal ?? "null"}`));
+    });
     child.once("close", (code, signal) => {
       this.closeWithError(new Error(`json-rpc process exited: code=${code ?? "null"} signal=${signal ?? "null"}`));
     });

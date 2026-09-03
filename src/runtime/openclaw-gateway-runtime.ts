@@ -17,6 +17,7 @@ import { agentTurnHostContextPromptBlock, agentTurnReplyLanguageInstruction } fr
 import { appEnvName } from "../identity.js";
 import { AsyncEventQueue } from "./codex/async-event-queue.js";
 import { recentSessionMessages, recentSessionPromptBlock } from "./session-history.js";
+import { resolveRuntimeRunId } from "./run-id.js";
 import {
   contextBudgetDiagnostic,
   contextBudgetExceeded,
@@ -92,9 +93,11 @@ type PendingGatewayRequest = {
 const CONNECT_TIMEOUT_MS = 30_000;
 const DISCOVERY_TIMEOUT_MS = 3_000;
 const OPENCLAW_COMPACT_TIMEOUT_MS = 120_000;
-const CONNECT_CHALLENGE_GRACE_MS = 750;
+const OPENCLAW_WAIT_SLICE_MS = 30_000;
+const OPENCLAW_WAIT_TRANSPORT_GRACE_MS = 5_000;
+const OPENCLAW_CANCEL_SETTLE_MS = 15_000;
 const DEFAULT_OPENCLAW_GATEWAY_PORT = 18789;
-const OPENCLAW_MIN_PROTOCOL = 3;
+const OPENCLAW_MIN_PROTOCOL = 4;
 const OPENCLAW_MAX_PROTOCOL = 4;
 const OPENCLAW_OPERATOR_SCOPES = [
   "operator.admin",
@@ -201,7 +204,7 @@ export class OpenClawGatewayRuntime implements AgentRuntime {
 
   async *runTurn(request: AgentTurnRequest): AsyncIterable<AgentEvent> {
     const queue = new AsyncEventQueue<AgentEvent>();
-    const runId = request.runId ?? `run_${Date.now()}`;
+    const runId = resolveRuntimeRunId(request.runId);
     let turnStarted = false;
     let turnFinished = false;
     let producerFailure = "";
@@ -228,11 +231,13 @@ export class OpenClawGatewayRuntime implements AgentRuntime {
         type: "turn.finished",
         runId,
         at: new Date().toISOString(),
-        outcome: {
-          taskState: "TASK_STATE_FAILED",
-          reasonCode: producerFailure ? "openclaw_gateway_failed" : "openclaw_native_terminal_missing",
-          outcomeUnknown: true,
-        },
+        outcome: request.signal?.aborted
+          ? { taskState: "TASK_STATE_FAILED", reasonCode: "cancel_outcome_unknown", outcomeUnknown: true }
+          : {
+              taskState: "TASK_STATE_FAILED",
+              reasonCode: producerFailure ? "openclaw_gateway_failed" : "openclaw_native_terminal_missing",
+              outcomeUnknown: true,
+            },
       };
     }
   }
@@ -319,16 +324,33 @@ export class OpenClawGatewayRuntime implements AgentRuntime {
       }
     });
 
+    let nativeRunId = runId;
+    let chatSent = false;
+    const waitController = new AbortController();
+    let cancelSettleTimer: ReturnType<typeof setTimeout> | undefined;
     const abort = () => {
-      void this.client.request("chat.abort", { sessionKey, runId }, { timeoutMs: 10_000 }).catch(() => undefined);
+      if (!chatSent) return;
+      void this.client
+        .request("chat.abort", { sessionKey, runId: nativeRunId }, { timeoutMs: 10_000 })
+        .catch(() => undefined);
+      if (!cancelSettleTimer) {
+        cancelSettleTimer = setTimeout(() => waitController.abort(), OPENCLAW_CANCEL_SETTLE_MS);
+        cancelSettleTimer.unref?.();
+      }
     };
     request.signal?.addEventListener("abort", abort, { once: true });
 
     try {
       await this.client.ensureConnected();
       if (request.signal?.aborted) {
-        abort();
-        throw new Error("openclaw_gateway_aborted");
+        queue.push({ type: "model.response", runId, response: { text: "" } });
+        queue.push({
+          type: "turn.finished",
+          runId,
+          at: new Date().toISOString(),
+          outcome: { taskState: "TASK_STATE_CANCELED", reasonCode: "user_canceled", retryable: false },
+        });
+        return;
       }
       if (!requestedModel) {
         throw new Error("openclaw_gateway_model_selection_required");
@@ -357,61 +379,94 @@ export class OpenClawGatewayRuntime implements AgentRuntime {
             sessionId: request.context.sessionId,
             message: prompt,
             deliver: false,
-            ...(this.options.requestTimeoutMs !== undefined ? { timeoutMs: this.options.requestTimeoutMs } : {}),
             idempotencyKey: runId,
           },
-          { timeoutMs: 30_000, signal: request.signal },
+          { timeoutMs: 30_000 },
         ),
       );
-      const nativeRunId = readString(sent, "runId") || runId;
+      nativeRunId = readString(sent, "runId") || runId;
+      chatSent = true;
       acceptedRunIds.add(nativeRunId);
-      const wait = asObject(
-        await this.client.request(
-          "agent.wait",
-          {
-            runId: nativeRunId,
-            ...(this.options.requestTimeoutMs !== undefined ? { timeoutMs: this.options.requestTimeoutMs } : {}),
-          },
-          { timeoutMs: this.options.requestTimeoutMs, signal: request.signal },
-        ),
-      );
-      const waitStatus = readString(wait, "status");
-      if (waitStatus && waitStatus !== "ok") {
+      if (request.signal?.aborted) abort();
+      const waitSliceMs = Math.max(100, this.options.requestTimeoutMs ?? OPENCLAW_WAIT_SLICE_MS);
+      let waitStatus = "";
+      while (true) {
+        try {
+          const wait = asObject(
+            await this.client.request(
+              "agent.wait",
+              { runId: nativeRunId, timeoutMs: waitSliceMs },
+              { timeoutMs: waitSliceMs + OPENCLAW_WAIT_TRANSPORT_GRACE_MS, signal: waitController.signal },
+            ),
+          );
+          waitStatus = readString(wait, "status") || "";
+        } catch (error) {
+          if (!waitController.signal.aborted && error instanceof Error && error.message === "agent.wait timed out") {
+            continue;
+          }
+          throw error;
+        }
+        if (!["timeout", "pending", "running", "working"].includes(waitStatus.trim().toLowerCase())) break;
+      }
+      const normalizedWaitStatus = waitStatus.trim().toLowerCase();
+      const nativeCanceled = ["aborted", "cancelled", "canceled", "interrupted"].includes(normalizedWaitStatus);
+      if (
+        waitStatus &&
+        !["ok", "complete", "completed", "success", "aborted", "cancelled", "canceled", "interrupted"].includes(
+          normalizedWaitStatus,
+        )
+      ) {
         sawTerminalError = true;
         queue.push({ type: "error", runId, message: `openclaw_gateway_${waitStatus}` });
       }
 
-      if (!assistantText.trim()) {
+      if (!assistantText.trim() && !nativeCanceled) {
         const finalText = await this.readLatestAssistantText(sessionKey);
         if (finalText) {
           assistantText = finalText;
           queue.push({ type: "assistant.delta", runId, text: finalText });
         }
       }
-      if (!assistantText.trim() && !sawTerminalError) {
+      if (!assistantText.trim() && !sawTerminalError && !nativeCanceled) {
         queue.push({ type: "error", runId, message: "openclaw_gateway_empty_response" });
       }
       queue.push({ type: "model.response", runId, response: { text: assistantText.trimEnd() } });
-      const normalizedWaitStatus = (waitStatus || "").trim().toLowerCase();
       queue.push({
         type: "turn.finished",
         runId,
         at: new Date().toISOString(),
         outcome: sawTerminalError
           ? { taskState: "TASK_STATE_FAILED", reasonCode: "openclaw_gateway_run_failed" }
-          : !assistantText.trim()
-            ? { taskState: "TASK_STATE_FAILED", reasonCode: "openclaw_gateway_empty_response" }
-            : ["ok", "complete", "completed", "success"].includes(normalizedWaitStatus)
-              ? { taskState: "TASK_STATE_COMPLETED" }
-              : ["aborted", "cancelled", "canceled", "interrupted"].includes(normalizedWaitStatus)
-                ? { taskState: "TASK_STATE_CANCELED", reasonCode: "native_interrupted", retryable: false }
+          : nativeCanceled
+            ? {
+                taskState: "TASK_STATE_CANCELED",
+                reasonCode: request.signal?.aborted ? "user_canceled" : "native_interrupted",
+                retryable: false,
+              }
+            : !assistantText.trim()
+              ? { taskState: "TASK_STATE_FAILED", reasonCode: "openclaw_gateway_empty_response" }
+              : ["ok", "complete", "completed", "success"].includes(normalizedWaitStatus)
+                ? { taskState: "TASK_STATE_COMPLETED" }
                 : {
                     taskState: "TASK_STATE_FAILED",
                     reasonCode: "openclaw_gateway_terminal_unknown",
                     outcomeUnknown: true,
                   },
       });
+    } catch (error) {
+      if (request.signal?.aborted && !chatSent) {
+        queue.push({ type: "model.response", runId, response: { text: "" } });
+        queue.push({
+          type: "turn.finished",
+          runId,
+          at: new Date().toISOString(),
+          outcome: { taskState: "TASK_STATE_CANCELED", reasonCode: "user_canceled", retryable: false },
+        });
+        return;
+      }
+      throw error;
     } finally {
+      if (cancelSettleTimer) clearTimeout(cancelSettleTimer);
       cleanup();
       request.signal?.removeEventListener("abort", abort);
     }
@@ -792,21 +847,15 @@ class OpenClawGatewayClient {
     this.ws = ws;
     let connectSent = false;
     let connectNonce: string | undefined;
-    let connectTimer: ReturnType<typeof setTimeout> | undefined;
     let socketTimer: ReturnType<typeof setTimeout> | undefined;
     let settled = false;
 
     return new Promise<void>((resolve, reject) => {
       const cleanupConnect = () => {
-        if (connectTimer) {
-          clearTimeout(connectTimer);
-          connectTimer = undefined;
-        }
         if (socketTimer) {
           clearTimeout(socketTimer);
           socketTimer = undefined;
         }
-        ws.removeEventListener("open", onOpen);
       };
       const fail = (error: Error) => {
         if (settled) return;
@@ -828,10 +877,6 @@ class OpenClawGatewayClient {
           })
           .catch(fail);
       };
-      const onOpen = () => {
-        connectTimer = setTimeout(sendConnect, CONNECT_CHALLENGE_GRACE_MS);
-        connectTimer.unref?.();
-      };
       const onMessage = (event: { data: unknown }) => {
         if (this.ws !== ws) return;
         const frame = parseGatewayFrame(event.data);
@@ -839,9 +884,10 @@ class OpenClawGatewayClient {
         if (frame.type === "event" && frame.event === "connect.challenge") {
           const payload = asObject(frame.payload);
           connectNonce = readString(payload, "nonce");
-          if (connectTimer) {
-            clearTimeout(connectTimer);
-            connectTimer = undefined;
+          if (!connectNonce) {
+            fail(new Error("openclaw gateway challenge did not include a nonce"));
+            ws.close();
+            return;
           }
           sendConnect();
           return;
@@ -873,7 +919,6 @@ class OpenClawGatewayClient {
         ws.close();
       }, connectTimeoutMs);
       socketTimer.unref?.();
-      ws.addEventListener("open", onOpen);
       ws.addEventListener("message", onMessage);
       ws.addEventListener("close", onClose);
       ws.addEventListener("error", onError);
