@@ -8,7 +8,7 @@ import type {
 const CHECKED_AT = "2026-07-06";
 const REFRESHED_AT = "2026-07-20";
 const CLAUDE_REFRESHED_AT = "2026-09-03";
-const PI_REFRESHED_AT = "2026-08-05";
+const PI_REFRESHED_AT = "2026-09-03";
 const HERMES_REFRESHED_AT = "2026-08-05";
 
 interface SourceEvidence {
@@ -112,7 +112,7 @@ const piAgent = {
     "pi-agent-core documents stateful agent turns, awaited lifecycle events, host tool execution, approvals through beforeToolCall, parallel tools, tool progress, steering, follow-up, abort, thinking level, and image input.",
   sourcePath: "node_modules/@earendil-works/pi-agent-core/README.md",
   kind: "local_package" as const,
-  upstreamVersion: "@earendil-works/pi-agent-core 0.83.0",
+  upstreamVersion: "@earendil-works/pi-agent-core 0.84.4",
   checkedAt: PI_REFRESHED_AT,
 };
 const piAgentTypes = {
@@ -120,37 +120,37 @@ const piAgentTypes = {
     "pi-agent-core types define assistant-message boundaries, tool execution modes, tool update events, steering, follow-up, abort, and provider stop metadata.",
   sourcePath: "node_modules/@earendil-works/pi-agent-core/dist/types.d.ts",
   kind: "local_package" as const,
-  upstreamVersion: "@earendil-works/pi-agent-core 0.83.0",
+  upstreamVersion: "@earendil-works/pi-agent-core 0.84.4",
   checkedAt: PI_REFRESHED_AT,
 };
 const piHarnessSession = {
   source:
-    "pi-agent-core 0.83 exports AgentHarness plus in-memory and JSONL session repositories with create/open/list/delete/fork lifecycle.",
-  sourcePath: "node_modules/@earendil-works/pi-agent-core/dist/harness/session/jsonl-repo.d.ts",
+    "pi-agent-core 0.84.4 exports AgentHarness plus in-memory and JSONL session repositories with create/open/list/delete/fork lifecycle.",
+  sourcePath: "node_modules/@earendil-works/pi-agent-core/dist/harness/session/jsonl/repo.d.ts",
   kind: "local_package" as const,
-  upstreamVersion: "@earendil-works/pi-agent-core 0.83.0",
+  upstreamVersion: "@earendil-works/pi-agent-core 0.84.4",
   checkedAt: PI_REFRESHED_AT,
 };
 const piHarnessCompaction = {
   source:
-    "pi-agent-core 0.83 exports native compaction preparation, summarization, usage, and AgentHarness.compact surfaces.",
+    "pi-agent-core 0.84.4 exports native compaction preparation, summarization, usage, and AgentHarness.compact surfaces.",
   sourcePath: "node_modules/@earendil-works/pi-agent-core/dist/harness/compaction/compaction.d.ts",
   kind: "local_package" as const,
-  upstreamVersion: "@earendil-works/pi-agent-core 0.83.0",
+  upstreamVersion: "@earendil-works/pi-agent-core 0.84.4",
   checkedAt: PI_REFRESHED_AT,
 };
 const piHarnessTools = {
-  source: "pi-agent-core 0.83 exports AgentHarness built-in read, bash, edit, and write tools.",
+  source: "pi-agent-core 0.84.4 exports AgentHarness built-in read, bash, edit, and write tools.",
   sourcePath: "node_modules/@earendil-works/pi-agent-core/dist/harness/tools/index.d.ts",
   kind: "local_package" as const,
-  upstreamVersion: "@earendil-works/pi-agent-core 0.83.0",
+  upstreamVersion: "@earendil-works/pi-agent-core 0.84.4",
   checkedAt: PI_REFRESHED_AT,
 };
 const piHarnessSkills = {
-  source: "pi-agent-core 0.83 exports native SKILL.md discovery/loading and AgentHarness skill resources.",
+  source: "pi-agent-core 0.84.4 exports native SKILL.md discovery/loading and AgentHarness skill resources.",
   sourcePath: "node_modules/@earendil-works/pi-agent-core/dist/harness/skills.d.ts",
   kind: "local_package" as const,
-  upstreamVersion: "@earendil-works/pi-agent-core 0.83.0",
+  upstreamVersion: "@earendil-works/pi-agent-core 0.84.4",
   checkedAt: PI_REFRESHED_AT,
 };
 const piAi = {
@@ -158,14 +158,14 @@ const piAi = {
     "pi-ai documents streaming text, tool calls, thinking blocks, image input, abort, usage, and structured provider capability metadata.",
   sourcePath: "node_modules/@earendil-works/pi-ai/README.md",
   kind: "local_package" as const,
-  upstreamVersion: "@earendil-works/pi-ai 0.83.0",
+  upstreamVersion: "@earendil-works/pi-ai 0.84.4",
   checkedAt: PI_REFRESHED_AT,
 };
 const piAiModels = {
   source: "pi-ai Models owns provider auth resolution, OAuth refresh, provider catalogs, and stream dispatch.",
   sourcePath: "node_modules/@earendil-works/pi-ai/dist/models.d.ts",
   kind: "local_package" as const,
-  upstreamVersion: "@earendil-works/pi-ai 0.83.0",
+  upstreamVersion: "@earendil-works/pi-ai 0.84.4",
   checkedAt: PI_REFRESHED_AT,
 };
 

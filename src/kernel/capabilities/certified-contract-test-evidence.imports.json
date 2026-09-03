@@ -54,16 +54,16 @@
     },
     {
       "kernel": "pi",
-      "receiptSha256": "1add7cef32a247391904e94e5396091e46894b2f79d79a85a68005ec841dd52d",
+      "receiptSha256": "f39bc566094c1dfefc5dbb80f85b3bbe2e4d8a1fcf4dfb8e2a7accda975fe433",
       "certifications": [
         {
           "kernel": "pi",
           "capability": "tools.nativeTool",
           "testId": "pi.tools.nativeTool",
           "passed": true,
-          "checkedAt": "2026-09-01",
+          "checkedAt": "2026-09-03",
           "hostVersion": "0.6.6",
-          "kernelVersion": "0.83.0",
+          "kernelVersion": "0.84.4",
           "runtimeMode": "sdk",
           "verification": "real_runtime"
         }
