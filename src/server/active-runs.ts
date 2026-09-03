@@ -310,7 +310,6 @@ function hasDurablePendingInteraction(state: BridgeState, handle: ActiveRunHandl
 
 function terminalizeRunWithoutProducer(state: BridgeState, handle: ActiveRunHandle, reasonCode: string): boolean {
   const rootState = state.rootState ?? state;
-  if (!rootState.app?.sessions) return false;
   const event: AgentEvent = {
     type: "turn.finished",
     runId: handle.runId,
