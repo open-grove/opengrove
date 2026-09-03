@@ -29,7 +29,7 @@ export function resolveBridgeAuthPolicy(input: BridgeAuthPolicyInput): BridgeAut
   const sessionUnauthenticated = input.sessionAuthActive && input.sessionStatus === "unauthenticated";
   const desktopAccountChoiceCompleted =
     input.desktopBridgeAuthenticated && Boolean(input.desktopAccountOnboardingCompleted);
-  const desktopAccountlessAccess = sessionUnauthenticated && desktopAccountChoiceCompleted;
+  const desktopAccountlessAccess = sessionUnauthenticated && input.desktopBridgeAuthenticated;
   const sessionAuthPendingLocallyAvailable =
     input.sessionAuthActive &&
     input.sessionPending &&
