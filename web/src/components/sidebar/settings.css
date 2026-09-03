@@ -1729,6 +1729,7 @@ label.settings-list-row {
   padding-top: var(--sp-4);
   font-size: var(--fs-sm);
   line-height: var(--lh-normal);
+  white-space: pre-line;
 }
 
 .settings-update-status-row,
