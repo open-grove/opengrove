@@ -128,7 +128,7 @@ async function main() {
     "OpenClaw must pin the exact session model before sending the user message",
   );
   assert.equal(gateway.compactionCount, 1, "OpenClaw should call native sessions.compact before an over-budget turn");
-  assert.equal(gateway.capturedConnectParams?.minProtocol, 3);
+  assert.equal(gateway.capturedConnectParams?.minProtocol, 4);
   assert.equal(gateway.capturedConnectParams?.maxProtocol, 4);
 
   const response = events.find((event) => event.type === "model.response");
@@ -454,6 +454,14 @@ async function startFakeOpenClawGateway(
         "\r\n",
       ].join("\r\n"),
     );
+    sendTextFrame(
+      socket,
+      JSON.stringify({
+        type: "event",
+        event: "connect.challenge",
+        payload: { nonce: "openclaw-v2026.8.2-contract", ts: Date.now() },
+      }),
+    );
 
     let buffered: Buffer<ArrayBufferLike> = Buffer.alloc(0);
     socket.on("data", (chunk) => {
@@ -542,7 +550,7 @@ function handleGatewayRequest(
   callOrder.push(frame.method);
   if (frame.method === "connect") {
     captureConnectParams(frame.params ?? {});
-    sendTextFrame(socket, JSON.stringify({ type: "res", id: frame.id, ok: true, payload: { protocol: 3 } }));
+    sendTextFrame(socket, JSON.stringify({ type: "res", id: frame.id, ok: true, payload: { protocol: 4 } }));
     return;
   }
   if (frame.method === "chat.send") {

@@ -103,7 +103,9 @@ export interface KernelContractEvidenceContext {
 export type KernelCapabilityAuditStatus =
   | "needs_native_verification"
   | "needs_contract_test"
-  | "needs_real_runtime_verification";
+  | "needs_real_runtime_verification"
+  | "needs_context_reverification"
+  | "current_context_verification_failed";
 
 export interface KernelCapabilityReportEntry {
   kernel: string;

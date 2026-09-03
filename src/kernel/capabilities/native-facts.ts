@@ -258,6 +258,13 @@ const linkedKernelSources = {
   kind: "linked_source" as const,
   checkedAt: "2026-08-31",
 };
+const openClawGatewaySource = {
+  source: "Official OpenClaw 2026.8.2 Gateway protocol source and an exact-version challenge-handshake certification.",
+  sourcePath: "docs/reference/KERNEL_SOURCES.md",
+  kind: "linked_source" as const,
+  upstreamVersion: "OpenClaw 2026.8.2 (v2026.8.2, 0965053)",
+  checkedAt: "2026-09-03",
+};
 const linkedSkillSources = {
   source:
     "Official OpenCode, Kimi Code, and OpenClaw skill documentation records kernel-native SKILL.md roots and invocation/loading semantics.",
@@ -470,10 +477,10 @@ export const KERNEL_NATIVE_CAPABILITY_FACTS: KernelNativeCapabilityFact[] = [
   fact("kimi", "knowledge.skills", "yes", linkedSkillSources, [
     "OpenGrove publishes portable skills into .kimi-code/skills and uses Kimi's documented /skill:<name> invocation form.",
   ]),
-  fact("openclaw", "session.compact", "yes", linkedKernelSources, [
+  fact("openclaw", "session.compact", "yes", openClawGatewaySource, [
     "OpenClaw Gateway exposes sessions.compact and automatic compaction.",
   ]),
-  fact("openclaw", "diagnostics.usage", "yes", linkedKernelSources, [
+  fact("openclaw", "diagnostics.usage", "yes", openClawGatewaySource, [
     "OpenClaw Gateway sessions.list exposes totalTokens, totalTokensFresh, and contextTokens.",
   ]),
   fact("openclaw", "knowledge.skills", "yes", linkedSkillSources, [

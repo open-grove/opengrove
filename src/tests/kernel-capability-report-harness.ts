@@ -99,12 +99,13 @@ async function main() {
   const runtimeVerifiedCodexAskUser = runtimeVerifiedCodexReport.capabilities.find(
     (entry) => entry.capability === "interaction.askUser",
   );
-  assert.equal(runtimeVerifiedCodexAskUser?.exposed, "unknown");
+  assert.equal(runtimeVerifiedCodexAskUser?.exposed, "yes");
   assert.equal(
     runtimeVerifiedCodexAskUser?.productBehavior,
-    "hide",
-    "fully bound evidence must not enable a runtime when the current Kernel version and mode are unknown",
+    "enable",
+    "missing current context must request revalidation without hiding a previously certified capability",
   );
+  assert.deepEqual(runtimeVerifiedCodexAskUser?.auditStatuses, ["needs_context_reverification"]);
 
   const versionBoundEvidence = {
     kernel: "codex",
@@ -149,9 +150,38 @@ async function main() {
   });
   assert.equal(
     mismatchedBoundReport.capabilities.find((entry) => entry.capability === "interaction.askUser")?.exposed,
-    "unknown",
-    "evidence from another Kernel version must not enable the current runtime",
+    "yes",
+    "a Kernel version change must request revalidation without hiding a previously certified capability",
   );
+  assert.deepEqual(
+    mismatchedBoundReport.capabilities.find((entry) => entry.capability === "interaction.askUser")?.auditStatuses,
+    ["needs_context_reverification"],
+  );
+  for (const [label, evidenceContext] of [
+    ["runtime mode", { kernelVersion: "1.2.3", runtimeMode: "cli", provider: { kind: "native" as const } }],
+    [
+      "Provider",
+      {
+        kernelVersion: "1.2.3",
+        runtimeMode: "app-server",
+        provider: { kind: "openai-compatible" as const, model: "gpt-5" },
+      },
+    ],
+  ] as const) {
+    const changedContextReport = buildKernelCapabilityReport({
+      kernel: "codex",
+      nativeFacts: KERNEL_NATIVE_CAPABILITY_FACTS,
+      contracts: KERNEL_CAPABILITY_CONTRACTS,
+      contractTests: [versionBoundEvidence],
+      generatedAt: "2026-08-31T00:00:00.000Z",
+      evidenceContext,
+    });
+    const changedContextEntry = changedContextReport.capabilities.find(
+      (entry) => entry.capability === "interaction.askUser",
+    );
+    assert.equal(changedContextEntry?.exposed, "yes", `${label} changes must not hide a certified capability`);
+    assert.deepEqual(changedContextEntry?.auditStatuses, ["needs_context_reverification"]);
+  }
   const partiallyKnownRuntimeReport = buildKernelCapabilityReport({
     kernel: "codex",
     nativeFacts: KERNEL_NATIVE_CAPABILITY_FACTS,
@@ -162,9 +192,43 @@ async function main() {
   });
   assert.equal(
     partiallyKnownRuntimeReport.capabilities.find((entry) => entry.capability === "interaction.askUser")?.exposed,
-    "unknown",
-    "missing current Kernel version or runtime mode must fail closed",
+    "yes",
+    "missing context metadata must not revoke a previously certified capability",
   );
+  assert.deepEqual(
+    partiallyKnownRuntimeReport.capabilities.find((entry) => entry.capability === "interaction.askUser")?.auditStatuses,
+    ["needs_context_reverification"],
+  );
+  const failedCurrentContextReport = buildKernelCapabilityReport({
+    kernel: "codex",
+    nativeFacts: KERNEL_NATIVE_CAPABILITY_FACTS,
+    contracts: KERNEL_CAPABILITY_CONTRACTS,
+    contractTests: [
+      versionBoundEvidence,
+      {
+        ...versionBoundEvidence,
+        passed: false,
+        checkedAt: "2026-09-01",
+        kernelVersion: "2.0.0",
+      },
+    ],
+    generatedAt: "2026-09-01T00:00:00.000Z",
+    evidenceContext: {
+      kernelVersion: "2.0.0",
+      runtimeMode: "app-server",
+      provider: { kind: "native" },
+    },
+  });
+  const failedCurrentContextEntry = failedCurrentContextReport.capabilities.find(
+    (entry) => entry.capability === "interaction.askUser",
+  );
+  assert.equal(
+    failedCurrentContextEntry?.exposed,
+    "unknown",
+    "a newer explicit failure in the current context must revoke an older passing certification",
+  );
+  assert.equal(failedCurrentContextEntry?.productBehavior, "hide");
+  assert.deepEqual(failedCurrentContextEntry?.auditStatuses, ["current_context_verification_failed"]);
   const historicalLegacyReport = buildKernelCapabilityReport({
     kernel: "codex",
     nativeFacts: KERNEL_NATIVE_CAPABILITY_FACTS,

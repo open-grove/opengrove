@@ -79,6 +79,10 @@ Capability catalog、UI 行为和 report 的真相源是
 [`docs/reference/KERNEL_SOURCES.md`](KERNEL_SOURCES.md) 和
 [`web/src/runtime/kernel-capability-ui-policy.ts`](../../web/src/runtime/kernel-capability-ui-policy.ts)。
 
+真实 runtime 验证一旦通过，其正面结论就会保留。Kernel 版本、runtime mode
+或 Provider 变化只会触发当前上下文复验，不会自动对用户隐藏能力。只有当前上下文下
+更新的失败验证，或显式的 `not-wired` / `suppressed` contract mapping，才会撤销暴露。
+
 ## 事件投影
 
 为原生协议维护明确 mapping，至少覆盖：

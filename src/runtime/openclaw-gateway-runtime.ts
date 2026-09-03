@@ -96,9 +96,8 @@ const OPENCLAW_COMPACT_TIMEOUT_MS = 120_000;
 const OPENCLAW_WAIT_SLICE_MS = 30_000;
 const OPENCLAW_WAIT_TRANSPORT_GRACE_MS = 5_000;
 const OPENCLAW_CANCEL_SETTLE_MS = 15_000;
-const CONNECT_CHALLENGE_GRACE_MS = 750;
 const DEFAULT_OPENCLAW_GATEWAY_PORT = 18789;
-const OPENCLAW_MIN_PROTOCOL = 3;
+const OPENCLAW_MIN_PROTOCOL = 4;
 const OPENCLAW_MAX_PROTOCOL = 4;
 const OPENCLAW_OPERATOR_SCOPES = [
   "operator.admin",
@@ -848,21 +847,15 @@ class OpenClawGatewayClient {
     this.ws = ws;
     let connectSent = false;
     let connectNonce: string | undefined;
-    let connectTimer: ReturnType<typeof setTimeout> | undefined;
     let socketTimer: ReturnType<typeof setTimeout> | undefined;
     let settled = false;
 
     return new Promise<void>((resolve, reject) => {
       const cleanupConnect = () => {
-        if (connectTimer) {
-          clearTimeout(connectTimer);
-          connectTimer = undefined;
-        }
         if (socketTimer) {
           clearTimeout(socketTimer);
           socketTimer = undefined;
         }
-        ws.removeEventListener("open", onOpen);
       };
       const fail = (error: Error) => {
         if (settled) return;
@@ -884,10 +877,6 @@ class OpenClawGatewayClient {
           })
           .catch(fail);
       };
-      const onOpen = () => {
-        connectTimer = setTimeout(sendConnect, CONNECT_CHALLENGE_GRACE_MS);
-        connectTimer.unref?.();
-      };
       const onMessage = (event: { data: unknown }) => {
         if (this.ws !== ws) return;
         const frame = parseGatewayFrame(event.data);
@@ -895,9 +884,10 @@ class OpenClawGatewayClient {
         if (frame.type === "event" && frame.event === "connect.challenge") {
           const payload = asObject(frame.payload);
           connectNonce = readString(payload, "nonce");
-          if (connectTimer) {
-            clearTimeout(connectTimer);
-            connectTimer = undefined;
+          if (!connectNonce) {
+            fail(new Error("openclaw gateway challenge did not include a nonce"));
+            ws.close();
+            return;
           }
           sendConnect();
           return;
@@ -929,7 +919,6 @@ class OpenClawGatewayClient {
         ws.close();
       }, connectTimeoutMs);
       socketTimer.unref?.();
-      ws.addEventListener("open", onOpen);
       ws.addEventListener("message", onMessage);
       ws.addEventListener("close", onClose);
       ws.addEventListener("error", onError);

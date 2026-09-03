@@ -93,7 +93,12 @@ async function assertInactiveMessagesAreReapedWithoutInterruptingLiveRuns(): Pro
   });
   let saveCount = 0;
   const state = {
-    app: { rooms },
+    app: {
+      rooms,
+      sessions: {
+        getRun: () => undefined,
+      },
+    },
     settings: { language: "zh-CN" },
     store: {
       saveFrom: () => {
@@ -319,6 +324,9 @@ function scheduleRun(
 function createHarnessState(): BridgeState {
   return {
     app: {
+      sessions: {
+        getRun: () => undefined,
+      },
       rooms: {
         updateMessage: (roomId: string, messageId: string, patch: Partial<RoomChannelMessage>): RoomChannelMessage => ({
           ...createAssistantMessage(roomId, messageId, createMember("member-app-demo-worker")),

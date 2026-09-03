@@ -149,6 +149,7 @@
     "generate:kernel-evidence": "node scripts/generate-certified-kernel-evidence.mjs --write",
     "check:kernel-evidence": "node scripts/generate-certified-kernel-evidence.mjs --check",
     "test:capabilities": "npm run build:server && npm run check:kernel-evidence && node dist/tests/kernel-event-contract-harness.js && node dist/tests/kernel-capability-source-harness.js && node dist/tests/kernel-capability-report-harness.js && node dist/tests/kernel-capability-requirements-harness.js && node dist/tests/pi-native-tool-real-runtime-evidence-harness.js && node dist/tests/pi-story-seed-business-e2e-harness.js && node scripts/test-kernel-capability-ui-policy.mjs",
+    "certify:openclaw:2026.8.2": "npm run build:server && node scripts/certify-openclaw-gateway-2026-8-2.mjs",
     "test:capabilities:real": "npm run build:server && node dist/tests/kernel-capability-real-runtime-probe-runner.js",
     "test:kimi-acp-room-host-tools:real": "npm run build:server && node dist/tests/kimi-acp-room-host-tool-real-probe.js",
     "test:kimi-acp-room-host-tools:packaged-real": "npm run build:server && node scripts/run-packaged-kimi-acp-room-host-tool-real-probe.mjs",
