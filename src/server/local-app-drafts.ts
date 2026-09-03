@@ -34,7 +34,7 @@ import {
   finalizeCommittedAppProgramActivation,
 } from "./app-program-activation-recovery.js";
 import { readCompatibleLocalAppDraftRecord } from "./local-app-draft-record.compat.js";
-import { writePrivateFileAtomically } from "./private-file.js";
+import { writePrivateFileAtomically } from "../storage/private-file.js";
 
 const LOCAL_APP_DRAFT_SCHEMA_VERSION = 1;
 

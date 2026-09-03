@@ -29,6 +29,7 @@ import { closeImportedNativeFolderWatchers } from "./knowledge-imported-folders.
 import { readClientReleaseNumber, readPackageVersion } from "./client-release.js";
 import { internalBridgeBaseUrl } from "./internal-bridge-url.js";
 import { cleanupStaleKernelLoginSessions } from "./kernel-login.js";
+import { writeBridgeDiscoveryFile } from "./bridge-discovery.js";
 
 export function startOpenGroveServer(options: LocalBridgeServerOptions = {}) {
   loadLocalEnvFile();
@@ -220,6 +221,7 @@ export function startOpenGroveServer(options: LocalBridgeServerOptions = {}) {
     const address = server.address();
     const boundPort = address && typeof address === "object" ? address.port : port;
     state.internalBridgeBaseUrl = internalBridgeBaseUrl(host, boundPort);
+    writeBridgeDiscoveryFile(state, { host, port: boundPort, startedAt: BRIDGE_PROCESS_STARTED_AT });
     console.log(
       `OpenGrove ${state.profile === "test" ? "test" : "local bridge"} listening on http://${host}:${boundPort}`,
     );

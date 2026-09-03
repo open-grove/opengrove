@@ -6,13 +6,17 @@ import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
+import { createOpenGroveClient } from "#client";
 import type { AgentEvent } from "../core.js";
+import { hostContractById } from "#protocol/compiled";
 import { appEnvName } from "../identity.js";
 import { startLocalBridgeServer } from "../server/local-bridge.js";
 import { createBridgeState } from "../server/bridge-state.js";
 import { pmAgentMemberId } from "../server/bridge-mounted-app-employees.js";
 import { defaultAppGroupRoomId } from "../server/app-room-ids.js";
-import { handleRoomMessageRoutes } from "../server/routes/rooms/message-routes.js";
+import { dispatchBridgeRoutes, type BridgeRouteContext } from "../server/router.js";
+import { operationRoute } from "../server/routes/registry-utils.js";
+import { handleCreateRoomMessageOperation } from "../server/routes/rooms/message-routes.js";
 import type { RoomChannelMember } from "../rooms/channel-store.js";
 import { roomExecutionState } from "../server/room-runs/execution-state.js";
 
@@ -66,6 +70,10 @@ try {
 
   const address = server.address() as AddressInfo;
   const baseUrl = `http://127.0.0.1:${address.port}/api`;
+  const client = createOpenGroveClient({
+    baseUrl,
+    headers: { "x-opengrove-token": token },
+  });
   await patchJson(`${baseUrl}/settings`, { languagePreference: "en" });
   const mountRosterApp = await patchJson(`${baseUrl}/settings`, {
     mountedApps: [
@@ -388,7 +396,15 @@ try {
     badge: "本地",
   });
 
-  const routed = await postJson<{
+  const routed = (await client.rooms.messages.create({
+    roomId: "room-route-targeting",
+    text: "Run this without an explicit mention.",
+    targetIds: [member.id],
+    attachments: [],
+    userMessageId: "message-user-explicit-target",
+    assistantMessageIds: ["message-assistant-explicit-target"],
+    selectedFile: { path: "项目/长安客/章节大纲.md" },
+  })) as {
     ok: true;
     userMessage: {
       targetIds: string[];
@@ -397,13 +413,7 @@ try {
       rootMessageId?: string;
     };
     assistantMessages: Array<{ senderId: string; text: string; status: string }>;
-  }>(`${baseUrl}/rooms/room-route-targeting/messages`, {
-    text: "Run this without an explicit mention.",
-    targetIds: [member.id],
-    userMessageId: "message-user-explicit-target",
-    assistantMessageIds: ["message-assistant-explicit-target"],
-    selectedFile: { path: "项目/长安客/章节大纲.md" },
-  });
+  };
 
   assert.equal(routed.ok, true);
   assert.deepEqual(routed.userMessage.targetIds, [member.id]);
@@ -1333,20 +1343,25 @@ async function postRoomMessageRoute<T>(
 ): Promise<T> {
   let status = 0;
   let payload: unknown;
-  const handled = await handleRoomMessageRoutes({
-    request: {
-      method: "POST",
-      headers: { host: "127.0.0.1" },
-    } as IncomingMessage,
-    response: {} as ServerResponse,
-    url: new URL(`http://127.0.0.1/rooms/${encodeURIComponent(roomId)}/messages`),
-    state,
-    sendJson: (_response, nextStatus, data) => {
-      status = nextStatus;
-      payload = data;
+  const handled = await dispatchBridgeRoutes(
+    [operationRoute(hostContractById["room.message.create"], handleCreateRoomMessageOperation)],
+    {
+      request: {
+        method: "POST",
+        headers: { host: "127.0.0.1" },
+      } as IncomingMessage,
+      response: {} as ServerResponse,
+      url: new URL(`http://127.0.0.1/rooms/${encodeURIComponent(roomId)}/messages`),
+      traceId: "rooms-route-targeting",
+      state,
+      security: {} as BridgeRouteContext["security"],
+      sendJson: (_response, nextStatus, data) => {
+        status = nextStatus;
+        payload = data;
+      },
+      readJsonBody: async () => body,
     },
-    readJsonBody: async () => body,
-  });
+  );
   assert.equal(handled, true);
   assert.equal(status, 200, JSON.stringify(payload));
   return payload as T;

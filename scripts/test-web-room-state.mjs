@@ -3565,6 +3565,7 @@ await writeFile(
             targetIds: [appPm.id],
             status: "sent",
             createdAt,
+            updatedAt: createdAt,
             deliveryKind: "pm_auto_route",
           },
           assistantMessages: [{
@@ -3578,6 +3579,7 @@ await writeFile(
             targetIds: [],
             status: "running",
             createdAt,
+            updatedAt: createdAt,
             startedAt: createdAt,
             runId: "room-run-optimistic-pm",
           }],
@@ -3597,6 +3599,7 @@ await writeFile(
         }), true);
         const optimisticPmMessage = harness.room.messages.find((message) => message.senderId === appPm.id);
         assert.equal(optimisticPmMessage?.status, "running", "an automatic PM route must render its running placeholder synchronously");
+        await waitForCondition(() => requestBodies.length === 1, "the generated Client must send the optimistic PM request");
         assert.deepEqual(requestBodies[0]?.targetIds, [], "the optimistic PM must not become an explicit server target");
         assert.deepEqual(
           requestBodies[0]?.assistantMessageIds,
@@ -3698,6 +3701,7 @@ await writeFile(
             targetIds: [authoritativePm.id],
             status: "sent",
             createdAt,
+            updatedAt: createdAt,
             deliveryKind: "pm_auto_route",
           },
           assistantMessages: [{
@@ -3711,6 +3715,7 @@ await writeFile(
             targetIds: [],
             status: "running",
             createdAt,
+            updatedAt: createdAt,
             startedAt: createdAt,
             runId: "room-run-authoritative-pm",
           }],
@@ -3768,6 +3773,7 @@ await writeFile(
             targetIds: [appPm.id],
             status: "sent",
             createdAt,
+            updatedAt: createdAt,
             deliveryKind: "pm_auto_route",
           },
           assistantMessages: [{
@@ -3781,6 +3787,7 @@ await writeFile(
             targetIds: [],
             status: "done",
             createdAt,
+            updatedAt: createdAt,
           }],
           currentEventSeq: 2,
         }), {
@@ -3845,6 +3852,7 @@ await writeFile(
           title: "Reply fallback",
           badge: "Local",
           memberIds: [],
+          adminMemberIds: [],
           messages: [],
           updatedAt: createdAt,
           unread: 0,
@@ -3860,6 +3868,7 @@ await writeFile(
           targetIds: [],
           status: "sent",
           createdAt,
+          updatedAt: createdAt,
         },
         assistantMessages: [],
         currentEventSeq: 1,

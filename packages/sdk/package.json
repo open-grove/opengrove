@@ -1,0 +1,36 @@
+{
+  "name": "@opengrove/sdk",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Generated JavaScript SDK for external OpenGrove Host API consumers.",
+  "license": "Apache-2.0",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./client": {
+      "types": "./dist/generated/client/index.d.ts",
+      "import": "./dist/generated/client/index.js"
+    },
+    "./types": {
+      "types": "./dist/generated/types.gen.d.ts",
+      "import": "./dist/generated/types.gen.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "build": "npm run clean && tsc6 -p tsconfig.json",
+    "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "@typescript/native": "npm:typescript@7.0.2",
+    "typescript": "npm:@typescript/typescript6@6.0.2"
+  }
+}

@@ -1,4 +1,5 @@
 import { bridgeHeaders, fetchJson, postJson } from "../../bridge";
+import { openGroveClient } from "../../opengrove-client";
 import {
   normalizeClientConnectorHelpText,
   normalizeClientConnectorMessageParts,
@@ -156,15 +157,7 @@ export type PostServerRoomMessageInput = {
 };
 
 export async function postServerRoomMessage(input: PostServerRoomMessageInput): Promise<PostRoomMessageResponse> {
-  const response = await postJson<unknown>(`/rooms/${encodeURIComponent(input.roomId)}/messages`, {
-    text: input.text,
-    targetIds: input.targetIds,
-    attachments: input.attachments,
-    selectedFile: input.selectedFile,
-    userMessageId: input.userMessageId,
-    assistantMessageIds: input.assistantMessageIds,
-    inReplyToMessageId: input.inReplyToMessageId,
-  });
+  const response = await openGroveClient.rooms.messages.create(input);
   return readPostRoomMessageResponse(response);
 }
 

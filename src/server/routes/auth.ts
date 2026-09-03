@@ -1,4 +1,10 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
+import type {
+  CreateAuthEmailCodeOperation,
+  CreateAuthSessionOperation,
+  DeleteAuthSessionOperation,
+  GetAuthSessionOperation,
+} from "#protocol";
 import { safeDiagnosticErrorCode } from "../../diagnostics/redaction.js";
 import { readAppEnv } from "../../identity.js";
 import { scheduleInstalledAppStoreUpdatesAfterAuth } from "../app-store-auto-updates.js";
@@ -42,6 +48,7 @@ import {
   wwProviderAccountMatches,
 } from "../ww-provider-local-state.js";
 import { provisionWwProviderAfterLogin } from "../ww-provider-provisioning.js";
+import type { HostOperationRouteContext } from "../router.js";
 
 type SendJson = (response: ServerResponse, status: number, data: unknown) => void;
 type ReadJsonBody = (request: IncomingMessage, maxBytes?: number) => Promise<unknown>;
@@ -62,18 +69,6 @@ export async function handleAuthRoute(options: {
   readJsonBody: ReadJsonBody;
 }): Promise<boolean> {
   const { request, response, url, security, state, traceId, sendJson, readJsonBody } = options;
-  if (request.method === "POST" && url.pathname === "/auth/email-codes") {
-    await handleSendEmailCode(request, response, security, state, traceId, sendJson, readJsonBody);
-    return true;
-  }
-  if (request.method === "POST" && url.pathname === "/auth/login") {
-    await handleLogin(request, response, security, state, traceId, sendJson, readJsonBody);
-    return true;
-  }
-  if (request.method === "GET" && url.pathname === "/auth/session") {
-    await handleSession(request, response, security, state, traceId, sendJson);
-    return true;
-  }
   if (request.method === "PATCH" && url.pathname === "/auth/profile") {
     await handleProfileUpdate(request, response, security, state, traceId, sendJson, readJsonBody);
     return true;
@@ -86,89 +81,44 @@ export async function handleAuthRoute(options: {
     await handleClientActivity(request, response, security, sendJson, readJsonBody);
     return true;
   }
-  if (request.method === "POST" && url.pathname === "/auth/logout") {
-    await handleLogout(request, response, security, state, traceId, sendJson);
-    return true;
-  }
   return false;
 }
 
-async function handleSendEmailCode(
-  request: IncomingMessage,
-  response: ServerResponse,
-  security: BridgeSecurity,
-  state: BridgeState,
-  traceId: string | undefined,
-  sendJson: SendJson,
-  readJsonBody: ReadJsonBody,
-): Promise<void> {
+export async function handleCreateAuthEmailCodeOperation(
+  context: HostOperationRouteContext<CreateAuthEmailCodeOperation>,
+): Promise<true> {
+  const { response, security, state, traceId, sendJson } = context;
   const services = wwServicesOrUnavailable(security, response, sendJson);
-  if (!services) return;
-  let body: Record<string, unknown>;
+  if (!services) return true;
   try {
-    body = record(await readJsonBody(request));
-  } catch (error) {
-    sendJson(response, error instanceof Error && error.message === "body_too_large" ? 413 : 400, {
-      error: "invalid_auth_request",
-    });
-    return;
-  }
-  const email = stringValue(body.email).trim();
-  if (!email) {
-    sendJson(response, 400, { error: "invalid_email" });
-    return;
-  }
-  try {
-    const result = await services.account.sendEmailCode(email);
+    const result = await services.account.sendEmailCode(context.input.body.email);
     sendJson(response, 200, { ok: true, ...result });
   } catch (error) {
     sendAuthError(response, sendJson, state, traceId, "send-code", error);
   }
+  return true;
 }
 
-async function handleLogin(
-  request: IncomingMessage,
-  response: ServerResponse,
-  security: BridgeSecurity,
-  state: BridgeState,
-  traceId: string | undefined,
-  sendJson: SendJson,
-  readJsonBody: ReadJsonBody,
-): Promise<void> {
+export async function handleCreateAuthSessionOperation(
+  context: HostOperationRouteContext<CreateAuthSessionOperation>,
+): Promise<true> {
+  const { request, response, security, state, traceId, sendJson } = context;
   const services = wwServicesOrUnavailable(security, response, sendJson);
-  if (!services) return;
-  let body: Record<string, unknown>;
-  try {
-    body = record(await readJsonBody(request));
-  } catch (error) {
-    sendJson(response, error instanceof Error && error.message === "body_too_large" ? 413 : 400, {
-      error: "invalid_auth_request",
-    });
-    return;
-  }
-  const email = stringValue(body.email).trim();
-  const code = stringValue(body.code).trim();
-  if (!email) {
-    sendJson(response, 400, { error: "invalid_email" });
-    return;
-  }
-  if (!/^\d{6}$/.test(code)) {
-    sendJson(response, 400, { error: "verification_code_invalid" });
-    return;
-  }
+  if (!services) return true;
+  const body = context.input.body;
   try {
     const wwBaseUrl = security.wwBaseUrl;
     if (!wwBaseUrl) {
       sendJson(response, 503, { error: "auth_not_configured" });
-      return;
+      return true;
     }
     const tokens = await services.account.login({
-      email,
-      code,
-      deviceName: stringValue(body.deviceName),
-      platform: stringValue(body.platform),
-      inviteCode: stringValue(body.inviteCode),
-      countryCode: stringValue(body.countryCode),
+      email: body.email,
+      code: body.code,
+      deviceName: body.deviceName,
+      platform: body.platform,
+      inviteCode: body.inviteCode,
+      countryCode: body.countryCode,
     });
     const user = await services.profile.readCurrentUser(tokens.accessToken);
     initializeHostLanguageFromLogin(state, body, traceId);
@@ -223,6 +173,7 @@ async function handleLogin(
   } catch (error) {
     sendAuthError(response, sendJson, state, traceId, "login", error);
   }
+  return true;
 }
 
 function initializeHostLanguageFromLogin(
@@ -302,6 +253,14 @@ function requestSystemLanguage(request: IncomingMessage): HostSystemLanguage | u
     if (language) return language;
   }
   return undefined;
+}
+
+export async function handleGetAuthSessionOperation(
+  context: HostOperationRouteContext<GetAuthSessionOperation>,
+): Promise<true> {
+  const { request, response, security, state, traceId, sendJson } = context;
+  await handleSession(request, response, security, state, traceId, sendJson);
+  return true;
 }
 
 async function handleSession(
@@ -561,6 +520,14 @@ function jpegDimensions(bytes: Buffer): { width: number; height: number } | unde
 
 function isJpegStartOfFrame(marker: number): boolean {
   return marker >= 0xc0 && marker <= 0xcf && ![0xc4, 0xc8, 0xcc].includes(marker);
+}
+
+export async function handleDeleteAuthSessionOperation(
+  context: HostOperationRouteContext<DeleteAuthSessionOperation>,
+): Promise<true> {
+  const { request, response, security, state, traceId, sendJson } = context;
+  await handleLogout(request, response, security, state, traceId, sendJson);
+  return true;
 }
 
 async function handleLogout(

@@ -13,7 +13,7 @@ import {
 import { basename, dirname, join, relative, resolve, sep } from "node:path";
 import { normalizeLegacyAppProgramActivationRecoveryRecord } from "./app-program-activation-recovery.compat.js";
 import { isAppStoreAppDirectoryName } from "./app-store-app-id.js";
-import { writePrivateFileAtomically } from "./private-file.js";
+import { writePrivateFileAtomically } from "../storage/private-file.js";
 
 const ACTIVATION_RECOVERY_SCHEMA_VERSION = 2;
 const ACTIVATION_RECOVERY_FILE = ".opengrove-activation-recovery.json";
