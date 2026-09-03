@@ -22,22 +22,65 @@ const release = {
   employees: [],
   checks: [],
 };
-const progress = {
-  localAppId: "release-fixture-app",
-  appId: "release-fixture-app",
-  packageKey: "opengrove.release-fixture-app",
-  version: "1.2.3",
-  title: "Release Fixture App",
-  visibility: "restricted",
-  phase: "remote_pending",
-  remoteIntentId: "release-1",
-  remoteStatus: "building",
-  allowedActions: [],
-  applyToCurrentApp: false,
-  state: "publishing",
-  retryable: true,
-  updatedAt: "2026-09-03T00:00:00.000Z",
-};
+
+type FixtureProgress = Record<string, unknown> & { state: string; remoteStatus?: string; phase: string };
+
+function progressFor(appId: string, overrides: Partial<FixtureProgress> = {}): FixtureProgress {
+  return {
+    localAppId: appId,
+    appId,
+    packageKey: `opengrove.${appId}`,
+    version: "1.2.3",
+    title: "Release Fixture App",
+    visibility: "restricted",
+    phase: "remote_pending",
+    remoteIntentId: `${appId}-release-1`,
+    remoteStatus: "building",
+    allowedActions: [],
+    applyToCurrentApp: true,
+    state: "publishing",
+    retryable: true,
+    updatedAt: "2026-09-03T00:00:00.000Z",
+    ...overrides,
+  };
+}
+
+/**
+ * Each fixture App replays a different Release Control story so the CLI wait
+ * loop can be exercised deterministically:
+ * - release-fixture-app: building → artifact_accepted → (reconcile) → published
+ * - blocked-app: the trusted build failed and Release Control waits for a human
+ * - stuck-app: artifact_accepted never leaves that state even after reconcile
+ * - slow-app: keeps building forever
+ */
+const statusPolls = new Map<string, number>();
+function currentProgress(appId: string, action: "publish" | "status" | "reconcile"): FixtureProgress {
+  if (appId === "blocked-app") {
+    return progressFor(appId, {
+      phase: "remote_blocked",
+      remoteStatus: "trusted_build_failed",
+      state: "blocked",
+      retryable: false,
+      allowedActions: ["retry_build", "abandon"],
+      buildFailure: { stage: "trusted_build", code: "npm_build_failed", retryable: true, workflowRunId: "run-1" },
+    });
+  }
+  if (appId === "stuck-app") {
+    return progressFor(appId, { remoteStatus: "artifact_accepted" });
+  }
+  if (appId === "slow-app") {
+    return progressFor(appId);
+  }
+  if (action === "reconcile") {
+    return progressFor(appId, { phase: "local_finalized", remoteStatus: "published", state: "published" });
+  }
+  if (action === "status") {
+    const polls = (statusPolls.get(appId) ?? 0) + 1;
+    statusPolls.set(appId, polls);
+    return progressFor(appId, polls >= 2 ? { remoteStatus: "artifact_accepted" } : {});
+  }
+  return progressFor(appId);
+}
 
 const bridge = createServer((request, response) => {
   const url = new URL(request.url ?? "/", "http://127.0.0.1");
@@ -47,16 +90,32 @@ const bridge = createServer((request, response) => {
   }
   void readJsonBody(request).then((body) => {
     requests.push({ method: request.method ?? "GET", path: url.pathname, ...(body === undefined ? {} : { body }) });
+    const appId = decodeURIComponent(url.pathname.split("/")[3] ?? "");
     if (request.method === "GET" && url.pathname.endsWith("/publish/prepare")) {
       sendJson(response, 200, { ok: true, release });
       return;
     }
-    if (request.method === "GET" && (url.pathname.endsWith("/publish") || url.pathname.endsWith("/publish/status"))) {
-      sendJson(response, 200, { ok: true, progress });
+    if (request.method === "GET" && url.pathname.endsWith("/publish")) {
+      sendJson(response, 200, { ok: true, progress: currentProgress(appId, "publish") });
+      return;
+    }
+    if (request.method === "GET" && url.pathname.endsWith("/publish/status")) {
+      sendJson(response, 200, { ok: true, progress: currentProgress(appId, "status") });
+      return;
+    }
+    if (request.method === "POST" && url.pathname.endsWith("/publish/reconcile")) {
+      sendJson(response, 200, { ok: true, progress: currentProgress(appId, "reconcile") });
+      return;
+    }
+    if (request.method === "POST" && url.pathname.endsWith("/publish")) {
+      sendJson(response, 202, { ok: true, progress: currentProgress(appId, "publish") });
       return;
     }
     if (request.method === "POST" && url.pathname.includes("/publish")) {
-      sendJson(response, url.pathname.endsWith("/keep-local") ? 200 : 202, { ok: true, progress });
+      sendJson(response, url.pathname.endsWith("/keep-local") ? 200 : 202, {
+        ok: true,
+        progress: currentProgress(appId, "publish"),
+      });
       return;
     }
     sendJson(response, 404, { ok: false, error: "not_found" });
@@ -68,46 +127,100 @@ try {
   await once(bridge, "listening");
   const origin = `http://127.0.0.1:${(bridge.address() as AddressInfo).port}`;
   const common = ["--base-url", `${origin}/api`, "--token", "fixture-token"];
-
-  const prepared = await runCli(["app", "release", "prepare", "--app-id", "release-fixture-app", ...common]);
-  assert.equal(prepared.code, 0, prepared.stderr);
-  assert.equal(field(prepared.stdoutJson, "operation"), "app.release.prepare");
-  assert.equal(field(prepared.stdoutJson, "data", "release", "version"), "1.2.3");
-
-  const command = [
+  const publishCommand = (appId: string) => [
     "app",
     "release",
     "publish",
     "--app-id",
-    "release-fixture-app",
+    appId,
     "--version",
     "1.2.3",
     "--release-notes",
     "First release",
     "--visibility",
     "restricted",
+    "--poll-interval",
+    "0",
     ...common,
   ];
+
+  const prepared = await runCli(["app", "release", "prepare", "--app-id", "release-fixture-app", ...common]);
+  assert.equal(prepared.code, 0, prepared.stderr);
+  assert.equal(field(prepared.stdoutJson, "operation"), "app.release.prepare");
+  assert.equal(field(prepared.stdoutJson, "data", "release", "version"), "1.2.3");
+
+  // --- Dry run, confirmation gate, and the applyToCurrentApp default.
+  const command = publishCommand("release-fixture-app");
   const beforeDryRun = requests.length;
   const dryRun = await runCli([...command, "--dry-run"]);
   assert.equal(dryRun.code, 0, dryRun.stderr);
   assert.equal(requests.length, beforeDryRun, "dry-run must not send a release request");
-  assert.equal(field(dryRun.stdoutJson, "request", "body", "applyToCurrentApp"), false);
+  assert.equal(field(dryRun.stdoutJson, "request", "body", "applyToCurrentApp"), true);
+
+  const keepLocalDryRun = await runCli([...command, "--no-apply-to-current-app", "--dry-run"]);
+  assert.equal(keepLocalDryRun.code, 0, keepLocalDryRun.stderr);
+  assert.equal(field(keepLocalDryRun.stdoutJson, "request", "body", "applyToCurrentApp"), false);
 
   const unconfirmed = await runCli(command);
   assert.equal(unconfirmed.code, 10);
   assert.equal(field(unconfirmed.stderrJson, "error", "subtype"), "confirmation_required");
+  assert.equal(requests.length, beforeDryRun, "confirmation gate must not send a release request");
 
+  // --- Default: publish drives the release to a terminal state like the UI does.
+  const publishedFrom = requests.length;
   const published = await runCli([...command, "--yes"]);
   assert.equal(published.code, 0, published.stderr);
   assert.equal(field(published.stdoutJson, "operation"), "app.release.publish");
-  const publishRequest = requests.find((request) => request.method === "POST" && request.path.endsWith("/publish"));
-  assert.deepEqual(publishRequest?.body, {
+  assert.equal(field(published.stdoutJson, "data", "progress", "state"), "published");
+  assert.equal(field(published.stdoutJson, "wait", "reconciles"), 1);
+  const publishRequests = requests.slice(publishedFrom);
+  assert.deepEqual(
+    publishRequests.map((request) => `${request.method} ${request.path.split("/").slice(4).join("/")}`),
+    ["POST publish", "GET publish/status", "GET publish/status", "POST publish/reconcile"],
+  );
+  assert.deepEqual(publishRequests[0]?.body, {
     version: "1.2.3",
     releaseNotes: "First release",
     visibility: "restricted",
-    applyToCurrentApp: false,
+    applyToCurrentApp: true,
   });
+  assert.deepEqual(publishRequests.at(-1)?.body, { retryFailedBuild: false });
+
+  // --- --no-wait returns the first snapshot and sends nothing else.
+  const noWaitFrom = requests.length;
+  const noWait = await runCli([...command, "--yes", "--no-wait"]);
+  assert.equal(noWait.code, 0, noWait.stderr);
+  assert.equal(field(noWait.stdoutJson, "data", "progress", "remoteStatus"), "building");
+  assert.equal(field(noWait.stdoutJson, "wait"), undefined);
+  assert.equal(requests.length - noWaitFrom, 1);
+
+  // --- A blocked release exits non-zero with the progress an agent needs to act.
+  const blocked = await runCli([...publishCommand("blocked-app"), "--yes"]);
+  assert.equal(blocked.code, 1);
+  assert.equal(field(blocked.stderrJson, "error", "subtype"), "app_release_blocked");
+  assert.equal(field(blocked.stderrJson, "progress", "buildFailure", "code"), "npm_build_failed");
+  assert.deepEqual(field(blocked.stderrJson, "progress", "allowedActions"), ["retry_build", "abandon"]);
+
+  // --- Automatic recovery has the same budget as the UI (two tries at artifact_accepted).
+  const stuckFrom = requests.length;
+  const stuck = await runCli([...publishCommand("stuck-app"), "--yes"]);
+  assert.equal(stuck.code, 1);
+  assert.equal(field(stuck.stderrJson, "error", "subtype"), "app_release_recovery_exhausted");
+  assert.equal(
+    requests.slice(stuckFrom).filter((request) => request.path.endsWith("/publish/reconcile")).length,
+    2,
+  );
+
+  // --- A never-finishing remote build times out with guidance instead of hanging.
+  const slow = await runCli([...publishCommand("slow-app"), "--yes", "--wait-timeout", "0"]);
+  assert.equal(slow.code, 1);
+  assert.equal(field(slow.stderrJson, "error", "subtype"), "app_release_wait_timeout");
+  assert.equal(field(slow.stderrJson, "progress", "remoteStatus"), "building");
+
+  const help = await runCli(["app", "release", "publish", "--help"]);
+  assert.equal(help.code, 0);
+  assert.match(help.stdout, /--no-wait/u);
+  assert.match(help.stdout, /--apply-to-current-app/u);
 
   for (const [method, flags, needsYes] of [
     ["status", [], false],
@@ -166,7 +279,9 @@ function sendJson(response: ServerResponse, status: number, data: unknown): void
 }
 
 function parseJson(value: string): Record<string, unknown> {
-  return value.trim() ? (JSON.parse(value) as Record<string, unknown>) : {};
+  const text = value.trim();
+  if (!text.startsWith("{")) return {};
+  return JSON.parse(text) as Record<string, unknown>;
 }
 
 function field(value: unknown, ...path: string[]): unknown {

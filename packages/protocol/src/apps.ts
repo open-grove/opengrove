@@ -221,8 +221,10 @@ export const publishAppReleaseOperation = defineHostOperation({
       .describe("Complete Employee defaults override; defaults to the mounted App Employees."),
     applyToCurrentApp: z
       .boolean()
-      .default(false)
-      .describe("Activate the exact published artifact locally after publishing."),
+      .default(true)
+      .describe(
+        "Activate the exact published artifact locally after publishing. Defaults to true; pass false to keep the current local App untouched.",
+      ),
   }),
   success: progressSuccess(),
   additionalSuccesses: [progressSuccess(202)],

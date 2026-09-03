@@ -828,7 +828,7 @@ export type AppReleasePublishData = {
       outputSpec?: string;
     }>;
     /**
-     * Activate the exact published artifact locally after publishing.
+     * Activate the exact published artifact locally after publishing. Defaults to true; pass false to keep the current local App untouched.
      */
     applyToCurrentApp?: boolean;
   };

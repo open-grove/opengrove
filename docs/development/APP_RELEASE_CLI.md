@@ -33,8 +33,40 @@ opengrove app release keep-local --app-id sample-app --yes
 
 `publish` accepts optional `--release-notes`, `--visibility`, `--app` (JSON),
 and `--employees` (JSON array). Omitted App metadata, visibility, and Employees
-come from the mounted App baseline. Publishing does not activate the released
-artifact locally unless `--apply-to-current-app` is supplied.
+come from the mounted App baseline. Publishing activates the exact released
+artifact as the current local App by default; pass
+`--no-apply-to-current-app` to keep the local App untouched (the release still
+appears in the Store for other installs).
+
+## How `publish` reaches a terminal state
+
+A release is not finished when the `publish` request returns. Release Control
+performs the trusted build remotely and the intent moves through
+`awaiting_candidate → building → artifact_accepted → finalizing → published`.
+The `status` command only refreshes the remote state; the transitions that
+need the local side to act (`awaiting_candidate`, `artifact_accepted`,
+`finalizing`, and the local `registry-ready` state) are only driven by
+`reconcile`. The Web publish page runs that recovery automatically, and so
+does the CLI:
+
+- By default `publish` keeps calling `status` every 2 seconds and calls
+  `reconcile` whenever the progress needs it, with the same recovery budget as
+  the UI (two attempts at `artifact_accepted`, one per other transition). It
+  exits `0` once `progress.state` is `published` or `closed`, and prints the
+  final progress plus a `wait` summary (`polls`, `reconciles`, `elapsedMs`).
+- It exits `1` with the last progress on stderr when the release is `blocked`
+  or `needs-retry` (`error.subtype: app_release_blocked`; read
+  `progress.buildFailure` and `progress.allowedActions`, then run
+  `reconcile --retry-failed-build` or `abandon --yes`), when the automatic
+  budget is exhausted (`app_release_recovery_exhausted`), or when
+  `--wait-timeout` (default 900 seconds) elapses (`app_release_wait_timeout`).
+- `--no-wait` returns the first progress snapshot immediately. Callers that use
+  it must poll `status` themselves and call `reconcile` when `remoteStatus` is
+  `awaiting_candidate`, `artifact_accepted`, or `finalizing`.
+- `--poll-interval <seconds>` changes the refresh cadence while waiting.
+
+`reconcile` is always safe to run by hand: it resumes the current intent from
+whatever state the Bridge journal recorded.
 
 Use `--dry-run` to validate and inspect any request without sending it. Formal
 publish, abandon, and keep-local are high-risk writes and require `--yes`.
@@ -56,5 +88,7 @@ from OpenAPI, the server registry, the generated Client, or CLI help. The Web
 publish page uses the generated Client through its existing UI error adapter.
 
 `src/tests/release-cli-harness.ts` exercises all seven commands against a real
-HTTP socket, including dry-run, `--yes`, the default non-activation policy, and
+HTTP socket, including dry-run, `--yes`, the default activation policy and
+`--no-apply-to-current-app`, the `publish` wait loop (automatic `reconcile`,
+`--no-wait`, blocked releases, exhausted recovery budget, and timeout), and
 both `200` and `202` success responses.

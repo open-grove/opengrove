@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { packageRoot } from "./package-root.js";
 import { runAppBuilderCli } from "./app-builder/cli.js";
 import { runEmployeeCli } from "./app-builder/employee-cli.js";
+import { isAppReleasePublishCommand, runAppReleasePublishCommand } from "./cli/app-release-command.js";
 import { isAuthWorkflowCommand, runAuthCommand } from "./cli/auth-command.js";
 import { createCliOpenGroveClient } from "./cli/client.js";
 import {
@@ -50,6 +51,14 @@ async function main(): Promise<void> {
 
   if (isAuthWorkflowCommand(args)) {
     const result = await runAuthCommand(args.slice(1));
+    if (result.stdout) process.stdout.write(`${result.stdout}\n`);
+    if (result.stderr) process.stderr.write(`${result.stderr}\n`);
+    process.exitCode = result.exitCode;
+    return;
+  }
+
+  if (isAppReleasePublishCommand(args)) {
+    const result = await runAppReleasePublishCommand(args, { createClient: createCliOpenGroveClient });
     if (result.stdout) process.stdout.write(`${result.stdout}\n`);
     if (result.stderr) process.stderr.write(`${result.stderr}\n`);
     process.exitCode = result.exitCode;

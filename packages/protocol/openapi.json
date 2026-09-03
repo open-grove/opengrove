@@ -1226,8 +1226,8 @@
                     }
                   },
                   "applyToCurrentApp": {
-                    "default": false,
-                    "description": "Activate the exact published artifact locally after publishing.",
+                    "default": true,
+                    "description": "Activate the exact published artifact locally after publishing. Defaults to true; pass false to keep the current local App untouched.",
                     "type": "boolean"
                   }
                 },

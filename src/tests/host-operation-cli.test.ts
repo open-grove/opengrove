@@ -305,7 +305,7 @@ test("Host CLI requires --yes for high-risk writes after allowing dry-run", asyn
   assert.equal(requestCount, 1);
 });
 
-test("App release publish CLI is generated from Protocol with safe defaults", async () => {
+test("App release publish CLI is generated from Protocol and activates the published artifact by default", async () => {
   const result = await runHostOperationCommand([
     "app",
     "release",
@@ -330,9 +330,23 @@ test("App release publish CLI is generated from Protocol with safe defaults", as
       version: "1.2.3",
       releaseNotes: "First release",
       visibility: "public",
-      applyToCurrentApp: false,
+      applyToCurrentApp: true,
     },
   });
+
+  const keepLocal = await runHostOperationCommand([
+    "app",
+    "release",
+    "publish",
+    "--app-id",
+    "sample-app",
+    "--version",
+    "1.2.3",
+    "--no-apply-to-current-app",
+    "--dry-run",
+  ]);
+  assert.equal(keepLocal.exitCode, HOST_OPERATION_CLI_EXIT.success, keepLocal.stderr);
+  assert.deepEqual(readRecord(readOutput(keepLocal).request).body, { version: "1.2.3", applyToCurrentApp: false });
 });
 
 function readOutput(result: HostOperationCliResult): Record<string, unknown> {

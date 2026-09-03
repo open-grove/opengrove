@@ -143,8 +143,9 @@ test("App release operations own the complete release control contract", () => {
     version: "1.2.3",
     releaseNotes: "First release",
     visibility: "public",
-    applyToCurrentApp: false,
+    applyToCurrentApp: true,
   });
+  assert.equal(publish.body.parse({ version: "1.2.3", applyToCurrentApp: false }).applyToCurrentApp, false);
   assert.equal(publish.body.safeParse({ version: "not-semver" }).success, false);
 });
 

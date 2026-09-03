@@ -75,24 +75,59 @@ export function renderHostOperationOverview(catalog: HostOperationCliCatalog = h
     .join("\n\n");
 }
 
-export async function runHostOperationCommand(
+/**
+ * A Host operation command that has been resolved, validated, and is ready to
+ * send. Ergonomic wrappers (for example `app release publish`) reuse this so
+ * they share flag parsing, `--dry-run`, and the `--yes` gate with the generic
+ * command path instead of re-implementing them.
+ */
+export type HostOperationPreparedCommand =
+  | Readonly<{ kind: "result"; result: HostOperationCliResult }>
+  | Readonly<{
+      kind: "request";
+      operation: CompiledHostOperation;
+      call: HostOperationDecodedCall;
+      client: OpenGroveClient;
+    }>;
+
+export function findHostOperationCommand(
+  args: readonly string[],
+  catalog: HostOperationCliCatalog = hostProtocol,
+): CompiledHostOperation | undefined {
+  return findOperation(args, catalog.operations);
+}
+
+export function compiledHostOperation(id: string, catalog: HostOperationCliCatalog = hostProtocol): CompiledHostOperation {
+  const operation = catalog.operations.find((candidate) => candidate.id === id);
+  if (!operation) throw new Error(`Host operation ${id} is not part of the compiled Host Protocol.`);
+  return operation;
+}
+
+export function renderHostOperationCommandHelp(operation: CompiledHostOperation): string {
+  return renderOperationHelp(operation);
+}
+
+export async function prepareHostOperationCommand(
   args: readonly string[],
   options: HostOperationCliOptions = {},
-): Promise<HostOperationCliResult> {
+): Promise<HostOperationPreparedCommand> {
   const catalog = options.catalog ?? hostProtocol;
   assertHostOperationCliCatalog(catalog);
   if (!isHostOperationCommand(args, catalog)) {
-    return { handled: false, exitCode: HOST_OPERATION_CLI_EXIT.success };
+    return { kind: "result", result: { handled: false, exitCode: HOST_OPERATION_CLI_EXIT.success } };
   }
 
   const operation = findOperation(args, catalog.operations);
-  if (!operation) return renderUnresolvedCommand(args, catalog);
+  if (!operation) return { kind: "result", result: renderUnresolvedCommand(args, catalog) };
   const operationArgs = args.slice(operationCommandPath(operation).length);
   if (operationArgs.includes("--help") || operationArgs.includes("-h")) {
     return {
-      handled: true,
-      exitCode: HOST_OPERATION_CLI_EXIT.success,
-      stdout: renderOperationHelp(operation),
+      kind: "result",
+      result: {
+        handled: true,
+        exitCode: HOST_OPERATION_CLI_EXIT.success,
+        stdout: renderOperationHelp(operation),
+      },
     };
   }
 
@@ -100,26 +135,32 @@ export async function runHostOperationCommand(
     const parsed = parseHostOperationOptions(operation, operationArgs, options.env ?? process.env);
     const call = decodeHostOperationCall(operation.operation, operation, parsed.flatInput);
     if (parsed.dryRun) {
-      return hostOperationCliSuccess({
-        ok: true,
-        dryRun: true,
-        operation: operation.id,
-        risk: operation.risk,
-        request: {
-          method: operation.method,
-          path: operation.path.template,
-          ...call,
-        },
-      });
+      return {
+        kind: "result",
+        result: hostOperationCliSuccess({
+          ok: true,
+          dryRun: true,
+          operation: operation.id,
+          risk: operation.risk,
+          request: {
+            method: operation.method,
+            path: operation.path.template,
+            ...call,
+          },
+        }),
+      };
     }
     if (operation.risk === "high-risk-write" && !parsed.yes) {
-      return hostOperationCliError(
-        HOST_OPERATION_CLI_EXIT.confirmationRequired,
-        "confirmation",
-        "confirmation_required",
-        `Operation ${operation.id} is high-risk. Re-run with --yes after reviewing --dry-run.`,
-        { operation: operation.id, risk: operation.risk },
-      );
+      return {
+        kind: "result",
+        result: hostOperationCliError(
+          HOST_OPERATION_CLI_EXIT.confirmationRequired,
+          "confirmation",
+          "confirmation_required",
+          `Operation ${operation.id} is high-risk. Re-run with --yes after reviewing --dry-run.`,
+          { operation: operation.id, risk: operation.risk },
+        ),
+      };
     }
 
     const clientConfig = {
@@ -132,7 +173,21 @@ export async function runHostOperationCommand(
     const client = options.createClient
       ? await options.createClient(clientConfig)
       : createOpenGroveClient(clientConfig);
-    const data = await requestOperation(client, operation.operation, call);
+    return { kind: "request", operation, call, client };
+  } catch (error) {
+    return { kind: "result", result: hostOperationCliFailure(operation.id, error) };
+  }
+}
+
+export async function runHostOperationCommand(
+  args: readonly string[],
+  options: HostOperationCliOptions = {},
+): Promise<HostOperationCliResult> {
+  const prepared = await prepareHostOperationCommand(args, options);
+  if (prepared.kind === "result") return prepared.result;
+  const { operation, call, client } = prepared;
+  try {
+    const data = await requestHostOperation(client, operation.operation, call);
     return hostOperationCliSuccess({ ok: true, operation: operation.id, data });
   } catch (error) {
     return hostOperationCliFailure(operation.id, error);
@@ -236,7 +291,7 @@ function renderOperationHelp(operation: CompiledHostOperation): string {
   ].join("\n");
 }
 
-async function requestOperation<TOperation extends HostOperation>(
+export async function requestHostOperation<TOperation extends HostOperation>(
   client: OpenGroveClient,
   operation: TOperation,
   call: HostOperationDecodedCall,
