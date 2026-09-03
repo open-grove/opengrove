@@ -299,7 +299,8 @@
   },
   "overrides": {
     "@anthropic-ai/sdk": "^0.95.2",
-    "fast-uri": "^3.1.7"
+    "fast-uri": "^3.1.7",
+    "js-yaml": "$js-yaml"
   },
   "devDependencies": {
     "@aws-sdk/client-s3": "3.1113.0",
