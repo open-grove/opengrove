@@ -10,6 +10,7 @@ import { resolveBridgeAuthPolicy } from "./app-auth-policy";
 import type { LanguagePreference } from "./i18n-types";
 
 type LoginFormPayload = Omit<Parameters<typeof loginBridgeAuth>[0], "languagePreference" | "systemLanguage">;
+type FixtureAccountSwitchPayload = { email: string; countryCode: string };
 
 export function useBridgeAuthGate(input: {
   queryClient: QueryClient;
@@ -67,6 +68,17 @@ export function useBridgeAuthGate(input: {
       setSendCodeSuccessCount((count) => count + 1);
     },
   });
+  const applyAuthenticatedSession = (result: Awaited<ReturnType<typeof loginBridgeAuth>>) => {
+    onAuthSessionChanged?.();
+    if (result.isNewUser) {
+      onNewUserRegistered?.();
+    }
+    if (result.providerProvisioning?.status === "failed") {
+      onProviderProvisioningFailed?.(formatProviderProvisioningFailure(result.providerProvisioning));
+    }
+    markAuthSessionAuthenticated(queryClient, result.user);
+    void queryClient.invalidateQueries();
+  };
   const authLoginMutation = useMutation({
     mutationFn: (payload: LoginFormPayload) =>
       loginBridgeAuth({
@@ -74,15 +86,24 @@ export function useBridgeAuthGate(input: {
         languagePreference,
         systemLanguage: detectSystemLanguage(),
       }),
-    onSuccess(result) {
+    onSuccess: applyAuthenticatedSession,
+  });
+  const authFixtureSwitchMutation = useMutation({
+    async mutationFn(payload: FixtureAccountSwitchPayload) {
+      if (!__OPENGROVE_DEV_FIXTURE_ACCOUNTS__) {
+        throw new Error("fixture_account_switcher_not_built");
+      }
+      const { switchDevFixtureAccount } = await import("./dev-fixture-accounts");
+      return switchDevFixtureAccount(
+        { id: "", roles: [], enabled: true, ...payload },
+        { languagePreference, systemLanguage: detectSystemLanguage() },
+        { logout: logoutBridgeAuth, sendEmailCode: sendBridgeEmailCode, login: loginBridgeAuth },
+      );
+    },
+    onSuccess: applyAuthenticatedSession,
+    onError() {
       onAuthSessionChanged?.();
-      if (result.isNewUser) {
-        onNewUserRegistered?.();
-      }
-      if (result.providerProvisioning?.status === "failed") {
-        onProviderProvisioningFailed?.(formatProviderProvisioningFailure(result.providerProvisioning));
-      }
-      markAuthSessionAuthenticated(queryClient, result.user);
+      markAuthSessionLoggedOut(queryClient);
       void queryClient.invalidateQueries();
     },
   });
@@ -107,6 +128,7 @@ export function useBridgeAuthGate(input: {
     authLoginMutation,
     authLogoutMutation,
     authSendCodeMutation,
+    authFixtureSwitchMutation,
     bridgeProtectedQueriesEnabled: authPolicy.bridgeProtectedQueriesEnabled,
     sendCodeRequiresInvite,
     sendCodeRequiresCountry,

@@ -637,6 +637,133 @@
   justify-self: end;
 }
 
+.fixtureAccountDialog {
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  width: min(760px, calc(100vw - 32px));
+  max-width: 760px;
+  max-height: min(760px, calc(100vh - 48px));
+  overflow: hidden;
+}
+
+.fixtureAccountHint,
+.fixtureAccountError {
+  margin: 0;
+  font-size: var(--fs-sm);
+  line-height: var(--lh-normal);
+}
+
+.fixtureAccountHint {
+  color: var(--og-text-muted);
+}
+
+.fixtureAccountError {
+  color: var(--c-error);
+}
+
+.fixtureAccountList {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sp-2);
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--sp-0-5);
+}
+
+.fixtureAccountButton {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--sp-2) var(--sp-3);
+  align-items: center;
+  min-width: 0;
+  min-height: 76px;
+  border: 1px solid var(--og-border);
+  border-radius: var(--r-md);
+  background: var(--og-surface);
+  color: var(--og-text-strong);
+  cursor: pointer;
+  padding: var(--sp-2-5) var(--sp-3);
+  text-align: left;
+}
+
+.fixtureAccountButton:hover:not(:disabled),
+.fixtureAccountButton:focus-visible {
+  border-color: var(--og-border-strong);
+  background: color-mix(in srgb, var(--og-text) 4.5%, var(--og-surface));
+  outline: 0;
+}
+
+.fixtureAccountButton[data-current="true"] {
+  border-color: color-mix(in srgb, var(--og-brand) 50%, var(--og-border));
+  background: color-mix(in srgb, var(--og-brand) 7%, var(--og-surface));
+}
+
+.fixtureAccountButton:disabled:not([data-current="true"]) {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+
+.fixtureAccountIdentity {
+  display: grid;
+  gap: var(--sp-0-5);
+  min-width: 0;
+}
+
+.fixtureAccountIdentity strong,
+.fixtureAccountIdentity small {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fixtureAccountIdentity strong {
+  font-size: var(--fs-base);
+  font-weight: var(--fw-semibold);
+}
+
+.fixtureAccountIdentity small {
+  color: var(--og-text-muted);
+  font-size: var(--fs-xs);
+}
+
+.fixtureAccountMetadata {
+  display: flex;
+  grid-column: 1;
+  gap: var(--sp-1);
+  min-width: 0;
+  overflow: hidden;
+}
+
+.fixtureAccountMetadata > span {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  border-radius: var(--r-pill);
+  background: var(--og-surface-muted);
+  color: var(--og-text-muted);
+  font-size: var(--fs-xs);
+  line-height: 20px;
+  padding: 0 var(--sp-2);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fixtureAccountState {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  color: var(--og-brand);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  white-space: nowrap;
+}
+
+@media (max-width: 720px) {
+  .fixtureAccountList {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 .userAppMenuDivider {
   margin: 2px 4px;
 }

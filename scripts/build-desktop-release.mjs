@@ -17,7 +17,9 @@ const packageJson = JSON.parse(readFileSync(join(projectRoot, "package.json"), "
 const releaseSource = readDesktopReleaseCandidateSource(projectRoot, packageJson.version);
 runNodePackageManager("npm", ["run", "build"], {
   OPENGROVE_WEB_BUILD_ID: desktopReleaseWebBuildId(packageJson.version, releaseSource.gitCommit),
+  OPENGROVE_WEB_DEV_FIXTURE_ACCOUNTS: "0",
 });
+run("node", ["scripts/check-web-fixture-account-boundary.mjs"]);
 runNodePackageManager("npm", ["run", "minify:dist"]);
 runNodePackageManager("npm", ["run", "check:desktop-package"]);
 

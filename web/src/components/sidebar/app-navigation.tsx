@@ -59,6 +59,8 @@ import {
 } from "../../runtime/account-profile-store";
 import { getClientBootstrap } from "../../runtime/client-bootstrap";
 import { readDesktopApi } from "../../desktop-api";
+import { DEV_FIXTURE_ACCOUNTS, type DevFixtureAccount } from "../../dev-fixture-accounts";
+import { devFixtureAccountCopy } from "../../locales/dev-fixture-account-copy";
 import {
   createH5SignApplication,
   createPayoutOrder,
@@ -478,9 +480,12 @@ export function AppRail(props: {
   developerMode?: boolean;
   directKernelChatEnabled?: boolean;
   authUser?: BridgeAuthUser;
+  fixtureAccountSwitchError?: string;
+  fixtureAccountSwitchingEmail?: string;
   onAuthExpired?(): void;
   onLogin?(): void;
   onLogout?(): void;
+  onSwitchFixtureAccount?(account: DevFixtureAccount): void;
   onOpenSection(section: RailSectionId): void;
   onOpenSettings(): void;
   onCreateApp(): void;
@@ -494,10 +499,13 @@ export function AppRail(props: {
   mountedAppBadges?: Partial<Record<string, RailSectionBadge>>;
 }) {
   const { language, t } = useI18n();
+  const fixtureAccountCopy = __OPENGROVE_DEV_FIXTURE_ACCOUNTS__ ? devFixtureAccountCopy(language) : undefined;
   const { preference: iconStyle } = useIconStylePreference();
   const accountMenuRef = useRef<HTMLDivElement | null>(null);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const [accountDialogOpen, setAccountDialogOpen] = useState(false);
+  const [fixtureAccountDialogOpen, setFixtureAccountDialogOpen] = useState(false);
+  const [requestedFixtureEmail, setRequestedFixtureEmail] = useState("");
   const [withdrawalDialogOpen, setWithdrawalDialogOpen] = useState(false);
   const [withdrawalStep, setWithdrawalStep] = useState<WithdrawalStep>("overview");
   const [withdrawalRuntime, setWithdrawalRuntime] = useState<WithdrawalRuntimeState>(EMPTY_WITHDRAWAL_RUNTIME);
@@ -605,6 +613,14 @@ export function AppRail(props: {
     setProfileUsername(username);
     setProfileAvatarSource(avatarSource);
   }, [accountDialogOpen, avatarSource, username]);
+
+  useEffect(() => {
+    if (!requestedFixtureEmail || props.fixtureAccountSwitchingEmail) return;
+    if (props.authUser?.email === requestedFixtureEmail) {
+      setFixtureAccountDialogOpen(false);
+      setRequestedFixtureEmail("");
+    }
+  }, [props.authUser?.email, props.fixtureAccountSwitchingEmail, requestedFixtureEmail]);
 
   useEffect(() => {
     if (!withdrawalToastMessage) return undefined;
@@ -998,7 +1014,7 @@ export function AppRail(props: {
       <div className={clsx("app-rail-bottom", styles.bottom)} ref={accountMenuRef}>
         <button
           className={clsx("app-user-button", styles.userButton)}
-          data-active={accountMenuOpen || accountDialogOpen ? "true" : "false"}
+          data-active={accountMenuOpen || accountDialogOpen || fixtureAccountDialogOpen ? "true" : "false"}
           data-tooltip={t("nav.account")}
           type="button"
           onClick={() => setAccountMenuOpen((open) => !open)}
@@ -1035,6 +1051,21 @@ export function AppRail(props: {
               <ChevronRight size={18} aria-hidden="true" />
             </button>
             <div className={clsx("app-account-menu-divider", styles.accountMenuDivider)} />
+            {props.onSwitchFixtureAccount && fixtureAccountCopy ? (
+              <button
+                className={clsx("app-account-menu-item", styles.accountMenuItem)}
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setAccountMenuOpen(false);
+                  setFixtureAccountDialogOpen(true);
+                }}
+              >
+                <RefreshCw size={18} aria-hidden="true" />
+                <span>{fixtureAccountCopy.open}</span>
+                <ChevronRight className={styles.accountMenuChevron} size={16} aria-hidden="true" />
+              </button>
+            ) : null}
             {props.onLogin ? (
               <button
                 className={clsx("app-account-menu-item", styles.accountMenuItem)}
@@ -1088,6 +1119,58 @@ export function AppRail(props: {
           </MotionMenuSurface>
         ) : null}
       </div>
+      {fixtureAccountCopy ? (
+        <Dialog open={fixtureAccountDialogOpen} onOpenChange={setFixtureAccountDialogOpen}>
+          <DialogContent className={styles.fixtureAccountDialog} aria-label={fixtureAccountCopy.title}>
+            <DialogTitle>{fixtureAccountCopy.title}</DialogTitle>
+            <p className={styles.fixtureAccountHint}>{fixtureAccountCopy.hint}</p>
+            {props.fixtureAccountSwitchError ? (
+              <p className={styles.fixtureAccountError} role="alert">
+                {props.fixtureAccountSwitchError}
+              </p>
+            ) : null}
+            <div className={styles.fixtureAccountList} role="list">
+              {DEV_FIXTURE_ACCOUNTS.map((account) => {
+                const current = props.authUser?.email === account.email;
+                const switching = props.fixtureAccountSwitchingEmail === account.email;
+                return (
+                  <button
+                    key={account.id}
+                    className={styles.fixtureAccountButton}
+                    data-current={current ? "true" : "false"}
+                    type="button"
+                    role="listitem"
+                    disabled={!account.enabled || current || Boolean(props.fixtureAccountSwitchingEmail)}
+                    onClick={() => {
+                      setRequestedFixtureEmail(account.email);
+                      props.onSwitchFixtureAccount?.(account);
+                    }}
+                  >
+                    <span className={styles.fixtureAccountIdentity}>
+                      <strong>{account.email.replace("@example.test", "")}</strong>
+                      <small>{account.email}</small>
+                    </span>
+                    <span className={styles.fixtureAccountMetadata}>
+                      <span>{account.id}</span>
+                      <span>{account.countryCode}</span>
+                      <span>{account.roles.length > 0 ? account.roles.join(" + ") : fixtureAccountCopy.noRoles}</span>
+                    </span>
+                    <span className={styles.fixtureAccountState}>
+                      {switching
+                        ? fixtureAccountCopy.switching
+                        : current
+                          ? fixtureAccountCopy.current
+                          : account.enabled
+                            ? fixtureAccountCopy.switchAction
+                            : fixtureAccountCopy.disabled}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </DialogContent>
+        </Dialog>
+      ) : null}
       <Dialog open={accountDialogOpen} onOpenChange={setAccountDialogOpen}>
         <DialogContent className={clsx("profile-dialog", styles.profileDialog)} aria-label={t("nav.editProfile")}>
           <DialogTitle>{t("nav.editProfile")}</DialogTitle>

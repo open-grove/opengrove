@@ -105,6 +105,7 @@ import { CloudAuthLoadingScreen, CloudAuthScreen, RoomsUnavailableState } from "
 import { AppTitlebar } from "./components/app-shell/app-titlebar";
 import { ChatWorkspaceView, MountedAppWorkspaceView } from "./components/app-shell/app-main-views";
 import { useBridgeAuthGate } from "./app-auth-gate";
+import { devFixtureAccountSwitcherAvailable } from "./dev-fixture-accounts";
 import { markAuthSessionLoggedOut } from "./app-auth-model";
 import { useAppThreadRunner } from "./app-thread-runner";
 import { useAppPersistentUiState, type RoomsAppView } from "./app-persistent-ui-state";
@@ -347,6 +348,7 @@ export function App() {
     appendMessage("system", t("shell.localFolderHelp"));
   };
   const {
+    authFixtureSwitchMutation,
     authLoginMutation,
     authLogoutMutation,
     authSendCodeMutation,
@@ -1781,11 +1783,13 @@ export function App() {
 
   if (sessionAuthNeedsLogin || accountLoginRequested) {
     const authError =
-      authLoginMutation.error instanceof Error
-        ? authLoginMutation.error
-        : authSendCodeMutation.error instanceof Error
-          ? authSendCodeMutation.error
-          : undefined;
+      authFixtureSwitchMutation.error instanceof Error
+        ? authFixtureSwitchMutation.error
+        : authLoginMutation.error instanceof Error
+          ? authLoginMutation.error
+          : authSendCodeMutation.error instanceof Error
+            ? authSendCodeMutation.error
+            : undefined;
     return (
       <CloudAuthScreen
         sendCodePending={authSendCodeMutation.isPending}
@@ -1918,6 +1922,23 @@ export function App() {
         developerMode={railDeveloperMode}
         directKernelChatEnabled={railDirectKernelChatEnabled}
         authUser={sessionQuery.data?.user}
+        fixtureAccountSwitchError={
+          authFixtureSwitchMutation.error instanceof Error ? authFixtureSwitchMutation.error.message : ""
+        }
+        fixtureAccountSwitchingEmail={
+          authFixtureSwitchMutation.isPending ? authFixtureSwitchMutation.variables?.email : undefined
+        }
+        onSwitchFixtureAccount={
+          devFixtureAccountSwitcherAvailable({
+            isOfficialRelease: readDesktopApi()?.isOfficialRelease,
+            sessionAuthActive: healthQuery.data?.auth?.mode === "session",
+          })
+            ? (account) => {
+                authFixtureSwitchMutation.reset();
+                authFixtureSwitchMutation.mutate({ email: account.email, countryCode: account.countryCode });
+              }
+            : undefined
+        }
         onAuthExpired={showLoginExpiredToast}
         onLogin={
           healthQuery.data?.auth?.mode === "session" &&

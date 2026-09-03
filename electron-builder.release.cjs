@@ -3,6 +3,7 @@
 // 前置 scripts/preflight-desktop-release.mjs 保证凭证齐全，缺凭证不会走到这里）。
 // 日常开发打包（pack:desktop / dist:desktop）继续使用 electron-builder.yml，不受影响。
 const { existsSync, readFileSync } = require("node:fs");
+const { execFileSync } = require("node:child_process");
 const { isAbsolute, join } = require("node:path");
 const { load } = require("js-yaml");
 
@@ -11,6 +12,15 @@ const config = load(readFileSync(join(__dirname, "electron-builder.yml"), "utf8"
 config.extraMetadata = {
   ...config.extraMetadata,
   opengroveOfficialRelease: true,
+};
+
+// Fail closed even when somebody invokes electron-builder with this config
+// directly instead of going through the release orchestration script.
+config.beforePack = async () => {
+  execFileSync(process.execPath, [join(__dirname, "scripts/check-web-fixture-account-boundary.mjs")], {
+    cwd: __dirname,
+    stdio: "inherit",
+  });
 };
 
 // macOS architectures are packaged in parallel from the same read-only
