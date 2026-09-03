@@ -345,7 +345,7 @@
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
     "codemirror": "^6.0.2",
-    "electron": "^42.9.3",
+    "electron": "^42.10.1",
     "electron-builder": "^26.15.3",
     "esbuild": "^0.28.2",
     "http-proxy-agent": "7.0.2",
