@@ -759,9 +759,9 @@
     "capability": "tools.nativeTool",
     "testId": "pi.tools.nativeTool",
     "passed": true,
-    "checkedAt": "2026-09-01",
+    "checkedAt": "2026-09-03",
     "hostVersion": "0.6.6",
-    "kernelVersion": "0.83.0",
+    "kernelVersion": "0.84.4",
     "runtimeMode": "sdk",
     "verification": "real_runtime"
   }

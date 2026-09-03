@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import {
   Agent,
+  buildSessionContext,
   compact as compactPiSession,
   convertToLlm as convertNativeSessionMessages,
   createBashTool,
@@ -290,7 +291,7 @@ class NativePiSession implements PiSession {
             try {
               if (!this.nativeSession) throw new Error("Pi native session is unavailable");
               for (const result of repaired.addedToolResults) {
-                await this.nativeSession.appendMessage(result);
+                await this.nativeSession.appendMessage(toDurableNativeMessage(result));
               }
             } catch (error) {
               push([
@@ -328,7 +329,7 @@ class NativePiSession implements PiSession {
 
       push(mapped);
       if (event.type === "message_end") {
-        await this.nativeSession?.appendMessage(event.message);
+        await this.nativeSession?.appendMessage(toDurableNativeMessage(event.message));
       }
     });
 
@@ -393,7 +394,7 @@ class NativePiSession implements PiSession {
       await this.ensureNativeSession();
       if (!this.nativeSession) return { ok: false, compacted: false, error: "pi_native_session_unavailable" };
       if (this.agent?.state.isStreaming) return { ok: false, compacted: false, error: "pi_session_busy" };
-      const entries = await this.nativeSession.getBranch();
+      const entries = await this.nativeSession.findEntriesOnBranch({ order: "oldestFirst" });
       const prepared = prepareCompaction(entries, settings);
       if (!prepared.ok) return { ok: false, compacted: false, error: prepared.error.message };
       if (
@@ -415,16 +416,19 @@ class NativePiSession implements PiSession {
         thinkingLevel,
       );
       if (!result.ok) return { ok: false, compacted: false, error: result.error.message };
-      await this.nativeSession.appendCompaction(
-        result.value.summary,
-        result.value.firstKeptEntryId,
-        result.value.tokensBefore,
-        result.value.details,
-        false,
-        result.value.usage,
-        result.value.retainedTail,
+      await this.nativeSession.appendEntry(
+        {
+          type: "compaction",
+          id: this.nativeSession.idGenerator.next(),
+          summary: result.value.summary,
+          tokensBefore: result.value.tokensBefore,
+          retainedTail: result.value.retainedTail,
+          ...(result.value.details === undefined ? {} : { details: result.value.details }),
+          ...(result.value.usage === undefined ? {} : { usage: result.value.usage }),
+        },
+        "main",
       );
-      const rebuilt = await this.nativeSession.buildContext();
+      const rebuilt = buildSessionContext(await this.nativeSession.findEntriesOnBranch({ order: "oldestFirst" }));
       this.restoredMessages = rebuilt.messages;
       if (this.agent) this.agent.state.messages = rebuilt.messages;
       return { ok: true, compacted: true };
@@ -555,7 +559,7 @@ class NativePiSession implements PiSession {
   private async ensureNativeSession(): Promise<void> {
     if (this.nativeSession) return;
     this.nativeSession = await this.repository.openOrCreate(this.sessionId);
-    const restored = await this.nativeSession.buildContext();
+    const restored = buildSessionContext(await this.nativeSession.findEntriesOnBranch({ order: "oldestFirst" }));
     this.restoredMessages = restored.messages;
   }
 
@@ -1758,6 +1762,10 @@ function asJsonValue(value: unknown): JsonValue {
   } catch {
     return String(value);
   }
+}
+
+function toDurableNativeMessage(message: NativeAgentMessage): NativeAgentMessage {
+  return asJsonValue(message) as unknown as NativeAgentMessage;
 }
 
 function asJsonObject(value: unknown): JsonObject {

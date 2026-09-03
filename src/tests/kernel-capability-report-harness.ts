@@ -316,7 +316,7 @@ async function main() {
     contracts: KERNEL_CAPABILITY_CONTRACTS,
     contractTests: CERTIFIED_KERNEL_CONTRACT_TESTS,
     generatedAt: "2026-09-01T00:00:00.000Z",
-    evidenceContext: { kernelVersion: "0.83.0", runtimeMode: "sdk" },
+    evidenceContext: { kernelVersion: "0.84.4", runtimeMode: "sdk" },
   });
   const piNativeTools = piReport.capabilities.find((entry) => entry.capability === "tools.nativeTool");
   assert.equal(piNativeTools?.native, "yes");
