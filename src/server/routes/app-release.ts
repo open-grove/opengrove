@@ -1,4 +1,13 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
+import type {
+  AbandonAppReleaseOperation,
+  GetAppReleaseProgressOperation,
+  GetAppReleaseStatusOperation,
+  KeepLocalAppReleaseOperation,
+  PrepareAppReleaseOperation,
+  PublishAppReleaseOperation,
+  ReconcileAppReleaseOperation,
+} from "#protocol";
 import { AppBuildContractScaffoldError, ensureAppBuildContract } from "../../app-builder/build-contract-scaffold.js";
 import {
   AppReleaseCoordinator,
@@ -20,8 +29,9 @@ import {
 import { bridgeSessionUserHasRole, readAuthSession, type BridgeSecurity } from "../bridge-security.js";
 import type { BridgeState } from "../bridge-types.js";
 import { record } from "../http-utils.js";
-import type { MountedAppTarget } from "../mounted-apps.js";
+import { resolveMountedAppTarget, type MountedAppTarget } from "../mounted-apps.js";
 import { resolveReleaseControlConfig } from "../release-control-config.js";
+import type { HostOperationRouteContext } from "../router.js";
 
 interface AppReleaseRouteContext {
   request: IncomingMessage;
@@ -32,10 +42,74 @@ interface AppReleaseRouteContext {
   readJsonBody(request: IncomingMessage): Promise<unknown>;
 }
 
+export async function handlePrepareAppReleaseOperation(
+  context: HostOperationRouteContext<PrepareAppReleaseOperation>,
+): Promise<void> {
+  const target = operationTarget(context, context.input.params.appId);
+  if (!target) return;
+  await handleMountedAppReleaseRoute(context, target, "prepare");
+}
+
+export async function handlePublishAppReleaseOperation(
+  context: HostOperationRouteContext<PublishAppReleaseOperation>,
+): Promise<void> {
+  const target = operationTarget(context, context.input.params.appId);
+  if (!target) return;
+  await handleMountedAppReleaseRoute(context, target, "", { releasePatch: context.input.body });
+}
+
+export async function handleGetAppReleaseStatusOperation(
+  context: HostOperationRouteContext<GetAppReleaseStatusOperation>,
+): Promise<void> {
+  const target = operationTarget(context, context.input.params.appId);
+  if (!target) return;
+  await handleMountedAppReleaseRoute(context, target, "status");
+}
+
+export async function handleGetAppReleaseProgressOperation(
+  context: HostOperationRouteContext<GetAppReleaseProgressOperation>,
+): Promise<void> {
+  const target = operationTarget(context, context.input.params.appId);
+  if (!target) return;
+  await handleMountedAppReleaseRoute(context, target, "");
+}
+
+export async function handleReconcileAppReleaseOperation(
+  context: HostOperationRouteContext<ReconcileAppReleaseOperation>,
+): Promise<void> {
+  const target = operationTarget(context, context.input.params.appId);
+  if (!target) return;
+  await handleMountedAppReleaseRoute(context, target, "reconcile", context.input.body);
+}
+
+export async function handleAbandonAppReleaseOperation(
+  context: HostOperationRouteContext<AbandonAppReleaseOperation>,
+): Promise<void> {
+  const target = operationTarget(context, context.input.params.appId);
+  if (!target) return;
+  await handleMountedAppReleaseRoute(context, target, "abandon", {});
+}
+
+export async function handleKeepLocalAppReleaseOperation(
+  context: HostOperationRouteContext<KeepLocalAppReleaseOperation>,
+): Promise<void> {
+  const target = operationTarget(context, context.input.params.appId);
+  if (!target) return;
+  await handleMountedAppReleaseRoute(context, target, "keep-local", {});
+}
+
+function operationTarget(context: AppReleaseRouteContext, appId: string): MountedAppTarget | undefined {
+  const target = resolveMountedAppTarget(context.state, appId);
+  if (target) return target;
+  context.sendJson(context.response, 404, { ok: false, error: "app_not_found" });
+  return undefined;
+}
+
 export async function handleMountedAppReleaseRoute(
   context: AppReleaseRouteContext,
   target: MountedAppTarget,
   routePath: string,
+  decodedBody?: unknown,
 ): Promise<void> {
   if (routePath === "prepare") {
     if (context.request.method !== "GET") {
@@ -206,15 +280,21 @@ export async function handleMountedAppReleaseRoute(
     context.response.once("close", abortLocalBuild);
   }
   try {
-    const body = record(await context.readJsonBody(context.request));
+    const body = record(decodedBody === undefined ? await context.readJsonBody(context.request) : decodedBody);
     const progress =
       routePath === "reconcile"
         ? await coordinator.resume({ retryFailedBuild: body.retryFailedBuild === true })
         : routePath === "abandon"
           ? await coordinator.endBlockedRelease()
           : await coordinator.start({
-              release: body.release,
-              applyToCurrentApp: body.applyToCurrentApp === true,
+              release:
+                body.releasePatch === undefined
+                  ? body.release
+                  : releaseSubmissionFromPatch(context.state, target, record(body.releasePatch)),
+              applyToCurrentApp:
+                body.releasePatch === undefined
+                  ? body.applyToCurrentApp === true
+                  : record(body.releasePatch).applyToCurrentApp === true,
               signal: localBuildAbort.signal,
             });
     context.sendJson(context.response, progress.state === "published" ? 200 : 202, { ok: true, progress });
@@ -223,6 +303,26 @@ export async function handleMountedAppReleaseRoute(
   } finally {
     context.response.off("close", abortLocalBuild);
   }
+}
+
+function releaseSubmissionFromPatch(
+  state: BridgeState,
+  target: MountedAppTarget,
+  patch: Record<string, unknown>,
+): Record<string, unknown> {
+  const baseline = prepareMountedAppRelease({
+    state,
+    appId: target.id,
+    registryPackages: [],
+    includePackageSafetyCheck: false,
+  });
+  return {
+    app: patch.app ?? baseline.app,
+    version: patch.version,
+    releaseNotes: patch.releaseNotes ?? "",
+    visibility: patch.visibility ?? baseline.visibility,
+    employees: patch.employees ?? baseline.employees,
+  };
 }
 
 function createReleaseCoordinator(

@@ -3,6 +3,27 @@
 import { client } from "./client.gen.js";
 import type { Client, ClientMeta, Options as Options2, RequestResult, TDataShape } from "./client/index.js";
 import type {
+  AppReleaseAbandonData,
+  AppReleaseAbandonErrors,
+  AppReleaseAbandonResponses,
+  AppReleaseKeepLocalData,
+  AppReleaseKeepLocalErrors,
+  AppReleaseKeepLocalResponses,
+  AppReleasePrepareData,
+  AppReleasePrepareErrors,
+  AppReleasePrepareResponses,
+  AppReleaseProgressData,
+  AppReleaseProgressErrors,
+  AppReleaseProgressResponses,
+  AppReleasePublishData,
+  AppReleasePublishErrors,
+  AppReleasePublishResponses,
+  AppReleaseReconcileData,
+  AppReleaseReconcileErrors,
+  AppReleaseReconcileResponses,
+  AppReleaseStatusData,
+  AppReleaseStatusErrors,
+  AppReleaseStatusResponses,
   AuthEmailCodeCreateData,
   AuthEmailCodeCreateErrors,
   AuthEmailCodeCreateResponses,
@@ -146,6 +167,121 @@ export class Auth extends HeyApiClient {
   }
 }
 
+export class Release extends HeyApiClient {
+  /**
+   * Prepare an App release
+   *
+   * Inspect a mounted App and return the editable release baseline and readiness checks.
+   */
+  public prepare<ThrowOnError extends boolean = false>(
+    options: Options<AppReleasePrepareData, ThrowOnError>,
+  ): RequestResult<AppReleasePrepareResponses, AppReleasePrepareErrors, ThrowOnError> {
+    return (options.client ?? this.client).get<AppReleasePrepareResponses, AppReleasePrepareErrors, ThrowOnError>({
+      url: "/apps/{appId}/publish/prepare",
+      ...options,
+    });
+  }
+
+  /**
+   * Get local App release progress
+   *
+   * Read the locally persisted progress for the current App release intent without contacting Release Control.
+   */
+  public progress<ThrowOnError extends boolean = false>(
+    options: Options<AppReleaseProgressData, ThrowOnError>,
+  ): RequestResult<AppReleaseProgressResponses, AppReleaseProgressErrors, ThrowOnError> {
+    return (options.client ?? this.client).get<AppReleaseProgressResponses, AppReleaseProgressErrors, ThrowOnError>({
+      url: "/apps/{appId}/publish",
+      ...options,
+    });
+  }
+
+  /**
+   * Publish an App release
+   *
+   * Save, validate, build, and start publishing a formal version of a mounted App.
+   */
+  public publish<ThrowOnError extends boolean = false>(
+    options: Options<AppReleasePublishData, ThrowOnError>,
+  ): RequestResult<AppReleasePublishResponses, AppReleasePublishErrors, ThrowOnError> {
+    return (options.client ?? this.client).post<AppReleasePublishResponses, AppReleasePublishErrors, ThrowOnError>({
+      url: "/apps/{appId}/publish",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Refresh App release status
+   *
+   * Refresh the remote state of the current App release intent and return its progress.
+   */
+  public status<ThrowOnError extends boolean = false>(
+    options: Options<AppReleaseStatusData, ThrowOnError>,
+  ): RequestResult<AppReleaseStatusResponses, AppReleaseStatusErrors, ThrowOnError> {
+    return (options.client ?? this.client).get<AppReleaseStatusResponses, AppReleaseStatusErrors, ThrowOnError>({
+      url: "/apps/{appId}/publish/status",
+      ...options,
+    });
+  }
+
+  /**
+   * Reconcile an App release
+   *
+   * Resume the current App release intent and optionally retry a failed trusted build.
+   */
+  public reconcile<ThrowOnError extends boolean = false>(
+    options: Options<AppReleaseReconcileData, ThrowOnError>,
+  ): RequestResult<AppReleaseReconcileResponses, AppReleaseReconcileErrors, ThrowOnError> {
+    return (options.client ?? this.client).post<AppReleaseReconcileResponses, AppReleaseReconcileErrors, ThrowOnError>({
+      url: "/apps/{appId}/publish/reconcile",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Abandon an App release
+   *
+   * End a blocked or failed App release intent when Release Control permits abandonment.
+   */
+  public abandon<ThrowOnError extends boolean = false>(
+    options: Options<AppReleaseAbandonData, ThrowOnError>,
+  ): RequestResult<AppReleaseAbandonResponses, AppReleaseAbandonErrors, ThrowOnError> {
+    return (options.client ?? this.client).post<AppReleaseAbandonResponses, AppReleaseAbandonErrors, ThrowOnError>({
+      url: "/apps/{appId}/publish/abandon",
+      ...options,
+    });
+  }
+
+  /**
+   * Keep local App changes
+   *
+   * Finish a published release while preserving local App changes instead of activating the released artifact.
+   */
+  public keepLocal<ThrowOnError extends boolean = false>(
+    options: Options<AppReleaseKeepLocalData, ThrowOnError>,
+  ): RequestResult<AppReleaseKeepLocalResponses, AppReleaseKeepLocalErrors, ThrowOnError> {
+    return (options.client ?? this.client).post<AppReleaseKeepLocalResponses, AppReleaseKeepLocalErrors, ThrowOnError>({
+      url: "/apps/{appId}/publish/keep-local",
+      ...options,
+    });
+  }
+}
+
+export class App extends HeyApiClient {
+  private _release?: Release;
+  get release(): Release {
+    return (this._release ??= new Release({ client: this.client }));
+  }
+}
+
 export class Message extends HeyApiClient {
   /**
    * Send a Room message
@@ -187,6 +323,11 @@ export class OpenGroveApi extends HeyApiClient {
   private _auth?: Auth;
   get auth(): Auth {
     return (this._auth ??= new Auth({ client: this.client }));
+  }
+
+  private _app?: App;
+  get app(): App {
+    return (this._app ??= new App({ client: this.client }));
   }
 
   private _room?: Room;

@@ -30,10 +30,10 @@ test("Host Protocol projects every operation into OpenAPI 3.1", () => {
   );
   assert.deepEqual(document.servers, [{ url: "/api", description: "OpenGrove Host Bridge API base path." }]);
   assert.deepEqual(
-    hostProtocol.operations.map((candidate) => candidate.id),
-    Object.values(document.paths).flatMap((pathItem) =>
-      Object.values(pathItem).map((candidate) => readRecord(candidate).operationId),
-    ),
+    hostProtocol.operations.map((candidate) => candidate.id).sort(),
+    Object.values(document.paths)
+      .flatMap((pathItem) => Object.values(pathItem).map((candidate) => readRecord(candidate).operationId))
+      .sort(),
   );
   assert.equal(operation.operationId, "room.message.create");
   assert.equal(operation["x-opengrove-risk"], "write");
@@ -60,6 +60,9 @@ test("Host Protocol projects every operation into OpenAPI 3.1", () => {
   ]);
   assert.deepEqual(readRecord(requestProperties.attachments).anyOf, [{ type: "array", items: {} }, { type: "null" }]);
   assert.deepEqual(Object.keys(responses), ["200", "400", "401", "403", "404", "503"]);
+
+  const publish = readRecord(readRecord(document.paths["/apps/{appId}/publish"]).post);
+  assert.deepEqual(Object.keys(readRecord(publish.responses)).slice(0, 2), ["200", "202"]);
 });
 
 function readRecord(value: unknown): Record<string, unknown> {

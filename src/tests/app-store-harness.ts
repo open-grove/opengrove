@@ -78,8 +78,10 @@ import {
 } from "../server/default-store-apps.js";
 import { migrateStoreWorkspaceBindingsV1 } from "../server/migrations/store-workspace-binding-v1.js";
 import { resolveMountedAppTarget } from "../server/mounted-apps.js";
+import { dispatchBridgeRoutes } from "../server/router.js";
 import { handleAppStoreRoute } from "../server/routes/app-store.js";
 import { handleAppsRoute } from "../server/routes/apps.js";
+import { createBridgeRoutes } from "../server/routes/bridge-registry.js";
 import { resolveSystemEmployeeRuntime } from "../server/system-employee-runtime.js";
 
 const tempRoot = mkdtempSync(join(tmpdir(), "opengrove-app-store-"));
@@ -3668,10 +3670,11 @@ try {
   );
   const nonAdminReleaseProgressCalls: ReleaseHarnessCall[] = [];
   assert.equal(
-    await handleAppsRoute({
+    await dispatchBridgeRoutes(createBridgeRoutes(), {
       request: { method: "GET", headers: {} } as any,
       response: {} as any,
       url: new URL("http://opengrove.test/apps/first-publish-app/publish"),
+      traceId: "trace-app-release-protocol",
       state: firstPublishState,
       security: adminSessionSecurity,
       sendJson: captureReleaseResponse(nonAdminReleaseProgressCalls),
@@ -3732,14 +3735,15 @@ try {
   assert.equal(missingReleaseStatusCalls[0]?.data.error, "app_store_publish_journal_missing");
   const nonAdminGitPublishCalls: ReleaseHarnessCall[] = [];
   assert.equal(
-    await handleAppsRoute({
+    await dispatchBridgeRoutes(createBridgeRoutes(), {
       request: adminRequest("POST", "user_harness") as any,
       response: {} as any,
       url: new URL("http://opengrove.test/apps/first-publish-app/publish"),
+      traceId: "trace-app-release-publish-protocol",
       state: firstPublishState,
       security: adminSessionSecurity,
       sendJson: captureReleaseResponse(nonAdminGitPublishCalls),
-      readJsonBody: async () => ({ release: {} }),
+      readJsonBody: async () => ({ version: "0.1.0" }),
     }),
     true,
   );

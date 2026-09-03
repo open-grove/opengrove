@@ -9,6 +9,8 @@ third-party source snapshots are intentionally not tracked.
 - [从源码构建](development/BUILDING.zh-CN.md)
 - [Release process](development/RELEASE_PROCESS.md)
 - [发布流程](development/RELEASE_PROCESS.zh-CN.md)
+- [App release CLI](development/APP_RELEASE_CLI.md)
+- [App 发布 CLI](development/APP_RELEASE_CLI.zh-CN.md)
 - [App directory specification](product/OPENGROVE_APP_SPEC.md)
 - [OpenGrove App 目录规范](product/OPENGROVE_APP_SPEC.zh-CN.md)
 - [Technical reference](reference/TECHNICAL_REFERENCE.md)

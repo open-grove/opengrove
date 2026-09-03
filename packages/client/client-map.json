@@ -1,12 +1,16 @@
 {
   "groups": {
+    "app": "apps",
     "auth": "auth",
     "room": "rooms"
   },
   "resources": {
+    "app.release": "releases",
     "auth.email-code": "emailCodes",
     "auth.session": "session",
     "room.message": "messages"
   },
-  "operations": {}
+  "operations": {
+    "app.release.keep-local": "keepLocal"
+  }
 }

@@ -209,6 +209,24 @@ test("OpenGrove Client rejects undeclared success status codes", async () => {
   );
 });
 
+test("OpenGrove Client accepts declared additional 2xx responses", async () => {
+  const operation = defineHostOperation({
+    id: "test.job.start",
+    summary: "Start a test job",
+    description: "Exercise asynchronous success status handling.",
+    method: "POST",
+    path: "/test/jobs",
+    risk: "write",
+    success: { status: 200, body: z.object({ ok: z.literal(true) }) },
+    additionalSuccesses: [{ status: 202, body: z.object({ ok: z.literal(true) }) }],
+  });
+  const client = createOpenGroveClient({
+    fetch: (async () => new Response(JSON.stringify({ ok: true }), { status: 202 })) as typeof fetch,
+  });
+
+  assert.deepEqual(await client.request(operation, {}), { ok: true });
+});
+
 test("low-level operations support query parameters without requiring a request body", async () => {
   const urls: string[] = [];
   const listRoomsOperation = defineHostOperation({

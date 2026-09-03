@@ -21,6 +21,7 @@ export type HostOperation = Readonly<{
   query?: z.ZodObject;
   body?: z.ZodObject;
   success: HostOperationResponse;
+  additionalSuccesses?: readonly HostOperationResponse[];
   errors?: readonly HostOperationResponse[];
 }>;
 
@@ -49,11 +50,17 @@ export type HostOperationInput<TOperation extends HostOperation> = HostOperation
   HostOperationInputPart<TOperation, "query"> &
   HostOperationInputPart<TOperation, "body">;
 
-export type HostOperationOutput<TOperation extends HostOperation> = TOperation["success"] extends {
+type HostOperationResponseOutput<TResponse> = TResponse extends {
   body: infer TSchema extends z.ZodType;
 }
   ? z.output<TSchema>
   : undefined;
+
+export type HostOperationOutput<TOperation extends HostOperation> =
+  | HostOperationResponseOutput<TOperation["success"]>
+  | (TOperation extends { additionalSuccesses: infer TResponses extends readonly HostOperationResponse[] }
+      ? HostOperationResponseOutput<TResponses[number]>
+      : never);
 
 type HostOperationDecodedPart<TOperation extends HostOperation, TKey extends "params" | "query" | "body"> =
   TOperation extends Record<TKey, infer TSchema extends z.ZodType>

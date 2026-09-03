@@ -7,9 +7,11 @@ import {
   type BridgeContractResponse,
   type BridgeJsonContract,
 } from "@opengrove/agent-protocol";
+import { OpenGroveClientError } from "@opengrove/client";
 import type { BridgeStreamChunk } from "./runtime/agent-events";
 import { apiUrl } from "./api-base";
-import { APP_BRIDGE_TOKEN_HEADER, APP_STORAGE_KEYS } from "./identity";
+import { bridgeHeaders } from "./bridge-headers";
+import { openGroveClient } from "./opengrove-client";
 import type { LanguagePreference, ResolvedLanguage } from "./i18n-types";
 import type {
   AskFinalPayload,
@@ -40,17 +42,7 @@ import type {
   VoiceTranscriptionResponse,
 } from "./bridge-types";
 
-export function bridgeHeaders(includeContentType = true): HeadersInit {
-  const headers: Record<string, string> = {};
-  if (includeContentType) {
-    headers["content-type"] = "application/json";
-  }
-  const token = localStorage.getItem(APP_STORAGE_KEYS.bridgeToken);
-  if (token) {
-    headers[APP_BRIDGE_TOKEN_HEADER] = token;
-  }
-  return headers;
-}
+export { bridgeHeaders } from "./bridge-headers";
 
 export async function readBridgeError(response: Response): Promise<string> {
   return (await readBridgeErrorDetails(response)).error;
@@ -568,15 +560,15 @@ export async function relinkAppStorePackage(payload: { packageId: string }): Pro
 }
 
 export async function prepareMountedAppPublish(appId: string): Promise<AppStorePrepareReleaseResponse> {
-  return getJson<AppStorePrepareReleaseResponse>(`/apps/${encodeURIComponent(appId)}/publish/prepare`);
+  return appReleaseClientRequest(() => openGroveClient.apps.releases.prepare({ appId }));
 }
 
 export async function getMountedAppPublishProgress(appId: string): Promise<MountedAppPublishResponse> {
-  return getJson<MountedAppPublishResponse>(`/apps/${encodeURIComponent(appId)}/publish`);
+  return appReleaseClientRequest(() => openGroveClient.apps.releases.progress({ appId }));
 }
 
 export async function refreshMountedAppPublishProgress(appId: string): Promise<MountedAppPublishResponse> {
-  return getJson<MountedAppPublishResponse>(`/apps/${encodeURIComponent(appId)}/publish/status`);
+  return appReleaseClientRequest(() => openGroveClient.apps.releases.status({ appId }));
 }
 
 export async function repairMountedAppBuildContract(appId: string): Promise<{ ok: boolean; error?: string }> {
@@ -588,33 +580,50 @@ export async function publishMountedApp(
   release: MountedAppReleaseDraft,
   options: { applyToCurrentApp?: boolean } = {},
 ): Promise<MountedAppPublishResponse> {
-  return postJson<MountedAppPublishResponse>(`/apps/${encodeURIComponent(appId)}/publish`, {
-    applyToCurrentApp: options.applyToCurrentApp === true,
-    release: {
+  return appReleaseClientRequest(() =>
+    openGroveClient.apps.releases.publish({
+      appId,
       app: release.app,
       version: release.version,
       releaseNotes: release.releaseNotes,
       visibility: release.visibility,
       employees: release.employees,
-    },
-  });
+      applyToCurrentApp: options.applyToCurrentApp === true,
+    }),
+  );
 }
 
 export async function reconcileMountedAppPublish(
   appId: string,
   options: { retryFailedBuild?: boolean } = {},
 ): Promise<MountedAppPublishResponse> {
-  return postJson<MountedAppPublishResponse>(`/apps/${encodeURIComponent(appId)}/publish/reconcile`, {
-    retryFailedBuild: options.retryFailedBuild === true,
-  });
+  return appReleaseClientRequest(() =>
+    openGroveClient.apps.releases.reconcile({ appId, retryFailedBuild: options.retryFailedBuild === true }),
+  );
 }
 
 export async function keepLocalChangesAfterMountedAppPublish(appId: string): Promise<MountedAppPublishResponse> {
-  return postJson<MountedAppPublishResponse>(`/apps/${encodeURIComponent(appId)}/publish/keep-local`, {});
+  return appReleaseClientRequest(() => openGroveClient.apps.releases.keepLocal({ appId }));
 }
 
 export async function abandonMountedAppPublish(appId: string): Promise<MountedAppPublishResponse> {
-  return postJson<MountedAppPublishResponse>(`/apps/${encodeURIComponent(appId)}/publish/abandon`, {});
+  return appReleaseClientRequest(() => openGroveClient.apps.releases.abandon({ appId }));
+}
+
+async function appReleaseClientRequest<T>(request: () => Promise<T>): Promise<T> {
+  try {
+    return await request();
+  } catch (error) {
+    if (!(error instanceof OpenGroveClientError)) throw error;
+    const bridgeError = new BridgeRequestError(error.message);
+    bridgeError.code = error.code;
+    bridgeError.traceId = error.traceId;
+    const payload = isBridgeRecordLike(error.payload) ? error.payload : undefined;
+    bridgeError.requestId = firstBridgeString(payload, ["requestId", "request_id"]) || undefined;
+    bridgeError.incidentId = firstBridgeString(payload, ["incidentId", "incident_id"]) || undefined;
+    bridgeError.payload = payload;
+    throw bridgeError;
+  }
 }
 
 export async function getMountedAppIdentity(appId: string): Promise<MountedAppIdentityResponse> {

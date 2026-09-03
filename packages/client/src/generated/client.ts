@@ -7,6 +7,13 @@ export const openGroveClientOperationIds = [
   "auth.session.create",
   "auth.session.get",
   "auth.session.delete",
+  "app.release.prepare",
+  "app.release.publish",
+  "app.release.status",
+  "app.release.progress",
+  "app.release.reconcile",
+  "app.release.abandon",
+  "app.release.keep-local",
   "room.message.create",
 ] as const;
 
@@ -54,6 +61,91 @@ export function bindOpenGroveClient(request: HostOperationRequest) {
           options?: OpenGroveRequestOptions,
         ): Promise<HostOperationOutput<(typeof hostOperationById)["auth.session.delete"]>> =>
           request(hostOperationById["auth.session.delete"], {
+            signal: options?.signal,
+          }),
+      },
+    },
+    apps: {
+      releases: {
+        prepare: (
+          input: HostOperationInput<(typeof hostOperationById)["app.release.prepare"]>,
+          options?: OpenGroveRequestOptions,
+        ): Promise<HostOperationOutput<(typeof hostOperationById)["app.release.prepare"]>> =>
+          request(hostOperationById["app.release.prepare"], {
+            params: {
+              appId: input.appId,
+            },
+            signal: options?.signal,
+          }),
+        publish: (
+          input: HostOperationInput<(typeof hostOperationById)["app.release.publish"]>,
+          options?: OpenGroveRequestOptions,
+        ): Promise<HostOperationOutput<(typeof hostOperationById)["app.release.publish"]>> =>
+          request(hostOperationById["app.release.publish"], {
+            params: {
+              appId: input.appId,
+            },
+            body: {
+              app: input.app,
+              applyToCurrentApp: input.applyToCurrentApp,
+              employees: input.employees,
+              releaseNotes: input.releaseNotes,
+              version: input.version,
+              visibility: input.visibility,
+            },
+            signal: options?.signal,
+          }),
+        status: (
+          input: HostOperationInput<(typeof hostOperationById)["app.release.status"]>,
+          options?: OpenGroveRequestOptions,
+        ): Promise<HostOperationOutput<(typeof hostOperationById)["app.release.status"]>> =>
+          request(hostOperationById["app.release.status"], {
+            params: {
+              appId: input.appId,
+            },
+            signal: options?.signal,
+          }),
+        progress: (
+          input: HostOperationInput<(typeof hostOperationById)["app.release.progress"]>,
+          options?: OpenGroveRequestOptions,
+        ): Promise<HostOperationOutput<(typeof hostOperationById)["app.release.progress"]>> =>
+          request(hostOperationById["app.release.progress"], {
+            params: {
+              appId: input.appId,
+            },
+            signal: options?.signal,
+          }),
+        reconcile: (
+          input: HostOperationInput<(typeof hostOperationById)["app.release.reconcile"]>,
+          options?: OpenGroveRequestOptions,
+        ): Promise<HostOperationOutput<(typeof hostOperationById)["app.release.reconcile"]>> =>
+          request(hostOperationById["app.release.reconcile"], {
+            params: {
+              appId: input.appId,
+            },
+            body: {
+              retryFailedBuild: input.retryFailedBuild,
+            },
+            signal: options?.signal,
+          }),
+        abandon: (
+          input: HostOperationInput<(typeof hostOperationById)["app.release.abandon"]>,
+          options?: OpenGroveRequestOptions,
+        ): Promise<HostOperationOutput<(typeof hostOperationById)["app.release.abandon"]>> =>
+          request(hostOperationById["app.release.abandon"], {
+            params: {
+              appId: input.appId,
+            },
+            signal: options?.signal,
+          }),
+        keepLocal: (
+          input: HostOperationInput<(typeof hostOperationById)["app.release.keep-local"]>,
+          options?: OpenGroveRequestOptions,
+        ): Promise<HostOperationOutput<(typeof hostOperationById)["app.release.keep-local"]>> =>
+          request(hostOperationById["app.release.keep-local"], {
+            params: {
+              appId: input.appId,
+            },
             signal: options?.signal,
           }),
       },

@@ -1,10 +1,4 @@
-import type {
-  KernelPreference,
-  ReasoningEffort,
-  RuntimeAccessMode,
-  RuntimeControlOption,
-  RuntimeControls,
-} from "./bridge-models";
+import type { KernelPreference, RuntimeControlOption, RuntimeControls } from "./bridge-models";
 import type {
   AgentEventRecord,
   ApprovalRecord,
@@ -17,6 +11,17 @@ import type {
   WorkingStateRecord,
 } from "./bridge-inventory-types";
 import type { LanguagePreference, ResolvedLanguage } from "./i18n-types";
+import type {
+  AppReleaseAction as ProtocolAppReleaseAction,
+  AppReleaseBuildFailure as ProtocolAppReleaseBuildFailure,
+  AppReleaseCheck as ProtocolAppReleaseCheck,
+  AppReleaseCheckSeverity as ProtocolAppReleaseCheckSeverity,
+  AppReleaseCheckStatus as ProtocolAppReleaseCheckStatus,
+  AppReleaseEmployeeDefaults as ProtocolAppReleaseEmployeeDefaults,
+  AppReleaseProgress as ProtocolAppReleaseProgress,
+  AppReleaseProgressPhase as ProtocolAppReleaseProgressPhase,
+  MountedAppReleaseDraft as ProtocolMountedAppReleaseDraft,
+} from "@opengrove/protocol";
 
 export interface ApprovalsResponse {
   ok: boolean;
@@ -545,61 +550,11 @@ export interface AppStoreUploadResponse {
 
 export type AppStorePackageVisibility = "public" | "restricted";
 
-export type AppReleaseCheckSeverity = "blocking" | "warning";
-export type AppReleaseCheckStatus = "passed" | "blocked" | "warning";
-
-export interface AppReleaseCheck {
-  id: string;
-  label: string;
-  severity: AppReleaseCheckSeverity;
-  status: AppReleaseCheckStatus;
-  detail: string;
-}
-
-export interface AppReleaseEmployeeDefaults {
-  memberId: string;
-  name: string;
-  avatarMode?: "generated" | "initials" | "upload";
-  avatarSeed?: string;
-  avatarDataUrl?: string;
-  role: string;
-  kernel: string;
-  model: string;
-  reasoningEffort?: ReasoningEffort;
-  contextTokenBudget?: number;
-  accessMode?: RuntimeAccessMode;
-  color: string;
-  availableSkillIds: string[];
-  defaultSkillIds: string[];
-  visibility: "private" | "public";
-  publicDescription?: string;
-  publicSkills: string[];
-  inputSpec?: string;
-  outputSpec?: string;
-}
-
-export interface MountedAppReleaseDraft {
-  identity: {
-    appId: string;
-    packageId?: string;
-    packageKey?: string;
-    source: "mounted" | "registry";
-    appRoot: string;
-    workspaceRoot: string;
-  };
-  app: {
-    title: string;
-    description: string;
-    icon?: string;
-  };
-  version: string;
-  latestPublishedVersion?: string;
-  releaseNotes: string;
-  visibility: AppStorePackageVisibility;
-  minHostReleaseNumber: number;
-  employees: AppReleaseEmployeeDefaults[];
-  checks: AppReleaseCheck[];
-}
+export type AppReleaseCheckSeverity = ProtocolAppReleaseCheckSeverity;
+export type AppReleaseCheckStatus = ProtocolAppReleaseCheckStatus;
+export type AppReleaseCheck = ProtocolAppReleaseCheck;
+export type AppReleaseEmployeeDefaults = ProtocolAppReleaseEmployeeDefaults;
+export type MountedAppReleaseDraft = ProtocolMountedAppReleaseDraft;
 
 export interface MountedAppIdentity {
   id: string;
@@ -620,58 +575,10 @@ export interface AppStorePrepareReleaseResponse {
   error?: string;
 }
 
-export type AppReleaseProgressPhase =
-  | "draft_saved"
-  | "intent_created"
-  | "source_snapshot_uploaded"
-  | "remote_blocked"
-  | "remote_conflict"
-  | "remote_pending"
-  | "remote_closed"
-  | "registry_ready"
-  | "local_preserved"
-  | "local_finalized";
-
-export interface AppReleaseBuildFailure {
-  stage: "trusted_build" | "artifact_pack" | "artifact_gate" | "workflow";
-  code: string;
-  retryable: boolean;
-  workflowRunId: string;
-}
-
-export type AppReleaseAction = "retry_candidate" | "retry_build" | "abandon";
-
-export interface AppReleaseProgress {
-  localAppId: string;
-  appId: string;
-  packageKey: string;
-  version: string;
-  title: string;
-  visibility: AppStorePackageVisibility;
-  phase: AppReleaseProgressPhase;
-  remoteIntentId?: string;
-  remoteStatus?: string;
-  buildFailure?: AppReleaseBuildFailure;
-  allowedActions: AppReleaseAction[];
-  blockedRelease?: {
-    id: string;
-    status: string;
-    packageKey: string;
-    version: string;
-    sourceSha256: string;
-    createdAt: string;
-    allowedActions: AppReleaseAction[];
-    requestId?: string;
-    matchesCurrentSource: boolean;
-    matchesCurrentRequest: boolean;
-    buildFailure?: AppReleaseBuildFailure;
-  };
-  requestId?: string;
-  applyToCurrentApp: boolean;
-  state: "publishing" | "blocked" | "needs-retry" | "registry-ready" | "closed" | "published";
-  retryable: boolean;
-  updatedAt: string;
-}
+export type AppReleaseProgressPhase = ProtocolAppReleaseProgressPhase;
+export type AppReleaseBuildFailure = ProtocolAppReleaseBuildFailure;
+export type AppReleaseAction = ProtocolAppReleaseAction;
+export type AppReleaseProgress = ProtocolAppReleaseProgress;
 
 export interface MountedAppPublishResponse {
   ok: boolean;

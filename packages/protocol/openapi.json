@@ -17,6 +17,10 @@
       "description": "OpenGrove account authentication and session operations."
     },
     {
+      "name": "app",
+      "description": "Mounted OpenGrove App operations."
+    },
+    {
       "name": "room",
       "description": "Local Room collaboration and ledger operations."
     }
@@ -871,6 +875,1447 @@
         }
       }
     },
+    "/apps/{appId}/publish/prepare": {
+      "get": {
+        "operationId": "app.release.prepare",
+        "summary": "Prepare an App release",
+        "description": "Inspect a mounted App and return the editable release baseline and readiness checks.",
+        "tags": ["app"],
+        "x-opengrove-group": "app",
+        "x-opengrove-resource": "release",
+        "x-opengrove-risk": "read",
+        "parameters": [
+          {
+            "name": "appId",
+            "in": "path",
+            "required": true,
+            "description": "Mounted App identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Mounted App identifier."
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppReleasePrepareResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The App release baseline could not be prepared.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppReleaseError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The App release baseline could not be prepared.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppReleaseError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The App release baseline could not be prepared.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppReleaseError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The App release baseline could not be prepared.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppReleaseError"
+                }
+              }
+            }
+          },
+          "408": {
+            "description": "The App release baseline could not be prepared.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppReleaseError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The App release baseline could not be prepared.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppReleaseError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "The App release baseline could not be prepared.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppReleaseError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The App release baseline could not be prepared.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppReleaseError"
+                }
+              }
+            }
+          },
+          "425": {
+            "description": "The App release baseline could not be prepared.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppReleaseError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The App release baseline could not be prepared.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppReleaseError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The App release baseline could not be prepared.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppReleaseError"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "The App release baseline could not be prepared.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppReleaseError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The App release baseline could not be prepared.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppReleaseError"
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "The App release baseline could not be prepared.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppReleaseError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/apps/{appId}/publish": {
+      "post": {
+        "operationId": "app.release.publish",
+        "summary": "Publish an App release",
+        "description": "Save, validate, build, and start publishing a formal version of a mounted App.",
+        "tags": ["app"],
+        "x-opengrove-group": "app",
+        "x-opengrove-resource": "release",
+        "x-opengrove-risk": "high-risk-write",
+        "parameters": [
+          {
+            "name": "appId",
+            "in": "path",
+            "required": true,
+            "description": "Mounted App identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Mounted App identifier."
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "object",
+                "properties": {
+                  "version": {
+                    "type": "string",
+                    "pattern": "^\\d+\\.\\d+\\.\\d+$",
+                    "description": "Formal App version in X.Y.Z form."
+                  },
+                  "releaseNotes": {
+                    "description": "Release notes; omitted notes remain empty.",
+                    "type": "string",
+                    "maxLength": 800
+                  },
+                  "visibility": {
+                    "description": "Store visibility; defaults to the App baseline.",
+                    "type": "string",
+                    "enum": ["public", "restricted"]
+                  },
+                  "app": {
+                    "description": "App metadata override; defaults to the mounted App.",
+                    "type": "object",
+                    "properties": {
+                      "title": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 120
+                      },
+                      "description": {
+                        "type": "string",
+                        "maxLength": 4000
+                      },
+                      "icon": {
+                        "type": "string",
+                        "maxLength": 1500000
+                      }
+                    },
+                    "required": ["title", "description"]
+                  },
+                  "employees": {
+                    "description": "Complete Employee defaults override; defaults to the mounted App Employees.",
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "memberId": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 240
+                        },
+                        "name": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 120
+                        },
+                        "avatarMode": {
+                          "type": "string",
+                          "enum": ["generated", "initials", "upload"]
+                        },
+                        "avatarSeed": {
+                          "type": "string",
+                          "maxLength": 512
+                        },
+                        "avatarDataUrl": {
+                          "type": "string",
+                          "maxLength": 1500000
+                        },
+                        "role": {
+                          "type": "string",
+                          "maxLength": 40000
+                        },
+                        "kernel": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 120
+                        },
+                        "model": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 240
+                        },
+                        "reasoningEffort": {
+                          "type": "string",
+                          "enum": ["low", "medium", "high", "xhigh", "max"]
+                        },
+                        "contextTokenBudget": {
+                          "type": "integer",
+                          "exclusiveMinimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "accessMode": {
+                          "type": "string",
+                          "enum": ["default", "auto-review", "full-access"]
+                        },
+                        "color": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 64
+                        },
+                        "availableSkillIds": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "defaultSkillIds": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "visibility": {
+                          "type": "string",
+                          "enum": ["private", "public"]
+                        },
+                        "publicDescription": {
+                          "type": "string",
+                          "maxLength": 4000
+                        },
+                        "publicSkills": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "inputSpec": {
+                          "type": "string",
+                          "maxLength": 8000
+                        },
+                        "outputSpec": {
+                          "type": "string",
+                          "maxLength": 8000
+                        }
+                      },
+                      "required": [
+                        "memberId",
+                        "name",
+                        "role",
+                        "kernel",
+                        "model",
+                        "color",
+                        "availableSkillIds",
+                        "defaultSkillIds",
+                        "visibility",
+                        "publicSkills"
+                      ]
+                    }
+                  },
+                  "applyToCurrentApp": {
+                    "default": false,
+                    "description": "Activate the exact published artifact locally after publishing.",
+                    "type": "boolean"
+                  }
+                },
+                "required": ["version"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppReleaseProgressResponse"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppReleaseProgressResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The App release could not be published.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppReleaseError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The App release could not be published.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppReleaseError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The App release could not be published.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppReleaseError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The App release could not be published.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppReleaseError"
+                }
+              }
+            }
+          },
+          "408": {
+            "description": "The App release could not be published.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppReleaseError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The App release could not be published.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppReleaseError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "The App release could not be published.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppReleaseError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The App release could not be published.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppReleaseError"
+                }
+              }
+            }
+          },
+          "425": {
+            "description": "The App release could not be published.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppReleaseError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The App release could not be published.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppReleaseError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The App release could not be published.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppReleaseError"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "The App release could not be published.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppReleaseError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The App release could not be published.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppReleaseError"
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "The App release could not be published.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppReleaseError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "operationId": "app.release.progress",
+        "summary": "Get local App release progress",
+        "description": "Read the locally persisted progress for the current App release intent without contacting Release Control.",
+        "tags": ["app"],
+        "x-opengrove-group": "app",
+        "x-opengrove-resource": "release",
+        "x-opengrove-risk": "read",
+        "parameters": [
+          {
+            "name": "appId",
+            "in": "path",
+            "required": true,
+            "description": "Mounted App identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Mounted App identifier."
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppReleaseProgressResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The local App release progress could not be read.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppReleaseError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The local App release progress could not be read.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppReleaseError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The local App release progress could not be read.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppReleaseError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The local App release progress could not be read.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppReleaseError"
+                }
+              }
+            }
+          },
+          "408": {
+            "description": "The local App release progress could not be read.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppReleaseError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The local App release progress could not be read.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppReleaseError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "The local App release progress could not be read.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppReleaseError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The local App release progress could not be read.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppReleaseError"
+                }
+              }
+            }
+          },
+          "425": {
+            "description": "The local App release progress could not be read.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppReleaseError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The local App release progress could not be read.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppReleaseError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The local App release progress could not be read.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppReleaseError"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "The local App release progress could not be read.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppReleaseError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The local App release progress could not be read.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppReleaseError"
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "The local App release progress could not be read.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppReleaseError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/apps/{appId}/publish/status": {
+      "get": {
+        "operationId": "app.release.status",
+        "summary": "Refresh App release status",
+        "description": "Refresh the remote state of the current App release intent and return its progress.",
+        "tags": ["app"],
+        "x-opengrove-group": "app",
+        "x-opengrove-resource": "release",
+        "x-opengrove-risk": "read",
+        "parameters": [
+          {
+            "name": "appId",
+            "in": "path",
+            "required": true,
+            "description": "Mounted App identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Mounted App identifier."
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppReleaseProgressResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The App release status could not be refreshed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppReleaseError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The App release status could not be refreshed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppReleaseError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The App release status could not be refreshed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppReleaseError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The App release status could not be refreshed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppReleaseError"
+                }
+              }
+            }
+          },
+          "408": {
+            "description": "The App release status could not be refreshed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppReleaseError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The App release status could not be refreshed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppReleaseError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "The App release status could not be refreshed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppReleaseError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The App release status could not be refreshed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppReleaseError"
+                }
+              }
+            }
+          },
+          "425": {
+            "description": "The App release status could not be refreshed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppReleaseError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The App release status could not be refreshed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppReleaseError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The App release status could not be refreshed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppReleaseError"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "The App release status could not be refreshed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppReleaseError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The App release status could not be refreshed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppReleaseError"
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "The App release status could not be refreshed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppReleaseError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/apps/{appId}/publish/reconcile": {
+      "post": {
+        "operationId": "app.release.reconcile",
+        "summary": "Reconcile an App release",
+        "description": "Resume the current App release intent and optionally retry a failed trusted build.",
+        "tags": ["app"],
+        "x-opengrove-group": "app",
+        "x-opengrove-resource": "release",
+        "x-opengrove-risk": "write",
+        "parameters": [
+          {
+            "name": "appId",
+            "in": "path",
+            "required": true,
+            "description": "Mounted App identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Mounted App identifier."
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "object",
+                "properties": {
+                  "retryFailedBuild": {
+                    "default": false,
+                    "description": "Retry the failed trusted build when the intent permits it.",
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppReleaseProgressResponse"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppReleaseProgressResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The App release could not be reconciled.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppReleaseError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The App release could not be reconciled.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppReleaseError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The App release could not be reconciled.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppReleaseError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The App release could not be reconciled.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppReleaseError"
+                }
+              }
+            }
+          },
+          "408": {
+            "description": "The App release could not be reconciled.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppReleaseError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The App release could not be reconciled.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppReleaseError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "The App release could not be reconciled.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppReleaseError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The App release could not be reconciled.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppReleaseError"
+                }
+              }
+            }
+          },
+          "425": {
+            "description": "The App release could not be reconciled.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppReleaseError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The App release could not be reconciled.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppReleaseError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The App release could not be reconciled.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppReleaseError"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "The App release could not be reconciled.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppReleaseError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The App release could not be reconciled.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppReleaseError"
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "The App release could not be reconciled.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppReleaseError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/apps/{appId}/publish/abandon": {
+      "post": {
+        "operationId": "app.release.abandon",
+        "summary": "Abandon an App release",
+        "description": "End a blocked or failed App release intent when Release Control permits abandonment.",
+        "tags": ["app"],
+        "x-opengrove-group": "app",
+        "x-opengrove-resource": "release",
+        "x-opengrove-risk": "high-risk-write",
+        "parameters": [
+          {
+            "name": "appId",
+            "in": "path",
+            "required": true,
+            "description": "Mounted App identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Mounted App identifier."
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppReleaseProgressResponse"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppReleaseProgressResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The App release could not be abandoned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppReleaseError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The App release could not be abandoned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppReleaseError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The App release could not be abandoned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppReleaseError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The App release could not be abandoned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppReleaseError"
+                }
+              }
+            }
+          },
+          "408": {
+            "description": "The App release could not be abandoned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppReleaseError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The App release could not be abandoned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppReleaseError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "The App release could not be abandoned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppReleaseError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The App release could not be abandoned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppReleaseError"
+                }
+              }
+            }
+          },
+          "425": {
+            "description": "The App release could not be abandoned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppReleaseError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The App release could not be abandoned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppReleaseError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The App release could not be abandoned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppReleaseError"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "The App release could not be abandoned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppReleaseError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The App release could not be abandoned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppReleaseError"
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "The App release could not be abandoned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppReleaseError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/apps/{appId}/publish/keep-local": {
+      "post": {
+        "operationId": "app.release.keep-local",
+        "summary": "Keep local App changes",
+        "description": "Finish a published release while preserving local App changes instead of activating the released artifact.",
+        "tags": ["app"],
+        "x-opengrove-group": "app",
+        "x-opengrove-resource": "release",
+        "x-opengrove-risk": "high-risk-write",
+        "parameters": [
+          {
+            "name": "appId",
+            "in": "path",
+            "required": true,
+            "description": "Mounted App identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Mounted App identifier."
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppReleaseProgressResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The App release could not preserve local changes.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppReleaseError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The App release could not preserve local changes.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppReleaseError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The App release could not preserve local changes.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppReleaseError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The App release could not preserve local changes.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppReleaseError"
+                }
+              }
+            }
+          },
+          "408": {
+            "description": "The App release could not preserve local changes.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppReleaseError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The App release could not preserve local changes.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppReleaseError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "The App release could not preserve local changes.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppReleaseError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The App release could not preserve local changes.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppReleaseError"
+                }
+              }
+            }
+          },
+          "425": {
+            "description": "The App release could not preserve local changes.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppReleaseError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The App release could not preserve local changes.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppReleaseError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The App release could not preserve local changes.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppReleaseError"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "The App release could not preserve local changes.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppReleaseError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The App release could not preserve local changes.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppReleaseError"
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "The App release could not preserve local changes.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppReleaseError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/rooms/{roomId}/messages": {
       "post": {
         "operationId": "room.message.create",
@@ -1426,6 +2871,684 @@
         },
         "required": ["error"],
         "additionalProperties": {}
+      },
+      "AppReleasePrepareResponse": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "const": true
+          },
+          "release": {
+            "type": "object",
+            "properties": {
+              "identity": {
+                "type": "object",
+                "properties": {
+                  "appId": {
+                    "type": "string"
+                  },
+                  "packageId": {
+                    "type": "string"
+                  },
+                  "packageKey": {
+                    "type": "string"
+                  },
+                  "source": {
+                    "type": "string",
+                    "enum": ["mounted", "registry"]
+                  },
+                  "appRoot": {
+                    "type": "string"
+                  },
+                  "workspaceRoot": {
+                    "type": "string"
+                  }
+                },
+                "required": ["appId", "source", "appRoot", "workspaceRoot"],
+                "additionalProperties": {}
+              },
+              "app": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "description": {
+                    "type": "string",
+                    "maxLength": 4000
+                  },
+                  "icon": {
+                    "type": "string",
+                    "maxLength": 1500000
+                  }
+                },
+                "required": ["title", "description"],
+                "additionalProperties": false
+              },
+              "version": {
+                "type": "string",
+                "pattern": "^\\d+\\.\\d+\\.\\d+$",
+                "description": "Formal App version in X.Y.Z form."
+              },
+              "latestPublishedVersion": {
+                "type": "string",
+                "pattern": "^\\d+\\.\\d+\\.\\d+$",
+                "description": "Formal App version in X.Y.Z form."
+              },
+              "releaseNotes": {
+                "type": "string",
+                "maxLength": 800
+              },
+              "visibility": {
+                "type": "string",
+                "enum": ["public", "restricted"]
+              },
+              "minHostReleaseNumber": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "employees": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "memberId": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 240
+                    },
+                    "name": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 120
+                    },
+                    "avatarMode": {
+                      "type": "string",
+                      "enum": ["generated", "initials", "upload"]
+                    },
+                    "avatarSeed": {
+                      "type": "string",
+                      "maxLength": 512
+                    },
+                    "avatarDataUrl": {
+                      "type": "string",
+                      "maxLength": 1500000
+                    },
+                    "role": {
+                      "type": "string",
+                      "maxLength": 40000
+                    },
+                    "kernel": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 120
+                    },
+                    "model": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 240
+                    },
+                    "reasoningEffort": {
+                      "type": "string",
+                      "enum": ["low", "medium", "high", "xhigh", "max"]
+                    },
+                    "contextTokenBudget": {
+                      "type": "integer",
+                      "exclusiveMinimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "accessMode": {
+                      "type": "string",
+                      "enum": ["default", "auto-review", "full-access"]
+                    },
+                    "color": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64
+                    },
+                    "availableSkillIds": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "defaultSkillIds": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "visibility": {
+                      "type": "string",
+                      "enum": ["private", "public"]
+                    },
+                    "publicDescription": {
+                      "type": "string",
+                      "maxLength": 4000
+                    },
+                    "publicSkills": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "inputSpec": {
+                      "type": "string",
+                      "maxLength": 8000
+                    },
+                    "outputSpec": {
+                      "type": "string",
+                      "maxLength": 8000
+                    }
+                  },
+                  "required": [
+                    "memberId",
+                    "name",
+                    "role",
+                    "kernel",
+                    "model",
+                    "color",
+                    "availableSkillIds",
+                    "defaultSkillIds",
+                    "visibility",
+                    "publicSkills"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "checks": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "label": {
+                      "type": "string"
+                    },
+                    "severity": {
+                      "type": "string",
+                      "enum": ["blocking", "warning"]
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": ["passed", "blocked", "warning"]
+                    },
+                    "detail": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["id", "label", "severity", "status", "detail"],
+                  "additionalProperties": {}
+                }
+              }
+            },
+            "required": [
+              "identity",
+              "app",
+              "version",
+              "releaseNotes",
+              "visibility",
+              "minHostReleaseNumber",
+              "employees",
+              "checks"
+            ],
+            "additionalProperties": {}
+          }
+        },
+        "required": ["ok", "release"],
+        "additionalProperties": false
+      },
+      "AppReleaseError": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "const": false
+          },
+          "error": {
+            "type": "string"
+          },
+          "requestId": {
+            "type": "string"
+          },
+          "candidateStage": {
+            "type": "string"
+          },
+          "progress": {
+            "type": "object",
+            "properties": {
+              "localAppId": {
+                "type": "string"
+              },
+              "appId": {
+                "type": "string"
+              },
+              "packageKey": {
+                "type": "string"
+              },
+              "version": {
+                "type": "string",
+                "pattern": "^\\d+\\.\\d+\\.\\d+$",
+                "description": "Formal App version in X.Y.Z form."
+              },
+              "title": {
+                "type": "string"
+              },
+              "visibility": {
+                "type": "string",
+                "enum": ["public", "restricted"]
+              },
+              "phase": {
+                "type": "string",
+                "enum": [
+                  "draft_saved",
+                  "intent_created",
+                  "source_snapshot_uploaded",
+                  "remote_blocked",
+                  "remote_conflict",
+                  "remote_pending",
+                  "remote_closed",
+                  "registry_ready",
+                  "local_preserved",
+                  "local_finalized"
+                ]
+              },
+              "remoteIntentId": {
+                "type": "string"
+              },
+              "remoteStatus": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "awaiting_candidate",
+                      "building",
+                      "trusted_build_failed",
+                      "artifact_accepted",
+                      "finalizing",
+                      "published",
+                      "abandoned"
+                    ]
+                  },
+                  {
+                    "type": "string",
+                    "const": "publish_base_stale"
+                  }
+                ]
+              },
+              "buildFailure": {
+                "type": "object",
+                "properties": {
+                  "stage": {
+                    "type": "string",
+                    "enum": ["trusted_build", "artifact_pack", "artifact_gate", "workflow"]
+                  },
+                  "code": {
+                    "type": "string"
+                  },
+                  "retryable": {
+                    "type": "boolean"
+                  },
+                  "workflowRunId": {
+                    "type": "string"
+                  }
+                },
+                "required": ["stage", "code", "retryable", "workflowRunId"],
+                "additionalProperties": {}
+              },
+              "allowedActions": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "enum": ["retry_candidate", "retry_build", "abandon"]
+                }
+              },
+              "blockedRelease": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "awaiting_candidate",
+                      "building",
+                      "trusted_build_failed",
+                      "artifact_accepted",
+                      "finalizing",
+                      "published",
+                      "abandoned"
+                    ]
+                  },
+                  "packageKey": {
+                    "type": "string"
+                  },
+                  "version": {
+                    "type": "string",
+                    "pattern": "^\\d+\\.\\d+\\.\\d+$",
+                    "description": "Formal App version in X.Y.Z form."
+                  },
+                  "sourceSha256": {
+                    "type": "string"
+                  },
+                  "createdAt": {
+                    "type": "string"
+                  },
+                  "allowedActions": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": ["retry_candidate", "retry_build", "abandon"]
+                    }
+                  },
+                  "requestId": {
+                    "type": "string"
+                  },
+                  "matchesCurrentSource": {
+                    "type": "boolean"
+                  },
+                  "matchesCurrentRequest": {
+                    "type": "boolean"
+                  },
+                  "buildFailure": {
+                    "type": "object",
+                    "properties": {
+                      "stage": {
+                        "type": "string",
+                        "enum": ["trusted_build", "artifact_pack", "artifact_gate", "workflow"]
+                      },
+                      "code": {
+                        "type": "string"
+                      },
+                      "retryable": {
+                        "type": "boolean"
+                      },
+                      "workflowRunId": {
+                        "type": "string"
+                      }
+                    },
+                    "required": ["stage", "code", "retryable", "workflowRunId"],
+                    "additionalProperties": {}
+                  }
+                },
+                "required": [
+                  "id",
+                  "status",
+                  "packageKey",
+                  "version",
+                  "sourceSha256",
+                  "createdAt",
+                  "allowedActions",
+                  "matchesCurrentSource",
+                  "matchesCurrentRequest"
+                ],
+                "additionalProperties": {}
+              },
+              "requestId": {
+                "type": "string"
+              },
+              "applyToCurrentApp": {
+                "type": "boolean"
+              },
+              "state": {
+                "type": "string",
+                "enum": ["publishing", "blocked", "needs-retry", "registry-ready", "closed", "published"]
+              },
+              "retryable": {
+                "type": "boolean"
+              },
+              "updatedAt": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "localAppId",
+              "appId",
+              "packageKey",
+              "version",
+              "title",
+              "visibility",
+              "phase",
+              "allowedActions",
+              "applyToCurrentApp",
+              "state",
+              "retryable",
+              "updatedAt"
+            ],
+            "additionalProperties": {}
+          },
+          "detail": {},
+          "traceId": {
+            "type": "string"
+          }
+        },
+        "required": ["error"],
+        "additionalProperties": {}
+      },
+      "AppReleaseProgressResponse": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "const": true
+          },
+          "progress": {
+            "type": "object",
+            "properties": {
+              "localAppId": {
+                "type": "string"
+              },
+              "appId": {
+                "type": "string"
+              },
+              "packageKey": {
+                "type": "string"
+              },
+              "version": {
+                "type": "string",
+                "pattern": "^\\d+\\.\\d+\\.\\d+$",
+                "description": "Formal App version in X.Y.Z form."
+              },
+              "title": {
+                "type": "string"
+              },
+              "visibility": {
+                "type": "string",
+                "enum": ["public", "restricted"]
+              },
+              "phase": {
+                "type": "string",
+                "enum": [
+                  "draft_saved",
+                  "intent_created",
+                  "source_snapshot_uploaded",
+                  "remote_blocked",
+                  "remote_conflict",
+                  "remote_pending",
+                  "remote_closed",
+                  "registry_ready",
+                  "local_preserved",
+                  "local_finalized"
+                ]
+              },
+              "remoteIntentId": {
+                "type": "string"
+              },
+              "remoteStatus": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "awaiting_candidate",
+                      "building",
+                      "trusted_build_failed",
+                      "artifact_accepted",
+                      "finalizing",
+                      "published",
+                      "abandoned"
+                    ]
+                  },
+                  {
+                    "type": "string",
+                    "const": "publish_base_stale"
+                  }
+                ]
+              },
+              "buildFailure": {
+                "type": "object",
+                "properties": {
+                  "stage": {
+                    "type": "string",
+                    "enum": ["trusted_build", "artifact_pack", "artifact_gate", "workflow"]
+                  },
+                  "code": {
+                    "type": "string"
+                  },
+                  "retryable": {
+                    "type": "boolean"
+                  },
+                  "workflowRunId": {
+                    "type": "string"
+                  }
+                },
+                "required": ["stage", "code", "retryable", "workflowRunId"],
+                "additionalProperties": {}
+              },
+              "allowedActions": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "enum": ["retry_candidate", "retry_build", "abandon"]
+                }
+              },
+              "blockedRelease": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "awaiting_candidate",
+                      "building",
+                      "trusted_build_failed",
+                      "artifact_accepted",
+                      "finalizing",
+                      "published",
+                      "abandoned"
+                    ]
+                  },
+                  "packageKey": {
+                    "type": "string"
+                  },
+                  "version": {
+                    "type": "string",
+                    "pattern": "^\\d+\\.\\d+\\.\\d+$",
+                    "description": "Formal App version in X.Y.Z form."
+                  },
+                  "sourceSha256": {
+                    "type": "string"
+                  },
+                  "createdAt": {
+                    "type": "string"
+                  },
+                  "allowedActions": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": ["retry_candidate", "retry_build", "abandon"]
+                    }
+                  },
+                  "requestId": {
+                    "type": "string"
+                  },
+                  "matchesCurrentSource": {
+                    "type": "boolean"
+                  },
+                  "matchesCurrentRequest": {
+                    "type": "boolean"
+                  },
+                  "buildFailure": {
+                    "type": "object",
+                    "properties": {
+                      "stage": {
+                        "type": "string",
+                        "enum": ["trusted_build", "artifact_pack", "artifact_gate", "workflow"]
+                      },
+                      "code": {
+                        "type": "string"
+                      },
+                      "retryable": {
+                        "type": "boolean"
+                      },
+                      "workflowRunId": {
+                        "type": "string"
+                      }
+                    },
+                    "required": ["stage", "code", "retryable", "workflowRunId"],
+                    "additionalProperties": {}
+                  }
+                },
+                "required": [
+                  "id",
+                  "status",
+                  "packageKey",
+                  "version",
+                  "sourceSha256",
+                  "createdAt",
+                  "allowedActions",
+                  "matchesCurrentSource",
+                  "matchesCurrentRequest"
+                ],
+                "additionalProperties": {}
+              },
+              "requestId": {
+                "type": "string"
+              },
+              "applyToCurrentApp": {
+                "type": "boolean"
+              },
+              "state": {
+                "type": "string",
+                "enum": ["publishing", "blocked", "needs-retry", "registry-ready", "closed", "published"]
+              },
+              "retryable": {
+                "type": "boolean"
+              },
+              "updatedAt": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "localAppId",
+              "appId",
+              "packageKey",
+              "version",
+              "title",
+              "visibility",
+              "phase",
+              "allowedActions",
+              "applyToCurrentApp",
+              "state",
+              "retryable",
+              "updatedAt"
+            ],
+            "additionalProperties": {}
+          }
+        },
+        "required": ["ok", "progress"],
+        "additionalProperties": false
       }
     }
   }

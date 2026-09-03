@@ -1,6 +1,6 @@
 import { createOpenGroveClient } from "@opengrove/client";
 import { apiUrl } from "./api-base";
-import { bridgeHeaders } from "./bridge-client";
+import { bridgeHeaders } from "./bridge-headers";
 
 export const openGroveClient = createOpenGroveClient({
   baseUrl: apiUrl("/"),

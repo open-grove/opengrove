@@ -65,9 +65,13 @@ export function createHostOperationRequest(config: OpenGroveClientConfig): HostO
     );
     await config.auth?.updateFromResponse(response);
     const payload = await readResponsePayload(response);
-    if (response.status === operation.success.status) {
+    const success =
+      response.status === operation.success.status
+        ? operation.success
+        : operation.additionalSuccesses?.find((candidate) => candidate.status === response.status);
+    if (success) {
       try {
-        return parseOperationResponse(operation, operation.success.body, payload) as HostOperationOutput<TOperation>;
+        return parseOperationResponse(operation, success.body, payload) as HostOperationOutput<TOperation>;
       } catch (error) {
         if (error instanceof OpenGroveProtocolError && isBusinessFailure(payload)) {
           throw createClientError(response, payload, false);

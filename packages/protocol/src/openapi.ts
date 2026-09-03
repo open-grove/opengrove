@@ -70,7 +70,7 @@ function collectComponentSchemas(
 ): Readonly<Record<string, JsonSchema>> {
   const schemas: Record<string, JsonSchema> = {};
   for (const operation of protocol.operations) {
-    for (const response of [operation.success, ...operation.errors]) {
+    for (const response of [operation.success, ...operation.additionalSuccesses, ...operation.errors]) {
       if (!response.schemaId || !response.jsonSchema) continue;
       const existing = schemas[response.schemaId];
       if (existing && JSON.stringify(existing) !== JSON.stringify(response.jsonSchema)) {
@@ -89,6 +89,9 @@ function openApiOperation(operation: CompiledHostOperation): Readonly<Record<str
   ];
   const responses = Object.fromEntries([
     [String(operation.success.status), openApiResponse(operation.success, true)],
+    ...operation.additionalSuccesses.map(
+      (response) => [String(response.status), openApiResponse(response, true)] as const,
+    ),
     ...operation.errors.map((response) => [String(response.status), openApiResponse(response, false)] as const),
   ]);
 

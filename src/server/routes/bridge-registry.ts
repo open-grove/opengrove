@@ -2,6 +2,15 @@ import type { BridgeRoute, BridgeRouteContext } from "../router.js";
 import { hostContractById } from "#protocol/compiled";
 import { handleA2ARoute } from "./a2a.js";
 import { handleAppStoreRoute } from "./app-store.js";
+import {
+  handleAbandonAppReleaseOperation,
+  handleGetAppReleaseProgressOperation,
+  handleGetAppReleaseStatusOperation,
+  handleKeepLocalAppReleaseOperation,
+  handlePrepareAppReleaseOperation,
+  handlePublishAppReleaseOperation,
+  handleReconcileAppReleaseOperation,
+} from "./app-release.js";
 import { handleAppsRoute } from "./apps.js";
 import { createAskRoutes } from "./ask.js";
 import {
@@ -51,6 +60,13 @@ export function createBridgeRoutes(): BridgeRoute[] {
     ...createStateRoutes(),
     moduleRoute("knowledge", /^\/knowledge(?:\/|$)/, (context) => handleKnowledgeRoute(context)),
     moduleRoute("extensions", /^\/extensions(?:\/|$)/, (context) => handleExtensionsRoute(context)),
+    operationRoute(hostContractById["app.release.prepare"], handlePrepareAppReleaseOperation),
+    operationRoute(hostContractById["app.release.publish"], handlePublishAppReleaseOperation),
+    operationRoute(hostContractById["app.release.status"], handleGetAppReleaseStatusOperation),
+    operationRoute(hostContractById["app.release.progress"], handleGetAppReleaseProgressOperation),
+    operationRoute(hostContractById["app.release.reconcile"], handleReconcileAppReleaseOperation),
+    operationRoute(hostContractById["app.release.abandon"], handleAbandonAppReleaseOperation),
+    operationRoute(hostContractById["app.release.keep-local"], handleKeepLocalAppReleaseOperation),
     moduleRoute("apps", /^\/apps\//, (context) => handleAppsRoute(context)),
     ...createInventoryRoutes(),
     operationRoute(hostContractById["room.message.create"], handleCreateRoomMessageOperation),

@@ -43,6 +43,7 @@ export type CompiledHostOperation<TOperation extends HostOperation = HostOperati
     body?: CompiledHostInputSection;
   }>;
   success: CompiledHostResponse;
+  additionalSuccesses: readonly CompiledHostResponse[];
   errors: readonly CompiledHostResponse[];
   operation: TOperation;
 }>;
@@ -152,6 +153,17 @@ function compileOperation<TOperation extends HostOperation>(
     throw new Error(`Host operation ${operation.id} success status must be in the 2xx range.`);
   }
   const responseStatuses = new Set([success.status]);
+  const additionalSuccesses = (operation.additionalSuccesses ?? []).map((response) => {
+    const compiled = compileResponse(operation.id, "success", response);
+    if (compiled.status < 200 || compiled.status >= 300) {
+      throw new Error(`Host operation ${operation.id} success status must be in the 2xx range.`);
+    }
+    if (responseStatuses.has(compiled.status)) {
+      throw new Error(`Host operation ${operation.id} declares response status ${compiled.status} more than once.`);
+    }
+    responseStatuses.add(compiled.status);
+    return compiled;
+  });
   const errors = (operation.errors ?? []).map((response) => {
     const compiled = compileResponse(operation.id, "error", response);
     if (compiled.status >= 200 && compiled.status < 300) {
@@ -181,6 +193,7 @@ function compileOperation<TOperation extends HostOperation>(
       ...(body ? { body } : {}),
     },
     success,
+    additionalSuccesses,
     errors,
     operation,
   };
