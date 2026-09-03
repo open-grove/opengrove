@@ -295,7 +295,7 @@
     "cross-spawn": "^7.0.6",
     "electron-updater": "^6.8.9",
     "undici": "7.29.0",
-    "zod": "^4.4.3"
+    "zod": "^4.5.4"
   },
   "overrides": {
     "@anthropic-ai/sdk": "^0.95.2",
