@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { existsSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { normalizeAppStorePackageKey, normalizeArchiveSha256 } from "../app-store-package-identity.js";
-import { writePrivateJsonAtomically } from "./private-file.js";
+import { writePrivateJsonAtomically } from "../storage/private-file.js";
 export { appCandidateContentDigest } from "./app-content-digest.js";
 
 const APP_VERSION_STATE_SCHEMA_VERSION = 1;

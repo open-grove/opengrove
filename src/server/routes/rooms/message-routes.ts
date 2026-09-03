@@ -1,4 +1,5 @@
 import { Buffer } from "node:buffer";
+import type { CreateRoomMessageOperation } from "#protocol";
 import type { PostRoomMessageResult, RoomChannelMember, RoomChannelMessage } from "../../../rooms/channel-store.js";
 import { normalizeRoomMessageDeliveryKind, normalizeRoomSelectedFile } from "../../../rooms/channel-normalize.js";
 import { readWwRuntimeAuth } from "../../bridge-security.js";
@@ -23,13 +24,13 @@ import type { RoomsRouteContext } from "./route-context.js";
 import { hostMessage, type HostMessageCode } from "../../../localization/host-messages.js";
 import { resolveHostLanguageSettings } from "../../language-preference.js";
 import { presentRoomMessage } from "../../room-presentation.js";
+import type { HostOperationRouteContext } from "../../router.js";
 
 export async function handleRoomMessageRoutes(context: RoomsRouteContext): Promise<boolean> {
   return (
     (await handleMessageAttachmentContentRoute(context)) ||
     (await handleMessagesListRoute(context)) ||
     (await handleAgentMessageRoute(context)) ||
-    (await handleUserMessageRoute(context)) ||
     (await handleMessageCancelRoute(context)) ||
     (await handleMessageDeleteRoute(context)) ||
     (await handleMessagePatchRoute(context))
@@ -112,16 +113,15 @@ async function handleAgentMessageRoute(context: RoomsRouteContext): Promise<bool
   return true;
 }
 
-async function handleUserMessageRoute(context: RoomsRouteContext): Promise<boolean> {
-  const { request, response, url, state, sendJson, readJsonBody } = context;
-  const messagesAction = url.pathname.match(/^\/rooms\/([^/]+)\/messages$/);
-  if (!messagesAction || request.method !== "POST") return false;
-  const encodedRoomId = messagesAction[1]!;
-  const roomId = decodeURIComponent(encodedRoomId);
-  const body = record(await readJsonBody(request));
-  const text = readString(body.text);
-  const selectedFile = normalizeRoomSelectedFile(body.selectedFile);
-  const inReplyToMessageId = readOptionalString(body.inReplyToMessageId);
+export async function handleCreateRoomMessageOperation(
+  context: HostOperationRouteContext<CreateRoomMessageOperation>,
+): Promise<true> {
+  const { response, state, sendJson } = context;
+  const { roomId } = context.input.params;
+  const body = context.input.body;
+  const text = body.text;
+  const selectedFile = body.selectedFile;
+  const inReplyToMessageId = body.inReplyToMessageId;
   const replyParent = inReplyToMessageId ? state.app.rooms.getMessage(roomId, inReplyToMessageId) : undefined;
   if (inReplyToMessageId && !replyParent) {
     sendJson(response, 404, { ok: false, error: "reply_message_not_found" });
@@ -134,7 +134,7 @@ async function handleUserMessageRoute(context: RoomsRouteContext): Promise<boole
     : undefined;
   const userDeliveryKind =
     /@all\b/i.test(text) || /@(所有人|全部)/.test(text) ? ("user_broadcast" as const) : ("user_direct" as const);
-  const targetIds = resolveVisibleRoomTargets(state, roomId, text, readStringArray(body.targetIds));
+  const targetIds = resolveVisibleRoomTargets(state, roomId, text, body.targetIds);
   const assistantTargets = targetIds
     .map((id) => state.app.rooms.listMembers().find((member) => member.id === id))
     .filter((member): member is RoomChannelMember => Boolean(member));
@@ -148,7 +148,7 @@ async function handleUserMessageRoute(context: RoomsRouteContext): Promise<boole
           targetIds: [pm.id],
           attachments: readAttachments(body.attachments),
           assistantTargets: [],
-          userMessageId: readOptionalString(body.userMessageId),
+          userMessageId: body.userMessageId,
           deliveryKind: "pm_auto_route",
           inReplyToMessageId,
           rootMessageId,
@@ -163,8 +163,8 @@ async function handleUserMessageRoute(context: RoomsRouteContext): Promise<boole
         targetIds: [pm.id],
         attachments: readAttachments(body.attachments),
         assistantTargets: pmAssistantTargets,
-        userMessageId: readOptionalString(body.userMessageId),
-        assistantMessageIds: readStringArray(body.assistantMessageIds),
+        userMessageId: body.userMessageId,
+        assistantMessageIds: body.assistantMessageIds,
         deliveryKind: "pm_auto_route",
         inReplyToMessageId,
         rootMessageId,
@@ -188,8 +188,8 @@ async function handleUserMessageRoute(context: RoomsRouteContext): Promise<boole
       targetIds,
       attachments: readAttachments(body.attachments),
       assistantTargets,
-      userMessageId: readOptionalString(body.userMessageId),
-      assistantMessageIds: readStringArray(body.assistantMessageIds),
+      userMessageId: body.userMessageId,
+      assistantMessageIds: body.assistantMessageIds,
       deliveryKind: userDeliveryKind,
       inReplyToMessageId,
       rootMessageId,
@@ -203,8 +203,8 @@ async function handleUserMessageRoute(context: RoomsRouteContext): Promise<boole
     targetIds,
     attachments: readAttachments(body.attachments),
     assistantTargets,
-    userMessageId: readOptionalString(body.userMessageId),
-    assistantMessageIds: readStringArray(body.assistantMessageIds),
+    userMessageId: body.userMessageId,
+    assistantMessageIds: body.assistantMessageIds,
     deliveryKind: userDeliveryKind,
     inReplyToMessageId,
     rootMessageId,

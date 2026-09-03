@@ -1,5 +1,12 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { bridgeContractIssues, type BridgeContractIssue, type BridgeJsonContract } from "#agent-protocol";
+import {
+  bridgeContractIssues,
+  type BridgeContractIssue,
+  type BridgeJsonContract,
+  type HostOperation,
+  type HostOperationDecodedInput,
+} from "#protocol";
+import type { CompiledHostOperation } from "#protocol/compiler";
 import type { BridgeSecurity } from "./bridge-security.js";
 import type { BridgeState } from "./bridge-types.js";
 
@@ -24,9 +31,15 @@ export interface BridgeRoute {
   id: string;
   method?: string | string[];
   path?: BridgeRoutePathMatcher;
-  contract?: BridgeJsonContract;
+  contract?: BridgeJsonContract | HostOperation;
   handle(context: BridgeRouteContext): boolean | Promise<boolean>;
 }
+
+export type HostOperationRouteContext<TOperation extends HostOperation> = BridgeRouteContext &
+  Readonly<{
+    operation: CompiledHostOperation<TOperation>;
+    input: HostOperationDecodedInput<TOperation>;
+  }>;
 
 export class BridgeContractViolation extends Error {
   readonly code: "bridge_request_contract_invalid" | "bridge_response_contract_invalid";
@@ -59,6 +72,7 @@ export async function dispatchBridgeRoutes(
 function contextWithContract(route: BridgeRoute, context: BridgeRouteContext): BridgeRouteContext {
   const contract = route.contract;
   if (!contract) return context;
+  if (isHostOperation(contract)) return contextWithHostOperation(contract, context);
   return {
     ...context,
     readJsonBody: async (request, maxBytes) => {
@@ -89,6 +103,152 @@ function contextWithContract(route: BridgeRoute, context: BridgeRouteContext): B
       context.sendJson(response, status, parsed.data);
     },
   };
+}
+
+function contextWithHostOperation(operation: HostOperation, context: BridgeRouteContext): BridgeRouteContext {
+  return {
+    ...context,
+    sendJson: (response, status, data) => {
+      const declaredResponse =
+        status === operation.success.status
+          ? operation.success
+          : operation.errors?.find((candidate) => candidate.status === status);
+      if (!declaredResponse) {
+        reportHostResponseViolation(operation, context, response, [
+          { path: "$", code: `response_status_not_declared:${status}` },
+        ]);
+        return;
+      }
+      if (!declaredResponse.body) {
+        if (data !== undefined) {
+          reportHostResponseViolation(operation, context, response, [{ path: "$", code: "unexpected_response_body" }]);
+          return;
+        }
+        context.sendJson(response, status, data);
+        return;
+      }
+      const parsed = declaredResponse.body.safeParse(data);
+      if (!parsed.success) {
+        reportHostResponseViolation(operation, context, response, bridgeContractIssues(parsed.error));
+        return;
+      }
+      context.sendJson(response, status, parsed.data);
+    },
+  };
+}
+
+export async function decodeHostOperationInput<TOperation extends HostOperation>(
+  compiled: CompiledHostOperation<TOperation>,
+  context: BridgeRouteContext,
+): Promise<HostOperationRouteContext<TOperation>> {
+  const operation = compiled.operation;
+  const input: Record<string, unknown> = {};
+  if (operation.params) {
+    input.params = parseHostOperationPart(
+      operation,
+      "params",
+      operation.params,
+      operationPathParams(compiled, context.url.pathname),
+    );
+  }
+  if (operation.query) {
+    input.query = parseHostOperationPart(
+      operation,
+      "query",
+      operation.query,
+      operationQueryParams(compiled, context.url),
+    );
+  }
+  if (operation.body) {
+    const value = await context.readJsonBody(context.request);
+    input.body = parseHostOperationPart(operation, "body", operation.body, value);
+  }
+  return {
+    ...context,
+    operation: compiled,
+    input: input as HostOperationDecodedInput<TOperation>,
+  };
+}
+
+function parseHostOperationPart(
+  operation: HostOperation,
+  name: "params" | "query" | "body",
+  schema: HostOperation["params"] | HostOperation["query"] | HostOperation["body"],
+  value: unknown,
+): unknown {
+  if (!schema) return value;
+  const parsed = schema.safeParse(value);
+  if (parsed.success) return parsed.data;
+  const issues = bridgeContractIssues(parsed.error).map((issue) => ({
+    ...issue,
+    path: issue.path === "$" ? name : `${name}.${issue.path}`,
+  }));
+  throw new BridgeContractViolation("request", operation.id, issues);
+}
+
+function operationPathParams(operation: CompiledHostOperation, pathname: string): Record<string, string> {
+  const values = pathname.match(new RegExp(operation.path.regexpSource, "u"));
+  if (!values) return {};
+  return Object.fromEntries(
+    operation.path.parameterNames.map((name, index) => {
+      const value = values[index + 1] ?? "";
+      try {
+        return [name, decodeURIComponent(value)];
+      } catch {
+        throw new BridgeContractViolation("request", operation.id, [
+          { path: `params.${name}`, code: "path_parameter_invalid_encoding" },
+        ]);
+      }
+    }),
+  );
+}
+
+function operationQueryParams(operation: CompiledHostOperation, url: URL): Record<string, string | string[]> {
+  const properties = operation.input.query?.jsonSchema.properties;
+  const schemas = isRecord(properties) ? properties : {};
+  const query: Record<string, string | string[]> = {};
+  for (const name of new Set(url.searchParams.keys())) {
+    const values = url.searchParams.getAll(name);
+    const schema = schemas[name];
+    if (isArraySchema(schema)) {
+      query[name] = values;
+      continue;
+    }
+    if (schema && values.length > 1) {
+      throw new BridgeContractViolation("request", operation.id, [
+        { path: `query.${name}`, code: "query_parameter_repeated" },
+      ]);
+    }
+    query[name] = values.length === 1 ? values[0]! : values;
+  }
+  return query;
+}
+
+function isArraySchema(value: unknown): boolean {
+  return isRecord(value) && value.type === "array";
+}
+
+function reportHostResponseViolation(
+  operation: HostOperation,
+  context: BridgeRouteContext,
+  response: ServerResponse,
+  issues: BridgeContractIssue[],
+): void {
+  const violation = new BridgeContractViolation("response", operation.id, issues);
+  context.reportContractViolation?.(violation);
+  context.sendJson(response, 500, {
+    ok: false,
+    error: "bridge_response_contract_violation",
+    contractId: operation.id,
+  });
+}
+
+function isHostOperation(contract: BridgeJsonContract | HostOperation): contract is HostOperation {
+  return "method" in contract && "path" in contract && "success" in contract;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 export function routeMatches(route: BridgeRoute, context: BridgeRouteContext): boolean {

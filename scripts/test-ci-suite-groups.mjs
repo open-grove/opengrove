@@ -28,6 +28,16 @@ assert.equal(
   "the independently scheduled desktop group must materialize protocol declarations itself",
 );
 assert.equal(
+  packageJson.scripts.prepare,
+  "npm run build:workspace-packages",
+  "dependency installation must materialize the workspace packages consumed by independently scheduled jobs",
+);
+assert.equal(
+  packageJson.scripts["build:workspace-packages"],
+  "npm run build:protocol && npm --workspace @opengrove/client run build",
+  "workspace package preparation must cover the protocol, Agent protocol, and generated Host client",
+);
+assert.equal(
   packageJson.scripts["check:web"],
   "npm run check:web:static && npm run test:contract:web",
   "the Web ownership group should include static analysis and behavior contracts",
@@ -50,7 +60,7 @@ assert.equal(
 
 const expectedFullGroupSizes = {
   "state-storage": 8,
-  "rooms-routines": 22,
+  "rooms-routines": 23,
   "apps-knowledge": 15,
   "app-lifecycle": 18,
   "kernels-providers": 28,
@@ -82,17 +92,17 @@ for (const [groupName, expectedSize] of Object.entries(expectedFullGroupSizes)) 
   groupedLabels.push(...harnessGroups[groupName].map((task) => task.id));
 }
 
-assert.equal(harnessInventory.length, 108, "the canonical deterministic harness inventory must not shrink silently");
+assert.equal(harnessInventory.length, 109, "the canonical deterministic harness inventory must not shrink silently");
 assert.equal(
   harnessGroups.full,
   harnessInventory,
   "the full group should be the canonical inventory, not a second list",
 );
-assert.equal(new Set(harnessInventory.map((task) => task.id)).size, 108, "every harness id must be unique");
-assert.equal(harnessGroups.integration.length, 33, "the affected-integration subset must not shrink silently");
+assert.equal(new Set(harnessInventory.map((task) => task.id)).size, 109, "every harness id must be unique");
+assert.equal(harnessGroups.integration.length, 34, "the affected-integration subset must not shrink silently");
 assert.equal(
   new Set(harnessGroups.integration.map((task) => task.id)).size,
-  33,
+  34,
   "the integration subset must not execute a canonical harness twice",
 );
 assert.equal(new Set(groupedLabels).size, groupedLabels.length, "a full harness must have exactly one owner group");

@@ -186,6 +186,8 @@ npm run build:server
 node dist/cli.js start              # 启动本地 bridge/API
 node dist/cli.js app inspect <src>  # 检查 / 脚手架 / 验证 App
 node dist/cli.js employee pack <id> # 打包并发布 Rooms 员工
+node dist/cli.js room message create --room-id <id> --text "Hello"
+node dist/cli.js room message create --room-id <id> --text "Hello" --dry-run
 
 npm run build:web                   # 提供浏览器 UI 前必须执行
 OPENGROVE_ENABLE_BROWSER_UI=1 node dist/cli.js start
@@ -193,6 +195,9 @@ OPENGROVE_ENABLE_BROWSER_UI=1 node dist/cli.js start
 
 需认证的 `web` profile 还要求配置 `OPENGROVE_WW_BASE_URL`；
 详见[从源码构建](docs/development/BUILDING.zh-CN.md)。
+标准 Host 命令由共享 Protocol 目录自动投影，与 Web UI 调用同一个
+Client。默认输出 JSON 并连接本地 Bridge；连接其他已配置 Bridge 时，
+使用 `OPENGROVE_BRIDGE_URL` 和 `OPENGROVE_BRIDGE_TOKEN`。
 
 ## 配置
 

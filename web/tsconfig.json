@@ -11,6 +11,9 @@
     "skipLibCheck": true,
     "resolveJsonModule": true,
     "paths": {
+      "#protocol": ["../packages/protocol/src/index.ts"],
+      "@opengrove/client": ["../packages/client/src/index.ts"],
+      "@opengrove/protocol": ["../packages/protocol/src/index.ts"],
       "@opengrove/agent-protocol": ["../packages/agent-protocol/src/index.ts"],
       "@opengrove/agent-protocol/locale-registry": ["../packages/agent-protocol/src/locale-registry.ts"]
     }

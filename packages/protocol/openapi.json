@@ -1,0 +1,1432 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "OpenGrove Host API",
+    "version": "0.1.0",
+    "description": "Operations exposed through the local OpenGrove Host Protocol catalog."
+  },
+  "servers": [
+    {
+      "url": "/api",
+      "description": "OpenGrove Host Bridge API base path."
+    }
+  ],
+  "tags": [
+    {
+      "name": "auth",
+      "description": "OpenGrove account authentication and session operations."
+    },
+    {
+      "name": "room",
+      "description": "Local Room collaboration and ledger operations."
+    }
+  ],
+  "paths": {
+    "/auth/email-codes": {
+      "post": {
+        "operationId": "auth.email-code.create",
+        "summary": "Send an account login code",
+        "description": "Send an email verification code for the existing OpenGrove account login flow.",
+        "tags": ["auth"],
+        "x-opengrove-group": "auth",
+        "x-opengrove-resource": "email-code",
+        "x-opengrove-risk": "write",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "object",
+                "properties": {
+                  "email": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "OpenGrove account email address."
+                  }
+                },
+                "required": ["email"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "const": true
+                    },
+                    "requiresInvite": {
+                      "type": "boolean"
+                    },
+                    "requiresCountry": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": ["ok"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The login code could not be sent.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The login code could not be sent.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The login code could not be sent.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthError"
+                }
+              }
+            }
+          },
+          "408": {
+            "description": "The login code could not be sent.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The login code could not be sent.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "The login code could not be sent.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthError"
+                }
+              }
+            }
+          },
+          "425": {
+            "description": "The login code could not be sent.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The login code could not be sent.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The login code could not be sent.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthError"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "The login code could not be sent.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The login code could not be sent.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthError"
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "The login code could not be sent.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/login": {
+      "post": {
+        "operationId": "auth.session.create",
+        "summary": "Create an account session",
+        "description": "Exchange an email verification code for an OpenGrove account session.",
+        "tags": ["auth"],
+        "x-opengrove-group": "auth",
+        "x-opengrove-resource": "session",
+        "x-opengrove-risk": "write",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "object",
+                "properties": {
+                  "email": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "OpenGrove account email address."
+                  },
+                  "code": {
+                    "type": "string",
+                    "pattern": "^\\d{6}$",
+                    "description": "Six-digit email verification code."
+                  },
+                  "inviteCode": {
+                    "description": "Invite code when account registration requires one.",
+                    "type": "string"
+                  },
+                  "countryCode": {
+                    "description": "ISO country or region code for a new account.",
+                    "type": "string"
+                  },
+                  "deviceName": {
+                    "description": "Human-readable name for this client session.",
+                    "type": "string"
+                  },
+                  "platform": {
+                    "description": "Client platform identifier.",
+                    "type": "string"
+                  },
+                  "languagePreference": {
+                    "type": "string",
+                    "enum": ["system", "zh-CN", "en"]
+                  },
+                  "systemLanguage": {
+                    "type": "string",
+                    "enum": ["zh-CN", "en"]
+                  }
+                },
+                "required": ["email", "code"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "user": {
+                      "type": "object",
+                      "properties": {
+                        "userId": {
+                          "type": "string"
+                        },
+                        "email": {
+                          "type": "string"
+                        },
+                        "countryCode": {
+                          "type": "string"
+                        },
+                        "displayName": {
+                          "type": "string"
+                        },
+                        "avatarUrl": {
+                          "type": "string"
+                        },
+                        "profileUpdatedAt": {
+                          "type": "string"
+                        },
+                        "profileStatus": {
+                          "type": "string",
+                          "enum": ["available", "missing", "unavailable"]
+                        },
+                        "role": {
+                          "type": "string"
+                        },
+                        "roles": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "createdAt": {
+                          "type": "string"
+                        },
+                        "lastLoginAt": {
+                          "type": "string"
+                        }
+                      },
+                      "required": ["userId", "email", "displayName", "role"],
+                      "additionalProperties": {}
+                    },
+                    "isNewUser": {
+                      "type": "boolean"
+                    },
+                    "providerProvisioning": {
+                      "type": "object",
+                      "properties": {
+                        "status": {
+                          "type": "string",
+                          "enum": ["configured", "already-configured", "skipped", "failed"]
+                        },
+                        "providerId": {
+                          "type": "string"
+                        },
+                        "createdApiKey": {
+                          "type": "boolean"
+                        },
+                        "defaultedKernels": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "reason": {
+                          "type": "string"
+                        },
+                        "error": {
+                          "type": "string"
+                        }
+                      },
+                      "required": ["status"],
+                      "additionalProperties": {}
+                    },
+                    "defaultStoreApps": {},
+                    "appUpdates": {}
+                  },
+                  "required": ["user"],
+                  "additionalProperties": {}
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The account session could not be created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The account session could not be created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The account session could not be created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthError"
+                }
+              }
+            }
+          },
+          "408": {
+            "description": "The account session could not be created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The account session could not be created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "The account session could not be created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthError"
+                }
+              }
+            }
+          },
+          "425": {
+            "description": "The account session could not be created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The account session could not be created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The account session could not be created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthError"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "The account session could not be created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The account session could not be created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthError"
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "The account session could not be created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/session": {
+      "get": {
+        "operationId": "auth.session.get",
+        "summary": "Get the current account session",
+        "description": "Verify and return the current OpenGrove account session.",
+        "tags": ["auth"],
+        "x-opengrove-group": "auth",
+        "x-opengrove-resource": "session",
+        "x-opengrove-risk": "read",
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "status": {
+                          "type": "string",
+                          "const": "authenticated"
+                        },
+                        "authenticated": {
+                          "type": "boolean",
+                          "const": true
+                        },
+                        "verification": {
+                          "type": "string",
+                          "enum": ["verified", "cached", "stale"]
+                        },
+                        "user": {
+                          "type": "object",
+                          "properties": {
+                            "userId": {
+                              "type": "string"
+                            },
+                            "email": {
+                              "type": "string"
+                            },
+                            "countryCode": {
+                              "type": "string"
+                            },
+                            "displayName": {
+                              "type": "string"
+                            },
+                            "avatarUrl": {
+                              "type": "string"
+                            },
+                            "profileUpdatedAt": {
+                              "type": "string"
+                            },
+                            "profileStatus": {
+                              "type": "string",
+                              "enum": ["available", "missing", "unavailable"]
+                            },
+                            "role": {
+                              "type": "string"
+                            },
+                            "roles": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            "createdAt": {
+                              "type": "string"
+                            },
+                            "lastLoginAt": {
+                              "type": "string"
+                            }
+                          },
+                          "required": ["userId", "email", "displayName", "role"],
+                          "additionalProperties": {}
+                        }
+                      },
+                      "required": ["status", "authenticated", "verification", "user"],
+                      "additionalProperties": {}
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "status": {
+                          "type": "string",
+                          "const": "unauthenticated"
+                        },
+                        "authenticated": {
+                          "type": "boolean",
+                          "const": false
+                        },
+                        "reason": {
+                          "type": "string"
+                        }
+                      },
+                      "required": ["status", "authenticated", "reason"],
+                      "additionalProperties": {}
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "status": {
+                          "type": "string",
+                          "const": "temporarily_unavailable"
+                        },
+                        "error": {
+                          "type": "string"
+                        },
+                        "incidentId": {
+                          "type": "string"
+                        },
+                        "traceId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": ["status", "error"],
+                      "additionalProperties": {}
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The account session could not be read.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The account session could not be read.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The account session could not be read.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthError"
+                }
+              }
+            }
+          },
+          "408": {
+            "description": "The account session could not be read.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The account session could not be read.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "The account session could not be read.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthError"
+                }
+              }
+            }
+          },
+          "425": {
+            "description": "The account session could not be read.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The account session could not be read.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The account session could not be read.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthError"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "The account session could not be read.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The account session could not be read.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthError"
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "The account session could not be read.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/logout": {
+      "post": {
+        "operationId": "auth.session.delete",
+        "summary": "Delete the current account session",
+        "description": "Log out the current OpenGrove account session and clear its credentials.",
+        "tags": ["auth"],
+        "x-opengrove-group": "auth",
+        "x-opengrove-resource": "session",
+        "x-opengrove-risk": "write",
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "const": true
+                    }
+                  },
+                  "required": ["ok"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The account session could not be deleted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The account session could not be deleted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The account session could not be deleted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthError"
+                }
+              }
+            }
+          },
+          "408": {
+            "description": "The account session could not be deleted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The account session could not be deleted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "The account session could not be deleted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthError"
+                }
+              }
+            }
+          },
+          "425": {
+            "description": "The account session could not be deleted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The account session could not be deleted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The account session could not be deleted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthError"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "The account session could not be deleted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The account session could not be deleted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthError"
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "The account session could not be deleted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rooms/{roomId}/messages": {
+      "post": {
+        "operationId": "room.message.create",
+        "summary": "Send a Room message",
+        "description": "Send a user message to a Room and schedule addressed Employees.",
+        "tags": ["room"],
+        "x-opengrove-group": "room",
+        "x-opengrove-resource": "message",
+        "x-opengrove-risk": "write",
+        "parameters": [
+          {
+            "name": "roomId",
+            "in": "path",
+            "required": true,
+            "description": "Room identifier; surrounding whitespace is ignored.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Room identifier; surrounding whitespace is ignored."
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "object",
+                "properties": {
+                  "text": {
+                    "default": "",
+                    "description": "Message text.",
+                    "type": "string"
+                  },
+                  "targetIds": {
+                    "description": "Employee identifiers addressed by the message; surrounding whitespace is ignored, and empty or duplicate values are removed.",
+                    "default": [],
+                    "anyOf": [
+                      {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "attachments": {
+                    "description": "Structured message attachments; null is treated as an empty list.",
+                    "default": [],
+                    "anyOf": [
+                      {
+                        "type": "array",
+                        "items": {}
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "selectedFile": {
+                    "description": "Selected local file reference; null or an empty path means no selected file.",
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "path": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["path"]
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "userMessageId": {
+                    "description": "Caller-provided idempotent user message identifier; surrounding whitespace is ignored.",
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "assistantMessageIds": {
+                    "description": "Reserved assistant message identifiers; surrounding whitespace is ignored, and empty or duplicate values are removed.",
+                    "default": [],
+                    "anyOf": [
+                      {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "inReplyToMessageId": {
+                    "description": "Parent message identifier for a reply; surrounding whitespace is ignored.",
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "const": true
+                    },
+                    "room": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "kind": {
+                          "type": "string",
+                          "enum": ["group", "direct"]
+                        },
+                        "title": {
+                          "type": "string"
+                        },
+                        "badge": {
+                          "type": "string"
+                        },
+                        "memberIds": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "adminMemberIds": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "updatedAt": {
+                          "type": "string"
+                        },
+                        "unread": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "kind",
+                        "title",
+                        "badge",
+                        "memberIds",
+                        "adminMemberIds",
+                        "updatedAt",
+                        "unread"
+                      ],
+                      "additionalProperties": {}
+                    },
+                    "userMessage": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "roomId": {
+                          "type": "string"
+                        },
+                        "channelSeq": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "senderId": {
+                          "type": "string"
+                        },
+                        "senderName": {
+                          "type": "string"
+                        },
+                        "senderType": {
+                          "type": "string",
+                          "enum": ["user", "agent", "system"]
+                        },
+                        "text": {
+                          "type": "string"
+                        },
+                        "targetIds": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": ["sent", "running", "done", "failed", "interrupted"]
+                        },
+                        "createdAt": {
+                          "type": "string"
+                        },
+                        "updatedAt": {
+                          "type": "string"
+                        },
+                        "attachments": {
+                          "type": "array",
+                          "items": {}
+                        },
+                        "parts": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "propertyNames": {
+                              "type": "string"
+                            },
+                            "additionalProperties": {}
+                          }
+                        },
+                        "inReplyToMessageId": {
+                          "type": "string"
+                        },
+                        "rootMessageId": {
+                          "type": "string"
+                        },
+                        "selectedFile": {
+                          "type": "object",
+                          "properties": {
+                            "path": {
+                              "type": "string"
+                            }
+                          },
+                          "required": ["path"],
+                          "additionalProperties": {}
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "roomId",
+                        "channelSeq",
+                        "senderId",
+                        "senderName",
+                        "senderType",
+                        "text",
+                        "targetIds",
+                        "status",
+                        "createdAt",
+                        "updatedAt"
+                      ],
+                      "additionalProperties": {}
+                    },
+                    "assistantMessages": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "roomId": {
+                            "type": "string"
+                          },
+                          "channelSeq": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "senderId": {
+                            "type": "string"
+                          },
+                          "senderName": {
+                            "type": "string"
+                          },
+                          "senderType": {
+                            "type": "string",
+                            "enum": ["user", "agent", "system"]
+                          },
+                          "text": {
+                            "type": "string"
+                          },
+                          "targetIds": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": ["sent", "running", "done", "failed", "interrupted"]
+                          },
+                          "createdAt": {
+                            "type": "string"
+                          },
+                          "updatedAt": {
+                            "type": "string"
+                          },
+                          "attachments": {
+                            "type": "array",
+                            "items": {}
+                          },
+                          "parts": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "propertyNames": {
+                                "type": "string"
+                              },
+                              "additionalProperties": {}
+                            }
+                          },
+                          "inReplyToMessageId": {
+                            "type": "string"
+                          },
+                          "rootMessageId": {
+                            "type": "string"
+                          },
+                          "selectedFile": {
+                            "type": "object",
+                            "properties": {
+                              "path": {
+                                "type": "string"
+                              }
+                            },
+                            "required": ["path"],
+                            "additionalProperties": {}
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "roomId",
+                          "channelSeq",
+                          "senderId",
+                          "senderName",
+                          "senderType",
+                          "text",
+                          "targetIds",
+                          "status",
+                          "createdAt",
+                          "updatedAt"
+                        ],
+                        "additionalProperties": {}
+                      }
+                    },
+                    "currentEventSeq": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": ["ok", "room", "userMessage", "assistantMessages", "currentEventSeq"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request does not satisfy the operation contract.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "const": false
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "traceId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["error"],
+                  "additionalProperties": {}
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "A valid Bridge session or token is required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "const": false
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "traceId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["error"],
+                  "additionalProperties": {}
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The request origin is not allowed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "const": false
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "traceId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["error"],
+                  "additionalProperties": {}
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The reply parent message does not exist.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "const": false
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "traceId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["error"],
+                  "additionalProperties": {}
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The authenticated session is temporarily unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "const": false
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "traceId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["error"],
+                  "additionalProperties": {}
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AuthError": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "const": false
+          },
+          "error": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          },
+          "requestId": {
+            "type": "string"
+          },
+          "incidentId": {
+            "type": "string"
+          },
+          "traceId": {
+            "type": "string"
+          },
+          "retryAfter": {
+            "type": "number",
+            "minimum": 0
+          }
+        },
+        "required": ["error"],
+        "additionalProperties": {}
+      }
+    }
+  }
+}

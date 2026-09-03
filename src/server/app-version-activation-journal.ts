@@ -4,7 +4,7 @@ import { join, resolve } from "node:path";
 import { type PersistedAgentState } from "../storage/json-state-store.js";
 import type { BridgeMountedAppSettings } from "./bridge-types.js";
 import type { MountedAppVersionState } from "./app-version-state.js";
-import { writePrivateFileAtomically } from "./private-file.js";
+import { writePrivateFileAtomically } from "../storage/private-file.js";
 import { normalizeActivationJournalAgentState } from "./app-version-activation-journal.compat.js";
 
 const APP_VERSION_ACTIVATION_JOURNAL_SCHEMA_VERSION = 1;

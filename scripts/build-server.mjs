@@ -9,12 +9,17 @@ const compatibilityBuild = process.argv.includes("--compat");
 const nativeCompiler = join(projectRoot, "node_modules", "@typescript", "native", "bin", "tsc");
 const legacyCompiler = join(projectRoot, "node_modules", "typescript", "bin", "tsc6");
 
-await rm(join(projectRoot, "packages", "agent-protocol", "dist"), { recursive: true, force: true });
-await compile(legacyCompiler, ["-p", join(projectRoot, "packages", "agent-protocol", "tsconfig.json")]);
+for (const packageName of ["protocol", "agent-protocol", "client"]) {
+  if (packageName === "client") {
+    await import("./generate-host-client.mjs");
+  }
+  await rm(join(projectRoot, "packages", packageName, "dist"), { recursive: true, force: true });
+  await compile(legacyCompiler, ["-p", join(projectRoot, "packages", packageName, "tsconfig.json")]);
+}
 
 await rm(join(projectRoot, "dist"), { recursive: true, force: true });
 await compile(compatibilityBuild ? legacyCompiler : nativeCompiler, ["-p", join(projectRoot, "tsconfig.json")]);
-await import("./copy-agent-protocol-runtime.mjs");
+await import("./copy-workspace-runtimes.mjs");
 
 async function compile(compiler, args) {
   await new Promise((resolvePromise, reject) => {

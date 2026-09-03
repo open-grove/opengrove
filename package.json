@@ -23,6 +23,22 @@
     "opengrove": "dist/cli.js"
   },
   "imports": {
+    "#protocol": {
+      "types": "./packages/protocol/dist/index.d.ts",
+      "default": "./dist/protocol/index.js"
+    },
+    "#protocol/compiled": {
+      "types": "./packages/protocol/dist/compiled.d.ts",
+      "default": "./dist/protocol/compiled.js"
+    },
+    "#protocol/compiler": {
+      "types": "./packages/protocol/dist/compiler.d.ts",
+      "default": "./dist/protocol/compiler.js"
+    },
+    "#client": {
+      "types": "./packages/client/dist/index.d.ts",
+      "default": "./dist/client/index.js"
+    },
     "#agent-protocol": {
       "types": "./packages/agent-protocol/dist/index.d.ts",
       "default": "./dist/agent-protocol/index.js"
@@ -52,16 +68,22 @@
     "build": "node scripts/build.mjs",
     "build:clients": "node scripts/build-clients.mjs",
     "build:desktop": "node scripts/build-desktop.mjs",
-    "build:protocol": "npm --workspace @opengrove/agent-protocol run build",
+    "build:protocol": "npm --workspace @opengrove/protocol run build && npm --workspace @opengrove/agent-protocol run build",
+    "build:workspace-packages": "npm run build:protocol && npm --workspace @opengrove/client run build",
+    "build:client": "npm run build:protocol && npm run generate:host-client && npm --workspace @opengrove/client run build",
+    "build:sdk": "npm run build:protocol && npm run generate:host-client && npm --workspace @opengrove/sdk run build",
+    "generate:host-client": "node scripts/generate-host-client.mjs",
     "build:server": "node scripts/build-server.mjs",
     "build:server:compat": "node scripts/build-server.mjs --compat",
     "build:web": "vite build && node scripts/check-web-build.mjs",
     "catalog:models-dev": "node scripts/sync-models-dev-catalog.mjs",
     "clean:server": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
-    "typecheck": "npm run typecheck:protocol && npm run typecheck:server && npm run typecheck:web && npm run typecheck:desktop",
+    "typecheck": "npm run typecheck:protocol && npm run typecheck:client && npm run typecheck:sdk && npm run typecheck:server && npm run typecheck:web && npm run typecheck:desktop",
     "typecheck:desktop": "npm run build:protocol && tsc -p tsconfig.desktop.json --noEmit",
-    "typecheck:protocol": "npm --workspace @opengrove/agent-protocol run typecheck",
-    "typecheck:server": "npm run build:protocol && tsc --noEmit",
+    "typecheck:protocol": "npm --workspace @opengrove/protocol run typecheck && npm --workspace @opengrove/protocol run build && npm --workspace @opengrove/agent-protocol run typecheck",
+    "typecheck:client": "npm --workspace @opengrove/protocol run build && npm run check:client-generated && npm --workspace @opengrove/client run typecheck",
+    "typecheck:sdk": "npm --workspace @opengrove/sdk run typecheck",
+    "typecheck:server": "npm run build:client && tsc --noEmit",
     "typecheck:web": "tsc -p web/tsconfig.json --noEmit",
     "lint": "oxlint .",
     "lint:fix": "oxlint . --fix",
@@ -71,7 +93,7 @@
     "check:ci": "npm run check:static:base && npm run check:static:server && npm run check:web && npm run check:desktop && npm run check:static:release",
     "check:static": "npm run check:ci",
     "check:static:base": "npm run lint && npm run format:check && npm run check:agent-code-quality && npm run check:typescript-runtime-compat && npm run check:ci-contracts && npm run check:repository-hygiene && npm run check:doc-refs",
-    "check:static:server": "npm run typecheck:protocol && npm run typecheck:server && npm run check:client-activity && npm run check:app-command-runtime && npm run check:workspace-resource-security && npm run check:host-version",
+    "check:static:server": "npm run typecheck:protocol && npm run check:client-generated && npm run typecheck:sdk && npm run typecheck:server && npm run check:host-contract-coverage && npm run check:client-boundary && npm run check:client-activity && npm run check:app-command-runtime && npm run check:workspace-resource-security && npm run check:host-version",
     "check:web": "npm run check:web:static && npm run test:contract:web",
     "check:static:web": "npm run check:web",
     "check:web:static": "npm run typecheck:web && npm run check:renderer-only-dependencies && npm run check:css && npm run check:web-i18n",
@@ -108,6 +130,10 @@
     "check:windows-firewall-installer": "node scripts/test-windows-firewall-installer.mjs",
     "check:desktop-client-update": "node scripts/test-desktop-client-update.mjs",
     "check:client-activity": "node --experimental-strip-types scripts/test-client-activity-policy.mjs",
+    "check:client-boundary": "node scripts/test-client-package-boundary.mjs",
+    "check:client-generated": "node scripts/generate-host-client.mjs --check",
+    "check:host-contract-coverage": "npm run build:server && npm run check:host-contract-coverage:built",
+    "check:host-contract-coverage:built": "node --test dist/tests/host-contract-coverage.test.js",
     "check:app-command-runtime": "node scripts/test-app-command-runtime.mjs",
     "check:typescript-runtime-compat": "node scripts/test-typescript-runtime-compat.mjs",
     "check:workspace-resource-security": "node scripts/test-workspace-resource-security.mjs",
@@ -193,6 +219,7 @@
     "test:harness:web-desktop": "npm run build:server && node scripts/run-built-harnesses.mjs web-desktop",
     "test:harness:release-contracts": "node scripts/run-built-harnesses.mjs release-contracts",
     "test:node": "npm run build:server && npm run test:node:built",
+    "test:client": "npm run build:server && node --test dist/tests/opengrove-client.test.js dist/tests/bridge-contract.test.js dist/tests/host-operation-cli.test.js dist/tests/auth-cli.test.js dist/tests/host-openapi.test.js dist/tests/host-contract-coverage.test.js && node dist/tests/host-operation-cli-harness.js && npm run check:client-boundary",
     "test:node:built": "node --test dist/tests/*.test.js",
     "test:pack:web": "npm run test:pack:web:unit && node scripts/test-pack-web-artifact.mjs",
     "test:pack:web:unit": "node scripts/test-pack-web-artifact-unit.mjs",
@@ -245,6 +272,7 @@
     "notarize:desktop:wait": "node scripts/wait-desktop-notarization.mjs",
     "notarize:desktop:dmg": "node scripts/finalize-mac-dmg-artifacts.mjs",
     "finalize:desktop-release": "node scripts/finalize-desktop-release.mjs",
+    "prepare": "npm run build:workspace-packages",
     "prepare:desktop-update": "node scripts/prepare-desktop-update-payload.mjs",
     "prepare:desktop-release": "node scripts/prepare-desktop-release.mjs",
     "verify:desktop-update": "node scripts/verify-desktop-update-metadata.mjs",
@@ -274,10 +302,10 @@
     "fast-uri": "^3.1.5"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.5.10",
     "@aws-sdk/client-s3": "3.1113.0",
     "@aws-sdk/lib-storage": "3.1113.0",
     "@base-ui/react": "^1.6.0",
+    "@biomejs/biome": "2.5.10",
     "@codemirror/commands": "^6.11.0",
     "@codemirror/lang-css": "^6.3.1",
     "@codemirror/lang-html": "^6.4.12",
@@ -291,6 +319,7 @@
     "@dicebear/core": "^10.3.0",
     "@dicebear/styles": "^10.2.0",
     "@electron/asar": "^3.4.1",
+    "@hey-api/openapi-ts": "0.99.0",
     "@lezer/highlight": "^1.2.3",
     "@lobehub/icons": "^5.16.0",
     "@milkdown/crepe": "^7.22.1",

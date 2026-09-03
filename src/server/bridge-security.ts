@@ -1,6 +1,6 @@
-import type { IncomingMessage, ServerResponse } from "node:http";
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
+import type { IncomingMessage, ServerResponse } from "node:http";
 import { homedir } from "node:os";
 import { resolve } from "node:path";
 import {
@@ -10,11 +10,11 @@ import {
   normalizeHttpOrigin,
   readAppEnv,
 } from "../identity.js";
+import type { BridgeSessionUser } from "./bridge-session-user.js";
 import type { BridgeState, LocalBridgeServerOptions } from "./bridge-types.js";
 import { splitList } from "./http-utils.js";
-import type { BridgeSessionUser } from "./bridge-session-user.js";
-import { readWwProviderLocalState, wwProviderAccountMatches } from "./ww-provider-local-state.js";
 import { createLocalSessionId, createWwHostedServices, type WwApiError, type WwTokenPair } from "./ww/index.js";
+import { readWwProviderLocalState, wwProviderAccountMatches } from "./ww-provider-local-state.js";
 import type { BridgeWwRuntimeAuth } from "./ww-runtime-auth.js";
 
 export interface BridgeSecurity {
@@ -33,6 +33,14 @@ export interface BridgeRuntimeAuthSession {
   auth: BridgeWwRuntimeAuth;
 }
 
+export type WwRuntimeAuthUnauthenticatedReason =
+  | "missing_credentials"
+  | "session_invalidated"
+  | "access_token_refresh_required"
+  | "access_token_invalid"
+  | "refresh_token_invalid"
+  | "user_disabled";
+
 export function bridgeSessionUserHasRole(user: BridgeSessionUser | undefined, role: string): boolean {
   const expected = role.trim();
   return Boolean(expected && user && (user.role === expected || user.roles?.includes(expected)));
@@ -45,7 +53,7 @@ export type WwRuntimeAuthResult =
       verification: "verified" | "cached" | "stale";
       verificationError?: unknown;
     }
-  | { status: "unauthenticated"; reason: string }
+  | { status: "unauthenticated"; reason: WwRuntimeAuthUnauthenticatedReason }
   | { status: "temporarily_unavailable"; error: unknown };
 
 export type BridgeAuthorizationResult =
@@ -192,7 +200,8 @@ export async function resolveWwRuntimeAuth(
   response: ServerResponse,
   security: BridgeSecurity,
 ): Promise<WwRuntimeAuthResult> {
-  if (!security.wwBaseUrl) {
+  const baseUrl = security.wwBaseUrl;
+  if (!baseUrl) {
     return { status: "temporarily_unavailable", error: new Error("auth_not_configured") };
   }
   const tokens = readAuthTokens(request);
@@ -200,47 +209,24 @@ export async function resolveWwRuntimeAuth(
     return { status: "unauthenticated", reason: "missing_credentials" };
   }
 
-  const sessionKey = tokens.sessionId || tokenFingerprint(tokens.refreshToken);
-  if (isRefreshSessionInvalidated(sessionKey)) {
+  const currentAuth = await resolveExistingWwAccess(tokens, baseUrl);
+  if (currentAuth.status !== "unauthenticated") return currentAuth;
+  if (currentAuth.reason === "session_invalidated") {
     clearAuthTokens(response);
-    return { status: "unauthenticated", reason: "session_invalidated" };
+    return currentAuth;
   }
-  if (tokens.accessToken && !accessTokenNeedsRefresh(tokens.accessToken)) {
-    const staleUser = readCachedUser(sessionKey, tokens.accessToken, true);
-    try {
-      const currentUser = await readCurrentUserWithCache(security.wwBaseUrl, sessionKey, tokens.accessToken);
-      return {
-        status: "authenticated",
-        session: runtimeAuthSession(security.wwBaseUrl, tokens.accessToken, currentUser.user),
-        verification: currentUser.verification,
-        ...(currentUser.verificationError === undefined ? {} : { verificationError: currentUser.verificationError }),
-      };
-    } catch (error) {
-      if (isWwError(error) && error.publicCode === "user_disabled") {
-        clearAuthTokens(response);
-        clearAuthSessionCache(tokens);
-        return { status: "unauthenticated", reason: "user_disabled" };
-      }
-      if (!isWwError(error) || error.publicCode !== "access_token_invalid") {
-        if (staleUser) {
-          deferCachedUserRevalidation(sessionKey, tokens.accessToken, error);
-          return {
-            status: "authenticated",
-            session: runtimeAuthSession(security.wwBaseUrl, tokens.accessToken, staleUser),
-            verification: "stale",
-            verificationError: error,
-          };
-        }
-        return { status: "temporarily_unavailable", error };
-      }
-    }
+  if (currentAuth.reason === "user_disabled") {
+    clearAuthTokens(response);
+    clearAuthSessionCache(tokens);
+    return currentAuth;
   }
 
+  const sessionKey = tokens.sessionId || tokenFingerprint(tokens.refreshToken);
   let refreshed: WwTokenPair;
   try {
     refreshed = sessionKey
-      ? await refreshWithSingleFlight(security.wwBaseUrl, sessionKey, tokens.refreshToken)
-      : await createWwHostedServices(security.wwBaseUrl).account.refresh(tokens.refreshToken);
+      ? await refreshWithSingleFlight(baseUrl, sessionKey, tokens.refreshToken)
+      : await createWwHostedServices(baseUrl).account.refresh(tokens.refreshToken);
   } catch (error) {
     if (isWwError(error) && error.publicCode === "refresh_token_invalid") {
       clearAuthTokens(response);
@@ -258,7 +244,7 @@ export async function resolveWwRuntimeAuth(
         deferCachedUserRevalidation(sessionKey, tokens.accessToken, error);
         return {
           status: "authenticated",
-          session: runtimeAuthSession(security.wwBaseUrl, tokens.accessToken, staleUser),
+          session: runtimeAuthSession(baseUrl, tokens.accessToken, staleUser),
           verification: "stale",
           verificationError: error,
         };
@@ -271,14 +257,14 @@ export async function resolveWwRuntimeAuth(
   writeAuthTokens(response, refreshed, refreshedSessionId);
   try {
     const currentUser = await readCurrentUserWithCache(
-      security.wwBaseUrl,
+      baseUrl,
       refreshedSessionId,
       refreshed.accessToken,
       refreshed.accessTokenExpiresIn,
     );
     return {
       status: "authenticated",
-      session: runtimeAuthSession(security.wwBaseUrl, refreshed.accessToken, currentUser.user),
+      session: runtimeAuthSession(baseUrl, refreshed.accessToken, currentUser.user),
       verification: currentUser.verification,
       ...(currentUser.verificationError === undefined ? {} : { verificationError: currentUser.verificationError }),
     };
@@ -299,11 +285,66 @@ export async function resolveWwRuntimeAuth(
       if (staleUser) {
         return {
           status: "authenticated",
-          session: runtimeAuthSession(security.wwBaseUrl, refreshed.accessToken, staleUser),
+          session: runtimeAuthSession(baseUrl, refreshed.accessToken, staleUser),
           verification: "stale",
           verificationError: error,
         };
       }
+    }
+    return { status: "temporarily_unavailable", error };
+  }
+}
+
+// Background reads must never consume the one-time refresh token. Their
+// response can be abandoned without the UI observing replacement cookies.
+export async function resolveWwRuntimeAuthWithoutRefresh(
+  request: IncomingMessage,
+  security: BridgeSecurity,
+): Promise<WwRuntimeAuthResult> {
+  const baseUrl = security.wwBaseUrl;
+  if (!baseUrl) {
+    return { status: "temporarily_unavailable", error: new Error("auth_not_configured") };
+  }
+  const tokens = readAuthTokens(request);
+  if (!tokens) {
+    return { status: "unauthenticated", reason: "missing_credentials" };
+  }
+  return resolveExistingWwAccess(tokens, baseUrl);
+}
+
+async function resolveExistingWwAccess(tokens: AuthTokens, baseUrl: string): Promise<WwRuntimeAuthResult> {
+  const sessionKey = tokens.sessionId || tokenFingerprint(tokens.refreshToken);
+  if (isRefreshSessionInvalidated(sessionKey)) {
+    return { status: "unauthenticated", reason: "session_invalidated" };
+  }
+  if (!tokens.accessToken || accessTokenNeedsRefresh(tokens.accessToken)) {
+    return { status: "unauthenticated", reason: "access_token_refresh_required" };
+  }
+
+  const staleUser = readCachedUser(sessionKey, tokens.accessToken, true);
+  try {
+    const currentUser = await readCurrentUserWithCache(baseUrl, sessionKey, tokens.accessToken);
+    return {
+      status: "authenticated",
+      session: runtimeAuthSession(baseUrl, tokens.accessToken, currentUser.user),
+      verification: currentUser.verification,
+      ...(currentUser.verificationError === undefined ? {} : { verificationError: currentUser.verificationError }),
+    };
+  } catch (error) {
+    if (isWwError(error) && error.publicCode === "user_disabled") {
+      return { status: "unauthenticated", reason: "user_disabled" };
+    }
+    if (isWwError(error) && error.publicCode === "access_token_invalid") {
+      return { status: "unauthenticated", reason: "access_token_invalid" };
+    }
+    if (staleUser) {
+      deferCachedUserRevalidation(sessionKey, tokens.accessToken, error);
+      return {
+        status: "authenticated",
+        session: runtimeAuthSession(baseUrl, tokens.accessToken, staleUser),
+        verification: "stale",
+        verificationError: error,
+      };
     }
     return { status: "temporarily_unavailable", error };
   }
