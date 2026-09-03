@@ -32,6 +32,7 @@ import { agentTurnHostContextPromptBlock, agentTurnReplyLanguageInstruction } fr
 import { AsyncEventQueue } from "./codex/async-event-queue.js";
 import { asJsonValue, isJsonObject, readString } from "./codex/json.js";
 import { createClaudeSdkHostBridge, type ClaudeSdkHostBridge } from "./claude-agent-sdk-tools.js";
+import { resolveRuntimeRunId } from "./run-id.js";
 import {
   applyClaudeBedrockHelperEnv,
   applyClaudeHostManagedProviderEnv,
@@ -142,7 +143,7 @@ export class ClaudeAgentSdkRuntime implements AgentRuntime {
     queue: AsyncEventQueue<AgentEvent>,
     abortController: AbortController,
   ): Promise<void> {
-    const runId = request.runId ?? `run_${Date.now()}`;
+    const runId = resolveRuntimeRunId(request.runId);
     const requestedModel = resolveClaudeRuntimeModel(
       request.requestedModelId,
       this.options.configuredModel,

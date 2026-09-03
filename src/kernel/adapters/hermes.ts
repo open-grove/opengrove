@@ -6,6 +6,7 @@ import {
   resolveInstalledHermesCommandPath,
   type HermesRuntimeOptions,
 } from "../../runtime/hermes-runtime.js";
+import { resolveRuntimeRunId } from "../../runtime/run-id.js";
 import { APP_CONFIG_DIR, APP_PRODUCT_NAME, APP_PROTOCOL_ID, appEnvName, readAppEnv } from "../../identity.js";
 import {
   commandDiscoveryHealth,
@@ -119,7 +120,7 @@ export class HermesKernelAdapter implements KernelAdapter {
       return;
     }
 
-    const runId = request.runId ?? `run_${Date.now()}`;
+    const runId = resolveRuntimeRunId(request.runId);
     yield { type: "turn.started", runId, at: new Date().toISOString() };
     if (request.assembledContext) {
       yield { type: "context.assembled", runId, context: request.assembledContext };

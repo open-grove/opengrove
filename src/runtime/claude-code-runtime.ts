@@ -33,6 +33,7 @@ import {
   isClaudeProviderManagedByHost,
 } from "./claude-bedrock-env.js";
 import { normalizeClaudeRuntimeModelId, resolveClaudeRuntimeModel } from "./claude-model-normalize.js";
+import { resolveRuntimeRunId } from "./run-id.js";
 import {
   claudePlanningEventsForToolFinished,
   claudePlanningEventsForToolStarted,
@@ -90,7 +91,7 @@ export class ClaudeCodeRuntime implements AgentRuntime {
   constructor(private readonly options: ClaudeCodeRuntimeOptions) {}
 
   async *runTurn(request: AgentTurnRequest): AsyncIterable<AgentEvent> {
-    const runId = request.runId ?? `run_${Date.now()}`;
+    const runId = resolveRuntimeRunId(request.runId);
     const requestedModel = resolveClaudeRuntimeModel(
       request.requestedModelId,
       this.options.configuredModel,

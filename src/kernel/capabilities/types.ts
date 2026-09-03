@@ -81,8 +81,10 @@ export interface KernelContractTestEvidence {
   hostVersion?: string;
   kernelVersion?: string;
   runtimeMode?: string;
-  /** Temporary migration binding for imported evidence. It is valid only on this exact Host version. */
+  /** Temporary migration binding for imported evidence. */
   legacyHostVersion?: string;
+  /** Explicit compatibility policy for legacy evidence; omission remains exact-match. */
+  legacyHostCompatibility?: "same-minor";
   provider?: KernelContractEvidenceProvider;
   verification?: "real_runtime" | "simulated" | "source_fixture";
   source?: string;

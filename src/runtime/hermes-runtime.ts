@@ -17,6 +17,7 @@ import type {
 import { AsyncEventQueue } from "./codex/async-event-queue.js";
 import { StdioJsonRpcClient } from "./stdio-json-rpc-client.js";
 import { recentSessionMessages } from "./session-history.js";
+import { resolveRuntimeRunId } from "./run-id.js";
 import { type HermesProviderRuntimeConfig } from "./hermes/config.js";
 import { envFingerprint, mergeRuntimeEnv } from "./hermes/env.js";
 import { readRememberedHermesGatewaySession, rememberHermesGatewaySession } from "./hermes/session-memory.js";
@@ -131,7 +132,7 @@ export class HermesRuntime implements AgentRuntime {
 
   async *runTurn(request: AgentTurnRequest): AsyncIterable<AgentEvent> {
     const queue = new AsyncEventQueue<AgentEvent>();
-    const runId = request.runId ?? `run_${Date.now()}`;
+    const runId = resolveRuntimeRunId(request.runId);
     let turnStarted = false;
     let turnFinished = false;
     let producerFailure = "";

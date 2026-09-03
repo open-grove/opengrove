@@ -71,7 +71,7 @@ export async function resolveApproval(
   if (
     isSameLoopKernelResume(approval.resume) &&
     (!activeBridgeRunOwnsInteraction(state, approvalId, "approval") ||
-      !activeBridgeRunOwnsNativeRequest(state, approval.nativeRequestId, "approval") ||
+      !activeBridgeRunOwnsNativeRequest(state, resumeRunId, approval.nativeRequestId, "approval") ||
       !executionState?.app.approvals.hasDecisionWaiter(approvalId))
   ) {
     throw new Error(`approval_producer_not_live:${approvalId}`);
@@ -121,7 +121,7 @@ export async function resolveApproval(
         outcome:
           status === "canceled"
             ? { taskState: "TASK_STATE_CANCELED", reasonCode: "user_canceled_approval", retryable: false }
-            : { taskState: "TASK_STATE_REJECTED", reasonCode: "user_rejected_approval", retryable: false },
+            : { taskState: "TASK_STATE_FAILED", reasonCode: "user_rejected_approval", retryable: false },
       },
       {
         sessionId,

@@ -655,6 +655,7 @@ class NativePiSession implements PiSession {
       const decision = await context.beforeToolCall({
         toolId,
         capabilityId,
+        input: isJsonObject(nativeContext.args) ? nativeContext.args : undefined,
         source: PI_CODING_TOOL_NAMES.has(toolId) ? "native" : "host",
       });
 

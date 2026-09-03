@@ -218,6 +218,34 @@ async function main() {
     "unknown",
     "imported legacy evidence must fail closed on the next Host release until a bound receipt replaces it",
   );
+  const compatibleLegacyEvidence = {
+    ...legacyMigrationEvidence,
+    legacyHostCompatibility: "same-minor" as const,
+  };
+  const compatiblePatchReport = buildKernelCapabilityReport({
+    kernel: "codex",
+    nativeFacts: KERNEL_NATIVE_CAPABILITY_FACTS,
+    contracts: KERNEL_CAPABILITY_CONTRACTS,
+    contractTests: [compatibleLegacyEvidence],
+    evidenceContext: { hostVersion: "0.6.6" },
+  });
+  assert.equal(
+    compatiblePatchReport.capabilities.find((entry) => entry.capability === "interaction.askUser")?.exposed,
+    "yes",
+    "the audited legacy migration may survive a compatible Host patch release",
+  );
+  const incompatibleMinorReport = buildKernelCapabilityReport({
+    kernel: "codex",
+    nativeFacts: KERNEL_NATIVE_CAPABILITY_FACTS,
+    contracts: KERNEL_CAPABILITY_CONTRACTS,
+    contractTests: [compatibleLegacyEvidence],
+    evidenceContext: { hostVersion: "0.7.0" },
+  });
+  assert.equal(
+    incompatibleMinorReport.capabilities.find((entry) => entry.capability === "interaction.askUser")?.exposed,
+    "unknown",
+    "legacy compatibility must not cross a Host minor-version boundary",
+  );
 
   const claudeReportWithoutTests = buildKernelCapabilityReport({
     kernel: "claude-code",

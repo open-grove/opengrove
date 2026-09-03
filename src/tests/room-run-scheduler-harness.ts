@@ -17,9 +17,35 @@ async function main(): Promise<void> {
   await assertSameRoomDifferentMembersRunConcurrently();
   await assertCompositeQueueKeysCannotCollide();
   await assertRejectedRunDoesNotLeakOrPoisonQueue();
+  await assertMissingFinalizationCallbackCannotHangCaller();
   await assertInactiveMessagesAreReapedWithoutInterruptingLiveRuns();
   await assertScopedSchedulingUsesTheRootControllerRegistry();
   console.log("room-run-scheduler-harness passed");
+}
+
+async function assertMissingFinalizationCallbackCannotHangCaller(): Promise<void> {
+  const state = createHarnessState();
+  const member = createMember("member-app-demo-missing-finalization");
+  let finalizedError = "";
+  const [message] = scheduleRoomAssistantRunsWithExecutor(
+    state,
+    {
+      roomId: "room-missing-finalization",
+      triggerMessageId: "user-missing-finalization",
+      targets: [member],
+      assistantMessages: [createAssistantMessage("room-missing-finalization", "message-missing-finalization", member)],
+      onMessageFinalized: ({ error }) => {
+        finalizedError = error ?? "";
+      },
+    },
+    async () => {
+      // A broken executor returns without invoking the finalization callback.
+    },
+  );
+  assert.ok(message?.runId);
+  await waitFor(() => finalizedError !== "", "producer settlement fallback");
+  assert.equal(finalizedError, "room_run_finalization_missing");
+  clearRoomRunController(state, message.runId);
 }
 
 async function assertScopedSchedulingUsesTheRootControllerRegistry(): Promise<void> {

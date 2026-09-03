@@ -163,6 +163,33 @@ test("a WW credential retry withholds the failed terminal before persistence and
   );
 });
 
+test("a Runtime exception is converted into an explicit failed terminal event", async () => {
+  const runtime: AgentRuntime = {
+    async *runTurn() {
+      throw new Error("runtime exploded");
+    },
+  };
+  const app = createOpenGrove({ readPage: async () => ({}), runtime, cwd: process.cwd() });
+  const events: AgentEvent[] = [];
+  for await (const event of app.runTurn("hello", {
+    runId: "run-runtime-exception",
+    sessionId: "session-runtime-exception",
+  }))
+    events.push(event);
+
+  assert.ok(events.some((event) => event.type === "error" && event.message === "runtime exploded"));
+  assert.ok(
+    events.some(
+      (event) =>
+        event.type === "turn.finished" &&
+        event.outcome.taskState === "TASK_STATE_FAILED" &&
+        event.outcome.reasonCode === "kernel_runtime_exception" &&
+        event.outcome.outcomeUnknown === true,
+    ),
+  );
+  assert.equal(app.sessions.getRun("run-runtime-exception")?.lifecycle.taskState, "TASK_STATE_FAILED");
+});
+
 test("turn.finished owns the terminal outcome after an earlier error", () => {
   const store = startedStore();
   store.recordEvent({ type: "error", runId: "run-1", message: "native process interrupted" });
@@ -194,7 +221,7 @@ test("terminal lifecycle is monotonic under late events", () => {
   assert.equal(store.getRun("run-1")?.error, undefined);
 });
 
-test("interaction resolution resumes working without guessing a terminal outcome", () => {
+test("rejected interaction remains paused until an explicit terminal outcome", () => {
   const store = startedStore();
   const request: ApprovalRequest = {
     id: "approval-1",
@@ -211,6 +238,23 @@ test("interaction resolution resumes working without guessing a terminal outcome
     { type: "approval.resolved", runId: "run-1", request },
   ];
   for (const event of events) store.recordEvent(event);
+  assert.equal(store.getRun("run-1")?.lifecycle.taskState, "TASK_STATE_INPUT_REQUIRED");
+});
+
+test("approved interaction resumes working without guessing a terminal outcome", () => {
+  const store = startedStore();
+  const request: ApprovalRequest = {
+    id: "approval-1",
+    kind: "tool",
+    title: "Approve tool",
+    reason: "Test",
+    toolId: "tool-1",
+    status: "approved",
+    createdAt: at,
+    updatedAt: at,
+  };
+  store.recordEvent({ type: "approval.requested", runId: "run-1", request: { ...request, status: "pending" } });
+  store.recordEvent({ type: "approval.resolved", runId: "run-1", request });
   assert.equal(store.getRun("run-1")?.lifecycle.taskState, "TASK_STATE_WORKING");
 });
 

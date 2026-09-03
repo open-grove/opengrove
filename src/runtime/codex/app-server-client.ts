@@ -71,6 +71,9 @@ export class CodexAppServerClient {
       this.stderrTail = `${this.stderrTail}${chunk}`.slice(-4096);
     });
     child.once("error", (error) => this.closeWithError(error instanceof Error ? error : new Error(String(error))));
+    child.once("exit", (code, signal) => {
+      this.closeWithError(new Error(`codex app-server exited: code=${code ?? "null"} signal=${signal ?? "null"}`));
+    });
     child.once("close", (code, signal) => {
       this.closeWithError(new Error(`codex app-server exited: code=${code ?? "null"} signal=${signal ?? "null"}`));
     });

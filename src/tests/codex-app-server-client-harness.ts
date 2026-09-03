@@ -6,7 +6,7 @@ import {
   buildCodexAppServerEnv,
   CODEX_APP_SERVER_OPT_OUT_NOTIFICATION_METHODS,
 } from "../runtime/codex/app-server-client.js";
-import { handleCodexApprovalRequest } from "../runtime/codex/approval-bridge.js";
+import { handleCodexApprovalRequest, matchesCurrentCodexTurn } from "../runtime/codex/approval-bridge.js";
 import { AsyncEventQueue } from "../runtime/codex/async-event-queue.js";
 import {
   codexRuntimeBindingFingerprint,
@@ -44,7 +44,11 @@ const canceledApprovalResponse = handleCodexApprovalRequest(
   {
     id: "native-canceled-approval",
     method: "item/commandExecution/requestApproval",
-    params: { availableDecisions: ["accept", "decline", "cancel"] },
+    params: {
+      threadId: "thread-canceled-approval",
+      turnId: "turn-canceled-approval",
+      availableDecisions: ["accept", "decline", "cancel"],
+    },
   },
   {
     threadId: "thread-canceled-approval",
@@ -77,6 +81,20 @@ assert.deepEqual(
   await canceledApprovalResponse,
   { decision: "cancel" },
   "a system-canceled native approval must preserve Codex cancel instead of collapsing to decline",
+);
+assert.equal(
+  matchesCurrentCodexTurn({ threadId: "thread-owned", turnId: "turn-owned" }, "thread-owned", "turn-owned"),
+  true,
+);
+assert.equal(
+  matchesCurrentCodexTurn({ threadId: "thread-other", turnId: "turn-owned" }, "thread-owned", "turn-owned"),
+  false,
+  "a request from a sibling Run must not be claimed by the first registered handler",
+);
+assert.equal(
+  matchesCurrentCodexTurn({ turnId: "turn-owned" }, "thread-owned", "turn-owned"),
+  false,
+  "an unscoped native request must fail closed on a shared app-server",
 );
 
 assert.equal(
@@ -719,6 +737,62 @@ assert.ok(
 );
 concurrencyRuntime.close();
 
+const cancelConcurrencyRuntime = new CodexRuntime({
+  command: process.execPath,
+  args: [concurrencyServerPath],
+  statePath: join(concurrencyRoot, "cancel-bindings.json"),
+  cwd: concurrencyRoot,
+  configuredModel: "gpt-test",
+  requestTimeoutMs: 1_000,
+});
+const collectCancelConcurrency = async (
+  runId: string,
+  sessionId: string,
+  signal?: AbortSignal,
+): Promise<AgentEvent[]> => {
+  const events: AgentEvent[] = [];
+  for await (const event of cancelConcurrencyRuntime.runTurn({
+    runId,
+    input: runId,
+    context: concurrencyContext(sessionId),
+    tools: [],
+    signal,
+  }))
+    events.push(event);
+  return events;
+};
+await collectCancelConcurrency("codex-cancel-warm", "codex-cancel-warm-session");
+const cancelController = new AbortController();
+const canceledBeforeAck = collectCancelConcurrency(
+  "codex-cancel-before-ack",
+  "codex-cancel-before-ack-session",
+  cancelController.signal,
+);
+await new Promise((resolvePromise) => setTimeout(resolvePromise, 10));
+const cancelSibling = collectCancelConcurrency("codex-cancel-sibling", "codex-cancel-sibling-session");
+await new Promise((resolvePromise) => setTimeout(resolvePromise, 20));
+cancelController.abort();
+const [canceledBeforeAckEvents, cancelSiblingEvents] = await Promise.all([canceledBeforeAck, cancelSibling]);
+cancelConcurrencyRuntime.close();
+assert.ok(
+  canceledBeforeAckEvents.some(
+    (event) => event.type === "turn.finished" && event.outcome.taskState === "TASK_STATE_COMPLETED",
+  ),
+  "when the Kernel confirms completion after a cancel request, the known native terminal must win",
+);
+assert.ok(
+  cancelSiblingEvents.some(
+    (event) => event.type === "turn.finished" && event.outcome.taskState === "TASK_STATE_COMPLETED",
+  ),
+  "canceling one Run before turn/start ACK must not kill its sibling on the shared app-server",
+);
+assert.equal(
+  cancelSiblingEvents.some(
+    (event) => event.type === "error" && event.message.includes("codex_app_server_producer_lost"),
+  ),
+  false,
+);
+
 const corruptBindingsRoot = mkdtempSync(`${tmpdir()}/opengrove-codex-corrupt-bindings-`);
 const corruptBindingsPath = join(corruptBindingsRoot, "bindings.json");
 writeFileSync(corruptBindingsPath, '{"truncated":', "utf8");
@@ -744,3 +818,4 @@ console.log("✓ Codex app-server adapts optional disable flags across versions"
 console.log("✓ Codex app-server background compaction uses thread/compact/start");
 console.log("✓ Codex runtime owns one terminal model.response per turn");
 console.log("✓ Codex pre-ACK timeout drains sibling Runs without transport-wide cancellation");
+console.log("✓ Codex pre-ACK user cancellation preserves sibling Runs on the shared app-server");

@@ -1,3 +1,4 @@
+import { isA2ATerminalTaskState, lifecycleFromRunFact } from "#agent-protocol";
 import type { AgentEvent, JsonObject } from "../core.js";
 import type { BridgeState } from "./bridge-types.js";
 import { releaseBridgeKernelAdapter, retainBridgeKernelAdapter } from "./kernel-lifecycle.js";
@@ -17,6 +18,7 @@ interface ActiveRunHandle {
   executionState?: BridgeState;
   adapter?: BridgeState["kernelAdapter"];
   cancel?: () => void;
+  cancelRequested: boolean;
   interactionIds: Set<string>;
 }
 
@@ -44,6 +46,7 @@ export function registerActiveBridgeRun(
       leases: new Set(),
       adapter: state.kernelAdapter,
       cancel: options.cancel,
+      cancelRequested: false,
       interactionIds: new Set(),
     };
     registry.handlesByRunId.set(runId, handle);
@@ -61,6 +64,17 @@ export function registerActiveBridgeRun(
     current?.leases.delete(lease);
     if (current && current.leases.size === 0) {
       settleOrphanedInteractions(state, current, "producer_lost");
+      if (
+        !hasDurablePendingInteraction(state, current) &&
+        terminalizeRunWithoutProducer(
+          state,
+          current,
+          current.cancelRequested ? "cancel_outcome_unknown" : "producer_lost",
+        )
+      ) {
+        const rootState = state.rootState ?? state;
+        rootState.store.saveFrom(rootState.app);
+      }
       removeHandle(registry, current);
     }
   };
@@ -74,6 +88,8 @@ export function cancelAllActiveBridgeRuns(state: BridgeState): string[] {
   const canceled: string[] = [];
   for (const [runId, handle] of registryForState(state).handlesByRunId) {
     if (!handle.cancel) continue;
+    handle.cancelRequested = true;
+    markRunCancelPending(state, runId);
     handle.cancel();
     canceled.push(runId);
   }
@@ -85,6 +101,8 @@ export function cancelActiveBridgeRun(state: BridgeState, runId: string | undefi
   if (!runId) return false;
   const handle = registryForState(state).handlesByRunId.get(runId);
   if (!handle?.cancel) return false;
+  handle.cancelRequested = true;
+  markRunCancelPending(state, runId);
   handle.cancel();
   return true;
 }
@@ -119,25 +137,7 @@ export function reconcileActiveBridgeRunsAsProducerLost(
     const handle = registry.handlesByRunId.get(runId);
     if (!handle) continue;
     settleOrphanedInteractions(state, handle, reasonCode);
-    const run = rootState.app.sessions.getRun(runId);
-    rootState.app.recordEvent(
-      {
-        type: "turn.finished",
-        runId,
-        at: new Date().toISOString(),
-        outcome: {
-          taskState: "TASK_STATE_FAILED",
-          reasonCode,
-          outcomeUnknown: true,
-        },
-        synthetic: true,
-      },
-      {
-        sessionId: run?.sessionId ?? "browser-bridge",
-        input: "Host shutdown grace expired before the producer confirmed a terminal outcome.",
-      },
-    );
-    changed = true;
+    changed = terminalizeRunWithoutProducer(state, handle, reasonCode) || changed;
   }
   if (changed) rootState.store.saveFrom(rootState.app);
 }
@@ -150,6 +150,7 @@ export function setActiveBridgeRunExecutionState(state: BridgeState, runId: stri
       runId,
       producerEpoch: ++registry.nextProducerEpoch,
       leases: new Set(),
+      cancelRequested: false,
       interactionIds: new Set(),
     };
     registry.handlesByRunId.set(runId, handle);
@@ -172,7 +173,9 @@ export function registerActiveBridgeRunInteraction(
   const owner = { runId: input.runId, producerEpoch: handle.producerEpoch, kind: input.kind };
   handle.interactionIds.add(input.interactionId);
   registry.ownersByInteractionId.set(input.interactionId, owner);
-  if (input.nativeRequestId) registry.ownersByNativeRequestId.set(input.nativeRequestId, owner);
+  if (input.nativeRequestId) {
+    registry.ownersByNativeRequestId.set(nativeRequestOwnerKey(input.kind, input.runId, input.nativeRequestId), owner);
+  }
 }
 
 export function clearActiveBridgeRunExecutionState(state: BridgeState, runId: string): void {
@@ -181,6 +184,10 @@ export function clearActiveBridgeRunExecutionState(state: BridgeState, runId: st
   if (!handle) return;
   if (handle.leases.size === 0) {
     settleOrphanedInteractions(state, handle, "producer_lost");
+    if (!hasDurablePendingInteraction(state, handle) && terminalizeRunWithoutProducer(state, handle, "producer_lost")) {
+      const rootState = state.rootState ?? state;
+      rootState.store.saveFrom(rootState.app);
+    }
     removeHandle(registry, handle);
   }
 }
@@ -214,12 +221,14 @@ export function activeBridgeRunOwnsInteraction(
 
 export function activeBridgeRunOwnsNativeRequest(
   state: BridgeState,
+  runId: string | undefined,
   nativeRequestId: string | undefined,
   kind: InteractionKind,
 ): boolean {
   if (!nativeRequestId) return true;
+  if (!runId) return false;
   const registry = registryForState(state);
-  const owner = registry.ownersByNativeRequestId.get(nativeRequestId);
+  const owner = registry.ownersByNativeRequestId.get(nativeRequestOwnerKey(kind, runId, nativeRequestId));
   if (!owner || owner.kind !== kind) return false;
   const handle = registry.handlesByRunId.get(owner.runId);
   return Boolean(handle && handle.producerEpoch === owner.producerEpoch);
@@ -273,6 +282,56 @@ function isSameLoopKernelInteraction(resume: { type: string; continuation?: stri
 
 function systemCancellation(reasonCode: string): JsonObject {
   return { system: true, reasonCode };
+}
+
+function hasDurablePendingInteraction(state: BridgeState, handle: ActiveRunHandle): boolean {
+  const rootState = state.rootState ?? state;
+  const app = handle.executionState?.app ?? rootState.app;
+  for (const id of handle.interactionIds) {
+    const approval = app.approvals.get(id);
+    if (approval?.status === "pending" && !isSameLoopKernelInteraction(approval.resume)) return true;
+    const question = app.questions.get(id);
+    if (question?.status === "pending" && !isSameLoopKernelInteraction(question.resume)) return true;
+  }
+  return false;
+}
+
+function terminalizeRunWithoutProducer(state: BridgeState, handle: ActiveRunHandle, reasonCode: string): boolean {
+  const rootState = state.rootState ?? state;
+  if (!rootState.app?.sessions) return false;
+  const run = rootState.app.sessions.getRun(handle.runId);
+  if (!run || isA2ATerminalTaskState(run.lifecycle.taskState)) return false;
+  if (run.lifecycle.taskState === "TASK_STATE_AUTH_REQUIRED") return false;
+  rootState.app.recordEvent(
+    {
+      type: "turn.finished",
+      runId: handle.runId,
+      at: new Date().toISOString(),
+      outcome: {
+        taskState: "TASK_STATE_FAILED",
+        reasonCode,
+        ...(reasonCode === "producer_lost" || reasonCode === "host_shutdown" ? { retryable: true } : {}),
+        outcomeUnknown: true,
+      },
+      synthetic: true,
+    },
+    {
+      sessionId: run.sessionId,
+      input: "The Run producer ended before confirming a terminal outcome.",
+    },
+  );
+  return true;
+}
+
+function nativeRequestOwnerKey(kind: InteractionKind, runId: string, nativeRequestId: string): string {
+  return `${kind}:${runId}:${nativeRequestId}`;
+}
+
+function markRunCancelPending(state: BridgeState, runId: string): void {
+  const rootState = state.rootState ?? state;
+  const run = rootState.app.sessions.getRun(runId);
+  if (!run || isA2ATerminalTaskState(run.lifecycle.taskState)) return;
+  rootState.app.sessions.updateRun(runId, { lifecycle: lifecycleFromRunFact({ kind: "cancel_requested" }) });
 }
 
 function removeHandle(registry: ActiveRunRegistry, handle: ActiveRunHandle): void {

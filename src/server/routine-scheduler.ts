@@ -157,10 +157,12 @@ export function createRoutineMemberExecutor(state: BridgeState) {
         targets: [member],
         assistantMessages: posted.assistantMessages,
         onMessageFinalized: ({ message, error, problem }) => {
-          if (error || message.status === "failed") {
+          if (error || message.status !== "done") {
             resolve({
               ok: false,
-              error: error ?? message.text ?? "member_step_failed",
+              error:
+                error ??
+                (message.status === "interrupted" ? "member_step_canceled" : message.text || "member_step_failed"),
               ...(problem ? { problem } : {}),
             });
             return;

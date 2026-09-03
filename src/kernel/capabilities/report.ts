@@ -84,20 +84,46 @@ function evidenceMatchesCurrentContext(
   const checkedAt = Date.parse(evidence.checkedAt);
   if (!Number.isFinite(checkedAt)) return false;
   if (evidence.legacyHostVersion) {
-    return context?.hostVersion === evidence.legacyHostVersion;
+    return legacyEvidenceMatchesHostVersion(evidence, context?.hostVersion);
   }
   if (!evidence.hostVersion || !evidence.kernelVersion || !evidence.runtimeMode) return false;
   if (!context?.hostVersion || !context.kernelVersion || !context.runtimeMode) return false;
   if (evidence.hostVersion !== context.hostVersion) return false;
   if (evidence.kernelVersion !== context.kernelVersion) return false;
   if (evidence.runtimeMode !== context.runtimeMode) return false;
-  if (evidence.provider && context.provider) {
+  if (evidence.provider) {
+    if (!context.provider) return false;
     if (evidence.provider.kind !== context.provider.kind) return false;
-    if (evidence.provider.model && context.provider.model && evidence.provider.model !== context.provider.model) {
+    if (evidence.provider.model && evidence.provider.model !== context.provider.model) {
       return false;
     }
   }
   return true;
+}
+
+function legacyEvidenceMatchesHostVersion(
+  evidence: KernelContractTestEvidence,
+  currentHostVersion: string | undefined,
+): boolean {
+  if (!currentHostVersion || !evidence.legacyHostVersion) return false;
+  if (evidence.legacyHostCompatibility !== "same-minor") {
+    return currentHostVersion === evidence.legacyHostVersion;
+  }
+  const baseline = parseReleaseVersion(evidence.legacyHostVersion);
+  const current = parseReleaseVersion(currentHostVersion);
+  return Boolean(
+    baseline &&
+      current &&
+      baseline.major === current.major &&
+      baseline.minor === current.minor &&
+      current.patch >= baseline.patch,
+  );
+}
+
+function parseReleaseVersion(version: string): { major: number; minor: number; patch: number } | undefined {
+  const match = /^(\d+)\.(\d+)\.(\d+)(?:[-+].*)?$/.exec(version.trim());
+  if (!match) return undefined;
+  return { major: Number(match[1]), minor: Number(match[2]), patch: Number(match[3]) };
 }
 
 function auditStatusesFor(input: {

@@ -57,7 +57,7 @@ export async function resolveQuestion(
   if (
     isSameLoopKernelQuestion(question) &&
     (!activeBridgeRunOwnsInteraction(state, questionId, "question") ||
-      !activeBridgeRunOwnsNativeRequest(state, question.nativeRequestId, "question") ||
+      !activeBridgeRunOwnsNativeRequest(state, runId, question.nativeRequestId, "question") ||
       !executionState?.app.questions.hasDecisionWaiter(questionId))
   ) {
     throw new Error(`question_producer_not_live:${questionId}`);

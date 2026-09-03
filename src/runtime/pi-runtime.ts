@@ -1,3 +1,7 @@
+import { existsSync, realpathSync } from "node:fs";
+import { homedir } from "node:os";
+import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
+import { fileURLToPath } from "node:url";
 import {
   evaluateToolPolicy,
   agentTurnReplyLanguageInstruction,
@@ -15,6 +19,7 @@ import {
   type CapabilityManifest,
   type ContextEnvelope,
   type InvokedSkillRecord,
+  type JsonObject,
   type PackManifest,
   type PolicyDecision,
   type PolicyRule,
@@ -25,10 +30,12 @@ import {
 } from "../core.js";
 import { renderSkillIndex } from "../skills/catalog.js";
 import { imageAttachmentsWithDataUrl } from "./media-input.js";
+import { resolveRuntimeRunId } from "./run-id.js";
 
 export interface PiToolCallGate {
   toolId: string;
   capabilityId?: string;
+  input?: JsonObject;
   source: "host" | "native";
 }
 
@@ -77,6 +84,8 @@ export interface PiSessionFactory {
 export interface PiAgentRuntimeOptions {
   createSession: PiSessionFactory;
   system?: string;
+  /** OpenGrove workspace boundary for Pi's in-process native coding tools. */
+  workspaceRoot?: string;
 }
 
 const DEFAULT_SYSTEM = [
@@ -89,7 +98,7 @@ export class PiAgentRuntime implements AgentRuntime {
   constructor(private readonly options: PiAgentRuntimeOptions) {}
 
   async *runTurn(request: AgentTurnRequest): AsyncIterable<AgentEvent> {
-    const runId = request.runId ?? `run_${Date.now()}`;
+    const runId = resolveRuntimeRunId(request.runId);
     const skills = request.skills ?? [];
     const packs = request.packs ?? [];
     const capabilities = request.capabilities ?? [];
@@ -189,7 +198,13 @@ export class PiAgentRuntime implements AgentRuntime {
         contextTokenBudget: request.contextTokenBudget,
         beforeToolCall: async (gate) => {
           if (gate.source === "native") {
-            return evaluatePiNativeToolPolicy(gate.toolId, request.accessMode, policy);
+            return evaluatePiNativeToolPolicy(
+              gate.toolId,
+              gate.input,
+              this.options.workspaceRoot ?? process.cwd(),
+              request.accessMode,
+              policy,
+            );
           }
           const tool = request.tools.find((candidate) => candidate.spec.id === gate.toolId);
           if (!tool) {
@@ -296,6 +311,8 @@ export class PiAgentRuntime implements AgentRuntime {
 
 function evaluatePiNativeToolPolicy(
   toolId: string,
+  input: JsonObject | undefined,
+  workspaceRoot: string,
   accessMode: AgentTurnRequest["accessMode"],
   policy: PolicyRule[],
 ): PolicyDecision {
@@ -304,6 +321,12 @@ function evaluatePiNativeToolPolicy(
   if (accessMode === "full-access") {
     return { mode: "allow", reason: "OpenGrove full-access mode allows Pi native tool execution for this turn." };
   }
+  if (piNativeFileTargetEscapesWorkspace(toolId, input, workspaceRoot)) {
+    return {
+      mode: "ask",
+      reason: "Pi requested a file outside the OpenGrove workspace. Explicit approval is required.",
+    };
+  }
   if (accessMode === "auto-review" && toolId !== "bash") {
     return {
       mode: "allow",
@@ -311,6 +334,52 @@ function evaluatePiNativeToolPolicy(
     };
   }
   return evaluateToolPolicy(spec, policy);
+}
+
+function piNativeFileTargetEscapesWorkspace(
+  toolId: string,
+  input: JsonObject | undefined,
+  workspaceRoot: string,
+): boolean {
+  if (toolId !== "read" && toolId !== "write" && toolId !== "edit") return false;
+  const requestedPath = typeof input?.path === "string" ? input.path.trim() : "";
+  if (!requestedPath) return false;
+  const target = resolvePiNativePath(requestedPath, workspaceRoot);
+  const root = canonicalPath(workspaceRoot);
+  const canonicalTarget = canonicalPath(target);
+  const relation = relative(root, canonicalTarget);
+  return relation === ".." || relation.startsWith(`..${sep}`) || isAbsolute(relation);
+}
+
+function resolvePiNativePath(requestedPath: string, workspaceRoot: string): string {
+  if (requestedPath.startsWith("file://")) {
+    try {
+      return fileURLToPath(requestedPath);
+    } catch {
+      return resolve(workspaceRoot, requestedPath);
+    }
+  }
+  if (requestedPath === "~") return homedir();
+  if (requestedPath.startsWith(`~${sep}`) || requestedPath.startsWith("~/")) {
+    return resolve(homedir(), requestedPath.slice(2));
+  }
+  return isAbsolute(requestedPath) ? resolve(requestedPath) : resolve(workspaceRoot, requestedPath);
+}
+
+function canonicalPath(input: string): string {
+  const suffix: string[] = [];
+  let cursor = resolve(input);
+  while (!existsSync(cursor)) {
+    const parent = dirname(cursor);
+    if (parent === cursor) break;
+    suffix.unshift(cursor.slice(parent.length + (parent.endsWith(sep) ? 0 : 1)));
+    cursor = parent;
+  }
+  try {
+    return resolve(realpathSync.native(cursor), ...suffix);
+  } catch {
+    return resolve(input);
+  }
 }
 
 function piNativeToolSpec(toolId: string): ToolSpec | undefined {

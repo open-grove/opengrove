@@ -6,6 +6,7 @@
     "passed": true,
     "checkedAt": "2026-07-20",
     "legacyHostVersion": "0.6.5",
+    "legacyHostCompatibility": "same-minor",
     "verification": "real_runtime"
   },
   {
@@ -15,6 +16,7 @@
     "passed": true,
     "checkedAt": "2026-06-09",
     "legacyHostVersion": "0.6.5",
+    "legacyHostCompatibility": "same-minor",
     "verification": "real_runtime"
   },
   {
@@ -24,6 +26,7 @@
     "passed": true,
     "checkedAt": "2026-07-20",
     "legacyHostVersion": "0.6.5",
+    "legacyHostCompatibility": "same-minor",
     "verification": "real_runtime"
   },
   {
@@ -33,6 +36,7 @@
     "passed": true,
     "checkedAt": "2026-08-06",
     "legacyHostVersion": "0.6.5",
+    "legacyHostCompatibility": "same-minor",
     "verification": "real_runtime"
   },
   {
@@ -42,6 +46,7 @@
     "passed": true,
     "checkedAt": "2026-06-08",
     "legacyHostVersion": "0.6.5",
+    "legacyHostCompatibility": "same-minor",
     "verification": "real_runtime"
   },
   {
@@ -51,6 +56,7 @@
     "passed": true,
     "checkedAt": "2026-08-06",
     "legacyHostVersion": "0.6.5",
+    "legacyHostCompatibility": "same-minor",
     "verification": "real_runtime"
   },
   {
@@ -60,6 +66,7 @@
     "passed": true,
     "checkedAt": "2026-06-08",
     "legacyHostVersion": "0.6.5",
+    "legacyHostCompatibility": "same-minor",
     "verification": "real_runtime"
   },
   {
@@ -69,6 +76,7 @@
     "passed": true,
     "checkedAt": "2026-07-20",
     "legacyHostVersion": "0.6.5",
+    "legacyHostCompatibility": "same-minor",
     "verification": "real_runtime"
   },
   {
@@ -78,6 +86,7 @@
     "passed": true,
     "checkedAt": "2026-06-08",
     "legacyHostVersion": "0.6.5",
+    "legacyHostCompatibility": "same-minor",
     "verification": "real_runtime"
   },
   {
@@ -87,6 +96,7 @@
     "passed": true,
     "checkedAt": "2026-06-08",
     "legacyHostVersion": "0.6.5",
+    "legacyHostCompatibility": "same-minor",
     "verification": "real_runtime"
   },
   {
@@ -96,6 +106,7 @@
     "passed": true,
     "checkedAt": "2026-07-20",
     "legacyHostVersion": "0.6.5",
+    "legacyHostCompatibility": "same-minor",
     "verification": "real_runtime"
   },
   {
@@ -105,6 +116,7 @@
     "passed": true,
     "checkedAt": "2026-08-06",
     "legacyHostVersion": "0.6.5",
+    "legacyHostCompatibility": "same-minor",
     "verification": "real_runtime"
   },
   {
@@ -114,6 +126,7 @@
     "passed": true,
     "checkedAt": "2026-06-08",
     "legacyHostVersion": "0.6.5",
+    "legacyHostCompatibility": "same-minor",
     "verification": "real_runtime"
   },
   {
@@ -123,6 +136,7 @@
     "passed": true,
     "checkedAt": "2026-06-08",
     "legacyHostVersion": "0.6.5",
+    "legacyHostCompatibility": "same-minor",
     "verification": "real_runtime"
   },
   {
@@ -132,6 +146,7 @@
     "passed": true,
     "checkedAt": "2026-07-20",
     "legacyHostVersion": "0.6.5",
+    "legacyHostCompatibility": "same-minor",
     "verification": "real_runtime"
   },
   {
@@ -141,6 +156,7 @@
     "passed": true,
     "checkedAt": "2026-06-08",
     "legacyHostVersion": "0.6.5",
+    "legacyHostCompatibility": "same-minor",
     "verification": "real_runtime"
   },
   {
@@ -150,6 +166,7 @@
     "passed": true,
     "checkedAt": "2026-07-20",
     "legacyHostVersion": "0.6.5",
+    "legacyHostCompatibility": "same-minor",
     "verification": "real_runtime"
   },
   {
@@ -159,6 +176,7 @@
     "passed": true,
     "checkedAt": "2026-06-08",
     "legacyHostVersion": "0.6.5",
+    "legacyHostCompatibility": "same-minor",
     "verification": "real_runtime"
   },
   {
@@ -168,6 +186,7 @@
     "passed": true,
     "checkedAt": "2026-06-08",
     "legacyHostVersion": "0.6.5",
+    "legacyHostCompatibility": "same-minor",
     "verification": "real_runtime"
   },
   {
@@ -177,6 +196,7 @@
     "passed": true,
     "checkedAt": "2026-06-08",
     "legacyHostVersion": "0.6.5",
+    "legacyHostCompatibility": "same-minor",
     "verification": "real_runtime"
   },
   {
@@ -186,6 +206,7 @@
     "passed": true,
     "checkedAt": "2026-07-20",
     "legacyHostVersion": "0.6.5",
+    "legacyHostCompatibility": "same-minor",
     "verification": "real_runtime"
   },
   {
@@ -195,6 +216,7 @@
     "passed": true,
     "checkedAt": "2026-06-08",
     "legacyHostVersion": "0.6.5",
+    "legacyHostCompatibility": "same-minor",
     "verification": "real_runtime"
   },
   {
@@ -204,6 +226,7 @@
     "passed": true,
     "checkedAt": "2026-06-08",
     "legacyHostVersion": "0.6.5",
+    "legacyHostCompatibility": "same-minor",
     "verification": "real_runtime"
   },
   {
@@ -213,6 +236,7 @@
     "passed": true,
     "checkedAt": "2026-07-20",
     "legacyHostVersion": "0.6.5",
+    "legacyHostCompatibility": "same-minor",
     "verification": "real_runtime"
   },
   {
@@ -222,6 +246,7 @@
     "passed": true,
     "checkedAt": "2026-08-06",
     "legacyHostVersion": "0.6.5",
+    "legacyHostCompatibility": "same-minor",
     "verification": "real_runtime"
   },
   {
@@ -231,6 +256,7 @@
     "passed": true,
     "checkedAt": "2026-07-20",
     "legacyHostVersion": "0.6.5",
+    "legacyHostCompatibility": "same-minor",
     "verification": "real_runtime"
   },
   {
@@ -262,6 +288,7 @@
     "passed": true,
     "checkedAt": "2026-07-20",
     "legacyHostVersion": "0.6.5",
+    "legacyHostCompatibility": "same-minor",
     "verification": "real_runtime"
   },
   {
@@ -271,6 +298,7 @@
     "passed": true,
     "checkedAt": "2026-06-08",
     "legacyHostVersion": "0.6.5",
+    "legacyHostCompatibility": "same-minor",
     "verification": "real_runtime"
   },
   {
@@ -280,6 +308,7 @@
     "passed": true,
     "checkedAt": "2026-07-20",
     "legacyHostVersion": "0.6.5",
+    "legacyHostCompatibility": "same-minor",
     "verification": "real_runtime"
   },
   {
@@ -300,6 +329,7 @@
     "passed": true,
     "checkedAt": "2026-07-20",
     "legacyHostVersion": "0.6.5",
+    "legacyHostCompatibility": "same-minor",
     "verification": "real_runtime"
   },
   {
@@ -309,6 +339,7 @@
     "passed": true,
     "checkedAt": "2026-07-20",
     "legacyHostVersion": "0.6.5",
+    "legacyHostCompatibility": "same-minor",
     "verification": "real_runtime"
   },
   {
@@ -318,6 +349,7 @@
     "passed": true,
     "checkedAt": "2026-07-20",
     "legacyHostVersion": "0.6.5",
+    "legacyHostCompatibility": "same-minor",
     "verification": "real_runtime"
   },
   {
@@ -327,6 +359,7 @@
     "passed": true,
     "checkedAt": "2026-07-20",
     "legacyHostVersion": "0.6.5",
+    "legacyHostCompatibility": "same-minor",
     "verification": "real_runtime"
   },
   {
@@ -336,6 +369,7 @@
     "passed": true,
     "checkedAt": "2026-07-20",
     "legacyHostVersion": "0.6.5",
+    "legacyHostCompatibility": "same-minor",
     "verification": "real_runtime"
   },
   {
@@ -345,6 +379,7 @@
     "passed": true,
     "checkedAt": "2026-07-20",
     "legacyHostVersion": "0.6.5",
+    "legacyHostCompatibility": "same-minor",
     "verification": "real_runtime"
   },
   {
@@ -354,6 +389,7 @@
     "passed": true,
     "checkedAt": "2026-07-20",
     "legacyHostVersion": "0.6.5",
+    "legacyHostCompatibility": "same-minor",
     "verification": "real_runtime"
   },
   {
@@ -363,6 +399,7 @@
     "passed": true,
     "checkedAt": "2026-06-08",
     "legacyHostVersion": "0.6.5",
+    "legacyHostCompatibility": "same-minor",
     "verification": "real_runtime"
   },
   {
@@ -372,6 +409,7 @@
     "passed": true,
     "checkedAt": "2026-07-20",
     "legacyHostVersion": "0.6.5",
+    "legacyHostCompatibility": "same-minor",
     "verification": "real_runtime"
   },
   {
@@ -381,6 +419,7 @@
     "passed": true,
     "checkedAt": "2026-06-08",
     "legacyHostVersion": "0.6.5",
+    "legacyHostCompatibility": "same-minor",
     "verification": "real_runtime"
   },
   {
@@ -390,6 +429,7 @@
     "passed": true,
     "checkedAt": "2026-06-09",
     "legacyHostVersion": "0.6.5",
+    "legacyHostCompatibility": "same-minor",
     "verification": "real_runtime"
   },
   {
@@ -399,6 +439,7 @@
     "passed": true,
     "checkedAt": "2026-07-20",
     "legacyHostVersion": "0.6.5",
+    "legacyHostCompatibility": "same-minor",
     "verification": "real_runtime"
   },
   {
@@ -408,6 +449,7 @@
     "passed": true,
     "checkedAt": "2026-07-20",
     "legacyHostVersion": "0.6.5",
+    "legacyHostCompatibility": "same-minor",
     "verification": "real_runtime"
   },
   {
@@ -417,6 +459,7 @@
     "passed": true,
     "checkedAt": "2026-07-20",
     "legacyHostVersion": "0.6.5",
+    "legacyHostCompatibility": "same-minor",
     "verification": "real_runtime"
   },
   {
@@ -426,6 +469,7 @@
     "passed": true,
     "checkedAt": "2026-07-20",
     "legacyHostVersion": "0.6.5",
+    "legacyHostCompatibility": "same-minor",
     "verification": "real_runtime"
   },
   {
@@ -435,6 +479,7 @@
     "passed": true,
     "checkedAt": "2026-06-09",
     "legacyHostVersion": "0.6.5",
+    "legacyHostCompatibility": "same-minor",
     "verification": "real_runtime"
   },
   {
@@ -444,6 +489,7 @@
     "passed": true,
     "checkedAt": "2026-06-09",
     "legacyHostVersion": "0.6.5",
+    "legacyHostCompatibility": "same-minor",
     "verification": "real_runtime"
   },
   {
@@ -453,6 +499,7 @@
     "passed": true,
     "checkedAt": "2026-06-09",
     "legacyHostVersion": "0.6.5",
+    "legacyHostCompatibility": "same-minor",
     "verification": "real_runtime"
   },
   {
@@ -462,6 +509,7 @@
     "passed": true,
     "checkedAt": "2026-08-06",
     "legacyHostVersion": "0.6.5",
+    "legacyHostCompatibility": "same-minor",
     "verification": "real_runtime"
   },
   {
@@ -471,6 +519,7 @@
     "passed": true,
     "checkedAt": "2026-08-06",
     "legacyHostVersion": "0.6.5",
+    "legacyHostCompatibility": "same-minor",
     "verification": "real_runtime"
   },
   {
@@ -480,6 +529,7 @@
     "passed": true,
     "checkedAt": "2026-08-06",
     "legacyHostVersion": "0.6.5",
+    "legacyHostCompatibility": "same-minor",
     "verification": "real_runtime"
   },
   {
@@ -489,6 +539,7 @@
     "passed": true,
     "checkedAt": "2026-08-06",
     "legacyHostVersion": "0.6.5",
+    "legacyHostCompatibility": "same-minor",
     "verification": "real_runtime"
   },
   {
@@ -498,6 +549,7 @@
     "passed": true,
     "checkedAt": "2026-06-09",
     "legacyHostVersion": "0.6.5",
+    "legacyHostCompatibility": "same-minor",
     "verification": "real_runtime"
   },
   {
@@ -507,6 +559,7 @@
     "passed": true,
     "checkedAt": "2026-06-09",
     "legacyHostVersion": "0.6.5",
+    "legacyHostCompatibility": "same-minor",
     "verification": "real_runtime"
   },
   {
@@ -516,6 +569,7 @@
     "passed": true,
     "checkedAt": "2026-08-06",
     "legacyHostVersion": "0.6.5",
+    "legacyHostCompatibility": "same-minor",
     "verification": "real_runtime"
   },
   {
@@ -525,6 +579,7 @@
     "passed": true,
     "checkedAt": "2026-06-09",
     "legacyHostVersion": "0.6.5",
+    "legacyHostCompatibility": "same-minor",
     "verification": "real_runtime"
   },
   {
@@ -534,6 +589,7 @@
     "passed": true,
     "checkedAt": "2026-06-09",
     "legacyHostVersion": "0.6.5",
+    "legacyHostCompatibility": "same-minor",
     "verification": "real_runtime"
   },
   {
@@ -543,6 +599,7 @@
     "passed": true,
     "checkedAt": "2026-06-09",
     "legacyHostVersion": "0.6.5",
+    "legacyHostCompatibility": "same-minor",
     "verification": "real_runtime"
   },
   {
@@ -552,6 +609,7 @@
     "passed": true,
     "checkedAt": "2026-06-09",
     "legacyHostVersion": "0.6.5",
+    "legacyHostCompatibility": "same-minor",
     "verification": "real_runtime"
   },
   {
@@ -561,6 +619,7 @@
     "passed": true,
     "checkedAt": "2026-07-20",
     "legacyHostVersion": "0.6.5",
+    "legacyHostCompatibility": "same-minor",
     "verification": "real_runtime"
   },
   {
@@ -570,6 +629,7 @@
     "passed": true,
     "checkedAt": "2026-07-20",
     "legacyHostVersion": "0.6.5",
+    "legacyHostCompatibility": "same-minor",
     "verification": "real_runtime"
   },
   {
@@ -579,6 +639,7 @@
     "passed": true,
     "checkedAt": "2026-07-20",
     "legacyHostVersion": "0.6.5",
+    "legacyHostCompatibility": "same-minor",
     "verification": "real_runtime"
   },
   {
@@ -588,6 +649,7 @@
     "passed": true,
     "checkedAt": "2026-07-20",
     "legacyHostVersion": "0.6.5",
+    "legacyHostCompatibility": "same-minor",
     "verification": "real_runtime"
   },
   {
@@ -597,6 +659,7 @@
     "passed": true,
     "checkedAt": "2026-07-20",
     "legacyHostVersion": "0.6.5",
+    "legacyHostCompatibility": "same-minor",
     "verification": "real_runtime"
   },
   {
@@ -606,6 +669,7 @@
     "passed": true,
     "checkedAt": "2026-08-06",
     "legacyHostVersion": "0.6.5",
+    "legacyHostCompatibility": "same-minor",
     "verification": "real_runtime"
   },
   {
@@ -615,6 +679,7 @@
     "passed": true,
     "checkedAt": "2026-08-06",
     "legacyHostVersion": "0.6.5",
+    "legacyHostCompatibility": "same-minor",
     "verification": "real_runtime"
   },
   {
@@ -624,6 +689,7 @@
     "passed": true,
     "checkedAt": "2026-08-06",
     "legacyHostVersion": "0.6.5",
+    "legacyHostCompatibility": "same-minor",
     "verification": "real_runtime"
   },
   {
@@ -633,6 +699,7 @@
     "passed": true,
     "checkedAt": "2026-08-06",
     "legacyHostVersion": "0.6.5",
+    "legacyHostCompatibility": "same-minor",
     "verification": "real_runtime"
   },
   {
@@ -642,6 +709,7 @@
     "passed": true,
     "checkedAt": "2026-07-20",
     "legacyHostVersion": "0.6.5",
+    "legacyHostCompatibility": "same-minor",
     "verification": "real_runtime"
   },
   {
@@ -651,6 +719,7 @@
     "passed": true,
     "checkedAt": "2026-07-20",
     "legacyHostVersion": "0.6.5",
+    "legacyHostCompatibility": "same-minor",
     "verification": "real_runtime"
   },
   {
@@ -660,6 +729,7 @@
     "passed": true,
     "checkedAt": "2026-07-20",
     "legacyHostVersion": "0.6.5",
+    "legacyHostCompatibility": "same-minor",
     "verification": "real_runtime"
   },
   {
@@ -669,6 +739,7 @@
     "passed": true,
     "checkedAt": "2026-07-20",
     "legacyHostVersion": "0.6.5",
+    "legacyHostCompatibility": "same-minor",
     "verification": "real_runtime"
   },
   {
@@ -678,6 +749,7 @@
     "passed": true,
     "checkedAt": "2026-07-20",
     "legacyHostVersion": "0.6.5",
+    "legacyHostCompatibility": "same-minor",
     "verification": "real_runtime"
   },
   {
@@ -687,6 +759,7 @@
     "passed": true,
     "checkedAt": "2026-08-05",
     "legacyHostVersion": "0.6.5",
+    "legacyHostCompatibility": "same-minor",
     "verification": "real_runtime"
   },
   {
@@ -696,6 +769,7 @@
     "passed": true,
     "checkedAt": "2026-08-05",
     "legacyHostVersion": "0.6.5",
+    "legacyHostCompatibility": "same-minor",
     "verification": "real_runtime"
   },
   {
@@ -705,6 +779,7 @@
     "passed": true,
     "checkedAt": "2026-08-06",
     "legacyHostVersion": "0.6.5",
+    "legacyHostCompatibility": "same-minor",
     "verification": "real_runtime"
   },
   {
@@ -714,6 +789,7 @@
     "passed": true,
     "checkedAt": "2026-08-06",
     "legacyHostVersion": "0.6.5",
+    "legacyHostCompatibility": "same-minor",
     "verification": "real_runtime"
   },
   {
@@ -723,6 +799,7 @@
     "passed": true,
     "checkedAt": "2026-08-06",
     "legacyHostVersion": "0.6.5",
+    "legacyHostCompatibility": "same-minor",
     "verification": "real_runtime"
   },
   {
@@ -732,6 +809,7 @@
     "passed": true,
     "checkedAt": "2026-08-06",
     "legacyHostVersion": "0.6.5",
+    "legacyHostCompatibility": "same-minor",
     "verification": "real_runtime"
   },
   {
@@ -752,6 +830,7 @@
     "passed": true,
     "checkedAt": "2026-08-14",
     "legacyHostVersion": "0.6.5",
+    "legacyHostCompatibility": "same-minor",
     "verification": "real_runtime"
   },
   {

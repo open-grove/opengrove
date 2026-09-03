@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 import type { AgentEvent, AgentRuntime, AgentSessionTrace, AgentTurnRequest } from "../core.js";
 import { agentTurnHostContextPromptBlock, agentTurnReplyLanguageInstruction } from "../core.js";
 import { resolveCommandInvocation } from "../kernel/discovery.js";
+import { resolveRuntimeRunId } from "./run-id.js";
 import { recentSessionMessages, recentSessionPromptBlock } from "./session-history.js";
 
 export interface GenericCliRuntimeOptions {
@@ -21,7 +22,7 @@ export class GenericCliRuntime implements AgentRuntime {
   constructor(private readonly options: GenericCliRuntimeOptions) {}
 
   async *runTurn(request: AgentTurnRequest): AsyncIterable<AgentEvent> {
-    const runId = request.runId ?? `run_${Date.now()}`;
+    const runId = resolveRuntimeRunId(request.runId);
     const runtimeEnv = mergeRuntimeEnv(this.options.env, request.runtimeEnv);
     const prompt = buildPrompt(request, this.options.promptLayout);
     const priorMessages = recentSessionMessages(request);

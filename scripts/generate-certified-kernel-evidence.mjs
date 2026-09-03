@@ -10,6 +10,7 @@ const importsPath = join(projectRoot, "src/kernel/capabilities/certified-contrac
 const outputPath = join(projectRoot, "src/kernel/capabilities/certified-contract-test-evidence.generated.json");
 const mode = process.argv.includes("--write") ? "write" : "check";
 const lockedLegacyBaselineSha256 = "897472724ac3fb01c7ceeeba7ba621d5ce59fac9dce6fdb58295415d1fa9a7d1";
+const legacyHostCompatibility = "same-minor";
 
 const baselineRaw = readFileSync(baselinePath, "utf8");
 assert(
@@ -54,7 +55,13 @@ for (const evidence of baseline.contractTests) {
   const key = evidenceKey(evidence);
   assert(!seen.has(key), `baseline contains duplicate ${key}`);
   seen.add(key);
-  generated.push(replacements.get(key) ?? publishEvidence(evidence, { legacyHostVersion: baseline.legacyHostVersion }));
+  generated.push(
+    replacements.get(key) ??
+      publishEvidence(evidence, {
+        legacyHostVersion: baseline.legacyHostVersion,
+        legacyHostCompatibility,
+      }),
+  );
   replacements.delete(key);
 }
 for (const [key, evidence] of [...replacements].sort(([left], [right]) => left.localeCompare(right))) {
@@ -88,6 +95,9 @@ function publishEvidence(evidence, options = {}) {
     ...(stringValue(evidence.kernelVersion) ? { kernelVersion: evidence.kernelVersion } : {}),
     ...(stringValue(evidence.runtimeMode) ? { runtimeMode: evidence.runtimeMode } : {}),
     ...(stringValue(options.legacyHostVersion) ? { legacyHostVersion: options.legacyHostVersion } : {}),
+    ...(options.legacyHostCompatibility === "same-minor"
+      ? { legacyHostCompatibility: options.legacyHostCompatibility }
+      : {}),
     ...(evidence.provider && typeof evidence.provider === "object" ? { provider: evidence.provider } : {}),
     verification: evidence.verification,
   };

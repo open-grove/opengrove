@@ -246,9 +246,11 @@ export class SessionStore {
         patch.lastQuestionId = event.question.id;
         break;
       case "question.answered":
-        patch.lifecycle = lifecycleFromRunFact({ kind: "started" });
-        patch.resumedAt = event.question.updatedAt;
-        patch.pauseReason = undefined;
+        if (event.question.status === "answered") {
+          patch.lifecycle = lifecycleFromRunFact({ kind: "started" });
+          patch.resumedAt = event.question.updatedAt;
+          patch.pauseReason = undefined;
+        }
         patch.lastQuestionId = event.question.id;
         break;
       case "run.paused":
@@ -266,9 +268,11 @@ export class SessionStore {
         break;
       case "approval.resolved":
         patch.lastApprovalId = event.request.id;
-        patch.lifecycle = lifecycleFromRunFact({ kind: "started" });
-        patch.resumedAt = event.request.updatedAt;
-        patch.pauseReason = undefined;
+        if (event.request.status === "approved") {
+          patch.lifecycle = lifecycleFromRunFact({ kind: "started" });
+          patch.resumedAt = event.request.updatedAt;
+          patch.pauseReason = undefined;
+        }
         break;
       case "error":
         patch.error = event.message;

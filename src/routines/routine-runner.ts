@@ -646,7 +646,7 @@ export async function runRoutine(
         at: new Date().toISOString(),
         outcome: {
           taskState: "TASK_STATE_FAILED",
-          reasonCode: result.error ?? "routine_step_failed",
+          reasonCode: stableRoutineErrorCode(result.error, "routine_step_failed"),
           ...(result.error?.endsWith("_outcome_unknown") ? { outcomeUnknown: true } : {}),
         },
       });
@@ -866,7 +866,7 @@ async function executeMemberStep(
     at: new Date().toISOString(),
     outcome: {
       taskState: "TASK_STATE_FAILED",
-      reasonCode: result.error ?? "routine_member_step_failed",
+      reasonCode: stableRoutineErrorCode(result.error, "routine_member_step_failed"),
       ...(result.error?.endsWith("_outcome_unknown") ? { outcomeUnknown: true } : {}),
     },
   });

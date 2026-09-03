@@ -1096,6 +1096,9 @@ const restoredProducerLostRun = normalizePersistedAgentState({
     },
   ],
 });
+const reconciledProducerLostRun = restoredProducerLostRun.runs.find((run) => run.id === "run-producer-lost");
+assert.ok(reconciledProducerLostRun?.endedAt, "cold-start producer loss must record when the Run ended");
+assert.equal(reconciledProducerLostRun?.updatedAt, reconciledProducerLostRun?.endedAt);
 assert.deepEqual(restoredProducerLostRun.runs[0]?.lifecycle, {
   taskState: "TASK_STATE_FAILED",
   reasonCode: "producer_lost",

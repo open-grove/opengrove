@@ -157,7 +157,40 @@ async function main() {
   );
   await assertCompressionFailureFailsOpen();
   await assertUnconfiguredBudgetPreservesKernelBehavior();
+  await assertWaitTimeoutIsPollingBoundary();
   await assertAbortedTurnCloses();
+  await assertAbortAfterDispatchUsesNativeCancellation();
+}
+
+async function assertWaitTimeoutIsPollingBoundary(): Promise<void> {
+  const gateway = await startFakeOpenClawGateway({ waitTimeoutResponses: 1 });
+  const runtime = new OpenClawGatewayRuntime({
+    url: gateway.url,
+    configuredModel: OPENCLAW_TEST_MODEL,
+    requestTimeoutMs: 100,
+  });
+  const events: AgentEvent[] = [];
+  for await (const event of runtime.runTurn({
+    runId: "run-openclaw-long-wait",
+    input: "keep waiting for the native Run",
+    context: createContext("openclaw-long-wait-session"),
+    tools: [],
+    skills: [],
+    packs: [],
+    capabilities: [],
+  }))
+    events.push(event);
+  runtime.close();
+  await gateway.close();
+  assert.equal(
+    gateway.callOrder.filter((method) => method === "agent.wait").length,
+    2,
+    "agent.wait timeout is a poll boundary, not a Run deadline",
+  );
+  assert.ok(
+    events.some((event) => event.type === "turn.finished" && event.outcome.taskState === "TASK_STATE_COMPLETED"),
+    "a native Run that outlives one wait slice must still complete normally",
+  );
 }
 
 async function assertAbortedTurnCloses(): Promise<void> {
@@ -188,12 +221,57 @@ async function assertAbortedTurnCloses(): Promise<void> {
     "OpenClaw abort must expose turn.started",
   );
   assert.ok(
-    events.some((event) => event.type === "error"),
-    "OpenClaw abort must expose its terminal error",
+    events.some(
+      (event) =>
+        event.type === "turn.finished" &&
+        event.outcome.taskState === "TASK_STATE_CANCELED" &&
+        event.outcome.reasonCode === "user_canceled",
+    ),
+    "a pre-start abort must be an explicit cancellation, not an unknown failure",
   );
+  assert.equal(gateway.callOrder.includes("chat.send"), false, "a pre-start abort must not send work to the Kernel");
+}
+
+async function assertAbortAfterDispatchUsesNativeCancellation(): Promise<void> {
+  const gateway = await startFakeOpenClawGateway({ waitStatus: "canceled", waitResponseDelayMs: 50 });
+  const runtime = new OpenClawGatewayRuntime({
+    url: gateway.url,
+    configuredModel: OPENCLAW_TEST_MODEL,
+    requestTimeoutMs: 5_000,
+  });
+  const controller = new AbortController();
+  const events: AgentEvent[] = [];
+  const running = (async () => {
+    for await (const event of runtime.runTurn({
+      runId: "run-openclaw-native-cancel",
+      input: "cancel after dispatch",
+      context: createContext("openclaw-native-cancel-session"),
+      tools: [],
+      skills: [],
+      packs: [],
+      capabilities: [],
+      signal: controller.signal,
+    }))
+      events.push(event);
+  })();
+  const waitDeadline = Date.now() + 1_000;
+  while (!gateway.callOrder.includes("agent.wait") && Date.now() < waitDeadline) {
+    await new Promise((resolve) => setTimeout(resolve, 1));
+  }
+  assert.ok(gateway.callOrder.includes("agent.wait"), "OpenClaw test Run must reach native waiting before cancel");
+  controller.abort();
+  await running;
+  runtime.close();
+  await gateway.close();
+  assert.ok(gateway.callOrder.includes("chat.abort"), "OpenClaw cancellation must target the accepted native Run");
   assert.ok(
-    events.some((event) => event.type === "turn.finished"),
-    "OpenClaw abort must close the started turn",
+    events.some(
+      (event) =>
+        event.type === "turn.finished" &&
+        event.outcome.taskState === "TASK_STATE_CANCELED" &&
+        event.outcome.reasonCode === "user_canceled",
+    ),
+    "a Kernel-confirmed cancellation must not be rewritten as empty-response failure",
   );
 }
 
@@ -333,7 +411,14 @@ function createContext(sessionId: string): AgentContext {
   };
 }
 
-async function startFakeOpenClawGateway(options: { compactFails?: boolean } = {}): Promise<{
+async function startFakeOpenClawGateway(
+  options: {
+    compactFails?: boolean;
+    waitTimeoutResponses?: number;
+    waitStatus?: string;
+    waitResponseDelayMs?: number;
+  } = {},
+): Promise<{
   url: string;
   capturedConnectParams: Record<string, unknown> | undefined;
   capturedPrompt: string;
@@ -440,7 +525,12 @@ function handleGatewayRequest(
   captureSessionModel: (model: string) => void,
   callOrder: string[],
   captureCompaction: () => void,
-  options: { compactFails?: boolean },
+  options: {
+    compactFails?: boolean;
+    waitTimeoutResponses?: number;
+    waitStatus?: string;
+    waitResponseDelayMs?: number;
+  },
 ): void {
   const frame = JSON.parse(text) as {
     type?: string;
@@ -545,6 +635,22 @@ function handleGatewayRequest(
     return;
   }
   if (frame.method === "agent.wait") {
+    if ((options.waitTimeoutResponses ?? 0) > 0) {
+      options.waitTimeoutResponses = (options.waitTimeoutResponses ?? 0) - 1;
+      sendTextFrame(socket, JSON.stringify({ type: "res", id: frame.id, ok: true, payload: { status: "timeout" } }));
+      return;
+    }
+    if (options.waitStatus) {
+      setTimeout(
+        () =>
+          sendTextFrame(
+            socket,
+            JSON.stringify({ type: "res", id: frame.id, ok: true, payload: { status: options.waitStatus } }),
+          ),
+        options.waitResponseDelayMs ?? 0,
+      );
+      return;
+    }
     sendTextFrame(
       socket,
       JSON.stringify({

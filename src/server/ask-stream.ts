@@ -171,6 +171,15 @@ export async function compactBackgroundAskSession(
   };
   state.app.recordEvent(started, { sessionId: threadId, input: "/compact" });
   state.app.recordEvent(finished, { sessionId: threadId, input: "/compact" });
+  state.app.recordEvent(
+    {
+      type: "turn.finished",
+      runId,
+      at: new Date().toISOString(),
+      outcome: { taskState: "TASK_STATE_COMPLETED" },
+    },
+    { sessionId: threadId, input: "/compact" },
+  );
   state.store.saveFrom(state.app);
   return { ok: true, compacted: result.compacted === true };
 }
