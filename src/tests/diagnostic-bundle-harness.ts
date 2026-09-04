@@ -237,12 +237,12 @@ try {
     logDirs: [approvedLogDir],
     bridgeStatus: { status: "running" },
     versions: { app: "test", node: process.version },
-    storeAppLayout: { migration: { id: "store-app-layout-v2", introducedIn: "0.6.5" } },
+    storeAppLayout: { migration: { id: "store-app-layout-v2", introducedIn: "0.6.6" } },
   });
   const boundaryEntries = readZipArchiveForTest(boundaryBundle.archive);
   assert.match(boundaryEntries.get("logs/bridge.log")?.toString("utf8") ?? "", /approved explicit log/);
   assert.deepEqual(JSON.parse(boundaryEntries.get("store-app-layout.json")?.toString("utf8") ?? "{}"), {
-    migration: { id: "store-app-layout-v2", introducedIn: "0.6.5" },
+    migration: { id: "store-app-layout-v2", introducedIn: "0.6.6" },
   });
   assert.doesNotMatch(
     Buffer.concat([...boundaryEntries.values()]).toString("utf8"),

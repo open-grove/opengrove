@@ -6,9 +6,9 @@ import type { StoreAppLayoutRoots } from "./store-app-layout-v2.js";
 import { STORE_APP_LAYOUT_V2, STORE_APP_LAYOUT_V2_LOG_EVENTS } from "./store-app-layout-v2-metadata.js";
 
 /**
- * Supports: OpenGrove <=0.6.4 and pre-release 0.6.5 Store App layouts.
- * Target: OpenGrove 0.6.5 Store App layout v2 diagnostics.
- * Remove when: OpenGrove 0.8.0 requires direct upgrades from >=0.6.5.
+ * Supports: OpenGrove <=0.6.5 Store App layouts.
+ * Target: OpenGrove 0.6.6 Store App layout v2 diagnostics.
+ * Remove when: every supported direct upgrade source already uses layout v2 (OpenGrove >=0.6.6).
  */
 
 type StoreAppLayoutPathKind = "missing" | "directory" | "file" | "symlink" | "other" | "inaccessible";

@@ -21,9 +21,9 @@ import { readAppStorePackageInstallMarker } from "../app-store-install-marker.js
 import type { BridgeMountedAppSettings } from "../bridge-types.js";
 
 /**
- * Supports: OpenGrove <=0.6.4 and pre-release 0.6.5 Store App layouts.
- * Target: OpenGrove 0.6.5 Store App layout v2; metadata is defined in store-app-layout-v2-metadata.ts.
- * Remove when: OpenGrove 0.8.0 requires direct upgrades from >=0.6.5.
+ * Supports: OpenGrove <=0.6.5 Store App layouts.
+ * Target: OpenGrove 0.6.6 Store App layout v2; metadata is defined in store-app-layout-v2-metadata.ts.
+ * Remove when: every supported direct upgrade source already uses layout v2 (OpenGrove >=0.6.6).
  */
 
 export { STORE_APP_LAYOUT_V2 } from "./store-app-layout-v2-metadata.js";
@@ -426,6 +426,8 @@ export function retireLegacyStoreAppLayoutsV2(input: {
       if (!currentLayoutMount(mountedApp, roots)) continue;
       const legacyWorkspaceContainer = join(roots.legacyWorkspacesRoot, mountedApp.id);
       const legacyGenerations = legacyProgramGenerations(roots.legacyProgramsRoot, mountedApp.id);
+      // A 0.6.5 side-by-side mount can coexist with a complete 0.6.4 Store
+      // installation under apps/<id>; both sources must retire after activation.
       const directLegacyInstallation = inspectLegacyStoreInstallation(
         { id: mountedApp.id, path: legacyWorkspaceContainer, enabled: true },
         roots,

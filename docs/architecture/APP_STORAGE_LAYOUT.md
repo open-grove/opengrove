@@ -76,11 +76,13 @@ later legacy-directory rename break user data.
 
 ## Compatibility and diagnostics boundary
 
-Layout v2 targets OpenGrove 0.6.5 and accepts legacy layouts written by
-OpenGrove 0.6.4 or earlier, plus pre-release 0.6.5 builds. The migration and all
-legacy-root recognition live under `src/server/migrations/store-app-layout-v2*`.
-They can be removed when OpenGrove 0.8.0 requires direct upgrades from 0.6.5 or
-newer.
+Layout v2 is introduced in OpenGrove 0.6.6 and accepts legacy layouts written
+by OpenGrove 0.6.5 or earlier. This includes the 0.6.4 direct installation at
+`apps/<app-id>`, the 0.6.5 side-by-side program layout, and machines where both
+remain at the same time. The migration and all legacy-root recognition live
+under `src/server/migrations/store-app-layout-v2*`. They can be removed when
+every supported direct upgrade source already uses layout v2 (OpenGrove 0.6.6
+or newer).
 
 Both the normal Bridge export and the desktop startup-failure export include
 `store-app-layout.json`. It records the layout and migration version, resolved

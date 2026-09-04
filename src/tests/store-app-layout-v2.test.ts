@@ -110,6 +110,88 @@ test("direct OpenGrove 0.6.4 Store layout migrates and retires the old App direc
   }
 });
 
+test("OpenGrove 0.6.5 side-by-side mount migrates while retiring a mixed 0.6.4 direct installation", () => {
+  const fixture = createLegacyFixture("mixed-generation-app");
+  try {
+    writeFileSync(join(fixture.legacyProgramRoot, "index.js"), "export const version = 'new';\n", "utf8");
+    writeFileSync(
+      join(fixture.legacyWorkspaceContainer, "opengrove.app.json"),
+      JSON.stringify({
+        id: "mixed-generation-app",
+        title: "Old direct fixture",
+        ui: { surface: "file-workbench", workspace: "workspace" },
+      }),
+      "utf8",
+    );
+    writeFileSync(join(fixture.legacyWorkspaceContainer, "index.js"), "export const version = 'old';\n", "utf8");
+    writeFileSync(
+      join(fixture.legacyWorkspaceContainer, ".opengrove-store-package.json"),
+      JSON.stringify({
+        schemaVersion: 1,
+        source: "registry",
+        appId: "mixed-generation-app",
+        packageId: "mixed-generation-app",
+        version: "0.1.32",
+        archiveSha256: "b".repeat(64),
+      }),
+      "utf8",
+    );
+
+    const migration = migrateStoreAppLayoutsV2({ mountedApps: [fixture.mount], roots: fixture.roots });
+    assert.equal(migration.changed, true);
+    assert.deepEqual(migration.failures, []);
+    assert.deepEqual(migration.migratedAppIds, ["mixed-generation-app"]);
+
+    const migrated = migration.mountedApps[0];
+    assert.equal(
+      migrated?.path,
+      join(fixture.roots.programsRoot, "mixed-generation-app", "0.2.49-2f902d7c2cf6", "app"),
+    );
+    assert.equal(readFileSync(join(migrated?.path ?? "", "index.js"), "utf8"), "export const version = 'new';\n");
+    assert.equal(migrated?.workspacePath, join(fixture.roots.workspacesRoot, "mixed-generation-app", "workspace"));
+    assert.equal(readFileSync(join(migrated?.workspacePath ?? "", "story.md"), "utf8"), "user-owned\n");
+
+    const legacyGenerationRoot = dirname(fixture.legacyProgramRoot);
+    const retirement = retireLegacyStoreAppLayoutsV2({ mountedApps: migration.mountedApps, roots: fixture.roots });
+    assert.deepEqual(retirement.retained, []);
+    assert.equal(existsSync(fixture.legacyWorkspaceContainer), false);
+    assert.equal(existsSync(`${fixture.legacyWorkspaceContainer}.legacy-v2`), true);
+    assert.equal(
+      readFileSync(join(`${fixture.legacyWorkspaceContainer}.legacy-v2`, "index.js"), "utf8"),
+      "export const version = 'old';\n",
+    );
+    assert.equal(
+      readFileSync(join(`${fixture.legacyWorkspaceContainer}.legacy-v2`, "workspace", "story.md"), "utf8"),
+      "user-owned\n",
+    );
+    assert.equal(existsSync(legacyGenerationRoot), false);
+    assert.equal(existsSync(`${legacyGenerationRoot}.legacy-v2`), true);
+  } finally {
+    rmSync(fixture.root, { recursive: true, force: true });
+  }
+});
+
+test("direct legacy migration leaves both Workspace candidates untouched when the saved binding conflicts", () => {
+  const fixture = createDirectLegacyFixture("conflicting-workspace-app");
+  const separatelyBoundWorkspace = join(fixture.root, "separately-bound-workspace");
+  try {
+    mkdirSync(separatelyBoundWorkspace, { recursive: true });
+    writeFileSync(join(separatelyBoundWorkspace, "story.md"), "separately-bound\n", "utf8");
+    const mount = { ...fixture.mount, workspacePath: separatelyBoundWorkspace };
+
+    const migration = migrateStoreAppLayoutsV2({ mountedApps: [mount], roots: fixture.roots });
+    assert.equal(migration.changed, false);
+    assert.equal(migration.mountedApps[0]?.path, fixture.legacyProgramRoot);
+    assert.equal(migration.mountedApps[0]?.workspacePath, separatelyBoundWorkspace);
+    assert.equal(readFileSync(join(fixture.legacyWorkspaceRoot, "story.md"), "utf8"), "user-owned\n");
+    assert.equal(readFileSync(join(separatelyBoundWorkspace, "story.md"), "utf8"), "separately-bound\n");
+    assert.equal(existsSync(join(fixture.roots.programsRoot, "conflicting-workspace-app")), false);
+    assert.equal(existsSync(join(fixture.roots.workspacesRoot, "conflicting-workspace-app")), false);
+  } finally {
+    rmSync(fixture.root, { recursive: true, force: true });
+  }
+});
+
 test("direct legacy directories without a verified Store marker remain untouched", () => {
   const fixture = createDirectLegacyFixture("manual-direct-app");
   try {
@@ -402,7 +484,7 @@ test("Store layout diagnostics expose versions, bindings, and migration remnants
     });
     const serialized = JSON.stringify(diagnostics);
     assert.match(serialized, /"id":"store-app-layout-v2"/);
-    assert.match(serialized, /"introducedIn":"0\.6\.5"/);
+    assert.match(serialized, /"introducedIn":"0\.6\.6"/);
     assert.match(serialized, /"location":"legacy"/);
     assert.match(serialized, /\.migrating-generation-test/);
     assert.match(serialized, /\.legacy-v2/);
