@@ -1,6 +1,11 @@
 import { numberValue, record, stringValue } from "../http-utils.js";
 import type { WwTransport } from "./transport.js";
-import type { WwClientPlatformVersion, WwClientUpdateClient, WwLatestClientVersion } from "./types.js";
+import type {
+  WwClientPlatformVersion,
+  WwClientUpdateClient,
+  WwLatestClientVersion,
+  WwLocalizedReleaseNotes,
+} from "./types.js";
 
 export function createWwClientUpdateClient(transport: WwTransport): WwClientUpdateClient {
   return {
@@ -47,6 +52,7 @@ function mapClientPlatformVersion(input: unknown): WwClientPlatformVersion | und
   const version = numberValue(object.version);
   const downloadUrl = stringValue(object.download_url);
   if (version === undefined || !downloadUrl) return undefined;
+  const releaseNotesByLocale = mapLocalizedReleaseNotes(object.release_notes_by_locale);
   return {
     version,
     downloadUrl,
@@ -54,5 +60,17 @@ function mapClientPlatformVersion(input: unknown): WwClientPlatformVersion | und
     updaterFeedUrl: stringValue(object.updater_feed_url) || undefined,
     releasedAt: stringValue(object.released_at) || undefined,
     releaseNotes: stringValue(object.release_notes) || undefined,
+    ...(releaseNotesByLocale ? { releaseNotesByLocale } : {}),
+  };
+}
+
+function mapLocalizedReleaseNotes(input: unknown): WwLocalizedReleaseNotes | undefined {
+  const object = record(input);
+  const english = stringValue(object.en).trim();
+  const simplifiedChinese = stringValue(object["zh-CN"]).trim();
+  if (!english && !simplifiedChinese) return undefined;
+  return {
+    ...(english ? { en: english } : {}),
+    ...(simplifiedChinese ? { "zh-CN": simplifiedChinese } : {}),
   };
 }
