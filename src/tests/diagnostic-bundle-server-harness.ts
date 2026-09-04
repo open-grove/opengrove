@@ -494,7 +494,7 @@ try {
     any
   >;
   assert.equal(storeAppLayout.migration?.id, "store-app-layout-v2");
-  assert.equal(storeAppLayout.migration?.introducedIn, "0.6.5");
+  assert.equal(storeAppLayout.migration?.introducedIn, "0.6.6");
   assert.equal(storeAppLayout.activationPointer, "bridge-settings.json");
   assert.ok(Array.isArray(storeAppLayout.mountedApps));
   assert.equal(storeAppLayout.mountedAppsAvailable, true);

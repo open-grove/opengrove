@@ -21,9 +21,9 @@ import { readAppStorePackageInstallMarker } from "../app-store-install-marker.js
 import type { BridgeMountedAppSettings } from "../bridge-types.js";
 
 /**
- * Supports: OpenGrove <=0.6.4 and pre-release 0.6.5 Store App layouts.
- * Target: OpenGrove 0.6.5 Store App layout v2; metadata is defined in store-app-layout-v2-metadata.ts.
- * Remove when: OpenGrove 0.8.0 requires direct upgrades from >=0.6.5.
+ * Supports: OpenGrove <=0.6.5 Store App layouts.
+ * Target: OpenGrove 0.6.6 Store App layout v2; metadata is defined in store-app-layout-v2-metadata.ts.
+ * Remove when: every supported direct upgrade source already uses layout v2 (OpenGrove >=0.6.6).
  */
 
 export { STORE_APP_LAYOUT_V2 } from "./store-app-layout-v2-metadata.js";
@@ -87,6 +87,11 @@ interface LegacyStoreInstallation {
   programRoot: string;
   generationName: string;
   workspaceRoot: string;
+  workspaceRelativePath: string;
+}
+
+interface LegacyStoreProgramMetadata {
+  marker: Record<string, unknown>;
   workspaceRelativePath: string;
 }
 
@@ -282,33 +287,55 @@ function inspectLegacyStoreInstallation(
   mountedApp: BridgeMountedAppSettings,
   roots: StoreAppLayoutRoots,
 ): LegacyStoreInstallation | undefined {
-  if (!mountedApp.path?.trim() || !mountedApp.workspacePath?.trim() || !isValidAppStoreAppId(mountedApp.id))
-    return undefined;
+  if (!mountedApp.path?.trim() || !isValidAppStoreAppId(mountedApp.id)) return undefined;
   const programRoot = resolve(mountedApp.path);
+  if (!ordinaryDirectory(programRoot)) return undefined;
+  const metadata = inspectLegacyStoreProgramMetadata(mountedApp.id, programRoot);
+  if (!metadata) return undefined;
+  return (
+    inspectDirectLegacyStoreInstallation(mountedApp, roots, programRoot, metadata) ??
+    inspectSideBySideLegacyStoreInstallation(mountedApp, roots, programRoot, metadata)
+  );
+}
+
+function inspectDirectLegacyStoreInstallation(
+  mountedApp: BridgeMountedAppSettings,
+  roots: StoreAppLayoutRoots,
+  programRoot: string,
+  metadata: LegacyStoreProgramMetadata,
+): LegacyStoreInstallation | undefined {
+  const expectedProgramRoot = join(roots.legacyWorkspacesRoot, mountedApp.id);
+  if (!pathsReferToSameLocation(programRoot, expectedProgramRoot)) return undefined;
+  const workspaceRoot = resolve(programRoot, metadata.workspaceRelativePath);
+  if (
+    !ordinaryDirectory(workspaceRoot) ||
+    (mountedApp.workspacePath?.trim() && !pathsReferToSameLocation(mountedApp.workspacePath, workspaceRoot))
+  )
+    return undefined;
+  return {
+    appId: mountedApp.id,
+    programRoot,
+    generationName: directLegacyGenerationName(metadata.marker, programRoot),
+    workspaceRoot,
+    workspaceRelativePath: metadata.workspaceRelativePath,
+  };
+}
+
+function inspectSideBySideLegacyStoreInstallation(
+  mountedApp: BridgeMountedAppSettings,
+  roots: StoreAppLayoutRoots,
+  programRoot: string,
+  metadata: LegacyStoreProgramMetadata,
+): LegacyStoreInstallation | undefined {
+  if (!mountedApp.workspacePath?.trim()) return undefined;
   const generationRoot = dirname(programRoot);
   const bucketRoot = dirname(generationRoot);
   if (
     basename(programRoot) !== "app" ||
     !pathsReferToSameLocation(dirname(bucketRoot), roots.legacyProgramsRoot) ||
-    !/^[a-f0-9]{64}$/.test(basename(bucketRoot)) ||
-    !ordinaryDirectory(programRoot)
+    !/^[a-f0-9]{64}$/.test(basename(bucketRoot))
   )
     return undefined;
-
-  const marker = readAppStorePackageInstallMarker(programRoot);
-  if (stringValue(marker?.source) !== "registry" || stringValue(marker?.appId) !== mountedApp.id) return undefined;
-  const manifestPath = [join(programRoot, "opengrove.app.json"), join(programRoot, "opengrove.app.jsonc")].find(
-    ordinaryFile,
-  );
-  if (!manifestPath) return undefined;
-  const manifest = parseJsonLikeConfig(manifestPath, "jsonc");
-  if (stringValue(manifest?.id) !== mountedApp.id) return undefined;
-  const workspaceRelativePath =
-    stringValue(recordValue(manifest?.ui).workspace) ||
-    stringValue(recordValue(manifest?.workspace).path) ||
-    "workspace";
-  if (!safeRelativePath(workspaceRelativePath)) return undefined;
-
   const workspaceContainerRoot = join(roots.legacyWorkspacesRoot, mountedApp.id);
   const workspaceRoot = resolve(mountedApp.workspacePath);
   if (
@@ -316,11 +343,11 @@ function inspectLegacyStoreInstallation(
     !ordinaryDirectory(workspaceRoot) ||
     !pathIsInside(workspaceContainerRoot, workspaceRoot) ||
     normalizeRelativePath(relative(workspaceContainerRoot, workspaceRoot)) !==
-      normalizeRelativePath(workspaceRelativePath)
+      normalizeRelativePath(metadata.workspaceRelativePath)
   )
     return undefined;
   try {
-    assertWorkspaceBinding(programRoot, workspaceRelativePath, workspaceRoot);
+    assertWorkspaceBinding(programRoot, metadata.workspaceRelativePath, workspaceRoot);
   } catch {
     return undefined;
   }
@@ -329,8 +356,44 @@ function inspectLegacyStoreInstallation(
     programRoot,
     generationName: basename(generationRoot),
     workspaceRoot,
-    workspaceRelativePath,
+    workspaceRelativePath: metadata.workspaceRelativePath,
   };
+}
+
+function inspectLegacyStoreProgramMetadata(appId: string, programRoot: string): LegacyStoreProgramMetadata | undefined {
+  const marker = readAppStorePackageInstallMarker(programRoot);
+  if (!marker || stringValue(marker.source) !== "registry" || stringValue(marker.appId) !== appId) return undefined;
+  const manifestPath = [join(programRoot, "opengrove.app.json"), join(programRoot, "opengrove.app.jsonc")].find(
+    ordinaryFile,
+  );
+  if (!manifestPath) return undefined;
+  const manifest = parseJsonLikeConfig(manifestPath, "jsonc");
+  if (stringValue(manifest?.id) !== appId) return undefined;
+  const workspaceRelativePath =
+    stringValue(recordValue(manifest?.ui).workspace) ||
+    stringValue(recordValue(manifest?.workspace).path) ||
+    "workspace";
+  return safeRelativePath(workspaceRelativePath) ? { marker, workspaceRelativePath } : undefined;
+}
+
+function directLegacyGenerationName(marker: Record<string, unknown>, programRoot: string): string {
+  const versionPart = safeGenerationPart(stringValue(marker.version)) || "version";
+  const archiveSha256 = stringValue(marker.archiveSha256)?.toLowerCase();
+  const archivePart = /^[a-f0-9]{64}$/.test(archiveSha256 ?? "")
+    ? (archiveSha256 ?? "").slice(0, 12)
+    : createHash("sha256").update(resolve(programRoot)).digest("hex").slice(0, 12);
+  return `${versionPart}-${archivePart}-legacy-v1`;
+}
+
+function safeGenerationPart(value: string | undefined): string | undefined {
+  const normalized = value
+    ?.trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]+/g, "-")
+    .replace(/^[._-]+|[._-]+$/g, "")
+    .slice(0, 32)
+    .replace(/[._-]+$/g, "");
+  return normalized || undefined;
 }
 
 export function retireLegacyStoreAppLayoutsV2(input: {
@@ -363,11 +426,18 @@ export function retireLegacyStoreAppLayoutsV2(input: {
       if (!currentLayoutMount(mountedApp, roots)) continue;
       const legacyWorkspaceContainer = join(roots.legacyWorkspacesRoot, mountedApp.id);
       const legacyGenerations = legacyProgramGenerations(roots.legacyProgramsRoot, mountedApp.id);
+      // A 0.6.5 side-by-side mount can coexist with a complete 0.6.4 Store
+      // installation under apps/<id>; both sources must retire after activation.
+      const directLegacyInstallation = inspectLegacyStoreInstallation(
+        { id: mountedApp.id, path: legacyWorkspaceContainer, enabled: true },
+        roots,
+      );
       let workspaceRetirementBlocked = false;
       if (
-        legacyGenerations.some((generationRoot) =>
-          generationBindsWorkspace(generationRoot, mountedApp.id, legacyWorkspaceContainer),
-        ) &&
+        (directLegacyInstallation ||
+          legacyGenerations.some((generationRoot) =>
+            generationBindsWorkspace(generationRoot, mountedApp.id, legacyWorkspaceContainer),
+          )) &&
         ordinaryDirectory(legacyWorkspaceContainer) &&
         !activeWorkspaceRoots.some(
           (workspaceRoot) =>
@@ -590,10 +660,12 @@ function rootsAreSeparated(roots: StoreAppLayoutRoots): boolean {
 
 function mountUsesLegacyRoots(mountedApp: BridgeMountedAppSettings, roots: StoreAppLayoutRoots): boolean {
   return Boolean(
-    mountedApp.path?.trim() &&
-      pathIsInside(roots.legacyProgramsRoot, resolve(mountedApp.path)) &&
-      mountedApp.workspacePath?.trim() &&
-      pathIsInside(roots.legacyWorkspacesRoot, resolve(mountedApp.workspacePath)),
+    isValidAppStoreAppId(mountedApp.id) &&
+      mountedApp.path?.trim() &&
+      (pathsReferToSameLocation(resolve(mountedApp.path), join(roots.legacyWorkspacesRoot, mountedApp.id)) ||
+        (pathIsInside(roots.legacyProgramsRoot, resolve(mountedApp.path)) &&
+          mountedApp.workspacePath?.trim() &&
+          pathIsInside(roots.legacyWorkspacesRoot, resolve(mountedApp.workspacePath)))),
   );
 }
 

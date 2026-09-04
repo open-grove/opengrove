@@ -1,15 +1,15 @@
 /**
- * Supports: OpenGrove <=0.6.4 and pre-release 0.6.5 Store App layouts.
- * Target: OpenGrove 0.6.5 Store App layout v2.
- * Remove when: OpenGrove 0.8.0 requires direct upgrades from >=0.6.5.
+ * Supports: OpenGrove <=0.6.5 Store App layouts.
+ * Target: OpenGrove 0.6.6 Store App layout v2.
+ * Remove when: every supported direct upgrade source already uses layout v2 (OpenGrove >=0.6.6).
  */
 
 export const STORE_APP_LAYOUT_V2 = {
   id: "store-app-layout-v2",
   layoutVersion: 2,
-  introducedIn: "0.6.5",
-  supports: "OpenGrove <=0.6.4 and pre-release 0.6.5 Store App layouts",
-  removeWhen: "OpenGrove 0.8.0 requires direct upgrades from >=0.6.5",
+  introducedIn: "0.6.6",
+  supports: "OpenGrove <=0.6.5 Store App layouts",
+  removeWhen: "Every supported direct upgrade source already uses layout v2 (OpenGrove >=0.6.6)",
 } as const;
 
 export const STORE_APP_LAYOUT_V2_LOG_EVENTS = {
