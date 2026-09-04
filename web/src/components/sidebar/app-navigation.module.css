@@ -1,5 +1,5 @@
 .rail {
-  --app-rail-item-height: 32px;
+  --app-rail-item-height: 40px;
   --app-rail-icon-column: 38px;
   grid-column: 1;
   grid-row: 2;
@@ -289,7 +289,7 @@
 }
 
 .iconUnreadAnchor {
-  --unread-count-anchor-top: -3px;
+  --unread-count-anchor-top: -2px;
   --unread-count-anchor-right: -6px;
   --unread-count-ring-color: var(--app-shell-bg);
   grid-column: 1;
@@ -2012,6 +2012,7 @@ button.withdrawalRecordStat:focus-visible .withdrawalRecordLink {
   height: var(--app-rail-item-height);
   border-radius: var(--r-md);
   color: var(--app-rail-button-fg);
+  overflow: visible;
   padding: 0;
 }
 
