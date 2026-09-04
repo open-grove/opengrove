@@ -1212,7 +1212,6 @@ export const EN = {
     "OpenGrove saves old data automatically before an update. Delete it after confirming the update works normally.",
   "settings.storageMigrationBackupsDeleted": "Deleted about {size} of update backups.",
   "settings.storageBackupNone": "No backups of this type.",
-  "settings.storageBackupKindSummary": "{count} backups; latest saved {time}.",
   "settings.storageCategoryWorksAndFiles": "My works and files",
   "settings.storageCategoryWorksAndFilesCopy":
     "Content you create, download, or save in Apps. It is never cleaned automatically.",
@@ -1227,7 +1226,6 @@ export const EN = {
   "settings.storageCategoryBackups": "Update backups",
   "settings.storageCategoryBackupsCopy":
     "Old data saved automatically before an update, so OpenGrove can recover if the update fails.",
-  "settings.storageBackupReasonMigration": "saved before update",
   "settings.storageBackupSummary": "{count} backups; latest saved {time}.",
   "workspace.kernel": "Kernel",
   "workspace.namedKernel": "{name} kernel",

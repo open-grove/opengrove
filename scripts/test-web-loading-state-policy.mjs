@@ -234,6 +234,24 @@ assert.equal(
   true,
   "an actual startup wait still uses the startup recovery gate",
 );
+const firstReady = desktopBootstrapPolicy.resolveBridgeReadyGenerationTransition(undefined, {
+  stage: "ready",
+  generation: 1,
+});
+assert.deepEqual(firstReady, { generation: 1, restarted: false });
+const maintenance = desktopBootstrapPolicy.resolveBridgeReadyGenerationTransition(firstReady.generation, {
+  stage: "maintenance",
+  operation: "storage_cleanup",
+});
+assert.deepEqual(maintenance, { generation: 1, restarted: false });
+assert.deepEqual(
+  desktopBootstrapPolicy.resolveBridgeReadyGenerationTransition(maintenance.generation, {
+    stage: "ready",
+    generation: 2,
+  }),
+  { generation: 2, restarted: true },
+  "a replacement Bridge generation must invalidate cached queries after maintenance",
+);
 
 const originalFetch = globalThis.fetch;
 let bridgeStateListener;

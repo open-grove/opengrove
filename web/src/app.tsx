@@ -37,7 +37,11 @@ import { setHostSystemTheme } from "./theme";
 import { detectSystemLanguage, rawDiagnosticText, useI18n } from "./i18n";
 import { applyApprovalResultToMessages, applyQuestionResultToMessages } from "./messages";
 import { buildContextPayload } from "./runtime/composer-context";
-import { desktopBridgeReadyForBootstrap, desktopBridgeRequiresStartupGate } from "./runtime/desktop-bootstrap-policy";
+import {
+  desktopBridgeReadyForBootstrap,
+  desktopBridgeRequiresStartupGate,
+  resolveBridgeReadyGenerationTransition,
+} from "./runtime/desktop-bootstrap-policy";
 import { modelBindingKey, readStoredModelBindings, writeStoredModelBinding } from "./runtime/app-shell-state";
 import { useAppLayoutResize } from "./runtime/app-layout-resize";
 import {
@@ -142,6 +146,7 @@ export function App() {
     useState(readAccountOnboardingCompleted);
   const [accountLoginRequested, setAccountLoginRequested] = useState(false);
   const [desktopBridgeStartupState, setDesktopBridgeStartupState] = useState(readDesktopBridgeStartupState(desktopApi));
+  const desktopBridgeReadyGenerationRef = useRef<number | undefined>(undefined);
   const desktopBridgeReady = desktopBridgeReadyForBootstrap({
     bridgeStartupState: desktopBridgeStartupState,
   });
@@ -182,6 +187,14 @@ export function App() {
     void readDesktopApi()?.setLanguage?.(language);
   }, [language]);
   useEffect(() => desktopApi?.onBridgeStartupStateChange?.(setDesktopBridgeStartupState), [desktopApi]);
+  useEffect(() => {
+    const transition = resolveBridgeReadyGenerationTransition(
+      desktopBridgeReadyGenerationRef.current,
+      desktopBridgeStartupState,
+    );
+    desktopBridgeReadyGenerationRef.current = transition.generation;
+    if (transition.restarted) void queryClient.invalidateQueries();
+  }, [desktopBridgeStartupState, queryClient]);
 
   const {
     model,

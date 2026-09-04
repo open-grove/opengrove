@@ -57,6 +57,7 @@ try {
   const first = runtime("http://127.0.0.1:43123/api", 101);
   assert.equal(host.activate(first), true);
   assert.equal(host.runtime, first);
+  assert.equal(host.readyRuntime, first, "ready requests must target the active Bridge runtime");
   assert.deepEqual(host.state, { stage: "ready", generation: 1 });
   assert.equal("apiBase" in host.state, false, "renderer startup state must not expose a dynamic port");
 
@@ -65,12 +66,14 @@ try {
 
   host.maintenance("storage_cleanup");
   assert.equal(host.runtime, first, "planned maintenance keeps the retained renderer bound to its runtime identity");
+  assert.equal(host.readyRuntime, undefined, "maintenance requests must not target the retained Bridge runtime");
   assert.deepEqual(host.state, { stage: "maintenance", operation: "storage_cleanup" });
   assert.equal(
     host.activate(first),
     true,
     "maintenance completion must republish ready even when the runtime is reused",
   );
+  assert.equal(host.readyRuntime, first, "requests may resume only after the runtime is republished as ready");
   assert.deepEqual(host.state, { stage: "ready", generation: 2 });
 
   host.retrying({ attempt: 2, retryInMs: 1_000, message: "bridge crashed" });

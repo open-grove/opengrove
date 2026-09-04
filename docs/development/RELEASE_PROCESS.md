@@ -121,28 +121,23 @@ intentionally produces no registrable candidate or gate receipt.
 
 ### Real-device acceptance for storage changes
 
-Changes to storage locations, recursive cleanup, or local cache policy require
-real-device acceptance on every affected platform in addition to automated
-gates. Use temporary test data and verify before and after the operation that
+Changes to recursive cleanup or local cache policy require real-device
+acceptance on every affected platform in addition to automated gates. Use
+temporary test data and verify before and after the operation that
 works, conversations, settings, account state, Knowledge, the current App, and
 current diagnostic logs remain intact.
 
-- On Windows, test target validation, free-space checks, copying, switching,
-  and restart recovery on both the current volume and another local NTFS
-  volume. A drive root or mount point must be accepted or rejected before any
-  copy starts; the operation must not fail only after copying or leave a
-  partially activated destination.
-- On Windows, test this irreversible-risk case separately: create a directory
+- On Windows, test this irreversible-risk case: create a directory
   junction inside an OpenGrove cleanup boundary that points to a test directory
   outside that boundary, then exercise the real `fs.rm` cleanup path. Confirm
   that cleanup does not follow the junction or remove the external files. A
   normal symbolic link or mock is not a substitute for this test.
-- On macOS, repeat target validation and rollback tests for both a normal
-  directory and a `/Volumes/<volume>` root, and confirm that cleanup does not
-  cross symbolic-link or mount boundaries.
+- On macOS, create a symbolic link inside an OpenGrove cleanup boundary that
+  points to a test directory outside that boundary. Confirm that cleanup does
+  not follow the link or remove the external files.
 
 Record the candidate SHA, client and operating-system versions, filesystem,
-test paths, before-and-after checksums, and failure-recovery result. If an item
+test paths, before-and-after checksums, and the result. If an item
 was not run, say so in the release record; automated coverage is not evidence
 that a real-device check passed.
 

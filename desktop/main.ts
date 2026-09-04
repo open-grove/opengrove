@@ -171,7 +171,7 @@ if (!hasSingleInstanceLock) {
       desktopProxyToken = randomBytes(32).toString("base64url");
       bridgeAuthCookies = new DesktopAuthCookieJar(join(app.getPath("userData"), "auth-cookies.json"));
       registerDesktopProtocol(join(app.getAppPath(), "web-dist"), () => ({
-        bridgeApiBase: bridgeHost.runtime?.apiBase,
+        bridgeApiBase: bridgeHost.readyRuntime?.apiBase,
         bridgeToken,
         proxyToken: desktopProxyToken,
         mergeCookieHeader: (header) => bridgeAuthCookies.mergeRequestCookieHeader(header),

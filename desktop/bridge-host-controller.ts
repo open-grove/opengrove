@@ -36,6 +36,10 @@ export class DesktopBridgeHostController<Runtime extends DesktopBridgeRuntimeIde
     return this.runtimeValue;
   }
 
+  get readyRuntime(): Runtime | undefined {
+    return this.stateValue.stage === "ready" ? this.runtimeValue : undefined;
+  }
+
   starting(attempt = 1): void {
     this.runtimeValue = undefined;
     this.publish({ stage: "starting", attempt });

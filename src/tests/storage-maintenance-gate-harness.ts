@@ -12,6 +12,7 @@ import {
 import { createBridgeState, saveBridgeSettings } from "../server/bridge-state.js";
 import type { BridgeState } from "../server/bridge-types.js";
 import { handleSettingsRoute } from "../server/routes/settings.js";
+import { createAskRoutes } from "../server/routes/ask.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { ContentBlobStore } from "../storage/content-blob-store.js";
 import { inspectUnreferencedAppStoreArchives } from "../server/app-store.js";
@@ -48,6 +49,50 @@ assert.deepEqual(beginBridgeRunMaintenance(rootState), {
   activeRuns: 0,
 });
 assert.equal(secondAdmission.ok && endBridgeRunMaintenance(rootState, secondAdmission.leaseId), true);
+
+const askStateDir = mkdtempSync(join(tmpdir(), "opengrove-storage-maintenance-ask-"));
+const askState = {
+  settings: { languagePreference: "zh-CN" },
+  store: { kind: "json", path: join(askStateDir, "state.json") },
+} as unknown as BridgeState;
+const askAdmission = beginBridgeRunMaintenance(askState);
+assert.equal(askAdmission.ok, true);
+let askStatus = 0;
+let askPayload: unknown;
+const askHeaders = new Map<string, string>();
+const askRoute = createAskRoutes().find((candidate) => candidate.id === "ask-stream-start");
+assert.ok(askRoute);
+await askRoute.handle({
+  request: { method: "POST", headers: {} } as IncomingMessage,
+  response: {
+    setHeader: (name: string, value: string) => askHeaders.set(name.toLowerCase(), value),
+  } as unknown as ServerResponse,
+  url: new URL("http://localhost/ask/stream"),
+  traceId: "storage-maintenance-ask",
+  state: askState,
+  security: { authMode: "bridge-token", allowedOrigins: [] },
+  sendJson: (_response, status, payload) => {
+    askStatus = status;
+    askPayload = payload;
+  },
+  readJsonBody: async () => ({
+    question: "hello",
+    threadId: "thread-maintenance",
+    snapshot: {
+      attachments: [{ name: "blocked.txt", kind: "text", mimeType: "text/plain", size: 7, text: "blocked" }],
+    },
+  }),
+});
+assert.equal(askStatus, 503);
+assert.deepEqual(askPayload, {
+  ok: false,
+  code: "bridge_runs_paused_for_storage_maintenance",
+  error: "OpenGrove 正在完成存储清理，请稍后再试。",
+});
+assert.equal(askHeaders.get("retry-after"), "1");
+assert.equal(existsSync(join(askStateDir, "uploads")), false, "maintenance admission must close before attachment writes");
+assert.equal(askAdmission.ok && endBridgeRunMaintenance(askState, askAdmission.leaseId), true);
+rmSync(askStateDir, { recursive: true, force: true });
 
 const abandonedRootState = {} as BridgeState;
 const beginMaintenanceAt = beginBridgeRunMaintenance as unknown as (

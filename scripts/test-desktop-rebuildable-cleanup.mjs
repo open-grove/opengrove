@@ -52,7 +52,6 @@ try {
   const result = await cleanupDesktopRebuildableFiles({
     workspaceRoots: [workspaceRoot],
     logDir,
-    chromiumCacheDirs,
     updaterCacheDir,
   });
   assert.equal(result.reclaimedBytes, 84);
@@ -83,7 +82,7 @@ try {
     assert.equal(
       (await readdir(cacheDir)).length,
       1,
-      `${cacheDir} belongs to the live Electron session and must not be removed with raw filesystem rm`,
+      `${cacheDir} is unrelated to filesystem cleanup and must remain untouched`,
     );
   }
 } finally {

@@ -554,7 +554,6 @@ function storageOverviewCategoryDescription(
     if (!latest) return t("settings.storageCategoryBackupsCopy");
     return `${t("settings.storageCategoryBackupsCopy")} ${t("settings.storageBackupSummary", {
       count: migrationBackups.length,
-      reason: t("settings.storageBackupReasonMigration"),
       time: formatDateTime(latest.createdAt),
     })}`;
   }
@@ -565,7 +564,7 @@ function backupKindSummary(overview: SettingsStorageOverview | undefined, t: Tra
   const backups = overview?.backups.filter((backup) => backup.kind === "migration") ?? [];
   const latest = backups[0];
   if (!latest) return t("settings.storageBackupNone");
-  return t("settings.storageBackupKindSummary", {
+  return t("settings.storageBackupSummary", {
     count: backups.length,
     time: formatDateTime(latest.createdAt),
   });

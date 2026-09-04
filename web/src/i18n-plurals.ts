@@ -21,10 +21,6 @@ const ENGLISH_PLURAL_FORMS: Partial<Record<TranslationKey, EnglishPluralForms>> 
   "mountedApp.dashboardActiveCount": { one: "{count} active story", other: "{count} active stories" },
   "settings.extensionDeploymentsCount": { one: "{count} deployment", other: "{count} deployments" },
   "settings.modelsCount": { one: "{count} model", other: "{count} models" },
-  "settings.storageBackupKindSummary": {
-    one: "{count} backup; latest saved {time}.",
-    other: "{count} backups; latest saved {time}.",
-  },
   "settings.storageBackupSummary": {
     one: "{count} backup; latest saved {time}.",
     other: "{count} backups; latest saved {time}.",
