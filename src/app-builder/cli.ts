@@ -454,7 +454,7 @@ export function scaffoldApp(target: string, options: ScaffoldOptions): Record<st
       options.force,
     );
   }
-  const gitInitialized = ensureAppGitRepo(target) === "initialized";
+  const gitInitialized = options.initializeGit !== false && ensureAppGitRepo(target) === "initialized";
   return {
     ok: true,
     gitInitialized,
@@ -895,6 +895,8 @@ interface ScaffoldOptions {
   description?: string;
   uiSurface?: AppUiSurface;
   force?: boolean;
+  /** Host-managed creation attaches its bundled Git implementation after scaffolding. */
+  initializeGit?: boolean;
 }
 
 interface MountOptions {

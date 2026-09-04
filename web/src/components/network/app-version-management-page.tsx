@@ -250,6 +250,12 @@ export function AppVersionManagementPage(props: {
 function VersionOverview(props: { status: MountedAppVersionStatus }) {
   const { t } = useI18n();
   const selected = props.status.selectedVersion?.version;
+  const hasUnsavedSourceChanges =
+    props.status.sourceStatusError !== undefined
+      ? true
+      : props.status.sourceChangedFileCount === undefined
+        ? props.status.hasUnsavedChanges
+        : props.status.sourceChangedFileCount > 0;
   return (
     <section className="app-store-version-overview" aria-label={t("appStore.version.overview")}>
       <VersionOverviewItem
@@ -272,8 +278,20 @@ function VersionOverview(props: { status: MountedAppVersionStatus }) {
       />
       <VersionOverviewItem
         label={t("appStore.version.localChanges")}
-        value={props.status.hasUnsavedChanges ? t("appStore.version.unsaved") : t("appStore.version.saved")}
-        tone={props.status.hasUnsavedChanges ? "warning" : "success"}
+        value={
+          props.status.sourceStatusError
+            ? t("appStore.version.sourceNeedsAttention", {
+                path: props.status.sourceStatusPath ?? t("appStore.version.unknownSourcePath"),
+              })
+            : hasUnsavedSourceChanges
+              ? t("appStore.version.unsaved")
+              : props.status.sourceSavePoint
+                ? t("appStore.version.sourceSavedAt", {
+                    time: formatVersionDate(props.status.sourceSavePoint.savedAt),
+                  })
+                : t("appStore.version.saved")
+        }
+        tone={hasUnsavedSourceChanges ? "warning" : "success"}
       />
     </section>
   );

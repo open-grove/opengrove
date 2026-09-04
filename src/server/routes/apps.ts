@@ -58,7 +58,8 @@ import { resolveHostLanguageSettings } from "../language-preference.js";
 import { resolveAppManifestPresentation } from "../../app-builder/manifest-localization.js";
 import { handleMountedAppVersionsRoute } from "./app-versions.js";
 import { handleMountedAppReleaseRoute } from "./app-release.js";
-import { localAppDraftStore, saveMountedAppDraft } from "../mounted-app-draft-service.js";
+import { appRevisionStore, localAppDraftStore, saveMountedAppDraftWithRevision } from "../mounted-app-draft-service.js";
+import { appRevisionSourceIssue, appRevisionTarget, type AppSavePoint } from "../app-revision-store.js";
 
 interface AppRouteContext {
   request: IncomingMessage;
@@ -398,7 +399,7 @@ async function handleMountedAppDraftRoute(
     return;
   }
   try {
-    const draft = saveMountedAppDraft({
+    const draft = await saveMountedAppDraftWithRevision({
       state: context.state,
       target,
       submission: await context.readJsonBody(context.request),
@@ -406,10 +407,16 @@ async function handleMountedAppDraftRoute(
     });
     context.sendJson(context.response, 200, { ok: true, draft });
   } catch (error) {
-    context.sendJson(context.response, error instanceof AppReleaseValidationError ? error.status : 500, {
-      ok: false,
-      error: error instanceof Error ? error.message : String(error),
-    });
+    const sourceIssue = appRevisionSourceIssue(error);
+    context.sendJson(
+      context.response,
+      sourceIssue ? 422 : error instanceof AppReleaseValidationError ? error.status : 500,
+      {
+        ok: false,
+        error: sourceIssue?.code ?? (error instanceof Error ? error.message : String(error)),
+        ...(sourceIssue ? { path: sourceIssue.path } : {}),
+      },
+    );
   }
 }
 
@@ -1256,6 +1263,7 @@ async function handleAppCreateRoute(context: AppRouteContext): Promise<void> {
           appsDir: defaultAppStoreRoot(),
           ...(title ? { title } : {}),
           ...(description ? { description } : {}),
+          initializeGit: false,
         });
         appRoot = imported.appRoot;
       }
@@ -1271,6 +1279,7 @@ async function handleAppCreateRoute(context: AppRouteContext): Promise<void> {
         title,
         ...(requestedIcon ? { icon: requestedIcon } : {}),
         ...(description ? { description } : {}),
+        initializeGit: false,
       });
     }
   } catch (error) {
@@ -1301,6 +1310,20 @@ async function handleAppCreateRoute(context: AppRouteContext): Promise<void> {
   const manifest = manifestRead.manifest;
   const appId = stringValue(manifest.id) || stringValue(manifest.name) || basename(appRoot);
   const appTitle = stringValue(manifest.title) || title || appId;
+  let savePoint: AppSavePoint;
+  try {
+    savePoint = await appRevisionStore(context.state).ensureWorkingCopy(
+      appRevisionTarget({ localAppId: appId, appRoot, manifest }),
+    );
+  } catch (error) {
+    context.sendJson(context.response, 422, {
+      ok: false,
+      error: "app_revision_initialization_failed",
+      detail: error instanceof Error ? error.message : String(error),
+      appRoot,
+    });
+    return;
+  }
   const mountedApps = (context.state.settings.mountedApps ?? []).map((app) => ({ ...app }));
   const existingIndex = mountedApps.findIndex((app) => app.id === appId || resolve(app.path) === appRoot);
   const appBuilderEnabled = existingIndex >= 0 ? mountedApps[existingIndex]?.appBuilderEnabled === true : !source;
@@ -1329,6 +1352,7 @@ async function handleAppCreateRoute(context: AppRouteContext): Promise<void> {
     title: appTitle,
     appRoot,
     mode: source ? "imported" : "scaffolded",
+    savePoint,
   });
 }
 

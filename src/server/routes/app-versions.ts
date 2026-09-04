@@ -27,10 +27,12 @@ import {
 } from "../app-version-manager.js";
 import { MountedAppVersionStateStore, selectedFormalVersionFromMarker } from "../app-version-state.js";
 import type { BridgeSecurity } from "../bridge-security.js";
+import { appRevisionSourceIssue, isAppRevisionUnavailableError } from "../app-revision-store.js";
 import { LocalAppDraftStore } from "../local-app-drafts.js";
 import type { LocalAppDraftSummary } from "../local-app-drafts.js";
 import { resolveMountedAppTarget, type MountedAppTarget } from "../mounted-apps.js";
 import { resolveReleaseControlConfig } from "../release-control-config.js";
+import { appRevisionStore, mountedAppRevisionTarget } from "../mounted-app-draft-service.js";
 
 interface AppVersionRouteContext {
   request: IncomingMessage;
@@ -84,13 +86,17 @@ export async function handleMountedAppVersionsRoute(
       }
     }
     try {
-      const status = inspectMountedAppVersionStatus({
-        state: context.state,
+      const status = await withAppRevisionStatus(
+        context.state,
         target,
-        localDraft,
-        versionState,
-        versions,
-      });
+        inspectMountedAppVersionStatus({
+          state: context.state,
+          target,
+          localDraft,
+          versionState,
+          versions,
+        }),
+      );
       context.sendJson(context.response, 200, {
         ok: true,
         localAppId,
@@ -259,7 +265,7 @@ export async function handleMountedAppVersionsRoute(
         return;
       }
 
-      const activated = activateImportedFormalAppVersion({
+      const activated = await activateImportedFormalAppVersion({
         state: context.state,
         localAppId,
         prepared,
@@ -297,6 +303,39 @@ export async function handleMountedAppVersionsRoute(
       ok: false,
       error: errorText(error),
     });
+  }
+}
+
+async function withAppRevisionStatus(
+  state: BridgeState,
+  target: MountedAppTarget,
+  status: ReturnType<typeof inspectMountedAppVersionStatus>,
+): Promise<ReturnType<typeof inspectMountedAppVersionStatus>> {
+  try {
+    const revision = await appRevisionStore(state).inspect(mountedAppRevisionTarget(target));
+    return {
+      ...status,
+      sourceSavePoint: {
+        commitSha: revision.commitSha,
+        savedAt: revision.savedAt,
+      },
+      sourceChangedFileCount: revision.changedFiles.length,
+    };
+  } catch (error) {
+    if (isAppRevisionUnavailableError(error)) return status;
+    const sourceIssue = appRevisionSourceIssue(error);
+    if (sourceIssue) {
+      return {
+        ...status,
+        sourceStatusError: sourceIssue.code,
+        sourceStatusPath: sourceIssue.path,
+      };
+    }
+    console.warn("[opengrove-app-revision] source status inspection failed", {
+      localAppId: target.localAppId,
+      error: errorText(error),
+    });
+    throw error;
   }
 }
 

@@ -257,7 +257,7 @@ export async function ensureInstalledAppStoreAppsCurrent(input: {
         result.skipped.push({ appId, packageKey, reason: currentSafetyIssue });
         continue;
       }
-      const activation = activateImportedFormalAppVersion({
+      const activation = await activateImportedFormalAppVersion({
         state: input.state,
         localAppId: currentTarget!.localAppId,
         prepared,

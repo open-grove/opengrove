@@ -8,6 +8,7 @@ import {
   commitAppVersionActivationJournal,
   listAppVersionActivationJournals,
   removeAppVersionActivationJournal,
+  scanAppVersionActivationJournals,
 } from "../server/app-version-activation-journal.js";
 
 const tempRoot = mkdtempSync(join(tmpdir(), "opengrove-app-version-journal-"));
@@ -62,6 +63,12 @@ try {
       },
       updatedAt: "2026-07-31T00:00:00.000Z",
     },
+    previousSourceRevision: {
+      checkpointId: "a".repeat(32),
+      commitSha: "64894d71e1654ee49ea256e75930a95875c19cf9",
+      indexSha256: "b".repeat(64),
+      objectManifestSha256: "c".repeat(64),
+    },
   });
 
   assert.equal(statSync(journal.path).mode & 0o777, 0o600);
@@ -74,6 +81,7 @@ try {
   assert.equal(migratedJournal?.path, journal.path);
   assert.equal(migratedJournal?.record.previousAgentState.version, 9);
   assert.equal(migratedJournal?.record.localAppId, journal.record.localAppId);
+  assert.deepEqual(migratedJournal?.record.previousSourceRevision, journal.record.previousSourceRevision);
   assert.throws(
     () =>
       beginAppVersionActivationJournal({
@@ -93,6 +101,71 @@ try {
   assert.equal(listAppVersionActivationJournals(root)[0]?.record.phase, "committed");
   removeAppVersionActivationJournal(committed);
   assert.deepEqual(listAppVersionActivationJournals(root), []);
+
+  const invalidCheckpointJournal = beginAppVersionActivationJournal({
+    root,
+    kind: "formal",
+    localAppId: "local-versioned-app",
+    appRoot: join(tempRoot, "apps", "versioned-app"),
+    previousMountedApps: [],
+    previousUninstalledStoreAppIds: [],
+    previousAgentState,
+    previousSourceRevision: journal.record.previousSourceRevision,
+  });
+  const invalidCheckpointRecord = JSON.parse(readFileSync(invalidCheckpointJournal.path, "utf8")) as {
+    previousSourceRevision: Record<string, unknown>;
+  };
+  invalidCheckpointRecord.previousSourceRevision = {
+    checkpointId: "not-a-checkpoint-id",
+    commitSha: "3".repeat(40),
+    indexSha256: "4".repeat(64),
+    objectManifestSha256: "5".repeat(64),
+  };
+  writeFileSync(invalidCheckpointJournal.path, `${JSON.stringify(invalidCheckpointRecord)}\n`, "utf8");
+  assert.equal(scanAppVersionActivationJournals(root).failures.length, 1);
+  removeAppVersionActivationJournal(invalidCheckpointJournal);
+
+  const legacyFormalJournal = beginAppVersionActivationJournal({
+    root,
+    kind: "formal",
+    localAppId: "local-versioned-app",
+    appRoot: join(tempRoot, "apps", "versioned-app"),
+    previousMountedApps: [],
+    previousUninstalledStoreAppIds: [],
+    previousAgentState,
+    previousSourceRevision: journal.record.previousSourceRevision,
+  });
+  const legacyFormalRecord = JSON.parse(readFileSync(legacyFormalJournal.path, "utf8")) as Record<string, unknown>;
+  legacyFormalRecord.schemaVersion = 1;
+  delete legacyFormalRecord.previousSourceRevision;
+  writeFileSync(legacyFormalJournal.path, `${JSON.stringify(legacyFormalRecord)}\n`, "utf8");
+  const legacyScan = scanAppVersionActivationJournals(root);
+  assert.deepEqual(legacyScan.failures, []);
+  assert.equal(legacyScan.journals[0]?.record.legacySourceRevisionUnavailable, true);
+  removeAppVersionActivationJournal(legacyFormalJournal);
+
+  const mismatchedIdentityJournal = beginAppVersionActivationJournal({
+    root,
+    kind: "formal",
+    localAppId: "local-versioned-app",
+    appRoot: join(tempRoot, "apps", "versioned-app"),
+    previousMountedApps: [],
+    previousUninstalledStoreAppIds: [],
+    previousAgentState,
+    previousSourceRevision: journal.record.previousSourceRevision,
+  });
+  const mismatchedIdentityRecord = JSON.parse(readFileSync(mismatchedIdentityJournal.path, "utf8")) as Record<
+    string,
+    unknown
+  >;
+  mismatchedIdentityRecord.localAppId = "other-app";
+  writeFileSync(mismatchedIdentityJournal.path, `${JSON.stringify(mismatchedIdentityRecord)}\n`, "utf8");
+  assert.equal(
+    scanAppVersionActivationJournals(root).failures.length,
+    1,
+    "the filename-bound App identity must not be replaceable from journal contents",
+  );
+  removeAppVersionActivationJournal(mismatchedIdentityJournal);
 
   process.stdout.write("app version activation journal harness passed\n");
 } finally {

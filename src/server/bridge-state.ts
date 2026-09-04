@@ -44,10 +44,19 @@ import {
 import { defaultAppGroupRoomId, findDefaultAppGroupRoom } from "./app-room-ids.js";
 import { resolveMountedAppRuntimeEnv } from "./app-runtime-env.js";
 import {
+  appStoreDataRoot,
   cleanupUnreferencedAppStoreProgramGenerations,
   currentAppStoreProgramsRoot,
   defaultAppStoreRoot,
 } from "./app-store.js";
+import {
+  AppRevisionStore,
+  appRevisionWorkspacePath,
+  managedAppRevisionGitDirectory,
+  pruneManagedAppRevisionCheckpoints,
+  removeManagedAppRevisionCheckpoint,
+  restoreManagedAppRevisionCheckpoint,
+} from "./app-revision-store.js";
 import {
   type AppVersionActivationJournal,
   appVersionActivationJournalKey,
@@ -207,6 +216,23 @@ export function createBridgeState(
     saveBridgeSettings(state);
   }
   const versionActivationScan = scanAppVersionActivationJournals(appVersionActivationJournalRoot(appStoreRoot));
+  if (versionActivationScan.failures.length === 0) {
+    try {
+      pruneManagedAppRevisionCheckpoints({
+        revisionsRoot: join(appStoreRoot, "app-revisions"),
+        retainedCheckpointIds: new Set(
+          versionActivationScan.journals.flatMap((journal) =>
+            journal.record.previousSourceRevision ? [journal.record.previousSourceRevision.checkpointId] : [],
+          ),
+        ),
+      });
+    } catch (error) {
+      // non-critical-fallback: unreferenced recovery objects are inert and can be retried next startup.
+      console.warn("app_revision_recovery_cleanup_deferred", {
+        failure: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
   const corruptJournalKeys = new Set(
     versionActivationScan.failures.flatMap((failure) => (failure.journalKey ? [failure.journalKey] : [])),
   );
@@ -511,6 +537,13 @@ export function createBridgeState(
   }
   if (versionActivationJournal && versionActivationRecovered) {
     removeAppVersionActivationJournal(versionActivationJournal);
+    if (versionActivationJournal.record.previousSourceRevision) {
+      removeManagedAppRevisionCheckpoint({
+        revisionsRoot: join(appStoreRoot, "app-revisions"),
+        localAppId: versionActivationJournal.record.localAppId,
+        checkpoint: versionActivationJournal.record.previousSourceRevision,
+      });
+    }
   }
   if (needsLegacyProviderActivation) {
     const activatedSettings = activateLegacyProviderReferences(
@@ -594,6 +627,19 @@ function prepareInterruptedAppVersionActivationRecovery(
     journal.record.localAppId,
     journal.record.previousVersionState,
   );
+  if (journal.record.previousSourceRevision) {
+    restoreManagedAppRevisionCheckpoint({
+      revisionsRoot: join(appStoreRoot, "app-revisions"),
+      localAppId: journal.record.localAppId,
+      appRoot: journal.record.appRoot,
+      checkpoint: journal.record.previousSourceRevision,
+    });
+  } else if (
+    journal.record.legacySourceRevisionUnavailable === true &&
+    existsSync(managedAppRevisionGitDirectory(join(appStoreRoot, "app-revisions"), journal.record.localAppId))
+  ) {
+    throw new Error("app_version_activation_revision_recovery_required");
+  }
   saveBridgeSettings(state);
   const appId = readMountedAppManifest(journal.record.appRoot).manifest?.id;
   return {
@@ -1787,6 +1833,7 @@ async function importAppIntoCurrentBridge(state: BridgeState, input: AppImportIn
         description: input.description,
         appsDir: bridgeDataPath(state, "apps"),
         force: input.force === true,
+        initializeGit: false,
       });
       appRoot = imported.appRoot;
       packaged = true;
@@ -1831,6 +1878,20 @@ async function importAppIntoCurrentBridge(state: BridgeState, input: AppImportIn
 
   const id = validation.manifest.id || slug(input.title ?? basename(appRoot)) || "opengrove-app";
   const title = validation.manifest.title || input.title || titleFromSlug(id);
+  try {
+    await new AppRevisionStore(join(appStoreDataRoot(state), "app-revisions")).ensureWorkingCopy({
+      localAppId: id,
+      appRoot,
+      workspacePath: appRevisionWorkspacePath(validation.manifest),
+    });
+  } catch (error) {
+    return {
+      status: "package_failed",
+      message: error instanceof Error ? error.message : String(error),
+      source,
+      appRoot,
+    };
+  }
   const mountedApps = state.settings.mountedApps.map((item) => ({ ...item }));
   const previousIndex = mountedApps.findIndex(
     (item) => item.id === id || (item.path?.trim() ? resolvePathLike(item.path) === resolvePathLike(appRoot) : false),

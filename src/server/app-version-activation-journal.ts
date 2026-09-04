@@ -1,16 +1,20 @@
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { basename, join, resolve } from "node:path";
 import { type PersistedAgentState } from "../storage/json-state-store.js";
 import type { BridgeMountedAppSettings } from "./bridge-types.js";
 import type { MountedAppVersionState } from "./app-version-state.js";
 import { writePrivateFileAtomically } from "../storage/private-file.js";
-import { normalizeActivationJournalAgentState } from "./app-version-activation-journal.compat.js";
+import {
+  normalizeActivationJournalAgentState,
+  normalizeLegacyAppVersionActivationJournal,
+} from "./app-version-activation-journal.compat.js";
+import { type AppRevisionRecoveryCheckpoint, validAppRevisionRecoveryCheckpoint } from "./app-revision-store.js";
 
-const APP_VERSION_ACTIVATION_JOURNAL_SCHEMA_VERSION = 1;
+const APP_VERSION_ACTIVATION_JOURNAL_SCHEMA_VERSION = 2;
 
 export interface AppVersionActivationJournalRecord {
-  schemaVersion: 1;
+  schemaVersion: 2;
   phase: "activating" | "committed";
   kind: "formal" | "local-draft";
   localAppId: string;
@@ -19,6 +23,9 @@ export interface AppVersionActivationJournalRecord {
   previousUninstalledStoreAppIds: string[];
   previousAgentState: PersistedAgentState;
   previousVersionState?: MountedAppVersionState;
+  previousSourceRevisionState?: "checkpoint" | "repository-unavailable";
+  previousSourceRevision?: AppRevisionRecoveryCheckpoint;
+  legacySourceRevisionUnavailable?: true;
 }
 
 export interface AppVersionActivationJournal {
@@ -54,6 +61,7 @@ export function beginAppVersionActivationJournal(input: {
   previousUninstalledStoreAppIds: string[];
   previousAgentState: PersistedAgentState;
   previousVersionState?: MountedAppVersionState;
+  previousSourceRevision?: AppRevisionRecoveryCheckpoint;
 }): AppVersionActivationJournal {
   const existing = listAppVersionActivationJournals(input.root);
   if (existing.length) throw new Error("app_version_activation_busy");
@@ -69,7 +77,12 @@ export function beginAppVersionActivationJournal(input: {
     previousUninstalledStoreAppIds: [...input.previousUninstalledStoreAppIds],
     previousAgentState: structuredClone(input.previousAgentState),
     ...(input.previousVersionState ? { previousVersionState: structuredClone(input.previousVersionState) } : {}),
+    ...(input.kind === "formal"
+      ? { previousSourceRevisionState: input.previousSourceRevision ? "checkpoint" : "repository-unavailable" }
+      : {}),
+    ...(input.previousSourceRevision ? { previousSourceRevision: structuredClone(input.previousSourceRevision) } : {}),
   };
+  if (!isJournalRecord(record)) throw new Error("app_version_activation_journal_invalid");
   writeJournal(path, record);
   return { path, record: structuredClone(record) };
 }
@@ -121,12 +134,18 @@ function readJournal(path: string): AppVersionActivationJournalRecord {
   } catch {
     throw new Error("app_version_activation_journal_corrupted");
   }
-  if (!isJournalRecord(value)) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error("app_version_activation_journal_corrupted");
+  }
+  const parsed = value as Record<string, unknown>;
+  const normalized = parsed.schemaVersion === 1 ? normalizeLegacyAppVersionActivationJournal(parsed) : parsed;
+  const record = isJournalRecord(normalized) ? normalized : undefined;
+  if (!record || basename(path, ".json") !== appVersionActivationJournalKey(record.localAppId)) {
     throw new Error("app_version_activation_journal_corrupted");
   }
   return {
-    ...structuredClone(value),
-    previousAgentState: normalizeActivationJournalAgentState(value.previousAgentState),
+    ...structuredClone(record),
+    previousAgentState: normalizeActivationJournalAgentState(record.previousAgentState),
   };
 }
 
@@ -148,6 +167,17 @@ function isJournalRecord(value: unknown): value is AppVersionActivationJournalRe
     Array.isArray(record.previousMountedApps) &&
     Array.isArray(record.previousUninstalledStoreAppIds) &&
     Boolean(record.previousAgentState) &&
-    typeof record.previousAgentState === "object"
+    typeof record.previousAgentState === "object" &&
+    validSourceRevision(record)
   );
+}
+
+function validSourceRevision(record: Partial<AppVersionActivationJournalRecord>): boolean {
+  if (record.kind !== "formal") {
+    return record.previousSourceRevisionState === undefined && record.previousSourceRevision === undefined;
+  }
+  if (record.previousSourceRevisionState === "checkpoint") {
+    return validAppRevisionRecoveryCheckpoint(record.previousSourceRevision);
+  }
+  return record.previousSourceRevisionState === "repository-unavailable" && record.previousSourceRevision === undefined;
 }

@@ -15,7 +15,7 @@ import {
 import { compareUtf8Bytes } from "./utf8-byte-order.js";
 import { writePrivateFileAtomically, writePrivateJsonAtomically } from "../storage/private-file.js";
 import { normalizeLocalAppReleasePublishBase, validLocalAppReleasePublishBase } from "./app-release-publish-base.js";
-import type { LocalAppDraftPublishBase } from "./local-app-drafts.js";
+import type { LocalAppDraftPublishBase, LocalAppDraftSavePoint } from "./local-app-drafts.js";
 import {
   isAppReleaseJournalRemoteStatus,
   isReleaseControlActions,
@@ -90,6 +90,8 @@ export interface AppReleaseJournalRecord {
   expectedMainSha: string | null;
   publishBase: LocalAppDraftPublishBase;
   draftDigest: string;
+  /** Exact local Git revision whose saved draft was used to prepare this release. */
+  savePoint?: LocalAppDraftSavePoint;
   sourceSnapshot: {
     sha256: string;
     size: number;
@@ -128,6 +130,7 @@ export class AppReleaseJournalStore {
     expectedMainSha: string | null;
     publishBase?: LocalAppDraftPublishBase;
     draftDigest: string;
+    savePoint?: LocalAppDraftSavePoint;
     sourceSnapshot: AppReleaseSourceSnapshot;
     release: MountedAppReleaseDraft;
     applyToCurrentApp: boolean;
@@ -431,6 +434,7 @@ function canonicalJournalIntent(input: {
   expectedMainSha: string | null;
   publishBase?: LocalAppDraftPublishBase;
   draftDigest: string;
+  savePoint?: LocalAppDraftSavePoint;
   sourceSnapshot: AppReleaseSourceSnapshot;
   release: MountedAppReleaseDraft;
   applyToCurrentApp: boolean;
@@ -464,6 +468,8 @@ function canonicalJournalIntent(input: {
     !sha256Pattern(input.sourceSnapshot.sha256) ||
     input.sourceSnapshot.size !== input.sourceSnapshot.bytes.byteLength ||
     sha256(input.sourceSnapshot.bytes) !== input.sourceSnapshot.sha256 ||
+    (input.savePoint !== undefined &&
+      (!commitShaPattern(input.savePoint.commitSha) || !validDateString(input.savePoint.savedAt))) ||
     (expectedMainSha !== null && !commitShaPattern(expectedMainSha))
   ) {
     throw new Error("app_store_publish_intent_invalid");
@@ -484,6 +490,14 @@ function canonicalJournalIntent(input: {
     expectedMainSha,
     publishBase,
     draftDigest: input.draftDigest.toLowerCase(),
+    ...(input.savePoint
+      ? {
+          savePoint: {
+            commitSha: input.savePoint.commitSha.toLowerCase(),
+            savedAt: input.savePoint.savedAt,
+          },
+        }
+      : {}),
     sourceSnapshot: {
       sha256: input.sourceSnapshot.sha256.toLowerCase(),
       size: input.sourceSnapshot.size,
@@ -563,6 +577,12 @@ function isJournalRecord(value: unknown, localAppId: string): value is AppReleas
     !validDateString(record.createdAt) ||
     !validDateString(record.updatedAt) ||
     typeof record.applyToCurrentApp !== "boolean"
+  ) {
+    return false;
+  }
+  if (
+    record.savePoint !== undefined &&
+    (!commitShaPattern(record.savePoint.commitSha) || !validDateString(record.savePoint.savedAt))
   ) {
     return false;
   }
@@ -664,6 +684,7 @@ function isJournalRecord(value: unknown, localAppId: string): value is AppReleas
     expectedMainSha: record.expectedMainSha,
     publishBase: record.publishBase,
     draftDigest: record.draftDigest,
+    ...(record.savePoint ? { savePoint: record.savePoint } : {}),
     sourceSnapshot: {
       sha256: snapshot.sha256,
       size: snapshot.size,

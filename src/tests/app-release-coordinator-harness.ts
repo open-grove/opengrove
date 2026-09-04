@@ -25,7 +25,8 @@ import {
   type ReleaseControlIntent,
   type ReleaseControlStartMetadata,
 } from "../server/app-release-client.js";
-import type { AppReleaseJournalRecord } from "../server/app-release-journal.js";
+import { AppReleaseJournalStore, type AppReleaseJournalRecord } from "../server/app-release-journal.js";
+import { appStoreDataRoot } from "../server/app-store.js";
 import type { AppStoreFormalVersion } from "../server/app-store-registry.js";
 import { AppReleaseBuildCommandError } from "../server/app-release-local-build.js";
 import { prepareMountedAppRelease } from "../server/app-release.js";
@@ -361,11 +362,15 @@ try {
     listVersions: async () => {
       versionListCalls += 1;
       if (versionListCalls === 1) {
+        const releaseSavePoint = draftStore.read(target.localAppId)?.savePoint?.commitSha;
+        assert.ok(releaseSavePoint, "publishing must freeze the editable App at a local Git save point");
+        assert.match(releaseSavePoint, /^[a-f0-9]{40}$/u);
         assert.equal(
           draftStore.read(target.localAppId)?.employees[0]?.contextTokenBudget,
           200_000,
           "the publish action must atomically save current employee defaults before the first remote read",
         );
+        writeFileSync(join(appRoot, "program.txt"), "edit made after release save point\n", "utf8");
       }
       return structuredClone(formalVersions);
     },
@@ -406,6 +411,15 @@ try {
       error.progress?.phase === "registry_ready",
     "a publishBase CAS loss must remain recoverable at registry_ready",
   );
+  const firstJournal = new AppReleaseJournalStore(join(appStoreDataRoot(state), "app-release-journals")).read(
+    target.localAppId,
+  );
+  assert.ok(firstJournal?.savePoint, "the durable release journal must retain a local Git save point");
+  assert.equal(
+    firstJournal?.savePoint?.commitSha,
+    draftStore.read(target.localAppId)?.savePoint?.commitSha,
+    "the durable release journal must retain the exact local Git save point used for this release",
+  );
   assert.equal(
     readFileSync(join(appRoot, "ui", "index.html"), "utf8"),
     "stale fixture output\n",
@@ -415,6 +429,16 @@ try {
     readCanonicalSourceFile(remote.sourceUploads[0]!, "ui/index.html"),
     "fixture source\n",
     "the frozen candidate source must contain the locally built output",
+  );
+  assert.equal(
+    readCanonicalSourceFile(remote.sourceUploads[0]!, "program.txt"),
+    "release source\n",
+    "publishing must keep using its selected save point when the live App changes afterward",
+  );
+  assert.equal(
+    readFileSync(join(appRoot, "program.txt"), "utf8"),
+    "edit made after release save point\n",
+    "the later author edit must remain in the live working copy",
   );
   if (process.platform !== "win32") {
     assert.equal(

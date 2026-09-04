@@ -26,7 +26,7 @@ import { prepareAppReleaseSourceSnapshot } from "./app-release-source-snapshot.j
 import {
   AppReleaseBuildCommandError,
   prepareMountedAppReleaseBuild,
-  saveMountedAppReleasePrebuildDraft,
+  saveMountedAppReleasePrebuildDraftWithRevision,
 } from "./app-release-local-build.js";
 import { compareVersions, stageMountedAppRelease, type MountedAppReleaseDraft } from "./app-release.js";
 import {
@@ -221,9 +221,9 @@ export class AppReleaseCoordinator {
     if (unfinished && !terminalAppReleaseJournal(unfinished)) {
       throw this.error("app_store_publish_in_progress", 409, unfinished);
     }
-    let prebuild: ReturnType<typeof saveMountedAppReleasePrebuildDraft>;
+    let prebuild: Awaited<ReturnType<typeof saveMountedAppReleasePrebuildDraftWithRevision>>;
     try {
-      prebuild = saveMountedAppReleasePrebuildDraft({
+      prebuild = await saveMountedAppReleasePrebuildDraftWithRevision({
         state: this.options.state,
         target: this.options.target,
         submission: input.release,
@@ -349,6 +349,7 @@ export class AppReleaseCoordinator {
       expectedMainSha: verifiedBase.expectedMainSha,
       publishBase: verifiedBase.publishBase,
       draftDigest: releaseDraft.contentDigest,
+      ...(releaseDraft.savePoint ? { savePoint: releaseDraft.savePoint } : {}),
       sourceSnapshot,
       release,
       applyToCurrentApp: input.applyToCurrentApp,
@@ -882,7 +883,7 @@ export class AppReleaseCoordinator {
       if (activeRuns.length) {
         throw this.error("app_store_publish_active_runs", 409, record, activeRuns);
       }
-      activateImportedFormalAppVersion({
+      await activateImportedFormalAppVersion({
         state: this.options.state,
         localAppId: record.localAppId,
         prepared,

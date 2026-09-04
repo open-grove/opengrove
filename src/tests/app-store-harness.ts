@@ -31,6 +31,7 @@ import {
   normalizeReleaseEmployee,
 } from "../server/app-release.js";
 import { validateAppReleaseBuildContract } from "../server/app-release-build-contract.js";
+import { AppRevisionStore, managedAppRevisionGitDirectory } from "../server/app-revision-store.js";
 import {
   type AppStorePackageRecord,
   appStoreDataRoot,
@@ -39,6 +40,7 @@ import {
   currentAppStoreProgramsRoot,
   defaultAppStoreRoot,
   importAppStorePackage,
+  installAppStorePackage,
   installedEmployeePackageIds,
   listAppStorePackages,
   markAppStorePublishRecoveryPublished,
@@ -289,6 +291,7 @@ const delayedCatalogRequestRelease = new Promise<void>((resolve) => {
 interface ReleaseHarnessResponseData {
   ok?: boolean;
   error: string;
+  detail?: unknown;
   appliedToCurrentApp?: boolean;
   release: MountedAppReleaseDraft;
   checks: AppReleaseCheck[];
@@ -1795,6 +1798,8 @@ try {
     "defense-in-depth checks must keep the escaped target absent",
   );
 
+  const registryDemoRevisionRoot = join(appStoreDataRoot(cloudRecruitState), "app-revisions");
+  const registryDemoGitDirectory = managedAppRevisionGitDirectory(registryDemoRevisionRoot, "registry-demo-app");
   let failFreshInstallActivation = true;
   const failedCloudRecruitCalls: Array<{ status: number; data: any }> = [];
   await handleAppStoreRoute({
@@ -1823,6 +1828,80 @@ try {
   assert.equal(
     cloudRecruitState.settings.mountedApps.some((app) => app.id === "registry-demo-app"),
     false,
+  );
+  assert.equal(
+    existsSync(registryDemoGitDirectory),
+    false,
+    "failed fresh activation must remove the revision repository created by that request",
+  );
+
+  const registryDemoProgramBucket = join(
+    currentAppStoreProgramsRoot(appStoreDataRoot(cloudRecruitState)),
+    "registry-demo-app",
+  );
+  const registryDemoGenerations = () =>
+    existsSync(registryDemoProgramBucket) ? readdirSync(registryDemoProgramBucket).sort() : [];
+  const generationsBeforeFreshRevisionFailure = registryDemoGenerations();
+  rmSync(registryDemoGitDirectory, { recursive: true, force: true });
+  mkdirSync(dirname(registryDemoGitDirectory), { recursive: true });
+  writeFileSync(registryDemoGitDirectory, "block revision repository creation\n", "utf8");
+  const settingsBeforeFreshRevisionFailure = structuredClone(cloudRecruitState.settings);
+  const failedFreshRevisionCalls: Array<{ status: number; data: any }> = [];
+  try {
+    await handleAppStoreRoute({
+      request: { method: "POST", headers: { cookie: "sample_cloud_session=harness" } } as any,
+      response: {} as any,
+      url: new URL("http://opengrove.test/app-store/install"),
+      state: cloudRecruitState,
+      security: sessionSecurity,
+      sendJson: (_response, status, data) => failedFreshRevisionCalls.push({ status, data }),
+      readJsonBody: async () => ({ packageId: cloudRegistryPackage.id }),
+    });
+  } finally {
+    rmSync(registryDemoGitDirectory, { recursive: true, force: true });
+  }
+  assert.equal(failedFreshRevisionCalls[0]?.status, 500);
+  assert.deepEqual(
+    cloudRecruitState.settings,
+    settingsBeforeFreshRevisionFailure,
+    "a failed initial save point must restore mounted App settings",
+  );
+  assert.equal(
+    existsSync(join(tempRoot, "registry-demo-app")),
+    false,
+    "a failed initial save point must remove the uncommitted fresh installation",
+  );
+  assert.deepEqual(
+    registryDemoGenerations(),
+    generationsBeforeFreshRevisionFailure,
+    "a failed initial save point must remove the uncommitted fresh program generation",
+  );
+
+  const settingsBeforePostCreateRevisionFailure = structuredClone(cloudRecruitState.settings);
+  const generationsBeforePostCreateRevisionFailure = registryDemoGenerations();
+  const failingRevisionStore: Pick<AppRevisionStore, "saveIfChanged"> = {
+    async saveIfChanged(target) {
+      await new AppRevisionStore(registryDemoRevisionRoot).saveIfChanged(target);
+      throw new Error("injected_post_revision_create_failure");
+    },
+  };
+  await assert.rejects(
+    () =>
+      installAppStorePackage({
+        packageId: cloudRegistryPackage.id,
+        settings: cloudRecruitState.settings,
+        state: cloudRecruitState,
+        storeRoot: appStoreDataRoot(cloudRecruitState),
+        revisions: failingRevisionStore,
+      }),
+    /injected_post_revision_create_failure/,
+  );
+  assert.deepEqual(cloudRecruitState.settings, settingsBeforePostCreateRevisionFailure);
+  assert.deepEqual(registryDemoGenerations(), generationsBeforePostCreateRevisionFailure);
+  assert.equal(
+    existsSync(registryDemoGitDirectory),
+    false,
+    "a failed fresh install must remove a revision repository created by that attempt",
   );
 
   const cloudRecruitCalls: Array<{ status: number; data: any }> = [];
@@ -1867,6 +1946,34 @@ try {
     resolve(tempRoot, "registry-demo-app", "workspace"),
   );
   assert.equal(existsSync(join(registryDemoMountAfterFresh.path, "opengrove.app.json")), true);
+  assert.equal(
+    registryDemoGitDirectory,
+    managedAppRevisionGitDirectory(registryDemoRevisionRoot, registryDemoMountAfterFresh.id),
+  );
+  assert.equal(
+    readFileSync(join(registryDemoMountAfterFresh.path, ".git"), "utf8"),
+    `gitdir: ${registryDemoGitDirectory}\n`,
+    "a Store App must be a Git working copy before install returns success",
+  );
+  const registryDemoRevision = await new AppRevisionStore(registryDemoRevisionRoot).inspect({
+    localAppId: registryDemoMountAfterFresh.id,
+    appRoot: registryDemoMountAfterFresh.path,
+    workspacePath: "workspace",
+  });
+  assert.match(registryDemoRevision.commitSha, /^[a-f0-9]{40}$/);
+  assert.equal(registryDemoRevision.dirty, false, "the installed package must be the initial clean save point");
+  writeFileSync(join(registryDemoMountAfterFresh.workspacePath!, "agent-note.md"), "workspace stays local\n", "utf8");
+  assert.equal(
+    (
+      await new AppRevisionStore(registryDemoRevisionRoot).inspect({
+        localAppId: registryDemoMountAfterFresh.id,
+        appRoot: registryDemoMountAfterFresh.path,
+        workspacePath: "workspace",
+      })
+    ).dirty,
+    false,
+    "Workspace changes must not dirty the App source repository",
+  );
   const cloudCatalogAfterRecruitCalls: Array<{ status: number; data: any }> = [];
   await handleAppStoreRoute({
     request: { method: "GET", headers: { cookie: "sample_cloud_session=harness" } } as any,
@@ -3155,6 +3262,39 @@ try {
   );
   rmSync(registryUpdateLock, { recursive: true, force: true });
 
+  const revisionHeadPath = join(registryDemoGitDirectory, "HEAD");
+  const revisionHead = readFileSync(revisionHeadPath, "utf8");
+  const settingsBeforeUpdateRevisionFailure = structuredClone(cloudRecruitState.settings);
+  const generationsBeforeUpdateRevisionFailure = readdirSync(registryDemoProgramBucket).sort();
+  const failedUpdateRevisionCalls: Array<{ status: number; data: any }> = [];
+  rmSync(revisionHeadPath, { force: true });
+  mkdirSync(revisionHeadPath);
+  try {
+    await handleAppStoreRoute({
+      request: { method: "POST", headers: { cookie: "sample_cloud_session=harness" } } as any,
+      response: {} as any,
+      url: new URL("http://opengrove.test/app-store/install"),
+      state: cloudRecruitState,
+      security: sessionSecurity,
+      sendJson: (_response, status, data) => failedUpdateRevisionCalls.push({ status, data }),
+      readJsonBody: async () => ({ packageId: cloudRegistryPackage.id }),
+    });
+  } finally {
+    rmSync(revisionHeadPath, { recursive: true, force: true });
+    writeFileSync(revisionHeadPath, revisionHead, "utf8");
+  }
+  assert.equal(failedUpdateRevisionCalls[0]?.status, 500);
+  assert.deepEqual(
+    cloudRecruitState.settings,
+    settingsBeforeUpdateRevisionFailure,
+    "a failed update save point must restore the previous mounted App settings",
+  );
+  assert.deepEqual(
+    readdirSync(registryDemoProgramBucket).sort(),
+    generationsBeforeUpdateRevisionFailure,
+    "a failed update save point must remove the uncommitted program generation",
+  );
+
   const registryDemoMemberBeforeUpdate = cloudRecruitState.app.rooms
     .listMembers()
     .find((member) => member.id === registryDemoMemberId);
@@ -3178,6 +3318,12 @@ try {
     join(registryProgramRootBeforeUpdate, ".opengrove-store-package.json"),
     "utf8",
   );
+  const revisionBeforeFailedUpdate = await new AppRevisionStore(registryDemoRevisionRoot).inspect({
+    localAppId: "registry-demo-app",
+    appRoot: registryProgramRootBeforeUpdate,
+    workspacePath: "workspace",
+  });
+  const revisionIndexBeforeFailedUpdate = readFileSync(join(registryDemoGitDirectory, "index"));
   const settingsBeforeFailedUpdate = structuredClone(cloudRecruitState.settings);
   let failUpdateSettingsPersist = true;
   const failedCloudUpdateCalls: Array<{ status: number; data: any }> = [];
@@ -3212,6 +3358,26 @@ try {
     cloudRecruitState.settings,
     settingsBeforeFailedUpdate,
     "failed activation must restore mounted App settings",
+  );
+  const registryDemoMountAfterFailedUpdate = cloudRecruitState.settings.mountedApps.find(
+    (app) => app.id === "registry-demo-app",
+  );
+  assert.ok(registryDemoMountAfterFailedUpdate);
+  assert.equal(
+    (
+      await new AppRevisionStore(registryDemoRevisionRoot).inspect({
+        localAppId: registryDemoMountAfterFailedUpdate.id,
+        appRoot: registryDemoMountAfterFailedUpdate.path,
+        workspacePath: "workspace",
+      })
+    ).commitSha,
+    revisionBeforeFailedUpdate.commitSha,
+    "failed Store update activation must restore the previous revision save point",
+  );
+  assert.deepEqual(
+    readFileSync(join(registryDemoGitDirectory, "index")),
+    revisionIndexBeforeFailedUpdate,
+    "failed Store update activation must restore the previous revision index",
   );
   const memberAfterFailedUpdate = cloudRecruitState.app.rooms
     .listMembers()
@@ -3985,6 +4151,34 @@ try {
     false,
     "Git-backed App release drafts must not publish the publisher's local Provider route",
   );
+
+  if (process.platform !== "win32") {
+    const linkedPublishSource = join(firstPublishAppRoot, "linked-source.txt");
+    symlinkSync("source.txt", linkedPublishSource);
+    try {
+      const linkedPublishCalls: ReleaseHarnessCall[] = [];
+      assert.equal(
+        await handleAppsRoute({
+          request: adminRequest("POST") as any,
+          response: { once: () => undefined, off: () => undefined } as any,
+          url: new URL("http://opengrove.test/apps/first-publish-app/publish"),
+          state: firstPublishState,
+          security: adminSessionSecurity,
+          sendJson: captureReleaseResponse(linkedPublishCalls),
+          readJsonBody: async () => ({
+            release: gitPrepareCalls[0]?.data.release,
+            applyToCurrentApp: true,
+          }),
+        }),
+        true,
+      );
+      assert.equal(linkedPublishCalls[0]?.status, 422, JSON.stringify(linkedPublishCalls[0]?.data));
+      assert.equal(linkedPublishCalls[0]?.data.error, "app_revision_symlink_not_supported");
+      assert.deepEqual(linkedPublishCalls[0]?.data.detail, { path: "linked-source.txt" });
+    } finally {
+      rmSync(linkedPublishSource, { force: true });
+    }
+  }
 
   // 旧 mounted 直传入口虽已退役，升级前落盘的 published recovery 仍需安全收尾。
   for (const targetChanged of [false, true]) {
