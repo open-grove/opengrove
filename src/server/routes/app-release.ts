@@ -1,4 +1,13 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
+import type {
+  AbandonAppReleaseOperation,
+  GetAppReleaseProgressOperation,
+  GetAppReleaseStatusOperation,
+  KeepLocalAppReleaseOperation,
+  PrepareAppReleaseOperation,
+  PublishAppReleaseOperation,
+  ReconcileAppReleaseOperation,
+} from "#protocol";
 import { AppBuildContractScaffoldError, ensureAppBuildContract } from "../../app-builder/build-contract-scaffold.js";
 import {
   AppReleaseCoordinator,
@@ -19,9 +28,9 @@ import {
 } from "../app-store-registry.js";
 import { bridgeSessionUserHasRole, readAuthSession, type BridgeSecurity } from "../bridge-security.js";
 import type { BridgeState } from "../bridge-types.js";
-import { record } from "../http-utils.js";
-import type { MountedAppTarget } from "../mounted-apps.js";
+import { resolveMountedAppTarget, type MountedAppTarget } from "../mounted-apps.js";
 import { resolveReleaseControlConfig } from "../release-control-config.js";
+import type { HostOperationRouteContext } from "../router.js";
 
 interface AppReleaseRouteContext {
   request: IncomingMessage;
@@ -32,50 +41,74 @@ interface AppReleaseRouteContext {
   readJsonBody(request: IncomingMessage): Promise<unknown>;
 }
 
+export async function handlePrepareAppReleaseOperation(
+  context: HostOperationRouteContext<PrepareAppReleaseOperation>,
+): Promise<void> {
+  const target = operationTarget(context, context.input.params.appId);
+  if (!target) return;
+  await sendPreparedAppRelease(context, target);
+}
+
+export async function handlePublishAppReleaseOperation(
+  context: HostOperationRouteContext<PublishAppReleaseOperation>,
+): Promise<void> {
+  const target = operationTarget(context, context.input.params.appId);
+  if (!target) return;
+  await publishMountedAppRelease(context, target, context.input.body);
+}
+
+export async function handleGetAppReleaseStatusOperation(
+  context: HostOperationRouteContext<GetAppReleaseStatusOperation>,
+): Promise<void> {
+  const target = operationTarget(context, context.input.params.appId);
+  if (!target) return;
+  await refreshMountedAppReleaseProgress(context, target);
+}
+
+export async function handleGetAppReleaseProgressOperation(
+  context: HostOperationRouteContext<GetAppReleaseProgressOperation>,
+): Promise<void> {
+  const target = operationTarget(context, context.input.params.appId);
+  if (!target) return;
+  await sendMountedAppReleaseProgress(context, target);
+}
+
+export async function handleReconcileAppReleaseOperation(
+  context: HostOperationRouteContext<ReconcileAppReleaseOperation>,
+): Promise<void> {
+  const target = operationTarget(context, context.input.params.appId);
+  if (!target) return;
+  await reconcileMountedAppRelease(context, target, context.input.body.retryFailedBuild);
+}
+
+export async function handleAbandonAppReleaseOperation(
+  context: HostOperationRouteContext<AbandonAppReleaseOperation>,
+): Promise<void> {
+  const target = operationTarget(context, context.input.params.appId);
+  if (!target) return;
+  await abandonMountedAppRelease(context, target);
+}
+
+export async function handleKeepLocalAppReleaseOperation(
+  context: HostOperationRouteContext<KeepLocalAppReleaseOperation>,
+): Promise<void> {
+  const target = operationTarget(context, context.input.params.appId);
+  if (!target) return;
+  await keepLocalMountedAppRelease(context, target);
+}
+
+function operationTarget(context: AppReleaseRouteContext, appId: string): MountedAppTarget | undefined {
+  const target = resolveMountedAppTarget(context.state, appId);
+  if (target) return target;
+  context.sendJson(context.response, 404, { ok: false, error: "app_not_found" });
+  return undefined;
+}
+
 export async function handleMountedAppReleaseRoute(
   context: AppReleaseRouteContext,
   target: MountedAppTarget,
   routePath: string,
 ): Promise<void> {
-  if (routePath === "prepare") {
-    if (context.request.method !== "GET") {
-      context.sendJson(context.response, 405, { ok: false, error: "method_not_allowed" });
-      return;
-    }
-    if (!(await isAdmin(context))) return;
-    const config = await resolveReleaseControlConfig(
-      context.state,
-      context.request,
-      context.response,
-      context.security,
-    );
-    if (!config) {
-      context.sendJson(context.response, 409, {
-        ok: false,
-        error: "release_control_not_configured",
-      });
-      return;
-    }
-    try {
-      const baseline = prepareMountedAppRelease({
-        state: context.state,
-        appId: target.id,
-        registryPackages: [],
-        includePackageSafetyCheck: false,
-      });
-      const packageKey = baseline.identity.packageKey ?? `opengrove.${target.id.toLowerCase()}`;
-      const versions = await listReleaseVersions(config, packageKey);
-      const release = prepareMountedAppRelease({
-        state: context.state,
-        appId: target.id,
-        registryPackages: versions.map(formalVersionPackageRecord),
-      });
-      context.sendJson(context.response, 200, { ok: true, release });
-    } catch (error) {
-      sendReleaseError(context, error);
-    }
-    return;
-  }
   if (routePath === "build-contract") {
     if (context.request.method !== "POST") {
       context.sendJson(context.response, 405, { ok: false, error: "method_not_allowed" });
@@ -113,116 +146,151 @@ export async function handleMountedAppReleaseRoute(
     }
     return;
   }
-  if (!routePath && context.request.method === "GET") {
-    if (!(await isAdmin(context))) return;
-    const config = await resolveReleaseControlConfig(
-      context.state,
-      context.request,
-      context.response,
-      context.security,
-    );
-    if (!config) {
-      context.sendJson(context.response, 409, {
-        ok: false,
-        error: "release_control_not_configured",
-      });
-      return;
-    }
-    try {
-      const progress = createReleaseCoordinator(context, target, config).readProgress();
-      if (!progress) {
-        throw new AppReleaseCoordinatorError("app_store_publish_journal_missing", 404);
-      }
-      context.sendJson(context.response, 200, { ok: true, progress });
-    } catch (error) {
-      sendReleaseError(context, error);
-    }
-    return;
-  }
-  if (routePath === "status") {
-    if (context.request.method !== "GET") {
-      context.sendJson(context.response, 405, { ok: false, error: "method_not_allowed" });
-      return;
-    }
-    if (!(await isAdmin(context))) return;
-    const config = await resolveReleaseControlConfig(
-      context.state,
-      context.request,
-      context.response,
-      context.security,
-    );
-    if (!config) {
-      context.sendJson(context.response, 409, {
-        ok: false,
-        error: "release_control_not_configured",
-      });
-      return;
-    }
-    try {
-      const progress = await createReleaseCoordinator(context, target, config).refreshRemoteProgress();
-      context.sendJson(context.response, 200, { ok: true, progress });
-    } catch (error) {
-      sendReleaseError(context, error);
-    }
-    return;
-  }
-  if (
-    (!routePath && context.request.method !== "POST") ||
-    ((routePath === "reconcile" || routePath === "keep-local" || routePath === "abandon") &&
-      context.request.method !== "POST")
-  ) {
+  if (["", "prepare", "status", "reconcile", "keep-local", "abandon"].includes(routePath)) {
     context.sendJson(context.response, 405, { ok: false, error: "method_not_allowed" });
     return;
   }
-  if (routePath && routePath !== "reconcile" && routePath !== "keep-local" && routePath !== "abandon") {
-    context.sendJson(context.response, 404, { ok: false, error: "app_release_route_not_found" });
-    return;
-  }
-  if (!(await isAdmin(context))) return;
-  if (routePath === "keep-local") {
-    try {
-      const progress = resolveAppReleaseKeepLocalChanges({
-        state: context.state,
-        target,
-      });
-      context.sendJson(context.response, 200, { ok: true, progress });
-    } catch (error) {
-      sendReleaseError(context, error);
-    }
-    return;
-  }
-  const config = await resolveReleaseControlConfig(context.state, context.request, context.response, context.security);
-  if (!config) {
-    context.sendJson(context.response, 409, {
-      ok: false,
-      error: "release_control_not_configured",
+  context.sendJson(context.response, 404, { ok: false, error: "app_release_route_not_found" });
+}
+
+async function sendPreparedAppRelease(context: AppReleaseRouteContext, target: MountedAppTarget): Promise<void> {
+  const config = await resolveAuthorizedReleaseControlConfig(context);
+  if (!config) return;
+  try {
+    const baseline = prepareMountedAppRelease({
+      state: context.state,
+      appId: target.id,
+      registryPackages: [],
+      includePackageSafetyCheck: false,
     });
-    return;
+    const packageKey = baseline.identity.packageKey ?? `opengrove.${target.id.toLowerCase()}`;
+    const versions = await listReleaseVersions(config, packageKey);
+    const release = prepareMountedAppRelease({
+      state: context.state,
+      appId: target.id,
+      registryPackages: versions.map(formalVersionPackageRecord),
+    });
+    context.sendJson(context.response, 200, { ok: true, release });
+  } catch (error) {
+    sendReleaseError(context, error);
   }
+}
+
+async function sendMountedAppReleaseProgress(context: AppReleaseRouteContext, target: MountedAppTarget): Promise<void> {
+  const config = await resolveAuthorizedReleaseControlConfig(context);
+  if (!config) return;
+  try {
+    const progress = createReleaseCoordinator(context, target, config).readProgress();
+    if (!progress) throw new AppReleaseCoordinatorError("app_store_publish_journal_missing", 404);
+    context.sendJson(context.response, 200, { ok: true, progress });
+  } catch (error) {
+    sendReleaseError(context, error);
+  }
+}
+
+async function refreshMountedAppReleaseProgress(
+  context: AppReleaseRouteContext,
+  target: MountedAppTarget,
+): Promise<void> {
+  const config = await resolveAuthorizedReleaseControlConfig(context);
+  if (!config) return;
+  try {
+    const progress = await createReleaseCoordinator(context, target, config).refreshRemoteProgress();
+    context.sendJson(context.response, 200, { ok: true, progress });
+  } catch (error) {
+    sendReleaseError(context, error);
+  }
+}
+
+async function keepLocalMountedAppRelease(context: AppReleaseRouteContext, target: MountedAppTarget): Promise<void> {
+  if (!(await isAdmin(context))) return;
+  try {
+    const progress = resolveAppReleaseKeepLocalChanges({ state: context.state, target });
+    context.sendJson(context.response, 200, { ok: true, progress });
+  } catch (error) {
+    sendReleaseError(context, error);
+  }
+}
+
+async function publishMountedAppRelease(
+  context: AppReleaseRouteContext,
+  target: MountedAppTarget,
+  body: HostOperationRouteContext<PublishAppReleaseOperation>["input"]["body"],
+): Promise<void> {
+  const config = await resolveAuthorizedReleaseControlConfig(context);
+  if (!config) return;
   const coordinator = createReleaseCoordinator(context, target, config);
   const localBuildAbort = new AbortController();
   const abortLocalBuild = () => localBuildAbort.abort();
-  if (!routePath) {
-    context.response.once("close", abortLocalBuild);
-  }
+  context.response.once("close", abortLocalBuild);
   try {
-    const body = record(await context.readJsonBody(context.request));
-    const progress =
-      routePath === "reconcile"
-        ? await coordinator.resume({ retryFailedBuild: body.retryFailedBuild === true })
-        : routePath === "abandon"
-          ? await coordinator.endBlockedRelease()
-          : await coordinator.start({
-              release: body.release,
-              applyToCurrentApp: body.applyToCurrentApp === true,
-              signal: localBuildAbort.signal,
-            });
+    const progress = await coordinator.start({
+      release: releaseSubmissionFromPatch(context.state, target, body),
+      applyToCurrentApp: body.applyToCurrentApp,
+      signal: localBuildAbort.signal,
+    });
     context.sendJson(context.response, progress.state === "published" ? 200 : 202, { ok: true, progress });
   } catch (error) {
     sendReleaseError(context, error, coordinator);
   } finally {
     context.response.off("close", abortLocalBuild);
   }
+}
+
+async function reconcileMountedAppRelease(
+  context: AppReleaseRouteContext,
+  target: MountedAppTarget,
+  retryFailedBuild: boolean,
+): Promise<void> {
+  const config = await resolveAuthorizedReleaseControlConfig(context);
+  if (!config) return;
+  const coordinator = createReleaseCoordinator(context, target, config);
+  try {
+    const progress = await coordinator.resume({ retryFailedBuild });
+    context.sendJson(context.response, progress.state === "published" ? 200 : 202, { ok: true, progress });
+  } catch (error) {
+    sendReleaseError(context, error, coordinator);
+  }
+}
+
+async function abandonMountedAppRelease(context: AppReleaseRouteContext, target: MountedAppTarget): Promise<void> {
+  const config = await resolveAuthorizedReleaseControlConfig(context);
+  if (!config) return;
+  const coordinator = createReleaseCoordinator(context, target, config);
+  try {
+    const progress = await coordinator.endBlockedRelease();
+    context.sendJson(context.response, progress.state === "published" ? 200 : 202, { ok: true, progress });
+  } catch (error) {
+    sendReleaseError(context, error, coordinator);
+  }
+}
+
+async function resolveAuthorizedReleaseControlConfig(context: AppReleaseRouteContext) {
+  if (!(await isAdmin(context))) return undefined;
+  const config = await resolveReleaseControlConfig(context.state, context.request, context.response, context.security);
+  if (config) return config;
+  context.sendJson(context.response, 409, { ok: false, error: "release_control_not_configured" });
+  return undefined;
+}
+
+function releaseSubmissionFromPatch(
+  state: BridgeState,
+  target: MountedAppTarget,
+  patch: HostOperationRouteContext<PublishAppReleaseOperation>["input"]["body"],
+) {
+  const baseline = prepareMountedAppRelease({
+    state,
+    appId: target.id,
+    registryPackages: [],
+    includePackageSafetyCheck: false,
+  });
+  return {
+    app: patch.app ?? baseline.app,
+    version: patch.version,
+    releaseNotes: patch.releaseNotes ?? "",
+    visibility: patch.visibility ?? baseline.visibility,
+    employees: patch.employees ?? baseline.employees,
+  };
 }
 
 function createReleaseCoordinator(

@@ -56,12 +56,15 @@ defineHostOperation({
   query: roomMessageQuery,
   body: roomMessageBody,
   success: { status: 200, body: roomMessageResponse },
+  additionalSuccesses: [{ status: 202, body: roomMessageResponse }],
   errors: [{ status: 404, body: bridgeErrorResponse }],
 });
 ```
 
-Omit a section when the operation does not use it. A successful response with
-no `body` represents an empty response. Streaming, multipart, and binary
+Omit a section when the operation does not use it. `success` is the primary
+successful response; `additionalSuccesses` declares other valid 2xx statuses,
+such as an asynchronous `202`. A successful response with no `body` represents
+an empty response. Streaming, multipart, and binary
 operations require an explicit transport extension before migration; they must
 not be disguised as JSON operations.
 

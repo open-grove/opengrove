@@ -100,8 +100,8 @@ try {
     const applyToCurrentApp = page.getByRole("checkbox", { name: "发布后切换到这个正式版本" });
     assert.equal(
       await applyToCurrentApp.isChecked(),
-      false,
-      "publishing must preserve the current local App by default",
+      true,
+      "publishing must activate the released version on the current device by default",
     );
     if (process.env.OPENGROVE_UI_SCREENSHOT_PATH) {
       await page.screenshot({ path: process.env.OPENGROVE_UI_SCREENSHOT_PATH, fullPage: true });
@@ -150,7 +150,6 @@ try {
     assert.equal(savedDraftEmployee.name, "发布版架构师");
     assert.equal(savedDraftEmployee.contextTokenBudget, 120000);
     assert.equal(savedDraftEmployee.accessMode, "auto-review");
-    await applyToCurrentApp.check();
     await publishButton.click();
     await page.waitForFunction(() => window.__publishedResult?.title === "故事种子");
 
@@ -691,6 +690,7 @@ function entrySource(path, toast, confirm, globalStyles, appStoreStyles) {
       latestPublishedVersion: "0.0.9",
       releaseNotes: "",
       visibility: "restricted",
+      minHostReleaseNumber: 0,
       employees: [{
         memberId: "member-app-story-seed-writer",
         name: "本机架构师",
@@ -730,13 +730,13 @@ function entrySource(path, toast, confirm, globalStyles, appStoreStyles) {
     function Harness() {
       const [open, setOpen] = useState(true);
       const [release, setRelease] = useState(() => structuredClone(initialRelease));
-      const [applyToCurrentApp, setApplyToCurrentApp] = useState(false);
+      const [applyToCurrentApp, setApplyToCurrentApp] = useState(true);
       const [localDraft, setLocalDraft] = useState();
       const [canPublish, setCanPublish] = useState(true);
       const [publishProgress, setPublishProgress] = useState();
       if (!open) return <button onClick={() => {
         setRelease(structuredClone(initialRelease));
-        setApplyToCurrentApp(false);
+        setApplyToCurrentApp(true);
         setOpen(true);
       }}>重新打开发布页</button>;
       return <>
@@ -844,7 +844,7 @@ function entrySource(path, toast, confirm, globalStyles, appStoreStyles) {
           title: "故事种子",
           visibility: "restricted",
           phase: "registry_ready",
-          remoteStatus: "registry_indexed",
+          remoteStatus: "published",
           allowedActions: [],
           applyToCurrentApp: true,
           state: "registry-ready",
@@ -950,7 +950,7 @@ function entrySource(path, toast, confirm, globalStyles, appStoreStyles) {
         phase: "registry_ready",
         allowedActions: [],
         remoteIntentId: "intent-story-seed",
-        remoteStatus: "registry_indexed",
+        remoteStatus: "published",
         applyToCurrentApp: true,
         state: "registry-ready",
         retryable: true,
@@ -1204,11 +1204,11 @@ function entrySource(path, toast, confirm, globalStyles, appStoreStyles) {
               version: "0.1.0",
               title: "故事种子",
               visibility: "restricted",
-              phase: "abandoned",
+              phase: "remote_closed",
               allowedActions: [],
               remoteStatus: "abandoned",
               applyToCurrentApp: false,
-              state: "abandoned",
+              state: "closed",
               retryable: false,
               updatedAt: new Date().toISOString(),
             },
@@ -1291,7 +1291,7 @@ function entrySource(path, toast, confirm, globalStyles, appStoreStyles) {
               phase: recoverableStaleMode ? "remote_pending" : "local_finalized",
               allowedActions: [],
               remoteIntentId: "intent-story-seed",
-              remoteStatus: recoverableStaleMode ? "artifact_accepted" : "registry_indexed",
+              remoteStatus: recoverableStaleMode ? "artifact_accepted" : "published",
               applyToCurrentApp: false,
               state: recoverableStaleMode ? "publishing" : "published",
               retryable: recoverableStaleMode,

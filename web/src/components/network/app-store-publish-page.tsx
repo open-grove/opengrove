@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { appReleaseAutomaticRecoveryBudget, appReleaseNeedsAutomaticRecovery } from "#protocol";
 import {
   AlertTriangle,
   ArrowLeft,
@@ -70,17 +71,6 @@ import {
 
 // ===== Page orchestration and recovery =====
 
-function automaticRecoveryBudget(progress: AppReleaseProgress | undefined): {
-  key: string;
-  limit: number;
-} {
-  const remoteStatus = progress?.remoteStatus;
-  return {
-    key: progress?.remoteIntentId && remoteStatus ? `${progress.remoteIntentId}:${remoteStatus}:${progress.phase}` : "",
-    limit: remoteStatus === "artifact_accepted" ? 2 : 1,
-  };
-}
-
 export function AppStorePublishPage(props: {
   app: { id: string; title: string };
   activeKernel?: string;
@@ -100,7 +90,7 @@ export function AppStorePublishPage(props: {
   const queryClient = useQueryClient();
   const [release, setRelease] = useState<MountedAppReleaseDraft>();
   const [releaseEdited, setReleaseEdited] = useState(false);
-  const [applyToCurrentApp, setApplyToCurrentApp] = useState(false);
+  const [applyToCurrentApp, setApplyToCurrentApp] = useState(true);
   const [submitError, setSubmitError] = useState("");
   const [trackedPublishVersion, setTrackedPublishVersion] = useState("");
   const [publishFinalizationBlocked, setPublishFinalizationBlocked] = useState(false);
@@ -112,7 +102,7 @@ export function AppStorePublishPage(props: {
   const formalReleaseEdited = useRef(false);
   const hydratedReleaseSource = useRef<"none" | "local" | "formal">("none");
   const automaticRecoveryAttempts = useRef(new Map<string, number>());
-  const hasUnsavedPageChanges = releaseEdited || applyToCurrentApp;
+  const hasUnsavedPageChanges = releaseEdited || !applyToCurrentApp;
   const draftQuery = useQuery({
     queryKey: ["apps", props.app.id, "local-draft"],
     queryFn: async () => {
@@ -375,7 +365,7 @@ export function AppStorePublishPage(props: {
       }
       const autoRecovering =
         releaseAutomaticallyRecoverable(progress) && !isLocalPublishFinalizationConflict(error) && !manualContinue;
-      const automaticRecovery = automaticRecoveryBudget(progress);
+      const automaticRecovery = appReleaseAutomaticRecoveryBudget(progress);
       const automaticRecoveryExhausted =
         autoRecovering &&
         automaticRecovery.key !== "" &&
@@ -391,21 +381,13 @@ export function AppStorePublishPage(props: {
   useEffect(() => {
     const automaticRecoveryProgress =
       publishProgress?.phase === "registry_ready" ? publishProgress : remoteStatusQuery.data?.progress;
-    const remoteStatus = automaticRecoveryProgress?.remoteStatus;
-    const automaticRecovery = automaticRecoveryBudget(automaticRecoveryProgress);
-    const remoteTransitionRequiresRecovery =
-      automaticRecoveryProgress?.state === "registry-ready" ||
-      (automaticRecoveryProgress?.state === "publishing" &&
-        (remoteStatus === "awaiting_candidate" ||
-          remoteStatus === "artifact_accepted" ||
-          remoteStatus === "finalizing"));
+    const automaticRecovery = appReleaseAutomaticRecoveryBudget(automaticRecoveryProgress);
     if (
       props.canPublish !== true ||
       publishRequestPending ||
       automaticRecoveryPaused ||
       recoveryMutation.isPending ||
-      !releaseAutomaticallyRecoverable(automaticRecoveryProgress) ||
-      !remoteTransitionRequiresRecovery ||
+      !appReleaseNeedsAutomaticRecovery(automaticRecoveryProgress) ||
       !automaticRecovery.key ||
       (automaticRecoveryAttempts.current.get(automaticRecovery.key) ?? 0) >= automaticRecovery.limit
     ) {

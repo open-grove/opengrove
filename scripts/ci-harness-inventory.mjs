@@ -159,6 +159,10 @@ export const harnessInventory = [
     suite: "critical",
   }),
   task("app-release-apply", "dist/tests/app-release-apply-harness.js", "app-lifecycle", { suite: "critical" }),
+  task("release-cli", "dist/tests/release-cli-harness.js", "app-lifecycle", { suite: "critical" }),
+  task("release-cli-real-bridge", "dist/tests/release-cli-real-bridge-harness.js", "app-lifecycle", {
+    suite: "critical",
+  }),
   task("web-app-store-publish-page", "scripts/test-web-app-store-publish-page.mjs", "app-lifecycle", {
     suite: "critical",
   }),

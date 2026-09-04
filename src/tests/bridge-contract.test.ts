@@ -4,6 +4,7 @@ import { test } from "node:test";
 import { z } from "zod";
 import { askCancelContract, askCompactContract, askGuideContract, clientBootstrapContract } from "#agent-protocol";
 import {
+  appReleaseOperations,
   createAuthEmailCodeOperation,
   createAuthSessionOperation,
   createRoomMessageOperation,
@@ -119,6 +120,33 @@ test("account authentication operations own the existing Bridge login contract",
     }).success,
     true,
   );
+});
+
+test("App release operations own the complete release control contract", () => {
+  assert.deepEqual(
+    appReleaseOperations.map((operation) => operation.id),
+    [
+      "app.release.prepare",
+      "app.release.publish",
+      "app.release.status",
+      "app.release.progress",
+      "app.release.reconcile",
+      "app.release.abandon",
+      "app.release.keep-local",
+    ],
+  );
+  const publish = appReleaseOperations[1];
+  assert.equal(publish.method, "POST");
+  assert.equal(publish.path, "/apps/{appId}/publish");
+  assert.equal(publish.risk, "high-risk-write");
+  assert.deepEqual(publish.body.parse({ version: "1.2.3", releaseNotes: "First release", visibility: "public" }), {
+    version: "1.2.3",
+    releaseNotes: "First release",
+    visibility: "public",
+    applyToCurrentApp: true,
+  });
+  assert.equal(publish.body.parse({ version: "1.2.3", applyToCurrentApp: false }).applyToCurrentApp, false);
+  assert.equal(publish.body.safeParse({ version: "not-semver" }).success, false);
 });
 
 test("room-message operation normalizes legacy nullable values and identifiers", () => {
@@ -285,6 +313,48 @@ test("Host operation handlers receive decoded params, query, and body exactly on
 
   assert.equal(reads, 1);
   assert.deepEqual(sent, [{ ok: true }]);
+});
+
+test("Host operation routes accept declared additional 2xx responses", async () => {
+  const operation = defineHostOperation({
+    id: "test.job.start",
+    summary: "Start a test job",
+    description: "Exercise asynchronous success status handling.",
+    method: "POST",
+    path: "/test/jobs",
+    risk: "write",
+    success: { status: 200, body: z.object({ ok: z.literal(true) }) },
+    additionalSuccesses: [{ status: 202, body: z.object({ ok: z.literal(true) }) }],
+  });
+  const protocol = compileHostProtocol([
+    defineHostOperationGroup({
+      id: "test",
+      title: "Test",
+      description: "Test operations.",
+      resources: [
+        defineHostOperationResource({
+          id: "job",
+          title: "Jobs",
+          description: "Test jobs.",
+          operations: [operation],
+        }),
+      ],
+    }),
+  ] as const);
+  const sent: Array<{ status: number; data: unknown }> = [];
+  const context = contractTestContext({ body: undefined, onSend: (status, data) => sent.push({ status, data }) });
+  context.url = new URL("http://127.0.0.1/test/jobs");
+
+  await dispatchBridgeRoutes(
+    [
+      operationRoute(protocol.operationById["test.job.start"], (routeContext) => {
+        routeContext.sendJson(routeContext.response, 202, { ok: true });
+      }),
+    ],
+    context,
+  );
+
+  assert.deepEqual(sent, [{ status: 202, data: { ok: true } }]);
 });
 
 test("Host operation query arrays keep their declared shape", async () => {

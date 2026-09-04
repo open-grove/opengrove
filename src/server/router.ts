@@ -112,7 +112,8 @@ function contextWithHostOperation(operation: HostOperation, context: BridgeRoute
       const declaredResponse =
         status === operation.success.status
           ? operation.success
-          : operation.errors?.find((candidate) => candidate.status === status);
+          : (operation.additionalSuccesses?.find((candidate) => candidate.status === status) ??
+            operation.errors?.find((candidate) => candidate.status === status));
       if (!declaredResponse) {
         reportHostResponseViolation(operation, context, response, [
           { path: "$", code: `response_status_not_declared:${status}` },

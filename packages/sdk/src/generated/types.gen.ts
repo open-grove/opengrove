@@ -15,6 +15,233 @@ export type AuthError = {
   [key: string]: unknown;
 };
 
+export type AppReleasePrepareResponse = {
+  ok: true;
+  release: {
+    identity: {
+      appId: string;
+      packageId?: string;
+      packageKey?: string;
+      source: "mounted" | "registry";
+      appRoot: string;
+      workspaceRoot: string;
+      [key: string]: unknown;
+    };
+    app: {
+      title: string;
+      description: string;
+      icon?: string;
+    };
+    /**
+     * Formal App version in X.Y.Z form.
+     */
+    version: string;
+    /**
+     * Formal App version in X.Y.Z form.
+     */
+    latestPublishedVersion?: string;
+    releaseNotes: string;
+    visibility: "public" | "restricted";
+    minHostReleaseNumber: number;
+    employees: Array<{
+      memberId: string;
+      name: string;
+      avatarMode?: "generated" | "initials" | "upload";
+      avatarSeed?: string;
+      avatarDataUrl?: string;
+      role: string;
+      kernel: string;
+      model: string;
+      reasoningEffort?: "low" | "medium" | "high" | "xhigh" | "max";
+      contextTokenBudget?: number;
+      accessMode?: "default" | "auto-review" | "full-access";
+      color: string;
+      availableSkillIds: Array<string>;
+      defaultSkillIds: Array<string>;
+      visibility: "private" | "public";
+      publicDescription?: string;
+      publicSkills: Array<string>;
+      inputSpec?: string;
+      outputSpec?: string;
+    }>;
+    checks: Array<{
+      id: string;
+      label: string;
+      severity: "blocking" | "warning";
+      status: "passed" | "blocked" | "warning";
+      detail: string;
+      [key: string]: unknown;
+    }>;
+    [key: string]: unknown;
+  };
+};
+
+export type AppReleaseError = {
+  ok?: false;
+  error: string;
+  requestId?: string;
+  candidateStage?: string;
+  progress?: {
+    localAppId: string;
+    appId: string;
+    packageKey: string;
+    /**
+     * Formal App version in X.Y.Z form.
+     */
+    version: string;
+    title: string;
+    visibility: "public" | "restricted";
+    phase:
+      | "draft_saved"
+      | "intent_created"
+      | "source_snapshot_uploaded"
+      | "remote_blocked"
+      | "remote_conflict"
+      | "remote_pending"
+      | "remote_closed"
+      | "registry_ready"
+      | "local_preserved"
+      | "local_finalized";
+    remoteIntentId?: string;
+    remoteStatus?:
+      | "awaiting_candidate"
+      | "building"
+      | "trusted_build_failed"
+      | "artifact_accepted"
+      | "finalizing"
+      | "published"
+      | "abandoned"
+      | "publish_base_stale";
+    buildFailure?: {
+      stage: "trusted_build" | "artifact_pack" | "artifact_gate" | "workflow";
+      code: string;
+      retryable: boolean;
+      workflowRunId: string;
+      [key: string]: unknown;
+    };
+    allowedActions: Array<"retry_candidate" | "retry_build" | "abandon">;
+    blockedRelease?: {
+      id: string;
+      status:
+        | "awaiting_candidate"
+        | "building"
+        | "trusted_build_failed"
+        | "artifact_accepted"
+        | "finalizing"
+        | "published"
+        | "abandoned";
+      packageKey: string;
+      /**
+       * Formal App version in X.Y.Z form.
+       */
+      version: string;
+      sourceSha256: string;
+      createdAt: string;
+      allowedActions: Array<"retry_candidate" | "retry_build" | "abandon">;
+      requestId?: string;
+      matchesCurrentSource: boolean;
+      matchesCurrentRequest: boolean;
+      buildFailure?: {
+        stage: "trusted_build" | "artifact_pack" | "artifact_gate" | "workflow";
+        code: string;
+        retryable: boolean;
+        workflowRunId: string;
+        [key: string]: unknown;
+      };
+      [key: string]: unknown;
+    };
+    requestId?: string;
+    applyToCurrentApp: boolean;
+    state: "publishing" | "blocked" | "needs-retry" | "registry-ready" | "closed" | "published";
+    retryable: boolean;
+    updatedAt: string;
+    [key: string]: unknown;
+  };
+  detail?: unknown;
+  traceId?: string;
+  [key: string]: unknown;
+};
+
+export type AppReleaseProgressResponse = {
+  ok: true;
+  progress: {
+    localAppId: string;
+    appId: string;
+    packageKey: string;
+    /**
+     * Formal App version in X.Y.Z form.
+     */
+    version: string;
+    title: string;
+    visibility: "public" | "restricted";
+    phase:
+      | "draft_saved"
+      | "intent_created"
+      | "source_snapshot_uploaded"
+      | "remote_blocked"
+      | "remote_conflict"
+      | "remote_pending"
+      | "remote_closed"
+      | "registry_ready"
+      | "local_preserved"
+      | "local_finalized";
+    remoteIntentId?: string;
+    remoteStatus?:
+      | "awaiting_candidate"
+      | "building"
+      | "trusted_build_failed"
+      | "artifact_accepted"
+      | "finalizing"
+      | "published"
+      | "abandoned"
+      | "publish_base_stale";
+    buildFailure?: {
+      stage: "trusted_build" | "artifact_pack" | "artifact_gate" | "workflow";
+      code: string;
+      retryable: boolean;
+      workflowRunId: string;
+      [key: string]: unknown;
+    };
+    allowedActions: Array<"retry_candidate" | "retry_build" | "abandon">;
+    blockedRelease?: {
+      id: string;
+      status:
+        | "awaiting_candidate"
+        | "building"
+        | "trusted_build_failed"
+        | "artifact_accepted"
+        | "finalizing"
+        | "published"
+        | "abandoned";
+      packageKey: string;
+      /**
+       * Formal App version in X.Y.Z form.
+       */
+      version: string;
+      sourceSha256: string;
+      createdAt: string;
+      allowedActions: Array<"retry_candidate" | "retry_build" | "abandon">;
+      requestId?: string;
+      matchesCurrentSource: boolean;
+      matchesCurrentRequest: boolean;
+      buildFailure?: {
+        stage: "trusted_build" | "artifact_pack" | "artifact_gate" | "workflow";
+        code: string;
+        retryable: boolean;
+        workflowRunId: string;
+        [key: string]: unknown;
+      };
+      [key: string]: unknown;
+    };
+    requestId?: string;
+    applyToCurrentApp: boolean;
+    state: "publishing" | "blocked" | "needs-retry" | "registry-ready" | "closed" | "published";
+    retryable: boolean;
+    updatedAt: string;
+    [key: string]: unknown;
+  };
+};
+
 export type AuthEmailCodeCreateData = {
   body: {
     /**
@@ -389,6 +616,646 @@ export type AuthSessionDeleteResponses = {
 };
 
 export type AuthSessionDeleteResponse = AuthSessionDeleteResponses[keyof AuthSessionDeleteResponses];
+
+export type AppReleasePrepareData = {
+  body?: never;
+  path: {
+    /**
+     * Mounted App identifier.
+     */
+    appId: string;
+  };
+  query?: never;
+  url: "/apps/{appId}/publish/prepare";
+};
+
+export type AppReleasePrepareErrors = {
+  /**
+   * The App release baseline could not be prepared.
+   */
+  400: AppReleaseError;
+  /**
+   * The App release baseline could not be prepared.
+   */
+  401: AppReleaseError;
+  /**
+   * The App release baseline could not be prepared.
+   */
+  403: AppReleaseError;
+  /**
+   * The App release baseline could not be prepared.
+   */
+  404: AppReleaseError;
+  /**
+   * The App release baseline could not be prepared.
+   */
+  408: AppReleaseError;
+  /**
+   * The App release baseline could not be prepared.
+   */
+  409: AppReleaseError;
+  /**
+   * The App release baseline could not be prepared.
+   */
+  413: AppReleaseError;
+  /**
+   * The App release baseline could not be prepared.
+   */
+  422: AppReleaseError;
+  /**
+   * The App release baseline could not be prepared.
+   */
+  425: AppReleaseError;
+  /**
+   * The App release baseline could not be prepared.
+   */
+  429: AppReleaseError;
+  /**
+   * The App release baseline could not be prepared.
+   */
+  500: AppReleaseError;
+  /**
+   * The App release baseline could not be prepared.
+   */
+  502: AppReleaseError;
+  /**
+   * The App release baseline could not be prepared.
+   */
+  503: AppReleaseError;
+  /**
+   * The App release baseline could not be prepared.
+   */
+  504: AppReleaseError;
+};
+
+export type AppReleasePrepareError = AppReleasePrepareErrors[keyof AppReleasePrepareErrors];
+
+export type AppReleasePrepareResponses = {
+  /**
+   * Successful response.
+   */
+  200: AppReleasePrepareResponse;
+};
+
+export type AppReleasePrepareResponse2 = AppReleasePrepareResponses[keyof AppReleasePrepareResponses];
+
+export type AppReleaseProgressData = {
+  body?: never;
+  path: {
+    /**
+     * Mounted App identifier.
+     */
+    appId: string;
+  };
+  query?: never;
+  url: "/apps/{appId}/publish";
+};
+
+export type AppReleaseProgressErrors = {
+  /**
+   * The local App release progress could not be read.
+   */
+  400: AppReleaseError;
+  /**
+   * The local App release progress could not be read.
+   */
+  401: AppReleaseError;
+  /**
+   * The local App release progress could not be read.
+   */
+  403: AppReleaseError;
+  /**
+   * The local App release progress could not be read.
+   */
+  404: AppReleaseError;
+  /**
+   * The local App release progress could not be read.
+   */
+  408: AppReleaseError;
+  /**
+   * The local App release progress could not be read.
+   */
+  409: AppReleaseError;
+  /**
+   * The local App release progress could not be read.
+   */
+  413: AppReleaseError;
+  /**
+   * The local App release progress could not be read.
+   */
+  422: AppReleaseError;
+  /**
+   * The local App release progress could not be read.
+   */
+  425: AppReleaseError;
+  /**
+   * The local App release progress could not be read.
+   */
+  429: AppReleaseError;
+  /**
+   * The local App release progress could not be read.
+   */
+  500: AppReleaseError;
+  /**
+   * The local App release progress could not be read.
+   */
+  502: AppReleaseError;
+  /**
+   * The local App release progress could not be read.
+   */
+  503: AppReleaseError;
+  /**
+   * The local App release progress could not be read.
+   */
+  504: AppReleaseError;
+};
+
+export type AppReleaseProgressError = AppReleaseProgressErrors[keyof AppReleaseProgressErrors];
+
+export type AppReleaseProgressResponses = {
+  /**
+   * Successful response.
+   */
+  200: AppReleaseProgressResponse;
+};
+
+export type AppReleaseProgressResponse2 = AppReleaseProgressResponses[keyof AppReleaseProgressResponses];
+
+export type AppReleasePublishData = {
+  body: {
+    /**
+     * Formal App version in X.Y.Z form.
+     */
+    version: string;
+    /**
+     * Release notes; omitted notes remain empty.
+     */
+    releaseNotes?: string;
+    /**
+     * Store visibility; defaults to the App baseline.
+     */
+    visibility?: "public" | "restricted";
+    /**
+     * App metadata override; defaults to the mounted App.
+     */
+    app?: {
+      title: string;
+      description: string;
+      icon?: string;
+    };
+    /**
+     * Complete Employee defaults override; defaults to the mounted App Employees.
+     */
+    employees?: Array<{
+      memberId: string;
+      name: string;
+      avatarMode?: "generated" | "initials" | "upload";
+      avatarSeed?: string;
+      avatarDataUrl?: string;
+      role: string;
+      kernel: string;
+      model: string;
+      reasoningEffort?: "low" | "medium" | "high" | "xhigh" | "max";
+      contextTokenBudget?: number;
+      accessMode?: "default" | "auto-review" | "full-access";
+      color: string;
+      availableSkillIds: Array<string>;
+      defaultSkillIds: Array<string>;
+      visibility: "private" | "public";
+      publicDescription?: string;
+      publicSkills: Array<string>;
+      inputSpec?: string;
+      outputSpec?: string;
+    }>;
+    /**
+     * Activate the exact published artifact locally after publishing. Defaults to true; pass false to keep the current local App untouched.
+     */
+    applyToCurrentApp?: boolean;
+  };
+  path: {
+    /**
+     * Mounted App identifier.
+     */
+    appId: string;
+  };
+  query?: never;
+  url: "/apps/{appId}/publish";
+};
+
+export type AppReleasePublishErrors = {
+  /**
+   * The App release could not be published.
+   */
+  400: AppReleaseError;
+  /**
+   * The App release could not be published.
+   */
+  401: AppReleaseError;
+  /**
+   * The App release could not be published.
+   */
+  403: AppReleaseError;
+  /**
+   * The App release could not be published.
+   */
+  404: AppReleaseError;
+  /**
+   * The App release could not be published.
+   */
+  408: AppReleaseError;
+  /**
+   * The App release could not be published.
+   */
+  409: AppReleaseError;
+  /**
+   * The App release could not be published.
+   */
+  413: AppReleaseError;
+  /**
+   * The App release could not be published.
+   */
+  422: AppReleaseError;
+  /**
+   * The App release could not be published.
+   */
+  425: AppReleaseError;
+  /**
+   * The App release could not be published.
+   */
+  429: AppReleaseError;
+  /**
+   * The App release could not be published.
+   */
+  500: AppReleaseError;
+  /**
+   * The App release could not be published.
+   */
+  502: AppReleaseError;
+  /**
+   * The App release could not be published.
+   */
+  503: AppReleaseError;
+  /**
+   * The App release could not be published.
+   */
+  504: AppReleaseError;
+};
+
+export type AppReleasePublishError = AppReleasePublishErrors[keyof AppReleasePublishErrors];
+
+export type AppReleasePublishResponses = {
+  /**
+   * Successful response.
+   */
+  200: AppReleaseProgressResponse;
+  /**
+   * Successful response.
+   */
+  202: AppReleaseProgressResponse;
+};
+
+export type AppReleasePublishResponse = AppReleasePublishResponses[keyof AppReleasePublishResponses];
+
+export type AppReleaseStatusData = {
+  body?: never;
+  path: {
+    /**
+     * Mounted App identifier.
+     */
+    appId: string;
+  };
+  query?: never;
+  url: "/apps/{appId}/publish/status";
+};
+
+export type AppReleaseStatusErrors = {
+  /**
+   * The App release status could not be refreshed.
+   */
+  400: AppReleaseError;
+  /**
+   * The App release status could not be refreshed.
+   */
+  401: AppReleaseError;
+  /**
+   * The App release status could not be refreshed.
+   */
+  403: AppReleaseError;
+  /**
+   * The App release status could not be refreshed.
+   */
+  404: AppReleaseError;
+  /**
+   * The App release status could not be refreshed.
+   */
+  408: AppReleaseError;
+  /**
+   * The App release status could not be refreshed.
+   */
+  409: AppReleaseError;
+  /**
+   * The App release status could not be refreshed.
+   */
+  413: AppReleaseError;
+  /**
+   * The App release status could not be refreshed.
+   */
+  422: AppReleaseError;
+  /**
+   * The App release status could not be refreshed.
+   */
+  425: AppReleaseError;
+  /**
+   * The App release status could not be refreshed.
+   */
+  429: AppReleaseError;
+  /**
+   * The App release status could not be refreshed.
+   */
+  500: AppReleaseError;
+  /**
+   * The App release status could not be refreshed.
+   */
+  502: AppReleaseError;
+  /**
+   * The App release status could not be refreshed.
+   */
+  503: AppReleaseError;
+  /**
+   * The App release status could not be refreshed.
+   */
+  504: AppReleaseError;
+};
+
+export type AppReleaseStatusError = AppReleaseStatusErrors[keyof AppReleaseStatusErrors];
+
+export type AppReleaseStatusResponses = {
+  /**
+   * Successful response.
+   */
+  200: AppReleaseProgressResponse;
+};
+
+export type AppReleaseStatusResponse = AppReleaseStatusResponses[keyof AppReleaseStatusResponses];
+
+export type AppReleaseReconcileData = {
+  body: {
+    /**
+     * Retry the failed trusted build when the intent permits it.
+     */
+    retryFailedBuild?: boolean;
+  };
+  path: {
+    /**
+     * Mounted App identifier.
+     */
+    appId: string;
+  };
+  query?: never;
+  url: "/apps/{appId}/publish/reconcile";
+};
+
+export type AppReleaseReconcileErrors = {
+  /**
+   * The App release could not be reconciled.
+   */
+  400: AppReleaseError;
+  /**
+   * The App release could not be reconciled.
+   */
+  401: AppReleaseError;
+  /**
+   * The App release could not be reconciled.
+   */
+  403: AppReleaseError;
+  /**
+   * The App release could not be reconciled.
+   */
+  404: AppReleaseError;
+  /**
+   * The App release could not be reconciled.
+   */
+  408: AppReleaseError;
+  /**
+   * The App release could not be reconciled.
+   */
+  409: AppReleaseError;
+  /**
+   * The App release could not be reconciled.
+   */
+  413: AppReleaseError;
+  /**
+   * The App release could not be reconciled.
+   */
+  422: AppReleaseError;
+  /**
+   * The App release could not be reconciled.
+   */
+  425: AppReleaseError;
+  /**
+   * The App release could not be reconciled.
+   */
+  429: AppReleaseError;
+  /**
+   * The App release could not be reconciled.
+   */
+  500: AppReleaseError;
+  /**
+   * The App release could not be reconciled.
+   */
+  502: AppReleaseError;
+  /**
+   * The App release could not be reconciled.
+   */
+  503: AppReleaseError;
+  /**
+   * The App release could not be reconciled.
+   */
+  504: AppReleaseError;
+};
+
+export type AppReleaseReconcileError = AppReleaseReconcileErrors[keyof AppReleaseReconcileErrors];
+
+export type AppReleaseReconcileResponses = {
+  /**
+   * Successful response.
+   */
+  200: AppReleaseProgressResponse;
+  /**
+   * Successful response.
+   */
+  202: AppReleaseProgressResponse;
+};
+
+export type AppReleaseReconcileResponse = AppReleaseReconcileResponses[keyof AppReleaseReconcileResponses];
+
+export type AppReleaseAbandonData = {
+  body?: never;
+  path: {
+    /**
+     * Mounted App identifier.
+     */
+    appId: string;
+  };
+  query?: never;
+  url: "/apps/{appId}/publish/abandon";
+};
+
+export type AppReleaseAbandonErrors = {
+  /**
+   * The App release could not be abandoned.
+   */
+  400: AppReleaseError;
+  /**
+   * The App release could not be abandoned.
+   */
+  401: AppReleaseError;
+  /**
+   * The App release could not be abandoned.
+   */
+  403: AppReleaseError;
+  /**
+   * The App release could not be abandoned.
+   */
+  404: AppReleaseError;
+  /**
+   * The App release could not be abandoned.
+   */
+  408: AppReleaseError;
+  /**
+   * The App release could not be abandoned.
+   */
+  409: AppReleaseError;
+  /**
+   * The App release could not be abandoned.
+   */
+  413: AppReleaseError;
+  /**
+   * The App release could not be abandoned.
+   */
+  422: AppReleaseError;
+  /**
+   * The App release could not be abandoned.
+   */
+  425: AppReleaseError;
+  /**
+   * The App release could not be abandoned.
+   */
+  429: AppReleaseError;
+  /**
+   * The App release could not be abandoned.
+   */
+  500: AppReleaseError;
+  /**
+   * The App release could not be abandoned.
+   */
+  502: AppReleaseError;
+  /**
+   * The App release could not be abandoned.
+   */
+  503: AppReleaseError;
+  /**
+   * The App release could not be abandoned.
+   */
+  504: AppReleaseError;
+};
+
+export type AppReleaseAbandonError = AppReleaseAbandonErrors[keyof AppReleaseAbandonErrors];
+
+export type AppReleaseAbandonResponses = {
+  /**
+   * Successful response.
+   */
+  200: AppReleaseProgressResponse;
+  /**
+   * Successful response.
+   */
+  202: AppReleaseProgressResponse;
+};
+
+export type AppReleaseAbandonResponse = AppReleaseAbandonResponses[keyof AppReleaseAbandonResponses];
+
+export type AppReleaseKeepLocalData = {
+  body?: never;
+  path: {
+    /**
+     * Mounted App identifier.
+     */
+    appId: string;
+  };
+  query?: never;
+  url: "/apps/{appId}/publish/keep-local";
+};
+
+export type AppReleaseKeepLocalErrors = {
+  /**
+   * The App release could not preserve local changes.
+   */
+  400: AppReleaseError;
+  /**
+   * The App release could not preserve local changes.
+   */
+  401: AppReleaseError;
+  /**
+   * The App release could not preserve local changes.
+   */
+  403: AppReleaseError;
+  /**
+   * The App release could not preserve local changes.
+   */
+  404: AppReleaseError;
+  /**
+   * The App release could not preserve local changes.
+   */
+  408: AppReleaseError;
+  /**
+   * The App release could not preserve local changes.
+   */
+  409: AppReleaseError;
+  /**
+   * The App release could not preserve local changes.
+   */
+  413: AppReleaseError;
+  /**
+   * The App release could not preserve local changes.
+   */
+  422: AppReleaseError;
+  /**
+   * The App release could not preserve local changes.
+   */
+  425: AppReleaseError;
+  /**
+   * The App release could not preserve local changes.
+   */
+  429: AppReleaseError;
+  /**
+   * The App release could not preserve local changes.
+   */
+  500: AppReleaseError;
+  /**
+   * The App release could not preserve local changes.
+   */
+  502: AppReleaseError;
+  /**
+   * The App release could not preserve local changes.
+   */
+  503: AppReleaseError;
+  /**
+   * The App release could not preserve local changes.
+   */
+  504: AppReleaseError;
+};
+
+export type AppReleaseKeepLocalError = AppReleaseKeepLocalErrors[keyof AppReleaseKeepLocalErrors];
+
+export type AppReleaseKeepLocalResponses = {
+  /**
+   * Successful response.
+   */
+  200: AppReleaseProgressResponse;
+};
+
+export type AppReleaseKeepLocalResponse = AppReleaseKeepLocalResponses[keyof AppReleaseKeepLocalResponses];
 
 export type RoomMessageCreateData = {
   body: {
