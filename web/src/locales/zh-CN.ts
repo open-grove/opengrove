@@ -1120,6 +1120,7 @@ export const ZH_CN = {
   "settings.storageMigrationBackups": "升级备份",
   "settings.storageRefreshStats": "刷新统计",
   "settings.storageLoading": "正在统计存储空间…",
+  "settings.storageOpenToCalculate": "打开后统计",
   "settings.storageUnavailable": "暂时无法读取存储空间",
   "settings.storageLoadError": "存储空间暂时无法读取，请稍后重试。",
   "settings.storageBackupDeleteError": "升级备份删除失败，请稍后重试。",

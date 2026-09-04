@@ -239,6 +239,7 @@ export class DesktopBridgeSupervisor {
     if (this.runtimeInfo?.mode === "reused") {
       this.runtimeInfo = undefined;
       this.notifyStatus();
+      await this.flushLogs();
       return;
     }
     const child = this.child;
@@ -246,6 +247,7 @@ export class DesktopBridgeSupervisor {
     this.runtimeInfo = undefined;
     this.notifyStatus();
     if (!child || child.exitCode !== null || child.killed) {
+      await this.flushLogs();
       return;
     }
     await new Promise<void>((resolve) => {
@@ -263,6 +265,7 @@ export class DesktopBridgeSupervisor {
         child.kill("SIGTERM");
       }
     });
+    await this.flushLogs();
   }
 
   diagnostics(): DesktopBridgeDiagnostics {
@@ -552,6 +555,10 @@ export class DesktopBridgeSupervisor {
 
   private writeCrashLog(chunk: Buffer): void {
     this.bridgeCrashLogWriter.append(redactText(chunk.toString("utf8"), [this.token]));
+  }
+
+  private async flushLogs(): Promise<void> {
+    await Promise.all([this.bridgeLogWriter.flush(), this.bridgeCrashLogWriter.flush()]);
   }
 
   private warnBridgeLogWriteFailed(path: string, error: unknown): void {

@@ -66,14 +66,14 @@ try {
 
   host.maintenance("storage_cleanup");
   assert.equal(host.runtime, first, "planned maintenance keeps the retained renderer bound to its runtime identity");
-  assert.equal(host.readyRuntime, undefined, "maintenance requests must not target the retained Bridge runtime");
+  assert.equal(host.readyRuntime, first, "planned maintenance must keep requests on the retained Bridge runtime");
   assert.deepEqual(host.state, { stage: "maintenance", operation: "storage_cleanup" });
   assert.equal(
     host.completeMaintenance(first),
     true,
     "maintenance completion must republish ready even when the runtime is reused",
   );
-  assert.equal(host.readyRuntime, first, "requests may resume only after the runtime is republished as ready");
+  assert.equal(host.readyRuntime, first, "maintenance completion keeps requests on the same Bridge runtime");
   assert.deepEqual(host.state, { stage: "ready", generation: 2 });
 
   host.maintenance("storage_cleanup");

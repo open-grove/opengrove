@@ -65,9 +65,11 @@ count, keeping verbose Agent output off the Electron main thread's synchronous
 filesystem path. Before cleanup, the Bridge atomically stops admitting new Runs
 and rejects the operation if a Run is already active. The same live Bridge owns,
 renews, validates, and releases the maintenance lease; rebuildable cleanup does
-not restart the Bridge. Cleanup authority remains separate from that lease and
-is limited to the explicit cache, orphan-file, rotated-log, and inactive-updater
-roots described above.
+not restart the Bridge. The maintenance stage is informational: authenticated
+desktop requests keep using that retained Bridge so the mounted UI and its
+cleanup result remain visible. Cleanup authority remains separate from the
+lease and is limited to the explicit cache, orphan-file, rotated-log, and
+inactive-updater roots described above.
 
 Hosted account services are accessed through an explicit WW base URL. They do
 not own local workspaces, native Kernel sessions, or installed App files.

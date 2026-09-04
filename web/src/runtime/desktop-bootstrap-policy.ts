@@ -18,11 +18,15 @@ export function resolveBridgeReadyGenerationTransition(
 
 export function desktopBridgeReadyForBootstrap(desktop: DesktopBootstrapApi | undefined): boolean {
   if (!desktop) return true;
-  return (desktop.getBridgeStartupState?.() ?? desktop.bridgeStartupState)?.stage === "ready";
+  return desktopBridgeAcceptsRequests((desktop.getBridgeStartupState?.() ?? desktop.bridgeStartupState)?.stage);
 }
 
 export function desktopBridgeRequiresStartupGate(desktop: DesktopBootstrapApi | undefined): boolean {
   if (!desktop) return false;
   const stage = (desktop.getBridgeStartupState?.() ?? desktop.bridgeStartupState)?.stage;
-  return stage !== "ready" && stage !== "maintenance";
+  return !desktopBridgeAcceptsRequests(stage);
+}
+
+function desktopBridgeAcceptsRequests(stage: DesktopBridgeStartupState["stage"] | undefined): boolean {
+  return stage === "ready" || stage === "maintenance";
 }

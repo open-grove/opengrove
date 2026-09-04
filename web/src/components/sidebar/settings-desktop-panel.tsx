@@ -516,7 +516,13 @@ function StorageEntry(props: { loading: boolean; overview?: SettingsStorageOverv
       <button className="settings-storage-entry" type="button" onClick={props.onOpen}>
         <strong>{t("settings.storageSpaceTitle")}</strong>
         <span className="settings-storage-entry-meta">
-          <span>{props.overview ? formatBytes(totalBytes) : props.loading ? "…" : "—"}</span>
+          <span>
+            {props.overview
+              ? formatBytes(totalBytes)
+              : props.loading
+                ? t("settings.storageLoading")
+                : t("settings.storageOpenToCalculate")}
+          </span>
           <ProductIcon name="next" size={17} />
         </span>
       </button>
