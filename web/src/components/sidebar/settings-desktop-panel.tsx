@@ -610,8 +610,8 @@ function storageCleanupError(error: unknown, t: TranslationFn): string {
     return t("settings.storageCleanupErrorReusedBridge");
   }
   if (message === "desktop_storage_maintenance_in_progress") return t("settings.storageCleanupErrorInProgress");
-  if (message.startsWith("rebuildable_cleanup_and_restart_failed:")) {
-    return t("settings.storageCleanupErrorRestart");
+  if (message.includes("desktop_storage_maintenance_release_failed")) {
+    return t("settings.storageCleanupErrorResume");
   }
   return t("settings.storageCleanupErrorGeneric", { error: message });
 }

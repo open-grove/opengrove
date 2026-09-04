@@ -8,6 +8,7 @@ import { build } from "esbuild";
 const projectRoot = resolve(import.meta.dirname, "..");
 const tempDir = await mkdtemp(join(tmpdir(), "opengrove-rebuildable-cleanup-"));
 const bundlePath = join(tempDir, "rebuildable-cleanup.mjs");
+const maintenanceBundlePath = join(tempDir, "storage-maintenance-operation.mjs");
 
 try {
   const desktopMainSource = await readFile(join(projectRoot, "desktop/main.ts"), "utf8");
@@ -27,8 +28,8 @@ try {
   );
   assert.match(
     cleanupFlowSource,
-    /finally\s*\{[\s\S]*releaseDesktopStorageMaintenanceGate/u,
-    "every cleanup outcome must release the maintenance lease from the same live Bridge",
+    /runDesktopStorageMaintenance\(\{[\s\S]*release:\s*async[\s\S]*releaseDesktopStorageMaintenanceGate/u,
+    "desktop cleanup must delegate lease completion to the tested maintenance lifecycle",
   );
   await build({
     entryPoints: [join(projectRoot, "desktop/rebuildable-storage-cleanup.ts")],
@@ -38,7 +39,70 @@ try {
     target: "node24",
     outfile: bundlePath,
   });
+  await build({
+    entryPoints: [join(projectRoot, "desktop/storage-maintenance-operation.ts")],
+    bundle: true,
+    format: "esm",
+    platform: "node",
+    target: "node24",
+    outfile: maintenanceBundlePath,
+  });
   const { cleanupDesktopRebuildableFiles } = await import(pathToFileURL(bundlePath).href);
+  const { runDesktopStorageMaintenance } = await import(pathToFileURL(maintenanceBundlePath).href);
+
+  const maintenanceEvents = [];
+  const maintenanceResult = await runDesktopStorageMaintenance({
+    acquire: async () => {
+      maintenanceEvents.push("acquire");
+      return "lease-a";
+    },
+    run: async (leaseId) => {
+      maintenanceEvents.push(`run:${leaseId}`);
+      return 42;
+    },
+    release: async (leaseId) => {
+      maintenanceEvents.push(`release:${leaseId}`);
+    },
+    onReleased: () => {
+      maintenanceEvents.push("ready");
+    },
+  });
+  assert.equal(maintenanceResult, 42);
+  assert.deepEqual(maintenanceEvents, ["acquire", "run:lease-a", "release:lease-a", "ready"]);
+
+  const cleanupError = new Error("cleanup_failed");
+  const releaseAfterFailureError = new Error("release_after_cleanup_failed");
+  let reportedReleaseError;
+  await assert.rejects(
+    runDesktopStorageMaintenance({
+      acquire: async () => "lease-b",
+      run: async () => {
+        throw cleanupError;
+      },
+      release: async () => {
+        throw releaseAfterFailureError;
+      },
+      onReleaseError: (error) => {
+        reportedReleaseError = error;
+      },
+    }),
+    (error) => error === cleanupError,
+    "a release failure must not replace the cleanup failure the user needs to diagnose",
+  );
+  assert.equal(reportedReleaseError, releaseAfterFailureError);
+
+  const releaseAfterSuccessError = new Error("release_after_success_failed");
+  await assert.rejects(
+    runDesktopStorageMaintenance({
+      acquire: async () => "lease-c",
+      run: async () => 7,
+      release: async () => {
+        throw releaseAfterSuccessError;
+      },
+    }),
+    (error) => error === releaseAfterSuccessError,
+    "a successful cleanup must not claim success while the maintenance gate remains closed",
+  );
   const workspaceRoot = join(tempDir, "workspaces", "story-seed", "workspace");
   const workspaceCache = join(workspaceRoot, ".cache", "opengrove-media", "video.mp4");
   const programRoot = join(tempDir, "programs", "story-seed", "app");

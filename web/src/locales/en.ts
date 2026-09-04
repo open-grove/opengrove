@@ -1202,8 +1202,8 @@ export const EN = {
   "settings.storageCleanupErrorReusedBridge":
     "This window is connected to another OpenGrove service, so desktop cache cannot be paused and cleaned safely here. Use the client that started that service.",
   "settings.storageCleanupErrorInProgress": "Storage maintenance is already in progress. Try again later.",
-  "settings.storageCleanupErrorRestart":
-    "The local service did not recover after cleanup. Restart OpenGrove and inspect diagnostics.",
+  "settings.storageCleanupErrorResume":
+    "Cleanup finished, but task access did not resume. Restart OpenGrove before continuing.",
   "settings.storageCleanupErrorGeneric": "Cleanup failed: {error}",
   "settings.storageSafeCleanup": "Free space safely",
   "settings.storageSafeCleanupCopy":

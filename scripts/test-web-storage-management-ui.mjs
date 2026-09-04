@@ -126,6 +126,21 @@ try {
     } finally {
       await fallbackPage.close();
     }
+
+    const releaseFailurePage = await browser.newPage({ viewport: { width: 1120, height: 900 } });
+    try {
+      await releaseFailurePage.goto(`${pathToFileURL(htmlPath).href}?desktopReleaseFailure=1`);
+      await releaseFailurePage.getByRole("button", { name: /存储空间/ }).click();
+      await releaseFailurePage.getByText("6.0 GB", { exact: true }).waitFor();
+      await releaseFailurePage.getByRole("button", { name: "安全释放空间", exact: true }).click();
+      const releaseFailureDialog = releaseFailurePage.getByRole("dialog");
+      await releaseFailureDialog.getByRole("button", { name: "确认", exact: true }).click();
+      await releaseFailurePage
+        .getByText("清理已经结束，但任务入口未能恢复。请重启 OpenGrove 后再继续使用。", { exact: true })
+        .waitFor();
+    } finally {
+      await releaseFailurePage.close();
+    }
   } finally {
     await browser.close();
   }
@@ -176,6 +191,7 @@ function entrySource() {
     };
     globalThis.storagePayload = storagePayload;
     const browserFallback = location.search.includes("browserFallback=1");
+    const desktopReleaseFailure = location.search.includes("desktopReleaseFailure=1");
     globalThis.fetch = async (input, init) => {
       const url = String(input);
       if (url.includes("/settings/storage")) {
@@ -206,6 +222,7 @@ function entrySource() {
       getHostVersion: async () => ({ packageVersion: "0.6.5", clientReleaseNumber: 10030 }),
       cleanupRebuildableStorage: async () => {
         document.documentElement.dataset.cleanupRequested = "true";
+        if (desktopReleaseFailure) throw new Error("desktop_storage_maintenance_release_failed");
         return { status: "cleaned", reclaimedBytes: 512 * 1024 ** 2, updaterCacheSkipped: false };
       },
     };

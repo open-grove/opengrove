@@ -1134,7 +1134,7 @@ export const ZH_CN = {
   "settings.storageCleanupErrorReusedBridge":
     "当前连接的是另一个 OpenGrove 服务，无法安全暂停并清理桌面缓存。请在启动该服务的客户端中操作。",
   "settings.storageCleanupErrorInProgress": "已有存储维护正在进行，请稍后再试。",
-  "settings.storageCleanupErrorRestart": "临时文件清理后本地服务未能恢复，请重启 OpenGrove 并查看诊断日志。",
+  "settings.storageCleanupErrorResume": "清理已经结束，但任务入口未能恢复。请重启 OpenGrove 后再继续使用。",
   "settings.storageCleanupErrorGeneric": "清理失败：{error}",
   "settings.storageSafeCleanup": "安全释放空间",
   "settings.storageSafeCleanupCopy": "清理缓存和临时文件，不会删除作品、App、聊天、知识库、账号或设置。",

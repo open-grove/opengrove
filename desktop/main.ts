@@ -63,6 +63,7 @@ import {
 } from "../src/desktop-stripe-deep-link.js";
 import { appendBoundedLog } from "./bounded-log.js";
 import { cleanupDesktopRebuildableFiles, measureDesktopPathBytes } from "./rebuildable-storage-cleanup.js";
+import { runDesktopStorageMaintenance } from "./storage-maintenance-operation.js";
 
 const MAIN_LOG_POLICY = { maxBytes: 10 * 1024 * 1024, retainedFiles: 2 } as const;
 
@@ -670,70 +671,84 @@ async function cleanupDesktopRebuildableStorage() {
   desktopStorageCleanupActive = true;
   const supervisor = requireBridgeSupervisor();
   const maintenanceRuntime = bridgeHost.runtime;
-  let maintenanceLeaseId: string | undefined;
   let stopMaintenanceHeartbeat: (() => void) | undefined;
   try {
     if (!maintenanceRuntime) throw new Error("desktop_bridge_unavailable");
     if (maintenanceRuntime.mode === "reused") throw new Error("rebuildable_cleanup_reused_bridge_unsupported");
-    maintenanceLeaseId = await acquireDesktopStorageMaintenanceGate(maintenanceRuntime);
-    if (!sameBridgeRuntime(bridgeHost.runtime, maintenanceRuntime)) {
-      throw new Error("desktop_bridge_changed_during_storage_maintenance_start");
-    }
-    bridgeHost.maintenance("storage_cleanup");
-    stopMaintenanceHeartbeat = startDesktopStorageMaintenanceHeartbeat(maintenanceRuntime, maintenanceLeaseId);
-    const orphanCleanup = parseDesktopStorageCleanupResponse(
-      await postBridgeStorageAction("/settings/storage/cleanup", { leaseId: maintenanceLeaseId }, maintenanceRuntime),
-    );
-    const bridgeCacheCleanup = parseDesktopStorageCleanupResponse(
-      await postBridgeStorageAction(
-        "/settings/storage/clear-history",
-        {
-          scope: "rebuildable-caches",
-          leaseId: maintenanceLeaseId,
-        },
-        maintenanceRuntime,
-      ),
-    );
+    return await runDesktopStorageMaintenance({
+      acquire: () => acquireDesktopStorageMaintenanceGate(maintenanceRuntime),
+      run: async (maintenanceLeaseId) => {
+        if (!sameBridgeRuntime(bridgeHost.runtime, maintenanceRuntime)) {
+          throw new Error("desktop_bridge_changed_during_storage_maintenance_start");
+        }
+        bridgeHost.maintenance("storage_cleanup");
+        stopMaintenanceHeartbeat = startDesktopStorageMaintenanceHeartbeat(maintenanceRuntime, maintenanceLeaseId);
+        const orphanCleanup = parseDesktopStorageCleanupResponse(
+          await postBridgeStorageAction(
+            "/settings/storage/cleanup",
+            { leaseId: maintenanceLeaseId },
+            maintenanceRuntime,
+          ),
+        );
+        const bridgeCacheCleanup = parseDesktopStorageCleanupResponse(
+          await postBridgeStorageAction(
+            "/settings/storage/clear-history",
+            {
+              scope: "rebuildable-caches",
+              leaseId: maintenanceLeaseId,
+            },
+            maintenanceRuntime,
+          ),
+        );
 
-    const chromiumCachePaths = ["Cache", "Code Cache"].map((name) => join(supervisor.paths.userDataDir, name));
-    const updaterStage = clientUpdateManager?.snapshot().stage;
-    const updaterCacheDir =
-      updaterStage === "downloading" || updaterStage === "downloaded" || updaterStage === "installing"
-        ? undefined
-        : supervisor.updaterCacheDirectory();
+        const chromiumCachePaths = ["Cache", "Code Cache"].map((name) => join(supervisor.paths.userDataDir, name));
+        const updaterStage = clientUpdateManager?.snapshot().stage;
+        const updaterCacheDir =
+          updaterStage === "downloading" || updaterStage === "downloaded" || updaterStage === "installing"
+            ? undefined
+            : supervisor.updaterCacheDirectory();
 
-    const chromiumCacheBytesBefore = await measureDesktopPathsBestEffort(chromiumCachePaths);
-    await session.defaultSession.clearCache();
-    await session.defaultSession.clearCodeCaches({});
-    const chromiumCacheBytesAfter = await measureDesktopPathsBestEffort(chromiumCachePaths);
-    const chromiumCacheBytes = Math.max(0, chromiumCacheBytesBefore - chromiumCacheBytesAfter);
-    const files = await cleanupDesktopRebuildableFiles({
-      // Workspace media caches are removed by the Bridge while it still has
-      // the authoritative mounted-workspace list. Desktop must not guess from
-      // a broad Apps or Workspaces directory.
-      workspaceRoots: [],
-      logDir: supervisor.paths.logDir,
-      updaterCacheDir,
+        const chromiumCacheBytesBefore = await measureDesktopPathsBestEffort(chromiumCachePaths);
+        await session.defaultSession.clearCache();
+        await session.defaultSession.clearCodeCaches({});
+        const chromiumCacheBytesAfter = await measureDesktopPathsBestEffort(chromiumCachePaths);
+        const chromiumCacheBytes = Math.max(0, chromiumCacheBytesBefore - chromiumCacheBytesAfter);
+        const files = await cleanupDesktopRebuildableFiles({
+          // Workspace media caches are removed by the Bridge while it still has
+          // the authoritative mounted-workspace list. Desktop must not guess from
+          // a broad Apps or Workspaces directory.
+          workspaceRoots: [],
+          logDir: supervisor.paths.logDir,
+          updaterCacheDir,
+        });
+        const orphanBlobBytes = orphanCleanup.reclaimedBytes;
+        const bridgeCacheBytes = bridgeCacheCleanup.reclaimedBytes;
+        const reclaimedBytes = orphanBlobBytes + bridgeCacheBytes + files.reclaimedBytes + chromiumCacheBytes;
+        logMain(`safe storage cleanup completed (${reclaimedBytes} logical bytes removed)`);
+        return {
+          status: "cleaned" as const,
+          orphanBlobBytes,
+          bridgeCacheBytes,
+          ...files,
+          chromiumCacheBytes,
+          reclaimedBytes,
+          updaterCacheSkipped: Boolean(supervisor.updaterCacheDirectory() && !updaterCacheDir),
+        };
+      },
+      release: async (maintenanceLeaseId) => {
+        stopMaintenanceHeartbeat?.();
+        stopMaintenanceHeartbeat = undefined;
+        await releaseDesktopStorageMaintenanceGate(maintenanceRuntime, maintenanceLeaseId);
+      },
+      onReleased: () => {
+        bridgeHost.completeMaintenance(maintenanceRuntime);
+      },
+      onReleaseError: (error) => {
+        logMain(`storage maintenance gate release failed after cleanup error: ${messageOf(error)}`);
+      },
     });
-    const orphanBlobBytes = orphanCleanup.reclaimedBytes;
-    const bridgeCacheBytes = bridgeCacheCleanup.reclaimedBytes;
-    const reclaimedBytes = orphanBlobBytes + bridgeCacheBytes + files.reclaimedBytes + chromiumCacheBytes;
-    logMain(`safe storage cleanup completed (${reclaimedBytes} logical bytes removed)`);
-    return {
-      status: "cleaned" as const,
-      orphanBlobBytes,
-      bridgeCacheBytes,
-      ...files,
-      chromiumCacheBytes,
-      reclaimedBytes,
-      updaterCacheSkipped: Boolean(supervisor.updaterCacheDirectory() && !updaterCacheDir),
-    };
   } finally {
     stopMaintenanceHeartbeat?.();
-    if (maintenanceLeaseId && maintenanceRuntime) {
-      await releaseDesktopStorageMaintenanceGate(maintenanceRuntime, maintenanceLeaseId);
-    }
-    if (maintenanceRuntime) bridgeHost.completeMaintenance(maintenanceRuntime);
     desktopStorageCleanupActive = false;
   }
 }
@@ -800,6 +815,7 @@ async function releaseDesktopStorageMaintenanceGate(runtime: DesktopBridgeRuntim
     );
   } catch (error) {
     logMain(`storage maintenance gate release failed: ${messageOf(error)}`);
+    throw new Error("desktop_storage_maintenance_release_failed", { cause: error });
   }
 }
 
