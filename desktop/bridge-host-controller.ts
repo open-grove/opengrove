@@ -36,6 +36,10 @@ export class DesktopBridgeHostController<Runtime extends DesktopBridgeRuntimeIde
     return this.runtimeValue;
   }
 
+  get readyRuntime(): Runtime | undefined {
+    return this.stateValue.stage === "ready" || this.stateValue.stage === "maintenance" ? this.runtimeValue : undefined;
+  }
+
   starting(attempt = 1): void {
     this.runtimeValue = undefined;
     this.publish({ stage: "starting", attempt });
@@ -57,8 +61,19 @@ export class DesktopBridgeHostController<Runtime extends DesktopBridgeRuntimeIde
     this.publish({ stage: "blocked", ...input });
   }
 
+  maintenance(operation: "storage_cleanup"): void {
+    this.publish({ stage: "maintenance", operation });
+  }
+
+  completeMaintenance(runtime: Runtime): boolean {
+    if (this.stateValue.stage !== "maintenance" || !this.runtimeValue || !sameRuntime(this.runtimeValue, runtime)) {
+      return false;
+    }
+    return this.activate(runtime);
+  }
+
   activate(runtime: Runtime): boolean {
-    if (this.runtimeValue && sameRuntime(this.runtimeValue, runtime)) return false;
+    if (this.stateValue.stage === "ready" && this.runtimeValue && sameRuntime(this.runtimeValue, runtime)) return false;
     this.runtimeValue = runtime;
     this.generation += 1;
     this.publish({ stage: "ready", generation: this.generation });

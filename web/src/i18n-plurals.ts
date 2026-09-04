@@ -21,6 +21,10 @@ const ENGLISH_PLURAL_FORMS: Partial<Record<TranslationKey, EnglishPluralForms>> 
   "mountedApp.dashboardActiveCount": { one: "{count} active story", other: "{count} active stories" },
   "settings.extensionDeploymentsCount": { one: "{count} deployment", other: "{count} deployments" },
   "settings.modelsCount": { one: "{count} model", other: "{count} models" },
+  "settings.storageBackupSummary": {
+    one: "{count} backup; latest saved {time}.",
+    other: "{count} backups; latest saved {time}.",
+  },
   "system.maxAttachments": {
     one: "You can add up to {count} attachment at once.",
     other: "You can add up to {count} attachments at once.",

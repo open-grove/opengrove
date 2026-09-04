@@ -3,13 +3,14 @@ import {
   cancelBackgroundAskRun,
   compactBackgroundAskSession,
   guideBackgroundAskRun,
-  persistSnapshotAttachments,
   streamAskResponse,
   streamExistingAskResponse,
 } from "../ask-stream.js";
 import { record } from "../http-utils.js";
 import { normalizeAskPayload } from "../payloads.js";
 import { readWwRuntimeAuth } from "../bridge-security.js";
+import { resolveHostLanguageSettings } from "../language-preference.js";
+import { hostMessage } from "../../localization/host-messages.js";
 import type { BridgeRoute, BridgeRouteContext } from "../router.js";
 import { route } from "./registry-utils.js";
 
@@ -36,11 +37,23 @@ function handleAskDisabledRoute(context: BridgeRouteContext): boolean {
 
 async function handleAskStreamRoute(context: BridgeRouteContext): Promise<boolean> {
   const payload = normalizeAskPayload(await context.readJsonBody(context.request));
-  persistSnapshotAttachments(payload.snapshot, context.state);
   const wwAuth = (await readWwRuntimeAuth(context.request, context.response, context.security))?.auth;
-  await streamAskResponse(context.state, payload, context.response, {
-    ...(wwAuth ? { wwAuth } : {}),
-  });
+  try {
+    await streamAskResponse(context.state, payload, context.response, {
+      ...(wwAuth ? { wwAuth } : {}),
+    });
+  } catch (error) {
+    if (!(error instanceof Error) || error.message !== "bridge_runs_paused_for_storage_maintenance") throw error;
+    context.response.setHeader("retry-after", "1");
+    context.sendJson(context.response, 503, {
+      ok: false,
+      code: error.message,
+      error: hostMessage(
+        resolveHostLanguageSettings((context.state.rootState ?? context.state).settings),
+        "room.run_paused_for_maintenance",
+      ),
+    });
+  }
   return true;
 }
 

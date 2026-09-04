@@ -36,6 +36,10 @@ export const harnessInventory = [
   }),
   task("state-file-lock", "dist/tests/state-file-lock-harness.js", "state-storage"),
   task("sqlite-state-store", "dist/tests/sqlite-state-store-harness.js", "state-storage"),
+  task("storage-overview", "dist/tests/storage-overview-harness.js", "state-storage", { suite: "critical" }),
+  task("storage-maintenance-gate", "dist/tests/storage-maintenance-gate-harness.js", "state-storage", {
+    suite: "critical",
+  }),
   task("legacy-knowledge-app-migration", "dist/tests/legacy-knowledge-app-migration-harness.js", "apps-knowledge"),
   task("skill", "dist/tests/skill-harness.js", "apps-knowledge"),
   task("product-default-employees", "dist/tests/product-default-employees-harness.js", "apps-knowledge"),

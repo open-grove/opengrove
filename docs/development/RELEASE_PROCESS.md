@@ -119,6 +119,28 @@ candidate:
 A platform-only run such as `platforms=windows-x64` is useful for diagnosis but
 intentionally produces no registrable candidate or gate receipt.
 
+### Real-device acceptance for storage changes
+
+Changes to recursive cleanup or local cache policy require real-device
+acceptance on every affected platform in addition to automated gates. Use
+temporary test data and verify before and after the operation that
+works, conversations, settings, account state, Knowledge, the current App, and
+current diagnostic logs remain intact.
+
+- On Windows, test this irreversible-risk case: create a directory
+  junction inside an OpenGrove cleanup boundary that points to a test directory
+  outside that boundary, then exercise the real `fs.rm` cleanup path. Confirm
+  that cleanup does not follow the junction or remove the external files. A
+  normal symbolic link or mock is not a substitute for this test.
+- On macOS, create a symbolic link inside an OpenGrove cleanup boundary that
+  points to a test directory outside that boundary. Confirm that cleanup does
+  not follow the link or remove the external files.
+
+Record the candidate SHA, client and operating-system versions, filesystem,
+test paths, before-and-after checksums, and the result. If an item
+was not run, say so in the release record; automated coverage is not evidence
+that a real-device check passed.
+
 If evidence shows a transient infrastructure failure and candidate code is
 unchanged, rerun only the failed jobs:
 

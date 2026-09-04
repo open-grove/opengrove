@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { isA2ATerminalTaskState } from "#agent-protocol";
 import type { AgentEvent, JsonObject } from "../core.js";
 import type { BridgeState } from "./bridge-types.js";
@@ -27,17 +28,24 @@ interface ActiveRunRegistry {
   ownersByInteractionId: Map<string, InteractionOwner>;
   ownersByNativeRequestId: Map<string, InteractionOwner>;
   nextProducerEpoch: number;
+  maintenanceLease?: { id: string; lastActivityAt: number };
 }
 
 const registries = new WeakMap<BridgeState, ActiveRunRegistry>();
+const BRIDGE_RUN_MAINTENANCE_IDLE_TTL_MS = 5 * 60_000;
 
 /** Registers one live producer. A lease release never closes a shared Kernel transport. */
 export function registerActiveBridgeRun(
   state: BridgeState,
   runId: string,
-  options: { cancel?: () => void } = {},
+  options: { cancel?: () => void; now?: number } = {},
 ): () => void {
   const registry = registryForState(state);
+  const now = options.now ?? Date.now();
+  expireIdleMaintenanceLease(registry, now);
+  if (registry.maintenanceLease) {
+    throw new Error("bridge_runs_paused_for_storage_maintenance");
+  }
   let handle = registry.handlesByRunId.get(runId);
   if (!handle) {
     handle = {
@@ -78,6 +86,59 @@ export function registerActiveBridgeRun(
       removeHandle(registry, current);
     }
   };
+}
+
+export type BridgeRunMaintenanceAdmission =
+  | { ok: true; leaseId: string }
+  | { ok: false; error: "storage_maintenance_in_progress" | "storage_maintenance_active_runs"; activeRuns: number };
+
+/**
+ * Atomically closes run admission only when no producer lease is active.
+ * JavaScript executes this check-and-set synchronously, so a new run cannot
+ * enter between observing the empty registry and installing the gate.
+ */
+export function beginBridgeRunMaintenance(state: BridgeState, now = Date.now()): BridgeRunMaintenanceAdmission {
+  const registry = registryForState(state);
+  expireIdleMaintenanceLease(registry, now);
+  if (registry.maintenanceLease) {
+    return { ok: false, error: "storage_maintenance_in_progress", activeRuns: registry.handlesByRunId.size };
+  }
+  if (registry.handlesByRunId.size > 0) {
+    return { ok: false, error: "storage_maintenance_active_runs", activeRuns: registry.handlesByRunId.size };
+  }
+  const leaseId = randomUUID();
+  registry.maintenanceLease = { id: leaseId, lastActivityAt: now };
+  return { ok: true, leaseId };
+}
+
+export function endBridgeRunMaintenance(state: BridgeState, leaseId: string): boolean {
+  const registry = registryForState(state);
+  if (!leaseId || registry.maintenanceLease?.id !== leaseId) return false;
+  registry.maintenanceLease = undefined;
+  return true;
+}
+
+export function bridgeRunMaintenanceActive(state: BridgeState, now = Date.now()): boolean {
+  const registry = registryForState(state);
+  expireIdleMaintenanceLease(registry, now);
+  return Boolean(registry.maintenanceLease);
+}
+
+export function bridgeRunMaintenanceLeaseMatches(state: BridgeState, leaseId: string, now = Date.now()): boolean {
+  const registry = registryForState(state);
+  expireIdleMaintenanceLease(registry, now);
+  if (!leaseId || registry.maintenanceLease?.id !== leaseId) return false;
+  registry.maintenanceLease.lastActivityAt = now;
+  return true;
+}
+
+export function renewBridgeRunMaintenanceLease(state: BridgeState, leaseId: string, now = Date.now()): boolean {
+  const registry = registryForState(state);
+  expireIdleMaintenanceLease(registry, now);
+  const lease = registry.maintenanceLease;
+  if (!leaseId || lease?.id !== leaseId) return false;
+  lease.lastActivityAt = now;
+  return true;
 }
 
 export function activeBridgeRunIds(state: BridgeState): ReadonlySet<string> {
@@ -397,4 +458,11 @@ function registryForState(state: BridgeState): ActiveRunRegistry {
     registries.set(rootState, registry);
   }
   return registry;
+}
+
+function expireIdleMaintenanceLease(registry: ActiveRunRegistry, now: number): void {
+  const lease = registry.maintenanceLease;
+  if (lease && now - lease.lastActivityAt >= BRIDGE_RUN_MAINTENANCE_IDLE_TTL_MS) {
+    registry.maintenanceLease = undefined;
+  }
 }
