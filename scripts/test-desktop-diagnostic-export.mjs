@@ -197,7 +197,7 @@ try {
   assert.equal(manifest.credentials.unstructuredEvidenceMayContainSensitiveContent, true);
   const storeAppLayout = JSON.parse(entries.get("store-app-layout.json").toString("utf8"));
   assert.equal(storeAppLayout.migration.id, "store-app-layout-v2");
-  assert.equal(storeAppLayout.migration.introducedIn, "0.6.5");
+  assert.equal(storeAppLayout.migration.introducedIn, "0.6.6");
   assert.equal(storeAppLayout.roots.programs.path, paths.programsDir);
   assert.equal(storeAppLayout.roots.workspaces.path, paths.workspacesDir);
   assert.equal(storeAppLayout.roots.legacyPrograms.path, join(dataDir, "app-store", "programs"));
