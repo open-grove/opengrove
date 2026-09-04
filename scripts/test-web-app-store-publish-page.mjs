@@ -100,8 +100,8 @@ try {
     const applyToCurrentApp = page.getByRole("checkbox", { name: "发布后切换到这个正式版本" });
     assert.equal(
       await applyToCurrentApp.isChecked(),
-      false,
-      "publishing must preserve the current local App by default",
+      true,
+      "publishing must activate the released version on the current device by default",
     );
     if (process.env.OPENGROVE_UI_SCREENSHOT_PATH) {
       await page.screenshot({ path: process.env.OPENGROVE_UI_SCREENSHOT_PATH, fullPage: true });
@@ -150,7 +150,6 @@ try {
     assert.equal(savedDraftEmployee.name, "发布版架构师");
     assert.equal(savedDraftEmployee.contextTokenBudget, 120000);
     assert.equal(savedDraftEmployee.accessMode, "auto-review");
-    await applyToCurrentApp.check();
     await publishButton.click();
     await page.waitForFunction(() => window.__publishedResult?.title === "故事种子");
 
@@ -731,13 +730,13 @@ function entrySource(path, toast, confirm, globalStyles, appStoreStyles) {
     function Harness() {
       const [open, setOpen] = useState(true);
       const [release, setRelease] = useState(() => structuredClone(initialRelease));
-      const [applyToCurrentApp, setApplyToCurrentApp] = useState(false);
+      const [applyToCurrentApp, setApplyToCurrentApp] = useState(true);
       const [localDraft, setLocalDraft] = useState();
       const [canPublish, setCanPublish] = useState(true);
       const [publishProgress, setPublishProgress] = useState();
       if (!open) return <button onClick={() => {
         setRelease(structuredClone(initialRelease));
-        setApplyToCurrentApp(false);
+        setApplyToCurrentApp(true);
         setOpen(true);
       }}>重新打开发布页</button>;
       return <>

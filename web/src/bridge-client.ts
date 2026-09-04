@@ -588,7 +588,7 @@ export async function publishMountedApp(
       releaseNotes: release.releaseNotes,
       visibility: release.visibility,
       employees: release.employees,
-      applyToCurrentApp: options.applyToCurrentApp === true,
+      applyToCurrentApp: options.applyToCurrentApp ?? true,
     }),
   );
 }

@@ -1,28 +1,16 @@
-export const RELEASE_CONTROL_STATUSES = [
-  "awaiting_candidate",
-  "building",
-  "trusted_build_failed",
-  "artifact_accepted",
-  "finalizing",
-  "published",
-  "abandoned",
-] as const;
+import {
+  RELEASE_CONTROL_ACTIONS,
+  RELEASE_CONTROL_FAILURE_STAGES,
+  RELEASE_CONTROL_STATUSES,
+  type ReleaseControlAction,
+  type ReleaseControlBuildFailure,
+  type ReleaseControlStatus,
+} from "#protocol";
 
-export type ReleaseControlStatus = (typeof RELEASE_CONTROL_STATUSES)[number];
+export { RELEASE_CONTROL_ACTIONS, RELEASE_CONTROL_FAILURE_STAGES, RELEASE_CONTROL_STATUSES };
+export type { ReleaseControlAction, ReleaseControlBuildFailure, ReleaseControlStatus };
+
 export type AppReleaseJournalRemoteStatus = ReleaseControlStatus | "publish_base_stale";
-
-export const RELEASE_CONTROL_ACTIONS = ["retry_candidate", "retry_build", "abandon"] as const;
-
-export type ReleaseControlAction = (typeof RELEASE_CONTROL_ACTIONS)[number];
-
-export const RELEASE_CONTROL_FAILURE_STAGES = ["trusted_build", "artifact_pack", "artifact_gate", "workflow"] as const;
-
-export interface ReleaseControlBuildFailure {
-  stage: (typeof RELEASE_CONTROL_FAILURE_STAGES)[number];
-  code: string;
-  retryable: boolean;
-  workflowRunId: string;
-}
 
 export function isReleaseControlStatus(value: unknown): value is ReleaseControlStatus {
   return typeof value === "string" && (RELEASE_CONTROL_STATUSES as readonly string[]).includes(value);

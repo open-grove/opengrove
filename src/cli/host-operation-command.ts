@@ -4,7 +4,7 @@ import {
   type OpenGroveClient,
   type OpenGroveClientConfig,
 } from "#client";
-import type { HostOperation } from "#protocol";
+import type { HostOperation, HostOperationId, HostOperationOutput, RegisteredHostOperation } from "#protocol";
 import { hostProtocol } from "#protocol/compiled";
 import type { CompiledHostOperation, CompiledHostOperationGroup } from "#protocol/compiler";
 import { APP_BRIDGE_TOKEN_HEADER } from "../identity.js";
@@ -97,10 +97,15 @@ export function findHostOperationCommand(
   return findOperation(args, catalog.operations);
 }
 
-export function compiledHostOperation(id: string, catalog: HostOperationCliCatalog = hostProtocol): CompiledHostOperation {
+type RegisteredHostOperationById<TId extends HostOperationId> = Extract<RegisteredHostOperation, { id: TId }>;
+
+export function compiledHostOperation<TId extends HostOperationId>(
+  id: TId,
+  catalog: HostOperationCliCatalog = hostProtocol,
+): CompiledHostOperation<RegisteredHostOperationById<TId>> {
   const operation = catalog.operations.find((candidate) => candidate.id === id);
   if (!operation) throw new Error(`Host operation ${id} is not part of the compiled Host Protocol.`);
-  return operation;
+  return operation as CompiledHostOperation<RegisteredHostOperationById<TId>>;
 }
 
 export function renderHostOperationCommandHelp(operation: CompiledHostOperation): string {
@@ -295,7 +300,7 @@ export async function requestHostOperation<TOperation extends HostOperation>(
   client: OpenGroveClient,
   operation: TOperation,
   call: HostOperationDecodedCall,
-): Promise<unknown> {
+): Promise<HostOperationOutput<TOperation>> {
   return client.request(operation, call as HostOperationCall<TOperation>);
 }
 

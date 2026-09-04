@@ -1777,7 +1777,7 @@ export const ZH_CN = {
   "appStore.release.scopeTitle": "发布范围",
   "appStore.release.applyToCurrentApp": "发布后切换到这个正式版本",
   "appStore.release.applyToCurrentAppHint":
-    "不勾选时只发布，保留当前运行内容；勾选后仅在发布成功时，把完整 App 切换到这次正式版本。",
+    "默认勾选：发布成功后把完整 App 切换到这次正式版本。取消勾选可以只发布，保留当前运行内容。",
   "appStore.release.visibilityPublic": "公开",
   "appStore.release.checksTitle": "发布检查",
   "appStore.release.checksDesc": "点击发布会先精确保存本机草稿，再检查并提交同一份 App 与员工配置。",

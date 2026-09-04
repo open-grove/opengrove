@@ -51,6 +51,7 @@ function progressFor(appId: string, overrides: Partial<FixtureProgress> = {}): F
  * - release-fixture-app: building → artifact_accepted → (reconcile) → published
  * - blocked-app: the trusted build failed and Release Control waits for a human
  * - stuck-app: artifact_accepted never leaves that state even after reconcile
+ * - unidentified-app: artifact_accepted has no remote intent identity yet
  * - slow-app: keeps building forever
  */
 const statusPolls = new Map<string, number>();
@@ -67,6 +68,9 @@ function currentProgress(appId: string, action: "publish" | "status" | "reconcil
   }
   if (appId === "stuck-app") {
     return progressFor(appId, { remoteStatus: "artifact_accepted" });
+  }
+  if (appId === "unidentified-app") {
+    return progressFor(appId, { remoteIntentId: undefined, remoteStatus: "artifact_accepted" });
   }
   if (appId === "slow-app") {
     return progressFor(appId);
@@ -206,9 +210,16 @@ try {
   const stuck = await runCli([...publishCommand("stuck-app"), "--yes"]);
   assert.equal(stuck.code, 1);
   assert.equal(field(stuck.stderrJson, "error", "subtype"), "app_release_recovery_exhausted");
+  assert.equal(requests.slice(stuckFrom).filter((request) => request.path.endsWith("/publish/reconcile")).length, 2);
+
+  // --- Without a remote intent identity, keep polling instead of spending an unkeyed recovery budget.
+  const unidentifiedFrom = requests.length;
+  const unidentified = await runCli([...publishCommand("unidentified-app"), "--yes", "--wait-timeout", "0"]);
+  assert.equal(unidentified.code, 1);
+  assert.equal(field(unidentified.stderrJson, "error", "subtype"), "app_release_wait_timeout");
   assert.equal(
-    requests.slice(stuckFrom).filter((request) => request.path.endsWith("/publish/reconcile")).length,
-    2,
+    requests.slice(unidentifiedFrom).filter((request) => request.path.endsWith("/publish/reconcile")).length,
+    0,
   );
 
   // --- A never-finishing remote build times out with guidance instead of hanging.

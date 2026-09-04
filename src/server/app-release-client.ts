@@ -1,5 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
+import { APP_RELEASE_ERROR_STATUSES } from "#protocol";
 import type { AppReleaseJournalRecord } from "./app-release-journal.js";
 import {
   isReleaseControlActions,
@@ -14,6 +15,7 @@ import { clientReleaseRequestHeader } from "./client-release.js";
 import { record } from "./http-utils.js";
 
 const MAX_RELEASE_RESPONSE_BYTES = 4 * 1024 * 1024;
+const DECLARED_APP_RELEASE_ERROR_STATUSES = new Set<number>(APP_RELEASE_ERROR_STATUSES);
 // Candidate creation uploads as many as 5,000 source blobs before the service
 // can return the durable intent. Keep this above the production ingress budget
 // so the client, proxy, and Release Control share one long-transaction window.
@@ -416,7 +418,7 @@ function parseReleaseControlError(
         message !== "app_release_secret_blocked" &&
         RELEASE_CONTROL_ERROR_CODES.has(message);
   return new ReleaseControlClientError(
-    status,
+    DECLARED_APP_RELEASE_ERROR_STATUSES.has(status) ? status : 502,
     validEnvelope ? message : "app_release_error_response_invalid",
     undefined,
     RELEASE_CONTROL_CANDIDATE_STAGES.has(candidateStageHeader ?? "") ? (candidateStageHeader ?? undefined) : undefined,

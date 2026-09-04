@@ -488,6 +488,34 @@ try {
     "safe candidate failure stages must survive the Release Control client boundary",
   );
 
+  const undeclaredStatusClient = new ReleaseControlClient({
+    baseUrl: "https://release-control.example.test",
+    accessToken: "ww-session-token",
+    fetch: (async () =>
+      new Response(
+        JSON.stringify({
+          error: "release_control_dependency_unavailable",
+        }),
+        {
+          status: 451,
+          headers: {
+            "content-type": "application/json; charset=utf-8",
+            "x-opengrove-candidate-stage": "candidate_ref_push",
+          },
+        },
+      )) as typeof fetch,
+  });
+  await assert.rejects(
+    () => undeclaredStatusClient.retryCandidate("release-intent-1"),
+    (error: unknown) =>
+      error instanceof ReleaseControlClientError &&
+      error.status === 502 &&
+      error.message === "release_control_dependency_unavailable" &&
+      error.candidateStage === "candidate_ref_push" &&
+      /^[a-f0-9]{32}$/.test(error.requestId ?? ""),
+    "undeclared upstream statuses must become a structured gateway error before the Host contract boundary",
+  );
+
   const rejectedIntent = intentFixture(releaseControlStartMetadata(record), "abandoned");
   const secretBlockedClient = new ReleaseControlClient({
     baseUrl: "https://release-control.example.test",

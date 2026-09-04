@@ -71,17 +71,9 @@ export const mountedAppReleaseSchema = z
   })
   .passthrough();
 
-const releaseControlBuildFailureSchema = z
-  .object({
-    stage: z.enum(["trusted_build", "artifact_pack", "artifact_gate", "workflow"]),
-    code: z.string(),
-    retryable: z.boolean(),
-    workflowRunId: z.string(),
-  })
-  .passthrough();
-
-const releaseControlActionSchema = z.enum(["retry_candidate", "retry_build", "abandon"]);
-const releaseControlStatusSchema = z.enum([
+export const RELEASE_CONTROL_FAILURE_STAGES = ["trusted_build", "artifact_pack", "artifact_gate", "workflow"] as const;
+export const RELEASE_CONTROL_ACTIONS = ["retry_candidate", "retry_build", "abandon"] as const;
+export const RELEASE_CONTROL_STATUSES = [
   "awaiting_candidate",
   "building",
   "trusted_build_failed",
@@ -89,7 +81,19 @@ const releaseControlStatusSchema = z.enum([
   "finalizing",
   "published",
   "abandoned",
-]);
+] as const;
+
+const releaseControlBuildFailureSchema = z
+  .object({
+    stage: z.enum(RELEASE_CONTROL_FAILURE_STAGES),
+    code: z.string(),
+    retryable: z.boolean(),
+    workflowRunId: z.string(),
+  })
+  .passthrough();
+
+const releaseControlActionSchema = z.enum(RELEASE_CONTROL_ACTIONS);
+const releaseControlStatusSchema = z.enum(RELEASE_CONTROL_STATUSES);
 
 export const appReleaseProgressSchema = z
   .object({
@@ -148,6 +152,29 @@ export type AppReleaseProgress = z.output<typeof appReleaseProgressSchema>;
 export type AppReleaseProgressPhase = AppReleaseProgress["phase"];
 export type AppReleaseBuildFailure = NonNullable<AppReleaseProgress["buildFailure"]>;
 export type AppReleaseAction = AppReleaseProgress["allowedActions"][number];
+export type ReleaseControlBuildFailure = z.output<typeof releaseControlBuildFailureSchema>;
+export type ReleaseControlAction = (typeof RELEASE_CONTROL_ACTIONS)[number];
+export type ReleaseControlStatus = (typeof RELEASE_CONTROL_STATUSES)[number];
+
+export function appReleaseNeedsAutomaticRecovery(progress: AppReleaseProgress | undefined): boolean {
+  if (!progress?.retryable || (progress.state !== "publishing" && progress.state !== "registry-ready")) return false;
+  if (progress.state === "registry-ready") return true;
+  return (
+    progress.remoteStatus === "awaiting_candidate" ||
+    progress.remoteStatus === "artifact_accepted" ||
+    progress.remoteStatus === "finalizing"
+  );
+}
+
+export function appReleaseAutomaticRecoveryBudget(
+  progress: AppReleaseProgress | undefined,
+): Readonly<{ key: string; limit: number }> {
+  const remoteStatus = progress?.remoteStatus;
+  return {
+    key: progress?.remoteIntentId && remoteStatus ? `${progress.remoteIntentId}:${remoteStatus}:${progress.phase}` : "",
+    limit: remoteStatus === "artifact_accepted" ? 2 : 1,
+  };
+}
 
 const prepareAppReleaseResponseSchema = z.object({ ok: z.literal(true), release: mountedAppReleaseSchema });
 const appReleaseProgressResponseSchema = z.object({ ok: z.literal(true), progress: appReleaseProgressSchema });
@@ -163,10 +190,12 @@ const appReleaseErrorSchema = z
   })
   .passthrough();
 
-const appReleaseErrorStatuses = [400, 401, 403, 404, 408, 409, 413, 422, 425, 429, 500, 502, 503, 504] as const;
+export const APP_RELEASE_ERROR_STATUSES = [
+  400, 401, 403, 404, 408, 409, 413, 422, 425, 429, 500, 502, 503, 504,
+] as const;
 
 function appReleaseErrors(description: string) {
-  return appReleaseErrorStatuses.map((status) => ({
+  return APP_RELEASE_ERROR_STATUSES.map((status) => ({
     status,
     body: appReleaseErrorSchema,
     description,

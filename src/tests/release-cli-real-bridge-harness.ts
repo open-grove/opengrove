@@ -244,10 +244,7 @@ try {
 
     // --- A wrong verification code surfaces the Cloud API's structured error
     //     as the Bridge maps it, and leaves no jar behind.
-    const badLogin = await runCli(
-      ["auth", "login", "--email", "admin@example.test", "--base-url", apiUrl],
-      `111111\n`,
-    );
+    const badLogin = await runCli(["auth", "login", "--email", "admin@example.test", "--base-url", apiUrl], `111111\n`);
     assert.equal(badLogin.code, 3, badLogin.stdout + badLogin.stderr);
     assert.equal(field(badLogin.json, "error", "type"), "authentication");
     assert.equal(field(badLogin.json, "error", "message"), "verification_code_invalid");
@@ -477,15 +474,7 @@ try {
       const oldBridgeStatus = await runCli(["auth", "status", "--base-url", apiUrl]);
       assert.equal(oldBridgeStatus.code, 3, oldBridgeStatus.stdout + oldBridgeStatus.stderr);
       assert.equal(field(oldBridgeStatus.json, "error", "subtype"), "bridge_identity_mismatch");
-      const oldBridgePrepare = await runCli([
-        "app",
-        "release",
-        "prepare",
-        "--app-id",
-        APP_ID,
-        "--base-url",
-        apiUrl,
-      ]);
+      const oldBridgePrepare = await runCli(["app", "release", "prepare", "--app-id", APP_ID, "--base-url", apiUrl]);
       assert.equal(oldBridgePrepare.code, 3, oldBridgePrepare.stdout + oldBridgePrepare.stderr);
       assert.equal(field(oldBridgePrepare.json, "error", "subtype"), "bridge_identity_mismatch");
     } finally {

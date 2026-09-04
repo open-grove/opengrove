@@ -1,5 +1,13 @@
 import type { OpenGroveClient } from "#client";
-import type { AppReleaseProgress } from "#protocol";
+import {
+  appReleaseAutomaticRecoveryBudget,
+  appReleaseNeedsAutomaticRecovery,
+  type AppReleaseProgress,
+  type GetAppReleaseStatusOperation,
+  type HostOperationOutput,
+  type PublishAppReleaseOperation,
+  type ReconcileAppReleaseOperation,
+} from "#protocol";
 import type { CompiledHostOperation } from "#protocol/compiler";
 import {
   compiledHostOperation,
@@ -9,7 +17,6 @@ import {
   requestHostOperation,
   type HostOperationCliOptions,
 } from "./host-operation-command.js";
-import { OpenGroveCliError } from "./errors.js";
 import { HostOperationCliUsageError, type HostOperationDecodedCall } from "./host-operation-input.js";
 import {
   HOST_OPERATION_CLI_EXIT,
@@ -56,33 +63,6 @@ export type AppReleaseCliOptions = HostOperationCliOptions &
 export function isAppReleasePublishCommand(args: readonly string[]): boolean {
   const operation = findHostOperationCommand(args);
   return operation?.id === PUBLISH_OPERATION_ID;
-}
-
-/**
- * Mirrors the OpenGrove UI: a release is only driven automatically while
- * Release Control still expects the local side to act and the progress says a
- * retry is safe.
- */
-export function appReleaseNeedsAutomaticRecovery(progress: AppReleaseProgress): boolean {
-  const recoverable = progress.retryable && (progress.state === "publishing" || progress.state === "registry-ready");
-  if (!recoverable) return false;
-  if (progress.state === "registry-ready") return true;
-  return (
-    progress.remoteStatus === "awaiting_candidate" ||
-    progress.remoteStatus === "artifact_accepted" ||
-    progress.remoteStatus === "finalizing"
-  );
-}
-
-/** Same recovery budget as the OpenGrove UI: keyed per remote transition. */
-export function appReleaseAutomaticRecoveryBudget(progress: AppReleaseProgress): { key: string; limit: number } {
-  return {
-    key:
-      progress.remoteIntentId && progress.remoteStatus
-        ? `${progress.remoteIntentId}:${progress.remoteStatus}:${progress.phase}`
-        : "",
-    limit: progress.remoteStatus === "artifact_accepted" ? 2 : 1,
-  };
 }
 
 export function isAppReleaseTerminal(progress: AppReleaseProgress): boolean {
@@ -179,23 +159,25 @@ async function waitForAppRelease(input: {
       }
       if (appReleaseNeedsAutomaticRecovery(progress)) {
         const budget = appReleaseAutomaticRecoveryBudget(progress);
-        const used = budget.key ? (attempts.get(budget.key) ?? 0) : budget.limit;
-        if (used >= budget.limit) {
-          return fail(
-            "app_release_recovery_exhausted",
-            `Release ${progress.version} of ${progress.appId} stayed at ${progress.remoteStatus ?? progress.phase} after automatic recovery; run \`app release status\` and \`app release reconcile\` manually.`,
+        if (budget.key) {
+          const used = attempts.get(budget.key) ?? 0;
+          if (used >= budget.limit) {
+            return fail(
+              "app_release_recovery_exhausted",
+              `Release ${progress.version} of ${progress.appId} stayed at ${progress.remoteStatus ?? progress.phase} after automatic recovery; run \`app release status\` and \`app release reconcile\` manually.`,
+            );
+          }
+          attempts.set(budget.key, used + 1);
+          summary.reconciles += 1;
+          lastOperation = reconcile;
+          progress = readProgress(
+            await requestHostOperation(input.client, reconcile.operation, {
+              params: input.params,
+              body: { retryFailedBuild: false },
+            }),
           );
+          continue;
         }
-        attempts.set(budget.key, used + 1);
-        summary.reconciles += 1;
-        lastOperation = reconcile;
-        progress = readProgress(
-          await requestHostOperation(input.client, reconcile.operation, {
-            params: input.params,
-            body: { retryFailedBuild: false },
-          }),
-        );
-        continue;
       }
       if (input.now() - startedAt >= input.wait.waitTimeoutMs) {
         return fail(
@@ -234,7 +216,8 @@ function splitWorkflowOptions(args: readonly string[]): {
     const flag = arg.startsWith("--") && equals !== -1 ? arg.slice(0, equals) : arg;
     const inlineValue = arg.startsWith("--") && equals !== -1 ? arg.slice(equals + 1) : undefined;
     if (flag === "--no-wait") {
-      if (inlineValue !== undefined) throw new HostOperationCliUsageError("invalid_option", "--no-wait takes no value.");
+      if (inlineValue !== undefined)
+        throw new HostOperationCliUsageError("invalid_option", "--no-wait takes no value.");
       wait = false;
       continue;
     }
@@ -257,15 +240,13 @@ function splitWorkflowOptions(args: readonly string[]): {
   return { wait: { wait, waitTimeoutMs, pollIntervalMs }, operationArgs };
 }
 
-function readProgress(data: unknown): AppReleaseProgress {
-  if (data && typeof data === "object" && "progress" in data && data.progress && typeof data.progress === "object") {
-    return data.progress as AppReleaseProgress;
-  }
-  throw new OpenGroveCliError(
-    "internal",
-    "app_release_progress_missing",
-    "The Bridge response did not include App release progress.",
-  );
+type AppReleaseProgressOutput =
+  | HostOperationOutput<PublishAppReleaseOperation>
+  | HostOperationOutput<GetAppReleaseStatusOperation>
+  | HostOperationOutput<ReconcileAppReleaseOperation>;
+
+function readProgress(data: AppReleaseProgressOutput): AppReleaseProgress {
+  return data.progress;
 }
 
 function defaultSleep(milliseconds: number): Promise<void> {

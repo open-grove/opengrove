@@ -3686,10 +3686,11 @@ try {
   assert.equal(nonAdminReleaseProgressCalls[0]?.data.error, "admin_required");
   const nonAdminReleaseStatusCalls: ReleaseHarnessCall[] = [];
   assert.equal(
-    await handleAppsRoute({
+    await dispatchBridgeRoutes(createBridgeRoutes(), {
       request: { method: "GET", headers: {} } as any,
       response: {} as any,
       url: new URL("http://opengrove.test/apps/first-publish-app/publish/status"),
+      traceId: "trace-app-release-status-protocol",
       state: firstPublishState,
       security: adminSessionSecurity,
       sendJson: captureReleaseResponse(nonAdminReleaseStatusCalls),
@@ -3701,10 +3702,11 @@ try {
   assert.equal(nonAdminReleaseStatusCalls[0]?.data.error, "admin_required");
   const missingReleaseProgressCalls: ReleaseHarnessCall[] = [];
   assert.equal(
-    await handleAppsRoute({
+    await dispatchBridgeRoutes(createBridgeRoutes(), {
       request: adminRequest("GET", "secondary_admin_harness") as any,
       response: {} as any,
       url: new URL("http://opengrove.test/apps/first-publish-app/publish"),
+      traceId: "trace-app-release-progress-missing-protocol",
       state: firstPublishState,
       security: adminSessionSecurity,
       sendJson: captureReleaseResponse(missingReleaseProgressCalls),
@@ -3720,10 +3722,11 @@ try {
   );
   const missingReleaseStatusCalls: ReleaseHarnessCall[] = [];
   assert.equal(
-    await handleAppsRoute({
+    await dispatchBridgeRoutes(createBridgeRoutes(), {
       request: adminRequest("GET", "secondary_admin_harness") as any,
       response: {} as any,
       url: new URL("http://opengrove.test/apps/first-publish-app/publish/status"),
+      traceId: "trace-app-release-status-missing-protocol",
       state: firstPublishState,
       security: adminSessionSecurity,
       sendJson: captureReleaseResponse(missingReleaseStatusCalls),
@@ -3751,10 +3754,11 @@ try {
   assert.equal(nonAdminGitPublishCalls[0]?.data.error, "admin_required");
   const nonAdminGitReconcileCalls: ReleaseHarnessCall[] = [];
   assert.equal(
-    await handleAppsRoute({
+    await dispatchBridgeRoutes(createBridgeRoutes(), {
       request: adminRequest("POST", "user_harness") as any,
       response: {} as any,
       url: new URL("http://opengrove.test/apps/first-publish-app/publish/reconcile"),
+      traceId: "trace-app-release-reconcile-protocol",
       state: firstPublishState,
       security: adminSessionSecurity,
       sendJson: captureReleaseResponse(nonAdminGitReconcileCalls),
@@ -3766,10 +3770,11 @@ try {
   assert.equal(nonAdminGitReconcileCalls[0]?.data.error, "admin_required");
   const nonAdminKeepLocalCalls: ReleaseHarnessCall[] = [];
   assert.equal(
-    await handleAppsRoute({
+    await dispatchBridgeRoutes(createBridgeRoutes(), {
       request: adminRequest("POST", "user_harness") as any,
       response: {} as any,
       url: new URL("http://opengrove.test/apps/first-publish-app/publish/keep-local"),
+      traceId: "trace-app-release-keep-local-protocol",
       state: firstPublishState,
       security: adminSessionSecurity,
       sendJson: captureReleaseResponse(nonAdminKeepLocalCalls),
@@ -3781,10 +3786,11 @@ try {
   assert.equal(nonAdminKeepLocalCalls[0]?.data.error, "admin_required");
   const nonAdminGitPrepareCalls: ReleaseHarnessCall[] = [];
   assert.equal(
-    await handleAppsRoute({
+    await dispatchBridgeRoutes(createBridgeRoutes(), {
       request: adminRequest("GET", "user_harness") as any,
       response: {} as any,
       url: new URL("http://opengrove.test/apps/first-publish-app/publish/prepare"),
+      traceId: "trace-app-release-prepare-protocol",
       state: firstPublishState,
       security: adminSessionSecurity,
       sendJson: captureReleaseResponse(nonAdminGitPrepareCalls),
@@ -3967,10 +3973,11 @@ try {
   rmSync(join(customBuildAppRoot, "build.mjs"), { recursive: true, force: true });
   const gitPrepareCalls: ReleaseHarnessCall[] = [];
   assert.equal(
-    await handleAppsRoute({
+    await dispatchBridgeRoutes(createBridgeRoutes(), {
       request: adminRequest("GET") as any,
       response: {} as any,
       url: new URL("http://opengrove.test/apps/first-publish-app/publish/prepare"),
+      traceId: "trace-app-release-prepare-admin-protocol",
       state: firstPublishState,
       security: adminSessionSecurity,
       sendJson: captureReleaseResponse(gitPrepareCalls),

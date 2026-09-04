@@ -1857,7 +1857,7 @@ export const EN = {
   "appStore.release.scopeTitle": "Release scope",
   "appStore.release.applyToCurrentApp": "Switch this device to the published version",
   "appStore.release.applyToCurrentAppHint":
-    "Off publishes only and keeps the current running content. On switches the full App to this exact formal version after publishing succeeds.",
+    "On by default: after publishing succeeds, switch the full App to this exact formal version. Turn it off to publish without changing the current running content.",
   "appStore.release.visibilityPublic": "Public",
   "appStore.release.checksTitle": "Release checks",
   "appStore.release.checksDesc":

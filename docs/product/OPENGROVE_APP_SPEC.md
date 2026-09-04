@@ -225,13 +225,12 @@ reuse those exact bytes; no downstream component rebuilds or replaces them.
 Before publishing, Release Control confirms the live Admin identity through WW,
 then orchestrates the release, indexes it in the registry, and provides exact
 downloads of the immutable OSS artifact; it does not accept a client tgz and
-rebuild it. If the
-administrator leaves "apply to my current App" disabled,
-the selected formal version stays unchanged and the local draft remains with
-its publish base advanced to the new version. If enabled, the Host activates
-the exact released artifact, applies its complete employee defaults, selects
-that formal version, and closes the local draft. Both paths preserve the local
-workspace and Room history.
+rebuild it. By default, the Host activates the exact released artifact on the
+publishing device, applies its complete employee defaults, selects that formal
+version, and closes the local draft. The administrator may disable "apply to
+my current App" to leave the selected formal version unchanged and preserve
+the local draft with its publish base advanced to the new version. Both paths
+preserve the local workspace and Room history.
 
 The formal sequence is candidate commit, retryable CI gates, accepted-artifact
 digest pinning, a final `expectedMainSha` compare-and-swap of `main`, immutable
@@ -271,10 +270,12 @@ administrator's first publish creates the unique repository mapping and initial
 `main`. Conflicts among the App id, package key, registry identity, or existing
 repository mapping block publishing.
 
-Every installed App has one device-selected formal version. A new release does
-not silently change it. The version-management surface lists the registry's
-formal versions and can activate an exact compatible version through the same
-transactional install seam. Compatibility continues to use
+Every installed App has one device-selected formal version. Publishing a new
+release selects that exact version on the publishing device by default unless
+the administrator explicitly disables local activation; releases published on
+other devices do not silently change it. The version-management surface lists
+the registry's formal versions and can activate an exact compatible version
+through the same transactional install seam. Compatibility continues to use
 `store.minHostReleaseNumber`; switching replaces program content and employee
 defaults but never rolls back workspace, chats, credentials, business data, or
 the saved local draft.
