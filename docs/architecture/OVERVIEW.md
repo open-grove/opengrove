@@ -59,9 +59,15 @@ the consumer settings page does not expose deletion controls for them.
 
 The desktop bounds current main, Bridge, and Bridge-crash logs to 10 MiB each
 and keeps two rotated files per log. Cleanup removes rotated logs but retains
-the current files so a cleanup failure remains diagnosable. Before cleanup, the
-Bridge atomically stops admitting new Runs and rejects the operation if a Run
-is already active.
+the current files so a cleanup failure remains diagnosable. Bridge log chunks
+are appended through long-lived streams and rotate from an in-memory byte
+count, keeping verbose Agent output off the Electron main thread's synchronous
+filesystem path. Before cleanup, the Bridge atomically stops admitting new Runs
+and rejects the operation if a Run is already active. The same live Bridge owns,
+renews, validates, and releases the maintenance lease; rebuildable cleanup does
+not restart the Bridge. Cleanup authority remains separate from that lease and
+is limited to the explicit cache, orphan-file, rotated-log, and inactive-updater
+roots described above.
 
 Hosted account services are accessed through an explicit WW base URL. They do
 not own local workspaces, native Kernel sessions, or installed App files.

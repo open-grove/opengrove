@@ -11,7 +11,7 @@ import { SQLITE_STATE_FILE_NAME } from "../src/storage/default-data-dir.js";
 import { stateIdFor } from "../src/storage/state-identity.js";
 import { resolveDesktopEnvironment } from "./shell-env.js";
 import { redactDiagnosticText as redactText } from "../src/diagnostics/redaction.js";
-import { appendBoundedLog, rotateLogIfOversized } from "./bounded-log.js";
+import { BoundedLogWriter } from "./bounded-log.js";
 import {
   recoverStaleDesktopStateLocks,
   type DesktopStateLockBlocker,
@@ -166,6 +166,8 @@ export class DesktopBridgeSupervisor {
   private preferredPort = 0;
   private stopping = false;
   private startPromise?: Promise<DesktopBridgeRuntimeInfo>;
+  private bridgeLogWriter: BoundedLogWriter;
+  private bridgeCrashLogWriter: BoundedLogWriter;
 
   constructor(options: DesktopBridgeSupervisorOptions) {
     this.appRoot = options.appRoot;
@@ -194,6 +196,12 @@ export class DesktopBridgeSupervisor {
     mkdirSync(this.paths.logDir, { recursive: true });
     mkdirSync(this.paths.cacheDir, { recursive: true });
     mkdirSync(this.paths.diagnosticsDir, { recursive: true });
+    this.bridgeLogWriter = new BoundedLogWriter(this.paths.bridgeLogPath, BRIDGE_LOG_POLICY, (error) =>
+      this.warnBridgeLogWriteFailed(this.paths.bridgeLogPath, error),
+    );
+    this.bridgeCrashLogWriter = new BoundedLogWriter(this.paths.bridgeCrashLogPath, BRIDGE_LOG_POLICY, (error) =>
+      this.warnBridgeLogWriteFailed(this.paths.bridgeCrashLogPath, error),
+    );
   }
 
   async start(options: DesktopBridgeStartOptions = {}): Promise<DesktopBridgeRuntimeInfo> {
@@ -452,7 +460,6 @@ export class DesktopBridgeSupervisor {
         stdio: ["ignore", "pipe", "pipe", "ipc"],
       });
       this.child = child;
-      this.openLogs();
       child.stdout?.on("data", (chunk: Buffer) => this.writeBridgeLog(chunk));
       child.stderr?.on("data", (chunk: Buffer) => this.writeCrashLog(chunk));
       child.on("message", (message: unknown) => {
@@ -539,28 +546,19 @@ export class DesktopBridgeSupervisor {
     return this.isPackaged ? this.resourcesPath : this.appRoot;
   }
 
-  private openLogs(): void {
-    rotateLogIfOversized(this.paths.bridgeLogPath, BRIDGE_LOG_POLICY);
-    rotateLogIfOversized(this.paths.bridgeCrashLogPath, BRIDGE_LOG_POLICY);
-  }
-
   private writeBridgeLog(chunk: Buffer): void {
-    this.appendBridgeLog(this.paths.bridgeLogPath, chunk);
+    this.bridgeLogWriter.append(redactText(chunk.toString("utf8"), [this.token]));
   }
 
   private writeCrashLog(chunk: Buffer): void {
-    this.appendBridgeLog(this.paths.bridgeCrashLogPath, chunk);
+    this.bridgeCrashLogWriter.append(redactText(chunk.toString("utf8"), [this.token]));
   }
 
-  private appendBridgeLog(path: string, chunk: Buffer): void {
-    try {
-      appendBoundedLog(path, redactText(chunk.toString("utf8"), [this.token]), BRIDGE_LOG_POLICY);
-    } catch (error) {
-      console.warn("desktop_bridge_log_write_failed", {
-        path,
-        error: error instanceof Error ? error.message : String(error),
-      });
-    }
+  private warnBridgeLogWriteFailed(path: string, error: unknown): void {
+    console.warn("desktop_bridge_log_write_failed", {
+      path,
+      error: error instanceof Error ? error.message : String(error),
+    });
   }
 
   private notifyStatus(): void {

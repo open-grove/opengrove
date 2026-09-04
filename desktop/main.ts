@@ -669,18 +669,30 @@ async function cleanupDesktopRebuildableStorage() {
   if (desktopStorageCleanupActive) throw new Error("desktop_storage_maintenance_in_progress");
   desktopStorageCleanupActive = true;
   const supervisor = requireBridgeSupervisor();
+  const maintenanceRuntime = bridgeHost.runtime;
   let maintenanceLeaseId: string | undefined;
+  let stopMaintenanceHeartbeat: (() => void) | undefined;
   try {
-    if (bridgeHost.runtime?.mode === "reused") throw new Error("rebuildable_cleanup_reused_bridge_unsupported");
-    maintenanceLeaseId = await acquireDesktopStorageMaintenanceGate();
+    if (!maintenanceRuntime) throw new Error("desktop_bridge_unavailable");
+    if (maintenanceRuntime.mode === "reused") throw new Error("rebuildable_cleanup_reused_bridge_unsupported");
+    maintenanceLeaseId = await acquireDesktopStorageMaintenanceGate(maintenanceRuntime);
+    if (!sameBridgeRuntime(bridgeHost.runtime, maintenanceRuntime)) {
+      throw new Error("desktop_bridge_changed_during_storage_maintenance_start");
+    }
+    bridgeHost.maintenance("storage_cleanup");
+    stopMaintenanceHeartbeat = startDesktopStorageMaintenanceHeartbeat(maintenanceRuntime, maintenanceLeaseId);
     const orphanCleanup = parseDesktopStorageCleanupResponse(
-      await postBridgeStorageAction("/settings/storage/cleanup", { leaseId: maintenanceLeaseId }),
+      await postBridgeStorageAction("/settings/storage/cleanup", { leaseId: maintenanceLeaseId }, maintenanceRuntime),
     );
     const bridgeCacheCleanup = parseDesktopStorageCleanupResponse(
-      await postBridgeStorageAction("/settings/storage/clear-history", {
-        scope: "rebuildable-caches",
-        leaseId: maintenanceLeaseId,
-      }),
+      await postBridgeStorageAction(
+        "/settings/storage/clear-history",
+        {
+          scope: "rebuildable-caches",
+          leaseId: maintenanceLeaseId,
+        },
+        maintenanceRuntime,
+      ),
     );
 
     const chromiumCachePaths = ["Cache", "Code Cache"].map((name) => join(supervisor.paths.userDataDir, name));
@@ -690,10 +702,6 @@ async function cleanupDesktopRebuildableStorage() {
         ? undefined
         : supervisor.updaterCacheDirectory();
 
-    stopReusedWatchdog();
-    bridgeSupervisorLifecycleActive = false;
-    bridgeHost.maintenance("storage_cleanup");
-    await supervisor.stop();
     const chromiumCacheBytesBefore = await measureDesktopPathsBestEffort(chromiumCachePaths);
     await session.defaultSession.clearCache();
     await session.defaultSession.clearCodeCaches({});
@@ -707,10 +715,6 @@ async function cleanupDesktopRebuildableStorage() {
       logDir: supervisor.paths.logDir,
       updaterCacheDir,
     });
-    const bridge = await supervisor.start({ allowReuse: false });
-    await verifyBridgeRuntime(bridge);
-    activateBridgeInMainWindow(bridge);
-    startReusedWatchdogIfNeeded();
     const orphanBlobBytes = orphanCleanup.reclaimedBytes;
     const bridgeCacheBytes = bridgeCacheCleanup.reclaimedBytes;
     const reclaimedBytes = orphanBlobBytes + bridgeCacheBytes + files.reclaimedBytes + chromiumCacheBytes;
@@ -724,23 +728,12 @@ async function cleanupDesktopRebuildableStorage() {
       reclaimedBytes,
       updaterCacheSkipped: Boolean(supervisor.updaterCacheDirectory() && !updaterCacheDir),
     };
-  } catch (error) {
-    if (supervisor.diagnostics().status !== "running") {
-      try {
-        const bridge = await supervisor.start({ allowReuse: false });
-        await verifyBridgeRuntime(bridge);
-        activateBridgeInMainWindow(bridge);
-        startReusedWatchdogIfNeeded();
-      } catch (restartError) {
-        bridgeSupervisorLifecycleActive = true;
-        throw new Error(`rebuildable_cleanup_and_restart_failed:${messageOf(error)}:${messageOf(restartError)}`);
-      }
-    } else if (maintenanceLeaseId) {
-      await releaseDesktopStorageMaintenanceGate(maintenanceLeaseId);
-      if (bridgeHost.runtime) bridgeHost.activate(bridgeHost.runtime);
-    }
-    throw error;
   } finally {
+    stopMaintenanceHeartbeat?.();
+    if (maintenanceLeaseId && maintenanceRuntime) {
+      await releaseDesktopStorageMaintenanceGate(maintenanceRuntime, maintenanceLeaseId);
+    }
+    if (maintenanceRuntime) bridgeHost.completeMaintenance(maintenanceRuntime);
     desktopStorageCleanupActive = false;
   }
 }
@@ -758,8 +751,11 @@ async function measureDesktopPathsBestEffort(paths: readonly string[]): Promise<
   return measured.reduce((total, bytes) => total + bytes, 0);
 }
 
-async function postBridgeStorageAction(path: string, body: unknown): Promise<unknown> {
-  const bridge = bridgeHost.runtime;
+async function postBridgeStorageAction(
+  path: string,
+  body: unknown,
+  bridge: DesktopBridgeRuntimeInfo | undefined = bridgeHost.runtime,
+): Promise<unknown> {
   if (!bridge) throw new Error("desktop_bridge_unavailable");
   const headers: Record<string, string> = { "content-type": "application/json" };
   if (bridgeToken) headers[APP_BRIDGE_TOKEN_HEADER] = bridgeToken;
@@ -780,16 +776,26 @@ async function postBridgeStorageAction(path: string, body: unknown): Promise<unk
   return payload;
 }
 
-async function acquireDesktopStorageMaintenanceGate(): Promise<string> {
+async function acquireDesktopStorageMaintenanceGate(runtime: DesktopBridgeRuntimeInfo): Promise<string> {
   return parseDesktopStorageMaintenanceStartResponse(
-    await postBridgeStorageAction("/settings/storage/maintenance/start", {}),
+    await postBridgeStorageAction("/settings/storage/maintenance/start", {}, runtime),
   ).leaseId;
 }
 
-async function releaseDesktopStorageMaintenanceGate(leaseId: string): Promise<void> {
+function startDesktopStorageMaintenanceHeartbeat(runtime: DesktopBridgeRuntimeInfo, leaseId: string): () => void {
+  const timer = setInterval(() => {
+    void postBridgeStorageAction("/settings/storage/maintenance/renew", { leaseId }, runtime).catch((error) => {
+      logMain(`storage maintenance gate renewal failed: ${messageOf(error)}`);
+    });
+  }, 60_000);
+  timer.unref();
+  return () => clearInterval(timer);
+}
+
+async function releaseDesktopStorageMaintenanceGate(runtime: DesktopBridgeRuntimeInfo, leaseId: string): Promise<void> {
   try {
     parseDesktopStorageOkResponse(
-      await postBridgeStorageAction("/settings/storage/maintenance/end", { leaseId }),
+      await postBridgeStorageAction("/settings/storage/maintenance/end", { leaseId }, runtime),
       "desktop_storage_maintenance_end_response_invalid",
     );
   } catch (error) {

@@ -41,6 +41,11 @@ try {
     await page.goto(pathToFileURL(htmlPath).href);
     const storageEntry = page.getByRole("button", { name: /存储空间/ });
     await storageEntry.waitFor();
+    assert.equal(
+      await page.evaluate(() => document.documentElement.dataset.storageRequestCount ?? "0"),
+      "0",
+      "opening Settings must not recursively scan storage before the storage page is entered",
+    );
     await storageEntry.click();
 
     await page.getByRole("heading", { name: "存储空间", exact: true }).waitFor();
@@ -174,7 +179,12 @@ function entrySource() {
     globalThis.fetch = async (input, init) => {
       const url = String(input);
       if (url.includes("/settings/storage")) {
-        if (!init?.method || init.method === "GET") await new Promise((resolve) => setTimeout(resolve, 1500));
+        if (!init?.method || init.method === "GET") {
+          document.documentElement.dataset.storageRequestCount = String(
+            Number(document.documentElement.dataset.storageRequestCount ?? "0") + 1,
+          );
+          await new Promise((resolve) => setTimeout(resolve, 1500));
+        }
         if (browserFallback && url.endsWith("/maintenance/start")) {
           return new Response(JSON.stringify({ ok: true, leaseId: "lease-fallback" }), { status: 200, headers: { "content-type": "application/json" } });
         }

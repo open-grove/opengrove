@@ -17,7 +17,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { ContentBlobStore } from "../storage/content-blob-store.js";
 import { inspectUnreferencedAppStoreArchives } from "../server/app-store.js";
 
-const rootState = {} as BridgeState;
+const rootState = createRegistryHarnessState();
 const scopedState = { rootState } as BridgeState;
 
 const firstAdmission = beginBridgeRunMaintenance(scopedState);
@@ -90,20 +90,28 @@ assert.deepEqual(askPayload, {
   error: "OpenGrove 正在完成存储清理，请稍后再试。",
 });
 assert.equal(askHeaders.get("retry-after"), "1");
-assert.equal(existsSync(join(askStateDir, "uploads")), false, "maintenance admission must close before attachment writes");
+assert.equal(
+  existsSync(join(askStateDir, "uploads")),
+  false,
+  "maintenance admission must close before attachment writes",
+);
 assert.equal(askAdmission.ok && endBridgeRunMaintenance(askState, askAdmission.leaseId), true);
 rmSync(askStateDir, { recursive: true, force: true });
 
-const abandonedRootState = {} as BridgeState;
+const abandonedRootState = createRegistryHarnessState();
 const beginMaintenanceAt = beginBridgeRunMaintenance as unknown as (
   state: BridgeState,
   now: number,
 ) => ReturnType<typeof beginBridgeRunMaintenance>;
 const abandonedAdmission = beginMaintenanceAt(abandonedRootState, 1_000);
 assert.equal(abandonedAdmission.ok, true);
-const releaseAfterAbandonedMaintenance = registerActiveBridgeRun(abandonedRootState, "run-after-abandoned-maintenance", {
-  now: Number.MAX_SAFE_INTEGER,
-});
+const releaseAfterAbandonedMaintenance = registerActiveBridgeRun(
+  abandonedRootState,
+  "run-after-abandoned-maintenance",
+  {
+    now: Number.MAX_SAFE_INTEGER,
+  },
+);
 assert.deepEqual(
   [...activeBridgeRunIds(abandonedRootState)],
   ["run-after-abandoned-maintenance"],
@@ -185,6 +193,7 @@ writeFileSync(
   "utf8",
 );
 const routeState = {
+  app: { sessions: { getRun: () => undefined } },
   settings: { mountedApps: [{ id: "current", path: currentProgramRoot, workspacePath: workspaceRoot }] },
   store: {
     kind: "json",
@@ -239,6 +248,19 @@ assert.equal(existsSync(workspaceUnrelatedCache), true, "safe cleanup must prese
 
 const desktopLease = beginBridgeRunMaintenance(routeState);
 assert.equal(desktopLease.ok, true);
+await handleSettingsRoute({
+  request: { method: "POST" } as IncomingMessage,
+  response: {} as ServerResponse,
+  url: new URL("http://localhost/settings/storage/maintenance/renew"),
+  state: routeState,
+  sendJson: (_response, status, payload) => {
+    routeStatus = status;
+    routePayload = payload;
+  },
+  readJsonBody: async () => ({ leaseId: desktopLease.ok ? desktopLease.leaseId : "" }),
+});
+assert.equal(routeStatus, 200);
+assert.equal((routePayload as { ok: boolean }).ok, true);
 await handleSettingsRoute({
   request: { method: "POST" } as IncomingMessage,
   response: {} as ServerResponse,
@@ -389,3 +411,10 @@ try {
 }
 
 console.log("storage-maintenance-gate-harness ok");
+
+function createRegistryHarnessState(): BridgeState {
+  return {
+    app: { sessions: { getRun: () => undefined } },
+    store: { saveFrom: () => ({}) },
+  } as unknown as BridgeState;
+}

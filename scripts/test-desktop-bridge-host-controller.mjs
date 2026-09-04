@@ -69,12 +69,21 @@ try {
   assert.equal(host.readyRuntime, undefined, "maintenance requests must not target the retained Bridge runtime");
   assert.deepEqual(host.state, { stage: "maintenance", operation: "storage_cleanup" });
   assert.equal(
-    host.activate(first),
+    host.completeMaintenance(first),
     true,
     "maintenance completion must republish ready even when the runtime is reused",
   );
   assert.equal(host.readyRuntime, first, "requests may resume only after the runtime is republished as ready");
   assert.deepEqual(host.state, { stage: "ready", generation: 2 });
+
+  host.maintenance("storage_cleanup");
+  host.retrying({ attempt: 2, retryInMs: 1_000, message: "bridge crashed during cleanup" });
+  assert.equal(
+    host.completeMaintenance(first),
+    false,
+    "a stale cleanup completion must not reactivate a Bridge that failed during maintenance",
+  );
+  assert.equal(host.readyRuntime, undefined);
 
   host.retrying({ attempt: 2, retryInMs: 1_000, message: "bridge crashed" });
   assert.equal(host.runtime, undefined, "requests must stop targeting a crashed runtime");

@@ -22,6 +22,7 @@ try {
   writeSized(join(legacyProgramsRoot, "legacy-app", "0.1.0", "app", "index.js"), 19);
   writeSized(join(legacyAppsRoot, "legacy-app.legacy-v2", "index.js"), 7);
   writeSized(join(legacyAppsRoot, "legacy-app.legacy-v2", "workspace", "draft.md"), 13);
+  writeSized(join(currentWorkspacesRoot, "unmounted-app", "workspace", ".cache", "opengrove-media", "orphan.mp4"), 41);
   writeSized(join(userDataDir, "data", "local-state.sqlite"), 23);
   writeSized(join(stateRecoveryRoot, "local-state.sqlite"), 29);
   writeSized(join(stateRecoveryRoot, "state-blobs", "message.blob"), 31);
@@ -40,13 +41,34 @@ try {
   });
 
   assert.deepEqual(categoryMap(overview.categories), {
-    "works-and-files": 24,
+    "works-and-files": 65,
     "apps-and-runtime": 43,
     rebuildable: 0,
     backups: 60 + Buffer.byteLength(recoveryMetadata),
     "conversations-and-system": 23,
   });
   assert.equal(overview.backups.length, 1, "one recovery transaction must appear as one backup");
+  assert.equal(
+    overview.cleanupCandidates.rebuildableBytes,
+    0,
+    "unmounted Workspace media must not be advertised as removable when cleanup has no authority over it",
+  );
+  const mountedMediaOverview = await inspectOpenGroveStorage({
+    roots: {
+      userDataDir,
+      programRoots: [currentProgramsRoot, legacyProgramsRoot],
+      currentWorkspacesRoot,
+      legacyAppsRoot,
+      externalWorkspaceRoots: [join(currentWorkspacesRoot, "unmounted-app", "workspace")],
+      appStoreRoots: [join(userDataDir, "data", "app-store")],
+    },
+    stateBackupPaths: [stateRecoveryRoot],
+  });
+  assert.equal(
+    mountedMediaOverview.cleanupCandidates.rebuildableBytes,
+    41,
+    "the same media cache becomes removable once its Workspace is mounted and authorized",
+  );
   assert.deepEqual(overview.backups[0], {
     kind: "migration",
     bytes: 60 + Buffer.byteLength(recoveryMetadata),
@@ -60,6 +82,22 @@ try {
     } as BridgeState),
     customDataDir,
     "a custom data directory named 'data' must not promote unrelated parent files into the storage scan",
+  );
+
+  const broadWorkspaceOverview = await inspectOpenGroveStorage({
+    roots: {
+      userDataDir,
+      programRoots: [currentProgramsRoot],
+      currentWorkspacesRoot,
+      legacyAppsRoot,
+      externalWorkspaceRoots: [root],
+      appStoreRoots: [join(userDataDir, "data", "app-store")],
+    },
+  });
+  assert.equal(
+    categoryMap(broadWorkspaceOverview.categories)["conversations-and-system"],
+    23 + 60 + Buffer.byteLength(recoveryMetadata),
+    "a broad Workspace ancestor must not swallow the more specific user-data category",
   );
 
   if (process.platform !== "win32") {

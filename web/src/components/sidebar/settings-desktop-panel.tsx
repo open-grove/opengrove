@@ -37,7 +37,7 @@ export function SettingsDesktopPanel() {
   const [error, setError] = useState("");
   const [storageOverview, setStorageOverview] = useState<SettingsStorageOverview>();
   const [storageCleanupEstimates, setStorageCleanupEstimates] = useState<SettingsStorageCleanupEstimates>();
-  const [storageLoading, setStorageLoading] = useState(true);
+  const [storageLoading, setStorageLoading] = useState(false);
   const [storageBusy, setStorageBusy] = useState(false);
   const [storageError, setStorageError] = useState("");
   const [storageNotice, setStorageNotice] = useState("");
@@ -56,7 +56,6 @@ export function SettingsDesktopPanel() {
 
   useEffect(() => {
     void refresh();
-    void refreshStorage();
     let disposed = false;
     let requestInFlight = false;
     const refreshHostVersion = async () => {
@@ -105,6 +104,11 @@ export function SettingsDesktopPanel() {
     } finally {
       setStorageLoading(false);
     }
+  }
+
+  function openStoragePage() {
+    setPage("storage");
+    void refreshStorage();
   }
 
   async function clearStorageHistory(scope: "migration-backups") {
@@ -257,7 +261,7 @@ export function SettingsDesktopPanel() {
             <p className="settings-warning">{t("settings.desktopExportIncomplete")}</p>
           ) : null}
         </section>
-        <StorageEntry loading={storageLoading} overview={storageOverview} onOpen={() => setPage("storage")} />
+        <StorageEntry loading={storageLoading} overview={storageOverview} onOpen={openStoragePage} />
       </div>
     );
   }
@@ -346,7 +350,7 @@ export function SettingsDesktopPanel() {
         ) : null}
       </section>
 
-      <StorageEntry loading={storageLoading} overview={storageOverview} onOpen={() => setPage("storage")} />
+      <StorageEntry loading={storageLoading} overview={storageOverview} onOpen={openStoragePage} />
 
       <section className="settings-list-section">
         <div className="settings-list-section-heading">

@@ -68,14 +68,30 @@ type ResolvedStorageRoots = Omit<OpenGroveStorageRoots, "updaterCacheDir"> & { u
 type CategoryBytes = Record<OpenGroveStorageCategoryId, number>;
 
 function resolveRoots(roots: OpenGroveStorageRoots): ResolvedStorageRoots {
+  const userDataDir = resolve(roots.userDataDir);
+  const programRoots = uniquePaths(roots.programRoots);
+  const currentWorkspacesRoot = resolve(roots.currentWorkspacesRoot);
+  const legacyAppsRoot = resolve(roots.legacyAppsRoot);
+  const appStoreRoots = uniquePaths(roots.appStoreRoots);
+  const updaterCacheDir = roots.updaterCacheDir?.trim() ? resolve(roots.updaterCacheDir) : undefined;
+  const protectedRoots = [
+    userDataDir,
+    ...programRoots,
+    currentWorkspacesRoot,
+    legacyAppsRoot,
+    ...appStoreRoots,
+    ...(updaterCacheDir ? [updaterCacheDir] : []),
+  ];
   return {
-    userDataDir: resolve(roots.userDataDir),
-    programRoots: uniquePaths(roots.programRoots),
-    currentWorkspacesRoot: resolve(roots.currentWorkspacesRoot),
-    legacyAppsRoot: resolve(roots.legacyAppsRoot),
-    externalWorkspaceRoots: uniquePaths(roots.externalWorkspaceRoots),
-    appStoreRoots: uniquePaths(roots.appStoreRoots),
-    updaterCacheDir: roots.updaterCacheDir?.trim() ? resolve(roots.updaterCacheDir) : undefined,
+    userDataDir,
+    programRoots,
+    currentWorkspacesRoot,
+    legacyAppsRoot,
+    externalWorkspaceRoots: uniquePaths(roots.externalWorkspaceRoots).filter(
+      (workspaceRoot) => !protectedRoots.some((protectedRoot) => pathIsInside(workspaceRoot, protectedRoot)),
+    ),
+    appStoreRoots,
+    updaterCacheDir,
   };
 }
 
@@ -185,20 +201,7 @@ function isCleanupCandidate(
 }
 
 function isWorkspaceMediaCache(path: string, roots: ResolvedStorageRoots): boolean {
-  const workspaceRoots = [
-    ...roots.externalWorkspaceRoots,
-    ...discoverWorkspaceRootsForPath(path, roots.currentWorkspacesRoot),
-    ...discoverWorkspaceRootsForPath(path, roots.legacyAppsRoot),
-  ];
-  return workspaceRoots.some((workspaceRoot) => pathIsInside(mcpAppMediaCachePath(workspaceRoot), path));
-}
-
-function discoverWorkspaceRootsForPath(path: string, containerRoot: string): string[] {
-  if (!pathIsInside(containerRoot, path)) return [];
-  const segments = normalizedRelative(containerRoot, path).split("/");
-  return segments.length >= 2 && segments[1]?.toLowerCase() === "workspace"
-    ? [resolve(containerRoot, segments[0] ?? "", segments[1] ?? "")]
-    : [];
+  return roots.externalWorkspaceRoots.some((workspaceRoot) => pathIsInside(mcpAppMediaCachePath(workspaceRoot), path));
 }
 
 function rebuildableUserDataPath(path: string, userDataDir: string): boolean {

@@ -19,7 +19,7 @@ try {
     target: "node20",
     outfile: bundlePath,
   });
-  const { appendBoundedLog } = await import(pathToFileURL(bundlePath).href);
+  const { appendBoundedLog, BoundedLogWriter } = await import(pathToFileURL(bundlePath).href);
   await writeFile(logPath, "12345678", "utf8");
 
   appendBoundedLog(logPath, "abcd", { maxBytes: 10, retainedFiles: 2 });
@@ -35,6 +35,15 @@ try {
   await writeFile(logPath, "HEAD-unique-middle-TAIL-6789", "utf8");
   appendBoundedLog(logPath, "z", { maxBytes: 10, retainedFiles: 2 });
   assert.equal(await readFile(`${logPath}.1`, "utf8"), "-TAIL-6789", "an old oversized log keeps only its recent tail");
+
+  const streamLogPath = join(tempDir, "bridge.log");
+  const writer = new BoundedLogWriter(streamLogPath, { maxBytes: 10, retainedFiles: 2 });
+  writer.append("abcd");
+  writer.append("efgh");
+  writer.append("ijkl");
+  await writer.flush();
+  assert.equal(await readFile(streamLogPath, "utf8"), "ijkl");
+  assert.equal(await readFile(`${streamLogPath}.1`, "utf8"), "abcdefgh");
 } finally {
   await rm(tempDir, { recursive: true, force: true });
 }

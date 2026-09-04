@@ -133,7 +133,9 @@ export function bridgeRunMaintenanceLeaseMatches(state: BridgeState, leaseId: st
 }
 
 export function renewBridgeRunMaintenanceLease(state: BridgeState, leaseId: string, now = Date.now()): boolean {
-  const lease = registryForState(state).maintenanceLease;
+  const registry = registryForState(state);
+  expireIdleMaintenanceLease(registry, now);
+  const lease = registry.maintenanceLease;
   if (!leaseId || lease?.id !== leaseId) return false;
   lease.lastActivityAt = now;
   return true;

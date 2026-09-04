@@ -201,6 +201,17 @@ export async function handleSettingsRoute(options: {
     return true;
   }
 
+  if (request.method === "POST" && url.pathname === "/settings/storage/maintenance/renew") {
+    const payload = record(await readJsonBody(request));
+    const leaseId = stringValue(payload.leaseId);
+    const renewed = renewBridgeRunMaintenanceLease(state, leaseId ?? "");
+    sendJson(response, renewed ? 200 : 409, {
+      ok: renewed,
+      ...(renewed ? {} : { error: "desktop_storage_maintenance_lease_invalid" }),
+    });
+    return true;
+  }
+
   if (request.method === "POST" && url.pathname === "/settings/storage/cleanup") {
     const payload = record(await readJsonBody(request));
     const requestedLeaseId = stringValue(payload.leaseId);
@@ -249,46 +260,6 @@ export async function handleSettingsRoute(options: {
   if (request.method === "POST" && url.pathname === "/settings/storage/clear-history") {
     const payload = record(await readJsonBody(request));
     const scope = stringValue(payload.scope);
-    if (scope === "runtime-events") {
-      const activeRun = state.app.sessions
-        .listRuns()
-        .some((run) =>
-          [
-            "TASK_STATE_SUBMITTED",
-            "TASK_STATE_WORKING",
-            "TASK_STATE_INPUT_REQUIRED",
-            "TASK_STATE_AUTH_REQUIRED",
-          ].includes(run.lifecycle.taskState),
-        );
-      if (activeRun) {
-        sendJson(response, 409, { ok: false, error: "history_clear_blocked_by_active_run" });
-        return true;
-      }
-      const removed =
-        state.store.clearRuntimeEventArchive?.() ?? state.app.events.list().length + state.app.executions.list().length;
-      state.app.events.clear();
-      state.app.executions.clear();
-      state.store.saveFrom(state.app);
-      const cleanup = state.store.cleanupOrphanedBlobs?.();
-      sendJson(response, 200, { ok: true, scope, removed, cleanup, stats: state.store.storageStats?.() });
-      return true;
-    }
-    if (scope === "room-event-archive") {
-      const before = state.store.clearRoomEventArchive?.() ?? 0;
-      // Reinsert only the in-memory hot delivery window. Messages remain in the
-      // authoritative message collection and are never deleted by this action.
-      state.store.saveFrom(state.app);
-      const retained = state.app.rooms.snapshot().events.length;
-      const cleanup = state.store.cleanupOrphanedBlobs?.();
-      sendJson(response, 200, {
-        ok: true,
-        scope,
-        removed: Math.max(0, before - retained),
-        cleanup,
-        stats: state.store.storageStats?.(),
-      });
-      return true;
-    }
     if (scope === "rebuildable-caches") {
       const requestedLeaseId = stringValue(payload.leaseId);
       if (requestedLeaseId && !bridgeRunMaintenanceLeaseMatches(state, requestedLeaseId)) {

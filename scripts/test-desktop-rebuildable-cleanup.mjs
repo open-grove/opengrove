@@ -16,6 +16,20 @@ try {
     /postBridgeStorageAction[\s\S]*?signal:\s*AbortSignal\.timeout\(10_000\)/,
     "destructive local storage actions must await the Bridge result instead of abandoning it after 10 seconds",
   );
+  const cleanupFlowSource = desktopMainSource.slice(
+    desktopMainSource.indexOf("async function cleanupDesktopRebuildableStorage"),
+    desktopMainSource.indexOf("async function measureDesktopPathsBestEffort"),
+  );
+  assert.doesNotMatch(
+    cleanupFlowSource,
+    /supervisor\.(?:stop|start)\(/u,
+    "cache cleanup must keep the Bridge process alive while its maintenance lease is owned",
+  );
+  assert.match(
+    cleanupFlowSource,
+    /finally\s*\{[\s\S]*releaseDesktopStorageMaintenanceGate/u,
+    "every cleanup outcome must release the maintenance lease from the same live Bridge",
+  );
   await build({
     entryPoints: [join(projectRoot, "desktop/rebuildable-storage-cleanup.ts")],
     bundle: true,
