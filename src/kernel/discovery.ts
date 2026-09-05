@@ -120,14 +120,19 @@ export function commandVersion(command: string | undefined, args: string[] = ["-
 export function resolveUsableCommandPath(
   command: string | undefined,
   args: string[] = ["--version"],
+  pathProbe: CommandPathProbe = {},
 ): string | undefined {
-  const result = probeCommandPath(command, args);
+  const result = probeCommandPath(command, args, pathProbe);
   return result.resolvedPath && result.probe.status !== "failed" ? result.resolvedPath : undefined;
 }
 
-export function probeCommandPath(command: string | undefined, args: string[] = ["--version"]): CommandDiscoveryProbe {
+export function probeCommandPath(
+  command: string | undefined,
+  args: string[] = ["--version"],
+  pathProbe: CommandPathProbe = {},
+): CommandDiscoveryProbe {
   const requestedCommand = command?.trim() || undefined;
-  const resolvedPath = resolveCommandPath(command);
+  const resolvedPath = resolveCommandPath(command, pathProbe);
   return {
     ...(requestedCommand ? { requestedCommand } : {}),
     resolvedPath,
