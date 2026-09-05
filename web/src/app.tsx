@@ -2242,7 +2242,8 @@ export function App() {
             saving={settingsMutation.isPending}
             installingKernelId={installKernelMutation.isPending ? installKernelMutation.variables?.kernelId : ""}
             kernelLogins={kernelLoginsQuery.data?.logins ?? []}
-            kernelLoginsLoading={kernelLoginsQuery.isLoading}
+            kernelLoginsLoading={kernelLoginsQuery.isFetching}
+            onRefreshKernelLogins={() => void kernelLoginsQuery.refetch()}
             kernelLoginSession={kernelLoginSessionQuery.data?.session}
             kernelLoginActionPending={kernelLoginMutation.isPending}
             error={

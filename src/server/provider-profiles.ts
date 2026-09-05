@@ -1,3 +1,4 @@
+import { migrateWwProvisioning } from "./migrations/ww-provisioning-v1.js";
 import { createHash } from "node:crypto";
 import { appEnvName, readAppEnv } from "../identity.js";
 import type {
@@ -547,6 +548,7 @@ export function providerKeyPresent(profile: BridgeProviderProfile): boolean {
 export type BridgeKernelProviderBindingStatus =
   | "ready"
   | "missing-key"
+  | "verification-required"
   | "missing-provider"
   | "unsupported"
   | "disabled"
@@ -613,11 +615,13 @@ function describeProviderRouteFromProfiles(
     ? "disabled"
     : credentialsUnavailable
       ? "missing-key"
-      : !support.supported
-        ? "unsupported"
-        : modelUnsupported
+      : profile.provisioningBlocked === true
+        ? "verification-required"
+        : !support.supported
           ? "unsupported"
-          : "ready";
+          : modelUnsupported
+            ? "unsupported"
+            : "ready";
   return { kind: "provider", providerId, profile, status };
 }
 
@@ -665,6 +669,7 @@ function normalizeCustomProviderProfile(input: unknown): BridgeProviderProfile |
     apiKey,
     apiKeyEnv: normalizeApiKeyEnv(source.apiKeyEnv),
     provisioningBlocked: source.provisioningBlocked === true ? true : undefined,
+    provisioning: id === "ww" ? migrateWwProvisioning(source) : undefined,
     credentialKind,
     wireApi: normalizeProviderWireApi(source.wireApi),
     modelsPinned: typeof source.modelsPinned === "boolean" ? source.modelsPinned : undefined,

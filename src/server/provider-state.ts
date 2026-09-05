@@ -21,9 +21,6 @@ export function describeProviderCredential(
   const sourceManaged = profile.origin === "discovered" || Boolean(profile.sourceKernel);
   const writable = !sourceManaged;
   const kind = providerCredentialKind(profile);
-  if (profile.provisioningBlocked === true) {
-    return { status: "missing", configured: false, source: "unknown", writable };
-  }
   if (profile.apiKey?.trim()) {
     return { status: "configured", configured: true, source: "inline", writable };
   }
@@ -83,7 +80,7 @@ export function providerRuntimeState(
   const active = profile.enabled === true || (profile.enabled === undefined && profile.custom === true);
   return {
     active,
-    usable: active && credential.configured,
+    usable: active && credential.configured && profile.provisioningBlocked !== true,
     credential,
   };
 }

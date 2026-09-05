@@ -439,6 +439,10 @@ export function providerBindingLabel(provider: ProviderProfile, kernelId: string
 }
 
 export function providerMetaLabel(provider: ProviderProfile, t: TranslationFn): string {
+  if (provider.provisioning?.status === "retrying") return t("settings.providerVerificationRetrying");
+  if (provider.provisioning?.status === "needs-login") return t("settings.providerVerificationNeedsLogin");
+  if (provider.provisioning?.status === "pending") return t("settings.providerVerificationPending");
+  if (provider.provisioning?.status === "blocked") return t("settings.providerVerificationBlocked");
   if (isLoginStateProvider(provider)) return t("settings.accountLogin");
   if (isLoginProtocol(provider.protocol)) return t("settings.accountLogin");
   if (provider.apiKey) return t("settings.apiKeyConfigured");
@@ -545,7 +549,7 @@ export function isProviderEnabled(provider: ProviderProfile): boolean {
 }
 
 export function isProviderAvailable(provider: ProviderProfile): boolean {
-  if (provider.runtime) return provider.runtime.credential.configured;
+  if (provider.runtime) return provider.runtime.credential.configured && provider.provisioningBlocked !== true;
   const sourceCredentialsUnavailable =
     providerSettingsAreSourceManaged(provider) && provider.authConfigured === false && !provider.apiKey?.trim();
   return provider.provisioningBlocked !== true && !sourceCredentialsUnavailable;

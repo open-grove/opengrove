@@ -1,3 +1,4 @@
+import type { WwProviderReconciliation } from "./ww-provider-reconciliation.js";
 import type { OpenGroveApp } from "../app/create-opengrove.js";
 import type {
   AgentEvent,
@@ -91,6 +92,7 @@ export interface BridgeProviderProfile {
   apiKeyEnv?: string;
   /** Temporarily quarantines a retained WW credential after owner verification failed. */
   provisioningBlocked?: boolean;
+  provisioning?: WwProviderReconciliation;
   credentialKind?: BridgeProviderCredentialKind;
   wireApi?: "chat" | "responses";
   /** True only when the user explicitly edits the model list. Derived/discovered lists must not set this. */

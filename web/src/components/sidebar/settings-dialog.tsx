@@ -97,6 +97,7 @@ export function SettingsDialog(props: {
   ops?: OpsSettingsPayload;
   onClose(): void;
   onInstallKernel?(kernelId: string, actionId: string): void;
+  onRefreshKernelLogins?(): void;
   onKernelLoginAction?(kernelId: string, action: "login" | "logout"): void;
   onSave(payload: {
     developerMode?: boolean;
@@ -691,6 +692,7 @@ export function SettingsDialog(props: {
               onSetProviderDeleteTargetId={setProviderDeleteTargetId}
               onSetProviderEnabled={setProviderEnabled}
               onKernelLoginAction={props.onKernelLoginAction}
+              onRefreshKernelLogins={props.onRefreshKernelLogins}
               onResetKernelBinaryPath={(kernelId) => saveKernelPathOverride(kernelId, { binaryPath: "" })}
               onBindModelProvider={bindModelProvider}
               onSaveProviderProfile={saveProviderProfile}

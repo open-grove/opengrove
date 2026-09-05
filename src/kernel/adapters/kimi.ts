@@ -1,12 +1,15 @@
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
+import { homedir } from "node:os";
 import type { AgentEvent } from "../../core.js";
 import type { AgentCompactRequest, AgentCompactResult, AgentRuntime } from "../../core.js";
 import { appEnvName, readAppEnv } from "../../identity.js";
 import { AcpCliRuntime } from "../../runtime/acp-cli-runtime.js";
 import { resolveRuntimeRunId } from "../../runtime/run-id.js";
 import {
+  type CommandPathProbe,
   commandDiscoveryHealth,
+  resolveCommandPath,
   directorySource,
   kernelExecutableProbe,
   plannedInstallAction,
@@ -130,7 +133,7 @@ export class KimiKernelAdapter implements KernelAdapter {
   private readonly runtime?: AgentRuntime;
 
   constructor(private readonly options: KimiKernelAdapterOptions = {}) {
-    const command = options.command || resolveKimiCommand();
+    const command = resolveKimiCommand(options.command);
     if (command) {
       this.runtime = new AcpCliRuntime({
         kernelId: "kimi",
@@ -235,7 +238,7 @@ export function createKimiKernelAdapter(options: KimiKernelAdapterOptions = {}):
 export function createKimiKernelAdapterFromOptions(
   options: import("../types.js").KernelCreateOptions,
 ): KimiKernelAdapter {
-  const command = options.command || resolveKimiCommand();
+  const command = resolveKimiCommand(options.command);
   return new KimiKernelAdapter({
     command,
     cwd: options.cwd,
@@ -245,9 +248,9 @@ export function createKimiKernelAdapterFromOptions(
   });
 }
 
-export function discoverKimiKernel(configuredCommand?: string): KernelDiscovery {
-  const candidate = kimiExecutableCandidate(configuredCommand);
-  const discovery = probeCommandPath(candidate.command);
+export function discoverKimiKernel(configuredCommand?: string, probe: KimiCommandProbe = {}): KernelDiscovery {
+  const candidate = kimiExecutableCandidate(configuredCommand, probe);
+  const discovery = probeCommandPath(candidate.command, ["--version"], probe);
   const command = discovery.resolvedPath;
   const installed = Boolean(command);
   const available = installed && discovery.probe.status !== "failed";
@@ -295,7 +298,11 @@ export function discoverKimiKernel(configuredCommand?: string): KernelDiscovery 
   };
 }
 
-function kimiExecutableCandidate(configuredCommand: string | undefined) {
+interface KimiCommandProbe extends CommandPathProbe {
+  homeDir?: string;
+}
+
+function kimiExecutableCandidate(configuredCommand: string | undefined, probe: KimiCommandProbe = {}) {
   const configured = configuredCommand?.trim();
   if (configured) {
     return { command: configured, source: "configured" as const, sourceName: undefined };
@@ -303,6 +310,15 @@ function kimiExecutableCandidate(configuredCommand: string | undefined) {
   const environment = readAppEnv("KIMI_BIN")?.trim();
   if (environment) {
     return { command: environment, source: "environment" as const, sourceName: appEnvName("KIMI_BIN") };
+  }
+  const pathCommand = resolveCommandPath("kimi", probe);
+  if (pathCommand) return { command: pathCommand, source: "path" as const };
+  // Official native installer: https://code.kimi.com/kimi-code/install.sh.
+  // It updates shell rc files, which a desktop login shell may not load.
+  const home = probe.homeDir ?? homedir();
+  for (const directory of [resolve(home, ".kimi-code", "bin"), resolve(home, ".local", "bin")]) {
+    const installed = resolveCommandPath(resolve(directory, "kimi"), probe);
+    if (installed) return { command: installed, source: "discovered" as const };
   }
   return { command: "kimi", source: "path" as const };
 }
@@ -320,10 +336,8 @@ function kimiCommandHealth(
   });
 }
 
-export function resolveKimiCommand(): string | undefined {
-  const configured = readAppEnv("KIMI_BIN")?.trim();
-  if (configured) return resolveUsableCommandPath(configured);
-  return resolveUsableCommandPath("kimi");
+export function resolveKimiCommand(configuredCommand?: string, probe: KimiCommandProbe = {}): string | undefined {
+  return resolveUsableCommandPath(kimiExecutableCandidate(configuredCommand, probe).command, ["--version"], probe);
 }
 
 async function disposeRuntime(runtime: AgentRuntime | undefined): Promise<void> {
