@@ -11,6 +11,7 @@ const entryPath = join(tempDir, "desktop-client-update-entry.ts");
 const bundlePath = join(tempDir, "desktop-client-update-entry.cjs");
 const updaterStubPath = join(tempDir, "electron-updater-stub.ts");
 const presentationModulePath = join(projectRoot, "web/src/client-update-presentation.ts");
+const releaseNotesModulePath = join(projectRoot, "web/src/client-release-notes.ts");
 const policyModulePath = join(projectRoot, "desktop/client-update-policy.ts");
 const managerModulePath = join(projectRoot, "desktop/client-update-manager.ts");
 const preferencesModulePath = join(projectRoot, "desktop/client-update-preferences.ts");
@@ -46,6 +47,7 @@ try {
       resolveTitlebarClientUpdate,
       resolveTitlebarClientUpdateAction,
     } from ${JSON.stringify(presentationModulePath)};
+		import { resolveClientReleaseNotes } from ${JSON.stringify(releaseNotesModulePath)};
     import { DESKTOP_CLIENT_UPDATE_POLICY } from ${JSON.stringify(policyModulePath)};
     import { DesktopClientUpdateManager } from ${JSON.stringify(managerModulePath)};
     import {
@@ -72,6 +74,10 @@ try {
         version: 10006,
         downloadUrl: "https://example.test/releases/opengrove.exe",
         releaseNotes: "Release notes",
+			releaseNotesByLocale: {
+				en: "- **Better** rooms",
+				"zh-CN": "- **更好的**房间",
+			},
       },
     };
     const desktopBase = {
@@ -102,10 +108,20 @@ try {
       {
         visible: true,
         downloadUrl: "https://example.test/releases/from-desktop.exe",
-        releaseNotes: undefined,
       },
       "a late main-process update must remain visible while the renderer query is stale",
     );
+		assert.equal(resolveClientReleaseNotes(remoteUpdate.latest, "en"), "- **Better** rooms");
+		assert.equal(resolveClientReleaseNotes(remoteUpdate.latest, "zh-CN"), "- **更好的**房间");
+		assert.equal(
+			resolveClientReleaseNotes({ ...remoteUpdate.latest, releaseNotesByLocale: { en: "English only" } }, "zh-CN"),
+			"English only",
+		);
+		assert.equal(
+			resolveClientReleaseNotes({ ...remoteUpdate.latest, releaseNotesByLocale: undefined }, "zh-CN"),
+			"Release notes",
+			"old WW payloads must keep working",
+		);
 
     assert.equal(
       resolveTitlebarClientUpdate(noRemoteUpdate, {

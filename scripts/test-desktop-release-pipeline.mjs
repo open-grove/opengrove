@@ -130,6 +130,13 @@ try {
   assert.equal(readFileSync(join(updaterDir, "mac-arm64", "latest-mac.yml"), "utf8"), firstFeed);
   assert.equal(readFileSync(join(releaseDir, "desktop-release-manifest.json"), "utf8"), firstManifest);
   assert.equal(JSON.parse(firstManifest).partialRelease, true);
+  assert.equal(JSON.parse(firstManifest).schemaVersion, 3);
+  assert.deepEqual(Object.keys(JSON.parse(firstManifest).releaseNotesByLocale).sort(), ["en", "zh-CN"]);
+  assert.equal(
+    JSON.parse(firstLatest).mac_arm64.release_notes,
+    JSON.parse(firstManifest).releaseNotesByLocale.en,
+    "the legacy per-platform field must be the English projection of the localized source",
+  );
   assert.equal(JSON.parse(firstLatest).mac_arm64.released_at, releasedAt);
   assert.equal(existsSync(join(updaterDir, "update-payload-manifest.json")), false);
   assert.equal(
@@ -2076,11 +2083,12 @@ async function writeGateReceipt() {
     previousReleaseTag: "v0.5.17",
     generatedAt: releasedAt,
   });
-  assert.equal(receipt.schema_version, 2);
+  assert.equal(receipt.schema_version, 3);
   assert.equal(receipt.version, packageJson.version);
   assert.equal(receipt.client_release_number, packageJson.clientReleaseNumber);
   assert.equal(receipt.expected_git_tag, `v${packageJson.version}`);
   assert.equal(receipt.previous_release_tag, "v0.5.17");
+  assert.match(receipt.release_notes_sha256, /^[a-f0-9]{64}$/u);
   assert.equal(receipt.gates.previous_version_update.passed, true);
   const verification = spawnSync(
     process.execPath,
@@ -2534,6 +2542,10 @@ copyFileSync(source, target);
     assert.equal(postedAuthorization, "Bearer test-upload-token");
     assert.deepEqual(posted.release, JSON.parse(readFileSync(join(releaseDir, "client-latest-version.json"), "utf8")));
     assert.deepEqual(
+      posted.release_notes_by_locale,
+      JSON.parse(readFileSync(join(releaseDir, "desktop-release-manifest.json"), "utf8")).releaseNotesByLocale,
+    );
+    assert.deepEqual(
       posted.gate_receipt,
       JSON.parse(readFileSync(join(releaseDir, "release-gate-receipt.json"), "utf8")),
     );
@@ -2641,6 +2653,10 @@ copyFileSync(source, target);
     assert.equal(verificationTimings.filter((file) => file.mode === "head-crc64+sha256-sample").length, 1);
     assert.match(posted.release.mac_arm64.download_url, /\/pub\/opengrove\/v-full\//);
     assert.deepEqual(posted.release, JSON.parse(readFileSync(join(releaseDir, "client-latest-version.json"), "utf8")));
+    assert.deepEqual(
+      posted.release_notes_by_locale,
+      JSON.parse(readFileSync(join(releaseDir, "desktop-release-manifest.json"), "utf8")).releaseNotesByLocale,
+    );
   } finally {
     await new Promise((resolveClose, rejectClose) =>
       server.close((error) => (error ? rejectClose(error) : resolveClose())),

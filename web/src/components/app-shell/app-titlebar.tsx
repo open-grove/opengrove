@@ -154,7 +154,6 @@ function TitlebarClientUpdateButton(props: {
     desktopState?.stage === "downloading" && typeof desktopState.downloadProgress === "number"
       ? t("shell.downloadProgress", { progress: desktopState.downloadProgress })
       : "",
-    presentation.releaseNotes ? t("shell.releaseNotes", { notes: presentation.releaseNotes }) : "",
   ]
     .filter(Boolean)
     .join("\n");

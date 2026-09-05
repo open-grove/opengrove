@@ -192,7 +192,7 @@ Local bridge 是 UI、state、tools 和 kernels 之间的边界。
 | `/auth/email-codes` | `POST` | 请求 WW 邮箱验证码，并返回该邮箱是否需要注册字段 |
 | `/auth/login` | `POST` | 使用邮箱验证码登录；新账号同时提交用户选择的 ISO 国家/地区，以及按需提交邀请码 |
 | `/auth/session` | `GET` | 事件触发的 WW 会话恢复；区分已认证、未登录与暂时不可用 |
-| `/auth/client-update` | `GET` | 当前桌面版本和适用的 Cloud 发布版本；已登录会话读取完整版本契约，未登录但通过 Bridge token 鉴权的桌面端读取公开精简版本契约 |
+| `/auth/client-update` | `GET` | 当前桌面版本和适用的 Cloud 发布版本；已登录或未登录但通过 Bridge token 鉴权的桌面端都会收到 updater metadata、兼容英文字段以及本地化 `en` / `zh-CN` 发布说明 Markdown |
 | `/auth/activity` | `POST` | 已登录 Electron 桌面端每天一次的最小账号活跃；不携带本地业务数据 |
 | `/inventory` | `GET` | knowledge、memory、artifacts、sessions、tools、skills 和 capabilities |
 | `/ask/stream` | `POST` | streaming agent turn API |

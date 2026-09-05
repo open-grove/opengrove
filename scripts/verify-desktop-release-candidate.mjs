@@ -1,7 +1,11 @@
 import { createHash } from "node:crypto";
 import { createReadStream, existsSync, readFileSync, statSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
-import { readDesktopReleaseGateReceipt, requiredDesktopReleaseGates } from "./desktop-release-gate-receipt.mjs";
+import {
+  localizedReleaseNotesSha256,
+  readDesktopReleaseGateReceipt,
+  requiredDesktopReleaseGates,
+} from "./desktop-release-gate-receipt.mjs";
 
 const args = parseArgs(process.argv.slice(2));
 const releaseDir = resolve(args.releaseDir);
@@ -9,7 +13,16 @@ const receipt = readDesktopReleaseGateReceipt(join(releaseDir, "release-gate-rec
 const manifest = JSON.parse(readFileSync(join(releaseDir, "desktop-release-manifest.json"), "utf8"));
 const expectedGitTag = manifest.source?.expectedGitTag ?? manifest.source?.gitTag;
 
-if (receipt.schema_version !== 2) fail("candidate finalization requires a schema v2 gate receipt");
+if (receipt.schema_version !== 3) fail("candidate finalization requires a schema v3 gate receipt");
+if (
+  manifest.schemaVersion !== 3 ||
+  typeof manifest.releaseNotesByLocale?.en !== "string" ||
+  !manifest.releaseNotesByLocale.en.trim() ||
+  typeof manifest.releaseNotesByLocale?.["zh-CN"] !== "string" ||
+  !manifest.releaseNotesByLocale["zh-CN"].trim()
+) {
+  fail("candidate finalization requires validated en and zh-CN release notes");
+}
 if (args.currentReleaseTag !== receipt.previous_release_tag && args.currentReleaseTag !== args.expectedTag) {
   fail(
     `Latest formal release changed from ${receipt.previous_release_tag} to ${args.currentReleaseTag}` +
@@ -22,6 +35,7 @@ if (
   receipt.ci_run_url !== args.ciRunUrl ||
   receipt.version !== manifest.version ||
   receipt.client_release_number !== manifest.clientReleaseNumber ||
+  receipt.release_notes_sha256 !== localizedReleaseNotesSha256(manifest.releaseNotesByLocale) ||
   manifest.source?.gitCommit !== args.commit ||
   expectedGitTag !== args.expectedTag
 ) {

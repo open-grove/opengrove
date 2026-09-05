@@ -20,6 +20,10 @@ never rebuild an installer.
   runs are diagnostics and cannot be promoted.
 - A release is identified by its candidate commit, workflow run, version,
   `clientReleaseNumber`, immutable artifact bytes, and gate receipt.
+- Before the first schema v3 candidate is registered, WW must have applied its
+  localized release-note migration and deployed schema v3 registration support.
+  Failing closed is intentional; do not drop localized notes to work around an
+  older release-control service.
 
 Nightly evidence proves the additional platform and live-provider health of a
 recent ancestor, not necessarily the exact candidate SHA. Commits after that
@@ -36,8 +40,8 @@ Nightly are covered by exact-SHA Main CI and the final candidate artifact gates.
    certification rows, then run `npm run generate:kernel-evidence` and
    `npm run test:capabilities`. A release must not extend the legacy migration
    version or hand-edit the generated ledger to keep a capability enabled.
-4. Add paired `docs/releases/vX.Y.Z.md` and
-   `docs/releases/vX.Y.Z.zh-CN.md` notes.
+4. Curate and confirm the paired release notes using the process below, then
+   add `docs/releases/vX.Y.Z.md` and `docs/releases/vX.Y.Z.zh-CN.md`.
 5. Update `CHANGELOG.md`.
 6. Run the focused checks for the changed areas.
 
@@ -47,6 +51,58 @@ and `runtimeMode`; CI can verify their schema and reproducibility but does not
 pretend to rerun a locally configured real Kernel. The real-runtime run and its
 raw receipt remain untracked local release evidence. Only the importer's
 minimal certification batch enters the repository, after human review.
+
+### Curate and confirm release notes
+
+Release notes are a product summary over the complete change range, not a list
+of pull-request titles. Before drafting, generate the exact review inventory:
+
+```bash
+npm run release:notes:context -- --from <previous-release-tag> --to HEAD
+```
+
+The command defaults `--from` to the latest reachable tag. A repository with no
+previous public tag must pass the audited release-boundary ref explicitly. The
+output lists the first-parent history, every commit, every changed path, and the
+diff summary. It is an input inventory, not generated release copy.
+
+The Agent preparing a release must inspect every merged change in that exact
+range, including the actual diff and linked pull request where available. In
+the Codex conversation it should privately classify changes as product-facing,
+technical, or omitted; combine related changes across pull requests into a few
+coherent themes; and explain any material omission. That coverage mapping is
+review evidence and must not be copied into the public Release or committed as
+a permanent per-PR checklist.
+
+Draft both languages with exactly these public sections, in this order:
+
+```markdown
+## Product Updates
+
+## Technical Improvements
+```
+
+```markdown
+## 产品更新
+
+## 技术改进
+```
+
+`Product Updates` describes outcomes in language useful to people using the
+App. `Technical Improvements` summarizes architecture, compatibility,
+reliability, and contributor-facing work without repeating one bullet per PR.
+The two locale files must communicate the same facts; they are not independent
+change logs.
+
+Before writing the files, the Agent presents the complete English and Chinese
+drafts in the Codex conversation and waits for explicit user confirmation.
+After confirmation it writes the paired files and opens the release-preparation
+PR. Merging that PR freezes the release copy at the candidate commit. CI only
+validates the two-section contract and extracts each locale's `Product Updates`
+Markdown into desktop update metadata; it never regenerates or rewrites the
+confirmed text. GitHub Release composition continues to use both complete
+files, including `Technical Improvements`. Gate receipt schema v3 binds the
+confirmed `en` and `zh-CN` bytes with one SHA-256 digest before WW registration.
 
 The candidate workflow first verifies the exact Main CI and recent Nightly
 evidence. It then performs the required lightweight release-readiness checks

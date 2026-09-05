@@ -1,6 +1,7 @@
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
+import { readLocalizedDesktopReleaseNotes } from "./release-note-format.mjs";
 
 const releaseMode = process.argv.includes("--release");
 const root = process.cwd();
@@ -159,6 +160,11 @@ if (releaseMode) {
   }
   if (!localizedReleaseNoteExists) {
     fail(`create docs/releases/${currentTag}.zh-CN.md before release.`);
+  }
+  try {
+    readLocalizedDesktopReleaseNotes(root, version);
+  } catch (error) {
+    fail(error instanceof Error ? error.message : String(error));
   }
   console.log("Release note files are ready for the current package version.");
 } else {

@@ -28,8 +28,9 @@ import {
   releaseVerificationProxyHosts,
 } from "./release-network.mjs";
 import { formatReleaseBytes, openReleaseTiming } from "./release-timing.mjs";
-import { readDesktopReleaseGateReceipt } from "./desktop-release-gate-receipt.mjs";
+import { localizedReleaseNotesSha256, readDesktopReleaseGateReceipt } from "./desktop-release-gate-receipt.mjs";
 import { readDesktopReleasePackageIdentity } from "./desktop-release-package-identity.mjs";
+import { desktopProductReleaseNotes } from "./release-note-format.mjs";
 
 const require = createRequire(import.meta.url);
 const { load } = require("js-yaml");
@@ -63,7 +64,6 @@ const registerUrl = rawRegisterUrl
   ? requiredBaseUrl(rawRegisterUrl, "--register-url / OPENGROVE_CLIENT_RELEASES_URL")
   : "";
 const token = process.env.OPENGROVE_RELEASE_UPLOAD_TOKEN ?? "";
-const releaseNotes = args.releaseNotes ?? releaseNotesSummary(packageJson.version);
 const verifyConcurrency = positiveInteger(
   args.verifyConcurrency ?? process.env.OPENGROVE_RELEASE_VERIFY_CONCURRENCY ?? "16",
   "--verify-concurrency / OPENGROVE_RELEASE_VERIFY_CONCURRENCY",
@@ -87,6 +87,7 @@ let releasedAt;
 let installers;
 let updaterFiles;
 let latestVersion;
+let releaseNotesByLocale;
 let partialRelease;
 let publicChecksumsPath;
 let updaterChecksumsPath;
@@ -95,7 +96,7 @@ if (args.reusePreparedMetadata) {
   if (copyTo) fail("--reuse-prepared-metadata cannot be combined with --copy-to");
   const phaseId = timing?.startPhase("load-prepared-release-metadata");
   try {
-    ({ targets, source, releasedAt, installers, updaterFiles, latestVersion, partialRelease } =
+    ({ targets, source, releasedAt, installers, updaterFiles, latestVersion, releaseNotesByLocale, partialRelease } =
       loadPreparedReleaseMetadata(manifestPath));
     timing?.finishPhase(phaseId);
   } catch (error) {
@@ -118,16 +119,17 @@ if (args.reusePreparedMetadata) {
     fail(`--released-at must match the source manifest timestamp ${source.releasedAt}`);
   }
   releasedAt = source.releasedAt;
+  releaseNotesByLocale = desktopProductReleaseNotes(projectRoot, packageJson.version);
 
   runPreparePayload(releasedAt);
   installers = await collectInstallers(targets, publicBaseUrl);
   updaterFiles = await collectAndValidateUpdaterFiles(targets, updaterBaseUrl);
-  latestVersion = latestVersionPayload(installers, updaterFiles, updaterBaseUrl, releasedAt, releaseNotes);
+  latestVersion = latestVersionPayload(installers, updaterFiles, updaterBaseUrl, releasedAt, releaseNotesByLocale.en);
   partialRelease = targets.length !== allTargets.length;
   ({ publicChecksumsPath, updaterChecksumsPath } = writeChecksums(installers, updaterFiles));
 
   const releaseManifest = {
-    schemaVersion: 2,
+    schemaVersion: 3,
     product: "OpenGrove",
     version: packageJson.version,
     clientReleaseNumber: packageJson.clientReleaseNumber,
@@ -138,6 +140,7 @@ if (args.reusePreparedMetadata) {
     installers,
     updaterFiles: updaterFiles.map(({ sourcePath: _sourcePath, ...file }) => file),
     latestVersion,
+    releaseNotesByLocale,
     partialRelease,
   };
   writeFileSync(manifestPath, `${JSON.stringify(releaseManifest, null, 2)}\n`);
@@ -176,7 +179,11 @@ if (registerUrl && partialRelease) {
         "content-type": "application/json",
         ...(token ? { authorization: `Bearer ${token}` } : {}),
       },
-      body: JSON.stringify({ release: latestVersion, gate_receipt: gateReceipt }),
+      body: JSON.stringify({
+        release: latestVersion,
+        release_notes_by_locale: releaseNotesByLocale,
+        gate_receipt: gateReceipt,
+      }),
     });
     if (!response.ok) {
       const body = await response.text().catch(() => "");
@@ -206,10 +213,16 @@ function validateGateReceiptForRelease(receipt, sourceValue, installersValue) {
     fail("gate receipt expected tag/commit does not match the release manifest");
   }
   if (
-    receipt.schema_version === 2 &&
+    receipt.schema_version >= 2 &&
     (receipt.version !== packageJson.version || receipt.client_release_number !== packageJson.clientReleaseNumber)
   ) {
     fail("gate receipt version identity does not match package.json");
+  }
+  if (
+    receipt.schema_version === 3 &&
+    receipt.release_notes_sha256 !== localizedReleaseNotesSha256(releaseNotesByLocale)
+  ) {
+    fail("gate receipt release notes do not match the confirmed localized release metadata");
   }
   const keyByTarget = { "mac-arm64": "mac_arm64", "mac-x64": "mac_x64", "windows-x64": "windows_x64" };
   for (const installer of installersValue) {
@@ -255,7 +268,7 @@ function loadPreparedReleaseMetadata(path) {
   }
   const manifest = JSON.parse(manifestBytes);
   if (
-    manifest.schemaVersion !== 2 ||
+    manifest.schemaVersion !== 3 ||
     manifest.product !== "OpenGrove" ||
     manifest.version !== packageJson.version ||
     manifest.clientReleaseNumber !== packageJson.clientReleaseNumber ||
@@ -265,7 +278,8 @@ function loadPreparedReleaseMetadata(path) {
     !Array.isArray(manifest.installers) ||
     !Array.isArray(manifest.updaterFiles) ||
     typeof manifest.latestVersion !== "object" ||
-    !manifest.latestVersion
+    !manifest.latestVersion ||
+    !isLocalizedReleaseNotes(manifest.releaseNotesByLocale)
   ) {
     fail("prepared release manifest does not match this package or publication destination");
   }
@@ -295,6 +309,7 @@ function loadPreparedReleaseMetadata(path) {
     installers: manifest.installers,
     updaterFiles: preparedUpdaterFiles,
     latestVersion: manifest.latestVersion,
+    releaseNotesByLocale: manifest.releaseNotesByLocale,
     partialRelease: manifest.partialRelease === true,
   };
 }
@@ -666,24 +681,15 @@ function hashFile(path, algorithm, encoding) {
   });
 }
 
-function releaseNotesSummary(version) {
-  const notesPath = join(projectRoot, "docs", "releases", `v${version}.md`);
-  if (!existsSync(notesPath)) return `OpenGrove v${version}`;
-  const bullets = [];
-  let current = "";
-  for (const line of readFileSync(notesPath, "utf8").split("\n")) {
-    if (line.startsWith("- ")) {
-      if (current) bullets.push(current.trim());
-      current = line.slice(2).trim();
-    } else if (current && /^  \S/.test(line)) {
-      current = `${current} ${line.trim()}`;
-    } else if (current && (line.startsWith("#") || line.trim() === "")) {
-      bullets.push(current.trim());
-      current = "";
-    }
-  }
-  if (current) bullets.push(current.trim());
-  return bullets.slice(0, 5).join("\n") || `OpenGrove v${version}`;
+function isLocalizedReleaseNotes(value) {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    typeof value.en === "string" &&
+    value.en.trim().length > 0 &&
+    typeof value["zh-CN"] === "string" &&
+    value["zh-CN"].trim().length > 0
+  );
 }
 
 function requiredBaseUrl(value, name) {
@@ -738,7 +744,8 @@ function parseArgs(values) {
     else if (value === "--latest-out") result.latestOut = readRequired(values, ++index, value);
     else if (value === "--released-at") result.releasedAt = readRequired(values, ++index, value);
     else if (value.startsWith("--released-at=")) result.releasedAt = value.slice("--released-at=".length);
-    else if (value === "--release-notes") result.releaseNotes = readRequired(values, ++index, value);
+    else if (value === "--release-notes" || value.startsWith("--release-notes="))
+      throw new Error("--release-notes was removed; confirm and commit both docs/releases files instead");
     else if (value === "--verify-concurrency") result.verifyConcurrency = readRequired(values, ++index, value);
     else if (value.startsWith("--verify-concurrency="))
       result.verifyConcurrency = value.slice("--verify-concurrency=".length);

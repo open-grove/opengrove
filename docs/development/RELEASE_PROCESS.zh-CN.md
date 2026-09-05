@@ -17,6 +17,9 @@ OpenGrove 桌面正式版由 CI 从明确的候选 commit 构建。通过门禁�
   不能提升。
 - 一个版本由候选 commit、workflow run、version、`clientReleaseNumber`、
   不可变制品字节和 gate receipt 共同标识。
+- 首个 schema v3 候选版登记前，WW 必须先执行本地化发布说明迁移，并部署支持
+  schema v3 登记的服务。未就绪时严格失败是预期行为；不得为兼容旧发布控制服务而删掉
+  本地化发布说明。
 
 Nightly 证据证明近期祖先提交上的额外平台和真实服务健康状况，不要求它与
 候选 SHA 完全相同。Nightly 之后的提交由精确 SHA 的 Main CI 和最终候选制品
@@ -32,8 +35,8 @@ Nightly 证据证明近期祖先提交上的额外平台和真实服务健康状
    再运行 `npm run generate:kernel-evidence` 和
    `npm run test:capabilities`。不得通过延长旧迁移版本或手改生成账本来继续
    宣称能力可用。
-4. 成对添加 `docs/releases/vX.Y.Z.md` 和
-   `docs/releases/vX.Y.Z.zh-CN.md`。
+4. 按下文流程汇总并确认双语发布说明，然后成对添加
+   `docs/releases/vX.Y.Z.md` 和 `docs/releases/vX.Y.Z.zh-CN.md`。
 5. 更新 `CHANGELOG.md`。
 6. 运行能覆盖本次改动的针对性检查。
 
@@ -42,6 +45,47 @@ Nightly 证据证明近期祖先提交上的额外平台和真实服务健康状
 能够检查其结构和可重复生成，但不会假装重新运行一套只在本机配置好的真实
 Kernel。真实 Runtime 运行和原始 receipt 只作为本机未跟踪发布证据；人工复核后，
 仓库中只保存导入器生成的最小认证批次。
+
+### 汇总并确认发布说明
+
+发布说明是针对完整变更区间的产品级总结，不是 PR 标题清单。起草前先生成
+精确的审查清单：
+
+```bash
+npm run release:notes:context -- --from <previous-release-tag> --to HEAD
+```
+
+命令默认把可达的最新 tag 作为 `--from`。还没有公开 tag 的仓库必须显式传入
+经过审定的发布边界 ref。输出包含 first-parent 历史、全部 commit、所有变更路径和
+diff 摘要。它是输入清单，不会自动生成发布文案。
+
+准备发布的 Agent 必须检查该精确区间内的每一项已合并变更，包括实际 diff 和可获取的
+关联 PR。在 Codex 对话中，它需要在内部把变更分为产品体验、技术改进或省略，再把
+多个 PR 中相关的工作合并成少数几个完整主题，并说明重要省略项。PR 与主题的
+对应只是审查证据，不应写入公开 Release，也不应作为逐 PR 永久清单提交到仓库。
+
+双语文档必须严格只有以下两个公开大节，且顺序一致：
+
+```markdown
+## Product Updates
+
+## Technical Improvements
+```
+
+```markdown
+## 产品更新
+
+## 技术改进
+```
+
+`产品更新` 用使用者能直接理解的语言描述结果；`技术改进` 汇总架构、兼容性、稳定性和
+贡献者相关工作，但不按 PR 逐条复制。中英文必须表达同一组事实，不是两份独立的更新日志。
+
+在写入文件前，Agent 必须先在 Codex 对话中展示完整中英文草稿，并等待用户明确确认。
+确认后再写入成对文件并提交发布准备 PR；该 PR 合并后，文案就被冻结在候选 commit。
+CI 只校验两节契约，并把两种语言的 `产品更新` Markdown 提取到桌面更新 metadata；
+不会重新生成或改写已确认的文案。GitHub Release 仍使用两份完整文档，包括 `技术改进`。
+Gate receipt schema v3 会在登记到 WW 前，用一个 SHA-256 摘要绑定已确认的 `en` 和 `zh-CN` 字节。
 
 候选 workflow 会先验证精确 SHA 的 Main CI 和近期 Nightly 证据，然后对已授权
 的候选 commit 执行必需的轻量发布就绪检查：
