@@ -63,6 +63,7 @@ export function SettingsProviderSection(props: {
   onSetProviderDeleteTargetId(providerId: string): void;
   onSetProviderEnabled(providerId: string, enabled: boolean): void;
   onKernelLoginAction?(kernelId: string, action: "login" | "logout"): void;
+  onRefreshKernelLogins?(): void;
   onResetKernelBinaryPath?(kernelId: string): void;
   onBindModelProvider(modelId: string, providerId: string): void;
   onSaveProviderProfile(): void;
@@ -303,6 +304,7 @@ export function SettingsProviderSection(props: {
       missing: t("settings.loginStatusMissing"),
       unknown: t("settings.loginStatusUnknown"),
       unavailable: t("settings.loginStatusUnavailable"),
+      provider: t("settings.loginStatusProvider", { provider: login.providerLabel || login.providerId || "" }),
     }[login.status];
     const statusText =
       login.configuredCommand && login.configuredCommandIssue
@@ -330,6 +332,32 @@ export function SettingsProviderSection(props: {
             </span>
           </span>
           <span className="settings-provider-row-actions">
+            {login.status === "provider" ? (
+              <button
+                type="button"
+                className="ghost-button settings-login-action-button"
+                disabled={actionPending}
+                onClick={() => {
+                  const provider = props.providers.find((item) => item.id === login.providerId);
+                  if (!provider) props.onOpenProviderAdd();
+                  else if (providerSections.main.some((item) => item.id === provider.id))
+                    props.onSelectProvider(provider);
+                  else props.onStartAddProviderFrom(provider);
+                }}
+              >
+                {t("settings.configureProvider", { provider: login.providerLabel || login.providerId || "" })}
+              </button>
+            ) : null}
+            {(login.status === "provider" || login.status === "unknown") && props.onRefreshKernelLogins ? (
+              <button
+                type="button"
+                className="ghost-button settings-login-action-button"
+                disabled={actionPending || props.kernelLoginsLoading}
+                onClick={props.onRefreshKernelLogins}
+              >
+                {t("settings.recheckLogin")}
+              </button>
+            ) : null}
             {showResetCommand ? (
               <button
                 type="button"

@@ -673,12 +673,14 @@ export interface ProviderModelCatalogResponse {
   }>;
 }
 
-export type KernelLoginStatus = "authenticated" | "missing" | "unknown" | "unavailable";
+export type KernelLoginStatus = "authenticated" | "missing" | "unknown" | "unavailable" | "provider";
 
 export interface KernelLoginView {
   kernelId: KernelPreference;
   label: string;
   status: KernelLoginStatus;
+  providerId?: string;
+  providerLabel?: string;
   loginAvailable: boolean;
   logoutAvailable: boolean;
   message?: string;

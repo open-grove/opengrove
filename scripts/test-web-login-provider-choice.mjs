@@ -177,7 +177,7 @@ function entrySource() {
         onOpenProviderAdd: () => {},
         onCloseProviderAdd: () => {},
         onStartAddProvider: () => {},
-        onStartAddProviderFrom: () => {},
+        onStartAddProviderFrom: options.onStartAddProviderFrom ?? (() => {}),
         onCloseProviderDetail: () => {},
         onSetProviderDeleteTargetId: () => {},
         onSetProviderEnabled,
@@ -315,6 +315,17 @@ function entrySource() {
       );
       loginButtons[0].props.onClick();
       assert.deepEqual(kernelLoginAction, { kernelId: "codex", action: "logout" });
+      let configuredNativeProvider;
+      const bedrockPreset = { ...freshUnavailablePreset, id: "aws-bedrock-api-key", name: "AWS Bedrock" };
+      const bedrockSection = providerSection(bedrockPreset, () => {}, {
+        kernelLogins: [{ kernelId: "claude-code", label: "Claude Agent", status: "provider", providerId: "aws-bedrock-api-key", providerLabel: "AWS Bedrock", loginAvailable: false, logoutAvailable: false }],
+        onStartAddProviderFrom: (provider) => { configuredNativeProvider = provider.id; },
+      });
+      const configureButton = findElementsByType(bedrockSection, "button").find((button) => textContent(button) === "settings.configureProvider");
+      assert.ok(configureButton, "third-party authentication must provide explicit Provider setup");
+      configureButton.props.onClick();
+      assert.equal(configuredNativeProvider, "aws-bedrock-api-key");
+      assert.equal(findElementsByType(bedrockSection, "button").some((button) => textContent(button) === "settings.logOut"), false);
       assert.equal(providerServesModel(configuredButInactivePreset, "codex", "gpt-5.5"), true);
       assert.equal(
         providerServesModel(configuredButInactivePreset, "codex", "claude-opus-4-8"),

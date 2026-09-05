@@ -17,7 +17,7 @@ import {
   type SystemTerminalLaunch,
 } from "./system-terminal.js";
 
-export type BridgeKernelLoginStatus = "authenticated" | "missing" | "unknown" | "unavailable";
+export type BridgeKernelLoginStatus = "authenticated" | "missing" | "unknown" | "unavailable" | "provider";
 
 export interface BridgeKernelLoginView {
   kernelId: BridgeKernelId;
@@ -25,6 +25,8 @@ export interface BridgeKernelLoginView {
   status: BridgeKernelLoginStatus;
   loginAvailable: boolean;
   logoutAvailable: boolean;
+  providerId?: string;
+  providerLabel?: string;
   message?: string;
   configuredCommand?: string;
   configuredCommandIssue?: "missing" | "failed";
@@ -110,15 +112,29 @@ export async function describeKernelLogins(state: BridgeState): Promise<BridgeKe
             : {}),
         };
       }
-      const status = commands.status
-        ? await probeNativeLoginStatus(state, kernelId, command, commands.status)
-        : fallbackLoginStatus(state, kernelId);
+      const claudeRoute =
+        kernelId === "claude-code"
+          ? readKernelLocalRouteProfile(kernelId, {
+              cwd: resolveBridgeWorkspaceRoot(state.settings),
+              binaryPath: command,
+              refreshAuth: true,
+              configHome: kernelConfigHome(state.settings, kernelId),
+            })
+          : undefined;
+      const status =
+        claudeRoute?.accountLogin?.status ??
+        (commands.status
+          ? await probeNativeLoginStatus(state, kernelId, command, commands.status)
+          : fallbackLoginStatus(state, kernelId));
       return {
         kernelId,
         label: descriptor.label,
         status,
-        loginAvailable: true,
-        logoutAvailable: Boolean(commands.logout),
+        loginAvailable: status !== "provider",
+        logoutAvailable: status !== "provider" && Boolean(commands.logout),
+        ...(status === "provider" && claudeRoute
+          ? { providerId: claudeRoute.providerId, providerLabel: claudeRoute.providerLabel }
+          : {}),
       };
     }),
   );
@@ -286,10 +302,6 @@ async function probeNativeLoginStatus(
 ): Promise<BridgeKernelLoginStatus> {
   try {
     const result = await runBoundedCommand(command, args, kernelLoginEnvironment(state, kernelId), STATUS_TIMEOUT_MS);
-    if (kernelId === "claude-code") {
-      const parsed = JSON.parse(result.stdout || "{}") as Record<string, unknown>;
-      return parsed.loggedIn === true ? "authenticated" : "missing";
-    }
     if (kernelId === "codex") {
       const statusText = `${result.stdout}\n${result.stderr}`;
       return result.exitCode === 0 && /logged in/i.test(statusText) && !/api key/i.test(statusText)
