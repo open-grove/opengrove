@@ -1,3 +1,4 @@
+import { authSessionRecoveryOptions } from "./auth-session-recovery";
 import { useEffect } from "react";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import type {
@@ -75,10 +76,14 @@ export function useBridgeQueries(input: {
         headers: bridgeHeaders(false),
       }),
     enabled: sessionAuthActive,
-    retry: false,
-    refetchOnWindowFocus: false,
-    staleTime: Infinity,
+    ...authSessionRecoveryOptions,
   });
+  const provisioning = sessionQuery.data?.providerProvisioning;
+  useEffect(() => {
+    if (!provisioning) return;
+    void queryClient.invalidateQueries({ queryKey: ["settings"] });
+    void queryClient.invalidateQueries({ queryKey: ["runtime-controls"] });
+  }, [queryClient, provisioning?.status, provisioning?.retryAt]);
   const desktopSavedSessionQuery = useQuery({
     queryKey: ["desktop-saved-auth-session"],
     queryFn: async () => Boolean(await desktopApi?.hasSavedAuthSession?.()),

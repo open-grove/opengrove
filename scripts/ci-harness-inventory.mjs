@@ -94,6 +94,7 @@ export const harnessInventory = [
   task("ww-hosted-services", "dist/tests/ww-hosted-services-harness.js", "kernels-providers"),
   task("ww-auth", "dist/tests/ww-auth-harness.js", "kernels-providers"),
   task("ww-provider-provisioning", "dist/tests/ww-provider-provisioning-harness.js", "kernels-providers"),
+  task("ww-provider-reconciliation", "dist/tests/ww-provider-reconciliation-harness.js", "kernels-providers"),
   task("ww-provider-recovery", "dist/tests/ww-provider-recovery-harness.js", "kernels-providers"),
   task("mounted-app-seed-override", "dist/tests/mounted-app-seed-override-harness.js", "apps-knowledge"),
   task("mounted-app-member-management", "dist/tests/mounted-app-member-management-harness.js", "apps-knowledge"),

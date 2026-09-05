@@ -42,12 +42,15 @@ import {
   wwDiagnosticFacts,
 } from "../ww/index.js";
 import {
-  claimWwProviderAccount,
   clearWwProviderRecoveryBlock,
   readWwProviderLocalState,
   wwProviderAccountMatches,
 } from "../ww-provider-local-state.js";
-import { provisionWwProviderAfterLogin } from "../ww-provider-provisioning.js";
+import {
+  beginWwProviderSession,
+  invalidateWwProviderSession,
+  provisionWwProviderAfterLogin,
+} from "../ww-provider-provisioning.js";
 import type { HostOperationRouteContext } from "../router.js";
 
 type SendJson = (response: ServerResponse, status: number, data: unknown) => void;
@@ -125,6 +128,7 @@ export async function handleCreateAuthSessionOperation(
     const sessionId = createLocalSessionId();
     writeAuthTokens(response, tokens, sessionId);
     cacheAuthSessionUser(sessionId, tokens.accessToken, user, tokens.accessTokenExpiresIn);
+    beginWwProviderSession({ state, baseUrl: wwBaseUrl, userId: user.userId });
     clearWwProviderRecoveryBlock(state, { issuer: wwBaseUrl, userId: user.userId });
     const providerProvisioning = await provisionWwProviderAfterLogin({
       state,
@@ -140,11 +144,10 @@ export async function handleCreateAuthSessionOperation(
         phase: "provider-provision",
         code: "ww_provider_provision_failed",
         error: providerProvisioning.error,
-        retryable: true,
+        retryable: providerProvisioning.retryable,
         facts: providerProvisioning.diagnosticFacts,
       });
     }
-    claimWwProviderAccount(state, { issuer: wwBaseUrl, userId: user.userId });
     const defaultStoreApps = scheduleDefaultStoreAppsInstalledAfterAuth({
       state,
       request,
@@ -270,8 +273,11 @@ async function handleSession(
   state: BridgeState,
   traceId: string | undefined,
   sendJson: SendJson,
+  refreshAfterProvisionFailure = false,
 ): Promise<void> {
-  const authResult = await resolveWwRuntimeAuth(request, response, security);
+  const authResult = await resolveWwRuntimeAuth(request, response, security, {
+    forceRefresh: refreshAfterProvisionFailure,
+  });
   if (authResult.status === "unauthenticated") {
     sendJson(response, 200, {
       status: "unauthenticated",
@@ -361,6 +367,14 @@ async function handleSession(
     accessToken: session.auth.accessToken,
     userId: session.auth.userId,
   });
+  if (
+    providerProvisioning.status === "failed" &&
+    providerProvisioning.reason === "session_expired" &&
+    !refreshAfterProvisionFailure
+  ) {
+    await handleSession(request, response, security, state, traceId, sendJson, true);
+    return;
+  }
   if (providerProvisioning.status === "failed") {
     recordProblem(state, {
       traceId,
@@ -368,7 +382,7 @@ async function handleSession(
       phase: "provider-provision",
       code: "ww_provider_provision_failed",
       error: providerProvisioning.error,
-      retryable: true,
+      retryable: providerProvisioning.retryable,
       facts: providerProvisioning.diagnosticFacts,
     });
   }
@@ -539,6 +553,7 @@ async function handleLogout(
   sendJson: SendJson,
 ): Promise<void> {
   const tokens = readAuthTokens(request);
+  invalidateWwProviderSession(state);
   clearAuthTokens(response);
   clearAuthSessionCache(tokens);
   if (tokens?.refreshToken && security.wwBaseUrl) {

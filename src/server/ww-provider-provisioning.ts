@@ -1,3 +1,8 @@
+import {
+  failedWwReconciliation,
+  wwCredentialFingerprint,
+  type WwProviderReconciliation,
+} from "./ww-provider-reconciliation.js";
 import type { DiagnosticFacts } from "../diagnostics/problem-schema.js";
 import type { BridgeKernelId, BridgeProviderProfile, BridgeState } from "./bridge-types.js";
 import { recreateBridgeApp, saveBridgeSettings } from "./bridge-state.js";
@@ -27,6 +32,9 @@ import {
   isWwProviderRecoveryBlocked,
   readWwProviderLocalState,
   recordWwProviderOwnership,
+  recordWwReconciliation,
+  resetWwReconciliation,
+  rejectWwCredential,
   requestWwProviderProductDefaults,
   type WwProviderLocalState,
 } from "./ww-provider-local-state.js";
@@ -38,6 +46,7 @@ const WW_PROVIDER_KERNELS: BridgeKernelId[] = ["claude-code"];
 interface ProvisioningCoordinator {
   byOperation: Map<string, Promise<WwProviderProvisioningResult>>;
   tail: Promise<void>;
+  generation: number;
 }
 
 interface WwProviderCredential {
@@ -73,13 +82,37 @@ export type WwProviderProvisioningResult =
     }
   | {
       status: "skipped";
-      reason: "provider_disabled" | "recovery_blocked";
+      reason: "provider_disabled" | "recovery_blocked" | "session_changed";
     }
   | {
       status: "failed";
       error: string;
+      reason?: string;
+      retryable: boolean;
+      retryAt?: string;
       diagnosticFacts?: DiagnosticFacts;
     };
+
+export function invalidateWwProviderSession(state: BridgeState): void {
+  const coordinator = provisioningByState.get(state);
+  if (coordinator) {
+    coordinator.generation += 1;
+    coordinator.byOperation.clear();
+  }
+}
+
+export function beginWwProviderSession(input: { state: BridgeState; baseUrl: string; userId: string }): void {
+  const local = readWwProviderLocalState(input.state);
+  if (
+    local.ownerUserId &&
+    (local.ownerUserId !== input.userId || local.ownerIssuer !== canonicalWwIssuer(input.baseUrl))
+  ) {
+    invalidateWwProviderSession(input.state);
+    persistUnownedWwProvider(input);
+  }
+  claimWwProviderAccount(input.state, { issuer: input.baseUrl, userId: input.userId });
+  resetWwReconciliation(input.state);
+}
 
 export async function provisionWwProviderAfterLogin(input: {
   state: BridgeState;
@@ -139,25 +172,46 @@ async function provisionWwProviderWithMode(
   const coordinator = provisioningByState.get(input.state) ?? {
     byOperation: new Map(),
     tail: Promise.resolve(),
+    generation: 0,
   };
   provisioningByState.set(input.state, coordinator);
   const existing = coordinator.byOperation.get(operationKey);
   if (existing) return existing;
 
   const previous = coordinator.tail;
+  const generation = coordinator.generation;
+  const isCurrent = () => coordinator.generation === generation;
   const execute = async (): Promise<WwProviderProvisioningResult> => {
     await previous;
+    if (!isCurrent()) return { status: "skipped", reason: "session_changed" };
+    if (isWwProviderDisabledByUser(input.state)) return { status: "skipped", reason: "provider_disabled" };
+    const local = readWwProviderLocalState(input.state);
+    const sameAccount = local.ownerIssuer === issuer && local.ownerUserId === input.userId;
+    const recovery = sameAccount ? local.reconciliation : undefined;
+    if (mode === "login" && recovery?.status === "retrying" && Date.parse(recovery.retryAt ?? "") > Date.now()) {
+      return {
+        status: "failed",
+        error: recovery.reason ?? "network_unavailable",
+        retryable: true,
+        retryAt: recovery.retryAt,
+      };
+    }
     try {
-      return await provisionWwProvider(input, mode);
+      return await provisionWwProvider({ ...input, isCurrent }, mode);
     } catch (error) {
-      // Existing WW model routes remain selected but deliberately keyless. New
-      // users do not receive any default routes until a usable Key exists.
-      persistFailedWwProvider(input);
+      if (!isCurrent()) return { status: "skipped", reason: "session_changed" };
+      if (isWwProviderDisabledByUser(input.state)) return { status: "skipped", reason: "provider_disabled" };
+      const reconciliation = failedWwReconciliation(error, recovery);
+      persistFailedWwProvider(input, reconciliation);
       claimWwProviderAccount(input.state, { issuer: input.baseUrl, userId: input.userId });
+      recordWwReconciliation(input.state, reconciliation);
       const diagnosticFacts = wwDiagnosticFacts(error);
       return {
         status: "failed",
         error: error instanceof Error ? error.message : String(error),
+        reason: reconciliation.reason,
+        retryable: reconciliation.status === "retrying",
+        ...(reconciliation.retryAt ? { retryAt: reconciliation.retryAt } : {}),
         ...(diagnosticFacts ? { diagnosticFacts } : {}),
       };
     }
@@ -182,6 +236,7 @@ async function provisionWwProvider(
     baseUrl: string;
     accessToken: string;
     userId: string;
+    isCurrent: () => boolean;
   },
   mode: WwProvisioningMode,
 ): Promise<WwProviderProvisioningResult> {
@@ -203,13 +258,25 @@ async function provisionWwProvider(
   const existingApiKey = existing ? resolveProviderApiKey(existing) : undefined;
   const existingCredential = credentialForExistingWwProvider(existing, existingApiKey);
   const previousOwner = preclaimWwProvider(input, existing, existingApiKey, existingCredential);
+  if (mode === "recover-invalid-key" && existingApiKey) {
+    rejectWwCredential(input.state, existingApiKey);
+    persistWwProvider(input, existing, existingCredential, true, {
+      status: "blocked",
+      reason: "key_rejected",
+      attempt: 0,
+    });
+  }
   const pendingCreate = hasPendingWwProvisioningAttempt(input.state, {
     issuer: input.baseUrl,
     userId: input.userId,
   });
   const inspection =
     pendingCreate && !existingApiKey ? undefined : await inspectWwApiKey(input, existingApiKey, previousOwner);
-  const ownedKey = mode === "login" && inspection?.state === "active" ? inspection.key : undefined;
+  if (!input.isCurrent()) return { status: "skipped", reason: "session_changed" };
+  const keyRejected =
+    existingApiKey &&
+    readWwProviderLocalState(input.state).rejectedKeyFingerprint === wwCredentialFingerprint(existingApiKey);
+  const ownedKey = mode === "login" && !keyRejected && inspection?.state === "active" ? inspection.key : undefined;
   const keyState = reconciliationState({ mode, pendingCreate, existingApiKey, inspection });
   if (isWwProviderDisabledByUser(input.state)) {
     return { status: "skipped", reason: "provider_disabled" };
@@ -218,6 +285,7 @@ async function provisionWwProvider(
     persistUnownedWwProvider(input);
   }
   const created = ownedKey ? undefined : await createWwApiKey(input);
+  if (!input.isCurrent()) return { status: "skipped", reason: "session_changed" };
   if (isWwProviderDisabledByUser(input.state)) {
     return { status: "skipped", reason: "provider_disabled" };
   }
@@ -231,7 +299,11 @@ async function provisionWwProvider(
     (candidate) => candidate.id === WW_PROVIDER_ID,
   );
   const credential = created ? { apiKey: created.apiKey } : existingCredential;
-  const profile = wwProviderProfile(currentExisting, input.baseUrl, credential, false);
+  const profile = wwProviderProfile(currentExisting, input.baseUrl, credential, false, {
+    status: "ready",
+    attempt: 0,
+    lastVerifiedAt: new Date().toISOString(),
+  });
   const initializeProductDefaults = productDefaultsPending;
   const modelBindingUpdate = initializeProductDefaults
     ? addMissingWwModelDefaults(previousSettings.modelProviderBindings, profile, WW_PROVIDER_KERNELS)
@@ -255,6 +327,8 @@ async function provisionWwProvider(
       userId: input.userId,
       apiKeyId: keyIdentity.id,
       apiKeyPrefix: keyIdentity.keyPrefix,
+      apiKey,
+      expiresAt: keyIdentity.expiresAt,
     });
     if (productDefaultsPending) {
       completeWwProviderProductDefaults(input.state, { issuer: input.baseUrl, userId: input.userId });
@@ -284,12 +358,14 @@ async function provisionWwProvider(
     userId: input.userId,
     apiKeyId: keyIdentity.id,
     apiKeyPrefix: keyIdentity.keyPrefix,
+    apiKey,
+    expiresAt: keyIdentity.expiresAt,
   });
   if (productDefaultsPending) {
     completeWwProviderProductDefaults(input.state, { issuer: input.baseUrl, userId: input.userId });
   }
   return {
-    status: "configured",
+    status: existing?.provisioning?.status === "ready" && !created ? "already-configured" : "configured",
     providerId: WW_PROVIDER_ID,
     createdApiKey: Boolean(created),
     defaultedKernels,
@@ -314,20 +390,43 @@ function preclaimWwProvider(
       localState.ownerUserId === input.userId &&
       localState.apiKeyId &&
       localState.apiKeyPrefix &&
-      existingApiKey.startsWith(localState.apiKeyPrefix),
+      existingApiKey.startsWith(localState.apiKeyPrefix) &&
+      localState.verification?.fingerprint === wwCredentialFingerprint(existingApiKey) &&
+      (!localState.verification.expiresAt || Date.parse(localState.verification.expiresAt) > Date.now()),
   );
-  persistWwProvider(input, existing, existingCredential, existing?.provisioningBlocked === true || !locallyOwned);
+  persistWwProvider(
+    input,
+    existing,
+    existingCredential,
+    existing?.provisioningBlocked === true || !locallyOwned,
+    existing?.provisioning,
+  );
   claimWwProviderAccount(input.state, { issuer: input.baseUrl, userId: input.userId });
   return localState;
 }
 
-function persistFailedWwProvider(input: { state: BridgeState; baseUrl: string }): void {
+function persistFailedWwProvider(
+  input: { state: BridgeState; baseUrl: string; userId: string },
+  reconciliation: WwProviderReconciliation,
+): void {
   const existing = getAllBridgeProviderProfiles(input.state.settings.customProviders).find(
     (profile) => profile.id === WW_PROVIDER_ID,
   );
   const apiKey = existing ? resolveProviderApiKey(existing) : undefined;
   const credential = credentialForExistingWwProvider(existing, apiKey);
-  persistWwProvider(input, existing, credential, true);
+  const local = readWwProviderLocalState(input.state);
+  const verified = Boolean(
+    apiKey &&
+      local.verification &&
+      local.ownerIssuer === canonicalWwIssuer(input.baseUrl) &&
+      local.ownerUserId === input.userId &&
+      local.verification.fingerprint === wwCredentialFingerprint(apiKey) &&
+      (!local.verification.expiresAt || Date.parse(local.verification.expiresAt) > Date.now()) &&
+      !local.recoveryBlock &&
+      !local.rejectedKeyFingerprint &&
+      existing?.provisioningBlocked !== true,
+  );
+  persistWwProvider(input, existing, credential, reconciliation.status !== "retrying" || !verified, reconciliation);
 }
 
 function persistUnownedWwProvider(input: { state: BridgeState; baseUrl: string }): void {
@@ -345,10 +444,11 @@ function persistWwProvider(
   existing: BridgeProviderProfile | undefined,
   credential: WwProviderCredential | undefined,
   provisioningBlocked: boolean,
+  provisioning?: WwProviderReconciliation,
 ): void {
   if (isWwProviderDisabledByUser(input.state)) return;
   const previousSettings = input.state.settings;
-  const profile = wwProviderProfile(existing, input.baseUrl, credential, provisioningBlocked);
+  const profile = wwProviderProfile(existing, input.baseUrl, credential, provisioningBlocked, provisioning);
   const nextSettings = {
     ...previousSettings,
     customProviders: upsertWwProvider(previousSettings.customProviders, profile),
@@ -442,6 +542,7 @@ function wwProviderProfile(
   baseUrl: string,
   credential: WwProviderCredential | undefined,
   provisioningBlocked: boolean,
+  provisioning?: WwProviderReconciliation,
 ): BridgeProviderProfile {
   return {
     id: WW_PROVIDER_ID,
@@ -456,6 +557,7 @@ function wwProviderProfile(
     ...(credential?.apiKey?.trim() ? { apiKey: credential.apiKey } : {}),
     ...(credential?.apiKeyEnv?.trim() ? { apiKeyEnv: credential.apiKeyEnv } : {}),
     ...(provisioningBlocked ? { provisioningBlocked: true } : {}),
+    ...(provisioning ? { provisioning } : {}),
     credentialKind: credential?.apiKeyEnv ? "env-key" : "api-key",
     models: existing?.models?.length ? existing.models : wwDefaultProviderModels(),
   };
@@ -492,6 +594,19 @@ function persistProviderSettings(
   nextSettings: BridgeState["settings"],
   runtimeUpdate: { mode: "apply-product-defaults"; model?: string } | { mode: "preserve-runtime-selection" },
 ): void {
+  if (
+    runtimeUpdate.mode === "preserve-runtime-selection" &&
+    settingsEqual(previousSettings, nextSettings, { ignoreVerificationMetadata: true })
+  ) {
+    state.settings = nextSettings;
+    try {
+      saveBridgeSettings(state);
+    } catch (error) {
+      state.settings = previousSettings;
+      throw error;
+    }
+    return;
+  }
   const previousModel = state.model;
   const preserveRuntimeSelection = runtimeUpdate.mode === "preserve-runtime-selection";
   const previousMemberRuntime = preserveRuntimeSelection
@@ -566,10 +681,16 @@ function providerDefaultModelForCurrentRoute(
     : (profile.models.find((model) => model.id === WW_DEFAULT_MODEL_ID)?.id ?? profile.models[0]?.id);
 }
 
-function settingsEqual(left: BridgeState["settings"], right: BridgeState["settings"]): boolean {
+function settingsEqual(
+  left: BridgeState["settings"],
+  right: BridgeState["settings"],
+  options: { ignoreVerificationMetadata?: boolean } = {},
+): boolean {
+  const providerFields = (key: string, value: unknown) =>
+    options.ignoreVerificationMetadata && key === "provisioning" ? undefined : value;
   return (
     left.kernel === right.kernel &&
-    JSON.stringify(left.customProviders) === JSON.stringify(right.customProviders) &&
+    JSON.stringify(left.customProviders, providerFields) === JSON.stringify(right.customProviders, providerFields) &&
     JSON.stringify(left.modelProviderBindings) === JSON.stringify(right.modelProviderBindings)
   );
 }

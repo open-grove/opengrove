@@ -40,6 +40,8 @@ const providerProvisioningSchema = z
     status: z.enum(["configured", "already-configured", "skipped", "failed"]),
     providerId: z.string().optional(),
     createdApiKey: z.boolean().optional(),
+    retryable: z.boolean().optional(),
+    retryAt: z.iso.datetime().optional(),
     defaultedKernels: z.array(z.string()).optional(),
     reason: z.string().optional(),
     error: z.string().optional(),

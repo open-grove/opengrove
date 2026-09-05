@@ -74,6 +74,7 @@ export interface KernelOption {
     | "ready"
     | "selection-required"
     | "missing-key"
+    | "verification-required"
     | "missing-provider"
     | "unsupported"
     | "disabled"
@@ -630,6 +631,13 @@ export interface ProviderProfile {
   apiKey?: string;
   apiKeyEnv?: string;
   provisioningBlocked?: boolean;
+  provisioning?: {
+    status: "pending" | "ready" | "retrying" | "needs-login" | "blocked";
+    reason?: string;
+    attempt: number;
+    retryAt?: string;
+    lastVerifiedAt?: string;
+  };
   credentialKind?:
     | "none"
     | "native-login"
@@ -795,6 +803,7 @@ export interface BridgeAuthStatus {
 }
 
 export interface AuthSessionResponse {
+  providerProvisioning?: BridgeAuthResponse["providerProvisioning"];
   status: "authenticated" | "unauthenticated" | "temporarily_unavailable";
   authenticated?: boolean;
   verification?: "verified" | "cached" | "stale";
@@ -824,6 +833,8 @@ export interface BridgeAuthResponse {
   isNewUser?: boolean;
   providerProvisioning?: {
     status: "configured" | "already-configured" | "skipped" | "failed";
+    retryable?: boolean;
+    retryAt?: string;
     providerId?: string;
     createdApiKey?: boolean;
     defaultedKernels?: string[];

@@ -363,6 +363,9 @@ function unavailableReasonForState(id: BridgeKernelId, state?: BridgeState, loca
   const binding = unavailableExplicitProviderBinding(id, state);
   if (binding) {
     const label = binding.profile?.name || binding.providerId;
+    if (binding.status === "verification-required") {
+      return "Provider credential verification is pending or requires attention. Check its status in Settings.";
+    }
     if (binding.status === "missing-key" && binding.providerId === "ww") {
       return "The WW provider key is not ready. Sign in again later to retry, or choose another provider in Settings.";
     }
@@ -394,6 +397,7 @@ function unavailableReasonForState(id: BridgeKernelId, state?: BridgeState, loca
 
 function unavailableCodeForState(id: BridgeKernelId, state?: BridgeState): KernelOptionUnavailableCode {
   const binding = unavailableExplicitProviderBinding(id, state);
+  if (binding?.status === "verification-required") return "provider_verification_required";
   if (binding?.status === "missing-key" && binding.providerId === "ww") return "ww_provider_key_missing";
   if (binding?.status === "missing-key") return "provider_key_missing";
   if (binding?.status === "disabled") return "provider_disabled";

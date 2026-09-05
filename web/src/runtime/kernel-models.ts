@@ -7,9 +7,16 @@ import type { TranslationFn, TranslationKey } from "../i18n";
 export type KernelModelOption = RuntimeControlOption & { routeModelIds?: string[] };
 
 const BINDING_STATUS_LABELS: Record<
-  "selection-required" | "missing-key" | "missing-provider" | "disabled" | "unsupported" | "unknown",
+  | "verification-required"
+  | "selection-required"
+  | "missing-key"
+  | "missing-provider"
+  | "disabled"
+  | "unsupported"
+  | "unknown",
   TranslationKey
 > = {
+  "verification-required": "settings.providerVerificationPending",
   "selection-required": "settings.bindingSelectionRequired",
   "missing-key": "settings.bindingMissingKey",
   "missing-provider": "settings.noAvailableProvider",
@@ -19,6 +26,7 @@ const BINDING_STATUS_LABELS: Record<
 };
 
 const KERNEL_UNAVAILABLE_LABEL_KEYS: Record<string, TranslationKey> = {
+  provider_verification_required: "settings.providerVerificationPending",
   ww_provider_key_missing: "settings.kernelUnavailableProviderKey",
   provider_key_missing: "settings.kernelUnavailableProviderKey",
   provider_disabled: "settings.kernelUnavailableProviderDisabled",

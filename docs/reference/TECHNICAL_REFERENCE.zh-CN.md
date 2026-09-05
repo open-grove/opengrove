@@ -88,6 +88,8 @@ Kernel integrations 分成四层：
 | Kernel manifest | 记录 launch command、session strategy、provider binding、approval policy、event mapping、capabilities 和 rollout status。 |
 | Harness template | 给每种协议一个 fake-server test shape，这样新增 kernel 时不用猜 runtime 行为。 |
 
+Kimi 命令发现依次检查显式路径设置、`OPENGROVE_KIMI_BIN`、进程 `PATH`，再检查已知用户安装目录 `~/.kimi-code/bin` 和 `~/.local/bin`。显式指定的命令无效时仍报错。发现、Login 和 ACP 执行使用同一解析器，因此桌面启动未加载交互式 shell 配置时也能找到常见安装。
+
 已实现 runtime paths 包括 Codex app-server JSON-RPC、Claude Agent SDK streaming、Hermes TUI Gateway、Pi SDK in-process、OpenClaw Gateway WebSocket，以及 OpenCode/Kimi ACP。
 
 ---
@@ -108,6 +110,10 @@ MiniMax、Xiaomi MiMo、AiHubMix、Azure OpenAI 和 xAI。公开模型元数据�
 token。已认证 Login 只在运行时投影进模型选择器。路由优先级为 Employee
 覆盖、具体模型的已保存默认、要求选择。新设置用 `$login` 表示 Login，
 Provider 保存具体 id；`$native` 只用于 OpenGrove 0.6.1 升级迁移。
+
+Claude Login 状态会区分第一方 OAuth 与原生 CLI 的 Provider 鉴权（例如 Bedrock、Vertex 或 API Key）。原生 Provider 状态提供显式的 Provider 配置入口，不会产生已登录的 Login 路由。探测失败或无法识别的结果保持为未知，并支持重新检查。
+
+WW 的凭据存在状态与验证状态分别记录。管理接口暂时不可用时，同一账号和 issuer 下已经验证、未变更且未过期的 Key 继续可用；未验证、已变更、过期或已被明确拒绝的 Key 保持阻断。可恢复的失败返回下次重试时间，已打开的客户端通过现有 Session 接口按有上限的指数退避和抖动重试，成功、退出登录、禁用 Provider 或需要用户处理时停止。Access token 刷新仍由持有 Cookie 的 Session 请求和响应处理。切换账号、退出登录和编辑凭据会使正在执行的旧配置请求失效。仅更新验证状态信息不会重建运行中的 App。
 
 主 Provider 列表只包含已启用、已配置凭据或用户主动添加的服务；未激活的
 内置项留在 **Add Provider**。OpenGrove 不会把 Codex、Claude、Hermes、Pi、
@@ -191,7 +197,7 @@ Local bridge 是 UI、state、tools 和 kernels 之间的边界。
 | `/health` | `GET` | Bridge 本地存活与能力摘要；不验证 WW 会话 |
 | `/auth/email-codes` | `POST` | 请求 WW 邮箱验证码，并返回该邮箱是否需要注册字段 |
 | `/auth/login` | `POST` | 使用邮箱验证码登录；新账号同时提交用户选择的 ISO 国家/地区，以及按需提交邀请码 |
-| `/auth/session` | `GET` | 事件触发的 WW 会话恢复；区分已认证、未登录与暂时不可用 |
+| `/auth/session` | `GET` | WW 会话恢复与定时重试；区分已认证、未登录与暂时不可用 |
 | `/auth/client-update` | `GET` | 当前桌面版本和适用的 Cloud 发布版本；已登录会话读取完整版本契约，未登录但通过 Bridge token 鉴权的桌面端读取公开精简版本契约 |
 | `/auth/activity` | `POST` | 已登录 Electron 桌面端每天一次的最小账号活跃；不携带本地业务数据 |
 | `/inventory` | `GET` | knowledge、memory、artifacts、sessions、tools、skills 和 capabilities |

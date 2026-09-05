@@ -250,9 +250,22 @@ function normalizeCustomProviderSettingsPatch(
   return normalizeCustomProviderProfiles(value).map((provider) => {
     const existing = current.find((candidate) => candidate.id === provider.id);
     const sourceManaged = existing?.origin === "discovered" || Boolean(existing?.sourceKernel);
+    const wwCredentialChanged =
+      provider.id === "ww" &&
+      (provider.apiKey !== existing?.apiKey ||
+        provider.apiKeyEnv !== existing?.apiKeyEnv ||
+        provider.anthropicBaseUrl !== existing?.anthropicBaseUrl);
     return {
       ...provider,
       authConfigured: sourceManaged ? existing?.authConfigured : undefined,
+      ...(provider.id === "ww"
+        ? {
+            provisioning: wwCredentialChanged
+              ? { status: "pending" as const, reason: "credential_changed", attempt: 0 }
+              : existing?.provisioning,
+            provisioningBlocked: wwCredentialChanged ? true : existing?.provisioningBlocked,
+          }
+        : {}),
     };
   });
 }

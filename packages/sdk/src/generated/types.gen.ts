@@ -431,6 +431,8 @@ export type AuthSessionCreateResponses = {
       status: "configured" | "already-configured" | "skipped" | "failed";
       providerId?: string;
       createdApiKey?: boolean;
+      retryable?: boolean;
+      retryAt?: string;
       defaultedKernels?: Array<string>;
       reason?: string;
       error?: string;

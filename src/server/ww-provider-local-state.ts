@@ -1,3 +1,10 @@
+import {
+  wwCredentialFingerprint,
+  wwProviderReconciliationSchema,
+  wwVerifiedCredentialSchema,
+  type WwProviderReconciliation,
+  type WwVerifiedCredential,
+} from "./ww-provider-reconciliation.js";
 import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import type { BridgeState } from "./bridge-types.js";
@@ -39,6 +46,9 @@ export interface WwProviderLocalState {
   ownerUserId?: string;
   apiKeyId?: string;
   apiKeyPrefix?: string;
+  verification?: WwVerifiedCredential;
+  rejectedKeyFingerprint?: string;
+  reconciliation?: WwProviderReconciliation;
   recoveryBlock?: WwProviderRecoveryBlock;
   productDefaults?: WwProviderProductDefaults;
   pending: WwPendingProvisioning[];
@@ -162,7 +172,7 @@ export function hasPendingWwProvisioningAttempt(
 
 export function recordWwProviderOwnership(
   state: BridgeState,
-  input: { issuer: string; userId: string; apiKeyId: string; apiKeyPrefix: string },
+  input: { issuer: string; userId: string; apiKeyId: string; apiKeyPrefix: string; apiKey: string; expiresAt?: string },
 ): WwProviderLocalState {
   const issuer = canonicalWwIssuer(input.issuer);
   const userId = requiredString(input.userId, "ww_user_id_missing");
@@ -175,6 +185,12 @@ export function recordWwProviderOwnership(
     ownerUserId: userId,
     apiKeyId: requiredString(input.apiKeyId, "ww_api_key_identity_missing"),
     apiKeyPrefix: requiredString(input.apiKeyPrefix, "ww_api_key_identity_missing"),
+    verification: {
+      fingerprint: wwCredentialFingerprint(input.apiKey),
+      verifiedAt: new Date().toISOString(),
+      ...(input.expiresAt ? { expiresAt: input.expiresAt } : {}),
+    },
+    reconciliation: { status: "ready", attempt: 0, lastVerifiedAt: new Date().toISOString() },
     ...(recoveryBlock ? { recoveryBlock } : {}),
     ...(current.productDefaults ? { productDefaults: current.productDefaults } : {}),
     pending: current.pending.filter((pending) => pending.issuer !== issuer || pending.userId !== userId),
@@ -199,6 +215,11 @@ export function claimWwProviderAccount(
     ownerUserId: userId,
     ...(sameAccount && current.apiKeyId ? { apiKeyId: current.apiKeyId } : {}),
     ...(sameAccount && current.apiKeyPrefix ? { apiKeyPrefix: current.apiKeyPrefix } : {}),
+    ...(sameAccount && current.rejectedKeyFingerprint
+      ? { rejectedKeyFingerprint: current.rejectedKeyFingerprint }
+      : {}),
+    ...(sameAccount && current.verification ? { verification: current.verification } : {}),
+    ...(sameAccount && current.reconciliation ? { reconciliation: current.reconciliation } : {}),
     ...(recoveryBlock ? { recoveryBlock } : {}),
     ...(current.productDefaults ? { productDefaults: current.productDefaults } : {}),
     pending: current.pending,
@@ -287,6 +308,11 @@ export function readWwProviderLocalState(state: BridgeState): WwProviderLocalSta
   // `newUserDefaults` was the 0.6.1 name. Reading it here is the only
   // compatibility boundary; subsequent writes use the product-owned name.
   const productDefaults = parseProductDefaults(source.productDefaults ?? source.newUserDefaults);
+  const rejectedKeyFingerprint = stringValue(source.rejectedKeyFingerprint);
+  if (rejectedKeyFingerprint && !/^[a-f0-9]{64}$/.test(rejectedKeyFingerprint))
+    throw new Error("ww_provider_local_state_invalid");
+  const verification = wwVerifiedCredentialSchema.optional().parse(source.verification);
+  const reconciliation = wwProviderReconciliationSchema.optional().parse(source.reconciliation);
   const pending = parsePending(source.pending);
   return {
     version: WW_PROVIDER_LOCAL_STATE_VERSION,
@@ -295,10 +321,28 @@ export function readWwProviderLocalState(state: BridgeState): WwProviderLocalSta
     ...(ownerUserId ? { ownerUserId } : {}),
     ...(apiKeyId ? { apiKeyId } : {}),
     ...(apiKeyPrefix ? { apiKeyPrefix } : {}),
+    ...(verification ? { verification } : {}),
+    ...(rejectedKeyFingerprint ? { rejectedKeyFingerprint } : {}),
+    ...(reconciliation ? { reconciliation } : {}),
     ...(recoveryBlock ? { recoveryBlock } : {}),
     ...(productDefaults ? { productDefaults } : {}),
     pending,
   };
+}
+
+export function rejectWwCredential(state: BridgeState, apiKey: string): void {
+  const current = readWwProviderLocalState(state);
+  writeWwProviderLocalState(state, { ...current, rejectedKeyFingerprint: wwCredentialFingerprint(apiKey) });
+}
+
+export function resetWwReconciliation(state: BridgeState): void {
+  const { reconciliation: _previous, ...current } = readWwProviderLocalState(state);
+  writeWwProviderLocalState(state, current);
+}
+
+export function recordWwReconciliation(state: BridgeState, reconciliation: WwProviderReconciliation): void {
+  const current = readWwProviderLocalState(state);
+  writeWwProviderLocalState(state, { ...current, reconciliation });
 }
 
 function emptyWwProviderLocalState(): WwProviderLocalState {
