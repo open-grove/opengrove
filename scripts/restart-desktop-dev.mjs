@@ -39,7 +39,12 @@ let buildStartedAt = Date.now();
 if (!skipBuild) {
   buildStartedAt = Date.now();
   const invocation = nodePackageManagerInvocation("npm", ["run", "build"]);
-  await run(invocation.command, invocation.args);
+  await run(invocation.command, invocation.args, {
+    env: {
+      ...process.env,
+      OPENGROVE_WEB_DEV_FIXTURE_ACCOUNTS: "1",
+    },
+  });
 }
 
 const executableOutput = execFileSync(process.execPath, ["scripts/launch-desktop-dev.mjs", "--prepare-only"], {

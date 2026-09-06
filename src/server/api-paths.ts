@@ -17,6 +17,15 @@ export function isPublicBridgeRoute(pathname: string): boolean {
     pathname === "/auth/session" ||
     pathname === "/auth/login" ||
     pathname === "/auth/logout" ||
+    // Reachable before sign-in by necessity: on a ww deployment that gates
+    // sign-in behind a team token, these are how a client learns the gate
+    // exists and supplies the token, so requiring a session would make it
+    // impossible to obtain one.
+    pathname === "/auth/team-unlock" ||
+    pathname === "/auth/team-status" ||
+    pathname === "/auth/team-accounts" ||
+    pathname === "/auth/team-signin" ||
+    pathname === "/auth/team-restore" ||
     pathname === "/room-ledger/read"
   );
 }

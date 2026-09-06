@@ -831,6 +831,36 @@ export interface BridgeAuthResponse {
   error?: string;
 }
 
+/**
+ * Whether the ww deployment behind this bridge gates sign-in on a shared team
+ * token, and whether the token the bridge already holds satisfies it.
+ *
+ * required is false on a deployment with no gate, so a client decides whether to
+ * prompt from what the server reports rather than by guessing the environment.
+ */
+export interface BridgeTeamGateStatus {
+  required: boolean;
+  satisfied: boolean;
+  /**
+   * The account a team-account switch replaced, when one can still be restored.
+   * Absent when there is nothing to go back to -- including after a bridge
+   * restart, since the replaced session is held in memory only.
+   */
+  previousAccount?: string;
+}
+
+/**
+ * One entry in the test-account switcher. The list comes from ww at runtime, so
+ * the shipped web bundle carries no copy of these addresses and the two cannot
+ * drift apart.
+ */
+export interface BridgeTeamAccount {
+  email: string;
+  /** What the test database says this account is, rather than a hand-written label. */
+  roles: string[];
+  status: string;
+}
+
 export interface BridgeCapabilities {
   profile: "local" | "test";
   auth: string;

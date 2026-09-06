@@ -960,3 +960,70 @@ html[data-opengrove-desktop="true"] .cloud-auth-language {
     inset: -20px -150px;
   }
 }
+
+/* Test-account picker, shown right after the team gate on a gated deployment.
+   Borrows the auth panel's surface so it reads as one flow with the gate. */
+.team-account-picker-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 42vh;
+  overflow-y: auto;
+  margin: 4px 0 2px;
+  padding-right: 2px;
+}
+
+.team-account-picker-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 10px 14px;
+  border: 1px solid var(--cloud-auth-field-border, rgb(255 255 255 / 12%));
+  border-radius: 10px;
+  background: var(--cloud-auth-field-bg, rgb(255 255 255 / 4%));
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color 120ms ease,
+    background-color 120ms ease;
+}
+
+.team-account-picker-option:hover:not(:disabled),
+.team-account-picker-option:focus-visible {
+  border-color: var(--cloud-auth-accent, rgb(255 255 255 / 32%));
+  background: rgb(255 255 255 / 8%);
+}
+
+.team-account-picker-option:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.team-account-picker-option[data-pending="true"] {
+  opacity: 1;
+  border-color: var(--cloud-auth-accent, rgb(255 255 255 / 32%));
+}
+
+.team-account-picker-identity {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.team-account-picker-identity strong {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.team-account-picker-identity small {
+  font-size: 11px;
+  opacity: 0.62;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

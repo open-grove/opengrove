@@ -6,6 +6,9 @@ import tailwindcss from "@tailwindcss/vite";
 
 export default defineConfig(({ command }) => {
   const development = command === "serve";
+  // Fixture accounts are release-sensitive test data. Keep the default closed;
+  // only the desktop dev launcher opts in explicitly.
+  const devFixtureAccountsEnabled = process.env.OPENGROVE_WEB_DEV_FIXTURE_ACCOUNTS === "1";
   const developmentBackendUrl = process.env.OPENGROVE_WEB_DEV_BACKEND_URL?.trim();
   const packageJson = JSON.parse(readFileSync(resolve(import.meta.dirname, "package.json"), "utf8")) as {
     version?: unknown;
@@ -71,6 +74,7 @@ export default defineConfig(({ command }) => {
     define: {
       __OPENGROVE_BUILD_ID__: JSON.stringify(buildId),
       __OPENGROVE_PACKAGE_VERSION__: JSON.stringify(packageVersion),
+      __OPENGROVE_DEV_FIXTURE_ACCOUNTS__: JSON.stringify(devFixtureAccountsEnabled),
     },
     server: {
       ...(developmentBackendUrl
