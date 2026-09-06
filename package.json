@@ -75,7 +75,7 @@
     "generate:host-client": "node scripts/generate-host-client.mjs",
     "build:server": "node scripts/build-server.mjs",
     "build:server:compat": "node scripts/build-server.mjs --compat",
-    "build:web": "vite build && node scripts/check-web-build.mjs",
+    "build:web": "vite build && node scripts/check-web-build.mjs && node scripts/check-web-fixture-account-boundary.mjs",
     "catalog:models-dev": "node scripts/sync-models-dev-catalog.mjs",
     "clean:server": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
     "typecheck": "npm run typecheck:protocol && npm run typecheck:client && npm run typecheck:sdk && npm run typecheck:server && npm run typecheck:web && npm run typecheck:desktop",

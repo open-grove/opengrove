@@ -1,91 +1,47 @@
-import type { LanguagePreference, ResolvedLanguage } from "./i18n-types";
-
+/**
+ * The test-account switcher.
+ *
+ * The account list is not defined here: it comes from ww at runtime, which keeps
+ * those addresses out of the shipped web bundle and keeps the two ends from
+ * drifting. Switching is one request that returns a full session -- there is no
+ * verification code, because proving team membership already happened when the
+ * team token was accepted, and no intermediate logged-out state to get stuck in.
+ */
 export interface DevFixtureAccount {
-  id: string;
   email: string;
-  countryCode: string;
-  roles: readonly string[];
-  enabled: boolean;
-}
-
-export interface DevFixtureLoginPayload {
-  email: string;
-  code: string;
-  countryCode: string;
-  deviceName: string;
-  platform: string;
-  languagePreference: LanguagePreference;
-  systemLanguage: ResolvedLanguage;
+  roles: string[];
+  status: string;
 }
 
 export interface DevFixtureAuthPort<Result> {
-  logout(): Promise<unknown>;
-  sendEmailCode(payload: { email: string }): Promise<unknown>;
-  login(payload: DevFixtureLoginPayload): Promise<Result>;
+  signIn(email: string): Promise<Result>;
 }
 
 export function devFixtureAccountSwitcherAvailable(input: {
   isOfficialRelease: boolean | undefined;
   sessionAuthActive: boolean;
+  teamGateSatisfied: boolean;
 }): boolean {
-  return __OPENGROVE_DEV_FIXTURE_ACCOUNTS__ && input.isOfficialRelease === false && input.sessionAuthActive;
+  return (
+    // Compile-time: the switcher is absent from any bundle not built with
+    // OPENGROVE_WEB_DEV_FIXTURE_ACCOUNTS=1, and check-web-fixture-account-boundary
+    // verifies that by scanning the built bytes.
+    __OPENGROVE_DEV_FIXTURE_ACCOUNTS__ &&
+    // A packaged official release always hides it. Compared against true rather
+    // than false because undefined means "not running in the desktop shell" --
+    // a browser has no notion of a release build, and gating on it there would
+    // hide the switcher for a reason that does not apply.
+    input.isOfficialRelease !== true &&
+    input.sessionAuthActive &&
+    // Without the team token ww refuses both to list these accounts and to
+    // grant them, so offering the switcher would only produce failures.
+    input.teamGateSatisfied
+  );
 }
 
 export async function switchDevFixtureAccount<Result>(
-  account: DevFixtureAccount,
-  language: Pick<DevFixtureLoginPayload, "languagePreference" | "systemLanguage">,
+  account: Pick<DevFixtureAccount, "email">,
   auth: DevFixtureAuthPort<Result>,
 ): Promise<Result> {
-  if (!account.enabled) throw new Error("fixture_account_disabled");
-  await auth.logout();
-  await auth.sendEmailCode({ email: account.email });
-  return auth.login({
-    email: account.email,
-    code: "000000",
-    countryCode: account.countryCode,
-    deviceName: "OpenGrove fixture switcher",
-    platform: "macos",
-    ...language,
-  });
+  return auth.signIn(account.email);
 }
-
-export const DEV_FIXTURE_ACCOUNTS: readonly DevFixtureAccount[] = __OPENGROVE_DEV_FIXTURE_ACCOUNTS__
-  ? [
-      { id: "1001", email: "cn-writer-a@example.test", countryCode: "CN", roles: ["storyseed_writer"], enabled: true },
-      { id: "1002", email: "cn-writer-b@example.test", countryCode: "CN", roles: ["storyseed_writer"], enabled: true },
-      { id: "1003", email: "cn-writer-c@example.test", countryCode: "CN", roles: ["storyseed_writer"], enabled: true },
-      { id: "1004", email: "cn-editor-a@example.test", countryCode: "CN", roles: ["storyseed_editor"], enabled: true },
-      { id: "1005", email: "cn-editor-b@example.test", countryCode: "CN", roles: ["storyseed_editor"], enabled: true },
-      { id: "1006", email: "cn-admin-a@example.test", countryCode: "CN", roles: ["admin"], enabled: true },
-      {
-        id: "1007",
-        email: "cn-admin-b@example.test",
-        countryCode: "CN",
-        roles: ["admin", "storyseed_editor"],
-        enabled: true,
-      },
-      { id: "1008", email: "cn-supplier-a@example.test", countryCode: "CN", roles: ["vega_supplier"], enabled: true },
-      { id: "1009", email: "cn-supplier-b@example.test", countryCode: "CN", roles: ["vega_supplier"], enabled: true },
-      { id: "1010", email: "cn-reviewer-a@example.test", countryCode: "CN", roles: ["vega_reviewer"], enabled: true },
-      { id: "1011", email: "cn-noaccount@example.test", countryCode: "CN", roles: ["storyseed_writer"], enabled: true },
-      { id: "1012", email: "cn-disabled@example.test", countryCode: "CN", roles: ["storyseed_writer"], enabled: false },
-      { id: "1013", email: "cn-noroles@example.test", countryCode: "CN", roles: [], enabled: true },
-      { id: "1014", email: "cn-mismatch@example.test", countryCode: "CN", roles: ["user"], enabled: true },
-      { id: "1015", email: "cn-cash-odd@example.test", countryCode: "CN", roles: ["storyseed_writer"], enabled: true },
-      {
-        id: "1016",
-        email: "cn-cash-frozen@example.test",
-        countryCode: "CN",
-        roles: ["storyseed_writer"],
-        enabled: true,
-      },
-      { id: "1017", email: "us-writer-a@example.test", countryCode: "US", roles: ["storyseed_writer"], enabled: true },
-      { id: "1018", email: "us-writer-b@example.test", countryCode: "US", roles: ["storyseed_writer"], enabled: true },
-      { id: "1019", email: "ng-writer-a@example.test", countryCode: "NG", roles: ["storyseed_writer"], enabled: true },
-      { id: "1020", email: "ng-writer-b@example.test", countryCode: "NG", roles: ["storyseed_writer"], enabled: true },
-      { id: "1021", email: "us-editor-a@example.test", countryCode: "US", roles: ["storyseed_editor"], enabled: true },
-      { id: "1022", email: "us-admin-a@example.test", countryCode: "US", roles: ["admin"], enabled: true },
-      { id: "1023", email: "gb-singleton@example.test", countryCode: "GB", roles: ["user"], enabled: true },
-      { id: "1024", email: "us-reviewer-a@example.test", countryCode: "US", roles: ["vega_reviewer"], enabled: true },
-    ]
-  : [];

@@ -59,7 +59,7 @@ import {
 } from "../../runtime/account-profile-store";
 import { getClientBootstrap } from "../../runtime/client-bootstrap";
 import { readDesktopApi } from "../../desktop-api";
-import { DEV_FIXTURE_ACCOUNTS, type DevFixtureAccount } from "../../dev-fixture-accounts";
+import type { DevFixtureAccount } from "../../dev-fixture-accounts";
 import { devFixtureAccountCopy } from "../../locales/dev-fixture-account-copy";
 import {
   createH5SignApplication,
@@ -482,6 +482,10 @@ export function AppRail(props: {
   authUser?: BridgeAuthUser;
   fixtureAccountSwitchError?: string;
   fixtureAccountSwitchingEmail?: string;
+  fixtureAccounts?: readonly DevFixtureAccount[];
+  previousAccountEmail?: string;
+  restoringPreviousAccount?: boolean;
+  onRestorePreviousAccount?(): void;
   onAuthExpired?(): void;
   onLogin?(): void;
   onLogout?(): void;
@@ -1130,17 +1134,42 @@ export function AppRail(props: {
               </p>
             ) : null}
             <div className={styles.fixtureAccountList} role="list">
-              {DEV_FIXTURE_ACCOUNTS.map((account) => {
+              {props.previousAccountEmail && props.onRestorePreviousAccount ? (
+                // Same card as a test account, but spanning the grid and marked
+                // as your own: it is the way back out of the switcher, not one
+                // more identity to try. The real account is deliberately absent
+                // from the list itself.
+                <button
+                  className={styles.fixtureAccountButton}
+                  data-restore="true"
+                  type="button"
+                  role="listitem"
+                  disabled={props.restoringPreviousAccount || Boolean(props.fixtureAccountSwitchingEmail)}
+                  onClick={props.onRestorePreviousAccount}
+                >
+                  <span className={styles.fixtureAccountIdentity}>
+                    <strong>{props.previousAccountEmail.split("@")[0]}</strong>
+                    <small>{props.previousAccountEmail}</small>
+                  </span>
+                  <span className={styles.fixtureAccountMetadata}>
+                    <span>{fixtureAccountCopy.yourAccount}</span>
+                  </span>
+                  <span className={styles.fixtureAccountState}>
+                    {props.restoringPreviousAccount ? fixtureAccountCopy.restoring : fixtureAccountCopy.restoreAction}
+                  </span>
+                </button>
+              ) : null}
+              {(props.fixtureAccounts ?? []).map((account) => {
                 const current = props.authUser?.email === account.email;
                 const switching = props.fixtureAccountSwitchingEmail === account.email;
                 return (
                   <button
-                    key={account.id}
+                    key={account.email}
                     className={styles.fixtureAccountButton}
                     data-current={current ? "true" : "false"}
                     type="button"
                     role="listitem"
-                    disabled={!account.enabled || current || Boolean(props.fixtureAccountSwitchingEmail)}
+                    disabled={current || account.status !== "active" || Boolean(props.fixtureAccountSwitchingEmail)}
                     onClick={() => {
                       setRequestedFixtureEmail(account.email);
                       props.onSwitchFixtureAccount?.(account);
@@ -1151,18 +1180,17 @@ export function AppRail(props: {
                       <small>{account.email}</small>
                     </span>
                     <span className={styles.fixtureAccountMetadata}>
-                      <span>{account.id}</span>
-                      <span>{account.countryCode}</span>
-                      <span>{account.roles.length > 0 ? account.roles.join(" + ") : fixtureAccountCopy.noRoles}</span>
+                      {account.status !== "active" ? <span>{account.status}</span> : null}
+                      <span>
+                        {account.roles.length > 0 ? account.roles.join(" + ") : fixtureAccountCopy.noRoles}
+                      </span>
                     </span>
                     <span className={styles.fixtureAccountState}>
                       {switching
                         ? fixtureAccountCopy.switching
                         : current
                           ? fixtureAccountCopy.current
-                          : account.enabled
-                            ? fixtureAccountCopy.switchAction
-                            : fixtureAccountCopy.disabled}
+                          : fixtureAccountCopy.switchAction}
                     </span>
                   </button>
                 );

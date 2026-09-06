@@ -4,14 +4,19 @@ import { join, relative, resolve } from "node:path";
 const projectRoot = resolve(import.meta.dirname, "..");
 const webDist = join(projectRoot, "web-dist");
 const expectPresent = process.argv.includes("--expect-present");
-const markers = [
-  "cn-writer-a@example.test",
-  "cn-reviewer-a@example.test",
-  "us-reviewer-a@example.test",
-  "OpenGrove fixture switcher",
-  "切换测试账号",
-  "Switch test account",
-];
+// Markers must be strings that exist ONLY when the switcher is compiled in.
+//
+// The fixture account addresses used to be listed here, but the switcher now
+// fetches its list from ww at runtime, so those addresses are no longer in the
+// bundle and checking for them would pass vacuously. What stays switcher-specific
+// is the copy in dev-fixture-account-copy.ts, which tree-shakes away with the
+// switcher itself.
+//
+// Deliberately NOT listed: anything from team-gate-copy.ts. The team-token gate
+// is a legitimate runtime feature that belongs in production builds, so its
+// strings ship either way -- including its own "no verification code" wording,
+// which is why only phrasing unique to the dev-only file works as a marker.
+const markers = ["切换测试账号", "Switch test account", "仅本地开发环境可用", "Available only in local development"];
 
 if (!existsSync(webDist)) {
   console.error("missing Web build output: web-dist");

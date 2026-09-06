@@ -5,10 +5,12 @@ export interface DevFixtureAccountCopy {
   title: string;
   hint: string;
   noRoles: string;
+  yourAccount: string;
+  restoreAction: string;
+  restoring: string;
   current: string;
   switching: string;
   switchAction: string;
-  disabled: string;
 }
 
 export function devFixtureAccountCopy(language: ResolvedLanguage): DevFixtureAccountCopy {
@@ -16,22 +18,26 @@ export function devFixtureAccountCopy(language: ResolvedLanguage): DevFixtureAcc
     return {
       open: "切换测试账号",
       title: "切换测试账号",
-      hint: "仅本地开发环境可用。点击账号后会自动使用固定验证码 000000 登录。",
-      noRoles: "无附加角色",
+      hint: "仅本地开发环境可用。点击即切换，无需邮箱验证码。",
+      noRoles: "无任何角色",
+      yourAccount: "你的账号",
+      restoreAction: "切回",
+      restoring: "正在切回…",
       current: "当前账号",
       switching: "切换中…",
       switchAction: "切换",
-      disabled: "已禁用",
     };
   }
   return {
     open: "Switch test account",
     title: "Switch test account",
-    hint: "Available only in local development. Click an account to sign in with fixed code 000000.",
-    noRoles: "No extra roles",
+    hint: "Available only in local development. Click an account to switch. No verification code needed.",
+    noRoles: "no roles",
+    yourAccount: "Your account",
+    restoreAction: "Switch back",
+    restoring: "Switching back…",
     current: "Current",
     switching: "Switching…",
     switchAction: "Switch",
-    disabled: "Disabled",
   };
 }

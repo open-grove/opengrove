@@ -101,7 +101,13 @@ import { useToast } from "./components/ui/toast";
 import { WorkspaceInspector } from "./components/workspace/workspace-views";
 import { useUiStore, type UiProject, type UiThread } from "./store";
 import { useVoiceInput } from "./voice/use-voice-input";
-import { CloudAuthLoadingScreen, CloudAuthScreen, RoomsUnavailableState } from "./components/app-shell/app-gates";
+import {
+  CloudAuthLoadingScreen,
+  CloudAuthScreen,
+  RoomsUnavailableState,
+  TeamAccountPickerScreen,
+  TeamGateScreen,
+} from "./components/app-shell/app-gates";
 import { AppTitlebar } from "./components/app-shell/app-titlebar";
 import { ChatWorkspaceView, MountedAppWorkspaceView } from "./components/app-shell/app-main-views";
 import { useBridgeAuthGate } from "./app-auth-gate";
@@ -146,6 +152,9 @@ export function App() {
   const [desktopAccountOnboardingCompleted, setDesktopAccountOnboardingCompleted] =
     useState(readAccountOnboardingCompleted);
   const [accountLoginRequested, setAccountLoginRequested] = useState(false);
+  // Set when someone chooses the email form over the test-account picker. Not
+  // persisted: a fresh window should land on the picker again.
+  const [emailLoginRequested, setEmailLoginRequested] = useState(false);
   const [desktopBridgeStartupState, setDesktopBridgeStartupState] = useState(readDesktopBridgeStartupState(desktopApi));
   const desktopBridgeReadyGenerationRef = useRef<number | undefined>(undefined);
   const desktopBridgeReady = desktopBridgeReadyForBootstrap({
@@ -363,6 +372,14 @@ export function App() {
     sessionAuthNeedsLogin,
     sessionAuthUnavailable,
     sessionAuthenticated,
+    teamGateBlocksSignIn,
+    teamGateChecking,
+    teamGateSatisfied,
+    teamAccounts,
+    previousAccountEmail,
+    teamRestoreMutation,
+    teamAccountsFailed,
+    teamUnlockMutation,
   } = useBridgeAuthGate({
     queryClient,
     healthQuery,
@@ -1767,7 +1784,9 @@ export function App() {
     );
   }
 
-  if (sessionAuthChecking) {
+  // teamGateChecking joins this so a gated deployment does not flash the login
+  // form for the moment before the gate answers.
+  if (sessionAuthChecking || (teamGateChecking && (sessionAuthNeedsLogin || accountLoginRequested))) {
     return (
       <CloudAuthLoadingScreen
         onRetry={() => {
@@ -1777,6 +1796,50 @@ export function App() {
             void healthQuery.refetch();
           }
         }}
+      />
+    );
+  }
+
+  // The team gate fronts sign-in, so it has to be answered before the login
+  // form is worth showing. Checked only on the path that would show that form:
+  // an already signed-in session keeps working (ww does not gate token refresh),
+  // and interrupting it to demand a token would be pointless.
+  if ((sessionAuthNeedsLogin || accountLoginRequested) && teamGateBlocksSignIn) {
+    return (
+      <TeamGateScreen
+        pending={teamUnlockMutation.isPending}
+        invalid={(teamUnlockMutation.error as { status?: number } | null)?.status === 401}
+        unavailable={teamUnlockMutation.isError && (teamUnlockMutation.error as { status?: number }).status !== 401}
+        onSubmit={(token) => teamUnlockMutation.mutate(token)}
+        onResetError={() => teamUnlockMutation.reset()}
+      />
+    );
+  }
+
+  // Past the gate, offer the test accounts before the email form. Proving team
+  // membership already happened, so a verification code on top of it buys
+  // nothing; email sign-in stays one click away for your own account or for
+  // exercising the real chain.
+  if (
+    (sessionAuthNeedsLogin || accountLoginRequested) &&
+    !emailLoginRequested &&
+    devFixtureAccountSwitcherAvailable({
+      isOfficialRelease: readDesktopApi()?.isOfficialRelease,
+      sessionAuthActive: healthQuery.data?.auth?.mode === "session",
+      teamGateSatisfied,
+    })
+  ) {
+    return (
+      <TeamAccountPickerScreen
+        accounts={teamAccounts}
+        loading={teamAccounts.length === 0 && !teamAccountsFailed}
+        switchingEmail={authFixtureSwitchMutation.isPending ? authFixtureSwitchMutation.variables?.email : undefined}
+        error={authFixtureSwitchMutation.error instanceof Error ? authFixtureSwitchMutation.error.message : ""}
+        onPick={(email) => {
+          authFixtureSwitchMutation.reset();
+          authFixtureSwitchMutation.mutate({ email });
+        }}
+        onUseEmail={() => setEmailLoginRequested(true)}
       />
     );
   }
@@ -1932,10 +1995,22 @@ export function App() {
           devFixtureAccountSwitcherAvailable({
             isOfficialRelease: readDesktopApi()?.isOfficialRelease,
             sessionAuthActive: healthQuery.data?.auth?.mode === "session",
+            teamGateSatisfied,
           })
             ? (account) => {
                 authFixtureSwitchMutation.reset();
-                authFixtureSwitchMutation.mutate({ email: account.email, countryCode: account.countryCode });
+                authFixtureSwitchMutation.mutate({ email: account.email });
+              }
+            : undefined
+        }
+        fixtureAccounts={teamAccounts}
+        previousAccountEmail={previousAccountEmail}
+        restoringPreviousAccount={teamRestoreMutation.isPending}
+        onRestorePreviousAccount={
+          previousAccountEmail
+            ? () => {
+                teamRestoreMutation.reset();
+                teamRestoreMutation.mutate();
               }
             : undefined
         }

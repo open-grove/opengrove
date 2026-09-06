@@ -5,6 +5,7 @@ import { authErrorLabel } from "../../app-auth-model";
 import { countryOptionsForLocale } from "../../country-codes";
 import { rawDiagnosticText, useI18n } from "../../i18n";
 import type { TranslationFn } from "../../i18n";
+import { teamGateCopy } from "../../locales/team-gate-copy";
 import { readDesktopApi } from "../../desktop-api";
 import type { DesktopBridgeStartupBlockerAction } from "../../../../src/desktop-bridge-startup-state";
 import { OpenGroveSaplingMark } from "../ui/opengrove-sapling-mark";
@@ -421,6 +422,213 @@ export function CloudAuthScreen(props: {
 
           {!codeSent ? <p className="cloud-auth-legal">{t("auth.legalNotice")}</p> : null}
         </form>
+      </div>
+    </main>
+  );
+}
+
+/**
+ * Collects the shared team token a test ww deployment requires before sign-in.
+ *
+ * Shown only when the bridge reports that its ww deployment has such a gate and
+ * that the token it holds does not satisfy it, so a production deployment never
+ * renders this at all. The token is submitted once and kept by the bridge; this
+ * screen deliberately keeps no copy of it and offers no "remember me".
+ */
+export function TeamGateScreen(props: {
+  pending: boolean;
+  invalid: boolean;
+  unavailable: boolean;
+  onSubmit(token: string): void;
+  onResetError(): void;
+}) {
+  const { language } = useI18n();
+  const copy = teamGateCopy(language);
+  const [token, setToken] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
+  const normalizedToken = token.trim();
+  const desktopPlatform = readDesktopApi()?.platform;
+
+  function submit(event: FormEvent) {
+    event.preventDefault();
+    if (props.pending || !normalizedToken) return;
+    props.onResetError();
+    props.onSubmit(normalizedToken);
+  }
+
+  return (
+    <main className="cloud-auth-shell" data-step="team-gate" data-desktop-platform={desktopPlatform || undefined}>
+      <div className="cloud-auth-window-drag-region" aria-hidden="true" />
+      <CloudAuthConstellation />
+
+      <div className="cloud-auth-page-brand" aria-label="OpenGrove">
+        <span className="cloud-auth-logo" aria-hidden="true">
+          <OpenGroveSaplingMark />
+        </span>
+        <span className="cloud-auth-wordmark">
+          Open<span>Grove</span>
+        </span>
+      </div>
+
+      <div className="cloud-auth-stack">
+        <form className="cloud-auth-panel" onSubmit={submit} aria-label={copy.title}>
+          <header className="cloud-auth-header">
+            <div className="cloud-auth-heading">
+              <h1>
+                <span>{copy.title}</span>
+              </h1>
+            </div>
+          </header>
+
+          <p className="cloud-auth-status">{copy.hint}</p>
+
+          <label className="bridge-token-field">
+            <span className="cloud-auth-field-label">{copy.tokenLabel}</span>
+            <span className="cloud-auth-input-wrap">
+              <input
+                ref={inputRef}
+                // A shared secret, not a personal one: never offer to remember it,
+                // and keep it out of the browser's saved-password store.
+                type="password"
+                autoComplete="off"
+                spellCheck={false}
+                value={token}
+                autoFocus
+                placeholder={copy.tokenPlaceholder}
+                disabled={props.pending}
+                onChange={(event: ChangeEvent<HTMLInputElement>) => {
+                  setToken(event.currentTarget.value);
+                  props.onResetError();
+                }}
+              />
+            </span>
+          </label>
+
+          <div className="cloud-auth-feedback" aria-live="polite">
+            {props.invalid ? (
+              <p className="bridge-token-error" role="alert">
+                {copy.invalid}
+              </p>
+            ) : props.unavailable ? (
+              <p className="bridge-token-error" role="alert">
+                {copy.unavailable}
+              </p>
+            ) : null}
+          </div>
+
+          <div className="cloud-auth-actions">
+            <button className="bridge-token-submit" type="submit" disabled={props.pending || !normalizedToken}>
+              <span>{props.pending ? copy.pending : copy.submit}</span>
+              <ArrowRight size={15} aria-hidden="true" />
+            </button>
+          </div>
+
+          <p className="cloud-auth-legal">{copy.privacy}</p>
+        </form>
+      </div>
+    </main>
+  );
+}
+
+/**
+ * Offers the test accounts directly, as the first thing past the team gate.
+ *
+ * On a gated deployment this is the path people actually want: proving team
+ * membership already happened, so asking for an email and a verification code
+ * on top of it is friction with nothing behind it. Email sign-in stays reachable
+ * for the cases that need it -- your own account, or exercising the real
+ * verification chain.
+ */
+export function TeamAccountPickerScreen(props: {
+  accounts: readonly { email: string; roles: string[]; status: string }[];
+  loading: boolean;
+  switchingEmail?: string;
+  error: string;
+  onPick(email: string): void;
+  onUseEmail(): void;
+}) {
+  const { language } = useI18n();
+  const copy = teamGateCopy(language);
+  const switching = Boolean(props.switchingEmail);
+  const desktopPlatform = readDesktopApi()?.platform;
+
+  return (
+    <main className="cloud-auth-shell" data-step="team-accounts" data-desktop-platform={desktopPlatform || undefined}>
+      <div className="cloud-auth-window-drag-region" aria-hidden="true" />
+      <CloudAuthConstellation />
+
+      <div className="cloud-auth-page-brand" aria-label="OpenGrove">
+        <span className="cloud-auth-logo" aria-hidden="true">
+          <OpenGroveSaplingMark />
+        </span>
+        <span className="cloud-auth-wordmark">
+          Open<span>Grove</span>
+        </span>
+      </div>
+
+      <div className="cloud-auth-stack">
+        <section className="cloud-auth-panel" aria-label={copy.pickTitle}>
+          <header className="cloud-auth-header">
+            <div className="cloud-auth-heading">
+              <h1>
+                <span>{copy.pickTitle}</span>
+              </h1>
+            </div>
+          </header>
+
+          <p className="cloud-auth-status">{copy.pickHint}</p>
+
+          <div className="cloud-auth-feedback" aria-live="polite">
+            {props.error ? (
+              <p className="bridge-token-error" role="alert">
+                {props.error}
+              </p>
+            ) : null}
+          </div>
+
+          {props.loading ? (
+            <p className="cloud-auth-status">
+              <LoaderCircle size={14} aria-hidden="true" /> {copy.pending}
+            </p>
+          ) : props.accounts.length === 0 ? (
+            <p className="cloud-auth-status">{copy.pickEmpty}</p>
+          ) : (
+            <div className="team-account-picker-list" role="list">
+              {props.accounts.map((account) => (
+                <button
+                  key={account.email}
+                  className="team-account-picker-option"
+                  type="button"
+                  role="listitem"
+                  // A disabled account exists but cannot sign in, so it is shown
+                  // (the database is the truth) and not offered.
+                  disabled={switching || account.status !== "active"}
+                  data-pending={props.switchingEmail === account.email ? "true" : undefined}
+                  onClick={() => props.onPick(account.email)}
+                >
+                  <span className="team-account-picker-identity">
+                    <strong>{account.email.replace("@example.test", "")}</strong>
+                    <small>
+                      {account.status !== "active" ? `${account.status} · ` : ""}
+                      {account.roles.length > 0 ? account.roles.join(" + ") : copy.pickNoRoles}
+                    </small>
+                  </span>
+                  {props.switchingEmail === account.email ? (
+                    <LoaderCircle size={15} aria-hidden="true" />
+                  ) : (
+                    <ArrowRight size={15} aria-hidden="true" />
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
+
+          <div className="cloud-auth-actions">
+            <button className="cloud-auth-continue-local" type="button" disabled={switching} onClick={props.onUseEmail}>
+              {copy.useEmail}
+            </button>
+          </div>
+        </section>
       </div>
     </main>
   );

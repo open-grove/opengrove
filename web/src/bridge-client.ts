@@ -30,6 +30,8 @@ import type {
   MountedAppVersionsResponse,
   MountedAppVersionSwitchResponse,
   BridgeAuthResponse,
+  BridgeTeamAccount,
+  BridgeTeamGateStatus,
   MountedAppDashboardResponse,
   MountedAppFileResponse,
   MountedAppFilesResponse,
@@ -705,6 +707,46 @@ export async function loginBridgeAuth(payload: {
 
 export async function logoutBridgeAuth(): Promise<{ ok: boolean }> {
   return postJson<{ ok: boolean }>("/auth/logout", {});
+}
+
+/**
+ * Asks whether sign-in on this deployment needs a team token, and whether the
+ * bridge already holds a working one.
+ */
+export async function fetchBridgeTeamGateStatus(signal?: AbortSignal): Promise<BridgeTeamGateStatus> {
+  return fetchJson<BridgeTeamGateStatus>("/auth/team-status", { signal });
+}
+
+/**
+ * Hands the team token to the bridge, which verifies it against ww and keeps it
+ * server-side. This is the only moment the token exists in the browser: nothing
+ * stores it here, and it is never sent anywhere but this endpoint.
+ */
+export async function unlockBridgeTeamToken(token: string): Promise<BridgeTeamGateStatus> {
+  return postJson<BridgeTeamGateStatus>("/auth/team-unlock", { token });
+}
+
+/** The accounts the switcher may offer. ww decides the list, not the client. */
+export async function fetchBridgeTeamAccounts(signal?: AbortSignal): Promise<{ accounts: BridgeTeamAccount[] }> {
+  return fetchJson<{ accounts: BridgeTeamAccount[] }>("/auth/team-accounts", { signal });
+}
+
+/**
+ * Becomes one of those accounts in a single request -- no verification code, and
+ * no intermediate logged-out state. The response is the same shape as an email
+ * sign-in, so the session lands through exactly the same client-side path.
+ */
+export async function signInBridgeTeamAccount(email: string): Promise<BridgeAuthResponse> {
+  return postJson<BridgeAuthResponse>("/auth/team-signin", { email });
+}
+
+/**
+ * Returns to the account a switch replaced. Needs neither the team token nor a
+ * verification code: it restores a session this browser already held, which ww
+ * never revoked.
+ */
+export async function restoreBridgePreviousSession(): Promise<BridgeAuthResponse> {
+  return postJson<BridgeAuthResponse>("/auth/team-restore", {});
 }
 
 export async function patchJson<T>(path: string, payload: unknown): Promise<T> {

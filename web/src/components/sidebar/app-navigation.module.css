@@ -2319,3 +2319,14 @@ button.withdrawalRecordStat:focus-visible .withdrawalRecordLink {
     transform: translate(0, -50%) scale(1);
   }
 }
+
+/* 回到被切换掉的那个账号。用的是同一个卡片外观，只多两处区别：跨满整行，
+   以及用中性色而不是品牌色 —— 它不是"又一个可选身份"，而是退出切换器的路。 */
+.fixtureAccountButton[data-restore="true"] {
+  grid-column: 1 / -1;
+  border-style: dashed;
+}
+
+.fixtureAccountButton[data-restore="true"] .fixtureAccountState {
+  color: var(--og-text-muted);
+}
