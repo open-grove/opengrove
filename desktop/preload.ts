@@ -53,6 +53,12 @@ type DesktopDiagnosticExportResult =
 
 type DesktopDirectoryPickerResult = { status: "cancelled" } | { status: "selected"; path: string };
 
+type DesktopRebuildableCleanupResult = {
+  status: "cleaned";
+  reclaimedBytes: number;
+  updaterCacheSkipped: boolean;
+};
+
 type DesktopStartupTimeoutRecordResult = {
   code: string;
   incidentId: string;
@@ -173,6 +179,8 @@ contextBridge.exposeInMainWorld("openGroveDesktop", {
     ipcRenderer.invoke("opengrove:desktop:export-diagnostics") as Promise<DesktopDiagnosticExportResult>,
   chooseDirectory: () =>
     ipcRenderer.invoke("opengrove:desktop:choose-directory") as Promise<DesktopDirectoryPickerResult>,
+  cleanupRebuildableStorage: () =>
+    ipcRenderer.invoke("opengrove:desktop:cleanup-rebuildable-storage") as Promise<DesktopRebuildableCleanupResult>,
   restartBridge: () => ipcRenderer.invoke("opengrove:desktop:restart-bridge") as Promise<DesktopDiagnostics>,
   getSourceUpdateState: () =>
     ipcRenderer.invoke("opengrove:desktop:get-source-update-state") as Promise<DesktopSourceUpdateState>,

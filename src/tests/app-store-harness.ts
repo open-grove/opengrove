@@ -34,11 +34,13 @@ import { validateAppReleaseBuildContract } from "../server/app-release-build-con
 import {
   type AppStorePackageRecord,
   appStoreDataRoot,
+  cleanupUnreferencedAppStoreArchives,
   captureAppStorePublishTarget,
   cleanupUnreferencedAppStoreProgramGenerations,
   currentAppStoreProgramsRoot,
   defaultAppStoreRoot,
   importAppStorePackage,
+  inspectUnreferencedAppStoreArchives,
   installedEmployeePackageIds,
   listAppStorePackages,
   markAppStorePublishRecoveryPublished,
@@ -3401,6 +3403,7 @@ try {
     cloudRecruitState.settings,
   );
   assert.ok(generationCleanup.removed.includes(orphanProgramRoot));
+  assert.ok(generationCleanup.reclaimedBytes > 0);
   assert.equal(existsSync(orphanProgramRoot), false);
   assert.ok(generationCleanup.retained.includes(malformedMarkerProgramRoot));
   assert.equal(
@@ -3419,6 +3422,62 @@ try {
     false,
     "a previously locked N-1 program generation must be reclaimed after its lock is released",
   );
+
+  const archiveCleanupRoot = join(tempRoot, "archive-cleanup-store");
+  const referencedArchive = join(archiveCleanupRoot, "archives", "keep", "keep.tgz");
+  const orphanArchive = join(archiveCleanupRoot, "archives", "old", "old.tgz");
+  mkdirSync(dirname(referencedArchive), { recursive: true });
+  mkdirSync(dirname(orphanArchive), { recursive: true });
+  writeFileSync(referencedArchive, "keep archive", "utf8");
+  writeFileSync(orphanArchive, "old archive", "utf8");
+  writeFileSync(
+    join(archiveCleanupRoot, "catalog.json"),
+    `${JSON.stringify({
+      packages: [
+        {
+          id: "keep",
+          appId: "keep",
+          source: "registry",
+          archiveFile: "archives/keep/keep.tgz",
+        },
+      ],
+    })}\n`,
+    "utf8",
+  );
+  const archiveInspection = inspectUnreferencedAppStoreArchives(archiveCleanupRoot);
+  assert.deepEqual(
+    archiveInspection.candidates.map((candidate) => candidate.path),
+    [orphanArchive],
+  );
+  const archiveCleanup = cleanupUnreferencedAppStoreArchives(archiveCleanupRoot);
+  assert.deepEqual(archiveCleanup.removed, [orphanArchive]);
+  assert.equal(existsSync(orphanArchive), false);
+  assert.equal(existsSync(referencedArchive), true, "the archive referenced by the Registry catalog must be retained");
+
+  const failClosedArchive = join(archiveCleanupRoot, "archives", "unknown", "unknown.tgz");
+  mkdirSync(dirname(failClosedArchive), { recursive: true });
+  writeFileSync(failClosedArchive, "unknown archive", "utf8");
+  writeFileSync(
+    join(archiveCleanupRoot, "catalog.json"),
+    `${JSON.stringify({
+      packages: [{ id: "invalid", appId: "invalid", source: "registry", archiveFile: "../outside.tgz" }],
+    })}\n`,
+    "utf8",
+  );
+  assert.equal(
+    inspectUnreferencedAppStoreArchives(archiveCleanupRoot).reclaimableBytes,
+    0,
+    "an archive path outside the dedicated archive root makes the catalog fail closed",
+  );
+  assert.equal(existsSync(failClosedArchive), true);
+  writeFileSync(join(archiveCleanupRoot, "catalog.json"), "{invalid", "utf8");
+  assert.equal(
+    inspectUnreferencedAppStoreArchives(archiveCleanupRoot).reclaimableBytes,
+    0,
+    "archive cleanup must fail closed when the authority catalog is unreadable",
+  );
+  cleanupUnreferencedAppStoreArchives(archiveCleanupRoot);
+  assert.equal(existsSync(failClosedArchive), true);
   rmSync(dirname(malformedMarkerProgramRoot), { recursive: true, force: true });
 
   if (process.platform !== "win32") {

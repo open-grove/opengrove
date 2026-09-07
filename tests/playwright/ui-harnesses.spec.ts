@@ -21,6 +21,11 @@ const harnesses = [
     marker: "web-settings-layout-ui",
   },
   {
+    name: "Storage management remains safe and understandable",
+    script: "scripts/test-web-storage-management-ui.mjs",
+    marker: "web storage management UI ok",
+  },
+  {
     name: "Overlay size policy",
     script: "scripts/test-web-overlay-size-policy.mjs",
     marker: "web-overlay-size-policy harness ok",

@@ -59,7 +59,7 @@ assert.equal(
 );
 
 const expectedFullGroupSizes = {
-  "state-storage": 8,
+  "state-storage": 10,
   "rooms-routines": 23,
   "apps-knowledge": 15,
   "app-lifecycle": 20,
@@ -92,17 +92,17 @@ for (const [groupName, expectedSize] of Object.entries(expectedFullGroupSizes)) 
   groupedLabels.push(...harnessGroups[groupName].map((task) => task.id));
 }
 
-assert.equal(harnessInventory.length, 111, "the canonical deterministic harness inventory must not shrink silently");
+assert.equal(harnessInventory.length, 113, "the canonical deterministic harness inventory must not shrink silently");
 assert.equal(
   harnessGroups.full,
   harnessInventory,
   "the full group should be the canonical inventory, not a second list",
 );
-assert.equal(new Set(harnessInventory.map((task) => task.id)).size, 111, "every harness id must be unique");
-assert.equal(harnessGroups.integration.length, 36, "the affected-integration subset must not shrink silently");
+assert.equal(new Set(harnessInventory.map((task) => task.id)).size, 113, "every harness id must be unique");
+assert.equal(harnessGroups.integration.length, 38, "the affected-integration subset must not shrink silently");
 assert.equal(
   new Set(harnessGroups.integration.map((task) => task.id)).size,
-  36,
+  38,
   "the integration subset must not execute a canonical harness twice",
 );
 assert.equal(new Set(groupedLabels).size, groupedLabels.length, "a full harness must have exactly one owner group");
@@ -124,10 +124,12 @@ assert.deepEqual(
 
 assert.deepEqual(
   harnessGroups["state-storage"]
-    .filter((task) => task.id === "state-file-lock" || task.id === "sqlite-state-store")
+    .filter((task) =>
+      ["state-file-lock", "sqlite-state-store", "storage-overview", "storage-maintenance-gate"].includes(task.id),
+    )
     .map((task) => task.id),
-  ["state-file-lock", "sqlite-state-store"],
-  "the concurrency and SQLite regressions belong to the main state-storage group",
+  ["state-file-lock", "sqlite-state-store", "storage-overview", "storage-maintenance-gate"],
+  "the storage accounting and maintenance regressions belong to the main state-storage group",
 );
 assert.deepEqual(
   harnessGroups["release-contracts"].map((task) => task.id),

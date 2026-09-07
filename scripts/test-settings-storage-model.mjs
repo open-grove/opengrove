@@ -18,18 +18,70 @@ try {
     target: "node20",
     outfile: bundlePath,
   });
-  const { settingsStorageTotalBytes } = await import(pathToFileURL(bundlePath).href);
-  assert.equal(
-    settingsStorageTotalBytes({
+  const {
+    parseSettingsStorageCleanupResponse,
+    parseSettingsStorageHistoryResponse,
+    parseSettingsStorageMaintenanceEndResponse,
+    parseSettingsStorageMaintenanceStartResponse,
+    parseSettingsStorageResponse,
+    settingsStorageCategoryBytes,
+    settingsStorageTotalBytes,
+  } = await import(pathToFileURL(bundlePath).href);
+  const overview = {
+    totalBytes: 900,
+    scannedAt: "2026-08-13T00:00:00.000Z",
+    categories: [
+      { id: "works-and-files", bytes: 300 },
+      { id: "apps-and-runtime", bytes: 200 },
+      { id: "rebuildable", bytes: 150 },
+      { id: "backups", bytes: 100 },
+      { id: "conversations-and-system", bytes: 150 },
+    ],
+    cleanupCandidates: { rebuildableBytes: 150 },
+    backups: [{ kind: "migration", bytes: 100, createdAt: "2026-08-12T00:00:00.000Z" }],
+  };
+  const parsed = parseSettingsStorageResponse({
+    ok: true,
+    stats: {
       kind: "sqlite",
       databaseBytes: 100,
       blobBytes: 300,
       orphanBlobBytes: 80,
       migrationBackupBytes: 20,
       categories: [],
-    }),
-    420,
-    "orphan blobs are already included in blobBytes and must not be counted twice",
+    },
+    overview,
+    cleanupEstimates: {
+      unreferencedFilesBytes: 80,
+      rebuildableBytes: 150,
+      safeCleanupBytes: 230,
+      migrationBackupBytes: 20,
+    },
+  });
+  assert.equal(settingsStorageTotalBytes(parsed.overview), 900);
+  assert.equal(settingsStorageCategoryBytes(overview, "rebuildable"), 150);
+  assert.throws(
+    () => parseSettingsStorageResponse({ ok: true, stats: parsed.stats, cleanupEstimates: parsed.cleanupEstimates }),
+    /storage_overview_invalid/,
+    "the network boundary rejects incomplete storage responses instead of trusting a generic type",
+  );
+  assert.deepEqual(parseSettingsStorageCleanupResponse({ ok: true, cleanup: { reclaimedBytes: 42 } }), {
+    reclaimedBytes: 42,
+  });
+  assert.deepEqual(parseSettingsStorageHistoryResponse({ ok: true, scope: "migration-backups" }), {
+    reclaimedBytes: 0,
+  });
+  assert.deepEqual(parseSettingsStorageMaintenanceStartResponse({ ok: true, leaseId: "lease-1" }), {
+    leaseId: "lease-1",
+  });
+  assert.equal(parseSettingsStorageMaintenanceEndResponse({ ok: true }), undefined);
+  assert.throws(
+    () => parseSettingsStorageMaintenanceStartResponse({ ok: true, leaseId: 1 }),
+    /settings_storage_maintenance_start_invalid/,
+  );
+  assert.throws(
+    () => parseSettingsStorageCleanupResponse({ ok: true, cleanup: { reclaimedBytes: "42" } }),
+    /settings_storage_cleanup_bytes_invalid/,
   );
 } finally {
   await rm(tempDir, { recursive: true, force: true });

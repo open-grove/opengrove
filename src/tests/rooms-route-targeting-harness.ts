@@ -23,6 +23,8 @@ import { roomExecutionState } from "../server/room-runs/execution-state.js";
 const dir = mkdtempSync(join(tmpdir(), "opengrove-rooms-route-targeting-"));
 const rosterAppRoot = join(dir, "roster-app");
 mkdirSync(rosterAppRoot, { recursive: true });
+mkdirSync(join(rosterAppRoot, "workspace"), { recursive: true });
+writeFileSync(join(rosterAppRoot, "workspace", "work.txt"), "manifest workspace sentinel", "utf8");
 writeFileSync(
   join(rosterAppRoot, "opengrove.app.json"),
   JSON.stringify({
@@ -775,20 +777,49 @@ try {
   const storageStats = await getJson<{
     ok: true;
     stats: { kind: string; databaseBytes: number; categories: Array<{ collection: string }> };
+    overview: {
+      totalBytes: number;
+      categories: Array<{ id: string; bytes: number }>;
+      cleanupCandidates: { rebuildableBytes: number };
+    };
+    cleanupEstimates: {
+      unreferencedFilesBytes: number;
+      rebuildableBytes: number;
+      migrationBackupBytes: number;
+    };
   }>(`${baseUrl}/settings/storage`);
   assert.equal(storageStats.stats.kind, "sqlite");
   assert.ok(storageStats.stats.databaseBytes > 0);
   assert.ok(storageStats.stats.categories.some((category) => category.collection === "room_events"));
+  assert.ok(storageStats.overview.totalBytes >= storageStats.stats.databaseBytes);
+  assert.ok(
+    (storageStats.overview.categories.find((category) => category.id === "works-and-files")?.bytes ?? 0) >=
+      Buffer.byteLength("manifest workspace sentinel"),
+    "storage accounting must resolve a mounted App workspace from its manifest when settings omit workspacePath",
+  );
+  assert.deepEqual(
+    storageStats.overview.categories.map((category) => category.id),
+    ["works-and-files", "apps-and-runtime", "rebuildable", "backups", "conversations-and-system"],
+  );
+  assert.ok(storageStats.cleanupEstimates.unreferencedFilesBytes >= 0);
+  assert.ok(
+    storageStats.cleanupEstimates.rebuildableBytes <=
+      (storageStats.overview.categories.find((category) => category.id === "rebuildable")?.bytes ?? 0),
+  );
+  assert.equal(
+    storageStats.cleanupEstimates.rebuildableBytes,
+    storageStats.overview.cleanupCandidates.rebuildableBytes,
+  );
   const cacheCleanup = await postJson<{ ok: true; scope: string }>(`${baseUrl}/settings/storage/clear-history`, {
     scope: "rebuildable-caches",
   });
   assert.equal(cacheCleanup.scope, "rebuildable-caches");
-  const roomArchiveCleanup = await postJson<{ ok: true; scope: string; removed: number }>(
-    `${baseUrl}/settings/storage/clear-history`,
-    { scope: "room-event-archive" },
-  );
-  assert.equal(roomArchiveCleanup.scope, "room-event-archive");
-  assert.ok(roomArchiveCleanup.removed >= 0);
+  const protectedRoomArchive = await requestJson(`${baseUrl}/settings/storage/clear-history`, {
+    method: "POST",
+    body: { scope: "room-event-archive" },
+  });
+  assert.equal(protectedRoomArchive.response.status, 400);
+  assert.deepEqual(protectedRoomArchive.json, { ok: false, error: "unknown_history_clear_scope" });
 
   await runForgotMentionPmDispatchHarness();
 

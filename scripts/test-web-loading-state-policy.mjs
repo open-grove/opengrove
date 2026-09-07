@@ -175,6 +175,17 @@ const desktopBootstrapResult = await build({
 const desktopBootstrapPolicy = await import(
   `data:text/javascript;base64,${Buffer.from(desktopBootstrapResult.outputFiles[0].text).toString("base64")}`
 );
+const authPolicyResult = await build({
+  entryPoints: [resolve("web/src/app-auth-policy.ts")],
+  bundle: true,
+  format: "esm",
+  platform: "node",
+  target: "node22",
+  write: false,
+});
+const authPolicy = await import(
+  `data:text/javascript;base64,${Buffer.from(authPolicyResult.outputFiles[0].text).toString("base64")}`
+);
 assert.equal(
   desktopBootstrapPolicy.desktopBridgeReadyForBootstrap(undefined),
   true,
@@ -219,6 +230,64 @@ assert.equal(
   desktopBootstrapPolicy.desktopBridgeReadyForBootstrap({}),
   false,
   "desktop bootstrap must not infer readiness when the Host startup state is unavailable",
+);
+assert.equal(
+  desktopBootstrapPolicy.desktopBridgeRequiresStartupGate({
+    bridgeStartupState: { stage: "maintenance", operation: "storage_cleanup" },
+  }),
+  false,
+  "planned storage maintenance must keep the already-mounted application UI visible",
+);
+const accountlessMaintenance = authPolicy.resolveBridgeAuthPolicy({
+  healthKnown: true,
+  healthPending: false,
+  sessionAuthActive: true,
+  sessionPending: false,
+  sessionStatus: "unauthenticated",
+  sessionFailed: false,
+  sessionDegraded: false,
+  desktopBridgeAuthenticated: desktopBootstrapPolicy.desktopBridgeReadyForBootstrap({
+    bridgeStartupState: { stage: "maintenance", operation: "storage_cleanup" },
+  }),
+  desktopSavedSession: false,
+  desktopAccountOnboardingCompleted: true,
+  bridgeTokenKnownOptional: false,
+  bridgeTokenStored: false,
+});
+assert.equal(
+  accountlessMaintenance.sessionAuthNeedsLogin,
+  false,
+  "planned storage maintenance must not send an accountless desktop user back to login",
+);
+assert.equal(
+  accountlessMaintenance.bridgeProtectedQueriesEnabled,
+  true,
+  "planned storage maintenance must keep the retained Bridge available to the mounted desktop UI",
+);
+assert.equal(
+  desktopBootstrapPolicy.desktopBridgeRequiresStartupGate({
+    bridgeStartupState: { stage: "starting", attempt: 1 },
+  }),
+  true,
+  "an actual startup wait still uses the startup recovery gate",
+);
+const firstReady = desktopBootstrapPolicy.resolveBridgeReadyGenerationTransition(undefined, {
+  stage: "ready",
+  generation: 1,
+});
+assert.deepEqual(firstReady, { generation: 1, restarted: false });
+const maintenance = desktopBootstrapPolicy.resolveBridgeReadyGenerationTransition(firstReady.generation, {
+  stage: "maintenance",
+  operation: "storage_cleanup",
+});
+assert.deepEqual(maintenance, { generation: 1, restarted: false });
+assert.deepEqual(
+  desktopBootstrapPolicy.resolveBridgeReadyGenerationTransition(maintenance.generation, {
+    stage: "ready",
+    generation: 2,
+  }),
+  { generation: 2, restarted: true },
+  "a replacement Bridge generation must invalidate cached queries after maintenance",
 );
 
 const originalFetch = globalThis.fetch;
