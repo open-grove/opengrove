@@ -1,6 +1,6 @@
 import type { ComponentPropsWithRef } from "react";
 import clsx from "clsx";
-import "./resize-handle.css";
+import styles from "./resize-handle.module.css";
 
 type ResizeHandleProps = Omit<ComponentPropsWithRef<"div">, "role" | "children"> & {
   "aria-label": string;
@@ -15,7 +15,7 @@ export function ResizeHandle({ className, ...props }: ResizeHandleProps) {
       tabIndex={props.onKeyDown ? 0 : undefined}
       {...props}
       role="separator"
-      className={clsx("resize-handle", className)}
+      className={clsx("resize-handle", styles.handle, className)}
     />
   );
 }

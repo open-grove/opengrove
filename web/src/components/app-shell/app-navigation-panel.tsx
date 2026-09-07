@@ -3,7 +3,8 @@ import { useI18n } from "../../i18n";
 import { getRailMode, RAIL_MAX_WIDTH } from "../../runtime/app-rail-layout-model";
 import type { AppRailLayoutController } from "../../runtime/use-app-rail-layout";
 import { ResizeHandle } from "../ui/resize-handle";
-import "./app-navigation-panel.css";
+import clsx from "clsx";
+import styles from "./app-navigation-panel.module.css";
 
 export function AppNavigationPanel(props: {
   layout: AppRailLayoutController;
@@ -68,7 +69,7 @@ export function AppNavigationPanel(props: {
 
   return (
     <div
-      className="app-navigation-slot"
+      className={clsx("app-navigation-slot", styles.slot)}
       data-mode={layout.mode}
       data-floating={hidden && floating ? "true" : "false"}
       data-resizing={layout.isResizing ? "true" : "false"}
@@ -93,7 +94,7 @@ export function AppNavigationPanel(props: {
     >
       <div
         id="app-main-navigation"
-        className="app-navigation-panel"
+        className={clsx("app-navigation-panel", styles.panel)}
         ref={panelRef}
         style={{ width: panelWidth }}
         aria-hidden={inactive || undefined}
@@ -102,7 +103,7 @@ export function AppNavigationPanel(props: {
         {props.children(expanded)}
       </div>
       <ResizeHandle
-        className="app-navigation-resize-handle"
+        className={clsx("app-navigation-resize-handle", styles.handle)}
         aria-label={t("shell.resizeMainNav")}
         aria-orientation="vertical"
         aria-valuemin={0}

@@ -375,7 +375,7 @@ async function testGroupHeaderAvatarCssContract() {
   );
   assert.match(
     appNavigationCss,
-    /\.sectionTitle \{[\s\S]*?height: 14px;[\s\S]*?visibility: visible;[\s\S]*?font-size: 10px;/,
+    /\.sectionTitle \{[\s\S]*?height: 14px;[\s\S]*?visibility: visible;[\s\S]*?font-size: var\(--fs-micro\);/,
     "collapsed section headings must remain visible in the compact geometry",
   );
   assert.match(

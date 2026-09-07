@@ -115,6 +115,7 @@
   --fw-medium: 500;
   --fw-semibold: 600;
   --fw-bold: 600;
+  --fs-micro: 10px;
   --fs-2xs: 11px;
   --fs-xs: 11px;
   --fs-sm: 12px;
@@ -1166,6 +1167,7 @@
   --panel-tag-fg: var(--c-text);
   --panel-empty-bg: oklch(from var(--c-overlay-highlight) l c h / 0.72);
   --app-shell-bg: var(--c-bg);
+  --app-navigation-reveal-shadow: 4px 0 12px -8px color-mix(in srgb, var(--c-overlay-ink) 18%, transparent);
   --app-shell-sidebar-bg: var(--og-sidebar-bg);
   --app-shell-chat-bg: transparent;
   --sidebar-resize-line-bg: oklch(from var(--c-overlay-ink) l c h / 0.12);
