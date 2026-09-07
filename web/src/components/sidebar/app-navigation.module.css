@@ -187,14 +187,16 @@
   display: block;
   box-sizing: border-box;
   height: 14px;
-  margin: 0;
+  margin: 0 -6px;
+  width: calc(100% + 12px);
   min-width: 0;
   overflow: hidden;
-  padding: 0 6px;
-  visibility: hidden;
+  padding: 0;
+  visibility: visible;
   color: var(--og-text-muted);
-  font-size: var(--fs-xs);
-  font-weight: var(--fw-semibold);
+  font-size: 10px;
+  font-weight: var(--fw-normal);
+  text-align: center;
   line-height: 14px;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1962,7 +1964,10 @@ button.withdrawalRecordStat:focus-visible .withdrawalRecordLink {
 
 .rail[data-expanded="true"] .sectionTitle {
   visibility: visible;
+  width: auto;
+  margin: 0;
   padding: 0 6px;
+  text-align: left;
   color: color-mix(in srgb, var(--og-text) 80%, transparent);
   font-size: var(--fs-xs);
   font-weight: var(--fw-semibold);

@@ -1,0 +1,36 @@
+.resize-handle {
+  flex-shrink: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  touch-action: none;
+  user-select: none;
+  cursor: col-resize;
+  -webkit-app-region: no-drag;
+}
+
+.resize-handle[aria-orientation="horizontal"] {
+  cursor: row-resize;
+}
+
+.resize-handle:focus-visible {
+  outline: none;
+}
+
+body:has(.resize-handle[data-resizing="true"]) {
+  user-select: none;
+}
+
+body:has(.resize-handle[aria-orientation="vertical"][data-resizing="true"]),
+body:has(.resize-handle[aria-orientation="vertical"][data-resizing="true"]) * {
+  cursor: col-resize;
+}
+
+body:has(.resize-handle[aria-orientation="horizontal"][data-resizing="true"]),
+body:has(.resize-handle[aria-orientation="horizontal"][data-resizing="true"]) * {
+  cursor: row-resize;
+}
+
+body:has(.resize-handle[data-resizing="true"]) iframe {
+  pointer-events: none;
+}

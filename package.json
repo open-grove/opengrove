@@ -191,6 +191,8 @@
     "test:web-extensions-ui": "node scripts/test-web-extensions-ui.mjs",
     "test:web-settings-layout-ui": "node scripts/test-settings-storage-model.mjs && node scripts/test-web-settings-layout-ui.mjs",
     "test:web-overlay-size-policy": "node scripts/test-web-overlay-size-policy.mjs",
+    "test:web-app-rail-layout": "node --experimental-strip-types scripts/test-web-app-rail-layout.mjs",
+    "test:web-app-rail-navigation-ui": "node scripts/test-web-app-rail-navigation-ui.mjs",
     "test:web-room-interaction-ui": "node scripts/test-web-room-interaction-ui.mjs",
     "test:web-identity-editing-flow": "node scripts/test-web-identity-editing-flow.mjs",
     "test:web-mounted-app-group-deletion": "node scripts/test-web-mounted-app-group-deletion.mjs",

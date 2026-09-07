@@ -154,22 +154,22 @@ async function testGroupHeaderAvatarCssContract() {
   );
   assert.match(
     roomsCss,
-    /\.rooms-view \{[\s\S]*?background: transparent;[\s\S]*?padding: var\(--app-page-top-inset\) 10px var\(--app-page-bottom-inset\);/,
+    /\.rooms-view \{[\s\S]*?background: transparent;[\s\S]*?padding: var\(--app-page-top-inset\) var\(--app-page-inline-inset\) var\(--app-page-bottom-inset\);/,
     "the room columns must use the shared page insets without a third background layer",
   );
   assert.match(
     contactsLayoutCss,
-    /\.contacts-view \{[\s\S]*?padding: var\(--app-page-top-inset\) 10px var\(--app-page-bottom-inset\);/,
+    /\.contacts-view \{[\s\S]*?padding: var\(--app-page-top-inset\) var\(--app-page-inline-inset\) var\(--app-page-bottom-inset\);/,
     "the contacts page must share the global page insets",
   );
   assert.match(
     extensionsViewCss,
-    /\.view \{[\s\S]*?padding: var\(--app-page-top-inset\) 10px var\(--app-page-bottom-inset\);/,
+    /\.view \{[\s\S]*?padding: var\(--app-page-top-inset\) var\(--app-page-inline-inset\) var\(--app-page-bottom-inset\);/,
     "the extensions page must share the global page insets",
   );
   assert.match(
     appStoreViewCss,
-    /\.app-store-view \{[\s\S]*?padding: var\(--app-page-top-inset\) 10px var\(--app-page-bottom-inset\);/,
+    /\.app-store-view \{[\s\S]*?padding: var\(--app-page-top-inset\) var\(--app-page-inline-inset\) var\(--app-page-bottom-inset\);/,
     "the App store page must share the global page insets",
   );
   assert.match(
@@ -350,7 +350,7 @@ async function testGroupHeaderAvatarCssContract() {
   );
   assert.match(
     appShellCss,
-    /\.sidebar \{[\s\S]*?margin: var\(--app-page-top-inset\) 0 var\(--app-page-bottom-inset\) 10px;/,
+    /\.sidebar \{[\s\S]*?margin: var\(--app-page-top-inset\) 0 var\(--app-page-bottom-inset\) var\(--app-page-inline-inset\);/,
     "the Kernel sidebar must use the global page insets",
   );
   assert.match(
@@ -370,18 +370,18 @@ async function testGroupHeaderAvatarCssContract() {
   );
   assert.match(
     appNavigationCss,
-    /\.rail \{[\s\S]*?--app-rail-item-height: 32px;[\s\S]*?--app-rail-icon-column: 38px;[\s\S]*?padding: 0 10px 14px;/,
+    /\.rail \{[\s\S]*?--app-rail-item-height: 36px;[\s\S]*?--app-rail-icon-column: 38px;[\s\S]*?padding: 0 10px 14px;/,
     "collapsed and expanded navigation must share one compact item height and icon column",
   );
   assert.match(
     appNavigationCss,
-    /\.sectionTitle \{[\s\S]*?height: 14px;[\s\S]*?visibility: hidden;[\s\S]*?font-size: var\(--fs-xs\);/,
-    "collapsed section headings must reserve only the compact expanded geometry",
+    /\.sectionTitle \{[\s\S]*?height: 14px;[\s\S]*?visibility: visible;[\s\S]*?font-size: 10px;/,
+    "collapsed section headings must remain visible in the compact geometry",
   );
   assert.match(
     appNavigationCss,
     /\.rail\[data-expanded="true"\] \.sectionTitle \{[\s\S]*?visibility: visible;/,
-    "expanding the rail must reveal section headings without changing layout",
+    "expanded section headings must remain visible",
   );
   assert.match(
     appNavigationCss,
@@ -395,8 +395,8 @@ async function testGroupHeaderAvatarCssContract() {
   );
   assert.match(
     appNavigationCss,
-    /\.rail\[data-expanded="true"\] \.buttonLabel,[\s\S]*?\.rail\[data-expanded="true"\] \.userTabLabel \{[\s\S]*?max-width: 100%;[\s\S]*?margin-left: -2px;[\s\S]*?text-overflow: ellipsis;[\s\S]*?white-space: nowrap;/,
-    "expanded rail labels must sit closer to their icons and truncate with an ellipsis",
+    /\.rail\[data-expanded="true"\] \.buttonLabel,[\s\S]*?\.rail\[data-expanded="true"\] \.userTabLabel \{[\s\S]*?max-width: 100%;[\s\S]*?text-overflow: ellipsis;[\s\S]*?white-space: nowrap;/,
+    "expanded rail labels must fit their column and truncate with an ellipsis",
   );
   assert.match(
     appNavigationCss,
@@ -405,7 +405,7 @@ async function testGroupHeaderAvatarCssContract() {
   );
   assert.match(
     appNavigationCss,
-    /\.rail\[data-expanded="true"\] \.userTabLabel \{[\s\S]*?box-sizing: border-box;[\s\S]*?width: calc\(100% \+ 2px\);[\s\S]*?min-width: 0;/,
+    /\.rail\[data-expanded="true"\] \.userTabLabel \{[\s\S]*?box-sizing: border-box;[\s\S]*?width: 100%;[\s\S]*?min-width: 0;/,
     "App labels must be allowed to shrink so text-overflow can render an ellipsis",
   );
   assert.doesNotMatch(
@@ -440,7 +440,7 @@ async function testGroupHeaderAvatarCssContract() {
   );
   assert.match(
     mountedAppCss,
-    /\.app-shell\[data-view="app"\] \.mounted-app-view \{[\s\S]*?padding: var\(--app-page-top-inset\) 10px var\(--app-page-bottom-inset\);/,
+    /\.app-shell\[data-view="app"\] \.mounted-app-view \{[\s\S]*?padding: var\(--app-page-top-inset\) var\(--app-page-inline-inset\) var\(--app-page-bottom-inset\);/,
     "the mounted App page must share the global page insets",
   );
   assert.match(

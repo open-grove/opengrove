@@ -12,12 +12,6 @@
   margin-right: 0;
 }
 
-.app-shell[data-view="rooms"] .sidebar-resize-handle::after,
-.app-shell[data-view="contacts"] .sidebar-resize-handle::after {
-  height: calc(100% - 20px);
-  margin-top: 10px;
-}
-
 .app-shell[data-view="rooms"] .workspace,
 .app-shell[data-view="contacts"] .workspace {
   grid-column: 2;
@@ -67,7 +61,7 @@
   height: 100%;
   background: transparent;
   color: var(--rooms-text);
-  padding: var(--app-page-top-inset) 10px var(--app-page-bottom-inset);
+  padding: var(--app-page-top-inset) var(--app-page-inline-inset) var(--app-page-bottom-inset);
 }
 
 .rooms-view[data-members-open="true"] {
