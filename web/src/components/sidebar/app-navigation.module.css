@@ -2004,7 +2004,7 @@ button.withdrawalRecordStat:focus-visible .withdrawalRecordLink {
 .rail[data-expanded="true"] .button {
   box-sizing: border-box;
   grid-template-columns: var(--app-rail-icon-column) minmax(0, 1fr);
-  column-gap: 3px;
+  column-gap: 2.75px;
   justify-content: start;
   justify-items: stretch;
   width: 100%;
@@ -2082,7 +2082,7 @@ button.withdrawalRecordStat:focus-visible .withdrawalRecordLink {
 
 .rail[data-expanded="true"] .userButton {
   width: 100%;
-  column-gap: 3px;
+  column-gap: 2.75px;
 }
 
 .rail[data-expanded="true"] .userButtonName {
