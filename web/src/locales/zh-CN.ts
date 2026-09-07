@@ -866,7 +866,6 @@ export const ZH_CN = {
   "shell.updateAvailable": "更新可安装",
   "shell.autoUpdateDetails": "自动更新：{details}",
   "shell.downloadProgress": "下载进度：{progress}%",
-  "shell.releaseNotes": "更新说明：{notes}",
   "shell.localFolderHelp": "请确认本机 OpenGrove bridge 正在运行后重新选择文件夹，或直接把本地路径粘贴到输入框。",
   "shell.installSourceUpdateConfirm": "安装开发版更新并重启 OpenGrove Dev？正在运行的本地任务会被中断。",
   "shell.updateFailed": "更新操作失败。",

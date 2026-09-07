@@ -95,7 +95,7 @@ const packageJson = JSON.parse(readFileSync(packagePath, "utf8"));
 const version = String(packageJson.version || "").trim();
 if (!version) fail("package.json does not contain a version.");
 
-const latestTag = git(["describe", "--tags", "--abbrev=0"]);
+const latestTag = git(["describe", "--tags", "--match", "v*", "--abbrev=0"]);
 const currentTag = `v${version}`;
 const commitRange = latestTag ? `${latestTag}..HEAD` : "HEAD";
 const commits = git(["log", "--oneline", commitRange]);
@@ -133,6 +133,14 @@ console.log(
 );
 console.log(`- release note entries: ${releaseNoteEntries.length}`);
 
+if (releaseNoteExists && localizedReleaseNoteExists) {
+  try {
+    readLocalizedDesktopReleaseNotes(root, version);
+  } catch (error) {
+    fail(error instanceof Error ? error.message : String(error));
+  }
+}
+
 if (releaseMode) {
   if (latestTag === currentTag) {
     fail(
@@ -160,11 +168,6 @@ if (releaseMode) {
   }
   if (!localizedReleaseNoteExists) {
     fail(`create docs/releases/${currentTag}.zh-CN.md before release.`);
-  }
-  try {
-    readLocalizedDesktopReleaseNotes(root, version);
-  } catch (error) {
-    fail(error instanceof Error ? error.message : String(error));
   }
   console.log("Release note files are ready for the current package version.");
 } else {

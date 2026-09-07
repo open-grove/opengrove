@@ -61,7 +61,7 @@ of pull-request titles. Before drafting, generate the exact review inventory:
 npm run release:notes:context -- --from <previous-release-tag> --to HEAD
 ```
 
-The command defaults `--from` to the latest reachable tag. A repository with no
+The command defaults `--from` to the latest reachable tag matching `v*`. A repository with no
 previous public tag must pass the audited release-boundary ref explicitly. The
 output lists the first-parent history, every commit, every changed path, and the
 diff summary. It is an input inventory, not generated release copy.
@@ -93,6 +93,13 @@ App. `Technical Improvements` summarizes architecture, compatibility,
 reliability, and contributor-facing work without repeating one bullet per PR.
 The two locale files must communicate the same facts; they are not independent
 change logs.
+
+Keep `Product Updates` readable as plain text: clients through v0.6.5 display the
+legacy English `release_notes` field without rendering Markdown. Use inline
+emphasis and links sparingly while those clients remain supported. The legacy
+field must equal the localized English Markdown, so it cannot use a separate
+plain-text projection. Each locale's extracted `Product Updates` must fit within
+65,535 UTF-8 bytes; ordinary CI validates both current-version files when present.
 
 Before writing the files, the Agent presents the complete English and Chinese
 drafts in the Codex conversation and waits for explicit user confirmation.

@@ -8,11 +8,16 @@ export function collectReleaseNotesContext({ from, to = "HEAD" }) {
   const resolvedTo = git(["rev-parse", "--verify", `${to}^{commit}`]);
   const resolvedFrom = from
     ? git(["rev-parse", "--verify", `${from}^{commit}`])
-    : gitOptional(["describe", "--tags", "--abbrev=0", resolvedTo]);
+    : gitOptional(["describe", "--tags", "--match", "v*", "--abbrev=0", resolvedTo]);
   if (!resolvedFrom) {
     throw new Error("no previous release tag was found; pass --from <release-boundary-ref>");
   }
-  git(["merge-base", "--is-ancestor", resolvedFrom, resolvedTo]);
+  const ancestry = spawnSync("git", ["merge-base", "--is-ancestor", resolvedFrom, resolvedTo], {
+    cwd: root,
+    encoding: "utf8",
+  });
+  if (ancestry.status === 1) throw new Error(`--from (${from ?? resolvedFrom}) must be an ancestor of --to (${to})`);
+  if (ancestry.status !== 0) throw new Error(ancestry.stderr.trim() || "could not check the release-boundary ancestry");
   const range = `${resolvedFrom}..${resolvedTo}`;
   const commits = lines(git(["log", "--reverse", "--format=%H%x09%s", range])).map((line) => {
     const [sha, ...subject] = line.split("\t");

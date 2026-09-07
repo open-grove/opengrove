@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { markdownHeadingLines } from "./markdown-heading-lines.mjs";
 
 const LANGUAGE_SWITCH_LINK = /^\[(?:Simplified Chinese|简体中文|English)\]\([^)]+\)\s*$/;
 
@@ -15,19 +16,12 @@ function noteBody(markdown, sourceName) {
   if (LANGUAGE_SWITCH_LINK.test(lines[0] ?? "")) lines.shift();
   while (lines[0]?.trim() === "") lines.shift();
 
-  let fenceCharacter = "";
-  return lines
-    .map((line) => {
-      const fence = line.match(/^\s*(`{3,}|~{3,})/);
-      if (fence) {
-        const character = fence[1][0];
-        fenceCharacter = fenceCharacter === character ? "" : character;
-        return line;
-      }
-      return fenceCharacter ? line : line.replace(/^(#{2,5})(?=\s)/, "#$1");
-    })
-    .join("\n")
-    .trim();
+  for (const heading of markdownHeadingLines(lines)) {
+    if (heading.level >= 2 && heading.level <= 5) {
+      lines[heading.index] = lines[heading.index].replace(/^( {0,3})(#{2,5})(?=\s)/u, "$1#$2");
+    }
+  }
+  return lines.join("\n").trim();
 }
 
 export function composeReleaseNotes(englishMarkdown, chineseMarkdown, sourceNames = {}) {

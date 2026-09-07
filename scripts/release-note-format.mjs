@@ -1,5 +1,8 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { markdownHeadingLines } from "./markdown-heading-lines.mjs";
+
+const maxDesktopReleaseNotesBytes = 65535;
 
 export const desktopReleaseNoteLocales = {
   en: {
@@ -16,12 +19,12 @@ export const desktopReleaseNoteLocales = {
 
 export function releaseNoteSection(markdown, heading) {
   const lines = String(markdown).replaceAll("\r\n", "\n").split("\n");
-  const start = lines.findIndex((line) => line.trim() === `## ${heading}`);
+  const headings = markdownHeadingLines(lines).filter((item) => item.level === 2);
+  const start = headings.findIndex((item) => item.title === heading);
   if (start < 0) return undefined;
-  const relativeEnd = lines.slice(start + 1).findIndex((line) => /^##\s+\S/u.test(line.trim()));
-  const end = relativeEnd < 0 ? lines.length : start + 1 + relativeEnd;
+  const end = headings[start + 1]?.index ?? lines.length;
   return lines
-    .slice(start + 1, end)
+    .slice(headings[start].index + 1, end)
     .join("\n")
     .trim();
 }
@@ -34,7 +37,9 @@ export function validateReleaseNote(markdown, { version, locale }) {
   if (lines[0] !== `# OpenGrove v${version}`) {
     throw new Error(`${locale} release note must start with # OpenGrove v${version}`);
   }
-  const levelTwoHeadings = lines.map((line) => line.match(/^##\s+(.+?)\s*$/u)?.[1]).filter(Boolean);
+  const levelTwoHeadings = markdownHeadingLines(lines)
+    .filter((heading) => heading.level === 2)
+    .map((heading) => heading.title);
   const expectedHeadings = [contract.productHeading, contract.technicalHeading];
   if (JSON.stringify(levelTwoHeadings) !== JSON.stringify(expectedHeadings)) {
     throw new Error(
@@ -48,6 +53,9 @@ export function validateReleaseNote(markdown, { version, locale }) {
   }
   if (!meaningfulSection(technicalImprovements)) {
     throw new Error(`${locale} release note must include meaningful ${contract.technicalHeading} content`);
+  }
+  if (Buffer.byteLength(productUpdates, "utf8") > maxDesktopReleaseNotesBytes) {
+    throw new Error(`${locale} ${contract.productHeading} must be at most ${maxDesktopReleaseNotesBytes} UTF-8 bytes`);
   }
   return { productUpdates, technicalImprovements };
 }
