@@ -1,3 +1,4 @@
+import { refreshClaudeCodeLocalRouteProfile } from "../kernel/adapters/claude-code.js";
 import { randomUUID } from "node:crypto";
 import { spawn } from "node:child_process";
 import { existsSync, readFileSync, rmSync } from "node:fs";
@@ -114,10 +115,9 @@ export async function describeKernelLogins(state: BridgeState): Promise<BridgeKe
       }
       const claudeRoute =
         kernelId === "claude-code"
-          ? readKernelLocalRouteProfile(kernelId, {
+          ? await refreshClaudeCodeLocalRouteProfile({
               cwd: resolveBridgeWorkspaceRoot(state.settings),
               binaryPath: command,
-              refreshAuth: true,
               configHome: kernelConfigHome(state.settings, kernelId),
             })
           : undefined;

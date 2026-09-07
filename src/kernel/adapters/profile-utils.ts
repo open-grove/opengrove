@@ -33,7 +33,6 @@ export interface KernelLocalRouteProfile {
 }
 
 export interface KernelLocalRouteReadOptions {
-  refreshAuth?: boolean;
   cwd?: string;
   configHome?: string;
   binaryPath?: string;

@@ -13,7 +13,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { resolveCommandInvocation } from "../kernel/discovery.js";
+import { commandVersion, resolveCommandInvocation } from "../kernel/discovery.js";
 import type { BridgeState } from "../server/bridge-types.js";
 import { defaultBridgeSettings } from "../server/bridge-settings-store.js";
 import {
@@ -154,9 +154,24 @@ else process.exitCode = 1;
           ],
           ["api-key", JSON.stringify({ loggedIn: true, authMethod: "api_key", apiProvider: "firstParty" }), "provider"],
           [
-            "oauth",
-            JSON.stringify({ loggedIn: true, authMethod: "oauth", apiProvider: "firstParty" }),
+            "subscription",
+            JSON.stringify({ loggedIn: true, authMethod: "claude.ai", apiProvider: "firstParty" }),
             "authenticated",
+          ],
+          [
+            "oauth-token",
+            JSON.stringify({ loggedIn: true, authMethod: "oauth_token", apiProvider: "firstParty" }),
+            "authenticated",
+          ],
+          [
+            "api-key-helper",
+            JSON.stringify({ loggedIn: true, authMethod: "api_key_helper", apiProvider: "firstParty" }),
+            "provider",
+          ],
+          [
+            "unknown-method",
+            JSON.stringify({ loggedIn: true, authMethod: "future-method", apiProvider: "firstParty" }),
+            "unknown",
           ],
           ["broken", "not-json", "unknown"],
         ] as const) {
@@ -182,6 +197,45 @@ else console.log(${JSON.stringify(output)});
           if (expected === "provider")
             assert.equal(login?.logoutAvailable, false, "provider auth is not a product account to log out");
         }
+        const slowCalls = join(root, "claude-status-calls.txt");
+        const slowClaude = fakeCli(
+          root,
+          "claude-slow-status",
+          `
+import { appendFileSync } from "node:fs";
+if (process.argv.includes("--version")) console.log("claude-test 1.0.0");
+else {
+  appendFileSync(${JSON.stringify(slowCalls)}, "1");
+  setTimeout(() => console.log(JSON.stringify({loggedIn:true, authMethod:"claude.ai", apiProvider:"firstParty"})), 350);
+}
+`,
+        );
+        commandVersion(slowClaude);
+        state.settings.kernelPathOverrides["claude-code"] = {
+          binaryPath: slowClaude,
+          configHome: join(root, "slow-home"),
+        };
+        let eventLoopAdvanced = false;
+        const heartbeat = setTimeout(() => {
+          eventLoopAdvanced = true;
+        }, 20);
+        const start = performance.now();
+        const checks = Promise.all([describeKernelLogins(state), describeKernelLogins(state)]);
+        assert.ok(
+          performance.now() - start < 250,
+          "starting native auth checks must not synchronously wait for the CLI",
+        );
+        const statuses = await checks;
+        assert.equal(
+          readFileSync(slowCalls, "utf8").length,
+          1,
+          "overlapping Settings checks must share one native auth probe",
+        );
+        clearTimeout(heartbeat);
+        assert.equal(eventLoopAdvanced, true, "native auth checks must let other Host work proceed");
+        assert.ok(
+          statuses.every((views) => views.find((view) => view.kernelId === "claude-code")?.status === "authenticated"),
+        );
         state.settings.kernelPathOverrides["claude-code"] = {
           binaryPath: activeClaudePath,
           configHome: join(root, "claude-home"),
