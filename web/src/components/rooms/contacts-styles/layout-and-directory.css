@@ -21,7 +21,7 @@
   height: 100%;
   background: var(--rooms-bg);
   color: var(--rooms-text);
-  padding: var(--app-page-top-inset) 10px var(--app-page-bottom-inset);
+  padding: var(--app-page-top-inset) var(--app-page-inline-inset) var(--app-page-bottom-inset);
 }
 
 .contacts-nav-panel,

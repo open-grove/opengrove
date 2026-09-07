@@ -14,11 +14,6 @@ export function readStoredSidebarWidth(): number {
   return clamp(Number.isFinite(value) ? value : DEFAULT_SIDEBAR_WIDTH, MIN_SIDEBAR_WIDTH, MAX_SIDEBAR_WIDTH);
 }
 
-export function readStoredRailExpanded(): boolean {
-  const raw = window.localStorage.getItem(APP_STORAGE_KEYS.railExpanded);
-  return raw === null ? true : raw === "true";
-}
-
 export function readStoredLibraryLastKnowledgeId(): string {
   return window.localStorage.getItem(APP_STORAGE_KEYS.libraryLastKnowledgeId) || "";
 }

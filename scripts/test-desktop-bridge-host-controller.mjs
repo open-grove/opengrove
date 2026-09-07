@@ -57,11 +57,33 @@ try {
   const first = runtime("http://127.0.0.1:43123/api", 101);
   assert.equal(host.activate(first), true);
   assert.equal(host.runtime, first);
+  assert.equal(host.readyRuntime, first, "ready requests must target the active Bridge runtime");
   assert.deepEqual(host.state, { stage: "ready", generation: 1 });
   assert.equal("apiBase" in host.state, false, "renderer startup state must not expose a dynamic port");
 
   assert.equal(host.activate(first), false, "repeated status events for one runtime must be idempotent");
   assert.equal(published.length, 1);
+
+  host.maintenance("storage_cleanup");
+  assert.equal(host.runtime, first, "planned maintenance keeps the retained renderer bound to its runtime identity");
+  assert.equal(host.readyRuntime, first, "planned maintenance must keep requests on the retained Bridge runtime");
+  assert.deepEqual(host.state, { stage: "maintenance", operation: "storage_cleanup" });
+  assert.equal(
+    host.completeMaintenance(first),
+    true,
+    "maintenance completion must republish ready even when the runtime is reused",
+  );
+  assert.equal(host.readyRuntime, first, "maintenance completion keeps requests on the same Bridge runtime");
+  assert.deepEqual(host.state, { stage: "ready", generation: 2 });
+
+  host.maintenance("storage_cleanup");
+  host.retrying({ attempt: 2, retryInMs: 1_000, message: "bridge crashed during cleanup" });
+  assert.equal(
+    host.completeMaintenance(first),
+    false,
+    "a stale cleanup completion must not reactivate a Bridge that failed during maintenance",
+  );
+  assert.equal(host.readyRuntime, undefined);
 
   host.retrying({ attempt: 2, retryInMs: 1_000, message: "bridge crashed" });
   assert.equal(host.runtime, undefined, "requests must stop targeting a crashed runtime");
@@ -79,7 +101,7 @@ try {
   const replacement = runtime("http://127.0.0.1:44888/api", 202);
   assert.equal(host.activate(replacement), true);
   assert.equal(host.runtime, replacement);
-  assert.deepEqual(host.state, { stage: "ready", generation: 2 });
+  assert.deepEqual(host.state, { stage: "ready", generation: 3 });
 
   host.blocked({
     attempt: 3,

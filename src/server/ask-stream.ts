@@ -192,12 +192,19 @@ function startBackgroundAskRun(
   const runId = createBackgroundRunId();
   const rootState = state.rootState ?? state;
   const controller = new AbortController();
+  const releaseActiveRun = registerActiveBridgeRun(rootState, runId, { cancel: () => controller.abort() });
+  try {
+    persistSnapshotAttachments(payload.snapshot, state);
+  } catch (error) {
+    releaseActiveRun();
+    throw error;
+  }
   const run: BackgroundAskRun = {
     runId,
     threadId: payload.threadId,
     payload,
     rootState,
-    releaseActiveRun: registerActiveBridgeRun(rootState, runId, { cancel: () => controller.abort() }),
+    releaseActiveRun,
     runtimeEnv: options.runtimeEnv,
     ...(options.wwAuth ? { wwAuth: options.wwAuth } : {}),
     controller,

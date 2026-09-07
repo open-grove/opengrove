@@ -89,6 +89,8 @@ Kernel integrations are split into four layers:
 | Kernel manifest | Records launch command, session strategy, provider binding, approval policy, event mapping, capabilities, and rollout status. |
 | Harness template | Gives each protocol a fake-server test shape so new kernels can be added without guessing at runtime behavior. |
 
+Kimi command discovery checks an explicit setting, `OPENGROVE_KIMI_BIN`, the process `PATH`, then the known user install directories `~/.kimi-code/bin` and `~/.local/bin`. An invalid explicit command remains an error. Discovery, Login, and ACP execution use the same resolver, including when a desktop launch has not loaded interactive shell configuration.
+
 Implemented runtime paths include Codex app-server JSON-RPC, Claude Agent SDK streaming, Hermes TUI Gateway, Pi SDK in-process, OpenClaw Gateway WebSocket, and OpenCode/Kimi ACP.
 
 ---
@@ -98,6 +100,14 @@ Implemented runtime paths include Codex app-server JSON-RPC, Claude Agent SDK st
 Provider setup can be managed in the settings UI or through environment variables. The built-in catalog currently covers WW, Volcengine, OpenAI, Anthropic, Google Gemini, DeepSeek, OpenRouter, AWS Bedrock, Google Vertex AI, Zhipu GLM, Kimi, Alibaba Bailian, MiniMax, Xiaomi MiMo, AiHubMix, Azure OpenAI, and xAI. Public model metadata comes from a bundled Models.dev snapshot plus a small OpenGrove connection overlay. Models with the same catalog display name are shown once while every exact upstream wire id remains available for routing; differently named variants such as Fast or Free remain separate choices.
 
 A route identity is either **Login** or **Provider**. Login is a Kernel product-account login, currently ChatGPT/Codex, Claude Agent, or Kimi Code. It is displayed and managed separately from Providers. OpenGrove launches the Kernel's native login/status/logout commands and does not copy or persist its tokens. Authenticated Login routes are projected into model selectors only at runtime. Runtime route priority is Employee override, then the saved default for the exact model, then selection required. New settings write `$login` for Login and concrete ids for Providers; `$native` is accepted only by the OpenGrove 0.6.1 upgrade migration.
+
+Claude Login status distinguishes first-party OAuth from native CLI Provider authentication (such as Bedrock, Vertex, or an API key). A native Provider result offers an explicit Provider setup action; it does not expose an authenticated Login route. Failed or unrecognized status probes remain unknown and can be checked again. Claude Code product credentials reported as `claude.ai` or `oauth_token` qualify for Login only with `apiProvider: firstParty`; `api_key_helper` is Provider authentication. Settings Login status refreshes run asynchronously and concurrent requests share one native probe and the route reader's result cache.
+
+WW credential presence and verification are separate states. Temporary management API failures retain an unchanged, unexpired Key previously verified for the same account and issuer. Unverified, changed, expired, or explicitly rejected Keys remain blocked. Recoverable failures return a retry deadline; the open client retries through the existing Session endpoint with bounded exponential backoff and jitter, and stops after success, logout, Provider disablement, or a failure requiring user action. Access-token refresh stays on the cookie-owning Session response path. Account changes, logout, and credential edits invalidate in-flight provisioning results. Verification metadata updates do not rebuild the running App. Key expiry timestamps with explicit UTC offsets are normalized to UTC before verification metadata is saved. Invalid or ambiguous expiry metadata invalidates only the cached verification observation, preserves account and Key ownership, and remains diagnosable without breaking Session reads.
+
+Unreadable management responses, including HTML pages and malformed JSON data, are retryable failures rather than credential rejection. An upgrade from OpenGrove <=0.6.6 imports matching, unblocked WW ownership once to retain the existing connection while verification is pending or temporarily unavailable. The import records a credential fingerprint without inventing a remote verification time; a successful inspection replaces it. Existing quarantine, recovery blocks, and rejected or changed credentials cannot gain this continuity.
+
+Provider settings patches preserve stored `apiKey` and `apiKeyEnv` fields when omitted. An explicit empty string or `null` clears that field. The settings form sends explicit clears only after the user edits a credential field; unrelated preference saves do not discard credentials or invalidate WW verification.
 
 The main Provider list contains only services that are enabled, have a configured credential, or were added by the user. Inactive built-ins stay under **Add Provider**. OpenGrove does not scan Codex, Claude, Hermes, Pi, OpenCode, or Kimi Provider configuration into this list. OpenClaw Gateway upstreams are the deliberate exception because the Gateway itself is the selected runtime boundary; they remain Gateway-managed Providers and their credentials stay in OpenClaw.
 
@@ -187,13 +197,22 @@ preference, separate from account session state. It never bypasses the
 desktop's in-memory Bridge token. Browser session deployments still require an
 account, and Cloud-backed features remain gated at their feature boundary.
 
+Client release metadata is public and does not authorize local App changes.
+Installed App update checks run independently in the desktop main process,
+including with no open macOS window. `POST /app-store/updates` requests carrying
+a trusted desktop Bridge token still require the workspace owner's valid Cloud
+session; they never rotate cookies and return `401` when credentials expire.
+Login/session restoration owns renewal. Open Web clients retain periodic checks,
+and re-enabling App updates schedules a check only after settings are saved.
+
 | Endpoint | Method | Purpose |
 | --- | --- | --- |
 | `/health` | `GET` | local Bridge liveness and capability summary; never validates the WW session |
 | `/auth/email-codes` | `POST` | request a WW email code and report whether the email needs registration fields |
 | `/auth/login` | `POST` | sign in with the email code; new accounts also send the user-selected ISO country/region and, when required, an invite code |
-| `/auth/session` | `GET` | event-driven WW session restore with authenticated, unauthenticated, and temporarily unavailable outcomes |
-| `/auth/client-update` | `GET` | current desktop release plus the applicable Cloud release; signed-in and signed-out token-authorized desktop clients receive updater metadata and backward-compatible English plus localized `en` / `zh-CN` release-note Markdown |
+| `/auth/session` | `GET` | WW session restore and scheduled recovery with authenticated, unauthenticated, and temporarily unavailable outcomes |
+| `/auth/client-update` | `GET` | read-only desktop release metadata; signed-in sessions receive the full version contract and signed-out callers receive the public version contract, both with backward-compatible English and localized `en` / `zh-CN` release-note Markdown; never schedules App updates or refreshes auth cookies |
+| `/app-store/updates` | `POST` | schedule installed App auto-updates for an authenticated workspace account; returns `scheduled`, `already_running`, or `skipped`; honors the App update preference, interval, and safety checks |
 | `/auth/activity` | `POST` | once-daily minimal account activity for signed-in Electron desktop; carries no local product data |
 | `/inventory` | `GET` | knowledge, memory, artifacts, sessions, tools, skills, and capabilities |
 | `/ask/stream` | `POST` | streaming agent turn API |

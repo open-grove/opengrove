@@ -177,7 +177,7 @@ function entrySource() {
         onOpenProviderAdd: () => {},
         onCloseProviderAdd: () => {},
         onStartAddProvider: () => {},
-        onStartAddProviderFrom: () => {},
+        onStartAddProviderFrom: options.onStartAddProviderFrom ?? (() => {}),
         onCloseProviderDetail: () => {},
         onSetProviderDeleteTargetId: () => {},
         onSetProviderEnabled,
@@ -315,6 +315,17 @@ function entrySource() {
       );
       loginButtons[0].props.onClick();
       assert.deepEqual(kernelLoginAction, { kernelId: "codex", action: "logout" });
+      let configuredNativeProvider;
+      const bedrockPreset = { ...freshUnavailablePreset, id: "aws-bedrock-api-key", name: "AWS Bedrock" };
+      const bedrockSection = providerSection(bedrockPreset, () => {}, {
+        kernelLogins: [{ kernelId: "claude-code", label: "Claude Agent", status: "provider", providerId: "aws-bedrock-api-key", providerLabel: "AWS Bedrock", loginAvailable: false, logoutAvailable: false }],
+        onStartAddProviderFrom: (provider) => { configuredNativeProvider = provider.id; },
+      });
+      const configureButton = findElementsByType(bedrockSection, "button").find((button) => textContent(button) === "settings.configureProvider");
+      assert.ok(configureButton, "third-party authentication must provide explicit Provider setup");
+      configureButton.props.onClick();
+      assert.equal(configuredNativeProvider, "aws-bedrock-api-key");
+      assert.equal(findElementsByType(bedrockSection, "button").some((button) => textContent(button) === "settings.logOut"), false);
       assert.equal(providerServesModel(configuredButInactivePreset, "codex", "gpt-5.5"), true);
       assert.equal(
         providerServesModel(configuredButInactivePreset, "codex", "claude-opus-4-8"),
@@ -937,6 +948,19 @@ function entrySource() {
       const editedPresetProfile = providerProfileFromForm(editedPresetForm);
       assert.equal(editedPresetProfile?.descriptionCode, undefined);
       assert.equal(editedPresetProfile?.description, "My custom description");
+
+      const credentialForm = providerFormFromProfile({
+        id: "ww", name: "WW", protocol: "anthropic-compatible", models: [],
+        apiKey: "ww_sk_old", apiKeyEnv: "WW_KEY",
+      });
+      const clearedForm = updateProviderForm(updateProviderForm(credentialForm, "apiKey", ""), "apiKeyEnv", "");
+      const clearedPayload = JSON.parse(JSON.stringify(providerProfileFromForm(clearedForm)));
+      assert.equal(clearedPayload.apiKey, "", "A deliberate Key deletion must survive request serialization");
+      assert.equal(clearedPayload.apiKeyEnv, "", "A deliberate environment binding deletion must survive request serialization");
+      const redactedForm = providerFormFromProfile({ id: "ww", name: "WW", protocol: "anthropic-compatible", models: [] });
+      const redactedPayload = providerProfileFromForm(updateProviderForm(redactedForm, "description", "Updated"));
+      assert.equal(redactedPayload?.apiKey, undefined, "An untouched redacted credential is omitted, not deleted");
+      assert.equal(redactedPayload?.apiKeyEnv, undefined);
 
       const compactKernelPanel = SettingsKernelPanel({
         t: (key) => key,

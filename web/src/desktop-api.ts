@@ -136,6 +136,11 @@ export interface OpenGroveDesktopApi {
   recordStartupTimeout?(): Promise<OpenGroveDesktopStartupTimeoutRecordResult>;
   exportDiagnostics?(): Promise<OpenGroveDesktopDiagnosticExportResult>;
   chooseDirectory?(): Promise<OpenGroveDesktopDirectoryPickerResult>;
+  cleanupRebuildableStorage?(): Promise<{
+    status: "cleaned";
+    reclaimedBytes: number;
+    updaterCacheSkipped: boolean;
+  }>;
   restartBridge?(): Promise<OpenGroveDesktopDiagnostics>;
   getSourceUpdateState?(): Promise<OpenGroveDesktopSourceUpdateState>;
   checkForSourceUpdate?(): Promise<OpenGroveDesktopSourceUpdateState>;

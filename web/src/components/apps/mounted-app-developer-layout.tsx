@@ -9,6 +9,7 @@ import {
 } from "react";
 import { clamp } from "../../format";
 import { useI18n } from "../../i18n";
+import { ResizeHandle } from "../ui/resize-handle";
 import "./mounted-app-workbench.css";
 
 const DEFAULT_DEVELOPER_PANEL_WIDTH = 420;
@@ -92,9 +93,8 @@ export function MountedAppDeveloperLayout(props: { appId: string; open: boolean;
       style={{ "--mounted-app-developer-panel-width": `${panelWidth}px` } as CSSProperties}
     >
       <main className="mounted-app-developer-canvas">{props.canvas}</main>
-      <div
+      <ResizeHandle
         className="mounted-app-resize-handle mounted-app-developer-resize-handle"
-        role="separator"
         aria-label={t("mountedApp.resizeChat")}
         aria-orientation="vertical"
         aria-valuemin={MIN_DEVELOPER_PANEL_WIDTH}

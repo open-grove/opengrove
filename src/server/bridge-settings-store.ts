@@ -247,12 +247,38 @@ function normalizeCustomProviderSettingsPatch(
   value: unknown,
   current: BridgeProviderProfile[],
 ): BridgeProviderProfile[] {
-  return normalizeCustomProviderProfiles(value).map((provider) => {
+  const merged = arrayRecords(value).flatMap((source) => {
+    const identity = normalizeCustomProviderProfiles([source])[0];
+    if (!identity) return [];
+    const existing = current.find((candidate) => candidate.id === identity.id);
+    // Omission preserves stored credentials; null or an empty string explicitly clears them.
+    return [
+      {
+        ...source,
+        apiKey: source.apiKey === undefined ? existing?.apiKey : source.apiKey,
+        apiKeyEnv: source.apiKeyEnv === undefined ? existing?.apiKeyEnv : source.apiKeyEnv,
+      },
+    ];
+  });
+  return normalizeCustomProviderProfiles(merged).map((provider) => {
     const existing = current.find((candidate) => candidate.id === provider.id);
     const sourceManaged = existing?.origin === "discovered" || Boolean(existing?.sourceKernel);
+    const wwCredentialChanged =
+      provider.id === "ww" &&
+      (provider.apiKey !== existing?.apiKey ||
+        provider.apiKeyEnv !== existing?.apiKeyEnv ||
+        provider.anthropicBaseUrl !== existing?.anthropicBaseUrl);
     return {
       ...provider,
       authConfigured: sourceManaged ? existing?.authConfigured : undefined,
+      ...(provider.id === "ww"
+        ? {
+            provisioning: wwCredentialChanged
+              ? { status: "pending" as const, reason: "credential_changed", attempt: 0 }
+              : existing?.provisioning,
+            provisioningBlocked: wwCredentialChanged ? true : existing?.provisioningBlocked,
+          }
+        : {}),
     };
   });
 }

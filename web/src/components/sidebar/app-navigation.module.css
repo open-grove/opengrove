@@ -1,6 +1,10 @@
 .rail {
-  --app-rail-item-height: 32px;
+  --app-rail-item-height: 36px;
   --app-rail-icon-column: 38px;
+  /* Optical clearance for the fixed badge center: 99+ at 10px/500 plus its
+     2px outline leaves about 0.25px before the aligned label on macOS.
+     8.6px is font-metric tuning, not a new step in the spacing scale. */
+  --app-rail-label-gap: 8.6px;
   grid-column: 1;
   grid-row: 2;
   display: grid;
@@ -186,14 +190,16 @@
   display: block;
   box-sizing: border-box;
   height: 14px;
-  margin: 0;
+  margin: 0 -6px;
+  width: calc(100% + 12px);
   min-width: 0;
   overflow: hidden;
-  padding: 0 6px;
-  visibility: hidden;
+  padding: 0;
+  visibility: visible;
   color: var(--og-text-muted);
-  font-size: var(--fs-xs);
-  font-weight: var(--fw-semibold);
+  font-size: var(--fs-micro);
+  font-weight: var(--fw-normal);
+  text-align: center;
   line-height: 14px;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -290,7 +296,7 @@
 
 .iconUnreadAnchor {
   --unread-count-anchor-top: -3px;
-  --unread-count-anchor-right: -6px;
+  --unread-count-center-right: 2px;
   --unread-count-ring-color: var(--app-shell-bg);
   grid-column: 1;
   align-self: center;
@@ -1961,7 +1967,10 @@ button.withdrawalRecordStat:focus-visible .withdrawalRecordLink {
 
 .rail[data-expanded="true"] .sectionTitle {
   visibility: visible;
+  width: auto;
+  margin: 0;
   padding: 0 6px;
+  text-align: left;
   color: color-mix(in srgb, var(--og-text) 80%, transparent);
   font-size: var(--fs-xs);
   font-weight: var(--fw-semibold);
@@ -2004,7 +2013,7 @@ button.withdrawalRecordStat:focus-visible .withdrawalRecordLink {
 .rail[data-expanded="true"] .button {
   box-sizing: border-box;
   grid-template-columns: var(--app-rail-icon-column) minmax(0, 1fr);
-  column-gap: 0;
+  column-gap: var(--app-rail-label-gap);
   justify-content: start;
   justify-items: stretch;
   width: 100%;
@@ -2012,6 +2021,7 @@ button.withdrawalRecordStat:focus-visible .withdrawalRecordLink {
   height: var(--app-rail-item-height);
   border-radius: var(--r-md);
   color: var(--app-rail-button-fg);
+  overflow: visible;
   padding: 0;
 }
 
@@ -2057,7 +2067,6 @@ button.withdrawalRecordStat:focus-visible .withdrawalRecordLink {
   max-width: 100%;
   min-width: 0;
   overflow: hidden;
-  margin-left: -2px;
   color: inherit;
   font-size: var(--fs-sm);
   font-weight: var(--fw-medium);
@@ -2069,7 +2078,7 @@ button.withdrawalRecordStat:focus-visible .withdrawalRecordLink {
 
 .rail[data-expanded="true"] .userTabLabel {
   box-sizing: border-box;
-  width: calc(100% + 2px);
+  width: 100%;
   font-size: var(--fs-sm);
   min-width: 0;
 }
@@ -2082,7 +2091,7 @@ button.withdrawalRecordStat:focus-visible .withdrawalRecordLink {
 
 .rail[data-expanded="true"] .userButton {
   width: 100%;
-  column-gap: 0;
+  column-gap: var(--app-rail-label-gap);
 }
 
 .rail[data-expanded="true"] .userButtonName {

@@ -93,6 +93,7 @@ export const EN_HOST_MESSAGES = {
   "room.run_empty": "This run did not return a displayable reply.",
   "room.run_failed": "This run failed. Check the run details.",
   "room.run_inactive": "This run stopped without returning a final result. Please send it again.",
+  "room.run_paused_for_maintenance": "OpenGrove is finishing storage maintenance. Please try again shortly.",
   "room.run_host_restarted": "This run was interrupted because the local service restarted. Please send it again.",
   "workspace.new_folder": "New folder",
   "workspace.untitled_markdown": "Untitled.md",

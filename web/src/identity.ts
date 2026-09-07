@@ -21,6 +21,7 @@ export const APP_STORAGE_KEYS = {
   theme: `${APP_PROTOCOL_ID}Theme`,
   iconStyle: `${APP_PROTOCOL_ID}IconStyle`,
   railExpanded: `${APP_PROTOCOL_ID}RailExpanded`,
+  railLayout: `${APP_PROTOCOL_ID}RailLayout`,
   sidebarWidth: `${APP_PROTOCOL_ID}SidebarWidth`,
   sidebarCollapsed: `${APP_PROTOCOL_ID}SidebarCollapsed`,
   roomsOnboardingGuide: `${APP_PROTOCOL_ID}RoomsOnboardingGuideV2`,

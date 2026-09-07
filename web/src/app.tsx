@@ -37,9 +37,16 @@ import { setHostSystemTheme } from "./theme";
 import { detectSystemLanguage, rawDiagnosticText, useI18n } from "./i18n";
 import { applyApprovalResultToMessages, applyQuestionResultToMessages } from "./messages";
 import { buildContextPayload } from "./runtime/composer-context";
-import { desktopBridgeReadyForBootstrap } from "./runtime/desktop-bootstrap-policy";
+import {
+  desktopBridgeReadyForBootstrap,
+  desktopBridgeRequiresStartupGate,
+  resolveBridgeReadyGenerationTransition,
+} from "./runtime/desktop-bootstrap-policy";
 import { modelBindingKey, readStoredModelBindings, writeStoredModelBinding } from "./runtime/app-shell-state";
 import { useAppLayoutResize } from "./runtime/app-layout-resize";
+import { useAppRailLayout } from "./runtime/use-app-rail-layout";
+import { AppNavigationPanel } from "./components/app-shell/app-navigation-panel";
+import { ResizeHandle } from "./components/ui/resize-handle";
 import {
   buildApprovalResolutionMessage,
   buildConnectedToolsStatus,
@@ -142,7 +149,11 @@ export function App() {
     useState(readAccountOnboardingCompleted);
   const [accountLoginRequested, setAccountLoginRequested] = useState(false);
   const [desktopBridgeStartupState, setDesktopBridgeStartupState] = useState(readDesktopBridgeStartupState(desktopApi));
+  const desktopBridgeReadyGenerationRef = useRef<number | undefined>(undefined);
   const desktopBridgeReady = desktopBridgeReadyForBootstrap({
+    bridgeStartupState: desktopBridgeStartupState,
+  });
+  const desktopBridgeStartupGateRequired = desktopBridgeRequiresStartupGate({
     bridgeStartupState: desktopBridgeStartupState,
   });
   const { toast } = useToast();
@@ -179,6 +190,14 @@ export function App() {
     void readDesktopApi()?.setLanguage?.(language);
   }, [language]);
   useEffect(() => desktopApi?.onBridgeStartupStateChange?.(setDesktopBridgeStartupState), [desktopApi]);
+  useEffect(() => {
+    const transition = resolveBridgeReadyGenerationTransition(
+      desktopBridgeReadyGenerationRef.current,
+      desktopBridgeStartupState,
+    );
+    desktopBridgeReadyGenerationRef.current = transition.generation;
+    if (transition.restarted) void queryClient.invalidateQueries();
+  }, [desktopBridgeStartupState, queryClient]);
 
   const {
     model,
@@ -218,7 +237,6 @@ export function App() {
     accessMode,
     budgetLimitUsd,
     clearRoomsSelection,
-    railExpanded,
     reasoningEffort,
     responseSpeed,
     roomsAppView,
@@ -226,7 +244,6 @@ export function App() {
     roomsOnboardingGuideDismissed,
     setAccessMode,
     setBudgetLimitUsd,
-    setRailExpanded,
     setReasoningEffort,
     setResponseSpeed,
     setRoomsAppView,
@@ -234,6 +251,8 @@ export function App() {
     setRoomsOnboardingGuideDismissed,
     sidebarCollapsed,
   } = useAppPersistentUiState(activeView);
+  const railLayout = useAppRailLayout();
+  const [railOverlayOpen, setRailOverlayOpen] = useState(false);
   const { sidebarWidth, onComposerPointerDown, onSidebarResizePointerDown } = useAppLayoutResize({
     composerHeight,
     setComposerHeight,
@@ -255,6 +274,7 @@ export function App() {
     opsExecutionsQuery,
     eventsQuery,
     clientUpdateQuery,
+    scheduleAppUpdates,
   } = useBridgeQueries({
     contextRecordsEnabled: activeView === "ops",
     contextRunId: selectedOpsRunId,
@@ -943,9 +963,7 @@ export function App() {
     onSuccess(result, payload) {
       queryClient.setQueryData(["settings"], result);
       if (payload.appUpdates?.automatic === true) {
-        // Re-enabling clears the server-side check cursor. This authenticated
-        // request supplies the credentials needed to schedule the fresh check.
-        queryClient.invalidateQueries({ queryKey: ["client-update"] });
+        scheduleAppUpdates();
       }
       if (payload.customProviders !== undefined) {
         queryClient.invalidateQueries({ queryKey: ["provider-models"] });
@@ -1728,7 +1746,7 @@ export function App() {
     setRoomsOnboardingGuideDismissed(true);
   }
 
-  if (desktopApi && !desktopBridgeReady) {
+  if (desktopApi && desktopBridgeStartupGateRequired) {
     const blocker =
       desktopBridgeStartupState?.stage === "blocked"
         ? {
@@ -1861,11 +1879,10 @@ export function App() {
     <div
       className="app-shell react-app"
       data-view={activeView}
-      data-rail-expanded={railExpanded ? "true" : "false"}
       data-sidebar-collapsed={sidebarCollapsed ? "true" : "false"}
       style={
         {
-          "--opengrove-rail-width": railExpanded ? "126px" : "58px",
+          "--opengrove-rail-width": `${railLayout.width}px`,
           "--opengrove-sidebar-width": `${sidebarWidth}px`,
         } as CSSProperties
       }
@@ -1874,8 +1891,8 @@ export function App() {
         desktopPlatform={desktopPlatform}
         desktopFullscreen={desktopWindowFullscreen}
         officialRelease={desktopRuntime?.isOfficialRelease}
-        railExpanded={railExpanded}
-        onToggleRail={() => setRailExpanded(!railExpanded)}
+        railVisible={railLayout.mode !== "hidden"}
+        onToggleRail={railLayout.toggle}
         sourceUpdate={sourceUpdate}
         onSourceUpdate={handleTitlebarSourceUpdate}
         clientUpdate={clientUpdateQuery.data}
@@ -1896,45 +1913,53 @@ export function App() {
         pendingDeveloperReplies={mountedAppPendingCrewCount}
         onToggleDeveloperMode={toggleMountedAppDeveloperMode}
       />
-      <AppRail
-        activeSection={activeRailSection}
-        expanded={railExpanded}
-        developerMode={railDeveloperMode}
-        directKernelChatEnabled={railDirectKernelChatEnabled}
-        authUser={sessionQuery.data?.user}
-        onAuthExpired={showLoginExpiredToast}
-        onLogin={
-          healthQuery.data?.auth?.mode === "session" &&
-          sessionQuery.data?.status === "unauthenticated" &&
-          desktopAccountOnboardingCompleted
-            ? () => setAccountLoginRequested(true)
-            : undefined
-        }
-        onLogout={
-          healthQuery.data?.auth?.mode === "session" && sessionQuery.data?.user
-            ? () => authLogoutMutation.mutate()
-            : undefined
-        }
-        mountedApps={mountedApps}
-        activeMountedAppId={activeView === "app" ? activeMountedApp?.name : ""}
-        mountedAppBadges={mountedAppUnreadBadges}
-        sectionBadges={{
-          rooms: { count: roomsUnreadCount },
-          network: { count: availableAppStoreUpdateCount, variant: "danger" },
-        }}
-        onCreateApp={openAppCreateDialog}
-        onSelectMountedApp={(appId) => {
-          requestAppStorePublishLeave(() => {
-            setMountedAppVersionManagementId("");
-            selectMountedApp(appId);
-          });
-        }}
-        onManageMountedAppVersions={openMountedAppVersionManagement}
-        onEditMountedApp={setMountedAppSettingsId}
-        onDeleteMountedApp={deleteMountedAppTab}
-        onOpenSection={openRailSection}
-        onOpenSettings={() => openRailSection("settings")}
-      />
+      <AppNavigationPanel
+        layout={railLayout}
+        overlayOpen={railOverlayOpen || appCreateDialogOpen || Boolean(mountedAppSettingsId)}
+      >
+        {(expanded) => (
+          <AppRail
+            activeSection={activeRailSection}
+            expanded={expanded}
+            onOverlayOpenChange={setRailOverlayOpen}
+            developerMode={railDeveloperMode}
+            directKernelChatEnabled={railDirectKernelChatEnabled}
+            authUser={sessionQuery.data?.user}
+            onAuthExpired={showLoginExpiredToast}
+            onLogin={
+              healthQuery.data?.auth?.mode === "session" &&
+              sessionQuery.data?.status === "unauthenticated" &&
+              desktopAccountOnboardingCompleted
+                ? () => setAccountLoginRequested(true)
+                : undefined
+            }
+            onLogout={
+              healthQuery.data?.auth?.mode === "session" && sessionQuery.data?.user
+                ? () => authLogoutMutation.mutate()
+                : undefined
+            }
+            mountedApps={mountedApps}
+            activeMountedAppId={activeView === "app" ? activeMountedApp?.name : ""}
+            mountedAppBadges={mountedAppUnreadBadges}
+            sectionBadges={{
+              rooms: { count: roomsUnreadCount },
+              network: { count: availableAppStoreUpdateCount, variant: "danger" },
+            }}
+            onCreateApp={openAppCreateDialog}
+            onSelectMountedApp={(appId) => {
+              requestAppStorePublishLeave(() => {
+                setMountedAppVersionManagementId("");
+                selectMountedApp(appId);
+              });
+            }}
+            onManageMountedAppVersions={openMountedAppVersionManagement}
+            onEditMountedApp={setMountedAppSettingsId}
+            onDeleteMountedApp={deleteMountedAppTab}
+            onOpenSection={openRailSection}
+            onOpenSettings={() => openRailSection("settings")}
+          />
+        )}
+      </AppNavigationPanel>
 
       <Dialog open={appCreateDialogOpen} onOpenChange={setAppCreateDialogState}>
         <DialogContent className="app-create-dialog" aria-label={t("app.createApp")}>
@@ -2009,9 +2034,8 @@ export function App() {
         </nav>
       </aside>
 
-      <div
+      <ResizeHandle
         className="sidebar-resize-handle"
-        role="separator"
         aria-label={t("layout.resizeSidebar")}
         aria-orientation="vertical"
         onPointerDown={onSidebarResizePointerDown}
@@ -2226,7 +2250,8 @@ export function App() {
             saving={settingsMutation.isPending}
             installingKernelId={installKernelMutation.isPending ? installKernelMutation.variables?.kernelId : ""}
             kernelLogins={kernelLoginsQuery.data?.logins ?? []}
-            kernelLoginsLoading={kernelLoginsQuery.isLoading}
+            kernelLoginsLoading={kernelLoginsQuery.isFetching}
+            onRefreshKernelLogins={() => void kernelLoginsQuery.refetch()}
             kernelLoginSession={kernelLoginSessionQuery.data?.session}
             kernelLoginActionPending={kernelLoginMutation.isPending}
             error={

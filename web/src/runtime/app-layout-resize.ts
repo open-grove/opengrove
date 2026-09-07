@@ -66,7 +66,6 @@ export function useAppLayoutResize(options: { composerHeight: number; setCompose
       startX: event.clientX,
       startWidth: sidebarWidth,
     };
-    document.body.dataset.sidebarResizing = "true";
     sidebarResizeCleanupRef.current = beginPointerDrag({
       handle,
       pointerId: event.pointerId,
@@ -83,7 +82,6 @@ export function useAppLayoutResize(options: { composerHeight: number; setCompose
       },
       onFinish() {
         sidebarResizeRef.current = null;
-        delete document.body.dataset.sidebarResizing;
         sidebarResizeCleanupRef.current = null;
       },
     });
@@ -96,22 +94,29 @@ export function useAppLayoutResize(options: { composerHeight: number; setCompose
   };
 }
 
-function beginPointerDrag(options: {
+// This owns pointer lifetime, not rollback policy. Navigation previews until
+// release and can discard a cancelled drag; composer/sidebar persist live widths
+// and retain their latest value when Escape, blur or visibility ends the gesture.
+export function beginPointerDrag(options: {
   handle: HTMLElement;
   pointerId: number;
   onMove(event: PointerEvent): void;
-  onFinish(): void;
+  onFinish(event?: Event): void;
 }) {
   let active = true;
+  options.handle.dataset.resizing = "true";
 
   function finish(event?: Event) {
     if (!active) return;
+    if (event instanceof KeyboardEvent && event.key !== "Escape") return;
     if (event instanceof PointerEvent && event.pointerId !== options.pointerId) return;
     active = false;
+    delete options.handle.dataset.resizing;
     window.removeEventListener("pointermove", move);
     window.removeEventListener("pointerup", finish);
     window.removeEventListener("pointercancel", finish);
     window.removeEventListener("blur", finish);
+    window.removeEventListener("keydown", finish);
     document.removeEventListener("visibilitychange", finishWhenHidden);
     options.handle.removeEventListener("lostpointercapture", finish);
     try {
@@ -121,7 +126,7 @@ function beginPointerDrag(options: {
     } catch {
       // non-critical-fallback: A detached handle needs no pointer-capture release before finishing resize.
     }
-    options.onFinish();
+    options.onFinish(event);
   }
 
   function move(event: PointerEvent) {
@@ -146,6 +151,7 @@ function beginPointerDrag(options: {
   window.addEventListener("pointerup", finish);
   window.addEventListener("pointercancel", finish);
   window.addEventListener("blur", finish);
+  window.addEventListener("keydown", finish);
   document.addEventListener("visibilitychange", finishWhenHidden);
   options.handle.addEventListener("lostpointercapture", finish);
 

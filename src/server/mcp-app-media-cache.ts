@@ -3,6 +3,7 @@ import { lookup as lookupDns } from "node:dns/promises";
 import {
   createWriteStream,
   existsSync,
+  lstatSync,
   mkdirSync,
   readdirSync,
   renameSync,
@@ -11,17 +12,17 @@ import {
   utimesSync,
 } from "node:fs";
 import { BlockList, isIP, type LookupFunction } from "node:net";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { Readable, Transform } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { Agent, fetch as undiciFetch } from "undici";
 import { normalizeAppUi } from "../app-builder/ui-runtime.js";
+import { MCP_APP_MEDIA_CACHE_WORKSPACE_DIRECTORY } from "../mcp-app-media-cache-path.js";
 import type { MountedAppTarget } from "./mounted-apps.js";
 import type { WorkspaceRawFileResult } from "./workspace-store.js";
 
 const DEFAULT_MAX_BYTES = 5 * 1024 * 1024 * 1024;
-const CACHE_WORKSPACE_DIRECTORY = ".cache/opengrove-media";
-const CACHE_DIRECTORY_SEGMENTS = CACHE_WORKSPACE_DIRECTORY.split("/");
+const CACHE_DIRECTORY_SEGMENTS = MCP_APP_MEDIA_CACHE_WORKSPACE_DIRECTORY.split("/");
 const MEDIA_ROUTE_PREFIX = "/mcp-app-media/";
 const MEDIA_PUBLIC_PREFIX = "./mcp-app-media/";
 const PUBLIC_DOH_ORIGIN = "https://cloudflare-dns.com";
@@ -46,6 +47,12 @@ export interface McpAppMediaCacheResult {
 export interface McpAppMediaLease {
   rawFile: WorkspaceRawFileResult;
   release: () => void;
+}
+
+export interface McpAppMediaCacheCleanupResult {
+  removedFiles: number;
+  retainedFiles: number;
+  reclaimedBytes: number;
 }
 
 interface DownloadJob {
@@ -115,7 +122,7 @@ export class McpAppMediaCache {
     mkdirSync(cacheDirectory, { recursive: true });
     const fileName = cacheFileName(input.cacheKey, input.contentType);
     const absolutePath = join(cacheDirectory, fileName);
-    const workspacePath = `${CACHE_WORKSPACE_DIRECTORY}/${fileName}`;
+    const workspacePath = `${MCP_APP_MEDIA_CACHE_WORKSPACE_DIRECTORY}/${fileName}`;
 
     const existing = this.existingResult(absolutePath, workspacePath, input);
     if (existing) return existing;
@@ -199,6 +206,43 @@ export class McpAppMediaCache {
         else this.activeLeases.delete(absolutePath);
       },
     };
+  }
+
+  clearWorkspaceCaches(workspaceRoots: readonly string[]): McpAppMediaCacheCleanupResult {
+    const result: McpAppMediaCacheCleanupResult = { removedFiles: 0, retainedFiles: 0, reclaimedBytes: 0 };
+    const visited = new Set<string>();
+    for (const workspaceRoot of workspaceRoots) {
+      const root = resolve(workspaceRoot);
+      const cacheParent = join(root, CACHE_DIRECTORY_SEGMENTS[0]!);
+      const cacheDirectory = join(root, ...CACHE_DIRECTORY_SEGMENTS);
+      if (visited.has(cacheDirectory)) continue;
+      visited.add(cacheDirectory);
+      if (!isOrdinaryDirectory(cacheParent) || !isOrdinaryDirectory(cacheDirectory)) continue;
+      for (const entry of readdirSync(cacheDirectory, { withFileTypes: true })) {
+        if (!entry.isFile() || entry.isSymbolicLink()) {
+          result.retainedFiles += 1;
+          continue;
+        }
+        const absolutePath = join(cacheDirectory, entry.name);
+        const destination = entry.name.endsWith(".part") ? absolutePath.slice(0, -".part".length) : absolutePath;
+        if (this.cacheFileIsActive(destination)) {
+          result.retainedFiles += 1;
+          continue;
+        }
+        try {
+          const bytes = lstatSync(absolutePath).size;
+          rmSync(absolutePath, { force: false });
+          result.removedFiles += 1;
+          result.reclaimedBytes += bytes;
+          this.failures.delete(destination);
+          this.revokePath(destination);
+        } catch {
+          // non-critical-fallback: a locked or concurrently changed cache file remains available for the next cleanup.
+          result.retainedFiles += 1;
+        }
+      }
+    }
+    return result;
   }
 
   private existingResult(
@@ -341,6 +385,11 @@ export class McpAppMediaCache {
     if (!reservations) return;
     reservations.delete(destination);
     if (reservations.size === 0) this.reservations.delete(cacheDirectory);
+  }
+
+  private cacheFileIsActive(destination: string): boolean {
+    if (this.jobs.has(destination) || this.activeLeases.has(destination)) return true;
+    return [...this.reservations.values()].some((reservations) => reservations.has(destination));
   }
 
   private issueCapability(absolutePath: string, contentType: string): string {
@@ -557,6 +606,15 @@ function isCompleteFile(path: string, expectedSize: number): boolean {
   try {
     const stat = statSync(path);
     return stat.isFile() && stat.size === expectedSize;
+  } catch {
+    return false;
+  }
+}
+
+function isOrdinaryDirectory(path: string): boolean {
+  try {
+    const entry = lstatSync(path);
+    return entry.isDirectory() && !entry.isSymbolicLink();
   } catch {
     return false;
   }

@@ -172,6 +172,35 @@ try {
     "a readable Claude Node script must not be rejected for lacking a shebang or executable bit",
   );
 
+  const missingKimiProbe = { homeDir: join(tempRoot, "empty-home"), path: join(tempRoot, "empty-path") };
+  assert.equal(resolveKimiCommand(undefined, missingKimiProbe), undefined);
+  assert.equal(discoverKimiKernel(undefined, missingKimiProbe).available, false);
+  const installedKimi = writeCommand(join(homeDir, ".kimi-code", "bin", "kimi"), true);
+  const kimiProbe = { homeDir, path: pathDir };
+  assert.equal(
+    resolveKimiCommand(undefined, kimiProbe),
+    installedKimi,
+    "Kimi must resolve its official install directory without a terminal PATH",
+  );
+  assert.equal(discoverKimiKernel(undefined, kimiProbe).binaryPath, installedKimi);
+  assert.equal(discoverKimiKernel(undefined, kimiProbe).executableProbe?.source, "discovered");
+  const pathKimi = writeCommand(join(pathDir, "kimi"), true);
+  assert.equal(
+    resolveKimiCommand(undefined, kimiProbe),
+    pathKimi,
+    "PATH must take precedence over an automatic install-directory candidate",
+  );
+  const explicitKimi = writeCommand(join(tempRoot, "explicit kimi"), true);
+  assert.equal(resolveKimiCommand(explicitKimi, kimiProbe), explicitKimi);
+  assert.equal(
+    resolveKimiCommand(join(tempRoot, "missing kimi"), kimiProbe),
+    undefined,
+    "an invalid explicit path must not fall back",
+  );
+  const brokenKimi = writeFailingCommand(join(tempRoot, "broken kimi"));
+  assert.equal(resolveKimiCommand(brokenKimi, kimiProbe), undefined);
+  assert.equal(discoverKimiKernel(brokenKimi, kimiProbe).executableProbe?.status, "failed");
+
   const slowPathDir = join(tempRoot, "slow-path");
   const slowOpenCode = writeSlowCommand(join(slowPathDir, "opencode"));
   const slowKimi = writeSlowCommand(join(slowPathDir, "kimi"));
@@ -345,7 +374,9 @@ try {
   );
 
   const coldOpenCode = createOpenCodeKernelAdapter();
-  const coldKimi = createKimiKernelAdapter();
+  const coldKimi = createKimiKernelAdapter({
+    command: join(noPiCliPath, process.platform === "win32" ? "kimi.cmd" : "kimi"),
+  });
   writeCommand(join(noPiCliPath, "opencode"), true);
   writeCommand(join(noPiCliPath, "kimi"), true);
   for (const [name, adapter] of [

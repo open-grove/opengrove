@@ -1728,6 +1728,7 @@ label.settings-list-row {
   padding-top: var(--sp-4);
   font-size: var(--fs-sm);
   line-height: var(--lh-normal);
+  white-space: pre-line;
 }
 
 .release-notes-markdown > :first-child {
@@ -1951,15 +1952,23 @@ label.settings-list-row {
 }
 
 .settings-storage-bar > span:nth-child(1) {
-  background: var(--og-accent);
+  background: color-mix(in srgb, var(--c-text) 64%, var(--c-surface));
 }
 
 .settings-storage-bar > span:nth-child(2) {
-  background: color-mix(in srgb, var(--og-accent) 54%, var(--c-surface));
+  background: color-mix(in srgb, var(--c-text) 48%, var(--c-surface));
 }
 
 .settings-storage-bar > span:nth-child(3) {
   background: color-mix(in srgb, var(--c-text) 34%, var(--c-surface));
+}
+
+.settings-storage-bar > span:nth-child(4) {
+  background: color-mix(in srgb, var(--c-text) 24%, var(--c-surface));
+}
+
+.settings-storage-bar > span:nth-child(5) {
+  background: color-mix(in srgb, var(--c-text) 18%, var(--c-surface));
 }
 
 .settings-storage-legend {
@@ -1980,15 +1989,23 @@ label.settings-list-row {
   width: var(--sp-2);
   height: var(--sp-2);
   border-radius: var(--r-xs);
-  background: var(--og-accent);
+  background: color-mix(in srgb, var(--c-text) 64%, var(--c-surface));
 }
 
 .settings-storage-legend span:nth-child(2) i {
-  background: color-mix(in srgb, var(--og-accent) 54%, var(--c-surface));
+  background: color-mix(in srgb, var(--c-text) 48%, var(--c-surface));
 }
 
 .settings-storage-legend span:nth-child(3) i {
   background: color-mix(in srgb, var(--c-text) 34%, var(--c-surface));
+}
+
+.settings-storage-legend span:nth-child(4) i {
+  background: color-mix(in srgb, var(--c-text) 24%, var(--c-surface));
+}
+
+.settings-storage-legend span:nth-child(5) i {
+  background: color-mix(in srgb, var(--c-text) 18%, var(--c-surface));
 }
 
 .settings-storage-grid {
@@ -1999,7 +2016,7 @@ label.settings-list-row {
 
 .settings-storage-card {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr);
   align-items: center;
   gap: var(--sp-3);
   min-height: 76px;
@@ -2023,6 +2040,12 @@ label.settings-list-row {
 .settings-storage-card-copy span {
   color: var(--og-text-muted);
   font-size: var(--fs-base);
+}
+
+.settings-storage-card-copy small {
+  color: var(--og-text-muted);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-normal);
 }
 
 .settings-storage-subheading {

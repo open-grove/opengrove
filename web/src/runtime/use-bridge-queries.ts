@@ -1,3 +1,4 @@
+import { authSessionRecoveryOptions } from "./auth-session-recovery";
 import { useEffect } from "react";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import type {
@@ -17,6 +18,7 @@ import { APP_STORAGE_KEYS } from "../identity";
 import { readDesktopApi } from "../desktop-api";
 import { resolveBridgeAuthPolicy } from "../app-auth-policy";
 import { useAgentEventsQuery } from "./use-agent-events-query";
+import { useAppUpdateChecks } from "./use-app-update-checks";
 import { pendingActionEventMarker } from "./bridge-sync-policy";
 import { providerModelCatalogKey } from "./provider-model-catalog";
 import {
@@ -75,10 +77,14 @@ export function useBridgeQueries(input: {
         headers: bridgeHeaders(false),
       }),
     enabled: sessionAuthActive,
-    retry: false,
-    refetchOnWindowFocus: false,
-    staleTime: Infinity,
+    ...authSessionRecoveryOptions,
   });
+  const provisioning = sessionQuery.data?.providerProvisioning;
+  useEffect(() => {
+    if (!provisioning) return;
+    void queryClient.invalidateQueries({ queryKey: ["settings"] });
+    void queryClient.invalidateQueries({ queryKey: ["runtime-controls"] });
+  }, [queryClient, provisioning?.status, provisioning?.retryAt]);
   const desktopSavedSessionQuery = useQuery({
     queryKey: ["desktop-saved-auth-session"],
     queryFn: async () => Boolean(await desktopApi?.hasSavedAuthSession?.()),
@@ -147,6 +153,11 @@ export function useBridgeQueries(input: {
     enabled: protectedQueriesEnabled,
     staleTime: 30_000,
     refetchOnWindowFocus: true,
+  });
+  const scheduleAppUpdates = useAppUpdateChecks({
+    authenticated: authPolicy.sessionAuthenticated,
+    userId: sessionQuery.data?.user?.userId,
+    automatic: settingsQuery.data?.settings.appUpdates?.automatic === true,
   });
   const appStoreRegistryUrl = settingsQuery.data?.settings?.appStore?.registryUrl ?? "";
   const appStoreRegistryConfigured = Boolean(
@@ -286,8 +297,7 @@ export function useBridgeQueries(input: {
     void queryClient.invalidateQueries({ queryKey: ["questions"] });
   }, [pendingActionMarker, protectedQueriesEnabled, queryClient]);
 
-  // 登录后获取当前机器对应的最新安装包。打包桌面端用于更新提示，Web 端用于桌面版下载入口。
-  // 这个六小时请求同时是已安装 App Store App 自动更新的周期触发器。
+  // Client version metadata only; App updates have their own authenticated scheduler.
   const clientUpdateQuery = useQuery({
     queryKey: ["client-update"],
     queryFn: () => fetchJson<ClientUpdateResponse>("/auth/client-update", { headers: bridgeHeaders(false) }),
@@ -314,6 +324,7 @@ export function useBridgeQueries(input: {
     opsExecutionsQuery,
     eventsQuery,
     clientUpdateQuery,
+    scheduleAppUpdates,
   };
 }
 
