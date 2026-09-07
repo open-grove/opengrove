@@ -81,6 +81,11 @@ export interface WwCreateApiKeyOptions extends WwApiKeyRequestOptions {
   idempotencyKey: string;
 }
 
+export interface WwLocalizedReleaseNotes {
+  en?: string;
+  "zh-CN"?: string;
+}
+
 export interface WwClientPlatformVersion {
   version: number;
   downloadUrl: string;
@@ -88,6 +93,7 @@ export interface WwClientPlatformVersion {
   updaterFeedUrl?: string;
   releasedAt?: string;
   releaseNotes?: string;
+  releaseNotesByLocale?: WwLocalizedReleaseNotes;
 }
 
 export interface WwLatestClientVersion {

@@ -25,6 +25,15 @@ export async function writeDesktopReleaseGateReceipt({
   const manifestPath = join(releaseDir, "desktop-release-manifest.json");
   if (!existsSync(manifestPath)) throw new Error(`release manifest is missing: ${manifestPath}`);
   const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+  if (
+    manifest.schemaVersion !== 3 ||
+    typeof manifest.releaseNotesByLocale?.en !== "string" ||
+    !manifest.releaseNotesByLocale.en.trim() ||
+    typeof manifest.releaseNotesByLocale?.["zh-CN"] !== "string" ||
+    !manifest.releaseNotesByLocale["zh-CN"].trim()
+  ) {
+    throw new Error("gate receipt requires validated en and zh-CN release notes in a schema v3 manifest");
+  }
   if (manifest.partialRelease || manifest.installers?.length !== canonicalTargetKeys.size) {
     throw new Error("gate receipt requires one complete mac-arm64, mac-x64, windows-x64 release");
   }
@@ -69,12 +78,13 @@ export async function writeDesktopReleaseGateReceipt({
   }
 
   const receipt = {
-    schema_version: 2,
+    schema_version: 3,
     version: manifest.version,
     client_release_number: manifest.clientReleaseNumber,
     expected_git_tag: expectedGitTag,
     git_commit: source.gitCommit,
     previous_release_tag: previousReleaseTag,
+    release_notes_sha256: localizedReleaseNotesSha256(manifest.releaseNotesByLocale),
     ci_run_url: ciRunUrl,
     generated_at: new Date(generatedAt).toISOString(),
     gates,
@@ -90,13 +100,16 @@ export function readDesktopReleaseGateReceipt(path) {
   const isLegacy = receipt.schema_version === 1;
   const expectedGitTag = isLegacy ? receipt.git_tag : receipt.expected_git_tag;
   if (
-    ![1, 2].includes(receipt.schema_version) ||
+    ![1, 2, 3].includes(receipt.schema_version) ||
     !/^v\S+$/.test(expectedGitTag ?? "") ||
     !/^[a-f0-9]{40}$/.test(receipt.git_commit ?? "") ||
     !/^https:\/\//.test(receipt.ci_run_url ?? "") ||
     !Number.isFinite(Date.parse(receipt.generated_at ?? ""))
   ) {
     throw new Error("desktop release gate receipt header is invalid");
+  }
+  if (receipt.schema_version === 3 && !/^[a-f0-9]{64}$/.test(receipt.release_notes_sha256 ?? "")) {
+    throw new Error("desktop release gate receipt has invalid localized release-note SHA-256");
   }
   if (
     !isLegacy &&
@@ -127,6 +140,14 @@ export function readDesktopReleaseGateReceipt(path) {
     }
   }
   return receipt;
+}
+
+export function localizedReleaseNotesSha256(notes) {
+  const hash = createHash("sha256");
+  hash.update(notes.en, "utf8");
+  hash.update(Buffer.from([0]));
+  hash.update(notes["zh-CN"], "utf8");
+  return hash.digest("hex");
 }
 
 function sha256(path) {

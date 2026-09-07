@@ -22,6 +22,11 @@ assert.match(
   /npm run check:repository-hygiene/u,
   "the base repository gate must reject task review residue and personal home paths",
 );
+assert.match(
+  packageJson.scripts["check:static:release"],
+  /npm run check:release-notes/u,
+  "ordinary CI must validate release copy and run its format, context, and rendering regressions",
+);
 assert.equal(
   packageJson.scripts["typecheck:desktop"],
   "npm run build:protocol && tsc -p tsconfig.desktop.json --noEmit",

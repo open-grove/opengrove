@@ -824,6 +824,10 @@ export interface ClientUpdateResponse {
     updaterFeedUrl?: string;
     releasedAt?: string;
     releaseNotes?: string;
+    releaseNotesByLocale?: {
+      en?: string;
+      "zh-CN"?: string;
+    };
   } | null;
 }
 

@@ -1,6 +1,7 @@
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
+import { readLocalizedDesktopReleaseNotes } from "./release-note-format.mjs";
 
 const releaseMode = process.argv.includes("--release");
 const root = process.cwd();
@@ -94,7 +95,7 @@ const packageJson = JSON.parse(readFileSync(packagePath, "utf8"));
 const version = String(packageJson.version || "").trim();
 if (!version) fail("package.json does not contain a version.");
 
-const latestTag = git(["describe", "--tags", "--abbrev=0"]);
+const latestTag = git(["describe", "--tags", "--match", "v*", "--abbrev=0"]);
 const currentTag = `v${version}`;
 const commitRange = latestTag ? `${latestTag}..HEAD` : "HEAD";
 const commits = git(["log", "--oneline", commitRange]);
@@ -131,6 +132,14 @@ console.log(
   `- localized release note file: ${localizedReleaseNoteExists ? `docs/releases/${currentTag}.zh-CN.md` : "(missing)"}`,
 );
 console.log(`- release note entries: ${releaseNoteEntries.length}`);
+
+if (releaseNoteExists && localizedReleaseNoteExists) {
+  try {
+    readLocalizedDesktopReleaseNotes(root, version);
+  } catch (error) {
+    fail(error instanceof Error ? error.message : String(error));
+  }
+}
 
 if (releaseMode) {
   if (latestTag === currentTag) {

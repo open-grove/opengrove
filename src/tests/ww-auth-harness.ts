@@ -199,6 +199,7 @@ const fakeWw = createServer((request, response) => {
         released_at: "2026-07-08T00:00:00Z",
         download_url: "https://download.example.test/OpenGrove-mac.dmg",
         release_notes: "Public release notes",
+        release_notes_by_locale: { en: "- Better updates", "zh-CN": "- 更好的更新体验" },
         updater_base_url: "https://download.example.test/mac/",
         updater_feed_url: "https://download.example.test/mac/latest-mac.yml",
       },
@@ -207,6 +208,7 @@ const fakeWw = createServer((request, response) => {
         released_at: "2026-07-08T00:00:00Z",
         download_url: "https://download.example.test/OpenGrove-mac-arm64.dmg",
         release_notes: "Public release notes",
+        release_notes_by_locale: { en: "- Better updates", "zh-CN": "- 更好的更新体验" },
         updater_base_url: "https://download.example.test/mac-arm64/",
         updater_feed_url: "https://download.example.test/mac-arm64/latest-mac.yml",
       },
@@ -215,6 +217,7 @@ const fakeWw = createServer((request, response) => {
         released_at: "2026-07-08T00:00:00Z",
         download_url: "https://download.example.test/OpenGrove-mac-x64.dmg",
         release_notes: "Public release notes",
+        release_notes_by_locale: { en: "- Better updates", "zh-CN": "- 更好的更新体验" },
         updater_base_url: "https://download.example.test/mac-x64/",
         updater_feed_url: "https://download.example.test/mac-x64/latest-mac.yml",
       },
@@ -223,6 +226,7 @@ const fakeWw = createServer((request, response) => {
         released_at: "2026-07-08T00:00:00Z",
         download_url: "https://download.example.test/OpenGrove-win.exe",
         release_notes: "Public release notes",
+        release_notes_by_locale: { en: "- Better updates", "zh-CN": "- 更好的更新体验" },
         updater_base_url: "https://download.example.test/windows/",
         updater_feed_url: "https://download.example.test/windows/latest.yml",
       },
@@ -231,6 +235,7 @@ const fakeWw = createServer((request, response) => {
         released_at: "2026-07-08T00:00:00Z",
         download_url: "https://download.example.test/OpenGrove-win-x64.exe",
         release_notes: "Public release notes",
+        release_notes_by_locale: { en: "- Better updates", "zh-CN": "- 更好的更新体验" },
         updater_base_url: "https://download.example.test/windows-x64/",
         updater_feed_url: "https://download.example.test/windows-x64/latest.yml",
       },
@@ -1119,6 +1124,10 @@ try {
     if (process.platform === "darwin" || process.platform === "win32") {
       assert.equal(publicClientUpdate.latest.version, 10002);
       assert.equal(publicClientUpdate.latest.releaseNotes, "Public release notes");
+      assert.deepEqual(publicClientUpdate.latest.releaseNotesByLocale, {
+        en: "- Better updates",
+        "zh-CN": "- 更好的更新体验",
+      });
       assert.match(publicClientUpdate.latest.updaterFeedUrl, /latest-mac\.yml$|latest\.yml$/);
     } else {
       assert.equal(publicClientUpdate.latest, null);

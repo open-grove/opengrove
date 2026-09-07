@@ -43,6 +43,11 @@ assert.match(composed, /```markdown\n## Heading inside a fence\n```/);
 assert.doesNotMatch(composed, /\.\/v9\.8\.7/);
 assert.throws(() => composeReleaseNotes("missing title", chinese), /level-one title/);
 
+const nestedFence = "````md\n```\n## Code example\n~~~~\n## Still code\n````";
+const nestedComposed = composeReleaseNotes(`${english}\n${nestedFence}\n\n## After the fence\n`, chinese);
+assert.ok(nestedComposed.includes(nestedFence));
+assert.match(nestedComposed, /### After the fence/);
+
 const fixtureRoot = mkdtempSync(join(tmpdir(), "opengrove-release-notes-"));
 try {
   const notesDir = join(fixtureRoot, "docs", "releases");

@@ -905,7 +905,6 @@ export const EN = {
   "shell.updateAvailable": "Update available",
   "shell.autoUpdateDetails": "Auto update: {details}",
   "shell.downloadProgress": "Download progress: {progress}%",
-  "shell.releaseNotes": "Release notes: {notes}",
   "shell.localFolderHelp":
     "Make sure the local OpenGrove bridge is running, then choose the folder again, or paste a local path into the input.",
   "shell.installSourceUpdateConfirm":

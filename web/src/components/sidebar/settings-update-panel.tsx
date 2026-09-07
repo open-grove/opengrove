@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import type { ClientUpdateResponse } from "../../bridge";
 import { readDesktopApi, type OpenGroveDesktopClientUpdateState } from "../../desktop-api";
 import { rawDiagnosticText, useI18n } from "../../i18n";
+import { resolveClientReleaseNotes } from "../../client-release-notes";
+import { ReleaseNotesMarkdown } from "../shared/release-notes-markdown";
 import { useConfirm } from "../ui/confirm-dialog";
 import { ProductIcon } from "../ui/product-icon";
 
@@ -13,7 +15,7 @@ export function SettingsUpdatePanel(props: {
   error?: string;
   onCheckClientUpdate?(): Promise<void> | void;
 }) {
-  const { t } = useI18n();
+  const { language, t } = useI18n();
   const confirm = useConfirm();
   const desktop = readDesktopApi();
   const [autoDownload, setAutoDownload] = useState(true);
@@ -54,7 +56,7 @@ export function SettingsUpdatePanel(props: {
   const updateAvailable = metadataUpdateAvailable || updateState?.updateAvailable === true;
   const latestSemver = semanticVersionLabel(updateState?.latestVersion);
   const latestLabel = latestSemver || (latest ? t("settings.updateReleaseNumber", { version: latest.version }) : "");
-  const releaseNotes = latest?.releaseNotes?.trim() || t("settings.updateReleaseNotesFallback");
+  const releaseNotes = resolveClientReleaseNotes(latest, language) || t("settings.updateReleaseNotesFallback");
   const updateStateError = updateState?.stage === "error" ? updateState.details || updateState.message : "";
 
   const checkForUpdates = async () => {
@@ -162,7 +164,7 @@ export function SettingsUpdatePanel(props: {
               {actionLabel}
             </button>
           </div>
-          <p>{releaseNotes}</p>
+          <ReleaseNotesMarkdown markdown={releaseNotes} />
           <small className="settings-update-source-note">{t("settings.updateNotesFromService")}</small>
         </section>
       ) : null}

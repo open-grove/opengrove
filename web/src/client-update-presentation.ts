@@ -5,7 +5,6 @@ import { translate } from "./i18n";
 export interface TitlebarClientUpdatePresentation {
   visible: boolean;
   downloadUrl?: string;
-  releaseNotes?: string;
 }
 
 export interface TitlebarClientUpdateAction {
@@ -47,7 +46,6 @@ export function resolveTitlebarClientUpdate(
   return {
     visible: remoteUpdateAvailable || desktopUpdateAvailable,
     downloadUrl: desktopState?.downloadUrl || latest?.downloadUrl || undefined,
-    releaseNotes: latest?.releaseNotes,
   };
 }
 

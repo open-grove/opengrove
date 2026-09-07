@@ -208,7 +208,7 @@ Local bridge 是 UI、state、tools 和 kernels 之间的边界。
 | `/auth/email-codes` | `POST` | 请求 WW 邮箱验证码，并返回该邮箱是否需要注册字段 |
 | `/auth/login` | `POST` | 使用邮箱验证码登录；新账号同时提交用户选择的 ISO 国家/地区，以及按需提交邀请码 |
 | `/auth/session` | `GET` | WW 会话恢复与定时重试；区分已认证、未登录与暂时不可用 |
-| `/auth/client-update` | `GET` | 只读查询桌面版本；已登录会话读取完整版本契约，未登录请求读取公开版本契约；不触发 App 更新、不刷新登录 Cookie |
+| `/auth/client-update` | `GET` | 只读查询桌面版本；已登录会话读取完整版本契约，未登录请求读取公开版本契约，两者均包含兼容英文字段和本地化 `en` / `zh-CN` 发布说明 Markdown；不触发 App 更新、不刷新登录 Cookie |
 | `/app-store/updates` | `POST` | 使用已鉴权且属于本机工作区的账号调度 App 自动更新；返回 `scheduled`、`already_running` 或 `skipped`，遵守自动更新开关、间隔和 App 安全检查 |
 | `/auth/activity` | `POST` | 已登录 Electron 桌面端每天一次的最小账号活跃；不携带本地业务数据 |
 | `/inventory` | `GET` | knowledge、memory、artifacts、sessions、tools、skills 和 capabilities |
