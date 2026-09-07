@@ -2,6 +2,7 @@ import type { BridgeRoute, BridgeRouteContext } from "../router.js";
 import { hostContractById } from "#protocol/compiled";
 import { handleA2ARoute } from "./a2a.js";
 import { handleAppStoreRoute } from "./app-store.js";
+import { handleScheduleAppUpdatesOperation } from "./app-updates.js";
 import {
   handleAbandonAppReleaseOperation,
   handleGetAppReleaseProgressOperation,
@@ -49,6 +50,7 @@ export function createBridgeRoutes(): BridgeRoute[] {
     moduleRoute("voice", /^\/voice\//, (context) => handleVoiceRoute(context)),
     moduleRoute("withdrawal", isWithdrawalRoute, (context) => handleWithdrawalRoute(context)),
     moduleRoute("room-ledger", "/room-ledger/read", (context) => handleRoomLedgerCapabilityRoute(context)),
+    operationRoute(hostContractById["app.update.schedule"], handleScheduleAppUpdatesOperation),
     moduleRoute("app-store", /^\/app-store(?:\/|$)/, (context) => handleAppStoreRoute(context)),
     moduleRoute("a2a", /^\/a2a\//, (context) => handleA2ARoute(context)),
     moduleRoute("workspace", "/workspace/choose-directory", (context) => handleWorkspaceRoute(context)),
