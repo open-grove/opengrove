@@ -1181,9 +1181,7 @@ export function AppRail(props: {
                     </span>
                     <span className={styles.fixtureAccountMetadata}>
                       {account.status !== "active" ? <span>{account.status}</span> : null}
-                      <span>
-                        {account.roles.length > 0 ? account.roles.join(" + ") : fixtureAccountCopy.noRoles}
-                      </span>
+                      <span>{account.roles.length > 0 ? account.roles.join(" + ") : fixtureAccountCopy.noRoles}</span>
                     </span>
                     <span className={styles.fixtureAccountState}>
                       {switching

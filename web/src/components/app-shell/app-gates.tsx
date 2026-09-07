@@ -609,7 +609,9 @@ export function TeamAccountPickerScreen(props: {
                   <span className="team-account-picker-identity">
                     <strong>{account.email.replace("@example.test", "")}</strong>
                     <small>
-                      {account.status !== "active" ? `${account.status} · ` : ""}
+                      {account.status !== "active" ? (
+                        <em className="team-account-picker-status">{account.status}</em>
+                      ) : null}
                       {account.roles.length > 0 ? account.roles.join(" + ") : copy.pickNoRoles}
                     </small>
                   </span>

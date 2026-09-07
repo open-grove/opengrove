@@ -962,40 +962,42 @@ html[data-opengrove-desktop="true"] .cloud-auth-language {
 }
 
 /* Test-account picker, shown right after the team gate on a gated deployment.
-   Borrows the auth panel's surface so it reads as one flow with the gate. */
+   Reuses the auth panel's field surface so it reads as one flow with the gate
+   rather than a separate screen. */
 .team-account-picker-list {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--sp-1);
   max-height: 42vh;
   overflow-y: auto;
-  margin: 4px 0 2px;
-  padding-right: 2px;
+  padding-right: var(--sp-0-5);
 }
 
 .team-account-picker-option {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: var(--sp-3);
   width: 100%;
-  padding: 10px 14px;
-  border: 1px solid var(--cloud-auth-field-border, rgb(255 255 255 / 12%));
-  border-radius: 10px;
-  background: var(--cloud-auth-field-bg, rgb(255 255 255 / 4%));
-  color: inherit;
+  min-height: 56px;
+  border: 1px solid var(--auth-ink-13);
+  border-radius: var(--r-lg);
+  background: var(--auth-canvas-72);
+  color: var(--auth-ink);
   font: inherit;
   text-align: left;
   cursor: pointer;
+  padding: var(--sp-2) var(--sp-4);
   transition:
-    border-color 120ms ease,
-    background-color 120ms ease;
+    border-color var(--auth-control-motion) ease,
+    background-color var(--auth-control-motion) ease;
 }
 
 .team-account-picker-option:hover:not(:disabled),
 .team-account-picker-option:focus-visible {
-  border-color: var(--cloud-auth-accent, rgb(255 255 255 / 32%));
-  background: rgb(255 255 255 / 8%);
+  border-color: var(--auth-ink-25);
+  background: var(--auth-canvas);
+  outline: 0;
 }
 
 .team-account-picker-option:disabled {
@@ -1004,26 +1006,35 @@ html[data-opengrove-desktop="true"] .cloud-auth-language {
 }
 
 .team-account-picker-option[data-pending="true"] {
+  border-color: var(--auth-ink-25);
   opacity: 1;
-  border-color: var(--cloud-auth-accent, rgb(255 255 255 / 32%));
 }
 
 .team-account-picker-identity {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
+  display: grid;
+  gap: var(--sp-0-5);
   min-width: 0;
 }
 
 .team-account-picker-identity strong {
-  font-size: 13px;
-  font-weight: 600;
+  font-size: var(--fs-md);
+  font-weight: 620;
 }
 
 .team-account-picker-identity small {
-  font-size: 11px;
-  opacity: 0.62;
   overflow: hidden;
+  color: var(--auth-muted);
+  font-size: var(--fs-sm);
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* The separator lives here rather than in the markup: it is punctuation between
+   two data values, not copy anyone would translate. */
+.team-account-picker-status {
+  font-style: normal;
+}
+
+.team-account-picker-status::after {
+  content: " · ";
 }

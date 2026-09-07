@@ -51,11 +51,7 @@ import {
   wwProviderAccountMatches,
 } from "../ww-provider-local-state.js";
 import { clearWwTeamToken, readWwTeamToken, saveWwTeamToken } from "../ww-team-token-store.js";
-import {
-  clearStashedSession,
-  readStashedSession,
-  stashReplacedSession,
-} from "../ww-replaced-session-stash.js";
+import { clearStashedSession, readStashedSession, stashReplacedSession } from "../ww-replaced-session-stash.js";
 import { provisionWwProviderAfterLogin } from "../ww-provider-provisioning.js";
 import type { HostOperationRouteContext } from "../router.js";
 
@@ -91,15 +87,15 @@ export async function handleAuthRoute(options: {
     return true;
   }
   if (request.method === "POST" && url.pathname === "/auth/team-unlock") {
-    await handleTeamUnlock(request, response, security, state, sendJson, readJsonBody);
+    await handleTeamUnlock(request, response, security, state, traceId, sendJson, readJsonBody);
     return true;
   }
   if (request.method === "GET" && url.pathname === "/auth/team-status") {
-    await handleTeamStatus(request, response, security, state, sendJson);
+    await handleTeamStatus(request, response, security, state, traceId, sendJson);
     return true;
   }
   if (request.method === "GET" && url.pathname === "/auth/team-accounts") {
-    await handleTeamAccounts(response, security, state, sendJson);
+    await handleTeamAccounts(response, security, state, traceId, sendJson);
     return true;
   }
   if (request.method === "POST" && url.pathname === "/auth/team-signin") {
@@ -182,6 +178,7 @@ async function handleTeamStatus(
   response: ServerResponse,
   security: BridgeSecurity,
   state: BridgeState,
+  traceId: string | undefined,
   sendJson: SendJson,
 ): Promise<void> {
   const wwBaseUrl = security.wwBaseUrl;
@@ -199,7 +196,20 @@ async function handleTeamStatus(
       satisfied: status?.satisfied ?? true,
       ...(previousAccount ? { previousAccount } : {}),
     });
-  } catch {
+  } catch (error) {
+    // Recorded rather than swallowed. The client reads 503 as "cannot tell
+    // whether a token is needed", which looks identical whether ww is down,
+    // unreachable, or answering something unexpected -- without this there
+    // would be nothing to look at afterwards.
+    recordProblem(state, {
+      traceId,
+      category: "ww",
+      phase: "team-gate-status",
+      code: "ww_team_gate_unavailable",
+      error,
+      retryable: true,
+      facts: wwDiagnosticFacts(error),
+    });
     sendJson(response, 503, { error: "team_gate_unavailable" });
   }
 }
@@ -217,6 +227,7 @@ async function handleTeamAccounts(
   response: ServerResponse,
   security: BridgeSecurity,
   state: BridgeState,
+  traceId: string | undefined,
   sendJson: SendJson,
 ): Promise<void> {
   const wwBaseUrl = security.wwBaseUrl;
@@ -232,7 +243,18 @@ async function handleTeamAccounts(
   try {
     const accounts = await createWwHostedServices(wwBaseUrl, { teamToken }).account.listTeamAccounts();
     sendJson(response, 200, { accounts });
-  } catch {
+  } catch (error) {
+    // An empty picker and an unreachable ww look the same to the person staring
+    // at it, so the difference has to be recorded somewhere readable afterwards.
+    recordProblem(state, {
+      traceId,
+      category: "ww",
+      phase: "team-accounts",
+      code: "ww_team_gate_unavailable",
+      error,
+      retryable: true,
+      facts: wwDiagnosticFacts(error),
+    });
     sendJson(response, 503, { error: "team_gate_unavailable" });
   }
 }
@@ -293,8 +315,7 @@ async function handleTeamSignIn(
     // and a switch should not pay for a token rotation to produce it. A failure
     // here simply means the affordance is not offered.
     const replacedResult = replaced ? await resolveWwRuntimeAuthWithoutRefresh(request, security) : undefined;
-    const replacedEmail =
-      replacedResult?.status === "authenticated" ? replacedResult.session.user.email : undefined;
+    const replacedEmail = replacedResult?.status === "authenticated" ? replacedResult.session.user.email : undefined;
     // Any previous session is replaced wholesale, so the browser never ends up
     // holding cookies for one account and a cache entry for another.
     clearAuthSessionCache(replaced);
@@ -343,6 +364,7 @@ async function handleTeamUnlock(
   response: ServerResponse,
   security: BridgeSecurity,
   state: BridgeState,
+  traceId: string | undefined,
   sendJson: SendJson,
   readJsonBody: ReadJsonBody,
 ): Promise<void> {
@@ -373,7 +395,19 @@ async function handleTeamUnlock(
   let status: Awaited<ReturnType<WwAccountClient["readTeamGateStatus"]>>;
   try {
     status = await teamGateStatus(state, wwBaseUrl, token);
-  } catch {
+  } catch (error) {
+    // Someone just typed a token and was told it cannot be verified. Without
+    // this record there is no way to tell a wrong token from an unreachable ww,
+    // which is exactly the question they will ask next.
+    recordProblem(state, {
+      traceId,
+      category: "ww",
+      phase: "team-gate-unlock",
+      code: "ww_team_gate_unavailable",
+      error,
+      retryable: true,
+      facts: wwDiagnosticFacts(error),
+    });
     sendJson(response, 503, { error: "team_gate_unavailable" });
     return;
   }

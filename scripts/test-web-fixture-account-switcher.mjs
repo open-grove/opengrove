@@ -4,87 +4,51 @@ import { transform } from "esbuild";
 
 const fixtureModulePath = new URL("../web/src/dev-fixture-accounts.ts", import.meta.url);
 const fixtureModuleSource = await readFile(fixtureModulePath, "utf8");
-const transformedFixtureModule = await transform(fixtureModuleSource, {
-  define: { __OPENGROVE_DEV_FIXTURE_ACCOUNTS__: "true" },
-  format: "esm",
-  loader: "ts",
-});
-const fixtureModule = await import(
-  `data:text/javascript;base64,${Buffer.from(transformedFixtureModule.code).toString("base64")}`
-);
-const { DEV_FIXTURE_ACCOUNTS, devFixtureAccountSwitcherAvailable, switchDevFixtureAccount } = fixtureModule;
 
-assert.equal(devFixtureAccountSwitcherAvailable({ isOfficialRelease: false, sessionAuthActive: true }), true);
-assert.equal(devFixtureAccountSwitcherAvailable({ isOfficialRelease: true, sessionAuthActive: true }), false);
-assert.equal(devFixtureAccountSwitcherAvailable({ isOfficialRelease: false, sessionAuthActive: false }), false);
+async function loadFixtureModule(compiledIn) {
+  const transformed = await transform(fixtureModuleSource, {
+    define: { __OPENGROVE_DEV_FIXTURE_ACCOUNTS__: String(compiledIn) },
+    format: "esm",
+    loader: "ts",
+  });
+  return import(`data:text/javascript;base64,${Buffer.from(transformed.code).toString("base64")}`);
+}
 
-assert.equal(DEV_FIXTURE_ACCOUNTS.length, 24);
-assert.equal(new Set(DEV_FIXTURE_ACCOUNTS.map((account) => account.id)).size, 24);
-assert.equal(new Set(DEV_FIXTURE_ACCOUNTS.map((account) => account.email)).size, 24);
-assert.deepEqual(
-  DEV_FIXTURE_ACCOUNTS.filter((account) => !account.enabled).map((account) => account.email),
-  ["cn-disabled@example.test"],
-);
+const { devFixtureAccountSwitcherAvailable, switchDevFixtureAccount } = await loadFixtureModule(true);
 
-const reviewer = DEV_FIXTURE_ACCOUNTS.find((account) => account.email === "cn-reviewer-a@example.test");
-assert.ok(reviewer);
-assert.deepEqual(reviewer.roles, ["vega_reviewer"]);
+const available = { isOfficialRelease: false, sessionAuthActive: true, teamGateSatisfied: true };
+assert.equal(devFixtureAccountSwitcherAvailable(available), true);
 
+// Each gate on its own must be able to hide the switcher.
+assert.equal(devFixtureAccountSwitcherAvailable({ ...available, isOfficialRelease: true }), false);
+assert.equal(devFixtureAccountSwitcherAvailable({ ...available, sessionAuthActive: false }), false);
+// Without the team token ww refuses to list or grant these accounts, so the
+// switcher would only ever produce failures.
+assert.equal(devFixtureAccountSwitcherAvailable({ ...available, teamGateSatisfied: false }), false);
+
+// A browser reports undefined rather than false, and must still see the switcher:
+// it has no notion of a packaged release, so that gate does not apply there.
+assert.equal(devFixtureAccountSwitcherAvailable({ ...available, isOfficialRelease: undefined }), true);
+
+// The compile-time constant is the outermost gate, and no runtime state overrides it.
+const { devFixtureAccountSwitcherAvailable: unavailable } = await loadFixtureModule(false);
+assert.equal(unavailable(available), false);
+
+// Switching is one call carrying only the address. Everything else -- whether the
+// account is offered at all, whether it exists, what roles it has -- is ww's answer,
+// which is why nothing here resembles the old logout/code/login sequence.
 const calls = [];
 const result = await switchDevFixtureAccount(
-  reviewer,
-  { languagePreference: "system", systemLanguage: "zh-CN" },
+  { email: "cn-reviewer-a@example.test", roles: ["vega_reviewer"], status: "active" },
   {
-    async logout() {
-      calls.push(["logout"]);
-    },
-    async sendEmailCode(payload) {
-      calls.push(["send", payload]);
-    },
-    async login(payload) {
-      calls.push(["login", payload]);
-      return { userId: reviewer.id };
+    async signIn(email) {
+      calls.push(email);
+      return { userId: "1010" };
     },
   },
 );
 
 assert.deepEqual(result, { userId: "1010" });
-assert.deepEqual(calls, [
-  ["logout"],
-  ["send", { email: "cn-reviewer-a@example.test" }],
-  [
-    "login",
-    {
-      email: "cn-reviewer-a@example.test",
-      code: "000000",
-      countryCode: "CN",
-      deviceName: "OpenGrove fixture switcher",
-      platform: "macos",
-      languagePreference: "system",
-      systemLanguage: "zh-CN",
-    },
-  ],
-]);
-
-const disabled = DEV_FIXTURE_ACCOUNTS.find((account) => !account.enabled);
-assert.ok(disabled);
-await assert.rejects(
-  switchDevFixtureAccount(
-    disabled,
-    { languagePreference: "system", systemLanguage: "en" },
-    {
-      async logout() {
-        throw new Error("disabled account must fail before logout");
-      },
-      async sendEmailCode() {
-        throw new Error("disabled account must fail before send");
-      },
-      async login() {
-        throw new Error("disabled account must fail before login");
-      },
-    },
-  ),
-  /fixture_account_disabled/,
-);
+assert.deepEqual(calls, ["cn-reviewer-a@example.test"]);
 
 console.log("web fixture account switcher tests passed");
