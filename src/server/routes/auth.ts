@@ -45,7 +45,6 @@ import {
   wwDiagnosticFacts,
 } from "../ww/index.js";
 import {
-  claimWwProviderAccount,
   clearWwProviderRecoveryBlock,
   readWwProviderLocalState,
   wwProviderAccountMatches,
@@ -63,7 +62,11 @@ import {
   readStashedSession,
   stashReplacedSession,
 } from "../ww-replaced-session-stash.js";
-import { provisionWwProviderAfterLogin } from "../ww-provider-provisioning.js";
+import {
+  beginWwProviderSession,
+  invalidateWwProviderSession,
+  provisionWwProviderAfterLogin,
+} from "../ww-provider-provisioning.js";
 import type { HostOperationRouteContext } from "../router.js";
 
 type SendJson = (response: ServerResponse, status: number, data: unknown) => void;
@@ -554,6 +557,7 @@ async function completeWwSignIn(input: {
 }): Promise<Record<string, unknown>> {
   const { request, response, services, state, traceId, wwBaseUrl, tokens, user } = input;
   const sessionId = createLocalSessionId();
+  beginWwProviderSession({ state, baseUrl: wwBaseUrl, userId: user.userId });
   clearWwProviderRecoveryBlock(state, { issuer: wwBaseUrl, userId: user.userId });
   const providerProvisioning = await provisionWwProviderAfterLogin({
     state,
@@ -569,11 +573,10 @@ async function completeWwSignIn(input: {
       phase: "provider-provision",
       code: "ww_provider_provision_failed",
       error: providerProvisioning.error,
-      retryable: true,
+      retryable: providerProvisioning.retryable,
       facts: providerProvisioning.diagnosticFacts,
     });
   }
-  claimWwProviderAccount(state, { issuer: wwBaseUrl, userId: user.userId });
   const defaultStoreApps = scheduleDefaultStoreAppsInstalledAfterAuth({
     state,
     request,
@@ -694,8 +697,11 @@ async function handleSession(
   state: BridgeState,
   traceId: string | undefined,
   sendJson: SendJson,
+  refreshAfterProvisionFailure = false,
 ): Promise<void> {
-  const authResult = await resolveWwRuntimeAuth(request, response, security);
+  const authResult = await resolveWwRuntimeAuth(request, response, security, {
+    forceRefresh: refreshAfterProvisionFailure,
+  });
   if (authResult.status === "unauthenticated") {
     sendJson(response, 200, {
       status: "unauthenticated",
@@ -785,6 +791,14 @@ async function handleSession(
     accessToken: session.auth.accessToken,
     userId: session.auth.userId,
   });
+  if (
+    providerProvisioning.status === "failed" &&
+    providerProvisioning.reason === "session_expired" &&
+    !refreshAfterProvisionFailure
+  ) {
+    await handleSession(request, response, security, state, traceId, sendJson, true);
+    return;
+  }
   if (providerProvisioning.status === "failed") {
     recordProblem(state, {
       traceId,
@@ -792,7 +806,7 @@ async function handleSession(
       phase: "provider-provision",
       code: "ww_provider_provision_failed",
       error: providerProvisioning.error,
-      retryable: true,
+      retryable: providerProvisioning.retryable,
       facts: providerProvisioning.diagnosticFacts,
     });
   }
@@ -965,6 +979,7 @@ async function handleLogout(
   const tokens = readAuthTokens(request);
   clearWwTeamAdmission(state, request, response);
   if (security.wwBaseUrl) clearStashedSession(tokens, security.wwBaseUrl);
+  invalidateWwProviderSession(state);
   clearAuthTokens(response);
   clearAuthSessionCache(tokens);
   if (tokens?.refreshToken && security.wwBaseUrl) {
@@ -1000,19 +1015,6 @@ async function handleClientUpdate(
   if (authResult.status === "temporarily_unavailable") {
     sendAuthError(response, sendJson, state, traceId, "client-update", authResult.error);
     return;
-  }
-  if (authResult.status === "authenticated") {
-    // The packaged desktop client polls this GET every six hours. Reuse the
-    // heartbeat for background App updates only while its access token remains
-    // valid; login and session restoration own refresh and schedule updates
-    // after rotating credentials.
-    scheduleInstalledAppStoreUpdatesAfterAuth({
-      state,
-      request,
-      packageRegistryConfig: releaseControlRegistryConfig(authResult.session.auth.accessToken),
-      userId: authResult.session.auth.userId,
-      traceId,
-    });
   }
   try {
     // Keep this background endpoint read-only with respect to auth cookies.

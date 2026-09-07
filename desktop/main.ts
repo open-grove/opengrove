@@ -22,6 +22,7 @@ import {
   type SupportedLocale,
 } from "../src/localization/locale-registry.js";
 import { DesktopAuthCookieJar } from "./auth-cookies.js";
+import { DesktopAppUpdateScheduler } from "./app-update-scheduler.js";
 import { DesktopClientUpdateManager, type DesktopClientUpdateState } from "./client-update-manager.js";
 import {
   DEFAULT_DESKTOP_CLIENT_UPDATE_PREFERENCES,
@@ -142,6 +143,18 @@ let pendingStripeDeepLink = findDesktopStripeDeepLink(process.argv, DESKTOP_STRI
 const bridgeStartupRetrySignal = new DesktopBridgeStartupRetrySignal();
 const releaseGateReceiptWindows = new WeakSet<BrowserWindow>();
 const releaseGateReceiptListenerWindows = new WeakSet<BrowserWindow>();
+const appUpdateScheduler = new DesktopAppUpdateScheduler({
+  getConnection: () => {
+    const bridge = bridgeHost.readyRuntime;
+    if (!bridge) return undefined;
+    return {
+      apiBase: bridge.apiBase,
+      bridgeToken,
+      cookieHeader: bridgeAuthCookies.mergeRequestCookieHeader(undefined),
+    };
+  },
+  log: logMain,
+});
 
 app.setName(APP_NAME);
 app.setPath("userData", configuredDesktopUserDataDir());
@@ -180,6 +193,7 @@ if (!hasSingleInstanceLock) {
           bridgeAuthCookies.applySetCookieHeaders(headers);
           if (headers.length > 0) {
             void checkClientUpdatesIfStale("auth-cookie", CLIENT_UPDATE_AUTH_MIN_INTERVAL_MS);
+            void appUpdateScheduler.check("auth-cookie");
           }
         },
         mcpAppSandboxOrigin: readAppEnv("MCP_APP_SANDBOX_ORIGIN"),
@@ -287,6 +301,7 @@ function isOfficialDesktopRelease(): boolean {
 
 app.on("before-quit", (event) => {
   cancelBridgeSupervisorRetry();
+  appUpdateScheduler.stop();
   if (clientUpdateManager?.isInstalling()) {
     stopReusedWatchdog();
     stopSourceUpdateScheduler();
@@ -675,78 +690,76 @@ async function cleanupDesktopRebuildableStorage() {
   try {
     if (!maintenanceRuntime) throw new Error("desktop_bridge_unavailable");
     if (maintenanceRuntime.mode === "reused") throw new Error("rebuildable_cleanup_reused_bridge_unsupported");
-    return await runDesktopStorageMaintenance({
-      acquire: () => acquireDesktopStorageMaintenanceGate(maintenanceRuntime),
-      run: async (maintenanceLeaseId) => {
-        if (!sameBridgeRuntime(bridgeHost.runtime, maintenanceRuntime)) {
-          throw new Error("desktop_bridge_changed_during_storage_maintenance_start");
-        }
-        bridgeHost.maintenance("storage_cleanup");
-        stopMaintenanceHeartbeat = startDesktopStorageMaintenanceHeartbeat(maintenanceRuntime, maintenanceLeaseId);
-        const orphanCleanup = parseDesktopStorageCleanupResponse(
-          await postBridgeStorageAction(
-            "/settings/storage/cleanup",
-            { leaseId: maintenanceLeaseId },
-            maintenanceRuntime,
-          ),
-        );
-        const bridgeCacheCleanup = parseDesktopStorageCleanupResponse(
-          await postBridgeStorageAction(
-            "/settings/storage/clear-history",
-            {
-              scope: "rebuildable-caches",
-              leaseId: maintenanceLeaseId,
-            },
-            maintenanceRuntime,
-          ),
-        );
+    return await requireClientUpdateManager().withCacheCleanup((canClearUpdaterCache) =>
+      runDesktopStorageMaintenance({
+        acquire: () => acquireDesktopStorageMaintenanceGate(maintenanceRuntime),
+        run: async (maintenanceLeaseId) => {
+          if (!sameBridgeRuntime(bridgeHost.runtime, maintenanceRuntime)) {
+            throw new Error("desktop_bridge_changed_during_storage_maintenance_start");
+          }
+          bridgeHost.maintenance("storage_cleanup");
+          stopMaintenanceHeartbeat = startDesktopStorageMaintenanceHeartbeat(maintenanceRuntime, maintenanceLeaseId);
+          const orphanCleanup = parseDesktopStorageCleanupResponse(
+            await postBridgeStorageAction(
+              "/settings/storage/cleanup",
+              { leaseId: maintenanceLeaseId },
+              maintenanceRuntime,
+            ),
+          );
+          const bridgeCacheCleanup = parseDesktopStorageCleanupResponse(
+            await postBridgeStorageAction(
+              "/settings/storage/clear-history",
+              {
+                scope: "rebuildable-caches",
+                leaseId: maintenanceLeaseId,
+              },
+              maintenanceRuntime,
+            ),
+          );
 
-        const chromiumCachePaths = ["Cache", "Code Cache"].map((name) => join(supervisor.paths.userDataDir, name));
-        const updaterStage = clientUpdateManager?.snapshot().stage;
-        const updaterCacheDir =
-          updaterStage === "downloading" || updaterStage === "downloaded" || updaterStage === "installing"
-            ? undefined
-            : supervisor.updaterCacheDirectory();
+          const chromiumCachePaths = ["Cache", "Code Cache"].map((name) => join(supervisor.paths.userDataDir, name));
+          const updaterCacheDir = canClearUpdaterCache ? supervisor.updaterCacheDirectory() : undefined;
 
-        const chromiumCacheBytesBefore = await measureDesktopPathsBestEffort(chromiumCachePaths);
-        await session.defaultSession.clearCache();
-        await session.defaultSession.clearCodeCaches({});
-        const chromiumCacheBytesAfter = await measureDesktopPathsBestEffort(chromiumCachePaths);
-        const chromiumCacheBytes = Math.max(0, chromiumCacheBytesBefore - chromiumCacheBytesAfter);
-        const files = await cleanupDesktopRebuildableFiles({
-          // Workspace media caches are removed by the Bridge while it still has
-          // the authoritative mounted-workspace list. Desktop must not guess from
-          // a broad Apps or Workspaces directory.
-          workspaceRoots: [],
-          logDir: supervisor.paths.logDir,
-          updaterCacheDir,
-        });
-        const orphanBlobBytes = orphanCleanup.reclaimedBytes;
-        const bridgeCacheBytes = bridgeCacheCleanup.reclaimedBytes;
-        const reclaimedBytes = orphanBlobBytes + bridgeCacheBytes + files.reclaimedBytes + chromiumCacheBytes;
-        logMain(`safe storage cleanup completed (${reclaimedBytes} logical bytes removed)`);
-        return {
-          status: "cleaned" as const,
-          orphanBlobBytes,
-          bridgeCacheBytes,
-          ...files,
-          chromiumCacheBytes,
-          reclaimedBytes,
-          updaterCacheSkipped: Boolean(supervisor.updaterCacheDirectory() && !updaterCacheDir),
-        };
-      },
-      release: async (maintenanceLeaseId) => {
-        stopMaintenanceHeartbeat?.();
-        stopMaintenanceHeartbeat = undefined;
-        await releaseDesktopStorageMaintenanceGate(maintenanceRuntime, maintenanceLeaseId);
-      },
-      onReleased: () => {
-        bridgeHost.completeMaintenance(maintenanceRuntime);
-      },
-      onReleaseError: (error) => {
-        logMain(`storage maintenance gate release failed after cleanup error: ${messageOf(error)}`);
-      },
-    });
+          const chromiumCacheBytesBefore = await measureDesktopPathsBestEffort(chromiumCachePaths);
+          await session.defaultSession.clearCache();
+          await session.defaultSession.clearCodeCaches({});
+          const chromiumCacheBytesAfter = await measureDesktopPathsBestEffort(chromiumCachePaths);
+          const chromiumCacheBytes = Math.max(0, chromiumCacheBytesBefore - chromiumCacheBytesAfter);
+          const files = await cleanupDesktopRebuildableFiles({
+            // Workspace media caches are removed by the Bridge while it still has
+            // the authoritative mounted-workspace list. Desktop must not guess from
+            // a broad Apps or Workspaces directory.
+            workspaceRoots: [],
+            logDir: supervisor.paths.logDir,
+            updaterCacheDir,
+          });
+          const orphanBlobBytes = orphanCleanup.reclaimedBytes;
+          const bridgeCacheBytes = bridgeCacheCleanup.reclaimedBytes;
+          const reclaimedBytes = orphanBlobBytes + bridgeCacheBytes + files.reclaimedBytes + chromiumCacheBytes;
+          logMain(`safe storage cleanup completed (${reclaimedBytes} logical bytes removed)`);
+          return {
+            status: "cleaned" as const,
+            orphanBlobBytes,
+            bridgeCacheBytes,
+            ...files,
+            chromiumCacheBytes,
+            reclaimedBytes,
+            updaterCacheSkipped: Boolean(supervisor.updaterCacheDirectory() && !updaterCacheDir),
+          };
+        },
+        release: async (maintenanceLeaseId) => {
+          stopMaintenanceHeartbeat?.();
+          stopMaintenanceHeartbeat = undefined;
+          await releaseDesktopStorageMaintenanceGate(maintenanceRuntime, maintenanceLeaseId);
+        },
+        onReleased: () => {
+          bridgeHost.completeMaintenance(maintenanceRuntime);
+        },
+        onReleaseError: (error) => {
+          logMain(`storage maintenance gate release failed after cleanup error: ${messageOf(error)}`);
+        },
+      }),
+    );
   } finally {
     stopMaintenanceHeartbeat?.();
     desktopStorageCleanupActive = false;
@@ -946,6 +959,7 @@ async function startAndActivateDesktopBridge(): Promise<void> {
   startReusedWatchdogIfNeeded();
   startSourceUpdateScheduler();
   startClientUpdateScheduler();
+  appUpdateScheduler.start();
 }
 
 async function startBridgeWithAutomaticRecovery(): Promise<DesktopBridgeRuntimeInfo> {
@@ -1167,6 +1181,7 @@ async function prepareForClientUpdateInstall(): Promise<void> {
   }
 
   logMain("client update install requested; stopping owned bridge before quitAndInstall");
+  appUpdateScheduler.stop();
   await supervisor.stop();
   bridgeSupervisor = undefined;
   bridgeHost.detach();

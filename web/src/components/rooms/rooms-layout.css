@@ -73,7 +73,7 @@
 
 .rooms-pin-unread-anchor {
   --unread-count-anchor-top: -3px;
-  --unread-count-anchor-right: -3px;
+  --unread-count-center-right: 5px;
   --unread-count-ring-color: var(--c-surface);
 }
 

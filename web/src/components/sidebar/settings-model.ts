@@ -21,7 +21,9 @@ export type ProviderFormState = {
   anthropicBaseUrl: string;
   geminiBaseUrl: string;
   apiKey: string;
+  apiKeyEdited: boolean;
   apiKeyEnv: string;
+  apiKeyEnvEdited: boolean;
   models: string;
   modelsPinned: boolean;
 };
@@ -53,7 +55,9 @@ export function emptyProviderForm(): ProviderFormState {
     anthropicBaseUrl: "",
     geminiBaseUrl: "",
     apiKey: "",
+    apiKeyEdited: false,
     apiKeyEnv: "",
+    apiKeyEnvEdited: false,
     models: "",
     modelsPinned: false,
   };
@@ -75,6 +79,8 @@ export function updateProviderForm<K extends keyof ProviderFormState>(
   if (key === "description" && value !== state.description) {
     next.descriptionEdited = true;
   }
+  if (key === "apiKey" && value !== state.apiKey) next.apiKeyEdited = true;
+  if (key === "apiKeyEnv" && value !== state.apiKeyEnv) next.apiKeyEnvEdited = true;
   if (key === "name" && !state.id.trim()) {
     next.id = slug(String(value));
   }
@@ -107,8 +113,8 @@ export function providerProfileFromForm(form: ProviderFormState): ProviderProfil
     openaiBaseUrl: loginProtocol ? undefined : form.openaiBaseUrl.trim() || undefined,
     anthropicBaseUrl: loginProtocol ? undefined : form.anthropicBaseUrl.trim() || undefined,
     geminiBaseUrl: loginProtocol ? undefined : form.geminiBaseUrl.trim() || undefined,
-    apiKey: loginProtocol ? undefined : apiKey || undefined,
-    apiKeyEnv: loginProtocol ? undefined : apiKeyEnv || undefined,
+    apiKey: loginProtocol ? undefined : apiKey || (form.apiKeyEdited ? "" : undefined),
+    apiKeyEnv: loginProtocol ? undefined : apiKeyEnv || (form.apiKeyEnvEdited ? "" : undefined),
     credentialKind: providerCredentialKindFromForm(id, apiKey, apiKeyEnv),
     modelsPinned,
     models: modelsPinned ? models : [],
@@ -150,7 +156,9 @@ export function providerFormFromProfile(provider: ProviderProfile, t?: Translati
     anthropicBaseUrl: provider.anthropicBaseUrl || "",
     geminiBaseUrl: provider.geminiBaseUrl || "",
     apiKey: provider.apiKey || "",
+    apiKeyEdited: false,
     apiKeyEnv: provider.apiKeyEnv || "",
+    apiKeyEnvEdited: false,
     models: (provider.models ?? []).map((model) => model.id).join(", "),
     modelsPinned: providerModelsArePinned(provider),
   };
@@ -439,6 +447,10 @@ export function providerBindingLabel(provider: ProviderProfile, kernelId: string
 }
 
 export function providerMetaLabel(provider: ProviderProfile, t: TranslationFn): string {
+  if (provider.provisioning?.status === "retrying") return t("settings.providerVerificationRetrying");
+  if (provider.provisioning?.status === "needs-login") return t("settings.providerVerificationNeedsLogin");
+  if (provider.provisioning?.status === "pending") return t("settings.providerVerificationPending");
+  if (provider.provisioning?.status === "blocked") return t("settings.providerVerificationBlocked");
   if (isLoginStateProvider(provider)) return t("settings.accountLogin");
   if (isLoginProtocol(provider.protocol)) return t("settings.accountLogin");
   if (provider.apiKey) return t("settings.apiKeyConfigured");
@@ -545,7 +557,7 @@ export function isProviderEnabled(provider: ProviderProfile): boolean {
 }
 
 export function isProviderAvailable(provider: ProviderProfile): boolean {
-  if (provider.runtime) return provider.runtime.credential.configured;
+  if (provider.runtime) return provider.runtime.credential.configured && provider.provisioningBlocked !== true;
   const sourceCredentialsUnavailable =
     providerSettingsAreSourceManaged(provider) && provider.authConfigured === false && !provider.apiKey?.trim();
   return provider.provisioningBlocked !== true && !sourceCredentialsUnavailable;

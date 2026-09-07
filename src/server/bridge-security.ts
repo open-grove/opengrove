@@ -200,6 +200,7 @@ export async function resolveWwRuntimeAuth(
   request: IncomingMessage,
   response: ServerResponse,
   security: BridgeSecurity,
+  options: { forceRefresh?: boolean } = {},
 ): Promise<WwRuntimeAuthResult> {
   const baseUrl = security.wwBaseUrl;
   if (!baseUrl) {
@@ -211,12 +212,16 @@ export async function resolveWwRuntimeAuth(
   }
 
   const currentAuth = await resolveExistingWwAccess(tokens, baseUrl);
-  if (currentAuth.status !== "unauthenticated") return currentAuth;
-  if (currentAuth.reason === "session_invalidated") {
+  if (
+    currentAuth.status === "temporarily_unavailable" ||
+    (currentAuth.status === "authenticated" && !options.forceRefresh)
+  )
+    return currentAuth;
+  if (currentAuth.status === "unauthenticated" && currentAuth.reason === "session_invalidated") {
     clearAuthTokens(response);
     return currentAuth;
   }
-  if (currentAuth.reason === "user_disabled") {
+  if (currentAuth.status === "unauthenticated" && currentAuth.reason === "user_disabled") {
     clearAuthTokens(response);
     clearAuthSessionCache(tokens);
     return currentAuth;
@@ -239,7 +244,9 @@ export async function resolveWwRuntimeAuth(
       clearAuthSessionCache(tokens);
       return { status: "unauthenticated", reason: "user_disabled" };
     }
-    if (tokens.accessToken) {
+    // A forced refresh follows an explicit access-token rejection. Cached user
+    // data cannot make that token usable again during a refresh-service outage.
+    if (tokens.accessToken && !options.forceRefresh) {
       const staleUser = readCachedUser(sessionKey, tokens.accessToken, true);
       if (staleUser) {
         deferCachedUserRevalidation(sessionKey, tokens.accessToken, error);

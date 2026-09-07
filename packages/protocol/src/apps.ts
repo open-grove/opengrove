@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { appUpdateOperationResource } from "./app-updates.js";
 import { defineHostOperation, defineHostOperationGroup, defineHostOperationResource } from "./operation.js";
 
 const appIdentifierSchema = z.string().trim().min(1).describe("Mounted App identifier.");
@@ -348,7 +349,7 @@ export const appOperationGroup = defineHostOperationGroup({
   id: "app",
   title: "Apps",
   description: "Mounted OpenGrove App operations.",
-  resources: [appReleaseOperationResource] as const,
+  resources: [appReleaseOperationResource, appUpdateOperationResource] as const,
 });
 
 export type PrepareAppReleaseOperation = typeof prepareAppReleaseOperation;

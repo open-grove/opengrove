@@ -26,6 +26,7 @@ export function isPublicBridgeRoute(pathname: string): boolean {
     pathname === "/auth/team-accounts" ||
     pathname === "/auth/team-signin" ||
     pathname === "/auth/team-restore" ||
+    pathname === "/auth/client-update" ||
     pathname === "/room-ledger/read"
   );
 }

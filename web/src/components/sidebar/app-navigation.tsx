@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import clsx from "clsx";
 import {
   Activity,
@@ -477,6 +477,7 @@ export interface RailSectionBadge {
 export function AppRail(props: {
   activeSection: RailSectionId;
   expanded: boolean;
+  onOverlayOpenChange?(open: boolean): void;
   developerMode?: boolean;
   directKernelChatEnabled?: boolean;
   authUser?: BridgeAuthUser;
@@ -512,6 +513,17 @@ export function AppRail(props: {
   const [fixtureAccountDialogOpen, setFixtureAccountDialogOpen] = useState(false);
   const [requestedFixtureEmail, setRequestedFixtureEmail] = useState("");
   const [withdrawalDialogOpen, setWithdrawalDialogOpen] = useState(false);
+  const [openAppMenuIds, setOpenAppMenuIds] = useState<string[]>([]);
+  const onAppMenuOpenChange = useCallback((id: string, open: boolean) => {
+    setOpenAppMenuIds((ids) => (open ? (ids.includes(id) ? ids : [...ids, id]) : ids.filter((value) => value !== id)));
+  }, []);
+  const overlayOpen =
+    accountMenuOpen ||
+    accountDialogOpen ||
+    fixtureAccountDialogOpen ||
+    withdrawalDialogOpen ||
+    openAppMenuIds.length > 0;
+  useEffect(() => props.onOverlayOpenChange?.(overlayOpen), [props.onOverlayOpenChange, overlayOpen]);
   const [withdrawalStep, setWithdrawalStep] = useState<WithdrawalStep>("overview");
   const [withdrawalRuntime, setWithdrawalRuntime] = useState<WithdrawalRuntimeState>(EMPTY_WITHDRAWAL_RUNTIME);
   const [withdrawalStatus, setWithdrawalStatus] = useState<WithdrawalStatusPlaceholder>(EMPTY_WITHDRAWAL_STATUS);
@@ -928,7 +940,10 @@ export function AppRail(props: {
     >
       <nav className={clsx("app-rail-nav", styles.nav)}>
         {visibleNativeRailApps.length ? (
-          <RailSection title={t("app.nativeApps")}>
+          <RailSection
+            title={t("app.nativeApps")}
+            compactTitle={props.expanded ? undefined : t("app.nativeAppsCompact")}
+          >
             {visibleNativeRailApps.map((app) => (
               <RailButton
                 key={app.id}
@@ -944,7 +959,7 @@ export function AppRail(props: {
             ))}
           </RailSection>
         ) : null}
-        <RailSection title={t("app.loadedApps")}>
+        <RailSection title={t("app.loadedApps")} compactTitle={props.expanded ? undefined : t("app.loadedAppsCompact")}>
           <div className={clsx("app-rail-user-app-tabs", styles.userAppTabs)} aria-label={t("app.userApps")}>
             {mountedApps.map((app) => (
               <UserAppRailItem
@@ -958,6 +973,7 @@ export function AppRail(props: {
                 onManageVersions={props.onManageMountedAppVersions}
                 onEdit={props.onEditMountedApp}
                 onDelete={props.onDeleteMountedApp}
+                onMenuOpenChange={onAppMenuOpenChange}
                 deleteLabel={t("common.delete")}
               />
             ))}
@@ -988,7 +1004,10 @@ export function AppRail(props: {
             />
           ))}
         </RailSection>
-        <RailSection title={t("app.configuration")}>
+        <RailSection
+          title={t("app.configuration")}
+          compactTitle={props.expanded ? undefined : t("app.configurationCompact")}
+        >
           {developerMode
             ? CONFIGURATION_RAIL_APPS.map((app) => (
                 <RailButton
@@ -2783,10 +2802,12 @@ function avatarFileToDataUrl(file: File): Promise<string> {
   });
 }
 
-function RailSection(props: { title: string; children: ReactNode }) {
+function RailSection(props: { title: string; compactTitle?: string; children: ReactNode }) {
   return (
     <section className={clsx("app-rail-section", styles.section)} aria-label={props.title}>
-      <h2 className={clsx("app-rail-section-title", styles.sectionTitle)}>{props.title}</h2>
+      <h2 className={clsx("app-rail-section-title", styles.sectionTitle)} title={props.title}>
+        {props.compactTitle ?? props.title}
+      </h2>
       <div className={clsx("app-rail-section-items", styles.sectionItems)}>{props.children}</div>
     </section>
   );
@@ -2890,10 +2911,15 @@ function UserAppRailItem(props: {
   onManageVersions?(id: string): void;
   onEdit?(id: string): void;
   onDelete?(id: string): void;
+  onMenuOpenChange?(id: string, open: boolean): void;
   deleteLabel?: string;
 }) {
   const { t } = useI18n();
   const [menuOpen, setMenuOpen] = useState(false);
+  useEffect(() => {
+    props.onMenuOpenChange?.(props.id, menuOpen);
+    return () => props.onMenuOpenChange?.(props.id, false);
+  }, [props.id, props.onMenuOpenChange, menuOpen]);
   const unreadCount = props.badge?.count ?? 0;
 
   return (

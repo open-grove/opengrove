@@ -9,9 +9,9 @@
   border-radius: var(--r-pill);
   background: var(--c-unread-solid);
   color: var(--c-unread-ink);
-  font-size: var(--fs-xs);
+  font-size: var(--fs-micro);
   font-variant-numeric: tabular-nums;
-  font-weight: var(--fw-semibold);
+  font-weight: var(--fw-medium);
   line-height: 16px;
   padding: 0 var(--sp-1);
   pointer-events: none;
@@ -32,7 +32,9 @@
 .anchoredCount {
   position: absolute;
   top: var(--unread-count-anchor-top, -4px);
-  right: var(--unread-count-anchor-right, -8px);
+  right: var(--unread-count-center-right, 0px);
+  /* Keep the icon attachment stable as the count grows from one digit to 99+. */
+  transform: translateX(50%);
   z-index: 1;
   outline: var(--sp-0-5) solid var(--unread-count-ring-color, var(--c-surface));
 }

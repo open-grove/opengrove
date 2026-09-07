@@ -259,7 +259,7 @@ async function main() {
     [
       "#!/bin/sh",
       'if [ "$1" = "auth" ] && [ "$2" = "status" ]; then',
-      '  echo \'{"loggedIn":true,"authMethod":"oauth","apiProvider":"firstParty"}\'',
+      '  echo \'{"loggedIn":true,"authMethod":"claude.ai","apiProvider":"firstParty"}\'',
       "  exit 0",
       "fi",
       'echo "claude-fake 0.0.0"',
@@ -267,7 +267,7 @@ async function main() {
     [
       "@echo off",
       'if "%~1"=="auth" if "%~2"=="status" (',
-      '  echo {"loggedIn":true,"authMethod":"oauth","apiProvider":"firstParty"}',
+      '  echo {"loggedIn":true,"authMethod":"claude.ai","apiProvider":"firstParty"}',
       "  exit /b 0",
       ")",
       "echo claude-fake 0.0.0",

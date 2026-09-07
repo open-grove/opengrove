@@ -6,6 +6,7 @@
   },
   "resources": {
     "app.release": "releases",
+    "app.update": "updates",
     "auth.email-code": "emailCodes",
     "auth.session": "session",
     "room.message": "messages"

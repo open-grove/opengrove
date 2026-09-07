@@ -629,6 +629,7 @@ export function isEmployeeKernelSelectable(kernel: KernelOption | undefined): bo
   const routeCanBeRepairedInEmployeeSettings =
     kernel?.unavailableCode === "provider_selection_required" ||
     kernel?.unavailableCode === "kernel_provider_unavailable" ||
+    kernel?.unavailableCode === "provider_verification_required" ||
     kernel?.unavailableCode === "ww_provider_key_missing" ||
     kernel?.unavailableCode === "provider_key_missing" ||
     kernel?.unavailableCode === "provider_disabled" ||
