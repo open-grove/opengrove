@@ -1,5 +1,5 @@
 .rail {
-  --app-rail-item-height: 40px;
+  --app-rail-item-height: 36px;
   --app-rail-icon-column: 38px;
   grid-column: 1;
   grid-row: 2;
@@ -2004,7 +2004,7 @@ button.withdrawalRecordStat:focus-visible .withdrawalRecordLink {
 .rail[data-expanded="true"] .button {
   box-sizing: border-box;
   grid-template-columns: var(--app-rail-icon-column) minmax(0, 1fr);
-  column-gap: 0;
+  column-gap: 6px;
   justify-content: start;
   justify-items: stretch;
   width: 100%;
@@ -2058,7 +2058,6 @@ button.withdrawalRecordStat:focus-visible .withdrawalRecordLink {
   max-width: 100%;
   min-width: 0;
   overflow: hidden;
-  margin-left: -2px;
   color: inherit;
   font-size: var(--fs-sm);
   font-weight: var(--fw-medium);
@@ -2070,7 +2069,7 @@ button.withdrawalRecordStat:focus-visible .withdrawalRecordLink {
 
 .rail[data-expanded="true"] .userTabLabel {
   box-sizing: border-box;
-  width: calc(100% + 2px);
+  width: 100%;
   font-size: var(--fs-sm);
   min-width: 0;
 }
@@ -2083,7 +2082,7 @@ button.withdrawalRecordStat:focus-visible .withdrawalRecordLink {
 
 .rail[data-expanded="true"] .userButton {
   width: 100%;
-  column-gap: 0;
+  column-gap: 6px;
 }
 
 .rail[data-expanded="true"] .userButtonName {
