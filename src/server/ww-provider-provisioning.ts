@@ -384,16 +384,7 @@ function preclaimWwProvider(
   existingCredential: WwProviderCredential | undefined,
 ): WwProviderLocalState {
   const localState = readWwProviderLocalState(input.state);
-  const locallyOwned = Boolean(
-    existingApiKey &&
-      localState.ownerIssuer === canonicalWwIssuer(input.baseUrl) &&
-      localState.ownerUserId === input.userId &&
-      localState.apiKeyId &&
-      localState.apiKeyPrefix &&
-      existingApiKey.startsWith(localState.apiKeyPrefix) &&
-      localState.verification?.fingerprint === wwCredentialFingerprint(existingApiKey) &&
-      (!localState.verification.expiresAt || Date.parse(localState.verification.expiresAt) > Date.now()),
-  );
+  const locallyOwned = canRetainWwCredential(input, localState, existingApiKey);
   persistWwProvider(
     input,
     existing,
@@ -415,18 +406,40 @@ function persistFailedWwProvider(
   const apiKey = existing ? resolveProviderApiKey(existing) : undefined;
   const credential = credentialForExistingWwProvider(existing, apiKey);
   const local = readWwProviderLocalState(input.state);
-  const verified = Boolean(
-    apiKey &&
-      local.verification &&
-      local.ownerIssuer === canonicalWwIssuer(input.baseUrl) &&
-      local.ownerUserId === input.userId &&
-      local.verification.fingerprint === wwCredentialFingerprint(apiKey) &&
-      (!local.verification.expiresAt || Date.parse(local.verification.expiresAt) > Date.now()) &&
-      !local.recoveryBlock &&
-      !local.rejectedKeyFingerprint &&
-      existing?.provisioningBlocked !== true,
+  const retainCredential = existing?.provisioningBlocked !== true && canRetainWwCredential(input, local, apiKey);
+  persistWwProvider(
+    input,
+    existing,
+    credential,
+    reconciliation.status !== "retrying" || !retainCredential,
+    reconciliation,
   );
-  persistWwProvider(input, existing, credential, reconciliation.status !== "retrying" || !verified, reconciliation);
+}
+
+function canRetainWwCredential(
+  input: { baseUrl: string; userId: string },
+  local: WwProviderLocalState,
+  apiKey: string | undefined,
+): boolean {
+  if (
+    !apiKey ||
+    local.ownerIssuer !== canonicalWwIssuer(input.baseUrl) ||
+    local.ownerUserId !== input.userId ||
+    !local.apiKeyId ||
+    !local.apiKeyPrefix ||
+    !apiKey.startsWith(local.apiKeyPrefix) ||
+    local.recoveryBlock ||
+    local.rejectedKeyFingerprint
+  )
+    return false;
+  const fingerprint = wwCredentialFingerprint(apiKey);
+  if (local.verification) {
+    return (
+      local.verification.fingerprint === fingerprint &&
+      (!local.verification.expiresAt || Date.parse(local.verification.expiresAt) > Date.now())
+    );
+  }
+  return local.importedCredential?.fingerprint === fingerprint;
 }
 
 function persistUnownedWwProvider(input: { state: BridgeState; baseUrl: string }): void {

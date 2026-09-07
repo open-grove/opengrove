@@ -21,6 +21,12 @@ export const wwVerifiedCredentialSchema = z.object({
 });
 export type WwVerifiedCredential = z.infer<typeof wwVerifiedCredentialSchema>;
 
+export const wwImportedCredentialSchema = z.object({
+  fingerprint: z.string().regex(/^[a-f0-9]{64}$/),
+  importedAt: z.iso.datetime(),
+});
+export type WwImportedCredential = z.infer<typeof wwImportedCredentialSchema>;
+
 /** Invalid verification observations must not make the account record unreadable. */
 export function parseWwVerifiedCredential(input: unknown): WwVerifiedCredential | undefined {
   if (input === undefined) return undefined;
@@ -45,12 +51,9 @@ export function failedWwReconciliation(
   const apiError = error instanceof Error ? (error as Partial<WwApiError>) : undefined;
   const status = apiError?.status;
   const replayExpired = apiError?.message === "ww_api_key_provisioning_replay_expired";
-  const invalidResponse =
-    error instanceof SyntaxError || Boolean(error && typeof error === "object" && "validationCode" in error);
+  // An unreadable response is not evidence that WW rejected the credential.
   const retryable =
-    !replayExpired &&
-    !invalidResponse &&
-    (status === undefined || status === 408 || status === 425 || status === 429 || status >= 500);
+    !replayExpired && (status === undefined || status === 408 || status === 425 || status === 429 || status >= 500);
   const attempt = (previous?.attempt ?? 0) + 1;
   const delays = [5_000, 15_000, 30_000, 60_000, 120_000, 300_000];
   const backoff = delays[Math.min(attempt - 1, delays.length - 1)] ?? 300_000;
