@@ -3,7 +3,6 @@ import type { ReasoningEffort, ResponseSpeed, RuntimeAccessMode } from "./bridge
 import { APP_STORAGE_KEYS } from "./identity";
 import {
   readStoredBudgetLimitUsd,
-  readStoredRailExpanded,
   readStoredReasoningEffort,
   readStoredResponseSpeed,
 } from "./runtime/app-shell-state";
@@ -25,7 +24,6 @@ export function useAppPersistentUiState(activeView: string) {
   const [responseSpeed, setResponseSpeedState] = useState<ResponseSpeed>(() => readStoredResponseSpeed());
   const [budgetLimitUsd, setBudgetLimitUsdState] = useState<number | null>(() => readStoredBudgetLimitUsd());
   const [accessMode, setAccessModeState] = useState<RuntimeAccessMode>(() => readStoredAccessMode());
-  const [railExpanded, setRailExpandedState] = useState(readStoredRailExpanded);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [sidebarRevealArmed, setSidebarRevealArmed] = useState(true);
 
@@ -86,16 +84,10 @@ export function useAppPersistentUiState(activeView: string) {
     });
   }
 
-  function setRailExpanded(expanded: boolean) {
-    setRailExpandedState(expanded);
-    window.localStorage.setItem(APP_STORAGE_KEYS.railExpanded, String(expanded));
-  }
-
   return {
     accessMode,
     budgetLimitUsd,
     clearRoomsSelection,
-    railExpanded,
     reasoningEffort,
     responseSpeed,
     roomsAppView,
@@ -103,7 +95,6 @@ export function useAppPersistentUiState(activeView: string) {
     roomsOnboardingGuideDismissed,
     setAccessMode,
     setBudgetLimitUsd,
-    setRailExpanded,
     setReasoningEffort,
     setResponseSpeed,
     setRoomsAppView,

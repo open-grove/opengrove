@@ -28,7 +28,7 @@
 }
 
 .app-shell[data-view="app"] .mounted-app-view {
-  padding: var(--app-page-top-inset) 10px var(--app-page-bottom-inset);
+  padding: var(--app-page-top-inset) var(--app-page-inline-inset) var(--app-page-bottom-inset);
 }
 
 .mounted-app-developer-layout {
@@ -551,57 +551,11 @@
   width: var(--mounted-app-resize-handle-width);
   min-width: var(--mounted-app-resize-handle-width);
   min-height: 0;
-  cursor: col-resize;
-  touch-action: none;
 }
 
 .mounted-app-resize-handle-files {
   justify-self: start;
   transform: translateX(-50%);
-}
-
-.mounted-app-resize-handle::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: var(--r-xs);
-}
-
-.mounted-app-resize-handle::after {
-  content: "";
-  position: absolute;
-  top: 8px;
-  bottom: 8px;
-  left: 50%;
-  width: 1px;
-  transform: translateX(-50%);
-  background: var(--og-paper-line);
-  opacity: 0;
-  transition:
-    opacity var(--motion-fast) var(--motion-ease),
-    background var(--motion-fast) var(--motion-ease);
-}
-
-.mounted-app-resize-handle-files::after {
-  top: 0;
-  bottom: 0;
-}
-
-.mounted-app-resize-handle:hover::before,
-.mounted-app-resize-handle:focus-visible::before,
-.mounted-app-resize-handle[data-resizing="true"]::before {
-  background: transparent;
-}
-
-.mounted-app-resize-handle:hover::after,
-.mounted-app-resize-handle:focus-visible::after,
-.mounted-app-resize-handle[data-resizing="true"]::after {
-  opacity: 1;
-  background: var(--og-text-muted);
-}
-
-.mounted-app-resize-handle:focus-visible {
-  outline: 0;
 }
 
 .mounted-app-web-view {
@@ -2193,11 +2147,6 @@
 .mounted-app-workbench .mounted-app-resize-handle-files {
   justify-self: start;
   transform: translateX(-50%);
-}
-
-.mounted-app-workbench .mounted-app-resize-handle-files::after {
-  top: 0;
-  bottom: 0;
 }
 
 .mounted-app-workbench .mounted-app-directory-tabs {

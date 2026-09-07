@@ -62,6 +62,7 @@ import {
 } from "../../bridge";
 import { clamp, compareLocalizedText, formatNumber } from "../../format";
 import { translate, useI18n, type TranslationFn, type TranslationKey } from "../../i18n";
+import { ResizeHandle } from "../ui/resize-handle";
 import { cachedDateTimeFormat } from "../../intl-formatters";
 import { useConfirm } from "../ui/confirm-dialog";
 import { AnimatedBackground } from "../ui/motion/animated-background";
@@ -1002,9 +1003,8 @@ export function MountedAppWorkbench(props: {
         }
         directoryResizeHandle={
           directoryMode === "view" ? undefined : (
-            <div
+            <ResizeHandle
               className="mounted-app-resize-handle mounted-app-resize-handle-files"
-              role="separator"
               aria-label={t("mountedApp.resizeFiles")}
               aria-orientation="vertical"
               aria-valuemin={workbenchLayoutConstraints.filesMinWidth}
@@ -1116,9 +1116,8 @@ export function MountedAppWorkbench(props: {
         }
         chatResizeHandle={
           props.corePanel ? (
-            <div
+            <ResizeHandle
               className="mounted-app-resize-handle mounted-app-resize-handle-chat"
-              role="separator"
               aria-label={t("mountedApp.resizeChat")}
               aria-orientation="vertical"
               aria-valuemin={workbenchLayoutConstraints.chatMinWidth}

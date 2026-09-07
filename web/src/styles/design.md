@@ -198,11 +198,13 @@ typography:
     semibold: 600 # --fw-semibold
     bold: 600 # --fw-bold, compatibility alias only; do not introduce a fourth visible weight
   # A compact fixed ramp. Legacy token names stay available, but the visible
-  # scale is deliberately collapsed to six sizes: 11 / 12 / 14 / 16 / 20 / 24.
+  # body scale uses six sizes: 11 / 12 / 14 / 16 / 20 / 24. A 10px micro
+  # size is reserved for unread counts and icon-only navigation headings.
   # Operational tools earn polish from surface, spacing, and state,
   # not from many type sizes. No geometric ratio, no separate reading size, no
   # tracking. Component token font sizes are linted back to this scale.
   fontSize:
+    micro: 10px # --fs-micro, unread counts and icon-only navigation headings
     "2xs": 11px # --fs-2xs, compatibility alias for micro text; resolves to xs
     xs: 11px # --fs-xs, meta/timestamps
     sm: 12px # --fs-sm, dense UI text, code
@@ -567,8 +569,9 @@ one mono stack: `{typography.fontFamily.mono}` for code, logs, IDs, and raw
 file previews. Controls inherit the page font; do not set per-component font
 families except to switch to mono content.
 
-The visible type scale is collapsed to six actual sizes. Legacy token names
-remain for source compatibility, but they must not introduce new visual steps.
+The body type scale uses six sizes, with an additional 10px micro size reserved
+for unread counts and icon-only navigation headings. Legacy token names remain
+for source compatibility.
 Apply the size tokens instead of writing `font-size` by hand. Keep
 `letter-spacing` at `0`.
 
@@ -579,7 +582,8 @@ Apply the size tokens instead of writing `font-size` by hand. Keep
 | Section title | `{typography.fontSize.lg}` | 16px / 600 |
 | Default body | `{typography.fontSize.md}` or `{typography.fontSize.base}` | 14px |
 | Dense UI / code | `{typography.fontSize.sm}` | 12px |
-| Meta / timestamps / micro badges | `{typography.fontSize.xs}` or `{typography.fontSize.2xs}` | 11px |
+| Meta / timestamps | `{typography.fontSize.xs}` or `{typography.fontSize.2xs}` | 11px |
+| Unread counts / icon-only navigation headings | `{typography.fontSize.micro}` | 10px |
 
 The ramp is intentionally plain — an operational tool earns its polish from
 surface, shadow, and motion, not from an elaborate type scale. Body stays at

@@ -185,9 +185,9 @@ try {
     "removing the outer frame must preserve the file tree's internal column divider",
   );
   assert.equal(
-    await workbenchResizeHandle.evaluate((element) => getComputedStyle(element, "::after").opacity),
-    "0",
-    "the workbench resize indicator must stay invisible until hover or drag",
+    await workbenchResizeHandle.evaluate((element) => getComputedStyle(element, "::after").content),
+    "none",
+    "the shared workbench resize handle must not paint an indicator",
   );
   const workbenchResizeHandleBounds = await workbenchResizeHandle.boundingBox();
   assert.ok(workbenchResizeHandleBounds);
@@ -363,16 +363,20 @@ try {
   await developerChat.waitFor({ state: "visible" });
   await developerResizeHandle.waitFor({ state: "visible" });
   assert.equal(
-    await developerResizeHandle.evaluate((element) => getComputedStyle(element, "::after").opacity),
-    "0",
-    "the developer resize indicator must stay invisible until hover or drag",
+    await developerResizeHandle.evaluate((element) => getComputedStyle(element, "::after").content),
+    "none",
+    "the shared developer resize handle must not paint an indicator",
   );
   const chatBeforeResize = await developerChat.boundingBox();
   const handleBounds = await developerResizeHandle.boundingBox();
   assert.ok(chatBeforeResize && handleBounds);
   await page.mouse.move(handleBounds.x + handleBounds.width / 2, handleBounds.y + handleBounds.height / 2);
   await assertEventually(
-    async () => await developerResizeHandle.evaluate((element) => getComputedStyle(element, "::after").opacity === "1"),
+    async () =>
+      await developerResizeHandle.evaluate(
+        (element) =>
+          getComputedStyle(element).cursor === "col-resize" && getComputedStyle(element, "::after").content === "none",
+      ),
   );
   await page.mouse.down();
   await page.mouse.move(handleBounds.x + handleBounds.width / 2 + 120, handleBounds.y + handleBounds.height / 2);

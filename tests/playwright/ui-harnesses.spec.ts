@@ -6,6 +6,11 @@ const execFileAsync = promisify(execFile);
 
 const harnesses = [
   {
+    name: "Main navigation supports resizing, restoring and temporary reveal",
+    script: "scripts/test-web-app-rail-navigation-ui.mjs",
+    marker: "web-app-rail-navigation-ui passed",
+  },
+  {
     name: "Radix dialog remains stable",
     script: "scripts/test-web-radix-dialog.mjs",
     marker: "web-radix-dialog-harness ok",

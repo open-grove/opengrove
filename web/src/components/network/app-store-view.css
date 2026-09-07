@@ -244,7 +244,7 @@
   overflow: hidden;
   background: transparent;
   color: var(--og-text);
-  padding: var(--app-page-top-inset) 10px var(--app-page-bottom-inset);
+  padding: var(--app-page-top-inset) var(--app-page-inline-inset) var(--app-page-bottom-inset);
 }
 
 .app-store-page {

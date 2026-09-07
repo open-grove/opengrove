@@ -80,7 +80,7 @@ async function runBrowserHarness(path) {
     await page.mouse.move(handleBox.x + handleBox.width / 2, handleBox.y + handleBox.height / 2);
     await page.mouse.down();
     assert.equal(
-      await page.locator("body").getAttribute("data-sidebar-resizing"),
+      await resizeHandle.getAttribute("data-resizing"),
       "true",
       "pointerdown should enter sidebar resizing mode",
     );
@@ -90,7 +90,7 @@ async function runBrowserHarness(path) {
       return Number(handle?.getAttribute("data-sidebar-width")) > initialWidth;
     }, initialSidebarWidth);
     await page.evaluate(() => window.dispatchEvent(new Event("blur")));
-    const sidebarResizingState = await page.locator("body").getAttribute("data-sidebar-resizing");
+    const sidebarResizingState = await resizeHandle.getAttribute("data-resizing");
     recordFailure(failures, "interrupted sidebar resize", () =>
       assert.equal(sidebarResizingState, null, "window blur should always leave sidebar resizing mode"),
     );

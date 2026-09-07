@@ -1,0 +1,69 @@
+.slot {
+  position: relative;
+  grid-column: 1;
+  grid-row: 2;
+  min-width: 0;
+  min-height: 0;
+}
+
+.panel {
+  height: 100%;
+  min-height: 0;
+  transition: width var(--motion-slow) var(--motion-ease);
+}
+
+.panel > :global(.app-rail) {
+  height: 100%;
+}
+
+.slot[data-mode="hidden"] .panel {
+  position: absolute;
+  inset: 0 auto 0 0;
+  z-index: 100;
+  background: var(--app-shell-bg);
+  box-shadow: var(--app-navigation-reveal-shadow);
+  visibility: hidden;
+  transform: translateX(calc(-100% - 8px));
+  transition:
+    transform var(--motion-fast) var(--motion-ease),
+    visibility 0s var(--motion-fast);
+}
+
+.slot[data-mode="hidden"][data-floating="true"] .panel {
+  visibility: visible;
+  transform: translateX(0);
+  transition-delay: 0s;
+}
+
+.handle {
+  position: absolute;
+  top: var(--app-page-top-inset);
+  bottom: var(--app-page-bottom-inset);
+  z-index: 101;
+  width: 8px;
+  transform: translateX(-50%);
+  transition: left var(--motion-slow) var(--motion-ease);
+}
+
+.slot[data-mode="hidden"] .handle {
+  transition: none;
+}
+
+.slot[data-resizing="true"] .handle,
+.slot[data-resizing="true"] .panel {
+  transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .panel,
+  .slot[data-mode="hidden"] .panel,
+  .handle {
+    transition: none;
+  }
+}
+
+@media (max-width: 900px) {
+  .slot {
+    display: none;
+  }
+}
