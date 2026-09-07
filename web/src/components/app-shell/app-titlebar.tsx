@@ -11,7 +11,7 @@ export function AppTitlebar(props: {
   desktopPlatform: string;
   desktopFullscreen: boolean;
   officialRelease: boolean | undefined;
-  railExpanded: boolean;
+  railVisible: boolean;
   onToggleRail(): void;
   sourceUpdate: OpenGroveDesktopSourceUpdateState | undefined;
   onSourceUpdate(): void;
@@ -37,13 +37,16 @@ export function AppTitlebar(props: {
     >
       <div className="app-titlebar-left">
         <button
+          id="app-navigation-toggle"
           className="app-titlebar-control"
           type="button"
           onClick={props.onToggleRail}
-          aria-label={props.railExpanded ? t("shell.collapseMainNav") : t("shell.expandMainNav")}
-          title={props.railExpanded ? t("shell.collapseMainNav") : t("shell.expandMainNav")}
+          aria-controls="app-main-navigation"
+          aria-expanded={props.railVisible}
+          aria-label={props.railVisible ? t("shell.collapseMainNav") : t("shell.expandMainNav")}
+          title={props.railVisible ? t("shell.collapseMainNav") : t("shell.expandMainNav")}
         >
-          {props.railExpanded ? (
+          {props.railVisible ? (
             <PanelLeftClose size={16} aria-hidden="true" />
           ) : (
             <PanelLeftOpen size={16} aria-hidden="true" />

@@ -9,7 +9,7 @@
       "spacingLiteral": 4
     },
     "app-shell.css": {
-      "spacingLiteral": 13
+      "spacingLiteral": 12
     },
     "app-workspace.css": {
       "spacingLiteral": 7
@@ -22,7 +22,7 @@
       "spacingLiteral": 1
     },
     "components/apps/mounted-app-workbench.css": {
-      "spacingLiteral": 94,
+      "spacingLiteral": 93,
       "shadowLiteral": 4
     },
     "components/chat/chat-composer.module.css": {
@@ -56,13 +56,13 @@
       "shadowLiteral": 2
     },
     "components/extensions/extensions-view.module.css": {
-      "spacingLiteral": 31
+      "spacingLiteral": 30
     },
     "components/knowledge/markdown-preview.css": {
       "spacingLiteral": 34
     },
     "components/network/app-store-view.css": {
-      "spacingLiteral": 88,
+      "spacingLiteral": 87,
       "motionLiteral": 1,
       "shadowLiteral": 1
     },
@@ -73,7 +73,7 @@
       "spacingLiteral": 2
     },
     "components/rooms/contacts-styles/layout-and-directory.css": {
-      "spacingLiteral": 33,
+      "spacingLiteral": 32,
       "shadowLiteral": 1
     },
     "components/rooms/contacts-styles/skills-and-detail.css": {
@@ -103,7 +103,7 @@
       "shadowLiteral": 2
     },
     "components/rooms/rooms.css": {
-      "spacingLiteral": 45,
+      "spacingLiteral": 43,
       "shadowLiteral": 1
     },
     "components/shared/attachments.css": {
@@ -123,7 +123,7 @@
       "spacingLiteral": 5
     },
     "components/sidebar/app-navigation.module.css": {
-      "spacingLiteral": 50,
+      "spacingLiteral": 49,
       "shadowLiteral": 3
     },
     "components/sidebar/conversation-sidebar.module.css": {

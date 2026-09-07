@@ -27,6 +27,7 @@ body {
 .app-shell {
   --app-titlebar-height: 40px;
   --app-page-top-inset: 4px;
+  --app-page-inline-inset: 10px;
   --app-page-bottom-inset: 16px;
   display: grid;
   position: relative;
@@ -315,7 +316,7 @@ body {
   background: var(--c-warning);
 }
 
-body[data-sidebar-resizing="true"] .app-shell {
+body:has(.resize-handle[data-resizing="true"]) .app-shell {
   transition: none;
 }
 
@@ -328,7 +329,7 @@ body[data-sidebar-resizing="true"] .app-shell {
   box-sizing: border-box;
   gap: 0;
   min-height: 0;
-  margin: var(--app-page-top-inset) 0 var(--app-page-bottom-inset) 10px;
+  margin: var(--app-page-top-inset) 0 var(--app-page-bottom-inset) var(--app-page-inline-inset);
   border: 1px solid var(--og-border);
   border-radius: var(--r-lg);
   background: var(--app-shell-sidebar-bg);
@@ -349,36 +350,7 @@ body[data-sidebar-resizing="true"] .app-shell {
   justify-self: end;
   width: 10px;
   margin-right: -10px;
-  cursor: col-resize;
-  touch-action: none;
   z-index: 80;
-}
-
-.sidebar-resize-handle::after {
-  content: "";
-  display: block;
-  width: 1px;
-  height: 100%;
-  margin: 0 auto;
-  background: var(--sidebar-resize-line-bg);
-  opacity: 0;
-  transition: opacity var(--motion-fast) var(--motion-ease);
-}
-
-.sidebar-resize-handle:hover::after,
-.sidebar-resize-handle:focus-visible::after,
-body[data-sidebar-resizing="true"] .sidebar-resize-handle::after {
-  opacity: 1;
-  background: var(--sidebar-resize-line-active-bg);
-}
-
-body[data-sidebar-resizing="true"] {
-  cursor: col-resize;
-  user-select: none;
-}
-
-body[data-sidebar-resizing="true"] * {
-  cursor: col-resize;
 }
 
 @media (max-width: 900px) {
