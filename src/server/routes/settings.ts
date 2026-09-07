@@ -387,8 +387,8 @@ export async function handleSettingsRoute(options: {
   const patchSource = Object.keys(nestedSettings).length > 0 ? nestedSettings : patchRecord;
   let nextSettings = applyProviderSetupMigration(normalizeBridgeSettingsPatch(patchPayload, previousSettings));
   if (previousSettings.appUpdates.automatic === false && nextSettings.appUpdates.automatic === true) {
-    // The renderer invalidates its authenticated client-update query after this
-    // save; dropping the cursor makes that request perform an immediate check.
+    // The renderer schedules App updates after this save. Dropping the cursor
+    // lets that dedicated operation perform an immediate check.
     nextSettings.appUpdates = { automatic: true };
   }
   const removedProviderIds = Object.prototype.hasOwnProperty.call(patchSource, "customProviders")
