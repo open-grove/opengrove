@@ -22,6 +22,7 @@ import {
   type SupportedLocale,
 } from "../src/localization/locale-registry.js";
 import { DesktopAuthCookieJar } from "./auth-cookies.js";
+import { DesktopAppUpdateScheduler } from "./app-update-scheduler.js";
 import { DesktopClientUpdateManager, type DesktopClientUpdateState } from "./client-update-manager.js";
 import {
   DEFAULT_DESKTOP_CLIENT_UPDATE_PREFERENCES,
@@ -142,6 +143,18 @@ let pendingStripeDeepLink = findDesktopStripeDeepLink(process.argv, DESKTOP_STRI
 const bridgeStartupRetrySignal = new DesktopBridgeStartupRetrySignal();
 const releaseGateReceiptWindows = new WeakSet<BrowserWindow>();
 const releaseGateReceiptListenerWindows = new WeakSet<BrowserWindow>();
+const appUpdateScheduler = new DesktopAppUpdateScheduler({
+  getConnection: () => {
+    const bridge = bridgeHost.readyRuntime;
+    if (!bridge) return undefined;
+    return {
+      apiBase: bridge.apiBase,
+      bridgeToken,
+      cookieHeader: bridgeAuthCookies.mergeRequestCookieHeader(undefined),
+    };
+  },
+  log: logMain,
+});
 
 app.setName(APP_NAME);
 app.setPath("userData", configuredDesktopUserDataDir());
@@ -180,6 +193,7 @@ if (!hasSingleInstanceLock) {
           bridgeAuthCookies.applySetCookieHeaders(headers);
           if (headers.length > 0) {
             void checkClientUpdatesIfStale("auth-cookie", CLIENT_UPDATE_AUTH_MIN_INTERVAL_MS);
+            void appUpdateScheduler.check("auth-cookie");
           }
         },
         mcpAppSandboxOrigin: readAppEnv("MCP_APP_SANDBOX_ORIGIN"),
@@ -287,6 +301,7 @@ function isOfficialDesktopRelease(): boolean {
 
 app.on("before-quit", (event) => {
   cancelBridgeSupervisorRetry();
+  appUpdateScheduler.stop();
   if (clientUpdateManager?.isInstalling()) {
     stopReusedWatchdog();
     stopSourceUpdateScheduler();
@@ -944,6 +959,7 @@ async function startAndActivateDesktopBridge(): Promise<void> {
   startReusedWatchdogIfNeeded();
   startSourceUpdateScheduler();
   startClientUpdateScheduler();
+  appUpdateScheduler.start();
 }
 
 async function startBridgeWithAutomaticRecovery(): Promise<DesktopBridgeRuntimeInfo> {
@@ -1165,6 +1181,7 @@ async function prepareForClientUpdateInstall(): Promise<void> {
   }
 
   logMain("client update install requested; stopping owned bridge before quitAndInstall");
+  appUpdateScheduler.stop();
   await supervisor.stop();
   bridgeSupervisor = undefined;
   bridgeHost.detach();

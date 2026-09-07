@@ -196,13 +196,20 @@ Local bridge 是 UI、state、tools 和 kernels 之间的边界。
 这个选择是独立于账号会话的本机 UI 偏好，不会绕过桌面端的内存 Bridge token。
 浏览器 session 部署仍要求账号登录，需要 Cloud 的功能也继续在各自功能边界检查登录态。
 
+客户端发布元数据公开可读，不授予修改本机 App 的权限。
+已安装 App 的更新由桌面主进程独立定时检查，macOS 关闭所有窗口后仍会继续。
+携带可信桌面 Bridge token 的 `POST /app-store/updates` 请求仍须具备工作区所属账号的有效 Cloud 会话；
+这类请求不会刷新 Cookie，凭据过期时返回 `401`，由登录或会话恢复负责续期。
+打开的 Web 客户端保留定时检查；重新启用 App 自动更新时，只有设置保存成功后才触发检查。
+
 | Endpoint | Method | Purpose |
 | --- | --- | --- |
 | `/health` | `GET` | Bridge 本地存活与能力摘要；不验证 WW 会话 |
 | `/auth/email-codes` | `POST` | 请求 WW 邮箱验证码，并返回该邮箱是否需要注册字段 |
 | `/auth/login` | `POST` | 使用邮箱验证码登录；新账号同时提交用户选择的 ISO 国家/地区，以及按需提交邀请码 |
 | `/auth/session` | `GET` | WW 会话恢复与定时重试；区分已认证、未登录与暂时不可用 |
-| `/auth/client-update` | `GET` | 当前桌面版本和适用的 Cloud 发布版本；已登录会话读取完整版本契约，未登录但通过 Bridge token 鉴权的桌面端读取公开精简版本契约 |
+| `/auth/client-update` | `GET` | 只读查询桌面版本；已登录会话读取完整版本契约，未登录请求读取公开版本契约；不触发 App 更新、不刷新登录 Cookie |
+| `/app-store/updates` | `POST` | 使用已鉴权且属于本机工作区的账号调度 App 自动更新；返回 `scheduled`、`already_running` 或 `skipped`，遵守自动更新开关、间隔和 App 安全检查 |
 | `/auth/activity` | `POST` | 已登录 Electron 桌面端每天一次的最小账号活跃；不携带本地业务数据 |
 | `/inventory` | `GET` | knowledge、memory、artifacts、sessions、tools、skills 和 capabilities |
 | `/ask/stream` | `POST` | streaming agent turn API |

@@ -14,6 +14,7 @@ export const openGroveClientOperationIds = [
   "app.release.reconcile",
   "app.release.abandon",
   "app.release.keep-local",
+  "app.update.schedule",
   "room.message.create",
 ] as const;
 
@@ -146,6 +147,14 @@ export function bindOpenGroveClient(request: HostOperationRequest) {
             params: {
               appId: input.appId,
             },
+            signal: options?.signal,
+          }),
+      },
+      updates: {
+        schedule: (
+          options?: OpenGroveRequestOptions,
+        ): Promise<HostOperationOutput<(typeof hostOperationById)["app.update.schedule"]>> =>
+          request(hostOperationById["app.update.schedule"], {
             signal: options?.signal,
           }),
       },

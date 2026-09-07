@@ -590,19 +590,6 @@ async function handleClientUpdate(
     sendAuthError(response, sendJson, state, traceId, "client-update", authResult.error);
     return;
   }
-  if (authResult.status === "authenticated") {
-    // The packaged desktop client polls this GET every six hours. Reuse the
-    // heartbeat for background App updates only while its access token remains
-    // valid; login and session restoration own refresh and schedule updates
-    // after rotating credentials.
-    scheduleInstalledAppStoreUpdatesAfterAuth({
-      state,
-      request,
-      packageRegistryConfig: releaseControlRegistryConfig(authResult.session.auth.accessToken),
-      userId: authResult.session.auth.userId,
-      traceId,
-    });
-  }
   try {
     // Keep this background endpoint read-only with respect to auth cookies.
     // A main-process request can be abandoned after the server rotates a

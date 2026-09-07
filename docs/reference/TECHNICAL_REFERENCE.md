@@ -197,13 +197,22 @@ preference, separate from account session state. It never bypasses the
 desktop's in-memory Bridge token. Browser session deployments still require an
 account, and Cloud-backed features remain gated at their feature boundary.
 
+Client release metadata is public and does not authorize local App changes.
+Installed App update checks run independently in the desktop main process,
+including with no open macOS window. `POST /app-store/updates` requests carrying
+a trusted desktop Bridge token still require the workspace owner's valid Cloud
+session; they never rotate cookies and return `401` when credentials expire.
+Login/session restoration owns renewal. Open Web clients retain periodic checks,
+and re-enabling App updates schedules a check only after settings are saved.
+
 | Endpoint | Method | Purpose |
 | --- | --- | --- |
 | `/health` | `GET` | local Bridge liveness and capability summary; never validates the WW session |
 | `/auth/email-codes` | `POST` | request a WW email code and report whether the email needs registration fields |
 | `/auth/login` | `POST` | sign in with the email code; new accounts also send the user-selected ISO country/region and, when required, an invite code |
 | `/auth/session` | `GET` | WW session restore and scheduled recovery with authenticated, unauthenticated, and temporarily unavailable outcomes |
-| `/auth/client-update` | `GET` | current desktop release plus the applicable Cloud release; signed-in sessions receive the full version contract, while signed-out token-authorized desktop clients use the public sanitized version contract |
+| `/auth/client-update` | `GET` | read-only desktop release metadata; signed-in sessions receive the full version contract and signed-out callers receive the public version contract; never schedules App updates or refreshes auth cookies |
+| `/app-store/updates` | `POST` | schedule installed App auto-updates for an authenticated workspace account; returns `scheduled`, `already_running`, or `skipped`; honors the App update preference, interval, and safety checks |
 | `/auth/activity` | `POST` | once-daily minimal account activity for signed-in Electron desktop; carries no local product data |
 | `/inventory` | `GET` | knowledge, memory, artifacts, sessions, tools, skills, and capabilities |
 | `/ask/stream` | `POST` | streaming agent turn API |

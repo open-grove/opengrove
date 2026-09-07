@@ -17,6 +17,7 @@ export function isPublicBridgeRoute(pathname: string): boolean {
     pathname === "/auth/session" ||
     pathname === "/auth/login" ||
     pathname === "/auth/logout" ||
+    pathname === "/auth/client-update" ||
     pathname === "/room-ledger/read"
   );
 }

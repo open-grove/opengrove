@@ -1259,6 +1259,67 @@ export type AppReleaseKeepLocalResponses = {
 
 export type AppReleaseKeepLocalResponse = AppReleaseKeepLocalResponses[keyof AppReleaseKeepLocalResponses];
 
+export type AppUpdateScheduleData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: "/app-store/updates";
+};
+
+export type AppUpdateScheduleErrors = {
+  /**
+   * A valid Cloud session is required; desktop background calls never refresh expired credentials.
+   */
+  401: {
+    ok?: false;
+    error: string;
+    incidentId?: string;
+    traceId?: string;
+  };
+  /**
+   * The request origin or account is not authorized for this workspace.
+   */
+  403: {
+    ok?: false;
+    error: string;
+    incidentId?: string;
+    traceId?: string;
+  };
+  /**
+   * An internal error or response contract violation occurred.
+   */
+  500: {
+    ok?: false;
+    error: string;
+    incidentId?: string;
+    traceId?: string;
+  };
+  /**
+   * The account or App update service is temporarily unavailable.
+   */
+  503: {
+    ok?: false;
+    error: string;
+    incidentId?: string;
+    traceId?: string;
+  };
+};
+
+export type AppUpdateScheduleError = AppUpdateScheduleErrors[keyof AppUpdateScheduleErrors];
+
+export type AppUpdateScheduleResponses = {
+  /**
+   * Successful response.
+   */
+  200: {
+    ok: true;
+    status: "scheduled" | "already_running" | "skipped";
+    reason?: string;
+  };
+};
+
+export type AppUpdateScheduleResponse = AppUpdateScheduleResponses[keyof AppUpdateScheduleResponses];
+
 export type RoomMessageCreateData = {
   body: {
     /**

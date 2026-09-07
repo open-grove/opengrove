@@ -61,10 +61,10 @@ assert.equal(
 const expectedFullGroupSizes = {
   "state-storage": 10,
   "rooms-routines": 23,
-  "apps-knowledge": 15,
+  "apps-knowledge": 16,
   "app-lifecycle": 20,
   "kernels-providers": 29,
-  "web-desktop": 16,
+  "web-desktop": 18,
   "release-contracts": 1,
 };
 const groupSetupCommands = {
@@ -92,7 +92,7 @@ for (const [groupName, expectedSize] of Object.entries(expectedFullGroupSizes)) 
   groupedLabels.push(...harnessGroups[groupName].map((task) => task.id));
 }
 
-assert.equal(harnessInventory.length, 114, "the canonical deterministic harness inventory must not shrink silently");
+assert.equal(harnessInventory.length, 117, "the canonical deterministic harness inventory must not shrink silently");
 assert.equal(
   harnessGroups.full,
   harnessInventory,
@@ -103,10 +103,10 @@ assert.equal(
   harnessInventory.length,
   "every harness id must be unique",
 );
-assert.equal(harnessGroups.integration.length, 38, "the affected-integration subset must not shrink silently");
+assert.equal(harnessGroups.integration.length, 41, "the affected-integration subset must not shrink silently");
 assert.equal(
   new Set(harnessGroups.integration.map((task) => task.id)).size,
-  38,
+  41,
   "the integration subset must not execute a canonical harness twice",
 );
 assert.equal(new Set(groupedLabels).size, groupedLabels.length, "a full harness must have exactly one owner group");
