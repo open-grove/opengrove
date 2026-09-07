@@ -35,6 +35,35 @@ export function createWwAccountClient(transport: WwTransport): WwAccountClient {
         body: { refresh_token: refreshToken },
       });
     },
+    async readTeamGateStatus() {
+      try {
+        const object = record(await transport.requestEnvelope<unknown>("/v1/auth/team/status", { method: "GET" }));
+        return { required: booleanValue(object.required), satisfied: booleanValue(object.satisfied) };
+      } catch (error) {
+        // A production ww build does not register this route, so 404 is the
+        // answer "no gate here" rather than a failure. Anything else is a real
+        // problem and must not be reported as "you may sign in".
+        if ((error as { status?: number })?.status === 404) return undefined;
+        throw error;
+      }
+    },
+    async listTeamAccounts() {
+      const accounts = await transport.requestEnvelope<unknown>("/v1/auth/team/accounts", { method: "GET" });
+      if (!Array.isArray(accounts)) return [];
+      return accounts.map((entry) => {
+        const object = record(entry);
+        const roles = Array.isArray(object.roles) ? object.roles.map((role) => stringValue(role)).filter(Boolean) : [];
+        return { email: stringValue(object.email), roles, status: stringValue(object.status) };
+      });
+    },
+    async signInAsTeamAccount(email) {
+      return mapTokenPair(
+        await transport.requestEnvelope<unknown>("/v1/auth/team/login", {
+          method: "POST",
+          body: { email },
+        }),
+      );
+    },
   };
 }
 

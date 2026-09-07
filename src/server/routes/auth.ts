@@ -6,6 +6,7 @@ import type {
   GetAuthSessionOperation,
 } from "#protocol";
 import { safeDiagnosticErrorCode } from "../../diagnostics/redaction.js";
+import type { BridgeSessionUser } from "../bridge-session-user.js";
 import { readAppEnv } from "../../identity.js";
 import { scheduleInstalledAppStoreUpdatesAfterAuth } from "../app-store-auto-updates.js";
 import { releaseControlRegistryConfig } from "../app-store-registry.js";
@@ -36,7 +37,9 @@ import { recordProblem } from "../problem-records.js";
 import {
   createLocalSessionId,
   createWwHostedServices,
+  type WwAccountClient,
   type WwApiError,
+  type WwTokenPair,
   type WwClientPlatformVersion,
   type WwLatestClientVersion,
   wwDiagnosticFacts,
@@ -46,6 +49,19 @@ import {
   readWwProviderLocalState,
   wwProviderAccountMatches,
 } from "../ww-provider-local-state.js";
+import {
+  clearWwTeamAdmission,
+  clearWwTeamToken,
+  grantWwTeamAdmission,
+  readWwTeamToken,
+  saveWwTeamToken,
+} from "../ww-team-token-store.js";
+import {
+  clearStashedSession,
+  discardStashedSession,
+  readStashedSession,
+  stashReplacedSession,
+} from "../ww-replaced-session-stash.js";
 import {
   beginWwProviderSession,
   invalidateWwProviderSession,
@@ -84,14 +100,381 @@ export async function handleAuthRoute(options: {
     await handleClientActivity(request, response, security, sendJson, readJsonBody);
     return true;
   }
+  if (request.method === "POST" && url.pathname === "/auth/team-unlock") {
+    await handleTeamUnlock(request, response, security, state, traceId, sendJson, readJsonBody);
+    return true;
+  }
+  if (request.method === "GET" && url.pathname === "/auth/team-status") {
+    await handleTeamStatus(request, response, security, state, traceId, sendJson);
+    return true;
+  }
+  if (request.method === "GET" && url.pathname === "/auth/team-accounts") {
+    await handleTeamAccounts(request, response, security, state, traceId, sendJson);
+    return true;
+  }
+  if (request.method === "POST" && url.pathname === "/auth/team-signin") {
+    await handleTeamSignIn(request, response, security, state, traceId, sendJson, readJsonBody);
+    return true;
+  }
+  if (request.method === "POST" && url.pathname === "/auth/team-restore") {
+    await handleTeamRestore(request, response, security, state, traceId, sendJson);
+    return true;
+  }
   return false;
+}
+
+/**
+ * Hands back the session a team-account switch replaced.
+ *
+ * This grants nothing new: it restores cookies this same browser held minutes
+ * ago, for a session ww never revoked. That is why it needs no team token and no
+ * verification code -- and why it is not the same thing as letting the switch
+ * endpoint target a real account, which would let the shared team token become
+ * any real user.
+ */
+async function handleTeamRestore(
+  request: IncomingMessage,
+  response: ServerResponse,
+  security: BridgeSecurity,
+  state: BridgeState,
+  traceId: string | undefined,
+  sendJson: SendJson,
+): Promise<void> {
+  const wwBaseUrl = security.wwBaseUrl;
+  if (!wwBaseUrl) {
+    sendJson(response, 503, { error: "auth_not_configured" });
+    return;
+  }
+  const current = readAuthTokens(request);
+  const stashed = readStashedSession(current, wwBaseUrl);
+  if (!stashed) {
+    // Nothing to go back to: a fresh browser, or the bridge restarted since the
+    // switch. Deliberately not an error the caller has to handle specially --
+    // the client asks /auth/team-status whether to offer this at all.
+    sendJson(response, 409, { error: "no_previous_session" });
+    return;
+  }
+
+  if (stashed.restoring) {
+    sendJson(response, 409, { error: "session_restore_in_progress" });
+    return;
+  }
+  stashed.restoring = true;
+  try {
+    const currentAuth = await resolveWwRuntimeAuth(request, response, security);
+    if (currentAuth.status === "unauthenticated") {
+      discardStashedSession(stashed);
+      sendJson(response, 401, { error: "not_authenticated" });
+      return;
+    }
+    if (currentAuth.status === "temporarily_unavailable") {
+      sendAuthError(response, sendJson, state, traceId, "login", currentAuth.error);
+      return;
+    }
+    const services = createWwHostedServices(wwBaseUrl);
+    // Refresh rather than reuse the stored access token: it may well have
+    // expired while the test account was in use, and rotating here means the
+    // restored session starts with a full lifetime instead of a stale minute.
+    const tokens = await services.account.refresh(stashed.tokens.refreshToken);
+    stashed.tokens = { ...tokens, sessionId: stashed.tokens.sessionId };
+    const user = await services.profile.readCurrentUser(tokens.accessToken);
+    sendJson(
+      response,
+      200,
+      await completeWwSignIn({
+        request,
+        response,
+        services,
+        state,
+        traceId,
+        wwBaseUrl,
+        tokens,
+        user,
+        onSession() {
+          clearAuthSessionCache(current);
+          discardStashedSession(stashed);
+        },
+      }),
+    );
+  } catch (error) {
+    if (isWwError(error) && ["refresh_token_invalid", "user_disabled"].includes(error.publicCode)) {
+      discardStashedSession(stashed);
+    }
+    sendAuthError(response, sendJson, state, traceId, "login", error);
+  } finally {
+    stashed.restoring = false;
+  }
+}
+
+const TEAM_UNLOCK_REQUEST_MAX_BYTES = 1024;
+
+/**
+ * Reports whether this ww deployment gates sign-in behind a team token and
+ * whether the stored token satisfies it, so the client knows whether to prompt.
+ *
+ * This is a separate endpoint rather than a field on /health because answering
+ * requires a round trip to ww, and /health is polled on a 60s interval by every
+ * open client.
+ */
+async function handleTeamStatus(
+  request: IncomingMessage,
+  response: ServerResponse,
+  security: BridgeSecurity,
+  state: BridgeState,
+  traceId: string | undefined,
+  sendJson: SendJson,
+): Promise<void> {
+  const wwBaseUrl = security.wwBaseUrl;
+  if (!wwBaseUrl) {
+    sendJson(response, 503, { error: "auth_not_configured" });
+    return;
+  }
+  // Restoration metadata is local, but still requires this browser's private
+  // session credential rather than its readable session id alone.
+  const previousAccount = readStashedSession(readAuthTokens(request), wwBaseUrl)?.email;
+  try {
+    const status = await teamGateStatus(state, wwBaseUrl, request);
+    sendJson(response, 200, {
+      required: status?.required ?? false,
+      satisfied: status?.satisfied ?? true,
+      ...(previousAccount ? { previousAccount } : {}),
+    });
+  } catch (error) {
+    // Recorded rather than swallowed. The client reads 503 as "cannot tell
+    // whether a token is needed", which looks identical whether ww is down,
+    // unreachable, or answering something unexpected -- without this there
+    // would be nothing to look at afterwards.
+    recordProblem(state, {
+      traceId,
+      category: "ww",
+      phase: "team-gate-status",
+      code: "ww_team_gate_unavailable",
+      error,
+      retryable: true,
+      facts: wwDiagnosticFacts(error),
+    });
+    sendJson(response, 503, { error: "team_gate_unavailable" });
+  }
+}
+
+function teamGateStatus(state: BridgeState, wwBaseUrl: string, request: IncomingMessage, override?: string) {
+  const teamToken = override ?? readWwTeamToken(state, wwBaseUrl, request);
+  return createWwHostedServices(wwBaseUrl, teamToken ? { teamToken } : {}).account.readTeamGateStatus();
+}
+
+/**
+ * Lists the accounts the switcher may offer. The list is ww's to decide, not the
+ * client's, so the web bundle carries no copy of it and the two cannot drift.
+ */
+async function handleTeamAccounts(
+  request: IncomingMessage,
+  response: ServerResponse,
+  security: BridgeSecurity,
+  state: BridgeState,
+  traceId: string | undefined,
+  sendJson: SendJson,
+): Promise<void> {
+  const wwBaseUrl = security.wwBaseUrl;
+  if (!wwBaseUrl) {
+    sendJson(response, 503, { error: "auth_not_configured" });
+    return;
+  }
+  const teamToken = readWwTeamToken(state, wwBaseUrl, request);
+  if (!teamToken) {
+    sendJson(response, 401, { error: "team_token_required" });
+    return;
+  }
+  try {
+    const accounts = await createWwHostedServices(wwBaseUrl, { teamToken }).account.listTeamAccounts();
+    sendJson(response, 200, { accounts });
+  } catch (error) {
+    // An empty picker and an unreachable ww look the same to the person staring
+    // at it, so the difference has to be recorded somewhere readable afterwards.
+    recordProblem(state, {
+      traceId,
+      category: "ww",
+      phase: "team-accounts",
+      code: "ww_team_gate_unavailable",
+      error,
+      retryable: true,
+      facts: wwDiagnosticFacts(error),
+    });
+    sendJson(response, 503, { error: "team_gate_unavailable" });
+  }
+}
+
+/**
+ * Becomes one of the listed accounts, in one step.
+ *
+ * No verification code is involved: proving team membership already happened at
+ * unlock, and ww decides whether the account is offered and whether it exists.
+ * The resulting session is indistinguishable from an email sign-in because it
+ * goes through the same completion path.
+ */
+async function handleTeamSignIn(
+  request: IncomingMessage,
+  response: ServerResponse,
+  security: BridgeSecurity,
+  state: BridgeState,
+  traceId: string | undefined,
+  sendJson: SendJson,
+  readJsonBody: ReadJsonBody,
+): Promise<void> {
+  const wwBaseUrl = security.wwBaseUrl;
+  if (!wwBaseUrl) {
+    sendJson(response, 503, { error: "auth_not_configured" });
+    return;
+  }
+  const teamToken = readWwTeamToken(state, wwBaseUrl, request);
+  if (!teamToken) {
+    sendJson(response, 401, { error: "team_token_required" });
+    return;
+  }
+  let body: Record<string, unknown>;
+  try {
+    body = record(await readJsonBody(request, TEAM_UNLOCK_REQUEST_MAX_BYTES));
+  } catch (error) {
+    sendJson(response, error instanceof Error && error.message === "body_too_large" ? 413 : 400, {
+      error: "invalid_team_signin_request",
+    });
+    return;
+  }
+  if (Object.keys(body).some((key) => key !== "email")) {
+    sendJson(response, 400, { error: "invalid_team_signin_request" });
+    return;
+  }
+  const email = stringValue(body.email).trim();
+  if (!email || email.length > 320) {
+    sendJson(response, 400, { error: "invalid_team_signin_request" });
+    return;
+  }
+
+  const services = createWwHostedServices(wwBaseUrl, { teamToken });
+  try {
+    // Read the outgoing session before anything overwrites it, so it can be
+    // handed back later. ww revokes nothing on a team sign-in, so its refresh
+    // token stays valid -- only the browser's cookies are about to be replaced.
+    const replaced = readAuthTokens(request);
+    // Without refresh: this is only for the label on the "go back" affordance,
+    // and a switch should not pay for a token rotation to produce it. A failure
+    // here simply means the affordance is not offered.
+    const replacedResult = replaced ? await resolveWwRuntimeAuthWithoutRefresh(request, security) : undefined;
+    const replacedEmail = replacedResult?.status === "authenticated" ? replacedResult.session.user.email : undefined;
+    const tokens = await services.account.signInAsTeamAccount(email);
+    const user = await services.profile.readCurrentUser(tokens.accessToken);
+    sendJson(
+      response,
+      200,
+      await completeWwSignIn({
+        request,
+        response,
+        services,
+        state,
+        traceId,
+        wwBaseUrl,
+        tokens,
+        user,
+        onSession(nextSessionId) {
+          clearAuthSessionCache(replaced);
+          stashReplacedSession({
+            baseUrl: wwBaseUrl,
+            nextTokens: tokens,
+            nextSessionId,
+            replaced,
+            replacedEmail,
+          });
+        },
+      }),
+    );
+  } catch (error) {
+    sendAuthError(response, sendJson, state, traceId, "login", error);
+  }
+}
+
+/**
+ * Accepts the team token a person typed and stores it for this install.
+ *
+ * The browser never holds this credential: it appears once, in this request
+ * body, and afterwards only the bridge replays it as an outbound header. That is
+ * forced by the architecture rather than chosen -- the browser never talks to ww
+ * directly, and the ww transport has no cookie store.
+ *
+ * The token is verified against ww before being stored, so a typo is reported
+ * here instead of surfacing later as an unexplained sign-in failure.
+ */
+async function handleTeamUnlock(
+  request: IncomingMessage,
+  response: ServerResponse,
+  security: BridgeSecurity,
+  state: BridgeState,
+  traceId: string | undefined,
+  sendJson: SendJson,
+  readJsonBody: ReadJsonBody,
+): Promise<void> {
+  const wwBaseUrl = security.wwBaseUrl;
+  if (!wwBaseUrl) {
+    sendJson(response, 503, { error: "auth_not_configured" });
+    return;
+  }
+  let body: Record<string, unknown>;
+  try {
+    body = record(await readJsonBody(request, TEAM_UNLOCK_REQUEST_MAX_BYTES));
+  } catch (error) {
+    sendJson(response, error instanceof Error && error.message === "body_too_large" ? 413 : 400, {
+      error: "invalid_team_unlock_request",
+    });
+    return;
+  }
+  if (Object.keys(body).some((key) => key !== "token")) {
+    sendJson(response, 400, { error: "invalid_team_unlock_request" });
+    return;
+  }
+  const token = stringValue(body.token).trim();
+  if (!token || token.length > 512) {
+    sendJson(response, 400, { error: "invalid_team_unlock_request" });
+    return;
+  }
+
+  let status: Awaited<ReturnType<WwAccountClient["readTeamGateStatus"]>>;
+  try {
+    status = await teamGateStatus(state, wwBaseUrl, request, token);
+  } catch (error) {
+    // Someone just typed a token and was told it cannot be verified. Without
+    // this record there is no way to tell a wrong token from an unreachable ww,
+    // which is exactly the question they will ask next.
+    recordProblem(state, {
+      traceId,
+      category: "ww",
+      phase: "team-gate-unlock",
+      code: "ww_team_gate_unavailable",
+      error,
+      retryable: true,
+      facts: wwDiagnosticFacts(error),
+    });
+    sendJson(response, 503, { error: "team_gate_unavailable" });
+    return;
+  }
+  if (!status?.required) {
+    // Nothing to unlock. Clearing keeps a token from lingering after a
+    // deployment drops its gate.
+    clearWwTeamToken(state);
+    sendJson(response, 200, { ok: true, required: false, satisfied: true });
+    return;
+  }
+  if (!status.satisfied) {
+    sendJson(response, 401, { error: "team_token_invalid" });
+    return;
+  }
+  saveWwTeamToken(state, { baseUrl: wwBaseUrl, token });
+  grantWwTeamAdmission(state, request, response, { baseUrl: wwBaseUrl, token });
+  sendJson(response, 200, { ok: true, required: true, satisfied: true });
 }
 
 export async function handleCreateAuthEmailCodeOperation(
   context: HostOperationRouteContext<CreateAuthEmailCodeOperation>,
 ): Promise<true> {
-  const { response, security, state, traceId, sendJson } = context;
-  const services = wwServicesOrUnavailable(security, response, sendJson);
+  const { request, response, security, state, traceId, sendJson } = context;
+  const services = wwServicesOrUnavailable(security, state, request, response, sendJson);
   if (!services) return true;
   try {
     const result = await services.account.sendEmailCode(context.input.body.email);
@@ -106,7 +489,7 @@ export async function handleCreateAuthSessionOperation(
   context: HostOperationRouteContext<CreateAuthSessionOperation>,
 ): Promise<true> {
   const { request, response, security, state, traceId, sendJson } = context;
-  const services = wwServicesOrUnavailable(security, response, sendJson);
+  const services = wwServicesOrUnavailable(security, state, request, response, sendJson);
   if (!services) return true;
   const body = context.input.body;
   try {
@@ -125,58 +508,99 @@ export async function handleCreateAuthSessionOperation(
     });
     const user = await services.profile.readCurrentUser(tokens.accessToken);
     initializeHostLanguageFromLogin(state, body, traceId);
-    const sessionId = createLocalSessionId();
-    writeAuthTokens(response, tokens, sessionId);
-    cacheAuthSessionUser(sessionId, tokens.accessToken, user, tokens.accessTokenExpiresIn);
-    beginWwProviderSession({ state, baseUrl: wwBaseUrl, userId: user.userId });
-    clearWwProviderRecoveryBlock(state, { issuer: wwBaseUrl, userId: user.userId });
-    const providerProvisioning = await provisionWwProviderAfterLogin({
-      state,
-      client: services.providerCredentials,
-      baseUrl: wwBaseUrl,
-      accessToken: tokens.accessToken,
-      userId: user.userId,
-    });
-    if (providerProvisioning.status === "failed") {
-      recordProblem(state, {
+    const replaced = readAuthTokens(request);
+    sendJson(
+      response,
+      200,
+      await completeWwSignIn({
+        request,
+        response,
+        services,
+        state,
         traceId,
-        category: "ww",
-        phase: "provider-provision",
-        code: "ww_provider_provision_failed",
-        error: providerProvisioning.error,
-        retryable: providerProvisioning.retryable,
-        facts: providerProvisioning.diagnosticFacts,
-      });
-    }
-    const defaultStoreApps = scheduleDefaultStoreAppsInstalledAfterAuth({
-      state,
-      request,
-      installPolicyConfig: {
-        baseUrl: wwBaseUrl,
-        registryToken: tokens.accessToken,
-      },
-      packageRegistryConfig: releaseControlRegistryConfig(tokens.accessToken),
-      userId: user.userId,
-      traceId,
-    });
-    const appUpdates = scheduleInstalledAppStoreUpdatesAfterAuth({
-      state,
-      request,
-      packageRegistryConfig: releaseControlRegistryConfig(tokens.accessToken),
-      userId: user.userId,
-      traceId,
-    });
-    sendJson(response, 200, {
-      user,
-      isNewUser: tokens.isNewUser,
-      providerProvisioning,
-      defaultStoreApps,
-      appUpdates,
-    });
+        wwBaseUrl,
+        tokens,
+        user,
+        onSession() {
+          clearStashedSession(replaced, wwBaseUrl);
+        },
+      }),
+    );
   } catch (error) {
     sendAuthError(response, sendJson, state, traceId, "login", error);
   }
   return true;
+}
+
+/**
+ * Everything that turns a fresh ww token pair into a live browser session:
+ * bridge cookies, the session cache, provider provisioning and the post-sign-in
+ * app scheduling.
+ *
+ * Shared by email sign-in and team-token sign-in so the two cannot drift. The
+ * response shape is the contract the web client's applyAuthenticatedSession
+ * already consumes, which is why the team path returns it verbatim rather than
+ * inventing its own.
+ */
+async function completeWwSignIn(input: {
+  request: IncomingMessage;
+  response: ServerResponse;
+  services: ReturnType<typeof createWwHostedServices>;
+  state: BridgeState;
+  traceId: string | undefined;
+  wwBaseUrl: string;
+  tokens: WwTokenPair;
+  user: BridgeSessionUser;
+  // onSession sees the id of the session being created, before anything else
+  // observes it. The team switch uses it to file the session it is replacing.
+  onSession?: (sessionId: string) => void;
+}): Promise<Record<string, unknown>> {
+  const { request, response, services, state, traceId, wwBaseUrl, tokens, user } = input;
+  const sessionId = createLocalSessionId();
+  beginWwProviderSession({ state, baseUrl: wwBaseUrl, userId: user.userId });
+  clearWwProviderRecoveryBlock(state, { issuer: wwBaseUrl, userId: user.userId });
+  const providerProvisioning = await provisionWwProviderAfterLogin({
+    state,
+    client: services.providerCredentials,
+    baseUrl: wwBaseUrl,
+    accessToken: tokens.accessToken,
+    userId: user.userId,
+  });
+  if (providerProvisioning.status === "failed") {
+    recordProblem(state, {
+      traceId,
+      category: "ww",
+      phase: "provider-provision",
+      code: "ww_provider_provision_failed",
+      error: providerProvisioning.error,
+      retryable: providerProvisioning.retryable,
+      facts: providerProvisioning.diagnosticFacts,
+    });
+  }
+  const defaultStoreApps = scheduleDefaultStoreAppsInstalledAfterAuth({
+    state,
+    request,
+    installPolicyConfig: {
+      baseUrl: wwBaseUrl,
+      registryToken: tokens.accessToken,
+    },
+    packageRegistryConfig: releaseControlRegistryConfig(tokens.accessToken),
+    userId: user.userId,
+    traceId,
+  });
+  const appUpdates = scheduleInstalledAppStoreUpdatesAfterAuth({
+    state,
+    request,
+    packageRegistryConfig: releaseControlRegistryConfig(tokens.accessToken),
+    userId: user.userId,
+    traceId,
+  });
+  // Commit the browser session only after sign-in preparation succeeds. A
+  // failed switch must leave the previous cookies and session usable.
+  input.onSession?.(sessionId);
+  writeAuthTokens(response, tokens, sessionId);
+  cacheAuthSessionUser(sessionId, tokens.accessToken, user, tokens.accessTokenExpiresIn);
+  return { user, isNewUser: tokens.isNewUser, providerProvisioning, defaultStoreApps, appUpdates };
 }
 
 function initializeHostLanguageFromLogin(
@@ -553,6 +977,8 @@ async function handleLogout(
   sendJson: SendJson,
 ): Promise<void> {
   const tokens = readAuthTokens(request);
+  clearWwTeamAdmission(state, request, response);
+  if (security.wwBaseUrl) clearStashedSession(tokens, security.wwBaseUrl);
   invalidateWwProviderSession(state);
   clearAuthTokens(response);
   clearAuthSessionCache(tokens);
@@ -583,7 +1009,7 @@ async function handleClientUpdate(
   traceId: string | undefined,
   sendJson: SendJson,
 ): Promise<void> {
-  const services = wwServicesOrUnavailable(security, response, sendJson);
+  const services = wwServicesOrUnavailable(security, state, request, response, sendJson);
   if (!services) return;
   const authResult = await resolveWwRuntimeAuthWithoutRefresh(request, security);
   if (authResult.status === "temporarily_unavailable") {
@@ -710,12 +1136,23 @@ function selectClientVersionForCurrentPlatform(latest: WwLatestClientVersion): W
   return undefined;
 }
 
-function wwServicesOrUnavailable(security: BridgeSecurity, response: ServerResponse, sendJson: SendJson) {
+// wwServicesOrUnavailable is the single place the sign-in operations reach ww,
+// which makes it the one place that has to know about the team-token gate a test
+// deployment puts in front of ww's sign-in endpoints. The token rides on every
+// call these services make; ww only checks it where its gate is mounted.
+function wwServicesOrUnavailable(
+  security: BridgeSecurity,
+  state: BridgeState,
+  request: IncomingMessage,
+  response: ServerResponse,
+  sendJson: SendJson,
+) {
   if (!security.wwBaseUrl) {
     sendJson(response, 503, { error: "auth_not_configured" });
     return undefined;
   }
-  return createWwHostedServices(security.wwBaseUrl);
+  const teamToken = readWwTeamToken(state, security.wwBaseUrl, request);
+  return createWwHostedServices(security.wwBaseUrl, teamToken ? { teamToken } : {});
 }
 
 function sendAuthError(

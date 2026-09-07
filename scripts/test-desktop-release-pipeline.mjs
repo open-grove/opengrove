@@ -99,6 +99,7 @@ try {
   assert.equal(releaseBuilderConfig.dmg.sign, true);
   assert.equal(releaseBuilderConfig.npmRebuild, false);
   assert.equal(releaseBuilderConfig.extraMetadata.opengroveOfficialRelease, true);
+  assert.equal(typeof releaseBuilderConfig.beforePack, "function");
   assert.equal(
     Object.hasOwn(releaseBuilderConfig.mac, "identity"),
     false,
