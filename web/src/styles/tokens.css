@@ -1170,8 +1170,6 @@
   --app-navigation-reveal-shadow: 4px 0 12px -8px color-mix(in srgb, var(--c-overlay-ink) 18%, transparent);
   --app-shell-sidebar-bg: var(--og-sidebar-bg);
   --app-shell-chat-bg: transparent;
-  --sidebar-resize-line-bg: oklch(from var(--c-overlay-ink) l c h / 0.12);
-  --sidebar-resize-line-active-bg: oklch(from var(--c-overlay-ink) l c h / 0.2);
   --topbar-kernel-icon-radius: var(--r-sm);
   --chat-inspector-card-border: oklch(from var(--c-overlay-ink) l c h / 0.1);
   --chat-inspector-card-bg: linear-gradient(180deg, oklch(from var(--c-overlay-highlight) l c h / 0.98), oklch(from var(--c-overlay-highlight) l c h / 0.96));

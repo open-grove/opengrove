@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { useI18n } from "../../i18n";
 import { getRailMode, RAIL_MAX_WIDTH } from "../../runtime/app-rail-layout-model";
 import type { AppRailLayoutController } from "../../runtime/use-app-rail-layout";
@@ -20,7 +20,10 @@ export function AppNavigationPanel(props: {
   const openTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const blocked = useRef(false);
-  blocked.current = props.overlayOpen || layout.isResizing;
+  // Dismiss timers need the latest committed state without restarting on every render.
+  useLayoutEffect(() => {
+    blocked.current = props.overlayOpen || layout.isResizing;
+  }, [props.overlayOpen, layout.isResizing]);
 
   const clearTimers = useCallback(() => {
     if (openTimer.current) clearTimeout(openTimer.current);
@@ -42,7 +45,9 @@ export function AppNavigationPanel(props: {
     closeTimer.current = setTimeout(function closeAfterOverlays() {
       closeTimer.current = null;
       if (blocked.current || pointerInside.current) return;
-      // Confirm dialogs can be owned by the shell rather than a navigation item.
+      // ConfirmProvider exposes an imperative confirm function, not its open state.
+      // Its portal can outlive the originating menu. Recheck only while a pending
+      // dismissal is blocked by that modal; ordinary navigation uses overlayOpen.
       const modalOpen = Array.from(document.querySelectorAll('[role="dialog"][aria-modal="true"]')).some(
         (node) => node.getBoundingClientRect().width > 0,
       );

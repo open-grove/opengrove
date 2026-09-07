@@ -7,7 +7,7 @@ type ResizeHandleProps = Omit<ComponentPropsWithRef<"div">, "role" | "children">
 };
 
 // Layouts own their geometry and width constraints; every divider shares this
-// transparent hit area, cursor feedback, and separator semantics.
+// transparent hit area, cursor feedback, keyboard focus indicator, and separator semantics.
 export function ResizeHandle({ className, ...props }: ResizeHandleProps) {
   return (
     <div

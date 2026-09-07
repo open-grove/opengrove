@@ -66,7 +66,6 @@ export function useAppLayoutResize(options: { composerHeight: number; setCompose
       startX: event.clientX,
       startWidth: sidebarWidth,
     };
-    document.body.dataset.sidebarResizing = "true";
     sidebarResizeCleanupRef.current = beginPointerDrag({
       handle,
       pointerId: event.pointerId,
@@ -83,7 +82,6 @@ export function useAppLayoutResize(options: { composerHeight: number; setCompose
       },
       onFinish() {
         sidebarResizeRef.current = null;
-        delete document.body.dataset.sidebarResizing;
         sidebarResizeCleanupRef.current = null;
       },
     });
@@ -96,6 +94,9 @@ export function useAppLayoutResize(options: { composerHeight: number; setCompose
   };
 }
 
+// This owns pointer lifetime, not rollback policy. Navigation previews until
+// release and can discard a cancelled drag; composer/sidebar persist live widths
+// and retain their latest value when Escape, blur or visibility ends the gesture.
 export function beginPointerDrag(options: {
   handle: HTMLElement;
   pointerId: number;

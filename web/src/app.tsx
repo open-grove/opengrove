@@ -1880,8 +1880,6 @@ export function App() {
     <div
       className="app-shell react-app"
       data-view={activeView}
-      data-rail-expanded={railLayout.mode === "full" ? "true" : "false"}
-      data-rail-mode={railLayout.mode}
       data-sidebar-collapsed={sidebarCollapsed ? "true" : "false"}
       style={
         {

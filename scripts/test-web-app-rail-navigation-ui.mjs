@@ -1,15 +1,49 @@
 import assert from "node:assert/strict";
-import { mkdir } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { resolve, join } from "node:path";
 import { chromium, expect } from "@playwright/test";
+import { startOpenGroveServer } from "../dist/server/create-server.js";
 
-// Run against an ordinary locally running product, using an isolated browser profile.
-const url = process.argv[2];
-if (!url) throw new Error("Usage: node scripts/test-web-app-rail-navigation-ui.mjs <product-url> [capture-directory]");
-const captureDir = process.argv[3] ? resolve(process.argv[3]) : null;
-if (captureDir) await mkdir(captureDir, { recursive: true });
-const browser = await chromium.launch({ headless: true });
+// Use the built product with an empty, isolated Bridge; no existing rooms or Apps.
+// `npm run test:ui` builds both server and web before Playwright runs this harness.
+const testRoot = await mkdtemp(join(tmpdir(), "opengrove-rail-navigation-"));
+const captureDir = process.argv[2] ? resolve(process.argv[2]) : null;
+const envOverrides = {
+  OPENGROVE_BRIDGE_SETTINGS_PATH: join(testRoot, "bridge-settings.json"),
+  OPENGROVE_ENABLE_BROWSER_UI: "1",
+  OPENGROVE_MCP_APP_SANDBOX_ORIGIN: undefined,
+  OPENGROVE_USER_DATA_DIR: testRoot,
+  OPENGROVE_WEB_AUTH_MODE: "bridge-token",
+  OPENGROVE_WORKSPACES_DIR: join(testRoot, "workspaces"),
+};
+const previousEnv = Object.fromEntries(Object.keys(envOverrides).map((key) => [key, process.env[key]]));
+let browser;
+let server;
 try {
+  if (captureDir) await mkdir(captureDir, { recursive: true });
+  await writeFile(envOverrides.OPENGROVE_BRIDGE_SETTINGS_PATH, JSON.stringify({ mountedApps: [] }));
+  for (const [key, value] of Object.entries(envOverrides)) {
+    if (value === undefined) delete process.env[key];
+    else process.env[key] = value;
+  }
+  server = startOpenGroveServer({
+    host: "127.0.0.1",
+    port: 0,
+    bridgeToken: "",
+    profile: "test",
+    runtimeEnvironment: "test",
+    statePath: join(testRoot, "state.json"),
+  });
+  if (!server.listening)
+    await new Promise((resolveListen, reject) => {
+      server.once("listening", resolveListen);
+      server.once("error", reject);
+    });
+  const address = server.address();
+  assert.ok(address && typeof address === "object");
+  const url = `http://127.0.0.1:${address.port}/ui/?view=app-store`;
+  browser = await chromium.launch({ headless: true });
   const page = await browser.newPage({ viewport: { width: 1024, height: 760 }, locale: "zh-CN" });
   const pageErrors = [];
   page.on("pageerror", (error) => pageErrors.push(error.message));
@@ -41,8 +75,10 @@ try {
   }
 
   await expectWidth(126);
+  await expect(page.locator(".app-store-page")).toBeVisible();
+  await expect(page.locator(".rooms-list-panel")).toHaveCount(0);
   const handleBounds = await handle.boundingBox();
-  const contentBounds = await page.locator(".rooms-list-panel").boundingBox();
+  const contentBounds = await page.locator(".app-store-page").boundingBox();
   assert.ok(
     Math.abs(handleBounds.x + handleBounds.width / 2 - contentBounds.x) < 1,
     "The resize affordance must align with the visible content panel edge",
@@ -51,10 +87,22 @@ try {
   await page.mouse.move(handleBounds.x + handleBounds.width / 2, handleBounds.y + 180);
   await assertCursorOnly(handle);
   if (captureDir) await page.screenshot({ path: join(captureDir, "navigation-resize-hover.png") });
-  const roomHandle = page.getByRole("separator", { name: "调整侧边栏宽度", exact: true });
-  const roomHandleBounds = await roomHandle.boundingBox();
-  await page.mouse.move(roomHandleBounds.x + roomHandleBounds.width / 2, roomHandleBounds.y + 180);
-  await assertCursorOnly(roomHandle);
+  // Reach the separator through actual Tab navigation, then inspect its painted focus indicator.
+  await page.keyboard.press("Tab");
+  for (let i = 0; i < 30 && !(await handle.evaluate((node) => node === document.activeElement)); i++) {
+    await page.keyboard.press("Tab");
+  }
+  await expect(handle).toBeFocused();
+  const focusLine = await handle.evaluate((node) => {
+    const style = getComputedStyle(node, "::after");
+    return { content: style.content, width: style.width, background: style.backgroundColor };
+  });
+  assert.equal(focusLine.content, '\"\"', "Keyboard focus must paint a visible separator indicator");
+  assert.equal(focusLine.width, "2px");
+  assert.notEqual(focusLine.background, "rgba(0, 0, 0, 0)");
+  if (captureDir) await page.screenshot({ path: join(captureDir, "navigation-keyboard-focus.png") });
+  await page.keyboard.press("Tab");
+  await assertCursorOnly(handle);
   await page.mouse.move(600, 200);
   await dragTo(237);
   await expectWidth(237);
@@ -127,7 +175,7 @@ try {
   await page.keyboard.press("Escape");
   await page.mouse.up();
   await expectWidth(180);
-  assert.equal(await page.locator("body").getAttribute("data-rail-resizing"), null);
+  assert.equal(await handle.getAttribute("data-resizing"), null);
   await handle.press("Home");
   await expectWidth(0);
   await handle.press("ArrowRight");
@@ -172,10 +220,19 @@ try {
   if (captureDir) await migratedPage.screenshot({ path: join(captureDir, "navigation-migrated-icons.png") });
   assert.deepEqual(pageErrors, []);
   console.log(
-    "web-app-rail-navigation-ui passed: boundary alignment, shared cursor-only handles, unframed overlay, resize, snap, restore, reload, hover, menus, headings, Escape, keyboard, mobile",
+    "web-app-rail-navigation-ui passed: boundary alignment, cursor-only hover and visible keyboard focus, unframed overlay, resize, snap, restore, reload, hover, menus, headings, Escape, keyboard, mobile",
   );
 } finally {
-  await browser.close();
+  await browser?.close();
+  if (server?.listening)
+    await new Promise((resolveClose, reject) => {
+      server.close((error) => (error ? reject(error) : resolveClose()));
+    });
+  for (const [key, value] of Object.entries(previousEnv)) {
+    if (value === undefined) delete process.env[key];
+    else process.env[key] = value;
+  }
+  await rm(testRoot, { recursive: true, force: true });
 }
 
 async function assertCursorOnly(handle) {

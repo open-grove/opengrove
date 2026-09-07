@@ -66,7 +66,6 @@ export function useAppRailLayout() {
     let nextWidth = displayedWidth;
     let moved = false;
     setIsResizing(true);
-    document.body.dataset.railResizing = "true";
     resizeCleanup.current = beginPointerDrag({
       handle,
       pointerId: event.pointerId,
@@ -82,7 +81,6 @@ export function useAppRailLayout() {
         if (moved && !cancelled) persist(commitRailWidth(before, settleRailWidth(nextWidth, displayedWidth)));
         setPreviewWidth(null);
         setIsResizing(false);
-        delete document.body.dataset.railResizing;
         resizeCleanup.current = null;
       },
     });
