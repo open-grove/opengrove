@@ -29,6 +29,61 @@ import { createBridgeState } from "../server/bridge-state.js";
 import { mergeOpenClawGatewayProviders } from "../server/openclaw-provider-discovery.js";
 
 const defaults = defaultBridgeSettings();
+const credentialSettings = {
+  ...defaults,
+  customProviders: normalizeCustomProviderProfiles([
+    {
+      id: "ww",
+      name: "WW",
+      protocol: "anthropic-compatible",
+      anthropicBaseUrl: "https://ww.example.test",
+      apiKey: "ww_sk_keep_secret",
+      provisioning: { status: "ready", attempt: 0 },
+    },
+    { id: "other", name: "Other", apiKey: "other-key", apiKeyEnv: "OTHER_KEY", enabled: true },
+  ]),
+};
+const omittedCredentials = credentialSettings.customProviders.map(({ apiKey: _key, apiKeyEnv: _env, ...provider }) => ({
+  ...provider,
+  enabled: provider.id === "other" ? false : provider.enabled,
+}));
+const savedPreferences = normalizeBridgeSettingsPatch({ customProviders: omittedCredentials }, credentialSettings);
+assert.equal(
+  savedPreferences.customProviders[0]?.apiKey,
+  "ww_sk_keep_secret",
+  "omitting credentials must preserve the existing WW Key",
+);
+assert.equal(
+  savedPreferences.customProviders[0]?.provisioningBlocked,
+  undefined,
+  "unrelated preferences must not quarantine WW",
+);
+assert.deepEqual(savedPreferences.customProviders[0]?.provisioning, { status: "ready", attempt: 0 });
+assert.equal(savedPreferences.customProviders[1]?.apiKey, "other-key");
+assert.equal(savedPreferences.customProviders[1]?.apiKeyEnv, "OTHER_KEY");
+for (const clear of ["", null]) {
+  const saved = normalizeBridgeSettingsPatch(
+    { customProviders: [{ ...omittedCredentials[0], apiKey: clear, apiKeyEnv: clear }] },
+    credentialSettings,
+  );
+  assert.equal(saved.customProviders[0]?.apiKey, undefined, "explicit deletion must still remove the Key");
+  assert.equal(saved.customProviders[0]?.apiKeyEnv, undefined);
+  assert.equal(saved.customProviders[0]?.provisioningBlocked, true);
+  assert.equal(saved.customProviders[0]?.provisioning?.reason, "credential_changed");
+}
+const replacedCredential = normalizeBridgeSettingsPatch(
+  { customProviders: [{ ...omittedCredentials[0], apiKey: "ww_sk_replaced" }] },
+  credentialSettings,
+);
+assert.equal(replacedCredential.customProviders[0]?.apiKey, "ww_sk_replaced");
+assert.equal(replacedCredential.customProviders[0]?.provisioningBlocked, true);
+const environmentCredential = normalizeBridgeSettingsPatch(
+  { customProviders: [{ ...omittedCredentials[0], apiKey: "", apiKeyEnv: "WW_CUSTOM_KEY" }] },
+  credentialSettings,
+);
+assert.equal(environmentCredential.customProviders[0]?.apiKey, undefined);
+assert.equal(environmentCredential.customProviders[0]?.apiKeyEnv, "WW_CUSTOM_KEY");
+assert.equal(environmentCredential.customProviders[0]?.provisioningBlocked, true);
 assert.equal(
   defaults.providerRouteMigrationVersion,
   CURRENT_PROVIDER_ROUTE_MIGRATION_VERSION,

@@ -1,4 +1,5 @@
-import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
+import { execFile, spawnSync } from "node:child_process";
 import { existsSync, readdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
@@ -830,7 +831,12 @@ function applyClaudeModelEnvVars(env: Record<string, string>, model: string | un
 // ===== Kernel-local Login/Provider route reader =====
 
 const CLAUDE_AUTH_STATUS_CACHE_TTL_MS = 10_000;
-const claudeAuthStatusCache = new Map<string, { checkedAt: number; authenticated: boolean }>();
+interface ClaudeAccountStatus {
+  status: "authenticated" | "missing" | "unknown" | "provider";
+  provider?: { id: string; name: string };
+}
+const claudeAuthStatusCache = new Map<string, { checkedAt: number; result: ClaudeAccountStatus }>();
+const pendingClaudeAuthStatus = new Map<string, Promise<ClaudeAccountStatus>>();
 
 const CLAUDE_MODEL_FAMILIES = [
   {
@@ -905,7 +911,7 @@ const CLAUDE_PROVIDER_PRESETS: ClaudeProviderPreset[] = [
   { id: "n1n", name: "n1n.ai", baseUrls: [] },
 ];
 
-export function readClaudeCodeLocalRouteProfile(options: KernelLocalRouteReadOptions): KernelLocalRouteProfile {
+function readClaudeLocalRouteContext(options: KernelLocalRouteReadOptions) {
   const cwd = options.cwd ?? process.cwd();
   const home = claudeConfigHome(options.configHome);
   const { settings, paths } = readMergedClaudeSettings(cwd, home);
@@ -919,23 +925,52 @@ export function readClaudeCodeLocalRouteProfile(options: KernelLocalRouteReadOpt
     if (!env.CLAUDE_CODE_USE_BEDROCK) env.CLAUDE_CODE_USE_BEDROCK = "1";
     if (!env.AWS_REGION && desktopBedrock.region) env.AWS_REGION = desktopBedrock.region;
   }
+  return {
+    cwd,
+    home,
+    settings,
+    paths,
+    env,
+    desktopBedrock,
+    authOptions: { cliPath: options.binaryPath, configHome: home, cwd, environment: env },
+  };
+}
+
+export function readClaudeCodeLocalRouteProfile(options: KernelLocalRouteReadOptions): KernelLocalRouteProfile {
+  const context = readClaudeLocalRouteContext(options);
+  return describeClaudeLocalRoute(context, readClaudeCliAuthStatus(context.authOptions));
+}
+
+/** Settings refreshes share one asynchronous native probe and the route reader's cache. */
+export async function refreshClaudeCodeLocalRouteProfile(
+  options: KernelLocalRouteReadOptions,
+): Promise<KernelLocalRouteProfile> {
+  const context = readClaudeLocalRouteContext(options);
+  return describeClaudeLocalRoute(context, await refreshClaudeCliAuthStatus(context.authOptions));
+}
+
+function describeClaudeLocalRoute(
+  context: ReturnType<typeof readClaudeLocalRouteContext>,
+  nativeAuth: ClaudeAccountStatus,
+): KernelLocalRouteProfile {
+  const { home, settings, paths, env, desktopBedrock } = context;
   const settingsModel = stringValue(env.ANTHROPIC_MODEL) || stringValue(settings.model);
   const baseUrl = readClaudeBaseUrlFromEnv(env);
-  const provider = detectClaudeProvider(env, baseUrl);
+  let provider = detectClaudeProvider(env, baseUrl);
+  if (provider.id === "anthropic" && nativeAuth.provider) provider = nativeAuth.provider;
   const models = buildClaudeModelOptionsWithSdkCache(settings, env, home, desktopBedrock?.models);
   const defaultModel = resolveClaudeDefaultModel(settingsModel, models);
   const sourcePaths = paths.length ? paths : [resolve(home, "settings.json")];
   const authConfigured = hasClaudeAuth(provider.id, env, settings, {
-    cliPath: options.binaryPath,
-    configHome: home,
     credentialHelper: desktopBedrock?.credentialHelper,
-    cwd,
+    nativeAuth,
   });
   const routeKind =
     provider.id === "anthropic" &&
     !baseUrl &&
     !stringValue(env.ANTHROPIC_AUTH_TOKEN) &&
-    !stringValue(env.ANTHROPIC_API_KEY)
+    !stringValue(env.ANTHROPIC_API_KEY) &&
+    nativeAuth.status !== "provider"
       ? ("login" as const)
       : ("provider" as const);
 
@@ -949,7 +984,10 @@ export function readClaudeCodeLocalRouteProfile(options: KernelLocalRouteReadOpt
     providerLabel: routeKind === "login" ? "Claude Agent" : provider.name,
     apiKeyEnv: claudeApiKeyEnv(provider.id, env),
     baseUrl,
-    authConfigured,
+    authConfigured: routeKind === "login" ? nativeAuth.status === "authenticated" : authConfigured,
+    accountLogin: {
+      status: nativeAuth.status === "unknown" ? "unknown" : routeKind === "provider" ? "provider" : nativeAuth.status,
+    },
     routeKind,
     models,
     defaultModel,
@@ -1209,7 +1247,7 @@ function hasClaudeAuth(
   providerId: string,
   env: Record<string, string>,
   settings: Record<string, unknown>,
-  options: { cliPath?: string; configHome: string; credentialHelper?: string; cwd: string },
+  options: { credentialHelper?: string; nativeAuth: ClaudeAccountStatus },
 ): boolean {
   const configured =
     providerId === "aws-bedrock" || providerId === "aws-bedrock-api-key"
@@ -1221,7 +1259,7 @@ function hasClaudeAuth(
   if (providerId === "aws-bedrock" || providerId === "aws-bedrock-api-key" || providerId === "google-vertex") {
     return false;
   }
-  return readClaudeCliAuthStatus(options);
+  return options.nativeAuth.status === "authenticated";
 }
 
 function hasGoogleApplicationDefaultCredentials(env: Record<string, string>): boolean {
@@ -1239,45 +1277,104 @@ function hasGoogleApplicationDefaultCredentials(env: Record<string, string>): bo
   return existsSync(defaultPath);
 }
 
-function readClaudeCliAuthStatus(options: { cliPath?: string; configHome: string; cwd: string }): boolean {
-  const cliPath = options.cliPath?.trim() || resolveClaudeCodeCliPath(options.cwd);
-  if (!cliPath) return false;
-  const cacheKey = `${cliPath}\0${options.configHome}`;
-  const now = Date.now();
-  const cached = claudeAuthStatusCache.get(cacheKey);
-  if (cached && now - cached.checkedAt < CLAUDE_AUTH_STATUS_CACHE_TTL_MS) {
-    return cached.authenticated;
-  }
-  let authenticated = false;
-  try {
-    const authArgs = ["auth", "status", "--json"];
-    const invocation = isNodeScript(cliPath)
-      ? { command: process.execPath, args: [cliPath, ...authArgs] }
-      : resolveCommandInvocation(cliPath, authArgs);
-    const result = spawnSync(invocation.command, invocation.args, {
-      cwd: options.cwd,
-      encoding: "utf8",
-      env: {
-        ...process.env,
-        CLAUDE_CONFIG_DIR: options.configHome,
-      },
-      stdio: ["ignore", "pipe", "pipe"],
-      timeout: 2_000,
-      windowsHide: true,
-    });
-    const parsed = JSON.parse(String(result.stdout || "")) as Record<string, unknown>;
-    authenticated = parsed.loggedIn === true;
-  } catch {
-    // Authentication probes are read-only; a failed probe is an explicit unauthenticated result.
-    authenticated = false;
-  }
-  claudeAuthStatusCache.set(cacheKey, { checkedAt: now, authenticated });
-  return authenticated;
+interface ClaudeAuthProbeOptions {
+  cliPath?: string;
+  configHome: string;
+  cwd: string;
+  environment: Record<string, string>;
 }
 
-// forwarding-boundary: names the executable-format predicate used by CLI launch policy.
-function isNodeScript(path: string): boolean {
-  return /\.(?:cjs|mjs|js)$/i.test(path);
+function claudeAuthProbeContext(options: ClaudeAuthProbeOptions) {
+  const cliPath = options.cliPath?.trim() || resolveClaudeCodeCliPath(options.cwd);
+  if (!cliPath) return undefined;
+  const envFingerprint = createHash("sha256").update(JSON.stringify(options.environment)).digest("hex");
+  return {
+    cacheKey: `${cliPath}\0${options.configHome}\0${options.cwd}\0${envFingerprint}`,
+    invocation: resolveCommandInvocation(cliPath, ["auth", "status", "--json"]),
+    processOptions: {
+      cwd: options.cwd,
+      encoding: "utf8" as const,
+      env: { ...process.env, ...options.environment, CLAUDE_CONFIG_DIR: options.configHome },
+      timeout: 2_000,
+      killSignal: "SIGKILL" as const,
+      maxBuffer: 256 * 1024,
+      windowsHide: true,
+    },
+  };
+}
+
+function readClaudeCliAuthStatus(options: ClaudeAuthProbeOptions): ClaudeAccountStatus {
+  const context = claudeAuthProbeContext(options);
+  if (!context) return { status: "unknown" };
+  const { cacheKey, invocation, processOptions } = context;
+  const cached = claudeAuthStatusCache.get(cacheKey);
+  if (pendingClaudeAuthStatus.has(cacheKey)) return cached?.result ?? { status: "unknown" };
+  if (cached && Date.now() - cached.checkedAt < CLAUDE_AUTH_STATUS_CACHE_TTL_MS) return cached.result;
+  let result: ClaudeAccountStatus = { status: "unknown" };
+  try {
+    const probe = spawnSync(invocation.command, invocation.args, {
+      ...processOptions,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    if (!probe.error) result = parseClaudeAccountStatus(String(probe.stdout || ""), probe.status);
+  } catch {
+    // A failed native probe leaves account authentication unknown, not signed out.
+  }
+  claudeAuthStatusCache.set(cacheKey, { checkedAt: Date.now(), result });
+  return result;
+}
+
+function refreshClaudeCliAuthStatus(options: ClaudeAuthProbeOptions): Promise<ClaudeAccountStatus> {
+  const context = claudeAuthProbeContext(options);
+  if (!context) return Promise.resolve({ status: "unknown" });
+  const { cacheKey, invocation, processOptions } = context;
+  const existing = pendingClaudeAuthStatus.get(cacheKey);
+  if (existing) return existing;
+  const pending = new Promise<ClaudeAccountStatus>((resolve) => {
+    execFile(invocation.command, invocation.args, processOptions, (error, stdout) => {
+      const exitCode = error ? (typeof error.code === "number" ? error.code : null) : 0;
+      const result: ClaudeAccountStatus = error?.killed
+        ? { status: "unknown" }
+        : parseClaudeAccountStatus(stdout, exitCode);
+      claudeAuthStatusCache.set(cacheKey, { checkedAt: Date.now(), result });
+      resolve(result);
+    });
+  }).finally(() => pendingClaudeAuthStatus.delete(cacheKey));
+  pendingClaudeAuthStatus.set(cacheKey, pending);
+  return pending;
+}
+
+function parseClaudeAccountStatus(output: string, exitCode: number | null): ClaudeAccountStatus {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(output);
+  } catch {
+    return { status: "unknown" };
+  }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return { status: "unknown" };
+  const value = parsed as Record<string, unknown>;
+  if (value.loggedIn === false) return { status: "missing" };
+  if (exitCode !== 0 || value.loggedIn !== true) return { status: "unknown" };
+  if (value.apiProvider === "bedrock") {
+    return { status: "provider", provider: { id: "aws-bedrock-api-key", name: "AWS Bedrock" } };
+  }
+  if (value.apiProvider === "vertex") {
+    return { status: "provider", provider: { id: "google-vertex", name: "Google Vertex AI" } };
+  }
+  // Claude Code 2.1.258 auth status uses these values for product-account credentials.
+  if (value.apiProvider === "firstParty" && (value.authMethod === "claude.ai" || value.authMethod === "oauth_token")) {
+    return { status: "authenticated" };
+  }
+  if (value.authMethod === "third_party" || value.authMethod === "api_key" || value.authMethod === "api_key_helper") {
+    return {
+      status: "provider",
+      provider:
+        value.apiProvider === "firstParty"
+          ? { id: "anthropic", name: "Anthropic" }
+          : { id: "anthropic-compatible", name: "Third-party provider" },
+    };
+  }
+  return { status: "unknown" };
 }
 
 function isClaudeFamilyAlias(value: string): boolean {

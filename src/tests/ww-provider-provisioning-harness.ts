@@ -29,8 +29,11 @@ let apiKeyRequests = 0;
 let apiKeyScenario: "retry-twice" | "success" | "fail" = "retry-twice";
 let apiKeyScenarioAttempts = 0;
 let apiKeyResponseDelayMs = 0;
+let apiKeyCreateStarted: (() => void) | undefined;
+let refreshRequests = 0;
+let refreshUnavailable = false;
 let apiKeyListRequests = 0;
-let apiKeyListScenario: "success" | "empty-null" | "fail" = "empty-null";
+let apiKeyListScenario: "success" | "empty-null" | "fail" | "expired-access" = "empty-null";
 const apiKeyAuthHeaders: string[] = [];
 const apiKeyIdempotencyHeaders: string[] = [];
 const issuedApiKeys = [
@@ -64,6 +67,23 @@ const fakeWw = createServer((request, response) => {
       .catch((error) => sendJson(response, 500, { error: String(error) }));
     return;
   }
+  if (request.method === "POST" && url.pathname === "/v1/auth/token/refresh") {
+    refreshRequests += 1;
+    if (refreshUnavailable) {
+      sendJson(response, 503, { error: { code: 100004, message: "temporarily unavailable" } });
+      return;
+    }
+    sendJson(response, 200, {
+      data: {
+        access_token: "access-refreshed",
+        access_token_expires_in: 60,
+        refresh_token: "refresh-next",
+        refresh_token_expires_in: 3600,
+        token_type: "Bearer",
+      },
+    });
+    return;
+  }
   if (request.method === "GET" && url.pathname === "/v1/users/me") {
     const otherAccount = request.headers.authorization === "Bearer access-other";
     sendJson(response, 200, {
@@ -78,6 +98,10 @@ const fakeWw = createServer((request, response) => {
   }
   if (request.method === "GET" && url.pathname === "/v1/api-keys") {
     apiKeyListRequests += 1;
+    if (apiKeyListScenario === "expired-access" && request.headers.authorization !== "Bearer access-refreshed") {
+      sendJson(response, 401, { error: { code: 110201, message: "expired access token" } });
+      return;
+    }
     if (apiKeyListScenario === "fail") {
       sendJson(response, 503, {
         error: { code: 100004, message: "temporarily unavailable" },
@@ -96,6 +120,7 @@ const fakeWw = createServer((request, response) => {
     apiKeyScenarioAttempts += 1;
     apiKeyAuthHeaders.push(String(request.headers.authorization || ""));
     apiKeyIdempotencyHeaders.push(String(request.headers["idempotency-key"] || ""));
+    apiKeyCreateStarted?.();
     void readJsonBody(request)
       .then((body) => {
         assert.equal(body.name, "OpenGrove WW Provider");
@@ -326,11 +351,17 @@ try {
     assert.equal(quarantinedWw.apiKey, "ww_sk_auto_1_secret_material", "a list outage must retain the recoverable key");
     assert.equal(
       quarantinedWw.provisioningBlocked,
-      true,
-      "the retained key must stay quarantined until owner validation succeeds",
+      undefined,
+      "a transient list outage must not quarantine a previously verified same-account key",
     );
 
+    assert.equal(failedValidation.providerProvisioning.retryable, true);
+    assert.ok(Date.parse(failedValidation.providerProvisioning.retryAt) > Date.now());
+    const coolingSession = await getJson(`${baseUrl}/api/auth/session`, sessionCookie);
+    assert.equal(coolingSession.providerProvisioning.retryAt, failedValidation.providerProvisioning.retryAt);
+    assert.equal(apiKeyListRequests - listsBeforeOutage, 3, "cooldown must suppress duplicate upstream requests");
     apiKeyListScenario = "success";
+    await delay(Math.max(0, Date.parse(failedValidation.providerProvisioning.retryAt) - Date.now()) + 20);
     const restoredSession = await getJson(`${baseUrl}/api/auth/session`, sessionCookie);
     assert.equal(restoredSession.authenticated, true);
     assert.equal(restoredSession.providerProvisioning.status, "configured");
@@ -733,6 +764,62 @@ try {
     );
   });
   apiKeyResponseDelayMs = 0;
+
+  const raceDir = join(dir, "account-switch-in-flight");
+  apiKeyResponseDelayMs = 100;
+  await withOpenGroveServer(join(raceDir, "state.json"), "local", async (baseUrl) => {
+    const started = new Promise<void>((resolve) => {
+      apiKeyCreateStarted = resolve;
+    });
+    const oldLogin = postJson(`${baseUrl}/api/auth/login`, { email: "ww-user@example.test", code: "123456" });
+    await started;
+    apiKeyCreateStarted = undefined;
+    const newLogin = postJson(`${baseUrl}/api/auth/login`, { email: "other-ww-user@example.test", code: "123456" });
+    const [oldResult, newResult] = await Promise.all([oldLogin, newLogin]);
+    assert.equal(
+      oldResult.providerProvisioning.reason,
+      "session_changed",
+      "a stale provisioning result must not overwrite a new account",
+    );
+    assert.equal(newResult.providerProvisioning.status, "configured");
+    assert.equal(readSettings(join(raceDir, "ww-provider.json")).ownerUserId, "user_other");
+    assert.equal(apiKeyAuthHeaders.at(-1), "Bearer access-other");
+  });
+  apiKeyResponseDelayMs = 0;
+
+  const refreshDir = join(dir, "access-refresh");
+  await withOpenGroveServer(join(refreshDir, "state.json"), "local", async (baseUrl) => {
+    const login = await postJsonWithCookie(`${baseUrl}/api/auth/login`, {
+      email: "ww-user@example.test",
+      code: "123456",
+    });
+    const beforeRefresh = refreshRequests;
+    const beforeCreate = apiKeyRequests;
+    apiKeyListScenario = "expired-access";
+    refreshUnavailable = true;
+    const temporarilyUnavailable = await getJson(`${baseUrl}/api/auth/session`, login.cookie);
+    assert.equal(
+      temporarilyUnavailable.status,
+      "temporarily_unavailable",
+      "a temporary refresh outage after management API 401 must remain automatically recoverable",
+    );
+    refreshUnavailable = false;
+    const beforeSuccessfulRefresh = refreshRequests;
+    const response = await fetch(`${baseUrl}/api/auth/session`, { headers: { cookie: login.cookie } });
+    const restored = await response.json();
+    assert.equal(restored.authenticated, true);
+    assert.ok(["configured", "already-configured"].includes(restored.providerProvisioning.status));
+    assert.ok(refreshRequests > beforeRefresh);
+    assert.equal(
+      refreshRequests - beforeSuccessfulRefresh,
+      1,
+      "management API 401 must refresh the account session once",
+    );
+    assert.equal(apiKeyRequests, beforeCreate, "an expired account session must not rotate the model API key");
+    assert.match(response.headers.get("set-cookie") ?? "", /access-refreshed/);
+    assert.match(response.headers.get("set-cookie") ?? "", /refresh-next/);
+    apiKeyListScenario = "success";
+  });
 
   const pendingDefaultsDir = join(dir, "pending-defaults");
   apiKeyScenario = "fail";

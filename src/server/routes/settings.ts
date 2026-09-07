@@ -1,3 +1,4 @@
+import { invalidateWwProviderSession } from "../ww-provider-provisioning.js";
 import { spawn } from "node:child_process";
 import { existsSync, statSync, unlinkSync } from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
@@ -440,6 +441,16 @@ export async function handleSettingsRoute(options: {
     JSON.stringify(nextSettings.kernelPathOverrides) !== JSON.stringify(previousSettings.kernelPathOverrides) ||
     providerConfigChanged;
 
+  const previousWw = previousSettings.customProviders.find((provider) => provider.id === "ww");
+  const nextWw = nextSettings.customProviders.find((provider) => provider.id === "ww");
+  if (
+    previousWw?.enabled !== nextWw?.enabled ||
+    previousWw?.deleted !== nextWw?.deleted ||
+    previousWw?.apiKey !== nextWw?.apiKey ||
+    previousWw?.apiKeyEnv !== nextWw?.apiKeyEnv ||
+    previousWw?.anthropicBaseUrl !== nextWw?.anthropicBaseUrl
+  )
+    invalidateWwProviderSession(state);
   if (!restartRequired) {
     state.settings = nextSettings;
     if (presentationLanguageChanged) {

@@ -22,6 +22,7 @@ export interface KernelLocalRouteProfile {
   baseUrl?: string;
   apiKeyEnv?: string;
   authConfigured: boolean;
+  accountLogin?: { status: "authenticated" | "missing" | "unknown" | "provider" };
   routeKind: "login" | "provider";
   models: BridgeRuntimeControlOption[];
   defaultModel?: string;
