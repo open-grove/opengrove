@@ -80,6 +80,7 @@ export class DesktopClientUpdateManager {
   private autoDownload: boolean;
   private state: DesktopClientUpdateState;
   private operation?: Promise<DesktopClientUpdateState>;
+  private cacheCleanup?: Promise<void>;
   private installing = false;
 
   constructor(options: DesktopClientUpdateManagerOptions) {
@@ -119,7 +120,31 @@ export class DesktopClientUpdateManager {
     return this.installing || this.state.stage === "installing";
   }
 
+  withCacheCleanup<T>(cleanup: (canClearUpdaterCache: boolean) => Promise<T>): Promise<T> {
+    if (this.cacheCleanup) return this.cacheCleanup.then(() => this.withCacheCleanup(cleanup));
+    // An existing check may still start an automatic download. Its cache remains
+    // reserved even if the visible state changes before cleanup reaches the disk.
+    const canClearUpdaterCache =
+      !this.operation &&
+      !this.isInstalling() &&
+      this.state.stage !== "checking" &&
+      this.state.stage !== "downloading" &&
+      this.state.stage !== "downloaded";
+    const operation = Promise.resolve()
+      .then(() => cleanup(canClearUpdaterCache))
+      .finally(() => {
+        this.cacheCleanup = undefined;
+      });
+    // The caller receives cleanup failures; queued updates only wait for release.
+    this.cacheCleanup = operation.then(
+      () => undefined,
+      () => undefined,
+    );
+    return operation;
+  }
+
   checkForUpdates(): Promise<DesktopClientUpdateState> {
+    if (this.cacheCleanup) return this.cacheCleanup.then(() => this.checkForUpdates());
     if (this.operation) return this.operation;
     if (this.state.stage === "downloading" || this.state.stage === "downloaded" || this.state.stage === "installing") {
       return Promise.resolve(this.snapshot());
@@ -131,6 +156,7 @@ export class DesktopClientUpdateManager {
   }
 
   downloadUpdate(): Promise<DesktopClientUpdateState> {
+    if (this.cacheCleanup) return this.cacheCleanup.then(() => this.downloadUpdate());
     if (this.operation) return this.operation;
     if (this.state.stage === "downloading" || this.state.stage === "downloaded" || this.state.stage === "installing") {
       return Promise.resolve(this.snapshot());
@@ -152,6 +178,7 @@ export class DesktopClientUpdateManager {
   }
 
   async installUpdate(): Promise<DesktopClientUpdateState> {
+    if (this.cacheCleanup) return this.cacheCleanup.then(() => this.installUpdate());
     if (!this.enabled) {
       this.setState({
         stage: "unsupported",

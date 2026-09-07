@@ -130,7 +130,7 @@
     "check:desktop-release-platforms": "node scripts/test-desktop-release-platform-selection.mjs",
     "check:public-release-bootstrap": "node scripts/test-public-release-bootstrap.mjs",
     "check:windows-firewall-installer": "node scripts/test-windows-firewall-installer.mjs",
-    "check:desktop-client-update": "node scripts/test-desktop-client-update.mjs",
+    "check:desktop-client-update": "node scripts/test-desktop-client-update.mjs && node scripts/test-desktop-updater-cache-cleanup.mjs",
     "check:client-activity": "node --experimental-strip-types scripts/test-client-activity-policy.mjs",
     "check:client-boundary": "node scripts/test-client-package-boundary.mjs",
     "check:client-generated": "node scripts/generate-host-client.mjs --check",

@@ -31,6 +31,16 @@ try {
     /runDesktopStorageMaintenance\(\{[\s\S]*release:\s*async[\s\S]*releaseDesktopStorageMaintenanceGate/u,
     "desktop cleanup must delegate lease completion to the tested maintenance lifecycle",
   );
+  assert.match(
+    cleanupFlowSource,
+    /withCacheCleanup\(\(canClearUpdaterCache\)\s*=>\s*runDesktopStorageMaintenance/u,
+    "updater admission must stay closed through maintenance lease completion",
+  );
+  assert.match(
+    cleanupFlowSource,
+    /const updaterCacheDir = canClearUpdaterCache \? supervisor\.updaterCacheDirectory\(\) : undefined/u,
+    "cache deletion requires the updater manager's reservation, not a stale UI snapshot",
+  );
   await build({
     entryPoints: [join(projectRoot, "desktop/rebuildable-storage-cleanup.ts")],
     bundle: true,
