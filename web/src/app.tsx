@@ -271,6 +271,7 @@ export function App() {
     opsExecutionsQuery,
     eventsQuery,
     clientUpdateQuery,
+    scheduleAppUpdates,
   } = useBridgeQueries({
     contextRecordsEnabled: activeView === "ops",
     contextRunId: selectedOpsRunId,
@@ -959,9 +960,7 @@ export function App() {
     onSuccess(result, payload) {
       queryClient.setQueryData(["settings"], result);
       if (payload.appUpdates?.automatic === true) {
-        // Re-enabling clears the server-side check cursor. This authenticated
-        // request supplies the credentials needed to schedule the fresh check.
-        queryClient.invalidateQueries({ queryKey: ["client-update"] });
+        scheduleAppUpdates();
       }
       if (payload.customProviders !== undefined) {
         queryClient.invalidateQueries({ queryKey: ["provider-models"] });

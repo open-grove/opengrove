@@ -84,6 +84,17 @@ account step is persisted separately from the Cloud session, and the desktop
 Bridge token continues to protect local access. Cloud-backed features require
 an authenticated account at their own boundary.
 
+Desktop client version queries and installed App updates have separate entry
+points. The public `GET /auth/client-update` reads release metadata without
+refreshing account cookies or scheduling App changes. App auto-updates use the
+protected `POST /app-store/updates` operation, which verifies the Cloud account
+against the local workspace owner even when the request carries a desktop
+Bridge token. It honors the automatic-update preference, six-hour interval,
+and existing App safety checks. Login and session restoration retain their
+initial App check; an authenticated open client supplies the separate periodic
+request and schedules another check after re-enabling automatic App updates.
+The Bridge does not run an autonomous headless App update timer.
+
 The authenticated Web profile is still a single-principal local Host: WW owns
 the account session, while the Bridge process owns the local workspace, SQLite
 state, Apps, and native Kernel processes. It is not a multi-tenant hosted agent

@@ -24,6 +24,9 @@ import type {
   AppReleaseStatusData,
   AppReleaseStatusErrors,
   AppReleaseStatusResponses,
+  AppUpdateScheduleData,
+  AppUpdateScheduleErrors,
+  AppUpdateScheduleResponses,
   AuthEmailCodeCreateData,
   AuthEmailCodeCreateErrors,
   AuthEmailCodeCreateResponses,
@@ -275,10 +278,31 @@ export class Release extends HeyApiClient {
   }
 }
 
+export class Update extends HeyApiClient {
+  /**
+   * Schedule automatic App updates
+   *
+   * Schedule background updates for installed Store Apps using the workspace owner's account. Honors the automatic-update setting, check interval, and local App safety checks. May download and activate newer App versions; does not check the desktop client version.
+   */
+  public schedule<ThrowOnError extends boolean = false>(
+    options?: Options<AppUpdateScheduleData, ThrowOnError>,
+  ): RequestResult<AppUpdateScheduleResponses, AppUpdateScheduleErrors, ThrowOnError> {
+    return (options?.client ?? this.client).post<AppUpdateScheduleResponses, AppUpdateScheduleErrors, ThrowOnError>({
+      url: "/app-store/updates",
+      ...options,
+    });
+  }
+}
+
 export class App extends HeyApiClient {
   private _release?: Release;
   get release(): Release {
     return (this._release ??= new Release({ client: this.client }));
+  }
+
+  private _update?: Update;
+  get update(): Update {
+    return (this._update ??= new Update({ client: this.client }));
   }
 }
 

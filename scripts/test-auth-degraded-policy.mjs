@@ -87,7 +87,11 @@ try {
   });
   assert.equal(loggedOutDesktop.sessionAuthNeedsLogin, true);
   assert.equal(loggedOutDesktop.bridgeProtectedQueriesEnabled, false);
-  assert.equal(loggedOutDesktop.clientUpdateEnabled, false);
+  assert.equal(
+    loggedOutDesktop.clientUpdateEnabled,
+    true,
+    "a fresh desktop install can query client versions before account onboarding",
+  );
 
   const localDesktopAfterAccountChoice = resolveBridgeAuthPolicy({
     healthKnown: true,

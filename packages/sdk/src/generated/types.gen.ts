@@ -1257,6 +1257,67 @@ export type AppReleaseKeepLocalResponses = {
 
 export type AppReleaseKeepLocalResponse = AppReleaseKeepLocalResponses[keyof AppReleaseKeepLocalResponses];
 
+export type AppUpdateScheduleData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: "/app-store/updates";
+};
+
+export type AppUpdateScheduleErrors = {
+  /**
+   * The account could not authorize App updates for this workspace.
+   */
+  401: {
+    ok?: false;
+    error: string;
+    incidentId?: string;
+    traceId?: string;
+  };
+  /**
+   * The account could not authorize App updates for this workspace.
+   */
+  403: {
+    ok?: false;
+    error: string;
+    incidentId?: string;
+    traceId?: string;
+  };
+  /**
+   * The account could not authorize App updates for this workspace.
+   */
+  500: {
+    ok?: false;
+    error: string;
+    incidentId?: string;
+    traceId?: string;
+  };
+  /**
+   * The account could not authorize App updates for this workspace.
+   */
+  503: {
+    ok?: false;
+    error: string;
+    incidentId?: string;
+    traceId?: string;
+  };
+};
+
+export type AppUpdateScheduleError = AppUpdateScheduleErrors[keyof AppUpdateScheduleErrors];
+
+export type AppUpdateScheduleResponses = {
+  /**
+   * Successful response.
+   */
+  200: {
+    ok: true;
+    status: "scheduled" | "already_running" | "skipped";
+    reason?: string;
+  };
+};
+
+export type AppUpdateScheduleResponse = AppUpdateScheduleResponses[keyof AppUpdateScheduleResponses];
+
 export type RoomMessageCreateData = {
   body: {
     /**

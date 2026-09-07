@@ -193,7 +193,8 @@ account, and Cloud-backed features remain gated at their feature boundary.
 | `/auth/email-codes` | `POST` | request a WW email code and report whether the email needs registration fields |
 | `/auth/login` | `POST` | sign in with the email code; new accounts also send the user-selected ISO country/region and, when required, an invite code |
 | `/auth/session` | `GET` | event-driven WW session restore with authenticated, unauthenticated, and temporarily unavailable outcomes |
-| `/auth/client-update` | `GET` | current desktop release plus the applicable Cloud release; signed-in sessions receive the full version contract, while signed-out token-authorized desktop clients use the public sanitized version contract |
+| `/auth/client-update` | `GET` | read-only desktop release metadata; signed-in sessions receive the full version contract and signed-out callers receive the public version contract; never schedules App updates or refreshes auth cookies |
+| `/app-store/updates` | `POST` | schedule installed App auto-updates for an authenticated workspace account; returns `scheduled`, `already_running`, or `skipped`; honors the App update preference, interval, and safety checks |
 | `/auth/activity` | `POST` | once-daily minimal account activity for signed-in Electron desktop; carries no local product data |
 | `/inventory` | `GET` | knowledge, memory, artifacts, sessions, tools, skills, and capabilities |
 | `/ask/stream` | `POST` | streaming agent turn API |

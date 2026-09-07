@@ -41,10 +41,33 @@ try {
     join(installRoot, "node_modules", "opengrove", "dist", "localization", "locale-registry.js"),
   ).href;
   const probePath = join(tempRoot, "probe.mjs");
-  await writeFile(probePath, `import ${JSON.stringify(registryUrl)};\n`, "utf8");
+  const installedDist = join(installRoot, "node_modules", "opengrove", "dist");
+  const clientUrl = pathToFileURL(join(installedDist, "client", "index.js")).href;
+  const routesUrl = pathToFileURL(join(installedDist, "server", "routes", "bridge-registry.js")).href;
+  await writeFile(
+    probePath,
+    `
+    import assert from "node:assert/strict";
+    import ${JSON.stringify(registryUrl)};
+    import { createOpenGroveClient } from ${JSON.stringify(clientUrl)};
+    import { createBridgeRoutes } from ${JSON.stringify(routesUrl)};
+    let request;
+    const client = createOpenGroveClient({
+      baseUrl: "http://127.0.0.1:37371/api",
+      fetch: async (url, init) => {
+        request = { url: String(url), method: init.method };
+        return Response.json({ ok: true, status: "skipped", reason: "automatic_updates_disabled" });
+      },
+    });
+    assert.equal((await client.apps.updates.schedule()).status, "skipped");
+    assert.deepEqual(request, { url: "http://127.0.0.1:37371/api/app-store/updates", method: "POST" });
+    assert.ok(createBridgeRoutes().some((route) => route.id === "app.update.schedule"));
+  `,
+    "utf8",
+  );
   await execFileAsync(process.execPath, [probePath], { cwd: tempRoot, timeout: 30_000 });
 
-  console.log("packed-runtime ok (Host Locale Registry resolves outside the monorepo)");
+  console.log("packed-runtime ok (Host locale, App update Client, and routes resolve outside the monorepo)");
 } finally {
   await rm(tempRoot, { recursive: true, force: true });
 }
