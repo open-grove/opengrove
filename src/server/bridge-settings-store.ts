@@ -247,7 +247,20 @@ function normalizeCustomProviderSettingsPatch(
   value: unknown,
   current: BridgeProviderProfile[],
 ): BridgeProviderProfile[] {
-  return normalizeCustomProviderProfiles(value).map((provider) => {
+  const merged = arrayRecords(value).flatMap((source) => {
+    const identity = normalizeCustomProviderProfiles([source])[0];
+    if (!identity) return [];
+    const existing = current.find((candidate) => candidate.id === identity.id);
+    // Omission preserves stored credentials; null or an empty string explicitly clears them.
+    return [
+      {
+        ...source,
+        apiKey: source.apiKey === undefined ? existing?.apiKey : source.apiKey,
+        apiKeyEnv: source.apiKeyEnv === undefined ? existing?.apiKeyEnv : source.apiKeyEnv,
+      },
+    ];
+  });
+  return normalizeCustomProviderProfiles(merged).map((provider) => {
     const existing = current.find((candidate) => candidate.id === provider.id);
     const sourceManaged = existing?.origin === "discovered" || Boolean(existing?.sourceKernel);
     const wwCredentialChanged =

@@ -107,6 +107,8 @@ WW credential presence and verification are separate states. Temporary managemen
 
 Unreadable management responses, including HTML pages and malformed JSON data, are retryable failures rather than credential rejection. An upgrade from OpenGrove <=0.6.6 imports matching, unblocked WW ownership once to retain the existing connection while verification is pending or temporarily unavailable. The import records a credential fingerprint without inventing a remote verification time; a successful inspection replaces it. Existing quarantine, recovery blocks, and rejected or changed credentials cannot gain this continuity.
 
+Provider settings patches preserve stored `apiKey` and `apiKeyEnv` fields when omitted. An explicit empty string or `null` clears that field. The settings form sends explicit clears only after the user edits a credential field; unrelated preference saves do not discard credentials or invalidate WW verification.
+
 The main Provider list contains only services that are enabled, have a configured credential, or were added by the user. Inactive built-ins stay under **Add Provider**. OpenGrove does not scan Codex, Claude, Hermes, Pi, OpenCode, or Kimi Provider configuration into this list. OpenClaw Gateway upstreams are the deliberate exception because the Gateway itself is the selected runtime boundary; they remain Gateway-managed Providers and their credentials stay in OpenClaw.
 
 The settings UI writes local bridge preferences to the OpenGrove data directory,

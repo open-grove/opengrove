@@ -21,7 +21,9 @@ export type ProviderFormState = {
   anthropicBaseUrl: string;
   geminiBaseUrl: string;
   apiKey: string;
+  apiKeyEdited: boolean;
   apiKeyEnv: string;
+  apiKeyEnvEdited: boolean;
   models: string;
   modelsPinned: boolean;
 };
@@ -53,7 +55,9 @@ export function emptyProviderForm(): ProviderFormState {
     anthropicBaseUrl: "",
     geminiBaseUrl: "",
     apiKey: "",
+    apiKeyEdited: false,
     apiKeyEnv: "",
+    apiKeyEnvEdited: false,
     models: "",
     modelsPinned: false,
   };
@@ -75,6 +79,8 @@ export function updateProviderForm<K extends keyof ProviderFormState>(
   if (key === "description" && value !== state.description) {
     next.descriptionEdited = true;
   }
+  if (key === "apiKey" && value !== state.apiKey) next.apiKeyEdited = true;
+  if (key === "apiKeyEnv" && value !== state.apiKeyEnv) next.apiKeyEnvEdited = true;
   if (key === "name" && !state.id.trim()) {
     next.id = slug(String(value));
   }
@@ -107,8 +113,8 @@ export function providerProfileFromForm(form: ProviderFormState): ProviderProfil
     openaiBaseUrl: loginProtocol ? undefined : form.openaiBaseUrl.trim() || undefined,
     anthropicBaseUrl: loginProtocol ? undefined : form.anthropicBaseUrl.trim() || undefined,
     geminiBaseUrl: loginProtocol ? undefined : form.geminiBaseUrl.trim() || undefined,
-    apiKey: loginProtocol ? undefined : apiKey || undefined,
-    apiKeyEnv: loginProtocol ? undefined : apiKeyEnv || undefined,
+    apiKey: loginProtocol ? undefined : apiKey || (form.apiKeyEdited ? "" : undefined),
+    apiKeyEnv: loginProtocol ? undefined : apiKeyEnv || (form.apiKeyEnvEdited ? "" : undefined),
     credentialKind: providerCredentialKindFromForm(id, apiKey, apiKeyEnv),
     modelsPinned,
     models: modelsPinned ? models : [],
@@ -150,7 +156,9 @@ export function providerFormFromProfile(provider: ProviderProfile, t?: Translati
     anthropicBaseUrl: provider.anthropicBaseUrl || "",
     geminiBaseUrl: provider.geminiBaseUrl || "",
     apiKey: provider.apiKey || "",
+    apiKeyEdited: false,
     apiKeyEnv: provider.apiKeyEnv || "",
+    apiKeyEnvEdited: false,
     models: (provider.models ?? []).map((model) => model.id).join(", "),
     modelsPinned: providerModelsArePinned(provider),
   };
