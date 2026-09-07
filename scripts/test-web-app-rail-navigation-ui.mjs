@@ -218,6 +218,114 @@ try {
   await migratedPage.mouse.move(migratedBox.x + migratedBox.width / 2, migratedBox.y + 200);
   await assertCursorOnly(migratedHandle);
   if (captureDir) await migratedPage.screenshot({ path: join(captureDir, "navigation-migrated-icons.png") });
+  // Add an App through the real API only after the empty-instance navigation checks.
+  const settingsResponse = await page.request.patch(new URL("/api/settings", url).href, {
+    data: { developerMode: true },
+  });
+  assert.ok(settingsResponse.ok(), await settingsResponse.text());
+  const createResponse = await page.request.post(new URL("/api/apps/create", url).href, {
+    data: { title: "导航菜单回归" },
+  });
+  assert.ok(createResponse.ok(), await createResponse.text());
+  const createdApp = await createResponse.json();
+  assert.equal(createdApp.ok, true);
+  await page.setViewportSize({ width: 1024, height: 760 });
+  await page.reload();
+  await handle.press("Home");
+  await handle.press("ArrowRight");
+  await expectWidth(58);
+  const appEntry = page.locator('.app-rail-user-tab[title="导航菜单回归"]');
+  const appOverflow = page.locator(".app-rail-user-tab-menu-button");
+  await appEntry.hover();
+  await expect(appOverflow).toBeHidden();
+  await appEntry.focus();
+  await expect(appOverflow).toBeHidden();
+  await appEntry.click({ button: "right" });
+  const appMenu = page.getByRole("menu", { name: "导航菜单回归 操作" });
+  await expect(appMenu).toBeVisible();
+  await expect(appMenu.getByRole("menuitem")).toHaveCount(3);
+  await page.keyboard.press("Escape");
+  await expect(appMenu).toBeHidden();
+  await appEntry.press("Shift+F10");
+  await expect(appMenu).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(appMenu).toBeHidden();
+  if (captureDir) await page.screenshot({ path: join(captureDir, "navigation-compact-app-hover.png") });
+  await handle.press("ArrowRight");
+  await expectWidth(126);
+  await appEntry.hover();
+  await expect(appOverflow).toBeVisible();
+  await appOverflow.click();
+  const overflowMenu = page.getByRole("menu", { name: "导航菜单回归 更多操作" });
+  await expect(overflowMenu).toBeVisible();
+  await expect(overflowMenu.getByRole("menuitem")).toHaveCount(3);
+  if (captureDir) await page.screenshot({ path: join(captureDir, "navigation-expanded-menu.png") });
+  await page.keyboard.press("Escape");
+  const roomSnapshot = await page.request.get(new URL("/api/rooms", url).href).then((response) => response.json());
+  const appRoom = roomSnapshot.rooms.find(
+    (room) => room.scope?.appId === createdApp.appId && room.scope.role === "default",
+  );
+  assert.ok(appRoom, "Creating an App must create its own default room");
+  const senderId = appRoom.memberIds.find((id) => id.endsWith("-pm"));
+  assert.ok(senderId, "The fixture App must have a coordinator");
+  const readUrl = new URL(`/api/rooms/${appRoom.id}/read`, url).href;
+  const markRead = async () => {
+    const snapshot = await page.request.get(new URL("/api/rooms", url).href).then((response) => response.json());
+    const response = await page.request.post(readUrl, { data: { observedEventSeq: snapshot.currentEventSeq } });
+    assert.ok(response.ok(), await response.text());
+    await page.reload();
+  };
+  const measureClearance = () =>
+    appEntry.evaluate((entry) => {
+      const label = entry.querySelector('[class*="buttonLabel"]');
+      const anchor = entry.querySelector('[class*="iconUnreadAnchor"]');
+      const badge = anchor.querySelector("[data-variant]");
+      const rail = entry.closest(".app-rail");
+      const labelX = label.getBoundingClientRect().left;
+      return {
+        gap: Number.parseFloat(getComputedStyle(rail).getPropertyValue("--app-rail-label-gap")),
+        clear: badge
+          ? labelX - badge.getBoundingClientRect().right - Number.parseFloat(getComputedStyle(badge).outlineWidth)
+          : null,
+        badgeCenter: badge
+          ? (badge.getBoundingClientRect().left + badge.getBoundingClientRect().right) / 2 -
+            anchor.getBoundingClientRect().left
+          : null,
+        aligned: Array.from(rail.querySelectorAll('[class*="buttonLabel"]')).every(
+          (node) => Math.abs(node.getBoundingClientRect().left - labelX) < 0.1,
+        ),
+      };
+    });
+  await markRead();
+  await expect(appEntry).toHaveAttribute("aria-label", "导航菜单回归");
+  await expect.poll(async () => (await measureClearance()).gap).toBe(0);
+  let sent = 0;
+  for (const count of [1, 12, 100]) {
+    while (sent < count) {
+      const response = await page.request.post(new URL(`/api/rooms/${appRoom.id}/agent-messages`, url).href, {
+        data: { senderId, text: `导航角标消息 ${++sent}` },
+      });
+      assert.ok(response.ok(), await response.text());
+    }
+    await page.reload();
+    await expect(appEntry).toHaveAttribute("aria-label", `导航菜单回归，${count} 条未读`);
+    await expect.poll(async () => (await measureClearance()).clear).toBeCloseTo(0.25, 1);
+    const geometry = await measureClearance();
+    assert.ok(
+      Math.abs(geometry.clear - 0.25) < 0.05,
+      "Badge outlines should clear aligned labels without excess whitespace",
+    );
+    assert.ok(
+      Math.abs(geometry.badgeCenter - 25) < 0.05,
+      "The badge center must stay attached to the same icon corner",
+    );
+    assert.ok(geometry.aligned, "All expanded labels must remain aligned");
+    if (count === 1)
+      assert.ok(Math.abs(geometry.gap - 2.75) < 0.05, "Single-digit reminders must not reserve the 99+ gap");
+    if (captureDir) await page.screenshot({ path: join(captureDir, `navigation-spacing-${count}.png`) });
+  }
+  await markRead();
+  await expect.poll(async () => (await measureClearance()).gap).toBe(0);
   assert.deepEqual(pageErrors, []);
   console.log(
     "web-app-rail-navigation-ui passed: boundary alignment, cursor-only hover and visible keyboard focus, unframed overlay, resize, snap, restore, reload, hover, menus, headings, Escape, keyboard, mobile",
