@@ -34,6 +34,7 @@ interface WwRetryRequestOptions {
 interface WwJsonRequestOptions {
   method: "GET";
   accessToken?: string;
+  headers?: Record<string, string>;
   timeoutMs?: number;
 }
 
@@ -52,13 +53,23 @@ interface WwEnvelopeResponse<T> {
   diagnostic: DiagnosticHttpResponseAttempt;
 }
 
-export function createWwTransport(baseUrl: string, requestTimeoutMs: number | undefined): WwTransport {
+export function createWwTransport(
+  baseUrl: string,
+  requestTimeoutMs: number | undefined,
+  // defaultHeaders ride on every outbound call. This is how the team-token gate
+  // reaches ww: the browser never talks to ww directly and this transport has no
+  // cookie store, so a deployment-wide credential has to travel as a header the
+  // bridge attaches itself. Per-call headers still win.
+  defaultHeaders: Record<string, string> = {},
+): WwTransport {
   const normalizedBaseUrl = normalizeBaseUrl(baseUrl);
   const normalizedRequestTimeoutMs = normalizeRequestTimeoutMs(requestTimeoutMs);
+  const withDefaultHeaders = (headers: Record<string, string> | undefined) => ({ ...defaultHeaders, ...headers });
   return {
     requestEnvelope(path, options) {
       return requestWwEnvelope(normalizedBaseUrl, path, {
         ...options,
+        headers: withDefaultHeaders(options.headers),
         timeoutMs: options.timeoutMs ?? normalizedRequestTimeoutMs,
       });
     },
@@ -68,6 +79,7 @@ export function createWwTransport(baseUrl: string, requestTimeoutMs: number | un
         path,
         {
           ...options,
+          headers: withDefaultHeaders(options.headers),
           timeoutMs: options.timeoutMs ?? normalizedRequestTimeoutMs,
         },
         mapResponse,
@@ -79,6 +91,7 @@ export function createWwTransport(baseUrl: string, requestTimeoutMs: number | un
         path,
         {
           ...options,
+          headers: withDefaultHeaders(options.headers),
           timeoutMs: options.timeoutMs ?? normalizedRequestTimeoutMs,
         },
         mapResponse,
@@ -247,7 +260,10 @@ async function requestWwJson<T>(
   try {
     const response = await fetch(withBasePath(baseUrl, path), {
       method: options.method,
-      headers: options.accessToken ? { authorization: `Bearer ${options.accessToken}` } : {},
+      headers: {
+        ...(options.accessToken ? { authorization: `Bearer ${options.accessToken}` } : {}),
+        ...options.headers,
+      },
       signal: controller.signal,
     });
     const body = await response.json().catch((error) => {

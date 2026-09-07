@@ -960,3 +960,81 @@ html[data-opengrove-desktop="true"] .cloud-auth-language {
     inset: -20px -150px;
   }
 }
+
+/* Test-account picker, shown right after the team gate on a gated deployment.
+   Reuses the auth panel's field surface so it reads as one flow with the gate
+   rather than a separate screen. */
+.team-account-picker-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  max-height: 42vh;
+  overflow-y: auto;
+  padding-right: var(--sp-0-5);
+}
+
+.team-account-picker-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  width: 100%;
+  min-height: 56px;
+  border: 1px solid var(--auth-ink-13);
+  border-radius: var(--r-lg);
+  background: var(--auth-canvas-72);
+  color: var(--auth-ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  padding: var(--sp-2) var(--sp-4);
+  transition:
+    border-color var(--auth-control-motion) ease,
+    background-color var(--auth-control-motion) ease;
+}
+
+.team-account-picker-option:hover:not(:disabled),
+.team-account-picker-option:focus-visible {
+  border-color: var(--auth-ink-25);
+  background: var(--auth-canvas);
+  outline: 0;
+}
+
+.team-account-picker-option:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.team-account-picker-option[data-pending="true"] {
+  border-color: var(--auth-ink-25);
+  opacity: 1;
+}
+
+.team-account-picker-identity {
+  display: grid;
+  gap: var(--sp-0-5);
+  min-width: 0;
+}
+
+.team-account-picker-identity strong {
+  font-size: var(--fs-md);
+  font-weight: 620;
+}
+
+.team-account-picker-identity small {
+  overflow: hidden;
+  color: var(--auth-muted);
+  font-size: var(--fs-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The separator lives here rather than in the markup: it is punctuation between
+   two data values, not copy anyone would translate. */
+.team-account-picker-status {
+  font-style: normal;
+}
+
+.team-account-picker-status::after {
+  content: " · ";
+}

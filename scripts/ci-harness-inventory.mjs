@@ -134,6 +134,7 @@ export const harnessInventory = [
   task("web-desktop-diagnostic-export", "scripts/test-web-desktop-diagnostic-export.mjs", "web-desktop"),
   task("auth-degraded-policy", "scripts/test-auth-degraded-policy.mjs", "web-desktop"),
   task("web-auth-ui", "scripts/test-web-auth-ui.mjs", "web-desktop"),
+  task("web-team-auth", "scripts/test-web-team-auth.mjs", "web-desktop"),
 
   task("rooms-store", "dist/tests/rooms-store-harness.js", "rooms-routines", { suite: "critical" }),
   task("local-app-draft", "dist/tests/local-app-draft-harness.js", "app-lifecycle", { suite: "critical" }),

@@ -101,11 +101,38 @@ export interface WwLatestClientVersion {
   linuxArm64?: WwClientPlatformVersion;
 }
 
+export interface WwTeamGateStatus {
+  required: boolean;
+  satisfied: boolean;
+}
+
+export interface WwTeamAccount {
+  email: string;
+  /** Roles and status as the test database currently holds them, not a label. */
+  roles: string[];
+  status: string;
+}
+
 export interface WwAccountClient {
   sendEmailCode(email: string): Promise<WwEmailCodeResult>;
   login(input: WwLoginInput): Promise<WwTokenPair>;
   refresh(refreshToken: string): Promise<WwTokenPair>;
   logout(refreshToken: string): Promise<void>;
+  /**
+   * Reports whether this ww deployment gates sign-in behind a team token, and
+   * whether the token currently configured satisfies it. Resolves to undefined
+   * when the deployment has no gate at all -- a production build of ww does not
+   * register the endpoint, so its absence is the answer rather than an error.
+   */
+  readTeamGateStatus(): Promise<WwTeamGateStatus | undefined>;
+  /** The accounts a gated deployment offers the switcher. */
+  listTeamAccounts(): Promise<WwTeamAccount[]>;
+  /**
+   * Becomes one of those accounts without a verification code. ww refuses any
+   * address it does not offer, and any it offers but has never been seeded, so
+   * this can never mint a session for a production identity.
+   */
+  signInAsTeamAccount(email: string): Promise<WwTokenPair>;
 }
 
 export interface WwProfileClient {
@@ -137,6 +164,10 @@ export interface WwHostedServices {
 
 export interface WwHostedServicesOptions {
   requestTimeoutMs?: number;
+  // teamToken is the shared credential a test ww deployment requires in front
+  // of its sign-in endpoints. It is attached to every outbound call, so no
+  // individual client method has to know the gate exists.
+  teamToken?: string;
 }
 
 export interface WwResponseDiagnostics {

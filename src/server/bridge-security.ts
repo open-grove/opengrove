@@ -15,6 +15,7 @@ import type { BridgeState, LocalBridgeServerOptions } from "./bridge-types.js";
 import { splitList } from "./http-utils.js";
 import { createLocalSessionId, createWwHostedServices, type WwApiError, type WwTokenPair } from "./ww/index.js";
 import { readWwProviderLocalState, wwProviderAccountMatches } from "./ww-provider-local-state.js";
+import { rotateStashedSession } from "./ww-replaced-session-stash.js";
 import type { BridgeWwRuntimeAuth } from "./ww-runtime-auth.js";
 
 export interface BridgeSecurity {
@@ -261,6 +262,7 @@ export async function resolveWwRuntimeAuth(
   }
 
   const refreshedSessionId = tokens.sessionId || createLocalSessionId();
+  rotateStashedSession(tokens, refreshed, baseUrl);
   writeAuthTokens(response, refreshed, refreshedSessionId);
   try {
     const currentUser = await readCurrentUserWithCache(
@@ -793,7 +795,7 @@ function pruneRefreshRotationCache(now = Date.now()): void {
   }
 }
 
-function parseCookieHeader(value: string | undefined): Map<string, string> {
+export function parseCookieHeader(value: string | undefined): Map<string, string> {
   const cookies = new Map<string, string>();
   for (const part of value?.split(";") ?? []) {
     const separator = part.indexOf("=");
@@ -806,7 +808,7 @@ function parseCookieHeader(value: string | undefined): Map<string, string> {
   return cookies;
 }
 
-function serializeCookie(name: string, value: string, maxAge: number, httpOnly = true): string {
+export function serializeCookie(name: string, value: string, maxAge: number, httpOnly = true): string {
   return [
     `${name}=${encodeURIComponent(value)}`,
     "Path=/",
@@ -818,7 +820,7 @@ function serializeCookie(name: string, value: string, maxAge: number, httpOnly =
     .join("; ");
 }
 
-function appendSetCookie(response: ServerResponse, cookie: string): void {
+export function appendSetCookie(response: ServerResponse, cookie: string): void {
   const existing = response.getHeader("Set-Cookie");
   if (!existing) {
     response.setHeader("Set-Cookie", cookie);
