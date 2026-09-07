@@ -441,8 +441,9 @@ export function TeamGateScreen(props: {
   unavailable: boolean;
   onSubmit(token: string): void;
   onResetError(): void;
+  onCancel?(): void;
 }) {
-  const { language } = useI18n();
+  const { language, t } = useI18n();
   const copy = teamGateCopy(language);
   const [token, setToken] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
@@ -523,6 +524,16 @@ export function TeamGateScreen(props: {
             </button>
           </div>
 
+          {props.onCancel ? (
+            <button
+              className="cloud-auth-continue-local"
+              type="button"
+              disabled={props.pending}
+              onClick={props.onCancel}
+            >
+              {t("common.cancel")}
+            </button>
+          ) : null}
           <p className="cloud-auth-legal">{copy.privacy}</p>
         </form>
       </div>

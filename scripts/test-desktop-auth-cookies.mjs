@@ -43,6 +43,11 @@ try {
   assert.equal(jar.mergeRequestCookieHeader(undefined), undefined);
   assert.equal(jar.hasSavedSession(), false);
   jar.applySetCookieHeaders(undefined);
+  jar.applySetCookieHeaders(["opengrove_auth_team=browser-grant; Path=/; Max-Age=86400; HttpOnly; SameSite=Lax"]);
+  assertCookies(jar.mergeRequestCookieHeader(undefined), { opengrove_auth_team: "browser-grant" });
+  assert.equal(jar.hasSavedSession(), false, "team admission does not authenticate an account");
+  jar.applySetCookieHeaders(["opengrove_auth_team=; Path=/; Max-Age=0; HttpOnly"]);
+  assert.equal(jar.mergeRequestCookieHeader(undefined), undefined);
 
   jar.applySetCookieHeaders([
     "opengrove_auth_access=access-one; Path=/; Max-Age=60; HttpOnly; SameSite=Lax",

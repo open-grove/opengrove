@@ -16,6 +16,7 @@ const tokensPath = resolve(projectRoot, "web/src/styles/tokens.css");
 try {
   await writeFile(entryPath, entrySource(), "utf8");
   await build({
+    define: { __OPENGROVE_DEV_FIXTURE_ACCOUNTS__: "false" },
     entryPoints: [entryPath],
     bundle: true,
     format: "iife",

@@ -50,8 +50,19 @@ import {
   readWwProviderLocalState,
   wwProviderAccountMatches,
 } from "../ww-provider-local-state.js";
-import { clearWwTeamToken, readWwTeamToken, saveWwTeamToken } from "../ww-team-token-store.js";
-import { clearStashedSession, readStashedSession, stashReplacedSession } from "../ww-replaced-session-stash.js";
+import {
+  clearWwTeamAdmission,
+  clearWwTeamToken,
+  grantWwTeamAdmission,
+  readWwTeamToken,
+  saveWwTeamToken,
+} from "../ww-team-token-store.js";
+import {
+  clearStashedSession,
+  discardStashedSession,
+  readStashedSession,
+  stashReplacedSession,
+} from "../ww-replaced-session-stash.js";
 import { provisionWwProviderAfterLogin } from "../ww-provider-provisioning.js";
 import type { HostOperationRouteContext } from "../router.js";
 
@@ -95,7 +106,7 @@ export async function handleAuthRoute(options: {
     return true;
   }
   if (request.method === "GET" && url.pathname === "/auth/team-accounts") {
-    await handleTeamAccounts(response, security, state, traceId, sendJson);
+    await handleTeamAccounts(request, response, security, state, traceId, sendJson);
     return true;
   }
   if (request.method === "POST" && url.pathname === "/auth/team-signin") {
@@ -132,7 +143,7 @@ async function handleTeamRestore(
     return;
   }
   const current = readAuthTokens(request);
-  const stashed = readStashedSession(current?.sessionId);
+  const stashed = readStashedSession(current, wwBaseUrl);
   if (!stashed) {
     // Nothing to go back to: a fresh browser, or the bridge restarted since the
     // switch. Deliberately not an error the caller has to handle specially --
@@ -141,25 +152,54 @@ async function handleTeamRestore(
     return;
   }
 
+  if (stashed.restoring) {
+    sendJson(response, 409, { error: "session_restore_in_progress" });
+    return;
+  }
+  stashed.restoring = true;
   try {
+    const currentAuth = await resolveWwRuntimeAuth(request, response, security);
+    if (currentAuth.status === "unauthenticated") {
+      discardStashedSession(stashed);
+      sendJson(response, 401, { error: "not_authenticated" });
+      return;
+    }
+    if (currentAuth.status === "temporarily_unavailable") {
+      sendAuthError(response, sendJson, state, traceId, "login", currentAuth.error);
+      return;
+    }
     const services = createWwHostedServices(wwBaseUrl);
     // Refresh rather than reuse the stored access token: it may well have
     // expired while the test account was in use, and rotating here means the
     // restored session starts with a full lifetime instead of a stale minute.
     const tokens = await services.account.refresh(stashed.tokens.refreshToken);
+    stashed.tokens = { ...tokens, sessionId: stashed.tokens.sessionId };
     const user = await services.profile.readCurrentUser(tokens.accessToken);
-    clearAuthSessionCache(current);
-    clearStashedSession(current?.sessionId);
     sendJson(
       response,
       200,
-      await completeWwSignIn({ request, response, services, state, traceId, wwBaseUrl, tokens, user }),
+      await completeWwSignIn({
+        request,
+        response,
+        services,
+        state,
+        traceId,
+        wwBaseUrl,
+        tokens,
+        user,
+        onSession() {
+          clearAuthSessionCache(current);
+          discardStashedSession(stashed);
+        },
+      }),
     );
   } catch (error) {
-    // The stored refresh token is spent or was revoked elsewhere. Drop it so the
-    // client stops offering a path that cannot work.
-    clearStashedSession(current?.sessionId);
+    if (isWwError(error) && ["refresh_token_invalid", "user_disabled"].includes(error.publicCode)) {
+      discardStashedSession(stashed);
+    }
     sendAuthError(response, sendJson, state, traceId, "login", error);
+  } finally {
+    stashed.restoring = false;
   }
 }
 
@@ -186,11 +226,11 @@ async function handleTeamStatus(
     sendJson(response, 503, { error: "auth_not_configured" });
     return;
   }
-  // Whether a switch can be undone is local knowledge, so it is reported even
-  // when ww cannot be reached for the gate status.
-  const previousAccount = readStashedSession(readAuthTokens(request)?.sessionId)?.email;
+  // Restoration metadata is local, but still requires this browser's private
+  // session credential rather than its readable session id alone.
+  const previousAccount = readStashedSession(readAuthTokens(request), wwBaseUrl)?.email;
   try {
-    const status = await teamGateStatus(state, wwBaseUrl);
+    const status = await teamGateStatus(state, wwBaseUrl, request);
     sendJson(response, 200, {
       required: status?.required ?? false,
       satisfied: status?.satisfied ?? true,
@@ -214,8 +254,8 @@ async function handleTeamStatus(
   }
 }
 
-function teamGateStatus(state: BridgeState, wwBaseUrl: string, override?: string) {
-  const teamToken = override ?? readWwTeamToken(state, wwBaseUrl);
+function teamGateStatus(state: BridgeState, wwBaseUrl: string, request: IncomingMessage, override?: string) {
+  const teamToken = override ?? readWwTeamToken(state, wwBaseUrl, request);
   return createWwHostedServices(wwBaseUrl, teamToken ? { teamToken } : {}).account.readTeamGateStatus();
 }
 
@@ -224,6 +264,7 @@ function teamGateStatus(state: BridgeState, wwBaseUrl: string, override?: string
  * client's, so the web bundle carries no copy of it and the two cannot drift.
  */
 async function handleTeamAccounts(
+  request: IncomingMessage,
   response: ServerResponse,
   security: BridgeSecurity,
   state: BridgeState,
@@ -235,7 +276,7 @@ async function handleTeamAccounts(
     sendJson(response, 503, { error: "auth_not_configured" });
     return;
   }
-  const teamToken = readWwTeamToken(state, wwBaseUrl);
+  const teamToken = readWwTeamToken(state, wwBaseUrl, request);
   if (!teamToken) {
     sendJson(response, 401, { error: "team_token_required" });
     return;
@@ -281,7 +322,7 @@ async function handleTeamSignIn(
     sendJson(response, 503, { error: "auth_not_configured" });
     return;
   }
-  const teamToken = readWwTeamToken(state, wwBaseUrl);
+  const teamToken = readWwTeamToken(state, wwBaseUrl, request);
   if (!teamToken) {
     sendJson(response, 401, { error: "team_token_required" });
     return;
@@ -316,9 +357,6 @@ async function handleTeamSignIn(
     // here simply means the affordance is not offered.
     const replacedResult = replaced ? await resolveWwRuntimeAuthWithoutRefresh(request, security) : undefined;
     const replacedEmail = replacedResult?.status === "authenticated" ? replacedResult.session.user.email : undefined;
-    // Any previous session is replaced wholesale, so the browser never ends up
-    // holding cookies for one account and a cache entry for another.
-    clearAuthSessionCache(replaced);
     const tokens = await services.account.signInAsTeamAccount(email);
     const user = await services.profile.readCurrentUser(tokens.accessToken);
     sendJson(
@@ -334,8 +372,10 @@ async function handleTeamSignIn(
         tokens,
         user,
         onSession(nextSessionId) {
+          clearAuthSessionCache(replaced);
           stashReplacedSession({
-            previousSessionId: replaced?.sessionId,
+            baseUrl: wwBaseUrl,
+            nextTokens: tokens,
             nextSessionId,
             replaced,
             replacedEmail,
@@ -394,7 +434,7 @@ async function handleTeamUnlock(
 
   let status: Awaited<ReturnType<WwAccountClient["readTeamGateStatus"]>>;
   try {
-    status = await teamGateStatus(state, wwBaseUrl, token);
+    status = await teamGateStatus(state, wwBaseUrl, request, token);
   } catch (error) {
     // Someone just typed a token and was told it cannot be verified. Without
     // this record there is no way to tell a wrong token from an unreachable ww,
@@ -423,14 +463,15 @@ async function handleTeamUnlock(
     return;
   }
   saveWwTeamToken(state, { baseUrl: wwBaseUrl, token });
+  grantWwTeamAdmission(state, request, response, { baseUrl: wwBaseUrl, token });
   sendJson(response, 200, { ok: true, required: true, satisfied: true });
 }
 
 export async function handleCreateAuthEmailCodeOperation(
   context: HostOperationRouteContext<CreateAuthEmailCodeOperation>,
 ): Promise<true> {
-  const { response, security, state, traceId, sendJson } = context;
-  const services = wwServicesOrUnavailable(security, state, response, sendJson);
+  const { request, response, security, state, traceId, sendJson } = context;
+  const services = wwServicesOrUnavailable(security, state, request, response, sendJson);
   if (!services) return true;
   try {
     const result = await services.account.sendEmailCode(context.input.body.email);
@@ -445,7 +486,7 @@ export async function handleCreateAuthSessionOperation(
   context: HostOperationRouteContext<CreateAuthSessionOperation>,
 ): Promise<true> {
   const { request, response, security, state, traceId, sendJson } = context;
-  const services = wwServicesOrUnavailable(security, state, response, sendJson);
+  const services = wwServicesOrUnavailable(security, state, request, response, sendJson);
   if (!services) return true;
   const body = context.input.body;
   try {
@@ -464,6 +505,7 @@ export async function handleCreateAuthSessionOperation(
     });
     const user = await services.profile.readCurrentUser(tokens.accessToken);
     initializeHostLanguageFromLogin(state, body, traceId);
+    const replaced = readAuthTokens(request);
     sendJson(
       response,
       200,
@@ -476,6 +518,9 @@ export async function handleCreateAuthSessionOperation(
         wwBaseUrl,
         tokens,
         user,
+        onSession() {
+          clearStashedSession(replaced, wwBaseUrl);
+        },
       }),
     );
   } catch (error) {
@@ -509,9 +554,6 @@ async function completeWwSignIn(input: {
 }): Promise<Record<string, unknown>> {
   const { request, response, services, state, traceId, wwBaseUrl, tokens, user } = input;
   const sessionId = createLocalSessionId();
-  input.onSession?.(sessionId);
-  writeAuthTokens(response, tokens, sessionId);
-  cacheAuthSessionUser(sessionId, tokens.accessToken, user, tokens.accessTokenExpiresIn);
   clearWwProviderRecoveryBlock(state, { issuer: wwBaseUrl, userId: user.userId });
   const providerProvisioning = await provisionWwProviderAfterLogin({
     state,
@@ -550,6 +592,11 @@ async function completeWwSignIn(input: {
     userId: user.userId,
     traceId,
   });
+  // Commit the browser session only after sign-in preparation succeeds. A
+  // failed switch must leave the previous cookies and session usable.
+  input.onSession?.(sessionId);
+  writeAuthTokens(response, tokens, sessionId);
+  cacheAuthSessionUser(sessionId, tokens.accessToken, user, tokens.accessTokenExpiresIn);
   return { user, isNewUser: tokens.isNewUser, providerProvisioning, defaultStoreApps, appUpdates };
 }
 
@@ -916,6 +963,8 @@ async function handleLogout(
   sendJson: SendJson,
 ): Promise<void> {
   const tokens = readAuthTokens(request);
+  clearWwTeamAdmission(state, request, response);
+  if (security.wwBaseUrl) clearStashedSession(tokens, security.wwBaseUrl);
   clearAuthTokens(response);
   clearAuthSessionCache(tokens);
   if (tokens?.refreshToken && security.wwBaseUrl) {
@@ -945,7 +994,7 @@ async function handleClientUpdate(
   traceId: string | undefined,
   sendJson: SendJson,
 ): Promise<void> {
-  const services = wwServicesOrUnavailable(security, state, response, sendJson);
+  const services = wwServicesOrUnavailable(security, state, request, response, sendJson);
   if (!services) return;
   const authResult = await resolveWwRuntimeAuthWithoutRefresh(request, security);
   if (authResult.status === "temporarily_unavailable") {
@@ -1092,6 +1141,7 @@ function selectClientVersionForCurrentPlatform(latest: WwLatestClientVersion): W
 function wwServicesOrUnavailable(
   security: BridgeSecurity,
   state: BridgeState,
+  request: IncomingMessage,
   response: ServerResponse,
   sendJson: SendJson,
 ) {
@@ -1099,7 +1149,7 @@ function wwServicesOrUnavailable(
     sendJson(response, 503, { error: "auth_not_configured" });
     return undefined;
   }
-  const teamToken = readWwTeamToken(state, security.wwBaseUrl);
+  const teamToken = readWwTeamToken(state, security.wwBaseUrl, request);
   return createWwHostedServices(security.wwBaseUrl, teamToken ? { teamToken } : {});
 }
 

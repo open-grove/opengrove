@@ -1,7 +1,12 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 
-const AUTH_COOKIE_NAMES = new Set(["opengrove_auth_access", "opengrove_auth_refresh", "opengrove_auth_session"]);
+const AUTH_COOKIE_NAMES = new Set([
+  "opengrove_auth_access",
+  "opengrove_auth_refresh",
+  "opengrove_auth_session",
+  "opengrove_auth_team",
+]);
 
 export function responseSetCookieHeaders(headers: Headers): string[] {
   const withGetter = headers as Headers & { getSetCookie?: () => string[] };

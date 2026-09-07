@@ -24,6 +24,17 @@ and Data.
   secret or an authentication boundary. Revision-checked, locked updates keep a
   stale concurrent CLI process from overwriting a newer session, and failed
   login attempts never replace the previous session.
+- Test deployments require each browser to prove team admission separately.
+  The shared team token remains in the Bridge's private, issuer-bound store;
+  only a random `HttpOnly` admission cookie is returned to that browser. A
+  grant lasts up to 24 hours and ends on logout, Bridge restart, or a change to
+  the stored team token. Other browsers and private windows must unlock
+  independently. Admission is not an account session.
+- Returning from a test account requires the private credentials of the
+  session that replaced the original account. The Bridge follows refresh
+  rotation, retains the original session only in memory for up to 24 hours,
+  and discards the restoration record on logout or successful restoration.
+  Failed switches leave the previous account signed in.
 - Risky Kernel actions remain subject to the Kernel and Host approval policies.
 
 ## Background network boundary

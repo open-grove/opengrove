@@ -76,6 +76,9 @@ export function useBridgeAuthGate(input: {
       setSendCodeRequiresCountry(result.requiresCountry === true);
       setSendCodeSuccessCount((count) => count + 1);
     },
+    onError() {
+      void queryClient.invalidateQueries({ queryKey: ["auth-team-gate"] });
+    },
   });
   const applyAuthenticatedSession = (result: Awaited<ReturnType<typeof loginBridgeAuth>>) => {
     onAuthSessionChanged?.();
@@ -96,6 +99,9 @@ export function useBridgeAuthGate(input: {
         systemLanguage: detectSystemLanguage(),
       }),
     onSuccess: applyAuthenticatedSession,
+    onError() {
+      void queryClient.invalidateQueries({ queryKey: ["auth-team-gate"] });
+    },
   });
   const authFixtureSwitchMutation = useMutation({
     async mutationFn(payload: FixtureAccountSwitchPayload) {
@@ -109,12 +115,9 @@ export function useBridgeAuthGate(input: {
     // lands exactly the way a real one does.
     onSuccess: applyAuthenticatedSession,
     onError() {
-      // A failed switch leaves ww holding whichever session it had, and the
-      // browser cookies were already cleared server-side, so the honest local
-      // state is logged out.
-      onAuthSessionChanged?.();
-      markAuthSessionLoggedOut(queryClient);
-      void queryClient.invalidateQueries();
+      // The Bridge commits a replacement only after success. Keep the current
+      // account and refresh admission in case its grant expired or was revoked.
+      void queryClient.invalidateQueries({ queryKey: ["auth-team-gate"] });
     },
   });
   const authLogoutMutation = useMutation({
@@ -134,9 +137,8 @@ export function useBridgeAuthGate(input: {
     queryKey: ["auth-team-gate"],
     queryFn: ({ signal }) => fetchBridgeTeamGateStatus(signal),
     enabled: sessionAuthActive,
-    // Answering costs the bridge a round trip to ww, and the answer only changes
-    // when someone unlocks, which invalidates this by hand.
-    staleTime: Number.POSITIVE_INFINITY,
+    // Admission can expire, be revoked in another tab, or end on Bridge restart.
+    staleTime: 60_000,
     retry: false,
   });
   const teamUnlockMutation = useMutation({
@@ -162,15 +164,15 @@ export function useBridgeAuthGate(input: {
       void queryClient.invalidateQueries({ queryKey: ["auth-team-gate"] });
     },
     onError() {
-      // The stored refresh token was spent or revoked; the bridge has dropped it.
-      // Re-reading the gate status is what removes the affordance.
+      // Refresh the offer after a terminal credential failure; transient
+      // failures keep the stash available for retry.
       void queryClient.invalidateQueries({ queryKey: ["auth-team-gate"] });
     },
   });
 
   const teamGateStatus = teamGateQuery.data;
   const teamGateBlocksSignIn = teamGateStatus?.required === true && teamGateStatus.satisfied === false;
-  const teamGateSatisfied = teamGateStatus?.satisfied === true;
+  const teamGateSatisfied = teamGateStatus?.required === true && teamGateStatus.satisfied === true;
 
   // The account list is ww's answer, fetched only once the gate is satisfied --
   // before that ww refuses it, and after a switch it does not change.

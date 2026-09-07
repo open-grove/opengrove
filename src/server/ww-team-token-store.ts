@@ -1,5 +1,8 @@
 import { readFileSync } from "node:fs";
+import { createHash, randomBytes } from "node:crypto";
+import type { IncomingMessage, ServerResponse } from "node:http";
 import { writePrivateJsonAtomically } from "../storage/private-file.js";
+import { appendSetCookie, parseCookieHeader, serializeCookie } from "./bridge-security.js";
 import type { BridgeState } from "./bridge-types.js";
 import { bridgeDataPath } from "./storage-paths.js";
 import { canonicalWwIssuer } from "./ww-provider-local-state.js";
@@ -12,6 +15,19 @@ import { canonicalWwIssuer } from "./ww-provider-local-state.js";
 // credential.
 const WW_TEAM_TOKEN_FILE = "ww-team-token.json";
 const WW_TEAM_TOKEN_VERSION = 1;
+const TEAM_ADMISSION_COOKIE = "opengrove_auth_team";
+const TEAM_ADMISSION_SECONDS = 24 * 60 * 60;
+const MAX_TEAM_ADMISSIONS = 256;
+
+interface TeamAdmission {
+  issuer: string;
+  tokenFingerprint: string;
+  expiresAt: number;
+}
+
+// Possessing the install's stored token is not proof that a browser supplied it.
+// Grants are per browser, expire after a day, and end when the Bridge restarts.
+const admissionsByState = new WeakMap<BridgeState, Map<string, TeamAdmission>>();
 
 interface WwTeamTokenState {
   version: typeof WW_TEAM_TOKEN_VERSION;
@@ -20,14 +36,60 @@ interface WwTeamTokenState {
 }
 
 /**
- * Returns the stored team token, but only for the ww deployment it was accepted
- * by. Scoping to the issuer means repointing the bridge at another backend
- * never forwards this deployment's shared credential to it.
+ * Returns the stored team token only for a browser admitted to that issuer.
+ * Repointing the Bridge or changing the shared token invalidates its grants.
  */
-export function readWwTeamToken(state: BridgeState, baseUrl: string): string | undefined {
+export function readWwTeamToken(state: BridgeState, baseUrl: string, request: IncomingMessage): string | undefined {
+  const admissionId = parseCookieHeader(request.headers.cookie).get(TEAM_ADMISSION_COOKIE);
+  if (!admissionId) return undefined;
+  const admissions = admissionsByState.get(state);
+  const admission = admissions?.get(admissionId);
+  if (!admission) return undefined;
   const stored = readState(state);
-  if (!stored) return undefined;
-  return stored.issuer === canonicalWwIssuer(baseUrl) ? stored.token : undefined;
+  if (
+    admission.expiresAt <= Date.now() ||
+    !stored ||
+    admission.issuer !== canonicalWwIssuer(baseUrl) ||
+    admission.issuer !== stored.issuer ||
+    admission.tokenFingerprint !== createHash("sha256").update(stored.token).digest("hex")
+  ) {
+    admissions?.delete(admissionId);
+    return undefined;
+  }
+  return stored.token;
+}
+
+export function grantWwTeamAdmission(
+  state: BridgeState,
+  request: IncomingMessage,
+  response: ServerResponse,
+  input: { baseUrl: string; token: string },
+): void {
+  const admissions = admissionsByState.get(state) ?? new Map<string, TeamAdmission>();
+  admissionsByState.set(state, admissions);
+  const previousId = parseCookieHeader(request.headers.cookie).get(TEAM_ADMISSION_COOKIE);
+  if (previousId) admissions.delete(previousId);
+  const now = Date.now();
+  for (const [id, admission] of admissions) {
+    if (admission.expiresAt <= now) admissions.delete(id);
+  }
+  while (admissions.size >= MAX_TEAM_ADMISSIONS) {
+    const oldest = admissions.keys().next().value;
+    if (oldest) admissions.delete(oldest);
+  }
+  const id = randomBytes(32).toString("base64url");
+  admissions.set(id, {
+    issuer: canonicalWwIssuer(input.baseUrl),
+    tokenFingerprint: createHash("sha256").update(input.token.trim()).digest("hex"),
+    expiresAt: now + TEAM_ADMISSION_SECONDS * 1000,
+  });
+  appendSetCookie(response, serializeCookie(TEAM_ADMISSION_COOKIE, id, TEAM_ADMISSION_SECONDS));
+}
+
+export function clearWwTeamAdmission(state: BridgeState, request: IncomingMessage, response: ServerResponse): void {
+  const id = parseCookieHeader(request.headers.cookie).get(TEAM_ADMISSION_COOKIE);
+  if (id) admissionsByState.get(state)?.delete(id);
+  appendSetCookie(response, serializeCookie(TEAM_ADMISSION_COOKIE, "", 0));
 }
 
 export function saveWwTeamToken(state: BridgeState, input: { baseUrl: string; token: string }): void {
@@ -43,6 +105,7 @@ export function saveWwTeamToken(state: BridgeState, input: { baseUrl: string; to
 
 export function clearWwTeamToken(state: BridgeState): void {
   writePrivateJsonAtomically(wwTeamTokenPath(state), { version: WW_TEAM_TOKEN_VERSION, issuer: "", token: "" });
+  admissionsByState.delete(state);
 }
 
 /**

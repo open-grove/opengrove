@@ -152,6 +152,7 @@ export function App() {
   const [desktopAccountOnboardingCompleted, setDesktopAccountOnboardingCompleted] =
     useState(readAccountOnboardingCompleted);
   const [accountLoginRequested, setAccountLoginRequested] = useState(false);
+  const [teamAccessRequested, setTeamAccessRequested] = useState(false);
   // Set when someone chooses the email form over the test-account picker. Not
   // persisted: a fresh window should land on the picker again.
   const [emailLoginRequested, setEmailLoginRequested] = useState(false);
@@ -374,6 +375,7 @@ export function App() {
     sessionAuthenticated,
     teamGateBlocksSignIn,
     teamGateChecking,
+    teamGateUnavailable,
     teamGateSatisfied,
     teamAccounts,
     previousAccountEmail,
@@ -1786,12 +1788,16 @@ export function App() {
 
   // teamGateChecking joins this so a gated deployment does not flash the login
   // form for the moment before the gate answers.
-  if (sessionAuthChecking || (teamGateChecking && (sessionAuthNeedsLogin || accountLoginRequested))) {
+  if (
+    sessionAuthChecking ||
+    ((teamGateChecking || teamGateUnavailable) && (sessionAuthNeedsLogin || accountLoginRequested))
+  ) {
     return (
       <CloudAuthLoadingScreen
         onRetry={() => {
           if (healthQuery.data?.auth?.mode === "session") {
             void sessionQuery.refetch();
+            void queryClient.invalidateQueries({ queryKey: ["auth-team-gate"] });
           } else {
             void healthQuery.refetch();
           }
@@ -1804,14 +1810,15 @@ export function App() {
   // form is worth showing. Checked only on the path that would show that form:
   // an already signed-in session keeps working (ww does not gate token refresh),
   // and interrupting it to demand a token would be pointless.
-  if ((sessionAuthNeedsLogin || accountLoginRequested) && teamGateBlocksSignIn) {
+  if (teamAccessRequested || ((sessionAuthNeedsLogin || accountLoginRequested) && teamGateBlocksSignIn)) {
     return (
       <TeamGateScreen
         pending={teamUnlockMutation.isPending}
         invalid={(teamUnlockMutation.error as { status?: number } | null)?.status === 401}
         unavailable={teamUnlockMutation.isError && (teamUnlockMutation.error as { status?: number }).status !== 401}
-        onSubmit={(token) => teamUnlockMutation.mutate(token)}
+        onSubmit={(token) => teamUnlockMutation.mutate(token, { onSuccess: () => setTeamAccessRequested(false) })}
         onResetError={() => teamUnlockMutation.reset()}
+        onCancel={teamAccessRequested ? () => setTeamAccessRequested(false) : undefined}
       />
     );
   }
@@ -1986,7 +1993,11 @@ export function App() {
         directKernelChatEnabled={railDirectKernelChatEnabled}
         authUser={sessionQuery.data?.user}
         fixtureAccountSwitchError={
-          authFixtureSwitchMutation.error instanceof Error ? authFixtureSwitchMutation.error.message : ""
+          teamRestoreMutation.error instanceof Error
+            ? teamRestoreMutation.error.message
+            : authFixtureSwitchMutation.error instanceof Error
+              ? authFixtureSwitchMutation.error.message
+              : ""
         }
         fixtureAccountSwitchingEmail={
           authFixtureSwitchMutation.isPending ? authFixtureSwitchMutation.variables?.email : undefined
@@ -1998,8 +2009,17 @@ export function App() {
             teamGateSatisfied,
           })
             ? (account) => {
+                teamRestoreMutation.reset();
                 authFixtureSwitchMutation.reset();
                 authFixtureSwitchMutation.mutate({ email: account.email });
+              }
+            : undefined
+        }
+        onUnlockTeamAccess={
+          __OPENGROVE_DEV_FIXTURE_ACCOUNTS__ && readDesktopApi()?.isOfficialRelease !== true && teamGateBlocksSignIn
+            ? () => {
+                teamUnlockMutation.reset();
+                setTeamAccessRequested(true);
               }
             : undefined
         }
@@ -2009,6 +2029,7 @@ export function App() {
         onRestorePreviousAccount={
           previousAccountEmail
             ? () => {
+                authFixtureSwitchMutation.reset();
                 teamRestoreMutation.reset();
                 teamRestoreMutation.mutate();
               }

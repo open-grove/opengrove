@@ -490,6 +490,7 @@ export function AppRail(props: {
   onLogin?(): void;
   onLogout?(): void;
   onSwitchFixtureAccount?(account: DevFixtureAccount): void;
+  onUnlockTeamAccess?(): void;
   onOpenSection(section: RailSectionId): void;
   onOpenSettings(): void;
   onCreateApp(): void;
@@ -1055,14 +1056,16 @@ export function AppRail(props: {
               <ChevronRight size={18} aria-hidden="true" />
             </button>
             <div className={clsx("app-account-menu-divider", styles.accountMenuDivider)} />
-            {props.onSwitchFixtureAccount && fixtureAccountCopy ? (
+            {(props.onSwitchFixtureAccount || props.onUnlockTeamAccess || props.onRestorePreviousAccount) &&
+            fixtureAccountCopy ? (
               <button
                 className={clsx("app-account-menu-item", styles.accountMenuItem)}
                 type="button"
                 role="menuitem"
                 onClick={() => {
                   setAccountMenuOpen(false);
-                  setFixtureAccountDialogOpen(true);
+                  if (props.onUnlockTeamAccess && !props.onRestorePreviousAccount) props.onUnlockTeamAccess();
+                  else setFixtureAccountDialogOpen(true);
                 }}
               >
                 <RefreshCw size={18} aria-hidden="true" />
@@ -1159,7 +1162,12 @@ export function AppRail(props: {
                   </span>
                 </button>
               ) : null}
-              {(props.fixtureAccounts ?? []).map((account) => {
+              {props.onUnlockTeamAccess ? (
+                <button className={styles.fixtureAccountButton} type="button" onClick={props.onUnlockTeamAccess}>
+                  {fixtureAccountCopy.open}
+                </button>
+              ) : null}
+              {(props.onSwitchFixtureAccount ? (props.fixtureAccounts ?? []) : []).map((account) => {
                 const current = props.authUser?.email === account.email;
                 const switching = props.fixtureAccountSwitchingEmail === account.email;
                 return (
@@ -1169,7 +1177,12 @@ export function AppRail(props: {
                     data-current={current ? "true" : "false"}
                     type="button"
                     role="listitem"
-                    disabled={current || account.status !== "active" || Boolean(props.fixtureAccountSwitchingEmail)}
+                    disabled={
+                      current ||
+                      account.status !== "active" ||
+                      Boolean(props.fixtureAccountSwitchingEmail) ||
+                      props.restoringPreviousAccount
+                    }
                     onClick={() => {
                       setRequestedFixtureEmail(account.email);
                       props.onSwitchFixtureAccount?.(account);

@@ -1,62 +1,93 @@
+import { createHash } from "node:crypto";
 import type { AuthTokens } from "./bridge-security.js";
+import type { WwTokenPair } from "./ww/types.js";
+import { canonicalWwIssuer } from "./ww-provider-local-state.js";
 
-/**
- * Remembers the session a team-account switch replaced, so the person can get
- * back to it without another email verification code.
- *
- * Why this is safe: switching to a test account does not revoke anything in ww
- * -- it only mints an additional session -- so the replaced session's refresh
- * token is still valid. The only thing lost is the browser's cookies, which the
- * switch overwrote. Restoring hands back a session the same browser legitimately
- * held moments ago; it grants nothing new. That is the crucial difference from
- * letting the switch endpoint target a real account, which would turn the shared
- * team token into the ability to become any real user.
- *
- * In memory only, never on disk. These are a real user's tokens -- more
- * sensitive than the team token itself -- so they must not outlive the process.
- * The cost is that a bridge restart drops the option and the person signs in
- * with email again, which is an acceptable trade for not persisting them.
- */
 interface StashedSession {
   tokens: AuthTokens;
-  /** Shown on the "go back" affordance so it names who you would return to. */
   email: string;
+  issuer: string;
+  ownerSessionId: string;
+  ownerRefreshFingerprint: string;
+  expiresAt: number;
+  restoring: boolean;
 }
 
-// Keyed by the session id of the switched-INTO session, because that is the only
-// identifier the browser still presents after the switch overwrote its cookies.
+// The readable session id is only an index. The private refresh credential is
+// the proof of possession, and follows WW's refresh rotation for that session.
+// Real-account credentials remain in memory and never outlive this Bridge.
 const stashedSessions = new Map<string, StashedSession>();
+const MAX_STASHED_SESSIONS = 256;
+const MAX_STASH_LIFETIME_MS = 24 * 60 * 60 * 1000;
 
-/**
- * Carries the replaced session forward under the new session's id.
- *
- * When a switch happens while a stash already exists, the existing one wins:
- * after real -> test-a -> test-b, going back should reach the real account
- * rather than test-a. Only the original is worth returning to, and keeping one
- * entry avoids maintaining a stack whose states nobody would exercise.
- */
 export function stashReplacedSession(input: {
-  previousSessionId: string | undefined;
+  baseUrl: string;
   nextSessionId: string;
+  nextTokens: WwTokenPair;
   replaced: AuthTokens | undefined;
   replacedEmail: string | undefined;
 }): void {
-  const carried = input.previousSessionId ? stashedSessions.get(input.previousSessionId) : undefined;
-  if (input.previousSessionId) {
-    stashedSessions.delete(input.previousSessionId);
+  const carried = readStashedSession(input.replaced, input.baseUrl);
+  if (carried) discardStashedSession(carried);
+  const original =
+    carried ??
+    (input.replaced?.refreshToken && input.replacedEmail
+      ? { tokens: input.replaced, email: input.replacedEmail }
+      : undefined);
+  if (!original) return;
+  const now = Date.now();
+  for (const [id, session] of stashedSessions) {
+    if (session.expiresAt <= now) stashedSessions.delete(id);
   }
-  if (carried) {
-    stashedSessions.set(input.nextSessionId, carried);
-    return;
+  while (stashedSessions.size >= MAX_STASHED_SESSIONS) {
+    const oldest = stashedSessions.keys().next().value;
+    if (oldest) stashedSessions.delete(oldest);
   }
-  if (!input.replaced?.refreshToken || !input.replacedEmail) return;
-  stashedSessions.set(input.nextSessionId, { tokens: input.replaced, email: input.replacedEmail });
+  const expiresAt = Math.min(
+    carried?.expiresAt ?? now + MAX_STASH_LIFETIME_MS,
+    now + input.nextTokens.refreshTokenExpiresIn * 1000,
+  );
+  stashedSessions.set(input.nextSessionId, {
+    tokens: original.tokens,
+    email: original.email,
+    issuer: canonicalWwIssuer(input.baseUrl),
+    ownerSessionId: input.nextSessionId,
+    ownerRefreshFingerprint: refreshFingerprint(input.nextTokens.refreshToken),
+    expiresAt,
+    restoring: false,
+  });
 }
 
-export function readStashedSession(sessionId: string | undefined): StashedSession | undefined {
-  return sessionId ? stashedSessions.get(sessionId) : undefined;
+export function readStashedSession(tokens: AuthTokens | undefined, baseUrl: string): StashedSession | undefined {
+  if (!tokens?.sessionId) return undefined;
+  const session = stashedSessions.get(tokens.sessionId);
+  if (!session) return undefined;
+  if (session.expiresAt <= Date.now()) {
+    stashedSessions.delete(tokens.sessionId);
+    return undefined;
+  }
+  return session.issuer === canonicalWwIssuer(baseUrl) &&
+    session.ownerRefreshFingerprint === refreshFingerprint(tokens.refreshToken)
+    ? session
+    : undefined;
 }
 
-export function clearStashedSession(sessionId: string | undefined): void {
-  if (sessionId) stashedSessions.delete(sessionId);
+export function rotateStashedSession(tokens: AuthTokens, refreshed: WwTokenPair, baseUrl: string): void {
+  const session = readStashedSession(tokens, baseUrl);
+  if (!session) return;
+  session.ownerRefreshFingerprint = refreshFingerprint(refreshed.refreshToken);
+  session.expiresAt = Math.min(session.expiresAt, Date.now() + refreshed.refreshTokenExpiresIn * 1000);
+}
+
+export function clearStashedSession(tokens: AuthTokens | undefined, baseUrl: string): void {
+  const session = readStashedSession(tokens, baseUrl);
+  if (session) discardStashedSession(session);
+}
+
+export function discardStashedSession(session: StashedSession): void {
+  if (stashedSessions.get(session.ownerSessionId) === session) stashedSessions.delete(session.ownerSessionId);
+}
+
+function refreshFingerprint(token: string): string {
+  return createHash("sha256").update(token).digest("hex");
 }
