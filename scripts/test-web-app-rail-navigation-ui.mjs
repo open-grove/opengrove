@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve, join } from "node:path";
 import { chromium, expect } from "@playwright/test";
@@ -326,6 +326,28 @@ try {
   }
   await markRead();
   await expect.poll(async () => (await measureClearance()).gap).toBe(0);
+  // Installed Apps may have a translated display name but no explicit icon.
+  const manifestPath = join(createdApp.appRoot, "opengrove.app.json");
+  const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
+  manifest.title = "故事花园";
+  manifest.locales = { en: { title: "Story Garden" } };
+  await writeFile(manifestPath, JSON.stringify(manifest));
+  const appIcon = page.locator(".app-rail-user-tab-icon svg");
+  let originalIcon;
+  for (const languagePreference of ["zh-CN", "en"]) {
+    const response = await page.request.patch(new URL("/api/settings", url).href, {
+      data: { languagePreference },
+    });
+    assert.ok(response.ok(), await response.text());
+    await page.reload();
+    await expect(page.locator(".app-rail-user-tab")).toHaveAttribute(
+      "title",
+      languagePreference === "en" ? "Story Garden" : "故事花园",
+    );
+    const icon = await appIcon.innerHTML();
+    if (originalIcon === undefined) originalIcon = icon;
+    else assert.equal(icon, originalIcon, "Translating an App title must not change its icon");
+  }
   assert.deepEqual(pageErrors, []);
   console.log(
     "web-app-rail-navigation-ui passed: boundary alignment, cursor-only hover and visible keyboard focus, unframed overlay, resize, snap, restore, reload, hover, menus, headings, Escape, keyboard, mobile",

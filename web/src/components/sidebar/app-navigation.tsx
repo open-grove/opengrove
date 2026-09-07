@@ -3114,7 +3114,8 @@ function mountedAppIcon(app: ExtensionItemRecord): string {
       icon: metadataIcon,
       id: app.id,
       appId: app.name,
-      title: app.title,
+      // Display titles are localized; infer identity from the stable manifest title.
+      title: stringFromUnknown(app.metadata?.title) || stringFromUnknown(app.metadata?.displayName) || app.title,
     })
   );
 }
