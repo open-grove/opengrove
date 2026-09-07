@@ -101,6 +101,7 @@ const ENGLISH_PLURAL_FORMS: Partial<Record<TranslationKey, EnglishPluralForms>> 
 };
 
 const COUNT_KEYS_WITH_INVARIANT_ENGLISH_GRAMMAR = new Set<TranslationKey>([
+  "mountedApp.otherGroupsUnread",
   "conversation.days",
   "auth.resendCodeInMinutes",
   "auth.resendCodeInSeconds",

@@ -78,6 +78,7 @@ import {
   dedupeRoomMembers,
   employeeProfilePatch,
   appScopedGroupRoomId,
+  appScopedGroupUnreadCount,
   isAppScopedRoomForApp,
   isRoomPmMember,
   nowIso,
@@ -1639,6 +1640,13 @@ export function MountedAppChatPanel(props: {
   }
 
   const defaultGroupDisplayTitle = defaultGroupRoom?.title || defaultGroupTitle;
+  const activeRoomDisplayTitle =
+    (activeRoomIsValid ? activeRoom?.title : defaultGroupDisplayTitle) || t("mountedApp.selectChat");
+  const otherGroupsUnread = appScopedGroupUnreadCount(
+    state.rooms.filter((room) => !room.archived && room.id !== activeRoom?.id),
+    appChatId,
+  );
+  const otherGroupsUnreadLabel = t("mountedApp.otherGroupsUnread", { count: otherGroupsUnread });
 
   return (
     <section className="mounted-app-room-chat" aria-label={t("mountedApp.chatPanelLabel", { title: props.app.title })}>
@@ -1672,6 +1680,7 @@ export function MountedAppChatPanel(props: {
                   setMemberPanelOpen(false);
                 }}
                 aria-expanded={selectorOpen}
+                aria-description={otherGroupsUnread ? otherGroupsUnreadLabel : undefined}
               >
                 <span className="mounted-app-room-target-icon">
                   {activeRoom?.kind === "group" ? (
@@ -1687,11 +1696,18 @@ export function MountedAppChatPanel(props: {
                   )}
                 </span>
                 <span>
-                  <strong>
-                    {(activeRoomIsValid ? activeRoom?.title : defaultGroupDisplayTitle) || t("mountedApp.selectChat")}
-                  </strong>
+                  <strong>{activeRoomDisplayTitle}</strong>
                 </span>
-                <ChevronDown size={15} />
+                <span className="mounted-app-room-target-affordance">
+                  {otherGroupsUnread > 0 ? (
+                    <Tooltip content={otherGroupsUnreadLabel}>
+                      <span>
+                        <UnreadCount count={otherGroupsUnread} className="mounted-app-room-target-unread" />
+                      </span>
+                    </Tooltip>
+                  ) : null}
+                  <ChevronDown size={15} />
+                </span>
               </button>
             }
           >

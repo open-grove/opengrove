@@ -348,6 +348,78 @@ try {
     if (originalIcon === undefined) originalIcon = icon;
     else assert.equal(icon, originalIcon, "Translating an App title must not change its icon");
   }
+  const unreadGroups = [];
+  for (const [title, unread] of [
+    ["Unread group A", 12],
+    ["Unread group B", 1],
+    ["Archived group", 5],
+  ]) {
+    const response = await page.request.post(new URL("/api/rooms", url).href, {
+      data: { title, scope: { kind: "app", appId: createdApp.appId, role: "group" }, memberIds: [senderId] },
+    });
+    assert.ok(response.ok(), await response.text());
+    const { room } = await response.json();
+    unreadGroups.push(room);
+    for (let i = 0; i < unread; i++) {
+      const message = await page.request.post(new URL(`/api/rooms/${room.id}/agent-messages`, url).href, {
+        data: { senderId, text: `Unread message ${i}` },
+      });
+      assert.ok(message.ok(), await message.text());
+    }
+  }
+  const archived = await page.request.patch(new URL(`/api/rooms/${unreadGroups[2].id}`, url).href, {
+    data: { archived: true },
+  });
+  assert.ok(archived.ok(), await archived.text());
+  await page.reload();
+  await page.locator('.app-rail-user-tab[title="Story Garden"]').click();
+  const groupTrigger = page.locator(".mounted-app-room-target");
+  const groupSummary = groupTrigger.locator(".mounted-app-room-target-unread");
+  await groupTrigger.click();
+  const picker = page.getByRole("dialog", { name: "Switch App chat" });
+  const groupA = picker.getByRole("button", { name: "Unread group A, 12 unread items", exact: true });
+  const groupB = picker.getByRole("button", { name: "Unread group B, 1 unread item", exact: true });
+  await expect(groupA.locator(".mounted-app-room-picker-unread")).toHaveText("12");
+  await expect(groupB.locator(".mounted-app-room-picker-unread")).toHaveText("1");
+  await expect(picker.getByRole("button", { name: /Archived group/ })).toHaveCount(0);
+  await expect(groupSummary).toHaveText("13");
+  await picker.getByPlaceholder("Search groups").fill("Unread group A");
+  await expect(groupSummary).toHaveText("13");
+  await expect(groupB).toBeHidden();
+  await picker.getByPlaceholder("Search groups").fill("");
+  if (captureDir) {
+    await expect(picker).toHaveCSS("opacity", "1");
+    await page.screenshot({ path: join(captureDir, "app-group-picker-unread.png") });
+  }
+  await groupA.click();
+  await expect(groupSummary).toHaveText("1");
+  await groupTrigger.click();
+  await expect(picker.getByRole("button", { name: "Unread group A", exact: true })).toBeVisible();
+  await groupB.click();
+  await expect(groupSummary).toHaveCount(0);
+  const defaultMessage = await page.request.post(new URL(`/api/rooms/${appRoom.id}/agent-messages`, url).href, {
+    data: { senderId, text: "Unread in the default group" },
+  });
+  assert.ok(defaultMessage.ok(), await defaultMessage.text());
+  await expect(groupSummary).toHaveText("1");
+  await expect(groupTrigger).toHaveAccessibleDescription("1 unread in other groups");
+  await groupTrigger.click();
+  const defaultGroup = picker.getByRole("button").filter({ hasText: "workflow collaboration" });
+  await expect(defaultGroup.locator(".mounted-app-room-picker-unread")).toHaveText("1");
+  await defaultGroup.click();
+  await expect(groupSummary).toHaveCount(0);
+  for (let i = 0; i < 100; i++) {
+    const response = await page.request.post(new URL(`/api/rooms/${unreadGroups[0].id}/agent-messages`, url).href, {
+      data: { senderId, text: `Many unread messages ${i}` },
+    });
+    assert.ok(response.ok(), await response.text());
+  }
+  await expect(groupSummary).toHaveText("99+");
+  await groupTrigger.click();
+  const cappedGroup = picker.getByRole("button", { name: "Unread group A, 100 unread items", exact: true });
+  await expect(cappedGroup.locator(".mounted-app-room-picker-unread")).toHaveText("99+");
+  await cappedGroup.click();
+  await expect(groupSummary).toHaveCount(0);
   assert.deepEqual(pageErrors, []);
   console.log(
     "web-app-rail-navigation-ui passed: boundary alignment, cursor-only hover and visible keyboard focus, unframed overlay, resize, snap, restore, reload, hover, menus, headings, Escape, keyboard, mobile",

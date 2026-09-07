@@ -1349,6 +1349,7 @@ export const ZH_CN = {
   "mountedApp.removedClickRestore": "已移除 · 点击恢复",
   "mountedApp.noAddableEmployees": "没有可添加员工",
   "mountedApp.switchChat": "切换 App 聊天",
+  "mountedApp.otherGroupsUnread": "其他群有 {count} 条未读",
   "mountedApp.searchGroups": "搜索群组",
   "mountedApp.clearSearch": "清空",
   "mountedApp.groups": "群组",
