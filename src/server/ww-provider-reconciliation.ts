@@ -14,9 +14,24 @@ export type WwProviderReconciliation = z.infer<typeof wwProviderReconciliationSc
 export const wwVerifiedCredentialSchema = z.object({
   fingerprint: z.string().regex(/^[a-f0-9]{64}$/),
   verifiedAt: z.iso.datetime(),
-  expiresAt: z.iso.datetime().optional(),
+  expiresAt: z.iso
+    .datetime({ offset: true })
+    .transform((value) => new Date(value).toISOString())
+    .optional(),
 });
 export type WwVerifiedCredential = z.infer<typeof wwVerifiedCredentialSchema>;
+
+/** Invalid verification observations must not make the account record unreadable. */
+export function parseWwVerifiedCredential(input: unknown): WwVerifiedCredential | undefined {
+  if (input === undefined) return undefined;
+  const parsed = wwVerifiedCredentialSchema.safeParse(input);
+  if (parsed.success) return parsed.data;
+  console.warn("ww_provider_verification_invalid", {
+    fields: parsed.error.issues.map((issue) => issue.path.join(".")),
+  });
+  // Drop the whole observation, not just expiry: missing expiry means a non-expiring Key.
+  return undefined;
+}
 
 export function wwCredentialFingerprint(apiKey: string): string {
   return createHash("sha256").update(apiKey).digest("hex");

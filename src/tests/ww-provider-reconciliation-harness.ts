@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createBridgeState } from "../server/bridge-state.js";
 import { migrateWwProvisioning } from "../server/migrations/ww-provisioning-v1.js";
 import { beginWwProviderSession, provisionWwProviderAfterLogin } from "../server/ww-provider-provisioning.js";
-import { recordWwProviderOwnership } from "../server/ww-provider-local-state.js";
+import { recordWwProviderOwnership, readWwProviderLocalState } from "../server/ww-provider-local-state.js";
 import { failedWwReconciliation } from "../server/ww-provider-reconciliation.js";
 import type { WwProviderCredentialsClient } from "../server/ww/types.js";
 
@@ -85,6 +85,55 @@ try {
     state.settings.customProviders.find((candidate) => candidate.id === "ww")?.provisioningBlocked,
     true,
     "an expired verification cannot keep the Key usable during an outage",
+  );
+  const ownership = {
+    issuer: input.baseUrl,
+    userId: input.userId,
+    apiKeyId: key.id,
+    apiKeyPrefix: key.keyPrefix,
+    apiKey: key.apiKey,
+  };
+  for (const [expiresAt, expected] of [
+    ["2027-01-01T00:00:00Z", "2027-01-01T00:00:00.000Z"],
+    ["2027-01-01T00:00:00+00:00", "2027-01-01T00:00:00.000Z"],
+    ["2027-01-01T08:00:00+08:00", "2027-01-01T00:00:00.000Z"],
+  ]) {
+    recordWwProviderOwnership(state, { ...ownership, expiresAt });
+    assert.equal(
+      readWwProviderLocalState(state).verification?.expiresAt,
+      expected,
+      "service expiry timestamps must be normalized before persistence and survive readback",
+    );
+  }
+  const localStatePath = join(directory, "ww-provider.json");
+  const saved = JSON.parse(readFileSync(localStatePath, "utf8"));
+  saved.verification.expiresAt = "2020-01-01T08:00:00+08:00";
+  writeFileSync(localStatePath, JSON.stringify(saved));
+  assert.equal(
+    readWwProviderLocalState(state).verification?.expiresAt,
+    "2020-01-01T00:00:00.000Z",
+    "already persisted offset timestamps must recover with their expiry intact",
+  );
+  for (const invalidExpiry of ["not-a-date", "2027-01-01T00:00:00", "2027-01-01 00:00:00"]) {
+    saved.verification.expiresAt = invalidExpiry;
+    writeFileSync(localStatePath, JSON.stringify(saved));
+    assert.equal(
+      readWwProviderLocalState(state).verification,
+      undefined,
+      "unreadable or ambiguous expiry must invalidate verification without breaking account state",
+    );
+    assert.equal(readWwProviderLocalState(state).ownerUserId, input.userId);
+    recordWwProviderOwnership(state, { ...ownership, expiresAt: invalidExpiry });
+    assert.equal(
+      readWwProviderLocalState(state).verification,
+      undefined,
+      "an invalid upstream expiry must not become an immortal verified credential",
+    );
+  }
+  recordWwProviderOwnership(state, ownership);
+  assert.ok(
+    readWwProviderLocalState(state).verification,
+    "an explicitly non-expiring service Key still supports verification",
   );
   console.log("ww-provider-reconciliation-harness ok");
 } finally {

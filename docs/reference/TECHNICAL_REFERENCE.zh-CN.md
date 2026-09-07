@@ -111,9 +111,9 @@ token。已认证 Login 只在运行时投影进模型选择器。路由优先�
 覆盖、具体模型的已保存默认、要求选择。新设置用 `$login` 表示 Login，
 Provider 保存具体 id；`$native` 只用于 OpenGrove 0.6.1 升级迁移。
 
-Claude Login 状态会区分第一方 OAuth 与原生 CLI 的 Provider 鉴权（例如 Bedrock、Vertex 或 API Key）。原生 Provider 状态提供显式的 Provider 配置入口，不会产生已登录的 Login 路由。探测失败或无法识别的结果保持为未知，并支持重新检查。
+Claude Login 状态会区分第一方 OAuth 与原生 CLI 的 Provider 鉴权（例如 Bedrock、Vertex 或 API Key）。原生 Provider 状态提供显式的 Provider 配置入口，不会产生已登录的 Login 路由。探测失败或无法识别的结果保持为未知，并支持重新检查。Claude Code 返回的 `claude.ai` 或 `oauth_token` 只有在 `apiProvider: firstParty` 时才属于 Login，`api_key_helper` 属于 Provider 鉴权。设置页的 Login 状态刷新异步执行，并发请求共用一次原生探测及路由读取器的结果缓存。
 
-WW 的凭据存在状态与验证状态分别记录。管理接口暂时不可用时，同一账号和 issuer 下已经验证、未变更且未过期的 Key 继续可用；未验证、已变更、过期或已被明确拒绝的 Key 保持阻断。可恢复的失败返回下次重试时间，已打开的客户端通过现有 Session 接口按有上限的指数退避和抖动重试，成功、退出登录、禁用 Provider 或需要用户处理时停止。Access token 刷新仍由持有 Cookie 的 Session 请求和响应处理。切换账号、退出登录和编辑凭据会使正在执行的旧配置请求失效。仅更新验证状态信息不会重建运行中的 App。
+WW 的凭据存在状态与验证状态分别记录。管理接口暂时不可用时，同一账号和 issuer 下已经验证、未变更且未过期的 Key 继续可用；未验证、已变更、过期或已被明确拒绝的 Key 保持阻断。可恢复的失败返回下次重试时间，已打开的客户端通过现有 Session 接口按有上限的指数退避和抖动重试，成功、退出登录、禁用 Provider 或需要用户处理时停止。Access token 刷新仍由持有 Cookie 的 Session 请求和响应处理。切换账号、退出登录和编辑凭据会使正在执行的旧配置请求失效。仅更新验证状态信息不会重建运行中的 App。Key 到期时间带明确 UTC 偏移时，保存验证记录前统一规范为 UTC。无法解析或时区含糊的到期记录只使缓存的验证依据失效，保留账号和 Key 归属，并记录可诊断的原因，不会导致 Session 状态读取失败。
 
 主 Provider 列表只包含已启用、已配置凭据或用户主动添加的服务；未激活的
 内置项留在 **Add Provider**。OpenGrove 不会把 Codex、Claude、Hermes、Pi、

@@ -1,7 +1,7 @@
 import {
   wwCredentialFingerprint,
   wwProviderReconciliationSchema,
-  wwVerifiedCredentialSchema,
+  parseWwVerifiedCredential,
   type WwProviderReconciliation,
   type WwVerifiedCredential,
 } from "./ww-provider-reconciliation.js";
@@ -185,11 +185,11 @@ export function recordWwProviderOwnership(
     ownerUserId: userId,
     apiKeyId: requiredString(input.apiKeyId, "ww_api_key_identity_missing"),
     apiKeyPrefix: requiredString(input.apiKeyPrefix, "ww_api_key_identity_missing"),
-    verification: {
+    verification: parseWwVerifiedCredential({
       fingerprint: wwCredentialFingerprint(input.apiKey),
       verifiedAt: new Date().toISOString(),
-      ...(input.expiresAt ? { expiresAt: input.expiresAt } : {}),
-    },
+      ...(input.expiresAt !== undefined ? { expiresAt: input.expiresAt } : {}),
+    }),
     reconciliation: { status: "ready", attempt: 0, lastVerifiedAt: new Date().toISOString() },
     ...(recoveryBlock ? { recoveryBlock } : {}),
     ...(current.productDefaults ? { productDefaults: current.productDefaults } : {}),
@@ -311,7 +311,7 @@ export function readWwProviderLocalState(state: BridgeState): WwProviderLocalSta
   const rejectedKeyFingerprint = stringValue(source.rejectedKeyFingerprint);
   if (rejectedKeyFingerprint && !/^[a-f0-9]{64}$/.test(rejectedKeyFingerprint))
     throw new Error("ww_provider_local_state_invalid");
-  const verification = wwVerifiedCredentialSchema.optional().parse(source.verification);
+  const verification = parseWwVerifiedCredential(source.verification);
   const reconciliation = wwProviderReconciliationSchema.optional().parse(source.reconciliation);
   const pending = parsePending(source.pending);
   return {
