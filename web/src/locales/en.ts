@@ -1424,7 +1424,6 @@ export const EN = {
   "mountedApp.removedClickRestore": "Removed · click to restore",
   "mountedApp.noAddableEmployees": "No employees to add",
   "mountedApp.switchChat": "Switch App chat",
-  "mountedApp.otherGroupsUnread": "{count} unread in other groups",
   "mountedApp.searchGroups": "Search groups",
   "mountedApp.clearSearch": "Clear",
   "mountedApp.groups": "Groups",

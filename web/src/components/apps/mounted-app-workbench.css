@@ -2339,7 +2339,7 @@
 
 .mounted-app-room-target {
   display: inline-grid;
-  grid-template-columns: max-content minmax(0, max-content) max-content;
+  grid-template-columns: max-content minmax(0, max-content) 16px;
   gap: 8px;
   align-items: center;
   width: auto;
@@ -2353,12 +2353,6 @@
   font: inherit;
   padding: 0 8px 0 0;
   text-align: left;
-}
-
-.mounted-app-room-target-affordance {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--sp-2);
 }
 
 .mounted-app-room-target:hover,

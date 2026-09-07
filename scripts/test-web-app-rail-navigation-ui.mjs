@@ -374,7 +374,6 @@ try {
   await page.reload();
   await page.locator('.app-rail-user-tab[title="Story Garden"]').click();
   const groupTrigger = page.locator(".mounted-app-room-target");
-  const groupSummary = groupTrigger.locator(".mounted-app-room-target-unread");
   await groupTrigger.click();
   const picker = page.getByRole("dialog", { name: "Switch App chat" });
   const groupA = picker.getByRole("button", { name: "Unread group A, 12 unread items", exact: true });
@@ -382,44 +381,45 @@ try {
   await expect(groupA.locator(".mounted-app-room-picker-unread")).toHaveText("12");
   await expect(groupB.locator(".mounted-app-room-picker-unread")).toHaveText("1");
   await expect(picker.getByRole("button", { name: /Archived group/ })).toHaveCount(0);
-  await expect(groupSummary).toHaveText("13");
+  await expect(groupTrigger.locator("[data-variant]")).toHaveCount(0);
   await picker.getByPlaceholder("Search groups").fill("Unread group A");
-  await expect(groupSummary).toHaveText("13");
+  await expect(groupA.locator(".mounted-app-room-picker-unread")).toHaveText("12");
   await expect(groupB).toBeHidden();
   await picker.getByPlaceholder("Search groups").fill("");
+  await expect(groupB.locator(".mounted-app-room-picker-unread")).toHaveText("1");
   if (captureDir) {
     await expect(picker).toHaveCSS("opacity", "1");
     await page.screenshot({ path: join(captureDir, "app-group-picker-unread.png") });
   }
   await groupA.click();
-  await expect(groupSummary).toHaveText("1");
   await groupTrigger.click();
   await expect(picker.getByRole("button", { name: "Unread group A", exact: true })).toBeVisible();
   await groupB.click();
-  await expect(groupSummary).toHaveCount(0);
   const defaultMessage = await page.request.post(new URL(`/api/rooms/${appRoom.id}/agent-messages`, url).href, {
     data: { senderId, text: "Unread in the default group" },
   });
   assert.ok(defaultMessage.ok(), await defaultMessage.text());
-  await expect(groupSummary).toHaveText("1");
-  await expect(groupTrigger).toHaveAccessibleDescription("1 unread in other groups");
   await groupTrigger.click();
   const defaultGroup = picker.getByRole("button").filter({ hasText: "workflow collaboration" });
   await expect(defaultGroup.locator(".mounted-app-room-picker-unread")).toHaveText("1");
   await defaultGroup.click();
-  await expect(groupSummary).toHaveCount(0);
+  await groupTrigger.click();
+  await expect(defaultGroup.locator(".mounted-app-room-picker-unread")).toHaveCount(0);
+  await page.keyboard.press("Escape");
   for (let i = 0; i < 100; i++) {
     const response = await page.request.post(new URL(`/api/rooms/${unreadGroups[0].id}/agent-messages`, url).href, {
       data: { senderId, text: `Many unread messages ${i}` },
     });
     assert.ok(response.ok(), await response.text());
   }
-  await expect(groupSummary).toHaveText("99+");
   await groupTrigger.click();
   const cappedGroup = picker.getByRole("button", { name: "Unread group A, 100 unread items", exact: true });
   await expect(cappedGroup.locator(".mounted-app-room-picker-unread")).toHaveText("99+");
   await cappedGroup.click();
-  await expect(groupSummary).toHaveCount(0);
+  await groupTrigger.click();
+  await expect(picker.getByRole("button", { name: "Unread group A", exact: true })).toBeVisible();
+  await expect(picker.locator(".mounted-app-room-picker-unread")).toHaveCount(0);
+  await expect(groupTrigger.locator("[data-variant]")).toHaveCount(0);
   assert.deepEqual(pageErrors, []);
   console.log(
     "web-app-rail-navigation-ui passed: boundary alignment, cursor-only hover and visible keyboard focus, unframed overlay, resize, snap, restore, reload, hover, menus, headings, Escape, keyboard, mobile",
