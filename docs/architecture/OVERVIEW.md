@@ -71,6 +71,12 @@ cleanup result remain visible. Cleanup authority remains separate from the
 lease and is limited to the explicit cache, orphan-file, rotated-log, and
 inactive-updater roots described above.
 
+The desktop updater reserves its cache during an in-flight update check,
+download, or installation, and while a downloaded installer awaits restart.
+Storage cleanup retains a reserved cache. New update checks, downloads, and
+installations wait until the cleanup and its maintenance lease release finish;
+cleanup failures are reported to the caller and also release updater admission.
+
 Hosted account services are accessed through an explicit WW base URL. They do
 not own local workspaces, native Kernel sessions, or installed App files.
 Cloud sign-in is optional in the desktop profile: completing or skipping the
