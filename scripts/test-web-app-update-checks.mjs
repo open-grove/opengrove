@@ -76,33 +76,48 @@ try {
     await expect(page.locator("output")).toHaveText("signed-out:true");
     assert.equal(requests.length, 0, "signed-out clients must not schedule App updates");
     await page.getByRole("button", { name: "Sign in", exact: true }).click();
-    await expect.poll(() => requests.length).toBe(1);
-    assert.deepEqual(requests[0], { method: "POST", path: "/api/app-store/updates" });
+    await expect(page.locator("output")).toHaveText("owner:true");
+    assert.equal(requests.length, 0, "login/session restoration already owns the initial App check");
 
     await page.clock.fastForward(6 * 60 * 60_000);
-    await expect.poll(() => requests.length).toBe(2);
+    await expect.poll(() => requests.length).toBe(1);
+    assert.deepEqual(requests[0], { method: "POST", path: "/api/app-store/updates" });
     await page.getByRole("button", { name: "Disable App updates" }).click();
     await expect(page.locator("output")).toHaveText("owner:false");
     await page.clock.fastForward(6 * 60 * 60_000);
-    assert.equal(requests.length, 2, "disabling automatic updates cancels the periodic request");
+    assert.equal(requests.length, 1, "disabling automatic updates cancels the periodic request");
 
     await page.getByRole("button", { name: "Enable App updates" }).click();
-    await expect.poll(() => requests.length).toBe(3);
+    await expect(page.locator("output")).toHaveText("owner:true");
+    assert.equal(requests.length, 1, "optimistic re-enable must wait for settings to be saved");
     await page.getByRole("button", { name: "Settings save completed" }).click();
-    await expect.poll(() => requests.length).toBe(4);
+    await expect.poll(() => requests.length).toBe(2);
+
+    await page.getByRole("button", { name: "Disable App updates" }).click();
+    await expect(page.locator("output")).toHaveText("owner:false");
+    await page.getByRole("button", { name: "Enable App updates" }).click();
+    await expect(page.locator("output")).toHaveText("owner:true");
+    // A failed save rolls the optimistic setting back without calling onSuccess.
+    await page.getByRole("button", { name: "Disable App updates" }).click();
+    await expect(page.locator("output")).toHaveText("owner:false");
+    await page.clock.fastForward(6 * 60 * 60_000);
+    assert.equal(requests.length, 2, "failed preference saves must not schedule App updates");
+    await page.getByRole("button", { name: "Enable App updates" }).click();
 
     await page.getByRole("button", { name: "Sign out", exact: true }).click();
     await expect(page.locator("output")).toHaveText("signed-out:true");
     await page.clock.fastForward(6 * 60 * 60_000);
     await page.getByRole("button", { name: "Settings save completed" }).click();
-    assert.equal(requests.length, 4, "logout stops both periodic and explicit scheduling");
+    assert.equal(requests.length, 2, "logout stops both periodic and explicit scheduling");
 
     failNext = true;
     await page.getByRole("button", { name: "Sign in", exact: true }).click();
-    await expect.poll(() => errors.some((message) => message.includes("app_update_schedule_failed"))).toBe(true);
-    assert.equal(requests.length, 5);
+    await expect(page.locator("output")).toHaveText("owner:true");
     await page.clock.fastForward(6 * 60 * 60_000);
-    await expect.poll(() => requests.length).toBe(6);
+    await expect.poll(() => errors.some((message) => message.includes("app_update_schedule_failed"))).toBe(true);
+    assert.equal(requests.length, 3);
+    await page.clock.fastForward(6 * 60 * 60_000);
+    await expect.poll(() => requests.length).toBe(4);
     assert.ok(requests.every(({ method, path }) => method === "POST" && path === "/api/app-store/updates"));
   } finally {
     await browser.close();

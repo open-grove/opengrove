@@ -1,7 +1,7 @@
 import type { ScheduleAppUpdatesOperation } from "#protocol";
 import { scheduleInstalledAppStoreUpdatesAfterAuth } from "../app-store-auto-updates.js";
 import { releaseControlRegistryConfig } from "../app-store-registry.js";
-import { resolveWwRuntimeAuth } from "../bridge-security.js";
+import { hasBridgeTokenAccess, resolveWwRuntimeAuth, resolveWwRuntimeAuthWithoutRefresh } from "../bridge-security.js";
 import { recordProblem } from "../problem-records.js";
 import type { HostOperationRouteContext } from "../router.js";
 import { readWwProviderLocalState, wwProviderAccountMatches } from "../ww-provider-local-state.js";
@@ -11,7 +11,11 @@ export async function handleScheduleAppUpdatesOperation(
 ): Promise<true> {
   const { request, response, security, state, traceId, sendJson } = context;
   try {
-    const auth = await resolveWwRuntimeAuth(request, response, security);
+    // Desktop background calls can outlive a window or be abandoned at quit.
+    // Login/session restoration owns credential rotation and its durable cookies.
+    const auth = hasBridgeTokenAccess(request, security)
+      ? await resolveWwRuntimeAuthWithoutRefresh(request, security)
+      : await resolveWwRuntimeAuth(request, response, security);
     if (auth.status === "unauthenticated") {
       sendJson(response, 401, { error: "not_authenticated" });
       return true;

@@ -12,7 +12,7 @@ export const scheduleAppUpdatesOperation = defineHostOperation({
   id: "app.update.schedule",
   summary: "Schedule automatic App updates",
   description:
-    "Schedule background updates for installed Store Apps using the workspace owner's account. Honors the automatic-update setting, check interval, and local App safety checks. May download and activate newer App versions; does not check the desktop client version.",
+    "Schedule background updates for installed Store Apps using the workspace owner's account. Honors the automatic-update setting, check interval, and local App safety checks. May download and activate newer App versions; does not check the desktop client version. Requests authenticated by a desktop Bridge token also require a valid Cloud session and never refresh account cookies.",
   method: "POST",
   path: "/app-store/updates",
   risk: "write",
@@ -24,10 +24,17 @@ export const scheduleAppUpdatesOperation = defineHostOperation({
       reason: z.string().optional(),
     }),
   },
-  errors: [401, 403, 500, 503].map((status) => ({
+  errors: (
+    [
+      [401, "A valid Cloud session is required; desktop background calls never refresh expired credentials."],
+      [403, "The request origin or account is not authorized for this workspace."],
+      [500, "An internal error or response contract violation occurred."],
+      [503, "The account or App update service is temporarily unavailable."],
+    ] as const
+  ).map(([status, description]) => ({
     status,
     body: appUpdateErrorSchema,
-    description: "The account could not authorize App updates for this workspace.",
+    description,
   })),
 });
 

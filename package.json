@@ -185,6 +185,7 @@
     "test:auth-degraded-policy": "node scripts/test-auth-degraded-policy.mjs",
     "test:app-update-routing": "npm run build:server && node dist/tests/app-update-routing-harness.js",
     "test:web-app-update-checks": "node scripts/test-web-app-update-checks.mjs",
+    "test:desktop-app-updates": "node scripts/test-desktop-app-updates.mjs",
     "test:desktop-auth-cookies": "node scripts/test-desktop-auth-cookies.mjs",
     "test:desktop-protocol-proxy-electron": "node scripts/test-desktop-protocol-proxy-electron.mjs",
     "test:desktop-window-lifecycle": "node scripts/test-desktop-main-window-lifecycle.mjs && node scripts/test-desktop-stripe-deep-link.mjs",

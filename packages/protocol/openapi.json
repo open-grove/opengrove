@@ -2320,7 +2320,7 @@
       "post": {
         "operationId": "app.update.schedule",
         "summary": "Schedule automatic App updates",
-        "description": "Schedule background updates for installed Store Apps using the workspace owner's account. Honors the automatic-update setting, check interval, and local App safety checks. May download and activate newer App versions; does not check the desktop client version.",
+        "description": "Schedule background updates for installed Store Apps using the workspace owner's account. Honors the automatic-update setting, check interval, and local App safety checks. May download and activate newer App versions; does not check the desktop client version. Requests authenticated by a desktop Bridge token also require a valid Cloud session and never refresh account cookies.",
         "tags": ["app"],
         "x-opengrove-group": "app",
         "x-opengrove-resource": "update",
@@ -2353,7 +2353,7 @@
             }
           },
           "401": {
-            "description": "The account could not authorize App updates for this workspace.",
+            "description": "A valid Cloud session is required; desktop background calls never refresh expired credentials.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2381,7 +2381,7 @@
             }
           },
           "403": {
-            "description": "The account could not authorize App updates for this workspace.",
+            "description": "The request origin or account is not authorized for this workspace.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2409,7 +2409,7 @@
             }
           },
           "500": {
-            "description": "The account could not authorize App updates for this workspace.",
+            "description": "An internal error or response contract violation occurred.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2437,7 +2437,7 @@
             }
           },
           "503": {
-            "description": "The account could not authorize App updates for this workspace.",
+            "description": "The account or App update service is temporarily unavailable.",
             "content": {
               "application/json": {
                 "schema": {

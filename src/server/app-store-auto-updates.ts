@@ -33,8 +33,9 @@ import { recordProblem } from "./problem-records.js";
 import { isRetiredKnowledgeVaultPackage } from "./retired-apps.js";
 
 // Scheduling is request-driven: authenticated startup/session requests perform
-// the first check, then the open Web client schedules App updates through a
-// dedicated authenticated POST every six hours, separate from client versions.
+// the first check, then the desktop main process and open Web client schedule
+// App updates through a dedicated authenticated POST every six hours. Desktop
+// checks survive window closure and never refresh credentials in the background.
 // The Bridge intentionally does not run an autonomous headless update timer.
 export const APP_STORE_AUTO_UPDATE_INTERVAL_MS = 6 * 60 * 60_000;
 const AUTO_UPDATE_FAILURE_COOLDOWN_MS = 5 * 60_000;

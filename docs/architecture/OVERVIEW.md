@@ -91,9 +91,19 @@ protected `POST /app-store/updates` operation, which verifies the Cloud account
 against the local workspace owner even when the request carries a desktop
 Bridge token. It honors the automatic-update preference, six-hour interval,
 and existing App safety checks. Login and session restoration retain their
-initial App check; an authenticated open client supplies the separate periodic
-request and schedules another check after re-enabling automatic App updates.
-The Bridge does not run an autonomous headless App update timer.
+initial App check. The desktop main process schedules App updates at startup
+and every six hours, including when all macOS windows are closed; this timer
+is independent of the client updater's download/install state. Its requests
+carry both the desktop Bridge token and the current Cloud session cookies.
+Bridge-token requests never refresh those cookies: expired credentials skip
+App updates until login or session restoration renews them. Quitting the desktop
+stops the timer and cancels its pending request.
+
+An authenticated open Web client also supplies periodic App update requests.
+Re-enabling automatic updates schedules one explicit request after settings
+are saved; an optimistic toggle does not schedule an extra request. The Bridge
+itself does not run an autonomous headless App update timer. Public client
+release metadata does not authorize any installed App changes.
 
 The authenticated Web profile is still a single-principal local Host: WW owns
 the account session, while the Bridge process owns the local workspace, SQLite

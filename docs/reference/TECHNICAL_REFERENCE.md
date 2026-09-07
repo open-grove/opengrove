@@ -187,6 +187,14 @@ preference, separate from account session state. It never bypasses the
 desktop's in-memory Bridge token. Browser session deployments still require an
 account, and Cloud-backed features remain gated at their feature boundary.
 
+Client release metadata is public and does not authorize local App changes.
+Installed App update checks run independently in the desktop main process,
+including with no open macOS window. `POST /app-store/updates` requests carrying
+a trusted desktop Bridge token still require the workspace owner's valid Cloud
+session; they never rotate cookies and return `401` when credentials expire.
+Login/session restoration owns renewal. Open Web clients retain periodic checks,
+and re-enabling App updates schedules a check only after settings are saved.
+
 | Endpoint | Method | Purpose |
 | --- | --- | --- |
 | `/health` | `GET` | local Bridge liveness and capability summary; never validates the WW session |

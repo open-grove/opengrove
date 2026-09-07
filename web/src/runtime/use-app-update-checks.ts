@@ -6,7 +6,6 @@ const APP_UPDATE_INTERVAL_MS = 6 * 60 * 60_000;
 
 export function useAppUpdateChecks(input: { authenticated: boolean; userId?: string; automatic: boolean }) {
   const { mutate } = useMutation({
-    mutationKey: ["app-update-schedule", input.userId],
     mutationFn: () => openGroveClient.apps.updates.schedule(),
     retry: false,
     onError: (error) => {
@@ -19,12 +18,11 @@ export function useAppUpdateChecks(input: { authenticated: boolean; userId?: str
 
   useEffect(() => {
     if (!input.authenticated || !input.userId || !input.automatic) return;
-    scheduleAppUpdates();
     const timer = setInterval(scheduleAppUpdates, APP_UPDATE_INTERVAL_MS);
     return () => clearInterval(timer);
   }, [input.authenticated, input.userId, input.automatic, scheduleAppUpdates]);
 
-  // Re-enabling App updates calls this after the settings save has reset the
-  // server cursor, even if an optimistic UI update already started a check.
+  // Login/session restoration owns the initial check. Re-enabling calls this
+  // only after settings are saved; the optimistic toggle must not send a POST.
   return scheduleAppUpdates;
 }

@@ -186,6 +186,12 @@ Local bridge 是 UI、state、tools 和 kernels 之间的边界。
 这个选择是独立于账号会话的本机 UI 偏好，不会绕过桌面端的内存 Bridge token。
 浏览器 session 部署仍要求账号登录，需要 Cloud 的功能也继续在各自功能边界检查登录态。
 
+客户端发布元数据公开可读，不授予修改本机 App 的权限。
+已安装 App 的更新由桌面主进程独立定时检查，macOS 关闭所有窗口后仍会继续。
+携带可信桌面 Bridge token 的 `POST /app-store/updates` 请求仍须具备工作区所属账号的有效 Cloud 会话；
+这类请求不会刷新 Cookie，凭据过期时返回 `401`，由登录或会话恢复负责续期。
+打开的 Web 客户端保留定时检查；重新启用 App 自动更新时，只有设置保存成功后才触发检查。
+
 | Endpoint | Method | Purpose |
 | --- | --- | --- |
 | `/health` | `GET` | Bridge 本地存活与能力摘要；不验证 WW 会话 |

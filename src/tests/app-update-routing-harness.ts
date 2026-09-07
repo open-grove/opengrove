@@ -20,11 +20,27 @@ const envKeys = [
 const originalEnv = Object.fromEntries(envKeys.map((key) => [key, process.env[key]]));
 let catalogRequests = 0;
 let versionRequests = 0;
+let refreshRequests = 0;
 let releaseCatalog: (() => void) | undefined;
 let holdCatalog = false;
 const fakeServices = createServer((request, response) => {
   const path = new URL(request.url ?? "/", "http://127.0.0.1").pathname;
   response.setHeader("content-type", "application/json");
+  if (path === "/v1/auth/token/refresh") {
+    refreshRequests += 1;
+    response.end(
+      JSON.stringify({
+        data: {
+          access_token: "access-owner",
+          access_token_expires_in: 86400,
+          refresh_token: "refresh-rotated",
+          refresh_token_expires_in: 2592000,
+          token_type: "Bearer",
+        },
+      }),
+    );
+    return;
+  }
   if (path === "/v1/users/me") {
     const token = request.headers.authorization;
     if (token === "Bearer access-outage") {
@@ -88,7 +104,10 @@ try {
       return `opengrove_auth_access=access-${user}; opengrove_auth_refresh=refresh-${session}; opengrove_auth_session=update-${session}`;
     };
     const ownerHeaders = { cookie: cookie("owner") };
-    const client = createOpenGroveClient({ baseUrl, headers: ownerHeaders });
+    const client = createOpenGroveClient({
+      baseUrl,
+      headers: { ...ownerHeaders, "x-opengrove-token": "desktop-token" },
+    });
 
     for (const headers of [{}, ownerHeaders, { cookie: cookie("other") }]) {
       const response = await fetch(`${baseUrl}/auth/client-update`, { headers });
@@ -112,6 +131,19 @@ try {
       await response.arrayBuffer();
     }
     assert.equal(catalogRequests, 0);
+
+    const expiredDesktop = await fetch(`${baseUrl}/app-store/updates`, {
+      method: "POST",
+      headers: {
+        "x-opengrove-token": "desktop-token",
+        cookie: "opengrove_auth_refresh=refresh-desktop-expired; opengrove_auth_session=desktop-expired",
+      },
+    });
+    assert.equal(refreshRequests, 0, "a background desktop request must never rotate refresh tokens");
+    assert.equal(expiredDesktop.status, 401);
+    assert.deepEqual(expiredDesktop.headers.getSetCookie(), []);
+    await expiredDesktop.arrayBuffer();
+    assert.equal(catalogRequests, 0, "expired desktop credentials must not authorize App updates");
 
     holdCatalog = true;
     assert.deepEqual(await client.apps.updates.schedule(), { ok: true, status: "scheduled" });
@@ -154,6 +186,15 @@ try {
     assert.equal(versionRequests, 3);
     const owner = JSON.parse(await readFile(join(dir, "ww-provider.json"), "utf8")) as { ownerUserId: string };
     assert.equal(owner.ownerUserId, "owner");
+
+    const expiredBrowser = await fetch(`${baseUrl}/app-store/updates`, {
+      method: "POST",
+      headers: { cookie: "opengrove_auth_refresh=refresh-browser-expired; opengrove_auth_session=browser-expired" },
+    });
+    assert.equal(expiredBrowser.status, 200, "interactive browser sessions retain credential refresh");
+    assert.equal(refreshRequests, 1);
+    assert.ok(expiredBrowser.headers.getSetCookie().some((value) => value.includes("refresh-rotated")));
+    await expiredBrowser.arrayBuffer();
   } finally {
     releaseCatalog?.();
     await new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));

@@ -1266,7 +1266,7 @@ export type AppUpdateScheduleData = {
 
 export type AppUpdateScheduleErrors = {
   /**
-   * The account could not authorize App updates for this workspace.
+   * A valid Cloud session is required; desktop background calls never refresh expired credentials.
    */
   401: {
     ok?: false;
@@ -1275,7 +1275,7 @@ export type AppUpdateScheduleErrors = {
     traceId?: string;
   };
   /**
-   * The account could not authorize App updates for this workspace.
+   * The request origin or account is not authorized for this workspace.
    */
   403: {
     ok?: false;
@@ -1284,7 +1284,7 @@ export type AppUpdateScheduleErrors = {
     traceId?: string;
   };
   /**
-   * The account could not authorize App updates for this workspace.
+   * An internal error or response contract violation occurred.
    */
   500: {
     ok?: false;
@@ -1293,7 +1293,7 @@ export type AppUpdateScheduleErrors = {
     traceId?: string;
   };
   /**
-   * The account could not authorize App updates for this workspace.
+   * The account or App update service is temporarily unavailable.
    */
   503: {
     ok?: false;

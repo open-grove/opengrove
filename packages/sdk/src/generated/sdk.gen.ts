@@ -282,7 +282,7 @@ export class Update extends HeyApiClient {
   /**
    * Schedule automatic App updates
    *
-   * Schedule background updates for installed Store Apps using the workspace owner's account. Honors the automatic-update setting, check interval, and local App safety checks. May download and activate newer App versions; does not check the desktop client version.
+   * Schedule background updates for installed Store Apps using the workspace owner's account. Honors the automatic-update setting, check interval, and local App safety checks. May download and activate newer App versions; does not check the desktop client version. Requests authenticated by a desktop Bridge token also require a valid Cloud session and never refresh account cookies.
    */
   public schedule<ThrowOnError extends boolean = false>(
     options?: Options<AppUpdateScheduleData, ThrowOnError>,
