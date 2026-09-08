@@ -26,9 +26,9 @@ const flags = new Map();
 const kernels = ["pi", "opencode", "kimi", "hermes", "claude-code", "codex"];
 for (let index = 2; index < process.argv.length; index += 2) {
   const flag = process.argv[index];
-  if (!["--settings", "--provider", "--kernel"].includes(flag) || !process.argv[index + 1]) {
+  if (!["--settings", "--provider", "--kernel", "--resume-directory"].includes(flag) || !process.argv[index + 1]) {
     throw new Error(
-      "Usage: node scripts/smoke-provider-routes.mjs [--settings path] [--provider gemini|deepseek] [--kernel pi|opencode|kimi|hermes|claude-code|codex]",
+      "Usage: node scripts/smoke-provider-routes.mjs [--settings path] [--provider gemini|deepseek] [--kernel pi|opencode|kimi|hermes|claude-code|codex] [--resume-directory path]",
     );
   }
   flags.set(flag, process.argv[index + 1]);
@@ -37,6 +37,8 @@ const selectedProvider = flags.get("--provider");
 const selectedKernel = flags.get("--kernel");
 if (selectedProvider && !["gemini", "deepseek"].includes(selectedProvider)) throw new Error("Unknown Provider");
 if (selectedKernel && !kernels.includes(selectedKernel)) throw new Error("Unknown Kernel");
+if (flags.has("--resume-directory") && (selectedKernel !== "pi" || !selectedProvider))
+  throw new Error("Resume requires --kernel pi and one --provider");
 const settings = flags.has("--settings")
   ? migrateBridgeSettingsSourceToV1(JSON.parse(readFileSync(flags.get("--settings"), "utf8"))).source
   : {};
@@ -97,7 +99,14 @@ try {
 if (results.some((result) => !result.ok)) process.exitCode = 1;
 
 async function checkPi(profile) {
-  const { directory, prompt } = isolatedFileProbe("pi");
+  const resume = flags.has("--resume-directory");
+  const { directory, prompt } = resume
+    ? {
+        directory: realpathSync(flags.get("--resume-directory")),
+        prompt:
+          "Recall the marker from the original file read tool result in this conversation. Return that marker exactly, without adding end, punctuation, code fences or commentary. Do not call any tools.",
+      }
+    : isolatedFileProbe("pi");
   const env = { ...buildPiProviderEnv(profile), OPENGROVE_DATA_DIR: join(directory, "data") };
   const model = resolvePiRuntimeModel(env, profile.model, profile.models);
   const adapter = createPiKernelAdapter({ cwd: directory, configuredModel: profile.model, provider: profile, env });
@@ -105,7 +114,7 @@ async function checkPi(profile) {
     api: model.api,
     baseUrl: model.baseUrl,
     contextWindow: model.contextWindow,
-    ...(await runAdapterFileProbe(adapter, directory, prompt, profile.model)),
+    ...(await runAdapterFileProbe(adapter, directory, prompt, profile.model, resume)),
   };
 }
 
@@ -126,7 +135,7 @@ async function checkCodex(profile) {
   };
 }
 
-async function runAdapterFileProbe(adapter, directory, prompt, model) {
+async function runAdapterFileProbe(adapter, directory, prompt, model, resume = false) {
   const runtime = createKernelRuntime(adapter);
   const app = createOpenGrove({ cwd: directory, readPage: async () => ({}), runtime });
   const events = [];
@@ -165,9 +174,16 @@ async function runAdapterFileProbe(adapter, directory, prompt, model) {
   ).trim();
   const errors = events.filter((e) => e.type === "error");
   const read = events.some((e) => e.type === "tool.finished" && e.result?.ok);
-  if (errors.length || !read || answer !== "OG_PROVIDER_SMOKE_OK")
+  const prior = events.find((e) => e.type === "model.requested")?.request;
+  const resumedHistory =
+    (prior?.session?.priorMessageCount ?? 0) >= 4 && JSON.stringify(prior?.messages).includes("OG_PROVIDER_SMOKE_OK");
+  if (
+    errors.length ||
+    (resume ? !resumedHistory || events.some((e) => e.type === "tool.started") : !read) ||
+    answer !== "OG_PROVIDER_SMOKE_OK"
+  )
     throw new Error(JSON.stringify({ errors, read, answer, directory }));
-  return { toolRoundTrip: true, answer, directory };
+  return { ...(resume ? { resumedHistory: true } : { toolRoundTrip: true }), answer, directory };
 }
 
 async function checkOpenCode(profile) {
@@ -316,7 +332,14 @@ async function checkKimi(profile) {
     .trim();
   const errors = events.filter((e) => e.type === "error");
   const read = events.some((e) => e.type === "tool.finished" && e.result?.ok);
-  if (errors.length || !read || answer !== "OG_PROVIDER_SMOKE_OK")
+  const prior = events.find((e) => e.type === "model.requested")?.request;
+  const resumedHistory =
+    (prior?.session?.priorMessageCount ?? 0) >= 4 && JSON.stringify(prior?.messages).includes("OG_PROVIDER_SMOKE_OK");
+  if (
+    errors.length ||
+    (resume ? !resumedHistory || events.some((e) => e.type === "tool.started") : !read) ||
+    answer !== "OG_PROVIDER_SMOKE_OK"
+  )
     throw new Error(JSON.stringify({ errors, read, answer }));
   return { api: env.KIMI_MODEL_PROVIDER_TYPE, toolRoundTrip: true, answer, directory };
 }

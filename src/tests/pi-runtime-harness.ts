@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createAssistantMessageEventStream, createModels, createProvider } from "@earendil-works/pi-ai";
@@ -261,6 +261,7 @@ async function main() {
   await assertNativePiApprovalContinuesSameLoop();
   await assertNativePiForkedSkillIsEphemeral();
   await assertNativePiDurableSessionRestart();
+  await assertNativePi084Resume();
   await assertNativePiRejectsActiveSessionDeletion();
   await assertNativePiCompaction();
 
@@ -716,9 +717,12 @@ async function assertNativePiAbortPreservesPartialAnswer(): Promise<void> {
         };
         queueMicrotask(() => {
           stream.push({ type: "start", partial: pending as any });
-          stream.push({ type: "text_start", contentIndex: 0, partial: pending as any });
+          stream.push({
+            type: "text_start",
+            contentIndex: 0,
+            partial: { ...pending, content: [{ type: "text", text: "" }] } as any,
+          });
           stream.push({ type: "text_delta", contentIndex: 0, delta: partialText, partial: partial as any });
-          markStreamStarted();
           const finishAborted = () => {
             const aborted = {
               ...partial,
@@ -735,6 +739,16 @@ async function assertNativePiAbortPreservesPartialAnswer(): Promise<void> {
             options?.signal?.addEventListener("abort", finishAborted, { once: true });
           }
         });
+        const iterate = stream[Symbol.asyncIterator].bind(stream);
+        stream[Symbol.asyncIterator] = async function* () {
+          const iterator = iterate();
+          for (let next = await iterator.next(); !next.done; next = await iterator.next()) {
+            const event = next.value;
+            yield event;
+            // Cancellation follows a consumed delta, not a merely queued provider event.
+            if (event.type === "text_delta") markStreamStarted();
+          }
+        };
         return stream;
       },
     }),
@@ -754,7 +768,12 @@ async function assertNativePiAbortPreservesPartialAnswer(): Promise<void> {
     }))
       events.push(event);
   })();
-  await streamStarted;
+  await Promise.race([
+    streamStarted,
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error("stream did not reach cancellation checkpoint")), 1500),
+    ),
+  ]);
   controller.abort();
   await running;
 
@@ -826,7 +845,12 @@ async function assertNativePiAbortHasSettlementBound(): Promise<void> {
     }))
       events.push(event);
   })();
-  await streamStarted;
+  await Promise.race([
+    streamStarted,
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error("stream did not reach cancellation checkpoint")), 1500),
+    ),
+  ]);
   controller.abort();
   const outcome = await Promise.race([
     running.then(() => "settled" as const),
@@ -859,9 +883,9 @@ async function assertNativePiAbortRepairsPendingToolHistory(): Promise<void> {
     const firstRuntime = new PiAgentRuntime({
       createSession: createNativePiSessionFactory({
         model,
+        abortSettleTimeoutMs: 20,
         sessionRoot,
         cwd: process.cwd(),
-        abortSettleTimeoutMs: 20,
         streamFn: (_model, nativeContext) =>
           nativeAssistantStream(
             model.id,
@@ -901,6 +925,7 @@ async function assertNativePiAbortRepairsPendingToolHistory(): Promise<void> {
     const restartedRuntime = new PiAgentRuntime({
       createSession: createNativePiSessionFactory({
         model,
+        abortSettleTimeoutMs: 20,
         sessionRoot,
         cwd: process.cwd(),
         streamFn: (_model, nativeContext) => {
@@ -927,7 +952,7 @@ async function assertNativePiAbortRepairsPendingToolHistory(): Promise<void> {
       true,
       "a timed-out native tool call must be durably paired with an error toolResult before the session is reused",
     );
-    assert.match(JSON.stringify(restoredToolResult?.content), /cancel/i);
+    assert.match(JSON.stringify(restoredToolResult?.content), /Tool execution was interrupted/);
     assert.ok(
       restartedEvents.some(
         (event) => event.type === "model.response" && event.response.text === "continued after cancelled tool",
@@ -1116,6 +1141,62 @@ async function assertNativePiForkedSkillIsEphemeral(): Promise<void> {
     ["pi-fork-skill-parent"],
     "forked skill execution must not pollute the durable Pi session list",
   );
+}
+
+async function assertNativePi084Resume(): Promise<void> {
+  for (const compacted of [false, true]) {
+    const root = mkdtempSync(join(tmpdir(), "opengrove-pi-084-resume-"));
+    try {
+      const directory = join(root, "--opengrove-upgrade-fixture--");
+      mkdirSync(directory);
+      writeFileSync(
+        join(directory, "fixture.jsonl"),
+        readFileSync(`src/tests/fixtures/pi-084/${compacted ? "compacted-session" : "tool-session"}.jsonl`),
+      );
+      const model = nativeTestModel("pi-upgraded-model");
+      const makeRuntime = () =>
+        new PiAgentRuntime({
+          createSession: createNativePiSessionFactory({
+            model,
+            sessionRoot: root,
+            cwd: "/opengrove-upgrade-fixture",
+            streamFn: (_model, context) => {
+              if (compacted) assert.match(JSON.stringify(context.messages), /The original marker was cedar-314/);
+              else
+                assert.ok(
+                  context.messages.some(
+                    (message) => message.role === "toolResult" && message.toolCallId === "fixture-read",
+                  ),
+                );
+              assert.match(JSON.stringify(context.messages), /cedar-314/);
+              return assistantStream("continued cedar-314", model.id);
+            },
+          }),
+        });
+      const first = await collect(makeRuntime(), createContext("pi-084-upgrade-session"), "continue after upgrading");
+      assert.ok(
+        first.some((event) => event.type === "model.response" && event.response.text === "continued cedar-314"),
+      );
+      assert.deepEqual(
+        first.filter((event) => event.type === "error"),
+        [],
+      );
+      const second = await collect(
+        makeRuntime(),
+        createContext("pi-084-upgrade-session"),
+        "continue after restarting again",
+      );
+      const request = second.find((event) => event.type === "model.requested");
+      assert.ok(request?.type === "model.requested");
+      assert.match(JSON.stringify(request.request.messages), /continue after upgrading/);
+      assert.deepEqual(
+        second.filter((event) => event.type === "error"),
+        [],
+      );
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  }
 }
 
 async function assertNativePiDurableSessionRestart(): Promise<void> {
