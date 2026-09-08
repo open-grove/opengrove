@@ -7,7 +7,7 @@ this repository.
 | Kernel/source | Reviewed source |
 | --- | --- |
 | Codex | [`openai/codex` app-server protocol at `3f615700`](https://github.com/openai/codex/tree/3f6157004419e21547962670026c6f6001d06fe8/codex-rs/app-server-protocol) |
-| Claude Agent SDK | Installed `@anthropic-ai/claude-agent-sdk` `0.3.251` package types; bundled engine [`v2.1.251`](https://github.com/anthropics/claude-code/tree/v2.1.251) |
+| Claude Agent SDK | Installed `@anthropic-ai/claude-agent-sdk` `0.3.263` package types; bundled engine [`v2.1.263`](https://github.com/anthropics/claude-code/tree/v2.1.263) |
 | Pi | Installed `@earendil-works/pi-agent-core` and `@earendil-works/pi-ai` `0.84.4` package documentation and types; upstream [`v0.84.4`](https://github.com/earendil-works/pi/tree/v0.84.4) |
 | Hermes | [`NousResearch/hermes-agent` `v2026.8.3`](https://github.com/NousResearch/hermes-agent/tree/v2026.8.3) |
 | OpenCode | [`anomalyco/opencode` `v1.18.3`](https://github.com/anomalyco/opencode/tree/v1.18.3) |
@@ -16,3 +16,16 @@ this repository.
 
 Version and verification dates remain attached to individual facts in
 `src/kernel/capabilities/native-facts.ts`.
+
+Native Provider integration targets Codex 0.153.4, Claude Agent SDK 0.3.263,
+Pi 0.84.4, OpenCode 1.18.29, Kimi Code 0.41.0, Hermes 0.21.1
+(`v2026.9.7`), and OpenClaw 2026.9.2. The source reviews above and individual
+capability certifications retain their own versions; a Provider transport check
+does not certify every capability of a newer runtime.
+
+Pi remains pinned to the 0.84.4 SDK pair until its durable session adapter is
+migrated to the public 0.85 session/harness contracts. The migration must preserve
+existing sessions, compaction, cancellation and fork/list/delete behavior;
+[the migration acceptance gate is tracked separately](https://github.com/open-grove/opengrove/issues/63).
+Use `npm run certify:openclaw` for the current Gateway handshake and model-list
+contract; the version-specific 2026.8.2 command remains reproducible.
