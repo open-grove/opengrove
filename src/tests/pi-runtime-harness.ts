@@ -716,9 +716,12 @@ async function assertNativePiAbortPreservesPartialAnswer(): Promise<void> {
         };
         queueMicrotask(() => {
           stream.push({ type: "start", partial: pending as any });
-          stream.push({ type: "text_start", contentIndex: 0, partial: pending as any });
+          stream.push({
+            type: "text_start",
+            contentIndex: 0,
+            partial: { ...pending, content: [{ type: "text", text: "" }] } as any,
+          });
           stream.push({ type: "text_delta", contentIndex: 0, delta: partialText, partial: partial as any });
-          markStreamStarted();
           const finishAborted = () => {
             const aborted = {
               ...partial,
@@ -735,6 +738,16 @@ async function assertNativePiAbortPreservesPartialAnswer(): Promise<void> {
             options?.signal?.addEventListener("abort", finishAborted, { once: true });
           }
         });
+        const iterate = stream[Symbol.asyncIterator].bind(stream);
+        stream[Symbol.asyncIterator] = async function* () {
+          const iterator = iterate();
+          for (let next = await iterator.next(); !next.done; next = await iterator.next()) {
+            const event = next.value;
+            yield event;
+            // Cancellation follows a consumed delta, not a merely queued provider event.
+            if (event.type === "text_delta") markStreamStarted();
+          }
+        };
         return stream;
       },
     }),
@@ -754,7 +767,12 @@ async function assertNativePiAbortPreservesPartialAnswer(): Promise<void> {
     }))
       events.push(event);
   })();
-  await streamStarted;
+  await Promise.race([
+    streamStarted,
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error("stream did not reach cancellation checkpoint")), 1500),
+    ),
+  ]);
   controller.abort();
   await running;
 
@@ -826,7 +844,12 @@ async function assertNativePiAbortHasSettlementBound(): Promise<void> {
     }))
       events.push(event);
   })();
-  await streamStarted;
+  await Promise.race([
+    streamStarted,
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error("stream did not reach cancellation checkpoint")), 1500),
+    ),
+  ]);
   controller.abort();
   const outcome = await Promise.race([
     running.then(() => "settled" as const),
@@ -834,6 +857,11 @@ async function assertNativePiAbortHasSettlementBound(): Promise<void> {
   ]);
   assert.equal(outcome, "settled", "Pi abort must not wait forever for a provider that ignores cancellation");
   assert.ok(events.some((event) => event.type === "error" && /pi_abort_settlement_timeout/.test(event.message)));
+  assert.equal(
+    events.filter((event) => event.type === "error").length,
+    1,
+    "forced close must not add HarnessClosed noise",
+  );
 }
 
 async function assertNativePiAbortRepairsPendingToolHistory(): Promise<void> {
@@ -859,9 +887,9 @@ async function assertNativePiAbortRepairsPendingToolHistory(): Promise<void> {
     const firstRuntime = new PiAgentRuntime({
       createSession: createNativePiSessionFactory({
         model,
+        abortSettleTimeoutMs: 20,
         sessionRoot,
         cwd: process.cwd(),
-        abortSettleTimeoutMs: 20,
         streamFn: (_model, nativeContext) =>
           nativeAssistantStream(
             model.id,
@@ -901,6 +929,7 @@ async function assertNativePiAbortRepairsPendingToolHistory(): Promise<void> {
     const restartedRuntime = new PiAgentRuntime({
       createSession: createNativePiSessionFactory({
         model,
+        abortSettleTimeoutMs: 20,
         sessionRoot,
         cwd: process.cwd(),
         streamFn: (_model, nativeContext) => {
@@ -927,7 +956,7 @@ async function assertNativePiAbortRepairsPendingToolHistory(): Promise<void> {
       true,
       "a timed-out native tool call must be durably paired with an error toolResult before the session is reused",
     );
-    assert.match(JSON.stringify(restoredToolResult?.content), /cancel/i);
+    assert.match(JSON.stringify(restoredToolResult?.content), /Tool execution was interrupted/);
     assert.ok(
       restartedEvents.some(
         (event) => event.type === "model.response" && event.response.text === "continued after cancelled tool",

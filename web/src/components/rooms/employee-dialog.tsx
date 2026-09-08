@@ -15,6 +15,7 @@ import type {
   ProviderProfile,
   ReasoningEffort,
   RuntimeControls,
+  RuntimeControlOption,
 } from "../../bridge";
 import { DEFAULT_MODEL_ID } from "../../bridge";
 import { useI18n, type TranslationFn, type TranslationKey } from "../../i18n";
@@ -282,17 +283,6 @@ export function EmployeeDialog(props: EmployeeDialogProps) {
     () => includeUnavailableEmployeeModelOption(availableModelOptions, draft.model, t("common.unavailable")),
     [availableModelOptions, draft.model, t],
   );
-  const reasoningControl = useMemo(
-    () =>
-      employeeReasoningControl(
-        selectedRuntimeControls,
-        draft.reasoningEffort,
-        props.initialMember?.manifestDefaults?.reasoningEffort ?? "",
-        t,
-      ),
-    [draft.reasoningEffort, props.initialMember?.manifestDefaults?.reasoningEffort, selectedRuntimeControls, t],
-  );
-  const reasoningOptions = reasoningControl.options;
   const selectedModel = modelOptions.find((option) => modelOptionMatchesId(option, draft.model)) ?? modelOptions[0];
   const providerSelection = useMemo(
     () =>
@@ -307,6 +297,28 @@ export function EmployeeDialog(props: EmployeeDialogProps) {
       ),
     [draft.kernel, draft.model, draft.providerId, props.modelProviderBindings, props.providers, selectedKernel, t],
   );
+  const selectedProviderId = draft.providerId || providerSelection.defaultProviderId;
+  const selectedModelMetadata = props.providers
+    ?.find((provider) => provider.id === selectedProviderId)
+    ?.models?.find((model) => modelOptionMatchesId(model, draft.model))?.metadata;
+  const reasoningControl = useMemo(
+    () =>
+      employeeReasoningControl(
+        selectedRuntimeControls,
+        draft.reasoningEffort,
+        props.initialMember?.manifestDefaults?.reasoningEffort ?? "",
+        t,
+        selectedModelMetadata,
+      ),
+    [
+      draft.reasoningEffort,
+      props.initialMember?.manifestDefaults?.reasoningEffort,
+      selectedRuntimeControls,
+      selectedModelMetadata,
+      t,
+    ],
+  );
+  const reasoningOptions = reasoningControl.options;
   const providerOptions = providerSelection.options;
   const providerRoutingEnabled = props.providerRoutingEnabled !== false;
   const selectedKernelReady = Boolean(selectedKernel && isKernelReady(selectedKernel));
@@ -1215,11 +1227,12 @@ type EmployeeReasoningControl =
 // Runtime controls are absent only while capability discovery is pending; the Host executes an unset effort as medium.
 const HOST_FALLBACK_REASONING_EFFORT: ReasoningEffort = "medium";
 
-function employeeReasoningControl(
+export function employeeReasoningControl(
   controls: RuntimeControls | undefined,
   persistedEffort: ReasoningEffort | "",
   appDefaultEffort: ReasoningEffort | "",
   t: ReturnType<typeof useI18n>["t"],
+  metadata?: RuntimeControlOption["metadata"],
 ): EmployeeReasoningControl {
   if (!controls) {
     const value = persistedEffort || appDefaultEffort || HOST_FALLBACK_REASONING_EFFORT;
@@ -1229,7 +1242,21 @@ function employeeReasoningControl(
       options: [{ id: value, label: t(REASONING_EFFORT_LABEL_KEYS[value]) }],
     };
   }
-  const options = reasoningOptionsForRuntime(controls, t);
+  if (metadata?.reasoning === false) return { status: "unsupported", options: [] };
+  const options = reasoningOptionsForRuntime(controls, t).filter(
+    (option) => !metadata?.reasoningEfforts?.length || metadata.reasoningEfforts.includes(option.id),
+  );
+  if (
+    metadata?.reasoningEfforts?.length &&
+    persistedEffort &&
+    !options.some((option) => option.id === persistedEffort)
+  ) {
+    const levels: ReasoningEffort[] = ["low", "medium", "high", "xhigh", "max"];
+    persistedEffort =
+      options.find((option) => levels.indexOf(option.id) >= levels.indexOf(persistedEffort as ReasoningEffort))?.id ??
+      options.at(-1)?.id ??
+      "";
+  }
   if (!options.length) return { status: "unsupported", options: [] };
   const compatibleAppDefault =
     appDefaultEffort && options.some((option) => option.id === appDefaultEffort) ? appDefaultEffort : "";

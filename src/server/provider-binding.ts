@@ -175,6 +175,8 @@ export function providerBindingFingerprint(input: {
       providerId: input.provider?.id ?? "login",
       sourceKernel: input.provider?.sourceKernel,
       protocol: plan.protocol,
+      wireApi: input.provider?.wireApi,
+      // Catalog updates change runtime configuration, never the identity of a native conversation.
       credentialKind: plan.credentialKind,
       openaiBaseUrl: input.provider?.openaiBaseUrl,
       anthropicBaseUrl: input.provider?.anthropicBaseUrl,

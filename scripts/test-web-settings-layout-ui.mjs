@@ -665,6 +665,7 @@ function entrySource(component, globalStyles) {
           id: "test-provider",
           name: "Test Provider",
           protocol: "anthropic-compatible",
+          bindings: { "claude-code": "anthropic-compatible", pi: "anthropic-compatible" },
           anthropicBaseUrl: "https://provider.test",
           apiKeyEnv: "TEST_PROVIDER_API_KEY",
           enabled: true,

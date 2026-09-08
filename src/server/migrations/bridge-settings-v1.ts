@@ -55,6 +55,19 @@ export function migrateBridgeSettingsSourceToV1(input: Record<string, unknown>):
         delete provider.codexWireApi;
         changed = true;
       }
+      // https://github.com/open-grove/opengrove/issues/60
+      // OpenGrove <=0.6.6 saved Google's origin where Pi requires the versioned base.
+      // Remove with the <=0.6.6 settings importer; never rewrite a custom endpoint.
+      if (
+        provider.id === "gemini" &&
+        typeof provider.geminiBaseUrl === "string" &&
+        provider.geminiBaseUrl.trim().replace(/\/+$/, "") === "https://generativelanguage.googleapis.com"
+      ) {
+        provider.geminiBaseUrl = "https://generativelanguage.googleapis.com/v1beta";
+        if (!provider.openaiBaseUrl && provider.protocol === "openai-compatible")
+          provider.protocol = "gemini-compatible";
+        changed = true;
+      }
       return provider;
     });
   }

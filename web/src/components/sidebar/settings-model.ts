@@ -674,70 +674,11 @@ function normalizeVoiceProviderId(value: string | undefined, fallback: VoiceSttP
   return value === "openai" || value === "groq" || value === "local-whisper" || value === "browser" ? value : fallback;
 }
 
-function providerProtocolForKernel(
-  provider: ProviderProfile,
-  kernelId: string,
-): "native-oauth" | "openai-compatible" | "anthropic-compatible" | "gemini-compatible" | "custom-gateway" | undefined {
+function providerProtocolForKernel(provider: ProviderProfile, kernelId: string): string | undefined {
   if (isLoginStateProvider(provider)) {
     return provider.sourceKernel === kernelId && providerCredentialConfigured(provider) ? "native-oauth" : undefined;
   }
-  if (provider.sourceKernel === kernelId && providerCredentialConfigured(provider)) {
-    if (provider.protocol === "custom-gateway") return "custom-gateway";
-    if (provider.protocol === "anthropic-compatible") return "anthropic-compatible";
-    if (provider.protocol === "gemini-compatible") return "gemini-compatible";
-    return "openai-compatible";
-  }
-  if (kernelId === "claude-code") {
-    return provider.anthropicBaseUrl &&
-      providerCredentialIsSupported(provider, ["api-key", "env-key", "aws", "google-adc"])
-      ? "anthropic-compatible"
-      : undefined;
-  }
-  if (kernelId === "codex") {
-    return provider.openaiBaseUrl && providerCredentialIsSupported(provider, ["api-key", "env-key"])
-      ? "openai-compatible"
-      : undefined;
-  }
-  if (kernelId === "pi") {
-    if (provider.protocol === "native-oauth") return undefined;
-    if (provider.openaiBaseUrl && providerCredentialIsSupported(provider, ["api-key", "env-key"]))
-      return "openai-compatible";
-    if (provider.anthropicBaseUrl && providerCredentialIsSupported(provider, ["api-key", "env-key"]))
-      return "anthropic-compatible";
-    return provider.geminiBaseUrl && providerCredentialIsSupported(provider, ["api-key", "env-key"])
-      ? "gemini-compatible"
-      : undefined;
-  }
-  if (kernelId === "hermes") {
-    if (!providerCredentialIsSupported(provider, ["api-key", "env-key"])) return undefined;
-    if (provider.protocol === "anthropic-compatible" && provider.anthropicBaseUrl) return "anthropic-compatible";
-    if (provider.openaiBaseUrl) return "openai-compatible";
-    return provider.anthropicBaseUrl ? "anthropic-compatible" : undefined;
-  }
-  if (kernelId === "opencode") {
-    if (provider.openaiBaseUrl && providerCredentialIsSupported(provider, ["api-key", "env-key"]))
-      return "openai-compatible";
-    return isAwsBedrockProvider(provider) && provider.anthropicBaseUrl ? "anthropic-compatible" : undefined;
-  }
-  return provider.openaiBaseUrl && providerCredentialIsSupported(provider, ["api-key", "env-key"])
-    ? "openai-compatible"
-    : undefined;
-}
-
-function providerCredentialIsSupported(provider: ProviderProfile, allowed: string[]): boolean {
-  return allowed.includes(providerCredentialKind(provider));
-}
-
-function providerCredentialKind(provider: ProviderProfile): string {
-  if (isAwsBedrockProvider(provider)) return "aws";
-  if (provider.credentialKind) return provider.credentialKind;
-  if (provider.protocol === "native-oauth") return "native-login";
-  if (provider.apiKey) return "api-key";
-  if (provider.apiKeyEnv) return "env-key";
-  const text = `${provider.id} ${provider.name}`.toLowerCase();
-  if (text.includes("bedrock")) return "aws";
-  if (text.includes("vertex")) return "google-adc";
-  return providerCredentialConfigured(provider) && provider.sourceKernel ? "kernel-managed" : "none";
+  return provider.bindings?.[kernelId];
 }
 
 function providerCredentialConfigured(provider: ProviderProfile): boolean {

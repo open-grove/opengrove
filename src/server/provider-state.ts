@@ -4,7 +4,8 @@ import type {
   BridgeProviderRuntimeState,
   BridgeProviderView,
 } from "./bridge-types.js";
-import { providerCredentialKind } from "./provider-binding.js";
+import { providerCredentialKind, planProviderBinding } from "./provider-binding.js";
+import { BRIDGE_KERNEL_IDS } from "./bridge-types.js";
 
 export function resolveProviderApiKey(
   profile: BridgeProviderProfile,
@@ -87,9 +88,15 @@ export function providerRuntimeState(
 
 export function providerView(profile: BridgeProviderProfile, env: NodeJS.ProcessEnv = process.env): BridgeProviderView {
   const { authConfigured: _legacyRuntimeValue, ...definition } = profile;
+  const bindings: NonNullable<BridgeProviderView["bindings"]> = {};
+  for (const kernel of BRIDGE_KERNEL_IDS) {
+    const { supported, protocol } = planProviderBinding(kernel, profile);
+    if (supported && protocol) bindings[kernel] = protocol;
+  }
   return {
     ...definition,
     runtime: providerRuntimeState(profile, env),
+    bindings,
   };
 }
 

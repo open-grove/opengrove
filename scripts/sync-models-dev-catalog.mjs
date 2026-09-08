@@ -114,6 +114,24 @@ function compactModel(sourceRoot, providerId, model) {
     family: stringValue(model.family) || undefined,
     canonicalModelId,
     status: stringValue(model.status) || undefined,
+    metadata: stripUndefined({
+      reasoning: typeof model.reasoning === "boolean" ? model.reasoning : undefined,
+      toolCall: typeof model.tool_call === "boolean" ? model.tool_call : undefined,
+      contextWindow: model.limit?.context,
+      maxOutputTokens: model.limit?.output,
+      inputModalities: model.modalities?.input,
+      outputModalities: model.modalities?.output,
+      reasoningEfforts: model.reasoning_options?.find((option) => option.type === "effort")?.values,
+      interleaved: model.interleaved?.field ? model.interleaved : undefined,
+      cost: model.cost
+        ? stripUndefined({
+            input: model.cost.input,
+            output: model.cost.output,
+            cacheRead: model.cost.cache_read,
+            cacheWrite: model.cost.cache_write,
+          })
+        : undefined,
+    }),
   });
 }
 

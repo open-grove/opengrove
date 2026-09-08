@@ -121,6 +121,10 @@ binding fingerprint, such as Kernel, working directory, App/version scope,
 Provider route, and material runtime configuration. A changed fingerprint must
 not silently reuse an incompatible native transcript.
 
+The available model catalog, model order, pricing and context limits are not
+conversation identities. Refreshing these facts must preserve native session
+bindings; pass updated model configuration through the Kernel's own controls.
+
 ## Tools, approvals, and elicitation
 
 Support is adapter-specific:

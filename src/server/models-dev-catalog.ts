@@ -1,8 +1,10 @@
+import { normalizeModelMetadata, type ModelMetadata } from "../kernel/model-metadata.js";
 import { createHash } from "node:crypto";
 import catalogJson from "./models-dev-catalog.generated.json" with { type: "json" };
 import type { BridgeProviderProfile, BridgeRuntimeControlOption } from "./bridge-types.js";
 
 type CatalogModel = {
+  metadata?: ModelMetadata;
   id: string;
   name: string;
   family?: string;
@@ -227,6 +229,7 @@ function enrichDeclaredModel(model: BridgeRuntimeControlOption, provider: Catalo
       canonicalModelId: catalogModel.canonicalModelId || model.canonicalModelId,
       family: catalogModel.family || model.family,
       status: catalogModel.status || model.status,
+      metadata: normalizeModelMetadata({ ...catalogModel.metadata, ...model.metadata }),
     }),
   };
 }
@@ -239,6 +242,7 @@ function catalogModelOption(model: CatalogModel): BridgeRuntimeControlOption {
     canonicalModelId: model.canonicalModelId,
     family: model.family,
     status: model.status,
+    metadata: normalizeModelMetadata(model.metadata),
   }) as BridgeRuntimeControlOption;
 }
 

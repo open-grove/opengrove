@@ -642,6 +642,12 @@ localized display metadata into an Agent prompt. Categories, when present in a
 catalog, are stable enum codes and are translated by the Host rather than by
 the App manifest.
 
+App settings edit the root `title`, `description`, and `icon` fields.
+`GET /apps/:id/identity` returns these canonical values rather than the current
+UI translation; saving them leaves `defaultLocale` and `locales` unchanged.
+Navigation and App Store keep localized display text, while inferred App icons
+use canonical identity so changing the UI language does not change the icon.
+
 ## Capability layout
 
 OpenGrove scans these paths relative to the app root:
