@@ -70,6 +70,8 @@ function entrySource() {
     import { LOGIN_PROVIDER_BINDING_ID } from ${JSON.stringify(bridgeSettingsTypesPath)};
     import {
       formatKernelLabel,
+      providerSupportsKernel,
+      providerBindingLabel,
       customProvidersAfterEnabledChange,
       isProviderEnabled,
       isProviderUsable,
@@ -86,7 +88,7 @@ function entrySource() {
     } from ${JSON.stringify(settingsModelPath)};
     import { SettingsKernelPanel } from ${JSON.stringify(settingsKernelPanelPath)};
     import { SettingsModelProviderBlock, SettingsProviderSection, buildModelProviderRouteRows } from ${JSON.stringify(settingsProviderSectionPath)};
-    import { employeeModelOptions, employeeProviderSelection, includeUnavailableEmployeeModelOption, switchEmployeeKernelRuntimeDraft } from ${JSON.stringify(employeeDialogPath)};
+    import { employeeReasoningControl, employeeModelOptions, employeeProviderSelection, includeUnavailableEmployeeModelOption, switchEmployeeKernelRuntimeDraft } from ${JSON.stringify(employeeDialogPath)};
     import { isEmployeeKernelSelectable } from ${JSON.stringify(roomsModelPath)};
     import { collapseModelOptions, isKernelDefaultModelOption, kernelBindingLabel, kernelExecutableProbeDescription, modelOptionMatchesId, modelOptionsForKernel } from ${JSON.stringify(kernelModelsPath)};
     import { providerModelCatalogKey, settingsWithProviderModels } from ${JSON.stringify(providerModelCatalogPath)};
@@ -195,6 +197,22 @@ function entrySource() {
     }
 
     export function runLoginProviderChoiceHarness() {
+      const hostProjectedGoogle = {
+        id: "gemini", name: "Google", protocol: "openai-compatible", openaiBaseUrl: "https://example.test/v1",
+        bindings: {
+          pi: "gemini-compatible",
+        },
+      };
+      assert.equal(providerSupportsKernel(hostProjectedGoogle, "pi"), true);
+      assert.equal(providerSupportsKernel(hostProjectedGoogle, "opencode"), false);
+      assert.equal(providerBindingLabel(hostProjectedGoogle, "pi", (key) => key), "Google · Gemini");
+      const googleReasoning = employeeReasoningControl(
+        { reasoningEfforts: ["low", "medium", "high", "xhigh", "max"].map((id) => ({ id, label: id })), defaultReasoningEffort: "medium" },
+        "max", "", (key) => key, { reasoning: true, reasoningEfforts: ["low", "medium", "high"] },
+      );
+      assert.deepEqual(googleReasoning.options.map((option) => option.id), ["low", "medium", "high"]);
+      assert.equal(googleReasoning.value, "high");
+
       const providerSummarySettings = {
         kernel: "codex",
         activeKernel: "codex",
@@ -364,7 +382,7 @@ function entrySource() {
         }, {
           id: "deepseek",
           name: "DeepSeek",
-          protocol: "openai-compatible",
+          protocol: "openai-compatible", bindings: { "codex": "openai-compatible", "pi": "openai-compatible", "opencode": "openai-compatible", "hermes": "openai-compatible", "kimi": "openai-compatible" },
           openaiBaseUrl: "https://api.deepseek.test/v1",
           apiKeyEnv: "OPENGROVE_DEEPSEEK_API_KEY",
           enabled: true,
@@ -381,7 +399,7 @@ function entrySource() {
         [{
           id: "shared-gateway",
           name: "Shared Gateway",
-          protocol: "openai-compatible",
+          protocol: "openai-compatible", bindings: { "codex": "openai-compatible", "pi": "openai-compatible", "opencode": "openai-compatible", "hermes": "openai-compatible", "kimi": "openai-compatible" },
           openaiBaseUrl: "https://shared.test/v1",
           anthropicBaseUrl: "https://shared.test/anthropic",
           apiKeyEnv: "OPENGROVE_SHARED_GATEWAY_API_KEY",
@@ -413,7 +431,7 @@ function entrySource() {
           [{
             id: "closed-provider",
             name: "Closed Provider",
-            protocol: "openai-compatible",
+            protocol: "openai-compatible", bindings: { "codex": "openai-compatible", "pi": "openai-compatible", "opencode": "openai-compatible", "hermes": "openai-compatible", "kimi": "openai-compatible" },
             openaiBaseUrl: "https://closed.test/v1",
             apiKeyEnv: "OPENGROVE_CLOSED_PROVIDER_API_KEY",
             enabled: false,
@@ -436,7 +454,7 @@ function entrySource() {
         [{
           id: "anthropic",
           name: "Claude Official",
-          protocol: "anthropic-compatible",
+          protocol: "anthropic-compatible", bindings: { "claude-code": "anthropic-compatible", "pi": "anthropic-compatible", "opencode": "anthropic-compatible", "hermes": "anthropic-compatible", "kimi": "anthropic-compatible" },
           sourceKernel: "claude-code",
           origin: "discovered",
           custom: true,
@@ -446,7 +464,7 @@ function entrySource() {
         }, {
           id: "ww",
           name: "WW",
-          protocol: "anthropic-compatible",
+          protocol: "anthropic-compatible", bindings: { "claude-code": "anthropic-compatible", "pi": "anthropic-compatible", "opencode": "anthropic-compatible", "hermes": "anthropic-compatible", "kimi": "anthropic-compatible" },
           anthropicBaseUrl: "https://ww.test",
           apiKeyEnv: "OPENGROVE_WW_API_KEY",
           enabled: true,
@@ -454,7 +472,7 @@ function entrySource() {
         }, {
           id: "unconfigured",
           name: "Unconfigured",
-          protocol: "anthropic-compatible",
+          protocol: "anthropic-compatible", bindings: { "claude-code": "anthropic-compatible", "pi": "anthropic-compatible", "opencode": "anthropic-compatible", "hermes": "anthropic-compatible", "kimi": "anthropic-compatible" },
           anthropicBaseUrl: "https://unconfigured.test",
           models: [{ id: "must-not-leak", label: "Must Not Leak" }],
         }],
@@ -469,7 +487,7 @@ function entrySource() {
         {
           id: "anthropic",
           name: "Anthropic",
-          protocol: "anthropic-compatible",
+          protocol: "anthropic-compatible", bindings: { "claude-code": "anthropic-compatible", "pi": "anthropic-compatible", "opencode": "anthropic-compatible", "hermes": "anthropic-compatible", "kimi": "anthropic-compatible" },
           enabled: true,
           anthropicBaseUrl: "https://api.anthropic.com",
           apiKeyEnv: "ANTHROPIC_API_KEY",
@@ -484,7 +502,7 @@ function entrySource() {
         {
           id: "aws-bedrock-api-key",
           name: "AWS Bedrock",
-          protocol: "anthropic-compatible",
+          protocol: "anthropic-compatible", bindings: { "claude-code": "anthropic-compatible", "pi": "anthropic-compatible", "opencode": "anthropic-compatible", "hermes": "anthropic-compatible", "kimi": "anthropic-compatible" },
           enabled: true,
           credentialKind: "aws",
           anthropicBaseUrl: "https://bedrock-runtime.test",
@@ -498,7 +516,7 @@ function entrySource() {
         {
           id: "google-vertex",
           name: "Google Vertex",
-          protocol: "anthropic-compatible",
+          protocol: "anthropic-compatible", bindings: { "claude-code": "anthropic-compatible", "pi": "anthropic-compatible", "opencode": "anthropic-compatible", "hermes": "anthropic-compatible", "kimi": "anthropic-compatible" },
           enabled: true,
           credentialKind: "google-adc",
           anthropicBaseUrl: "https://vertex.test",
@@ -512,7 +530,7 @@ function entrySource() {
         {
           id: "openrouter",
           name: "OpenRouter",
-          protocol: "anthropic-compatible",
+          protocol: "anthropic-compatible", bindings: { "claude-code": "anthropic-compatible", "pi": "anthropic-compatible", "opencode": "anthropic-compatible", "hermes": "anthropic-compatible", "kimi": "anthropic-compatible" },
           enabled: true,
           anthropicBaseUrl: "https://openrouter.test",
           apiKeyEnv: "OPENROUTER_API_KEY",
@@ -542,7 +560,7 @@ function entrySource() {
       const nameGroupedRoutes = [{
         id: "private-route",
         name: "Private Route",
-        protocol: "anthropic-compatible",
+        protocol: "anthropic-compatible", bindings: { "claude-code": "anthropic-compatible", "pi": "anthropic-compatible", "opencode": "anthropic-compatible", "hermes": "anthropic-compatible", "kimi": "anthropic-compatible" },
         enabled: true,
         anthropicBaseUrl: "https://private.test",
         apiKey: "private-key",
@@ -550,7 +568,7 @@ function entrySource() {
       }, {
         id: "public-route",
         name: "Public Route",
-        protocol: "anthropic-compatible",
+        protocol: "anthropic-compatible", bindings: { "claude-code": "anthropic-compatible", "pi": "anthropic-compatible", "opencode": "anthropic-compatible", "hermes": "anthropic-compatible", "kimi": "anthropic-compatible" },
         enabled: true,
         anthropicBaseUrl: "https://public.test",
         apiKey: "public-key",
@@ -734,7 +752,7 @@ function entrySource() {
         custom: true,
         authConfigured: true,
         routeKind: "provider",
-        protocol: "custom-gateway",
+        protocol: "custom-gateway", bindings: { "openclaw": "custom-gateway" },
         credentialKind: "gateway-managed",
         models: [{ id: "gpt-5.5", label: "GPT-5.5" }],
       };
@@ -754,7 +772,7 @@ function entrySource() {
         [{
           id: "anthropic",
           name: "Claude Official",
-          protocol: "anthropic-compatible",
+          protocol: "anthropic-compatible", bindings: { "claude-code": "anthropic-compatible", "pi": "anthropic-compatible", "opencode": "anthropic-compatible", "hermes": "anthropic-compatible", "kimi": "anthropic-compatible" },
           origin: "user",
           custom: true,
           enabled: true,

@@ -82,7 +82,9 @@ test("bundled Models.dev routes share one canonical model without losing wire id
         ? `amazon-bedrock/${apiModelId}`
         : providerId === "openrouter"
           ? `opengrove-openrouter/${apiModelId}`
-          : apiModelId;
+          : providerId === "anthropic"
+            ? `anthropic/${apiModelId}`
+            : apiModelId;
     assert.equal(
       kernelModelForProviderSelection("opencode", { ...profile, custom: true, enabled: true }, canonicalModelId),
       expectedKernelModel,
@@ -229,11 +231,10 @@ test("a canonical standard binding does not capture a differently named offering
   assert.equal(route.binding.kind, "unresolved");
 });
 
-test("Models.dev keeps exact Fast, Free, HighSpeed, and regional route ids", () => {
+test("Models.dev keeps exact Free, HighSpeed, and regional route ids", () => {
   const profiles = getAllBridgeProviderProfiles(undefined);
   const cases = [
-    ["openrouter", "anthropic/claude-opus-4.8-fast", "Claude Opus 4.8 (Fast)"],
-    ["openrouter", "openai/gpt-oss-20b:free", "gpt-oss-20b (free)"],
+    ["openrouter", "thinkingmachines/inkling-small:free", "Inkling Small (free)"],
     ["kimi", "kimi-k2.7-code-highspeed", "Kimi K2.7 Code HighSpeed"],
     ["aws-bedrock-api-key", "global.anthropic.claude-opus-4-8", "Claude Opus 4.8 (Global)"],
   ] as const;

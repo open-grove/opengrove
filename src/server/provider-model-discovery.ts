@@ -1,3 +1,4 @@
+import { normalizeModelMetadata } from "../kernel/model-metadata.js";
 import { createHash } from "node:crypto";
 import { mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -5,7 +6,7 @@ import type { BridgeProviderProfile, BridgeRuntimeControlOption } from "./bridge
 import { providerRuntimeState } from "./provider-state.js";
 import { defaultOpenGroveDataDir } from "../storage/default-data-dir.js";
 
-// 标准 API provider(OpenAI/Anthropic)有官方模型枚举接口,模型名单应当读取而非手写。
+// Official model enumeration is provider-specific; preserve discovered limits as well as IDs.
 // 缓存只在 provider 地址、密钥指纹和 TTL 都匹配时生效；否则立即回退静态声明。
 
 const CACHE_FILE_NAME = "provider-models-cache.json";
@@ -14,7 +15,7 @@ const REFRESH_TTL_MS = 12 * 60 * 60 * 1000;
 const FETCH_TIMEOUT_MS = 10_000;
 const ANTHROPIC_PAGE_LIMIT = 1_000;
 const MAX_DISCOVERY_PAGES = 100;
-const DISCOVERABLE_PROVIDER_IDS = ["openai", "anthropic"] as const;
+const DISCOVERABLE_PROVIDER_IDS = ["openai", "anthropic", "gemini", "deepseek"] as const;
 
 type DiscoverableProviderId = (typeof DISCOVERABLE_PROVIDER_IDS)[number];
 
@@ -99,7 +100,8 @@ function normalizeCachedModels(value: unknown): BridgeRuntimeControlOption[] {
     if (!isRecord(rawModel)) return [];
     const id = stringValue(rawModel.id);
     if (!id) return [];
-    return [{ id, label: stringValue(rawModel.label) || id }];
+    const metadata = normalizeModelMetadata(rawModel.metadata);
+    return [{ id, label: stringValue(rawModel.label) || id, ...(metadata ? { metadata } : {}) }];
   });
 }
 
@@ -123,6 +125,7 @@ export function readDiscoveredProviderModels(
     .map((model) => ({
       id: model.id,
       label: typeof model.label === "string" && model.label.trim() ? model.label : model.id,
+      ...(model.metadata ? { metadata: model.metadata } : {}),
     }));
   return models?.length ? models : undefined;
 }
@@ -182,7 +185,14 @@ function providerDiscoveryIdentity(profile: BridgeProviderProfile): DiscoveryIde
   if (!isDiscoverableProviderId(profile.id) || profile.enabled === false) return undefined;
   const apiKey = profile.apiKey?.trim() || (profile.apiKeyEnv ? process.env[profile.apiKeyEnv]?.trim() : undefined);
   if (!apiKey) return undefined;
-  const source = profile.id === "openai" ? openAiModelsSource(profile) : anthropicModelsSource(profile);
+  const source =
+    profile.id === "gemini"
+      ? `${profile.geminiBaseUrl?.trim().replace(/\/+$/, "")}/models`
+      : profile.id === "deepseek" || profile.id === "openai"
+        ? openAiModelsSource(profile)
+        : anthropicModelsSource(profile);
+  if (profile.id === "gemini" && !profile.geminiBaseUrl) return undefined;
+  if (profile.id === "deepseek" && !profile.openaiBaseUrl) return undefined;
   return {
     providerId: profile.id,
     source,
@@ -218,6 +228,32 @@ async function discoverProviderModels(
   identity: DiscoveryIdentity,
   fetchImpl: typeof fetch,
 ): Promise<BridgeRuntimeControlOption[]> {
+  if (identity.providerId === "gemini") {
+    const rows: unknown[] = [];
+    const seen = new Set<string>();
+    let pageToken: string | undefined;
+    for (let page = 0; page < MAX_DISCOVERY_PAGES; page += 1) {
+      const url = new URL(identity.source);
+      url.searchParams.set("pageSize", "1000");
+      if (pageToken) url.searchParams.set("pageToken", pageToken);
+      const payload = await fetchJsonWithTimeout(fetchImpl, url.toString(), { "x-goog-api-key": identity.apiKey });
+      const record = isRecord(payload) ? payload : {};
+      if (Array.isArray(record.models)) rows.push(...record.models);
+      const next = stringValue(record.nextPageToken);
+      if (!next) return normalizeGeminiModelsResponse({ models: rows });
+      if (seen.has(next)) throw new Error("gemini_models_invalid_cursor");
+      seen.add(next);
+      pageToken = next;
+    }
+    throw new Error("gemini_models_too_many_pages");
+  }
+  if (identity.providerId === "deepseek") {
+    const payload = await fetchJsonWithTimeout(fetchImpl, identity.source, {
+      Authorization: `Bearer ${identity.apiKey}`,
+    });
+    const data = isRecord(payload) && Array.isArray(payload.data) ? payload.data : [];
+    return normalizeCachedModels(data);
+  }
   if (identity.providerId === "openai") {
     const payload = await fetchJsonWithTimeout(fetchImpl, identity.source, {
       Authorization: `Bearer ${identity.apiKey}`,
@@ -327,4 +363,25 @@ export function normalizeAnthropicModelsResponse(payload: unknown): BridgeRuntim
       return true;
     })
     .map((model) => ({ id: model.id, label: model.label ?? model.id }));
+}
+
+export function normalizeGeminiModelsResponse(payload: unknown): BridgeRuntimeControlOption[] {
+  const rows = isRecord(payload) && Array.isArray(payload.models) ? payload.models : [];
+  const seen = new Set<string>();
+  return rows.flatMap((row) => {
+    if (
+      !isRecord(row) ||
+      !Array.isArray(row.supportedGenerationMethods) ||
+      !row.supportedGenerationMethods.includes("generateContent")
+    )
+      return [];
+    const id = stringValue(row.name).replace(/^models\//, "");
+    if (!id || seen.has(id)) return [];
+    seen.add(id);
+    const metadata = normalizeModelMetadata({
+      contextWindow: row.inputTokenLimit,
+      maxOutputTokens: row.outputTokenLimit,
+    });
+    return [{ id, label: stringValue(row.displayName) || id, ...(metadata ? { metadata } : {}) }];
+  });
 }

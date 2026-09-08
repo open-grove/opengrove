@@ -28,6 +28,7 @@ import type {
   KernelTurnRequest,
   ModelOption,
   ProviderProfile,
+  ProviderProtocol,
 } from "../types.js";
 import { APP_PROTOCOL_ID } from "../../identity.js";
 import {
@@ -37,7 +38,7 @@ import {
   providerDisplayName,
   readJsonObject,
 } from "./profile-utils.js";
-import type { BridgeProviderProfile, BridgeRuntimeControlOption } from "../../server/bridge-types.js";
+import type { BridgeProviderProfile } from "../../server/bridge-types.js";
 import { acpKernelOwnership } from "./acp-contract.js";
 
 const OPENCODE_CONFIG_SCHEMA = "https://opencode.ai/config.json";
@@ -455,7 +456,11 @@ async function disposeRuntime(runtime: AgentRuntime | undefined): Promise<void> 
 // ===== Provider env builder =====
 
 const OPENCODE_BEDROCK_PROVIDER_ID = "amazon-bedrock";
-const OPENCODE_PROVIDER_PACKAGE = "@ai-sdk/openai-compatible";
+const OPENCODE_PROVIDER_PACKAGES: Record<ProviderProtocol, string> = {
+  "openai-compatible": "@ai-sdk/openai-compatible",
+  "anthropic-compatible": "@ai-sdk/anthropic",
+  "gemini-compatible": "@ai-sdk/google",
+};
 
 export function buildOpenCodeProviderEnv(profile: ProviderProfile): Record<string, string> | undefined {
   // AWS Bedrock path (anthropic-compatible protocol)
@@ -467,16 +472,17 @@ export function buildOpenCodeProviderEnv(profile: ProviderProfile): Record<strin
     return Object.keys(env).length ? env : undefined;
   }
 
-  // OpenAI-compatible path (undefined protocol remains the adapter's legacy direct-call default)
-  if ((profile.protocol && profile.protocol !== "openai-compatible") || !profile.baseUrl || !profile.apiKey)
-    return undefined;
-  const env: Record<string, string> = {
-    OPENAI_BASE_URL: profile.baseUrl,
-    OPENAI_API_KEY: profile.apiKey,
-    MODEL_BASE_URL: profile.baseUrl,
-    MODEL_API_KEY: profile.apiKey,
-  };
-  const configContent = opencodeOpenAiConfigContent(profile);
+  if (!profile.baseUrl || !profile.apiKey) return undefined;
+  const env: Record<string, string> =
+    profile.protocol && profile.protocol !== "openai-compatible"
+      ? {}
+      : {
+          OPENAI_BASE_URL: profile.baseUrl,
+          OPENAI_API_KEY: profile.apiKey,
+          MODEL_BASE_URL: profile.baseUrl,
+          MODEL_API_KEY: profile.apiKey,
+        };
+  const configContent = opencodeApiConfigContent(profile);
   if (configContent) env.OPENCODE_CONFIG_CONTENT = configContent;
   if (profile.model) {
     env.OPENAI_MODEL = profile.model;
@@ -487,19 +493,26 @@ export function buildOpenCodeProviderEnv(profile: ProviderProfile): Record<strin
   return env;
 }
 
-function opencodeOpenAiConfigContent(profile: ProviderProfile): string | undefined {
+function opencodeApiConfigContent(profile: ProviderProfile): string | undefined {
   if (!profile.baseUrl || !profile.apiKey) return undefined;
-  const providerKey = opencodeProviderKeyFromId(profile.id);
+  const providerKey = opencodeProviderKey(profile.id, profile.protocol);
   const qualifiedModel = profile.model ? `${providerKey}/${profile.model}` : undefined;
   const config = {
     $schema: OPENCODE_CONFIG_SCHEMA,
     ...(qualifiedModel ? { model: qualifiedModel, small_model: qualifiedModel } : {}),
     provider: {
       [providerKey]: {
-        npm: OPENCODE_PROVIDER_PACKAGE,
+        npm: OPENCODE_PROVIDER_PACKAGES[profile.protocol ?? "openai-compatible"],
         name: profile.name || profile.id,
-        options: { baseURL: profile.baseUrl, apiKey: profile.apiKey },
-        models: opencodeModelsConfig(profile.models, profile.model, false),
+        options: {
+          // Anthropic's SDK adds /v1 itself; the AI SDK expects it in baseURL.
+          baseURL:
+            profile.protocol === "anthropic-compatible"
+              ? `${profile.baseUrl.replace(/\/+$/, "").replace(/\/v1$/, "")}/v1`
+              : profile.baseUrl,
+          apiKey: profile.apiKey,
+        },
+        models: opencodeModelsConfig(profile.models, profile.model),
       },
     },
   };
@@ -521,7 +534,7 @@ function opencodeBedrockConfigContent(profile: ProviderProfile): string | undefi
       [providerKey]: {
         name: profile.name || profile.id,
         ...(Object.keys(options).length ? { options } : {}),
-        models: opencodeModelsConfig(profile.models, profile.model, true),
+        models: opencodeModelsConfig(profile.models, profile.model),
       },
     },
   };
@@ -531,7 +544,6 @@ function opencodeBedrockConfigContent(profile: ProviderProfile): string | undefi
 function opencodeModelsConfig(
   models: ModelOption[] | undefined,
   selectedModel: string | undefined,
-  includeProviderModelIds: boolean,
 ): Record<string, unknown> {
   const seen = new Set<string>();
   const ids = [selectedModel, ...(models ?? []).map((m) => m.id)]
@@ -539,16 +551,27 @@ function opencodeModelsConfig(
     .filter((id): id is string => Boolean(id && !seen.has(id) && seen.add(id)));
   return Object.fromEntries(
     ids.map((id) => {
-      const model = models?.find((m) => m.id === id);
-      const providerModelId = includeProviderModelIds ? extractProviderModelId(model) : undefined;
+      const model = models?.find((m) => m.id === id || m.apiModelId === id);
+      const providerModelId = extractProviderModelId(model);
       return [
         id,
         {
           ...(providerModelId && providerModelId !== id ? { id: providerModelId } : {}),
           name: model?.label || id,
-          tool_call: true,
-          reasoning: false,
-          limit: { context: 128000, output: 4096 },
+          ...(model?.metadata?.toolCall !== undefined ? { tool_call: model.metadata.toolCall } : {}),
+          ...(model?.metadata?.reasoning !== undefined ? { reasoning: model.metadata.reasoning } : {}),
+          ...(model?.metadata?.interleaved ? { interleaved: model.metadata.interleaved } : {}),
+          ...(model?.metadata?.inputModalities || model?.metadata?.outputModalities
+            ? { modalities: { input: model.metadata.inputModalities, output: model.metadata.outputModalities } }
+            : {}),
+          ...(model?.metadata?.contextWindow || model?.metadata?.maxOutputTokens
+            ? {
+                limit: {
+                  ...(model.metadata.contextWindow ? { context: model.metadata.contextWindow } : {}),
+                  ...(model.metadata.maxOutputTokens ? { output: model.metadata.maxOutputTokens } : {}),
+                },
+              }
+            : {}),
         },
       ];
     }),
@@ -559,13 +582,15 @@ function extractProviderModelId(model: ModelOption | undefined): string | undefi
   return model?.apiModelId?.trim() || model?.description?.match(/provider model:\s*(.+)$/i)?.[1]?.trim();
 }
 
-function opencodeProviderKeyFromId(providerId: string): string {
+export function opencodeProviderKey(providerId: string, protocol?: ProviderProtocol): string {
   const normalized = providerId
     .trim()
     .toLowerCase()
     .replace(/[^a-z0-9_-]+/g, "-")
     .replace(/^-+|-+$/g, "");
   if (isAwsBedrockProviderId(normalized)) return OPENCODE_BEDROCK_PROVIDER_ID;
+  if (normalized === "gemini" && protocol === "gemini-compatible") return "google";
+  if (normalized === "anthropic" && protocol === "anthropic-compatible") return "anthropic";
   return `opengrove-${normalized || "provider"}`.slice(0, 64);
 }
 
@@ -575,143 +600,17 @@ function isAwsBedrockProviderId(providerId: string): boolean {
   );
 }
 
-// ===== Bridge provider config helpers =====
-
-export function opencodeProviderKey(providerId: string): string {
-  const normalized = providerId
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9_-]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-  if (isAwsBedrockProviderId(normalized)) return OPENCODE_BEDROCK_PROVIDER_ID;
-  return `opengrove-${normalized || "provider"}`.slice(0, 64);
-}
-
-export function opencodeModelIdForProvider(providerId: string, model: string): string {
-  return `${opencodeProviderKey(providerId)}/${model}`;
-}
-
-export function opencodeProviderConfigContent(
-  profile: BridgeProviderProfile,
-  apiKey: string | undefined,
-  model: string | undefined,
-): string | undefined {
-  if (opencodeSupportsAwsBedrockProvider(profile)) {
-    return opencodeBedrockProviderConfigContentForBridge(profile, model);
-  }
-
-  const baseUrl = profile.openaiBaseUrl?.trim();
-  if (!baseUrl || !apiKey) return undefined;
-  const selectedModel = model?.trim() || profile.models[0]?.id;
-  const providerKey = opencodeProviderKey(profile.id);
-  const qualifiedModel = selectedModel ? `${providerKey}/${selectedModel}` : undefined;
-
-  const config = {
-    $schema: OPENCODE_CONFIG_SCHEMA,
-    ...(qualifiedModel
-      ? {
-          model: qualifiedModel,
-          small_model: qualifiedModel,
-        }
-      : {}),
-    provider: {
-      [providerKey]: {
-        npm: OPENCODE_PROVIDER_PACKAGE,
-        name: profile.name,
-        options: {
-          baseURL: baseUrl,
-          apiKey,
-        },
-        models: opencodeModelsForBridge(profile.models, selectedModel),
-      },
-    },
-  };
-
-  return JSON.stringify(config);
+export function opencodeModelIdForProvider(providerId: string, model: string, protocol?: ProviderProtocol): string {
+  return `${opencodeProviderKey(providerId, protocol)}/${model}`;
 }
 
 export function opencodeSupportsProvider(profile: BridgeProviderProfile): boolean {
-  return Boolean(profile.openaiBaseUrl?.trim() || opencodeSupportsAwsBedrockProvider(profile));
-}
-
-function opencodeBedrockProviderConfigContentForBridge(
-  profile: BridgeProviderProfile,
-  model: string | undefined,
-): string | undefined {
-  const selectedModel = model?.trim() || profile.models[0]?.id;
-  const providerKey = OPENCODE_BEDROCK_PROVIDER_ID;
-  const qualifiedModel = selectedModel ? `${providerKey}/${selectedModel}` : undefined;
-  const options = opencodeBedrockOptionsForBridge(profile);
-
-  const config = {
-    $schema: OPENCODE_CONFIG_SCHEMA,
-    ...(qualifiedModel
-      ? {
-          model: qualifiedModel,
-          small_model: qualifiedModel,
-        }
-      : {}),
-    provider: {
-      [providerKey]: {
-        name: profile.name,
-        ...(Object.keys(options).length ? { options } : {}),
-        models: opencodeModelsForBridge(profile.models, selectedModel, { includeProviderModelIds: true }),
-      },
-    },
-  };
-
-  return JSON.stringify(config);
-}
-
-function opencodeSupportsAwsBedrockProvider(profile: BridgeProviderProfile): boolean {
-  return (
-    (profile.credentialKind === "aws" || isAwsBedrockProviderId(profile.id)) &&
-    Boolean(profile.anthropicBaseUrl?.trim() || profile.models.length)
+  return Boolean(
+    profile.openaiBaseUrl?.trim() ||
+      profile.geminiBaseUrl?.trim() ||
+      profile.anthropicBaseUrl?.trim() ||
+      ((profile.credentialKind === "aws" || isAwsBedrockProviderId(profile.id)) && profile.models.length),
   );
-}
-
-function opencodeBedrockOptionsForBridge(profile: BridgeProviderProfile): Record<string, string> {
-  const endpoint = profile.anthropicBaseUrl?.trim();
-  const region = endpoint ? endpoint.match(/bedrock-runtime[.-]([a-z0-9-]+)\.amazonaws\.com/i)?.[1] : undefined;
-  return {
-    ...(region ? { region } : {}),
-    ...(endpoint ? { endpoint } : {}),
-  };
-}
-
-function opencodeModelsForBridge(
-  models: BridgeRuntimeControlOption[],
-  selectedModel: string | undefined,
-  options: { includeProviderModelIds?: boolean } = {},
-): Record<string, unknown> {
-  const seen = new Set<string>();
-  const ids = [selectedModel, ...models.map((model) => model.id)]
-    .map((id) => id?.trim())
-    .filter((id): id is string => Boolean(id && !seen.has(id) && seen.add(id)));
-
-  return Object.fromEntries(
-    ids.map((id) => {
-      const model = models.find((item) => item.id === id);
-      const providerModelId = options.includeProviderModelIds ? providerModelIdFromBridgeOption(model) : undefined;
-      return [
-        id,
-        {
-          ...(providerModelId && providerModelId !== id ? { id: providerModelId } : {}),
-          name: model?.label || id,
-          tool_call: true,
-          reasoning: false,
-          limit: {
-            context: 128000,
-            output: 4096,
-          },
-        },
-      ];
-    }),
-  );
-}
-
-function providerModelIdFromBridgeOption(model: BridgeRuntimeControlOption | undefined): string | undefined {
-  return model?.apiModelId?.trim() || model?.description?.match(/provider model:\s*(.+)$/i)?.[1]?.trim();
 }
 
 // ===== Kernel-local Provider route reader =====

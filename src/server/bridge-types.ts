@@ -1,3 +1,4 @@
+import type { ModelMetadata } from "../kernel/model-metadata.js";
 import type { WwProviderReconciliation } from "./ww-provider-reconciliation.js";
 import type { OpenGroveApp } from "../app/create-opengrove.js";
 import type {
@@ -124,6 +125,7 @@ export interface BridgeProviderRuntimeState {
 /** Read-only Provider projection returned to renderers. It must never be persisted. */
 export type BridgeProviderView = Omit<BridgeProviderProfile, "authConfigured"> & {
   runtime: BridgeProviderRuntimeState;
+  bindings?: Partial<Record<BridgeKernelId, BridgeProviderProtocol>>;
 };
 
 /** Bounded Provider projection used by /settings; full models are fetched separately. */
@@ -156,6 +158,7 @@ export interface BridgeRuntimeControlOption {
   canonicalModelId?: string;
   family?: string;
   status?: "alpha" | "beta" | "deprecated";
+  metadata?: ModelMetadata;
 }
 
 export interface BridgeRuntimeControls {

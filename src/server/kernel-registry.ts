@@ -193,7 +193,8 @@ const KERNEL_DESCRIPTORS: Record<BridgeKernelId, BridgeKernelDescriptor> = {
     accountLogin: false,
     externalProviderRoutes: [
       { protocol: "openai-compatible", credentialKinds: API_CREDENTIALS },
-      { protocol: "anthropic-compatible", credentialKinds: ["aws"] },
+      { protocol: "anthropic-compatible", credentialKinds: [...API_CREDENTIALS, "aws"] },
+      { protocol: "gemini-compatible", credentialKinds: API_CREDENTIALS },
     ],
     bindingMode: "env",
     nativeControls: { reasoning: false, speed: false },
@@ -484,7 +485,14 @@ export function kernelModelForProviderSelection(
     opencodeSupportsProvider(profile) &&
     !usesKernelManagedProviderConfig(kernelId, profile)
   ) {
-    return opencodeModelIdForProvider(profile.id, routeModel);
+    const protocol = planProviderBinding(kernelId, profile).protocol;
+    return opencodeModelIdForProvider(
+      profile.id,
+      routeModel,
+      protocol === "openai-compatible" || protocol === "anthropic-compatible" || protocol === "gemini-compatible"
+        ? protocol
+        : undefined,
+    );
   }
   return routeModel;
 }

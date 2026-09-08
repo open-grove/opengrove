@@ -657,6 +657,8 @@ export interface ProviderProfile {
   docsUrl?: string;
   /** Read-only state joined by the Bridge. Never include it in settings PATCHes. */
   runtime?: ProviderRuntimeState;
+  /** Read-only Host binding decisions. Never persist in Provider settings. */
+  bindings?: Record<string, string>;
 }
 
 export interface ModelProviderBinding {

@@ -2845,11 +2845,11 @@ async function main() {
               "the production /settings Provider summary must stay bounded",
             );
             const openAiSummary = webProviders.find((provider) => provider.id === "openai");
-            assert.equal(openAiSummary?.modelCount, 30, "Provider summaries must retain the catalog model count");
+            assert.equal(openAiSummary?.modelCount, 29, "Provider summaries must retain the catalog model count");
             const providerModelCatalog = getBridgeProviderModelCatalog(missingKeyState.settings.customProviders);
             assert.equal(
               providerModelCatalog.find((provider) => provider.id === "openai")?.models.length,
-              30,
+              29,
               "the independent Provider model catalog must retain the complete model list",
             );
             const volcRuntime = webProviders.find((provider) => provider.id === "volc-coding-plan")?.runtime as Record<
@@ -3286,8 +3286,8 @@ async function main() {
       );
       assert.equal(
         providerSupportsKernel("opencode", anthropic),
-        false,
-        "OpenCode should not offer Anthropic-compatible providers unless a config generator exists",
+        true,
+        "OpenCode can use Anthropic-compatible providers through its native SDK config",
       );
       assert.equal(
         kernelModelForProviderSelection("opencode", discoveredClaudeBedrockApiKey, "sonnet"),

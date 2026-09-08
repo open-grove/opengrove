@@ -1,3 +1,4 @@
+import { normalizeModelMetadata } from "../kernel/model-metadata.js";
 import { migrateWwProvisioning } from "./migrations/ww-provisioning-v1.js";
 import { createHash } from "node:crypto";
 import { appEnvName, readAppEnv } from "../identity.js";
@@ -170,7 +171,9 @@ export function getBridgeProviderProfiles(): BridgeProviderProfile[] {
       name: "Google AI Studio (Gemini API Key)",
       protocol: "gemini-compatible",
       description: "A Gemini API key created and managed in Google AI Studio.",
-      geminiBaseUrl: "https://generativelanguage.googleapis.com",
+      geminiBaseUrl: "https://generativelanguage.googleapis.com/v1beta",
+      openaiBaseUrl: "https://generativelanguage.googleapis.com/v1beta/openai/",
+      wireApi: "chat",
       apiKeyEnv: "GEMINI_API_KEY",
       credentialKind: "env-key",
       models: [
@@ -764,6 +767,7 @@ function normalizeProviderModels(input: unknown): BridgeRuntimeControlOption[] {
       canonicalModelId: stringOrUndefined(source.canonicalModelId),
       family: stringOrUndefined(source.family),
       status: normalizeModelStatus(source.status),
+      metadata: normalizeModelMetadata(source.metadata),
     });
   }
   return models;
@@ -895,6 +899,7 @@ export function providerProfileForKernel(
       canonicalModelId: m.canonicalModelId,
       family: m.family,
       status: m.status,
+      metadata: m.metadata,
     })),
   };
 }
