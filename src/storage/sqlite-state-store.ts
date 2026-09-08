@@ -144,7 +144,6 @@ export function createSqliteStateStore(
       },
     });
 
-    let closed = false;
     return {
       path: databasePath,
       kind: "sqlite",
@@ -198,17 +197,24 @@ export function createSqliteStateStore(
         database!.exec("PRAGMA wal_checkpoint(PASSIVE)");
       },
       async close() {
-        if (closed) return;
-        closed = true;
         try {
-          try {
-            database!.exec("PRAGMA wal_checkpoint(TRUNCATE)");
-          } finally {
-            database!.close();
+          if (database!.isOpen) {
+            try {
+              database!.exec("PRAGMA wal_checkpoint(TRUNCATE)");
+            } finally {
+              database!.close();
+            }
           }
         } finally {
-          legacyLock?.release();
-          databaseLock.release();
+          // A failed database close must retain ownership. Once it closes,
+          // retry both independent lock releases even if one previously failed.
+          if (!database!.isOpen) {
+            try {
+              legacyLock?.release();
+            } finally {
+              databaseLock.release();
+            }
+          }
         }
       },
     };
@@ -216,8 +222,11 @@ export function createSqliteStateStore(
     try {
       database?.close();
     } finally {
-      legacyLock?.release();
-      databaseLock.release();
+      try {
+        legacyLock?.release();
+      } finally {
+        databaseLock.release();
+      }
     }
     throw error;
   }

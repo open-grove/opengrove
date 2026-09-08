@@ -331,7 +331,9 @@ async function withDesktopBridge(options) {
     assert.notEqual(ready.port, 37371, "desktop bridge should use a random port in the harness");
     assert.equal(ready.authMode, options.webAuthMode === "session" ? "session" : "bridge-token");
     assert.equal(ready.dataDir, dataDir);
-    assert.equal(realpathSync(ready.statePath), realpathSync(join(dataDir, "local-state.sqlite")));
+    // Windows TEMP can use an 8.3 alias (RUNNER~1). Compare native canonical
+    // paths so the same file's short and long names are treated as identical.
+    assert.equal(realpathSync.native(ready.statePath), realpathSync.native(join(dataDir, "local-state.sqlite")));
     assert.equal(ready.settingsPath, settingsPath);
     assert.ok(existsSync(dataDir), "desktop bridge should create data dir");
     assert.ok(existsSync(logDir), "desktop bridge should create log dir");
