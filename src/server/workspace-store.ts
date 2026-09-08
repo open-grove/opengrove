@@ -1,4 +1,16 @@
-import { existsSync, mkdirSync, realpathSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  realpathSync,
+  readFileSync,
+  readdirSync,
+  renameSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
+import { randomUUID } from "node:crypto";
+import { assertWorkspaceFileRevision, workspaceContentRevision } from "./workspace-file-revision.js";
 import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep } from "node:path";
 
 export interface WorkspaceScope {
@@ -25,6 +37,7 @@ export interface WorkspaceListResult {
 
 export interface WorkspaceFileReadResult {
   entry: WorkspaceFileEntry & { kind: "file" };
+  revision?: string;
   content?: string;
   contentTruncated?: boolean;
 }
@@ -39,7 +52,12 @@ export interface WorkspaceStore {
   createRunWorkspace(scope: WorkspaceScope, runId: string): WorkspaceScope;
   listFiles(scope: WorkspaceScope, options?: WorkspaceListOptions): WorkspaceListResult;
   readFile(scope: WorkspaceScope, path: string, options?: WorkspaceReadOptions): WorkspaceFileReadResult | undefined;
-  writeFile(scope: WorkspaceScope, path: string, data: string | Buffer): WorkspaceFileReadResult | undefined;
+  writeFile(
+    scope: WorkspaceScope,
+    path: string,
+    data: string | Buffer,
+    options?: { expectedRevision?: string },
+  ): WorkspaceFileReadResult | undefined;
   openRawFile(scope: WorkspaceScope, path: string): WorkspaceRawFileResult | undefined;
 }
 
@@ -121,19 +139,33 @@ export class LocalFilesystemWorkspaceStore implements WorkspaceStore {
     const entry = fileEntry(scope.root, filePath, stat.mtime.toISOString(), stat.size, mimeType);
     const textSizeLimit = options.textSizeLimit ?? 0;
     const isText = isTextMimeType(mimeType);
-    const content = isText && stat.size <= textSizeLimit ? readFileSync(filePath, "utf8") : undefined;
+    const bytes = isText && stat.size <= textSizeLimit ? readFileSync(filePath) : undefined;
+    const content = bytes?.toString("utf8");
     return {
       entry,
+      revision: bytes === undefined ? undefined : workspaceContentRevision(bytes),
       content,
       contentTruncated: content === undefined && isText,
     };
   }
 
-  writeFile(scope: WorkspaceScope, path: string, data: string | Buffer): WorkspaceFileReadResult | undefined {
+  writeFile(
+    scope: WorkspaceScope,
+    path: string,
+    data: string | Buffer,
+    options: { expectedRevision?: string } = {},
+  ): WorkspaceFileReadResult | undefined {
     const filePath = resolveWritableContainedPath(scope.root, path);
     if (!filePath) return undefined;
     mkdirSync(dirname(filePath), { recursive: true });
-    writeFileSync(filePath, data);
+    const temporary = `${filePath}.upload-${randomUUID()}.tmp`;
+    try {
+      writeFileSync(temporary, data, { flag: "wx" });
+      assertWorkspaceFileRevision(filePath, options.expectedRevision);
+      renameSync(temporary, filePath);
+    } finally {
+      rmSync(temporary, { force: true });
+    }
     return this.readFile(scope, path, { textSizeLimit: Buffer.byteLength(data) });
   }
 

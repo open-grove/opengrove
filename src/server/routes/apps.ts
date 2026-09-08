@@ -1,5 +1,5 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import {
   chmodSync,
   copyFileSync,
@@ -47,9 +47,15 @@ import {
   contentTypeForPath,
   LocalFilesystemWorkspaceStore,
   resolveExistingContainedPath,
+  resolveWritableContainedPath,
   safeResolveInside,
   type WorkspaceStore,
 } from "../workspace-store.js";
+import {
+  assertWorkspaceFileRevision,
+  workspaceFileRevision,
+  WorkspaceFileConflict,
+} from "../workspace-file-revision.js";
 import { sendRawFileResponse } from "../raw-file-response.js";
 import { readWwRuntimeAuth, type BridgeSecurity } from "../bridge-security.js";
 import { migrateMountedAppManifestV1 } from "../migrations/app-manifest-v1.js";
@@ -301,12 +307,14 @@ export async function handleAppsRoute(context: AppRouteContext): Promise<boolean
     return true;
   }
 
-  const rawFile = workspaceStore.openRawFile(target.workspace, requestedPath);
-  if (!rawFile) {
-    context.sendJson(context.response, 404, { ok: false, error: "app_file_not_found" });
+  const file = workspaceStore.readFile(target.workspace, requestedPath, {
+    textSizeLimit: APP_FILE_TEXT_SIZE_LIMIT,
+  });
+  if (!file) {
+    context.sendJson(context.response, 404, { ok: false, error: "app_file_not_found", revision: "missing" });
     return true;
   }
-  const revision = wireRevision(rawFile.entry);
+  const revision = file.revision ?? wireRevision(file.entry);
   if (context.url.searchParams.get("afterRevision") === revision) {
     context.sendJson(context.response, 200, {
       ok: true,
@@ -314,13 +322,6 @@ export async function handleAppsRoute(context: AppRouteContext): Promise<boolean
       revision,
       unchanged: true,
     });
-    return true;
-  }
-  const file = workspaceStore.readFile(target.workspace, requestedPath, {
-    textSizeLimit: APP_FILE_TEXT_SIZE_LIMIT,
-  });
-  if (!file) {
-    context.sendJson(context.response, 404, { ok: false, error: "app_file_not_found" });
     return true;
   }
   context.sendJson(context.response, 200, {
@@ -670,7 +671,7 @@ async function writeMountedAppRawFile(
     return;
   }
 
-  let destination = safeResolveInside(target.workspaceRoot, requestedPath);
+  let destination = resolveWritableContainedPath(target.workspaceRoot, requestedPath);
   if (!destination) {
     context.sendJson(context.response, 400, { ok: false, error: "app_file_path_invalid" });
     return;
@@ -683,10 +684,6 @@ async function writeMountedAppRawFile(
     return;
   }
 
-  if (context.url.searchParams.get("unique") === "1") {
-    destination = uniqueUploadedFilePath(parent, basename(destination));
-  }
-
   try {
     if (existsSync(destination) && statSync(destination).isDirectory()) {
       context.sendJson(context.response, 400, { ok: false, error: "app_file_target_is_directory" });
@@ -697,23 +694,37 @@ async function writeMountedAppRawFile(
     return;
   }
 
-  const tempPath = `${destination}.upload-${process.pid}-${Date.now()}.tmp`;
+  const tempPath = `${destination}.upload-${randomUUID()}.tmp`;
   try {
     await pipeline(context.request, createWriteStream(tempPath, { flags: "wx" }));
+    // Choose upload names only after receiving the body so concurrent uploads
+    // cannot reserve the same name before either has finished.
+    const unique = context.url.searchParams.get("unique") === "1";
+    if (unique) destination = uniqueUploadedFilePath(parent, basename(destination));
+    if (!resolveWritableContainedPath(target.workspaceRoot, relative(target.workspaceRoot, destination))) {
+      throw new Error("app_file_path_invalid");
+    }
+    const revision = workspaceFileRevision(tempPath);
+    assertWorkspaceFileRevision(
+      destination,
+      unique ? "missing" : (context.url.searchParams.get("expectedRevision") ?? undefined),
+    );
     renameSync(tempPath, destination);
     const files = listMountedAppWorkspaceFiles(target);
     context.sendJson(context.response, 200, {
       ok: true,
       app: publicAppTarget(target),
       entry: publicEntry(target.workspaceRoot, destination),
+      revision,
       entries: files.entries,
       truncated: files.truncated,
     });
   } catch (error) {
     rmSync(tempPath, { force: true });
-    context.sendJson(context.response, 400, {
+    context.sendJson(context.response, error instanceof WorkspaceFileConflict ? error.status : 400, {
       ok: false,
       error: error instanceof Error ? error.message : String(error),
+      ...(error instanceof WorkspaceFileConflict ? { revision: error.revision } : {}),
     });
   }
 }

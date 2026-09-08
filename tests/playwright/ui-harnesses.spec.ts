@@ -6,6 +6,11 @@ const execFileAsync = promisify(execFile);
 
 const harnesses = [
   {
+    name: "Workspace conflicts preserve drafts and require reviewed saves",
+    script: "scripts/test-web-file-save-conflicts.mjs",
+    marker: "web-file-save-conflicts passed",
+  },
+  {
     name: "Markdown external refresh preserves file contents without autosaving",
     script: "scripts/test-web-markdown-external-refresh.mjs",
     marker: "web-markdown-external-refresh passed",

@@ -509,6 +509,30 @@ File workbenches must provide operations a user can understand: browse,
 preview, create file/folder, rename, move, delete, and refresh. Every write must
 stay inside the manifest-declared workspace or the App root.
 
+A clean text editor follows external file changes without writing the loaded
+content back. Human edits become dirty immediately. The Host saves against the
+content revision that the editor read, and refuses a stale save. Unsaved text
+and its base are retained in browser local storage, scoped to the workspace and
+file, so a reload can recover them. If local storage is unavailable or full,
+the editor shows a download action and warns before closing with an unsaved draft.
+
+When both the draft and disk change, automatic saving pauses. The workbench
+shows a manual comparison with the disk version on the left and an editable
+result on the right. Users can copy individual changes, edit the result, and
+save after review. Saving checks the reviewed revision again; further external
+changes require another review. No automatic text merge is performed. Failed
+saves keep the draft and block file navigation that depends on saving it.
+
+`workspace.read` returns a content `revision` for complete text reads.
+`workspace.write` must pass that value as `expectedRevision` when replacing a
+file. Omitting it permits creation only; `"missing"` explicitly requires that a
+file does not exist. Existing files without a revision fail with
+`workspace_file_revision_required` (428); stale revisions fail with
+`workspace_file_conflict` (409). Callers must read and review the new content
+before retrying. Kernel-native tools and App CLIs remain external filesystem
+writers: these Host checks cannot prevent them from overwriting files outside
+the Host protocol.
+
 ## Required root
 
 Each app should provide a manifest at:

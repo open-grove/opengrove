@@ -735,3 +735,66 @@
 .flow-body .markdown-preview {
   min-height: 0;
 }
+
+.file-conflict-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 12px 16px;
+  background: color-mix(in srgb, #d99a20 12%, transparent);
+  font-size: 13px;
+}
+.file-conflict-banner > span {
+  flex: 1;
+  min-width: 200px;
+}
+.file-conflict-banner button,
+.file-conflict-actions button {
+  padding: 6px 10px;
+  border: 1px solid var(--c-border, #ccc);
+  border-radius: 6px;
+  background: var(--c-surface, white);
+  color: inherit;
+  cursor: pointer;
+}
+.file-conflict-editor {
+  display: flex;
+  flex-direction: column;
+  min-height: 300px;
+  height: 100%;
+  padding: 12px;
+  gap: 12px;
+}
+.file-conflict-editor p {
+  margin: 0;
+  font-size: 13px;
+}
+.file-conflict-headings {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 28px;
+  font-size: 13px;
+}
+.file-conflict-comparison {
+  flex: 1;
+  min-height: 180px;
+  overflow: auto;
+  border: 1px solid var(--c-border, #ddd);
+}
+.file-conflict-comparison .cm-mergeView {
+  min-height: 100%;
+}
+.file-conflict-comparison .cm-editor {
+  font-size: 13px;
+}
+.file-conflict-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.file-conflict-actions button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}

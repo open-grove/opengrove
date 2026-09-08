@@ -3,7 +3,8 @@ import { Crepe, CrepeFeature } from "@milkdown/crepe";
 import { editorViewCtx } from "@milkdown/kit/core";
 import type { Ctx } from "@milkdown/kit/ctx";
 import type { Node as ProseMirrorNode } from "@milkdown/kit/prose/model";
-import { replaceAll } from "@milkdown/kit/utils";
+import { replaceAll, $prose } from "@milkdown/kit/utils";
+import { Plugin } from "@milkdown/kit/prose/state";
 import { translate } from "../../i18n";
 import {
   MarkdownCodeEditor,
@@ -35,6 +36,7 @@ export const MarkdownRichEditor = forwardRef<MarkdownRichEditorHandle, MarkdownR
     const changeHandlerRef = useRef(props.onChange);
     const attachHandlerRef = useRef(props.onAttachSelection);
     const selectionHandlerRef = useRef(props.onTextSelectionChange);
+    const applyingExternalValueRef = useRef(false);
     const syncedDocumentRef = useRef<ProseMirrorNode | null>(null);
     const [fallbackReason, setFallbackReason] = useState<unknown>(null);
 
@@ -50,6 +52,8 @@ export const MarkdownRichEditor = forwardRef<MarkdownRichEditorHandle, MarkdownR
             return currentValueRef.current;
           }
           try {
+            const document = crepe.editor.action((ctx) => ctx.get(editorViewCtx).state.doc);
+            if (syncedDocumentRef.current?.eq(document)) return currentValueRef.current;
             const markdown = crepe.getMarkdown();
             currentValueRef.current = markdown;
             return markdown;
@@ -125,17 +129,32 @@ export const MarkdownRichEditor = forwardRef<MarkdownRichEditorHandle, MarkdownR
       });
       currentValueRef.current = props.value;
       try {
+        // Notify the Host synchronously: a delayed dirty signal lets an external
+        // refresh replace keystrokes entered before that signal arrives.
+        crepe.editor.use(
+          $prose(
+            () =>
+              new Plugin({
+                view: () => ({
+                  update: (view, previous) => {
+                    if (
+                      cancelled ||
+                      readyCrepeRef.current !== crepe ||
+                      applyingExternalValueRef.current ||
+                      previous.doc.eq(view.state.doc) ||
+                      syncedDocumentRef.current?.eq(view.state.doc)
+                    )
+                      return;
+                    syncedDocumentRef.current = view.state.doc;
+                    const markdown = crepe.getMarkdown();
+                    currentValueRef.current = markdown;
+                    changeHandlerRef.current(markdown);
+                  },
+                }),
+              }),
+          ),
+        );
         crepe.on((listener) => {
-          listener.updated((ctx, doc) => {
-            if (cancelled || readyCrepeRef.current !== crepe) return;
-            // Milkdown debounces notifications. Compare document snapshots so an
-            // external replacement (including Markdown normalization) is not an edit.
-            if (!doc.eq(ctx.get(editorViewCtx).state.doc) || syncedDocumentRef.current?.eq(doc)) return;
-            syncedDocumentRef.current = doc;
-            const markdown = crepe.getMarkdown();
-            currentValueRef.current = markdown;
-            changeHandlerRef.current(markdown);
-          });
           listener.selectionUpdated((ctx, selection) => {
             const onTextSelectionChange = selectionHandlerRef.current;
             if (!onTextSelectionChange) return;
@@ -216,8 +235,13 @@ export const MarkdownRichEditor = forwardRef<MarkdownRichEditorHandle, MarkdownR
       crepe.editor.action((ctx) => {
         const view = readEditorView(ctx);
         if (!view) throw new Error("Milkdown editor view is not ready for external value update");
-        replaceAll(value)(ctx);
-        syncedDocumentRef.current = ctx.get(editorViewCtx).state.doc;
+        applyingExternalValueRef.current = true;
+        try {
+          replaceAll(value)(ctx);
+          syncedDocumentRef.current = ctx.get(editorViewCtx).state.doc;
+        } finally {
+          applyingExternalValueRef.current = false;
+        }
       });
       currentValueRef.current = value;
       pendingExternalValueRef.current = null;

@@ -245,6 +245,30 @@ try {
     content: "scoped write",
   });
   assert.equal(readFileSync(join(appRoot, "workspace", "runs", "from-mcp-app.txt"), "utf8"), "scoped write");
+  const snapshot = await callMountedMcpAppTool(state, target, "opengrove.app.workspace.read", {
+    path: "runs/from-mcp-app.txt",
+  });
+  const revision = (snapshot.structuredContent as { revision: string }).revision;
+  assert.match(revision, /^sha256:/);
+  writeFileSync(join(appRoot, "workspace", "runs", "from-mcp-app.txt"), "external write");
+  await assert.rejects(
+    () =>
+      callMountedMcpAppTool(state, target, "opengrove.app.workspace.write", {
+        path: "runs/from-mcp-app.txt",
+        content: "stale",
+        expectedRevision: revision,
+      }),
+    /workspace_file_conflict/,
+  );
+  await assert.rejects(
+    () =>
+      callMountedMcpAppTool(state, target, "opengrove.app.workspace.write", {
+        path: "runs/from-mcp-app.txt",
+        content: "unconditional",
+      }),
+    /workspace_file_revision_required/,
+  );
+  assert.equal(readFileSync(join(appRoot, "workspace", "runs", "from-mcp-app.txt"), "utf8"), "external write");
   const commandResult = await callMountedMcpAppTool(state, target, "opengrove.app.command.run", {
     commandId: "fixture-json",
     args: ["direct"],
@@ -510,6 +534,7 @@ async function testSandboxAndHttpBoundaries(_settingsPath: string, cachedMediaUr
     const address = server.address();
     assert.ok(address && typeof address === "object");
     const baseUrl = `http://127.0.0.1:${address.port}`;
+    await testWorkspaceSaveConflicts(baseUrl);
     const contractResponse = await fetch(`${baseUrl}/api/apps/mcp-app-basic/mcp-app/contract`, {
       headers: {
         "x-forwarded-host": "bridge.example.test",
@@ -1119,4 +1144,69 @@ function restoreEnv(previous: Record<string, string | undefined>): void {
     if (value === undefined) delete process.env[name];
     else process.env[name] = value;
   }
+}
+
+async function testWorkspaceSaveConflicts(baseUrl: string): Promise<void> {
+  const path = join(appRoot, "workspace", "concurrent.md");
+  writeFileSync(path, "original");
+  const endpoint = `${baseUrl}/api/apps/mcp-app-basic`;
+  const read = async () => {
+    const response = await fetch(`${endpoint}/file?path=concurrent.md`);
+    assert.equal(response.status, 200);
+    return (await response.json()) as { revision: string; file: { content: string } };
+  };
+  const save = (body: string, expectedRevision?: string) =>
+    fetch(
+      `${endpoint}/raw?${new URLSearchParams({ path: "concurrent.md", ...(expectedRevision ? { expectedRevision } : {}) })}`,
+      { method: "PUT", body },
+    );
+  const initial = await read();
+  writeFileSync(path, "external");
+  const stale = await save("human", initial.revision);
+  assert.equal(stale.status, 409);
+  assert.equal(readFileSync(path, "utf8"), "external");
+  assert.equal((await save("unconditional")).status, 428);
+  const latest = await read();
+  const refreshed = await fetch(
+    `${endpoint}/file?path=concurrent.md&afterRevision=${encodeURIComponent(initial.revision)}`,
+  );
+  assert.equal(((await refreshed.json()) as { file: { content: string } }).file.content, "external");
+  const results = await Promise.all([save("first", latest.revision), save("second", latest.revision)]);
+  assert.deepEqual(results.map((r) => r.status).sort(), [200, 409]);
+  const winner = (await results.find((r) => r.status === 200)!.json()) as { revision: string };
+  assert.equal((await read()).revision, winner.revision);
+  const deletedBase = await read();
+  rmSync(path);
+  assert.equal((await save("resurrected", deletedBase.revision)).status, 409);
+  assert.equal(existsSync(path), false);
+  assert.equal((await save("explicit recreation", "missing")).status, 200);
+
+  // A complete body may arrive after a different writer finishes. Compare at
+  // commit time, not before waiting for the upload stream.
+  const beforeUpload = await read();
+  await new Promise<void>((resolve, reject) => {
+    const request = httpRequest(
+      `${endpoint}/raw?path=concurrent.md&expectedRevision=${encodeURIComponent(beforeUpload.revision)}`,
+      {
+        method: "PUT",
+        headers: { "content-length": "10" },
+      },
+      (response) => {
+        response.resume();
+        response.on("end", () => {
+          try {
+            assert.equal(response.statusCode, 409);
+            resolve();
+          } catch (error) {
+            reject(error);
+          }
+        });
+      },
+    );
+    request.on("error", reject);
+    request.write("first");
+    writeFileSync(path, "changed during upload");
+    request.end("last!");
+  });
+  assert.equal(readFileSync(path, "utf8"), "changed during upload");
 }

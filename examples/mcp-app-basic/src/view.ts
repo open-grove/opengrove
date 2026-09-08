@@ -29,16 +29,17 @@ requiredElement<HTMLButtonElement>("list-files").addEventListener("click", () =>
 );
 requiredElement<HTMLButtonElement>("write-read-file").addEventListener("click", () =>
   runAction(async () => {
+    const path = `runs/mcp-app-demo-${crypto.randomUUID()}.txt`;
     await app.callServerTool({
       name: "opengrove.app.workspace.write",
       arguments: {
-        path: "runs/mcp-app-demo.txt",
+        path,
         content: "workspace round trip complete",
       },
     });
     return app.callServerTool({
       name: "opengrove.app.workspace.read",
-      arguments: { path: "runs/mcp-app-demo.txt" },
+      arguments: { path },
     });
   }),
 );

@@ -1,3 +1,4 @@
+import { FileSaveConflict } from "../shared/file-draft";
 import {
   Component,
   useEffect,
@@ -43,6 +44,7 @@ import {
   moveMountedAppFileSystemEntry,
   openMountedAppLocalFile,
   putMountedAppRawFile,
+  MountedAppFileConflictError,
   refreshMountedAppDashboard,
   renameMountedAppFileSystemEntry,
   type AttachmentPayload,
@@ -371,7 +373,7 @@ export function MountedAppWorkbench(props: {
       return response.unchanged && previous ? { ...previous, revision: response.revision } : response;
     },
     enabled: Boolean(appId && props.selectedPath && directoryMode !== "dashboard" && directoryMode !== "view"),
-    refetchInterval: fileDirtyState?.dirty && fileDirtyState.path === props.selectedPath ? false : 3_000,
+    refetchInterval: 3_000,
     refetchIntervalInBackground: false,
     refetchOnWindowFocus: true,
   });
@@ -495,24 +497,38 @@ export function MountedAppWorkbench(props: {
   });
 
   const saveTextMutation = useMutation({
-    mutationFn: (payload: { path: string; content: string; contentType: string }) =>
-      putMountedAppRawFile(appId, payload.path, new Blob([payload.content], { type: payload.contentType }), {
-        contentType: payload.contentType,
-      }),
-    onSuccess(result, payload) {
-      mergeFileSystemResult(result);
-      queryClient.setQueryData<MountedAppFileResponse>(["mounted-app-file", appId, payload.path], (previous) => {
-        if (!previous?.file) return previous;
-        return {
-          ...previous,
-          file: {
-            ...previous.file,
-            ...(result.entry ?? {}),
-            content: payload.content,
-            contentTruncated: false,
+    mutationFn: async (payload: { path: string; content: string; contentType: string; expectedRevision: string }) => {
+      const queryKey = ["mounted-app-file", appId, payload.path];
+      await queryClient.cancelQueries({ queryKey, exact: true });
+      try {
+        const result = await putMountedAppRawFile(
+          appId,
+          payload.path,
+          new Blob([payload.content], { type: payload.contentType }),
+          {
+            contentType: payload.contentType,
+            expectedRevision: payload.expectedRevision,
           },
-        };
-      });
+        );
+        if (!result.revision) throw new Error("workspace_save_revision_missing");
+        await queryClient.cancelQueries({ queryKey, exact: true });
+        queryClient.setQueryData<MountedAppFileResponse>(queryKey, (previous) =>
+          previous?.file
+            ? {
+                ...previous,
+                revision: result.revision,
+                file: { ...previous.file, ...(result.entry ?? {}), content: payload.content, contentTruncated: false },
+              }
+            : previous,
+        );
+        void queryClient.invalidateQueries({ queryKey: ["mounted-app-files", appId] });
+        return { content: payload.content, revision: result.revision };
+      } catch (error) {
+        if (error instanceof MountedAppFileConflictError) throw new FileSaveConflict();
+        throw error;
+      } finally {
+        void queryClient.invalidateQueries({ queryKey, exact: true });
+      }
     },
   });
 
@@ -619,7 +635,7 @@ export function MountedAppWorkbench(props: {
 
   async function requestSelectedPathChange(path: string) {
     if (path === props.selectedPath) return;
-    await activeDirtyState?.save();
+    if (activeDirtyState && !(await activeDirtyState.save())) return;
     props.onSelectedPathChange(path);
   }
 
@@ -762,11 +778,11 @@ export function MountedAppWorkbench(props: {
   }
 
   async function selectDirectoryTab(index: number) {
-    setActiveTabIdx(index);
     if ((tabs[index]?.component === "dashboard" || tabs[index]?.component === "view") && props.selectedPath) {
-      await activeDirtyState?.save();
+      if (activeDirtyState && !(await activeDirtyState.save())) return;
       props.onSelectedPathChange("");
     }
+    setActiveTabIdx(index);
   }
 
   function renderDirectoryContent() {
@@ -1073,7 +1089,23 @@ export function MountedAppWorkbench(props: {
                   copy={t("filePreview.renderFailedCopy")}
                 >
                   <FilePreviewPanel
-                    file={fileQuery.data?.file}
+                    key={`${appId}:${props.selectedPath}`}
+                    draftKey={JSON.stringify([
+                      fileQuery.data?.app?.workspaceRoot ?? filesQuery.data?.app?.workspaceRoot ?? appId,
+                      appId,
+                      props.selectedPath,
+                    ])}
+                    revision={fileQuery.data?.revision}
+                    file={
+                      fileQuery.data?.file ??
+                      (fileQuery.data?.revision === "missing"
+                        ? {
+                            name: props.selectedPath.split("/").at(-1) ?? props.selectedPath,
+                            path: props.selectedPath,
+                            content: "",
+                          }
+                        : undefined)
+                    }
                     loading={fileQuery.isLoading && Boolean(props.selectedPath)}
                     downloadUrl={selectedDownloadUrl}
                     rawUrl={selectedRawUrl}
@@ -1098,14 +1130,13 @@ export function MountedAppWorkbench(props: {
                     }
                     onSaveText={
                       props.selectedPath
-                        ? (content) =>
-                            saveTextMutation
-                              .mutateAsync({
-                                path: props.selectedPath,
-                                content,
-                                contentType: selectedEntry?.mimeType || "text/plain; charset=utf-8",
-                              })
-                              .then(() => undefined)
+                        ? (content, expectedRevision) =>
+                            saveTextMutation.mutateAsync({
+                              path: props.selectedPath,
+                              content,
+                              expectedRevision,
+                              contentType: selectedEntry?.mimeType || "text/plain; charset=utf-8",
+                            })
                         : undefined
                     }
                   />

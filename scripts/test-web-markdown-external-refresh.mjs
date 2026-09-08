@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -40,7 +41,7 @@ try {
   await page.goto(pathToFileURL(htmlPath).href);
   const editor = page.locator(".milkdown .ProseMirror");
   await editor.waitFor();
-  // Milkdown notifies after 200 ms; autosave waits another 800 ms.
+  // Wait beyond initialization and the autosave delay to catch unintended writes.
   await page.waitForTimeout(400);
   assert.equal(await page.evaluate(() => window.dirty), false, "loading must not mark the draft dirty");
   await page.evaluate((value) => window.replaceFile(value), externalContent);
@@ -61,7 +62,7 @@ try {
   assert.deepEqual(await page.evaluate(() => window.saves), [], "successive external updates must not autosave");
   assert.equal(await page.evaluate(() => window.fileContent), finalContent);
 
-  // A real edit arriving before the delayed external notification must still save.
+  // A real edit immediately after an external refresh must still save.
   await page.evaluate((value) => window.replaceFile(value), externalContent);
   await expect(editor).toContainText("English Chapter");
   await editor.press("ControlOrMeta+End");
@@ -103,8 +104,9 @@ function entrySource() {
         file={{ name: "outline.md", path: "outline.md", mimeType: "text/markdown", content }}
         loading={false}
         selectedPath="outline.md"
+        revision={content}
         onDirtyStateChange={(state) => { window.dirty = state.dirty; }}
-        onSaveText={async (value) => { window.saves.push(value); setContent(value); }}
+        onSaveText={async (value) => { window.saves.push(value); setContent(value); return { content: value, revision: value }; }}
       />;
     }
     function WorkbenchHarness() {
@@ -126,26 +128,46 @@ function entrySource() {
 }
 
 async function checkWorkbenchPolling(page, htmlPath) {
+  const revisionFor = (value) => `sha256:${createHash("sha256").update(value).digest("hex")}`;
   let content = initialContent;
   let reads = 0;
   const writes = [];
+  let allowWrites = false;
+  let conflictNextSave = false;
   const entry = { name: "outline.md", path: "outline.md", kind: "file", mimeType: "text/markdown" };
+  const other = { ...entry, name: "other.md", path: "other.md" };
   await page.route("http://opengrove.test/api/**", async (route) => {
     const request = route.request();
     const path = new URL(request.url()).pathname;
     let body;
     if (request.method() !== "GET") {
       writes.push(request.postData());
-      await route.fulfill({ status: 500, body: "Unexpected write while viewing" });
+      if (!allowWrites) throw new Error("Unexpected write while viewing");
+      const expected = new URL(request.url()).searchParams.get("expectedRevision");
+      if (conflictNextSave) {
+        conflictNextSave = false;
+        content = "# Concurrent Agent write\n\nKeep this edit.\n";
+      }
+      if (expected !== revisionFor(content)) {
+        await route.fulfill({ status: 409, json: { ok: false, error: "workspace_file_conflict" } });
+      } else {
+        content = request.postData();
+        await route.fulfill({ json: { ok: true, revision: revisionFor(content), entry, entries: [entry, other] } });
+      }
       return;
     }
     if (path.endsWith("/files")) {
-      body = { ok: true, entries: [entry], truncated: false, revision: String(reads) };
+      body = { ok: true, entries: [entry, other], truncated: false, revision: String(reads) };
     } else if (path.endsWith("/flows")) {
       body = { ok: true, flows: [], revision: "1" };
     } else if (path.endsWith("/file")) {
       reads++;
-      body = { ok: true, file: { ...entry, content }, revision: String(reads) };
+      const isOther = new URL(request.url()).searchParams.get("path") === "other.md";
+      body = {
+        ok: true,
+        file: { ...(isOther ? other : entry), content: isOther ? "# Other file\n" : content },
+        revision: revisionFor(isOther ? "# Other file\n" : content),
+      };
     } else {
       throw new Error(`Unexpected harness request: ${request.url()}`);
     }
@@ -160,4 +182,31 @@ async function checkWorkbenchPolling(page, htmlPath) {
   assert.ok(reads >= 2, "a clean open file must continue polling for external changes");
   await page.waitForTimeout(1_200);
   assert.deepEqual(writes, [], "workbench refresh must not write back to the file API");
+  // Reading a normalized Markdown document and switching files must also avoid a write.
+  await page.getByText("other.md", { exact: true }).click();
+  await expect(editor).toContainText("Other file");
+  await page.getByText("outline.md", { exact: true }).click();
+  await expect(editor).toContainText("English Chapter");
+  assert.equal(writes.length, 0);
+  allowWrites = true;
+  conflictNextSave = true;
+  await editor.press("ControlOrMeta+End");
+  await page.keyboard.insertText("My workbench edit.");
+  await expect(page.getByText(/automatic saving is paused/)).toBeVisible();
+  await expect(editor).toContainText("My workbench edit.");
+  assert.equal(writes.length, 1, "a rejected save must stop retrying automatically");
+  await page.getByText("other.md", { exact: true }).click();
+  await expect(editor).toContainText("My workbench edit.");
+  await page.getByRole("button", { name: "Compare changes", exact: true }).click();
+  await expect(page.locator(".cm-merge-a .cm-content")).toContainText("Concurrent Agent write");
+  const result = page.locator(".cm-merge-b .cm-content");
+  await expect(result).toContainText("My workbench edit.");
+  await result.click();
+  await result.press("ControlOrMeta+a");
+  await page.keyboard.insertText("# Final workbench result\n\nBoth changes reviewed.\n");
+  await page.getByRole("button", { name: "Save reviewed result" }).click();
+  await expect(editor).toContainText("Final workbench result");
+  assert.equal(content, "# Final workbench result\n\nBoth changes reviewed.\n");
+  await page.getByText("other.md", { exact: true }).click();
+  await expect(editor).toContainText("Other file");
 }
