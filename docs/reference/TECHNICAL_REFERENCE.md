@@ -245,8 +245,8 @@ and re-enabling App updates schedules a check only after settings are saved.
 | `/app-store/repair` | `POST` | repair a local package installation |
 | `/app-store/packages/:packageId/archive` | `GET` | download an App Store archive |
 | `/apps/:appId/files` | `GET` | list mounted App workspace files |
-| `/apps/:appId/file` | `GET` / `PATCH` | read or update one mounted App workspace file |
-| `/apps/:appId/raw/*` | `GET` | serve mounted App raw assets/files |
+| `/apps/:appId/file?path=…` | `GET` | read a mounted App workspace file and its revision |
+| `/apps/:appId/raw?path=…` | `GET` / `PUT` | serve assets or save a file with an expected revision |
 | `/voice/stt/providers` | `GET` | list configured speech-to-text providers |
 | `/voice/transcriptions` | `POST` | transcribe uploaded audio through the selected STT provider |
 | `/rooms` | `GET` / `POST` | read the room ledger snapshot or create a room |
@@ -281,6 +281,18 @@ prove that nothing changed.
   existing payload and only advances its revision.
 - Polling runs only while the relevant UI is enabled and does not refetch in a
   background tab unless a query explicitly requires it.
+
+For complete App text reads, `revision` is a SHA-256 digest of the exact file bytes
+used to decode the response content, rather than a timestamp/size fingerprint. A `PUT` to
+`/apps/:appId/raw?path=…&expectedRevision=…` stages the body, checks the current
+file against that revision, and renames the staged file into place. Host saves
+perform the check and replacement without yielding. Success returns the saved
+`revision`; a stale write returns 409 and leaves the destination intact. A
+missing revision allows only creation (428 for an existing file). The revision
+`missing` requires an absent file. `unique=1` uploads choose an unused filename
+at commit time. Arbitrary external filesystem writers do not participate in
+this concurrency check. Clients must preserve their draft on conflict, refresh
+the disk snapshot, and require review before saving against the new revision.
 
 The implementation sources of truth are
 [`use-agent-events-query.ts`](../../web/src/runtime/use-agent-events-query.ts),

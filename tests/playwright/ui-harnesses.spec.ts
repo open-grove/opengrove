@@ -6,6 +6,21 @@ const execFileAsync = promisify(execFile);
 
 const harnesses = [
   {
+    name: "Workspace draft backups coalesce input and restore large documents",
+    script: "scripts/test-web-file-draft-backups.mjs",
+    marker: "web-file-draft-backups passed",
+  },
+  {
+    name: "Workspace conflicts preserve drafts and require reviewed saves",
+    script: "scripts/test-web-file-save-conflicts.mjs",
+    marker: "web-file-save-conflicts passed",
+  },
+  {
+    name: "Markdown external refresh preserves file contents without autosaving",
+    script: "scripts/test-web-markdown-external-refresh.mjs",
+    marker: "web-markdown-external-refresh passed",
+  },
+  {
     name: "Main navigation supports resizing, restoring and temporary reveal",
     script: "scripts/test-web-app-rail-navigation-ui.mjs",
     marker: "web-app-rail-navigation-ui passed",

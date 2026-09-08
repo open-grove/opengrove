@@ -161,6 +161,33 @@ export const EN = {
   "filePreview.modeLabel": "Preview mode",
   "filePreview.preview": "Preview",
   "filePreview.edit": "Edit",
+  "filePreview.fileDeleted": "This file was deleted from disk. Saving will recreate it.",
+  "filePreview.conflictNotice": "The file changed elsewhere. Your draft is kept; automatic saving is paused.",
+  "filePreview.compareChanges": "Compare changes",
+  "filePreview.downloadDraft": "Download my draft",
+  "filePreview.draftCorrupt":
+    "The old draft backup was damaged and has been set aside for recovery. The disk version is shown; you can continue editing.",
+  "filePreview.draftMemoryOnly":
+    "Draft backup is unavailable for this editing session. You can still edit and save the file. Download any unsaved changes before closing or reloading.",
+  "filePreview.draftStorageError": "The draft could not be stored locally. Download it before leaving this page.",
+  "filePreview.saveFailedDraftKept": "Save failed. Your draft is still here.",
+  "filePreview.retrySave": "Retry save",
+  "filePreview.copyDiskChange": "Copy this disk change to the result",
+  "filePreview.conflictInstructions":
+    "Compare the current disk version on the left with your draft on the right. Copy individual changes or edit the result, then save.",
+  "filePreview.diskVersion": "Disk version",
+  "filePreview.mergeResult": "Result (editable)",
+  "filePreview.changedAgain":
+    "The file changed again. Click Compare changes to review the latest version before saving.",
+  "filePreview.copyDiskVersion": "Copy entire disk version to result",
+  "filePreview.discardDraft": "Discard my draft",
+  "filePreview.reviewSaveFailed":
+    "The result was not saved. Your draft is kept. Check the latest disk version and try again.",
+  "filePreview.draftRecoveryError": "The saved draft could not be loaded. Retry before editing this file.",
+  "filePreview.cannotLeaveDraft":
+    "Your latest changes could not be backed up. Stay here and retry, or download your draft.",
+  "filePreview.keepDraft": "Keep draft for later",
+  "filePreview.saveResolution": "Save reviewed result",
   "filePreview.save": "Save",
   "filePreview.saveDirty": "Pending sync",
   "filePreview.saveSaving": "Syncing...",

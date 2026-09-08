@@ -12,26 +12,29 @@ import {
   Share2,
 } from "lucide-react";
 import {
+  lazy,
+  Suspense,
   useCallback,
   useEffect,
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
   type KeyboardEvent,
   type MouseEvent,
   type ReactNode,
 } from "react";
-import {
-  StandardFileEditor,
-  type StandardFileEditorHandle,
-  type StandardFileEditorSelection,
-} from "./standard-file-editor";
+import { StandardFileEditor, type StandardFileEditorSelection } from "./standard-file-editor";
 import { StandardFilePreview } from "./standard-file-preview";
 import { resolveStandardFileCapability, type PreviewableFile } from "./standard-file-capabilities";
 import { useI18n, type TranslationFn } from "../../i18n";
 import { BridgeDownloadError, downloadBridgeFile } from "../../bridge-client";
 import { AnimatedBackground } from "../ui/motion/animated-background";
 import "./file-preview-panel.css";
+import { fileDraftFor, type FileDraftSave, type FileSnapshot } from "./file-draft";
+const FileConflictEditor = lazy(() =>
+  import("./file-conflict-editor").then((module) => ({ default: module.FileConflictEditor })),
+);
 
 export type { PreviewableFile } from "./standard-file-capabilities";
 
@@ -43,6 +46,7 @@ export type FilePreviewDirtyState = {
   path: string;
   discard(): void;
   save(): Promise<boolean>;
+  preserve(): Promise<boolean>;
 };
 
 export type FileTextSelectionAttachment = {
@@ -77,10 +81,12 @@ export function FilePreviewPanel(props: {
   downloadUrl?: string;
   selectedPath: string;
   saving?: boolean;
+  draftKey?: string;
+  revision?: string;
   onAttachSelection?(selection: FileTextSelectionAttachment): void;
   onDirtyStateChange?(state: FilePreviewDirtyState): void;
   onOpenLocal?(): void;
-  onSaveText?(content: string): Promise<void> | void;
+  onSaveText?: FileDraftSave;
 }) {
   const { t } = useI18n();
   const capability = useMemo(
@@ -88,21 +94,18 @@ export function FilePreviewPanel(props: {
     [props.file?.mimeType, props.file?.name, props.selectedPath],
   );
   const [mode, setMode] = useState<PreviewMode>("preview");
-  const [draftPath, setDraftPath] = useState("");
-  const [draft, setDraft] = useState("");
-  const [dirty, setDirty] = useState(false);
-  const [saveState, setSaveState] = useState<FilePreviewSaveState>("idle");
+  const draftPath = props.file?.path || props.selectedPath;
+  const controller = useMemo(() => fileDraftFor(props.draftKey ?? draftPath), [props.draftKey, draftPath]);
+  const state = useSyncExternalStore(controller.subscribe, controller.getSnapshot);
+  const { draft, dirty, phase: saveState, conflict, storageError } = state;
+  const [reviewed, setReviewed] = useState<FileSnapshot>();
+  const [reviewError, setReviewError] = useState(false);
   const textWorkbenchRef = useRef<HTMLDivElement | null>(null);
-  const editorRef = useRef<StandardFileEditorHandle | null>(null);
-  const saveDraftRef = useRef<() => Promise<boolean>>(async () => true);
-  const discardDraftRef = useRef<() => void>(() => {});
-  const saveTextRef = useRef(props.onSaveText);
-  const autosaveTimeoutRef = useRef<number | null>(null);
-  const saveStateResetTimeoutRef = useRef<number | null>(null);
   const [textSelection, setTextSelection] = useState<TextSelectionState | null>(null);
-
   const canEditText = Boolean(
     props.onSaveText &&
+      props.revision &&
+      state.ready &&
       capability.editor &&
       capability.editable &&
       props.file?.content !== undefined &&
@@ -113,160 +116,67 @@ export function FilePreviewPanel(props: {
   const canAttachSelection = Boolean(props.onAttachSelection);
 
   useEffect(() => {
-    return () => {
-      if (saveStateResetTimeoutRef.current) {
-        window.clearTimeout(saveStateResetTimeoutRef.current);
-        saveStateResetTimeoutRef.current = null;
-      }
-      if (autosaveTimeoutRef.current) {
-        window.clearTimeout(autosaveTimeoutRef.current);
-        autosaveTimeoutRef.current = null;
-      }
-    };
-  }, []);
+    if (props.file?.content !== undefined && props.revision) {
+      controller.receive({ content: props.file.content, revision: props.revision });
+    }
+  }, [controller, props.file?.content, props.revision]);
+
+  useEffect(() => {
+    setReviewed(undefined);
+    setMode("preview");
+    setTextSelection(null);
+  }, [controller]);
 
   useEffect(() => {
     setTextSelection(null);
-  }, [props.selectedPath, activeMode]);
-
-  const clearSaveStateReset = useCallback(() => {
-    if (saveStateResetTimeoutRef.current) {
-      window.clearTimeout(saveStateResetTimeoutRef.current);
-      saveStateResetTimeoutRef.current = null;
-    }
-  }, []);
-
-  const clearAutosaveTimer = useCallback(() => {
-    if (autosaveTimeoutRef.current) {
-      window.clearTimeout(autosaveTimeoutRef.current);
-      autosaveTimeoutRef.current = null;
-    }
-  }, []);
-
-  useEffect(() => {
-    const nextPath = props.file?.path || props.selectedPath;
-    if (nextPath !== draftPath) {
-      const saveText = saveTextRef.current;
-      if (dirty && saveText) {
-        clearAutosaveTimer();
-        const latestDraft = editorRef.current?.getValue() ?? draft;
-        void Promise.resolve(saveText(latestDraft)).catch((error: unknown) => {
-          console.warn("[file-preview] failed to autosave dirty draft before switching files", error);
-        });
-      }
-      saveTextRef.current = props.onSaveText;
-      setDraftPath(nextPath);
-      setDraft(props.file?.content ?? "");
-      setDirty(false);
-      setSaveState("idle");
-      setMode("preview");
-      return;
-    }
-    if (!dirty && props.file?.content !== undefined && props.file.content !== draft) {
-      setDraft(props.file.content);
-    }
-    saveTextRef.current = props.onSaveText;
-  }, [
-    clearAutosaveTimer,
-    draft,
-    draftPath,
-    dirty,
-    props.file?.content,
-    props.file?.path,
-    props.onSaveText,
-    props.selectedPath,
-  ]);
-
-  const showSavedState = useCallback(() => {
-    clearSaveStateReset();
-    setSaveState("saved");
-    saveStateResetTimeoutRef.current = window.setTimeout(() => {
-      saveStateResetTimeoutRef.current = null;
-      setSaveState("idle");
-    }, 1_800);
-  }, [clearSaveStateReset]);
+  }, [activeMode]);
 
   const saveDraft = useCallback(async (): Promise<boolean> => {
     if (!props.onSaveText) return true;
-    clearAutosaveTimer();
-    const latestDraft = editorRef.current?.getValue() ?? draft;
-    const savedContent = props.file?.content ?? "";
-    if (!dirty && latestDraft === savedContent) {
-      showSavedState();
-      return true;
-    }
-    clearSaveStateReset();
-    setSaveState("saving");
-    try {
-      await Promise.resolve(props.onSaveText(latestDraft));
-      const currentDraft = editorRef.current?.getValue() ?? latestDraft;
-      setDraft(currentDraft);
-      if (currentDraft !== latestDraft) {
-        setDirty(true);
-        setSaveState("dirty");
-      } else {
-        setDirty(false);
-        showSavedState();
-      }
-      return true;
-    } catch (error) {
-      console.warn("[file-preview] failed to save text file", error);
-      setSaveState("error");
-      return false;
-    }
-  }, [clearAutosaveTimer, clearSaveStateReset, dirty, draft, props.file?.content, props.onSaveText, showSavedState]);
-
-  const discardDraft = useCallback(() => {
-    clearSaveStateReset();
-    setDraft(props.file?.content ?? "");
-    setDirty(false);
-    setSaveState("idle");
-  }, [clearSaveStateReset, props.file?.content]);
+    return controller.save(props.onSaveText);
+  }, [controller, props.onSaveText]);
 
   useEffect(() => {
-    saveDraftRef.current = saveDraft;
-    discardDraftRef.current = discardDraft;
-  }, [discardDraft, saveDraft]);
-
-  useEffect(() => {
-    if (!dirty || !props.onSaveText) {
-      clearAutosaveTimer();
-      return;
-    }
-    clearAutosaveTimer();
-    autosaveTimeoutRef.current = window.setTimeout(() => {
-      autosaveTimeoutRef.current = null;
+    if (!dirty || conflict || saveState !== "dirty" || !props.onSaveText) return;
+    const timer = window.setTimeout(() => {
       void saveDraft();
     }, 800);
-    return clearAutosaveTimer;
-  }, [clearAutosaveTimer, dirty, draft, props.onSaveText, saveDraft]);
+    return () => window.clearTimeout(timer);
+  }, [dirty, state.editVersion, conflict, saveState, props.onSaveText, saveDraft]);
+
+  const saveDraftRef = useRef(saveDraft);
+  saveDraftRef.current = saveDraft;
 
   useEffect(() => {
     props.onDirtyStateChange?.({
-      dirty,
+      dirty: dirty || conflict,
       path: draftPath,
-      discard: () => discardDraftRef.current(),
+      discard: () => controller.discard(),
       save: () => saveDraftRef.current(),
+      preserve: async () => {
+        // Recovery gates editing, so leaving before recovery cannot lose input.
+        if (!controller.getSnapshot().ready) return true;
+        // Capture and commit the latest input before unmounting, without waiting
+        // for a network write or requiring conflict resolution.
+        if (!(await controller.flush())) return false;
+        if (!controller.getSnapshot().conflict && controller.getSnapshot().phase !== "error")
+          void saveDraftRef.current();
+        return true;
+      },
     });
-  }, [dirty, draftPath, props.onDirtyStateChange]);
+  }, [dirty, conflict, draftPath, controller, props.onDirtyStateChange]);
 
-  useEffect(() => {
-    return () => {
-      props.onDirtyStateChange?.({
-        dirty: false,
-        path: "",
-        discard() {},
-        save: async () => true,
-      });
-    };
-  }, [props.onDirtyStateChange]);
+  function updateDraft(value: string | (() => string)) {
+    controller.edit(value);
+  }
 
-  function updateDraft(value: string) {
-    setDraft(value);
-    const nextDirty = value !== (props.file?.content ?? "");
-    setDirty(nextDirty);
-    clearSaveStateReset();
-    setSaveState(nextDirty ? "dirty" : "idle");
+  function downloadDraft() {
+    const url = URL.createObjectURL(new Blob([controller.getContent()], { type: "text/plain;charset=utf-8" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = props.file?.name ?? "draft.txt";
+    link.click();
+    window.setTimeout(() => URL.revokeObjectURL(url), 0);
   }
 
   function activateTextEditor() {
@@ -295,7 +205,10 @@ export function FilePreviewPanel(props: {
       fileName: props.file.name,
       path: props.file.path || props.selectedPath,
       mimeType: props.file.mimeType,
-      lineRange: lineRangeForSelection(activeMode === "edit" ? draft : (props.file.content ?? ""), selection.text),
+      lineRange: lineRangeForSelection(
+        activeMode === "edit" ? controller.getContent() : (props.file.content ?? ""),
+        selection.text,
+      ),
     });
     setTextSelection(null);
   }
@@ -321,6 +234,8 @@ export function FilePreviewPanel(props: {
     );
   }
 
+  if (props.onSaveText && props.revision && capability.editable && !state.ready) return <FilePreviewLoadingState />;
+
   if (props.loading) {
     return <FilePreviewLoadingState />;
   }
@@ -333,13 +248,13 @@ export function FilePreviewPanel(props: {
     activeMode === "edit" && canEditText ? (
       <div className="file-preview-editor-shell" data-preview-kind={capability.preview.kind}>
         <StandardFileEditor
-          ref={editorRef}
           key={props.file?.path || props.selectedPath}
           capability={capability}
           value={draft}
           autoFocus
           placeholder={t("filePreview.editorPlaceholder")}
           onChange={updateDraft}
+          onSnapshot={updateDraft}
           onAttachSelection={canAttachSelection && capability.kind === "markdown" ? attachEditorSelection : undefined}
           onTextSelectionChange={handleEditorSelectionChange}
         />
@@ -381,7 +296,93 @@ export function FilePreviewPanel(props: {
             showModeTabs={!markdownEditOnly}
             onModeChange={setMode}
           />
-          <div className="file-preview-content">{previewContent}</div>
+          {props.revision === "missing" ? (
+            <div className="file-conflict-banner" role="status">
+              {t("filePreview.fileDeleted")}
+            </div>
+          ) : null}
+          {canEditText && state.backupCorrupt ? (
+            <div className="file-conflict-banner" role="alert">
+              {t("filePreview.draftCorrupt")}
+            </div>
+          ) : null}
+          {canEditText && (state.memoryOnly || (storageError && state.backupPending)) ? (
+            <div className="file-conflict-banner" role="alert">
+              <span>{t(state.memoryOnly ? "filePreview.draftMemoryOnly" : "filePreview.draftStorageError")}</span>
+              <button type="button" onClick={downloadDraft}>
+                {t("filePreview.downloadDraft")}
+              </button>
+            </div>
+          ) : null}
+          {conflict ? (
+            <div className="file-conflict-banner" role="alert">
+              <AlertTriangle size={16} />
+              <span>{t("filePreview.conflictNotice")}</span>
+              <button
+                type="button"
+                disabled={saveState === "saving"}
+                onClick={() => {
+                  controller.discard();
+                  setReviewed(undefined);
+                  setReviewError(false);
+                }}
+              >
+                {t("filePreview.discardDraft")}
+              </button>
+              <button
+                type="button"
+                disabled={!state.remote || saveState === "saving"}
+                onClick={() => {
+                  controller.getContent();
+                  setReviewError(false);
+                  setReviewed(state.remote);
+                }}
+              >
+                {t("filePreview.compareChanges")}
+              </button>
+              <button type="button" onClick={downloadDraft}>
+                {t("filePreview.downloadDraft")}
+              </button>
+            </div>
+          ) : saveState === "error" ? (
+            <div className="file-conflict-banner" role="alert">
+              <span>{t("filePreview.saveFailedDraftKept")}</span>
+              <button type="button" onClick={() => void saveDraft()}>
+                {t("filePreview.retrySave")}
+              </button>
+            </div>
+          ) : null}
+          {reviewError ? (
+            <div className="file-conflict-banner" role="alert">
+              {t("filePreview.reviewSaveFailed")}
+            </div>
+          ) : null}
+          <div className="file-preview-content">
+            {reviewed && conflict ? (
+              <Suspense fallback={<FilePreviewLoadingState />}>
+                <FileConflictEditor
+                  key={reviewed.revision}
+                  original={reviewed.content}
+                  value={draft}
+                  stale={reviewed.revision !== state.remote?.revision}
+                  saving={saveState === "saving"}
+                  onChange={updateDraft}
+                  onSnapshot={updateDraft}
+                  onCancel={() => {
+                    controller.getContent();
+                    setReviewed(undefined);
+                  }}
+                  onSave={async () => {
+                    setReviewError(false);
+                    if (props.onSaveText && (await controller.save(props.onSaveText, reviewed))) setReviewed(undefined);
+                    else setReviewError(true);
+                  }}
+                />
+              </Suspense>
+            ) : (
+              previewContent
+            )}
+          </div>
         </div>
         {textSelection && canAttachSelection ? (
           <SelectionAttachButton selection={textSelection} onAttach={attachCurrentSelection} />

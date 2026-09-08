@@ -1,8 +1,10 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { Crepe, CrepeFeature } from "@milkdown/crepe";
-import { editorViewCtx } from "@milkdown/kit/core";
+import { editorViewCtx, serializerCtx } from "@milkdown/kit/core";
 import type { Ctx } from "@milkdown/kit/ctx";
-import { replaceAll } from "@milkdown/kit/utils";
+import type { Node as ProseMirrorNode } from "@milkdown/kit/prose/model";
+import { replaceAll, $prose } from "@milkdown/kit/utils";
+import { Plugin } from "@milkdown/kit/prose/state";
 import { translate } from "../../i18n";
 import {
   MarkdownCodeEditor,
@@ -19,6 +21,7 @@ type MarkdownRichEditorProps = {
   autoFocus?: boolean;
   placeholder?: string;
   onChange(value: string): void;
+  onSnapshot?(read: () => string): void;
   onAttachSelection?(selection: MarkdownEditorSelection): void;
   onTextSelectionChange?(selection: MarkdownEditorSelection | null): void;
 };
@@ -32,9 +35,13 @@ export const MarkdownRichEditor = forwardRef<MarkdownRichEditorHandle, MarkdownR
     const currentValueRef = useRef(props.value);
     const pendingExternalValueRef = useRef<string | null>(null);
     const changeHandlerRef = useRef(props.onChange);
+    const snapshotHandlerRef = useRef(props.onSnapshot);
+    snapshotHandlerRef.current = props.onSnapshot;
+    const latestContentRef = useRef<(() => string) | undefined>(undefined);
     const attachHandlerRef = useRef(props.onAttachSelection);
     const selectionHandlerRef = useRef(props.onTextSelectionChange);
     const applyingExternalValueRef = useRef(false);
+    const syncedDocumentRef = useRef<ProseMirrorNode | null>(null);
     const [fallbackReason, setFallbackReason] = useState<unknown>(null);
 
     useImperativeHandle(
@@ -44,11 +51,14 @@ export const MarkdownRichEditor = forwardRef<MarkdownRichEditorHandle, MarkdownR
           if (fallbackReason) {
             return codeEditorRef.current?.getValue() ?? props.value;
           }
+          if (latestContentRef.current) return latestContentRef.current();
           const crepe = readyCrepeRef.current;
           if (!crepe) {
             return currentValueRef.current;
           }
           try {
+            const document = crepe.editor.action((ctx) => ctx.get(editorViewCtx).state.doc);
+            if (syncedDocumentRef.current?.eq(document)) return currentValueRef.current;
             const markdown = crepe.getMarkdown();
             currentValueRef.current = markdown;
             return markdown;
@@ -124,13 +134,41 @@ export const MarkdownRichEditor = forwardRef<MarkdownRichEditorHandle, MarkdownR
       });
       currentValueRef.current = props.value;
       try {
+        // Notify the Host synchronously: a delayed dirty signal lets an external
+        // refresh replace keystrokes entered before that signal arrives.
+        crepe.editor.use(
+          $prose(
+            () =>
+              new Plugin({
+                view: () => ({
+                  update: (view, previous) => {
+                    if (
+                      cancelled ||
+                      readyCrepeRef.current !== crepe ||
+                      applyingExternalValueRef.current ||
+                      previous.doc.eq(view.state.doc)
+                    )
+                      return;
+                    const document = view.state.doc;
+                    const serialize = crepe.editor.action((ctx) => ctx.get(serializerCtx));
+                    let markdown: string | undefined;
+                    const read = () => {
+                      markdown ??= serialize(document);
+                      if (latestContentRef.current === read) {
+                        syncedDocumentRef.current = document;
+                        currentValueRef.current = markdown;
+                      }
+                      return markdown;
+                    };
+                    latestContentRef.current = read;
+                    if (snapshotHandlerRef.current) snapshotHandlerRef.current(read);
+                    else changeHandlerRef.current(read());
+                  },
+                }),
+              }),
+          ),
+        );
         crepe.on((listener) => {
-          listener.markdownUpdated((_ctx, markdown) => {
-            if (applyingExternalValueRef.current) return;
-            currentValueRef.current = markdown;
-            if (!readyCrepeRef.current) return;
-            changeHandlerRef.current(markdown);
-          });
           listener.selectionUpdated((ctx, selection) => {
             const onTextSelectionChange = selectionHandlerRef.current;
             if (!onTextSelectionChange) return;
@@ -170,6 +208,7 @@ export const MarkdownRichEditor = forwardRef<MarkdownRichEditorHandle, MarkdownR
               });
             }
             readyCrepeRef.current = crepe;
+            syncedDocumentRef.current = crepe.editor.action((ctx) => ctx.get(editorViewCtx).state.doc);
             const pendingExternalValue = pendingExternalValueRef.current;
             if (pendingExternalValue !== null && pendingExternalValue !== currentValueRef.current) {
               applyExternalValue(crepe, pendingExternalValue);
@@ -187,6 +226,7 @@ export const MarkdownRichEditor = forwardRef<MarkdownRichEditorHandle, MarkdownR
         selectionHandlerRef.current?.(null);
         crepeRef.current = null;
         readyCrepeRef.current = null;
+        syncedDocumentRef.current = null;
         void crepe.destroy().catch(() => undefined);
       };
     }, [fallBackToCodeEditor, fallbackReason]);
@@ -206,18 +246,20 @@ export const MarkdownRichEditor = forwardRef<MarkdownRichEditorHandle, MarkdownR
     }, [fallBackToCodeEditor, fallbackReason, props.value]);
 
     function applyExternalValue(crepe: Crepe, value: string) {
-      applyingExternalValueRef.current = true;
-      try {
-        crepe.editor.action((ctx) => {
-          const view = readEditorView(ctx);
-          if (!view) throw new Error("Milkdown editor view is not ready for external value update");
+      crepe.editor.action((ctx) => {
+        const view = readEditorView(ctx);
+        if (!view) throw new Error("Milkdown editor view is not ready for external value update");
+        applyingExternalValueRef.current = true;
+        try {
           replaceAll(value)(ctx);
-        });
-        currentValueRef.current = value;
-        pendingExternalValueRef.current = null;
-      } finally {
-        applyingExternalValueRef.current = false;
-      }
+          syncedDocumentRef.current = ctx.get(editorViewCtx).state.doc;
+        } finally {
+          applyingExternalValueRef.current = false;
+        }
+      });
+      latestContentRef.current = undefined;
+      currentValueRef.current = value;
+      pendingExternalValueRef.current = null;
     }
 
     if (fallbackReason) {
@@ -229,6 +271,7 @@ export const MarkdownRichEditor = forwardRef<MarkdownRichEditorHandle, MarkdownR
           autoFocus={props.autoFocus}
           placeholder={props.placeholder ?? ""}
           onChange={props.onChange}
+          onSnapshot={props.onSnapshot}
           onTextSelectionChange={props.onTextSelectionChange}
         />
       );

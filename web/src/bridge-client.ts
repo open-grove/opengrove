@@ -808,7 +808,18 @@ export async function getMountedAppFile(
 ): Promise<MountedAppFileResponse> {
   const params = new URLSearchParams({ path });
   if (afterRevision) params.set("afterRevision", afterRevision);
-  return getJson<MountedAppFileResponse>(`/apps/${encodeURIComponent(appId)}/file?${params.toString()}`);
+  try {
+    return await getJson<MountedAppFileResponse>(`/apps/${encodeURIComponent(appId)}/file?${params.toString()}`);
+  } catch (error) {
+    if (
+      error instanceof BridgeRequestError &&
+      error.payload?.error === "app_file_not_found" &&
+      error.payload.revision === "missing"
+    ) {
+      return { ok: false, revision: "missing", error: "app_file_not_found" };
+    }
+    throw error;
+  }
 }
 
 export async function createMountedAppFileSystemEntry(
@@ -877,24 +888,42 @@ export async function openMountedAppLocalFile(
   );
 }
 
+export class MountedAppFileConflictError extends Error {
+  constructor() {
+    super("workspace_file_conflict");
+  }
+}
+
 export async function putMountedAppRawFile(
   appId: string,
   path: string,
   body: BodyInit,
-  options: { contentType?: string; unique?: boolean } = {},
+  options: { contentType?: string; unique?: boolean; expectedRevision?: string } = {},
 ): Promise<MountedAppFileSystemResponse> {
+  // An older Bridge returns metadata revisions and ignores expectedRevision.
+  // Refuse that save locally during a partial desktop/dev reload.
+  if (
+    options.expectedRevision &&
+    options.expectedRevision !== "missing" &&
+    !/^sha256:[a-f0-9]{64}$/.test(options.expectedRevision)
+  ) {
+    throw new Error("workspace_file_revision_unsupported");
+  }
   const params = new URLSearchParams({ path });
   if (options.unique) params.set("unique", "1");
+  if (options.expectedRevision) params.set("expectedRevision", options.expectedRevision);
   const headers = bridgeHeaders(false) as Record<string, string>;
   if (options.contentType) {
     headers["content-type"] = options.contentType;
   }
   const response = await fetch(apiUrl(`/apps/${encodeURIComponent(appId)}/raw?${params.toString()}`), {
     method: "PUT",
+    credentials: "include",
     headers,
     body,
   });
   if (!response.ok) {
+    if (response.status === 409 || response.status === 428) throw new MountedAppFileConflictError();
     throw new Error(await readBridgeError(response));
   }
   return (await response.json()) as MountedAppFileSystemResponse;

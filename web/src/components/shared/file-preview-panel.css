@@ -735,3 +735,66 @@
 .flow-body .markdown-preview {
   min-height: 0;
 }
+
+.file-conflict-banner {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2-5);
+  flex-wrap: wrap;
+  padding: var(--sp-3) var(--sp-4);
+  background: color-mix(in srgb, var(--c-warning) 12%, transparent);
+  font-size: var(--fs-sm);
+}
+.file-conflict-banner > span {
+  flex: 1;
+  min-width: 200px;
+}
+.file-conflict-banner button,
+.file-conflict-actions button {
+  padding: var(--sp-1-5) var(--sp-2-5);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-xs);
+  background: var(--c-surface);
+  color: inherit;
+  cursor: pointer;
+}
+.file-conflict-editor {
+  display: flex;
+  flex-direction: column;
+  min-height: 300px;
+  height: 100%;
+  padding: var(--sp-3);
+  gap: var(--sp-3);
+}
+.file-conflict-editor p {
+  margin: 0;
+  font-size: var(--fs-sm);
+}
+.file-conflict-headings {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--sp-7);
+  font-size: var(--fs-sm);
+}
+.file-conflict-comparison {
+  flex: 1;
+  min-height: 180px;
+  overflow: auto;
+  border: 1px solid var(--c-border);
+}
+.file-conflict-comparison .cm-mergeView {
+  min-height: 100%;
+}
+.file-conflict-comparison .cm-editor {
+  font-size: var(--fs-sm);
+}
+.file-conflict-actions {
+  display: flex;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.file-conflict-actions button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}

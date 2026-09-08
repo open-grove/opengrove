@@ -264,7 +264,7 @@ export interface MountedAppFilesResponse {
 
 export interface MountedAppFileResponse {
   ok: boolean;
-  app: MountedAppRouteInfo;
+  app?: MountedAppRouteInfo;
   file?: MountedAppFileEntry & {
     content?: string;
     contentTruncated?: boolean;
@@ -276,6 +276,7 @@ export interface MountedAppFileResponse {
 
 export interface MountedAppFileSystemResponse {
   ok: boolean;
+  revision?: string;
   app: MountedAppRouteInfo;
   entry?: MountedAppFileEntry;
   deletedPath?: string;

@@ -15,6 +15,7 @@ import type { BridgeState } from "./bridge-types.js";
 import type { MountedAppTarget } from "./mounted-apps.js";
 import type { BridgeWwRuntimeAuth } from "./ww-runtime-auth.js";
 import { LocalFilesystemWorkspaceStore, resolveExistingContainedPath } from "./workspace-store.js";
+import { WorkspaceFileConflict } from "./workspace-file-revision.js";
 
 export const MCP_APP_RESOURCE_MIME_TYPE = "text/html;profile=mcp-app";
 const MAX_MCP_APP_RESOURCE_BYTES = 5 * 1024 * 1024;
@@ -139,7 +140,16 @@ export async function callMountedMcpAppTool(
       if (Buffer.byteLength(content, "utf8") > 2_000_000) {
         throw new McpAppToolError(413, "workspace_file_too_large");
       }
-      const file = workspaceStore.writeFile(target.workspace, path, content);
+      if (args.expectedRevision !== undefined && typeof args.expectedRevision !== "string") {
+        throw new McpAppToolError(400, "workspace_file_revision_invalid");
+      }
+      let file;
+      try {
+        file = workspaceStore.writeFile(target.workspace, path, content, { expectedRevision: args.expectedRevision });
+      } catch (error) {
+        if (error instanceof WorkspaceFileConflict) throw new McpAppToolError(error.status, error.message);
+        throw error;
+      }
       if (!file) throw new McpAppToolError(400, "workspace_path_invalid");
       value = file;
       break;
@@ -386,10 +396,11 @@ const MCP_APP_TOOL_DEFINITIONS: Record<string, McpAppToolDefinition> = {
   "opengrove.app.workspace.write": {
     name: "opengrove.app.workspace.write",
     title: "Write App workspace file",
-    description: "Write a text file inside this App's scoped workspace.",
+    description:
+      "Write a text file. To replace an existing file, pass expectedRevision from workspace.read. On conflict, read again and review changes before retrying. Omit the revision only when creating a new file.",
     inputSchema: {
       type: "object",
-      properties: { path: { type: "string" }, content: { type: "string" } },
+      properties: { path: { type: "string" }, content: { type: "string" }, expectedRevision: { type: "string" } },
       required: ["path", "content"],
       additionalProperties: false,
     },
