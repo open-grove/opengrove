@@ -11,6 +11,7 @@ export function FileConflictEditor(props: {
   stale: boolean;
   saving: boolean;
   onChange(value: string): void;
+  onSnapshot?(read: () => string): void;
   onCancel(): void;
   onSave(): Promise<void>;
 }) {
@@ -35,7 +36,12 @@ export function FileConflictEditor(props: {
           history(),
           keymap.of([...defaultKeymap, ...historyKeymap]),
           EditorView.updateListener.of((update) => {
-            if (update.docChanged) latest.current.onChange(update.state.doc.toString());
+            if (!update.docChanged) return;
+            const document = update.state.doc;
+            let value: string | undefined;
+            const read = () => (value ??= document.toString());
+            if (latest.current.onSnapshot) latest.current.onSnapshot(read);
+            else latest.current.onChange(read());
           }),
         ],
       },

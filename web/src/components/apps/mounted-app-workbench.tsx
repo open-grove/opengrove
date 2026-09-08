@@ -66,6 +66,7 @@ import { clamp, compareLocalizedText, formatNumber } from "../../format";
 import { translate, useI18n, type TranslationFn, type TranslationKey } from "../../i18n";
 import { ResizeHandle } from "../ui/resize-handle";
 import { cachedDateTimeFormat } from "../../intl-formatters";
+import { useToast } from "../ui/toast";
 import { useConfirm } from "../ui/confirm-dialog";
 import { AnimatedBackground } from "../ui/motion/animated-background";
 import {
@@ -241,6 +242,7 @@ export function MountedAppWorkbench(props: {
 }) {
   const { t } = useI18n();
   const confirm = useConfirm();
+  const { toast } = useToast();
   const appId = props.app?.name || "";
   const declaredWorkbenchLayoutDefaults = useMemo(
     () => resolveMountedAppWorkbenchLayoutDefaults(props.app),
@@ -400,6 +402,7 @@ export function MountedAppWorkbench(props: {
         `/apps/${encodeURIComponent(appId)}/raw?${new URLSearchParams({ path: props.selectedPath, download: "1" }).toString()}`,
       )
     : undefined;
+  const workspaceRoot = fileQuery.data?.app?.workspaceRoot ?? filesQuery.data?.app?.workspaceRoot;
   const activeDirtyState = fileDirtyState?.path === props.selectedPath ? fileDirtyState : null;
   const effectiveDirectoryCollapsed = directoryMode === "view" || directoryCollapsed;
   const workbenchChatOpen = Boolean(props.corePanel && props.chatOpen !== false);
@@ -635,7 +638,10 @@ export function MountedAppWorkbench(props: {
 
   async function requestSelectedPathChange(path: string) {
     if (path === props.selectedPath) return;
-    if (activeDirtyState && !(await activeDirtyState.save())) return;
+    if (activeDirtyState && !(await activeDirtyState.preserve())) {
+      toast({ kind: "error", title: t("filePreview.cannotLeaveDraft") });
+      return;
+    }
     props.onSelectedPathChange(path);
   }
 
@@ -779,7 +785,10 @@ export function MountedAppWorkbench(props: {
 
   async function selectDirectoryTab(index: number) {
     if ((tabs[index]?.component === "dashboard" || tabs[index]?.component === "view") && props.selectedPath) {
-      if (activeDirtyState && !(await activeDirtyState.save())) return;
+      if (activeDirtyState && !(await activeDirtyState.preserve())) {
+        toast({ kind: "error", title: t("filePreview.cannotLeaveDraft") });
+        return;
+      }
       props.onSelectedPathChange("");
     }
     setActiveTabIdx(index);
@@ -1088,58 +1097,65 @@ export function MountedAppWorkbench(props: {
                   title={t("filePreview.renderFailedTitle")}
                   copy={t("filePreview.renderFailedCopy")}
                 >
-                  <FilePreviewPanel
-                    key={`${appId}:${props.selectedPath}`}
-                    draftKey={JSON.stringify([
-                      fileQuery.data?.app?.workspaceRoot ?? filesQuery.data?.app?.workspaceRoot ?? appId,
-                      appId,
-                      props.selectedPath,
-                    ])}
-                    revision={fileQuery.data?.revision}
-                    file={
-                      fileQuery.data?.file ??
-                      (fileQuery.data?.revision === "missing"
-                        ? {
-                            name: props.selectedPath.split("/").at(-1) ?? props.selectedPath,
-                            path: props.selectedPath,
-                            content: "",
-                          }
-                        : undefined)
-                    }
-                    loading={fileQuery.isLoading && Boolean(props.selectedPath)}
-                    downloadUrl={selectedDownloadUrl}
-                    rawUrl={selectedRawUrl}
-                    saving={saveTextMutation.isPending}
-                    selectedPath={props.selectedPath}
-                    onAttachSelection={(selection) => {
-                      if (props.app) {
-                        props.onAddSelectionAttachment?.(selectionToComposerAttachment(props.app, selection, t));
-                      }
-                    }}
-                    onDirtyStateChange={setFileDirtyState}
-                    onOpenLocal={
-                      props.selectedPath
-                        ? () => {
-                            openMountedAppLocalFile(appId, { path: props.selectedPath, target: "finder" }).catch(
-                              (error) => {
-                                console.warn("open mounted app local file failed", error);
-                              },
-                            );
-                          }
-                        : undefined
-                    }
-                    onSaveText={
-                      props.selectedPath
-                        ? (content, expectedRevision) =>
-                            saveTextMutation.mutateAsync({
+                  {workspaceRoot ? (
+                    <FilePreviewPanel
+                      key={`${workspaceRoot}:${appId}:${props.selectedPath}`}
+                      draftKey={JSON.stringify([workspaceRoot, appId, props.selectedPath])}
+                      revision={fileQuery.data?.revision}
+                      file={
+                        fileQuery.data?.file ??
+                        (fileQuery.data?.revision === "missing"
+                          ? {
+                              name: props.selectedPath.split("/").at(-1) ?? props.selectedPath,
                               path: props.selectedPath,
-                              content,
-                              expectedRevision,
-                              contentType: selectedEntry?.mimeType || "text/plain; charset=utf-8",
-                            })
-                        : undefined
-                    }
-                  />
+                              content: "",
+                            }
+                          : undefined)
+                      }
+                      loading={fileQuery.isLoading && Boolean(props.selectedPath)}
+                      downloadUrl={selectedDownloadUrl}
+                      rawUrl={selectedRawUrl}
+                      saving={saveTextMutation.isPending}
+                      selectedPath={props.selectedPath}
+                      onAttachSelection={(selection) => {
+                        if (props.app) {
+                          props.onAddSelectionAttachment?.(selectionToComposerAttachment(props.app, selection, t));
+                        }
+                      }}
+                      onDirtyStateChange={setFileDirtyState}
+                      onOpenLocal={
+                        props.selectedPath
+                          ? () => {
+                              openMountedAppLocalFile(appId, { path: props.selectedPath, target: "finder" }).catch(
+                                (error) => {
+                                  console.warn("open mounted app local file failed", error);
+                                },
+                              );
+                            }
+                          : undefined
+                      }
+                      onSaveText={
+                        props.selectedPath
+                          ? (content, expectedRevision) =>
+                              saveTextMutation.mutateAsync({
+                                path: props.selectedPath,
+                                content,
+                                expectedRevision,
+                                contentType: selectedEntry?.mimeType || "text/plain; charset=utf-8",
+                              })
+                          : undefined
+                      }
+                    />
+                  ) : (
+                    <div role="status">
+                      {filesQuery.isError ? t("filePreview.draftRecoveryError") : t("editor.loading")}
+                      {filesQuery.isError ? (
+                        <button type="button" onClick={() => void filesQuery.refetch()}>
+                          {t("common.retry")}
+                        </button>
+                      ) : null}
+                    </div>
+                  )}
                 </MountedAppPreviewErrorBoundary>
               )}
             </div>

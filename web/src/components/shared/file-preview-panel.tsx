@@ -24,11 +24,7 @@ import {
   type MouseEvent,
   type ReactNode,
 } from "react";
-import {
-  StandardFileEditor,
-  type StandardFileEditorHandle,
-  type StandardFileEditorSelection,
-} from "./standard-file-editor";
+import { StandardFileEditor, type StandardFileEditorSelection } from "./standard-file-editor";
 import { StandardFilePreview } from "./standard-file-preview";
 import { resolveStandardFileCapability, type PreviewableFile } from "./standard-file-capabilities";
 import { useI18n, type TranslationFn } from "../../i18n";
@@ -50,6 +46,7 @@ export type FilePreviewDirtyState = {
   path: string;
   discard(): void;
   save(): Promise<boolean>;
+  preserve(): Promise<boolean>;
 };
 
 export type FileTextSelectionAttachment = {
@@ -102,12 +99,13 @@ export function FilePreviewPanel(props: {
   const state = useSyncExternalStore(controller.subscribe, controller.getSnapshot);
   const { draft, dirty, phase: saveState, conflict, storageError } = state;
   const [reviewed, setReviewed] = useState<FileSnapshot>();
+  const [reviewError, setReviewError] = useState(false);
   const textWorkbenchRef = useRef<HTMLDivElement | null>(null);
-  const editorRef = useRef<StandardFileEditorHandle | null>(null);
   const [textSelection, setTextSelection] = useState<TextSelectionState | null>(null);
   const canEditText = Boolean(
     props.onSaveText &&
       props.revision &&
+      state.ready &&
       capability.editor &&
       capability.editable &&
       props.file?.content !== undefined &&
@@ -135,9 +133,8 @@ export function FilePreviewPanel(props: {
 
   const saveDraft = useCallback(async (): Promise<boolean> => {
     if (!props.onSaveText) return true;
-    if (editorRef.current && !reviewed) controller.edit(editorRef.current.getValue());
     return controller.save(props.onSaveText);
-  }, [controller, props.onSaveText, reviewed]);
+  }, [controller, props.onSaveText]);
 
   useEffect(() => {
     if (!dirty || conflict || saveState !== "dirty" || !props.onSaveText) return;
@@ -145,7 +142,7 @@ export function FilePreviewPanel(props: {
       void saveDraft();
     }, 800);
     return () => window.clearTimeout(timer);
-  }, [dirty, draft, conflict, saveState, props.onSaveText, saveDraft]);
+  }, [dirty, state.editVersion, conflict, saveState, props.onSaveText, saveDraft]);
 
   const saveDraftRef = useRef(saveDraft);
   saveDraftRef.current = saveDraft;
@@ -156,25 +153,25 @@ export function FilePreviewPanel(props: {
       path: draftPath,
       discard: () => controller.discard(),
       save: () => saveDraftRef.current(),
+      preserve: async () => {
+        // Recovery gates editing, so leaving before recovery cannot lose input.
+        if (!controller.getSnapshot().ready) return true;
+        // Capture and commit the latest input before unmounting, without waiting
+        // for a network write or requiring conflict resolution.
+        if (!(await controller.flush())) return false;
+        if (!controller.getSnapshot().conflict && controller.getSnapshot().phase !== "error")
+          void saveDraftRef.current();
+        return true;
+      },
     });
   }, [dirty, conflict, draftPath, controller, props.onDirtyStateChange]);
 
-  useEffect(() => {
-    if (!dirty || !storageError) return;
-    const preventClose = (event: BeforeUnloadEvent) => {
-      event.preventDefault();
-      event.returnValue = "";
-    };
-    window.addEventListener("beforeunload", preventClose);
-    return () => window.removeEventListener("beforeunload", preventClose);
-  }, [dirty, storageError]);
-
-  function updateDraft(value: string) {
+  function updateDraft(value: string | (() => string)) {
     controller.edit(value);
   }
 
   function downloadDraft() {
-    const url = URL.createObjectURL(new Blob([draft], { type: "text/plain;charset=utf-8" }));
+    const url = URL.createObjectURL(new Blob([controller.getContent()], { type: "text/plain;charset=utf-8" }));
     const link = document.createElement("a");
     link.href = url;
     link.download = props.file?.name ?? "draft.txt";
@@ -208,7 +205,10 @@ export function FilePreviewPanel(props: {
       fileName: props.file.name,
       path: props.file.path || props.selectedPath,
       mimeType: props.file.mimeType,
-      lineRange: lineRangeForSelection(activeMode === "edit" ? draft : (props.file.content ?? ""), selection.text),
+      lineRange: lineRangeForSelection(
+        activeMode === "edit" ? controller.getContent() : (props.file.content ?? ""),
+        selection.text,
+      ),
     });
     setTextSelection(null);
   }
@@ -234,6 +234,18 @@ export function FilePreviewPanel(props: {
     );
   }
 
+  if (props.onSaveText && props.revision && capability.editable && !state.ready) {
+    if (!storageError) return <FilePreviewLoadingState />;
+    return (
+      <div className="file-conflict-banner" role="alert">
+        <span>{t("filePreview.draftRecoveryError")}</span>
+        <button type="button" onClick={() => controller.retryRecovery()}>
+          {t("common.retry")}
+        </button>
+      </div>
+    );
+  }
+
   if (props.loading) {
     return <FilePreviewLoadingState />;
   }
@@ -246,13 +258,13 @@ export function FilePreviewPanel(props: {
     activeMode === "edit" && canEditText ? (
       <div className="file-preview-editor-shell" data-preview-kind={capability.preview.kind}>
         <StandardFileEditor
-          ref={editorRef}
           key={props.file?.path || props.selectedPath}
           capability={capability}
           value={draft}
           autoFocus
           placeholder={t("filePreview.editorPlaceholder")}
           onChange={updateDraft}
+          onSnapshot={updateDraft}
           onAttachSelection={canAttachSelection && capability.kind === "markdown" ? attachEditorSelection : undefined}
           onTextSelectionChange={handleEditorSelectionChange}
         />
@@ -299,7 +311,7 @@ export function FilePreviewPanel(props: {
               {t("filePreview.fileDeleted")}
             </div>
           ) : null}
-          {storageError && dirty ? (
+          {storageError && state.backupPending ? (
             <div className="file-conflict-banner" role="alert">
               <span>{t("filePreview.draftStorageError")}</span>
               <button type="button" onClick={downloadDraft}>
@@ -313,8 +325,23 @@ export function FilePreviewPanel(props: {
               <span>{t("filePreview.conflictNotice")}</span>
               <button
                 type="button"
+                disabled={saveState === "saving"}
+                onClick={() => {
+                  controller.discard();
+                  setReviewed(undefined);
+                  setReviewError(false);
+                }}
+              >
+                {t("filePreview.discardDraft")}
+              </button>
+              <button
+                type="button"
                 disabled={!state.remote || saveState === "saving"}
-                onClick={() => setReviewed(state.remote)}
+                onClick={() => {
+                  controller.getContent();
+                  setReviewError(false);
+                  setReviewed(state.remote);
+                }}
               >
                 {t("filePreview.compareChanges")}
               </button>
@@ -330,6 +357,11 @@ export function FilePreviewPanel(props: {
               </button>
             </div>
           ) : null}
+          {reviewError ? (
+            <div className="file-conflict-banner" role="alert">
+              {t("filePreview.reviewSaveFailed")}
+            </div>
+          ) : null}
           <div className="file-preview-content">
             {reviewed && conflict ? (
               <Suspense fallback={<FilePreviewLoadingState />}>
@@ -340,9 +372,15 @@ export function FilePreviewPanel(props: {
                   stale={reviewed.revision !== state.remote?.revision}
                   saving={saveState === "saving"}
                   onChange={updateDraft}
-                  onCancel={() => setReviewed(undefined)}
+                  onSnapshot={updateDraft}
+                  onCancel={() => {
+                    controller.getContent();
+                    setReviewed(undefined);
+                  }}
                   onSave={async () => {
+                    setReviewError(false);
                     if (props.onSaveText && (await controller.save(props.onSaveText, reviewed))) setReviewed(undefined);
+                    else setReviewError(true);
                   }}
                 />
               </Suspense>

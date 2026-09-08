@@ -739,11 +739,11 @@
 .file-conflict-banner {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--sp-2-5);
   flex-wrap: wrap;
-  padding: 12px 16px;
-  background: color-mix(in srgb, #d99a20 12%, transparent);
-  font-size: 13px;
+  padding: var(--sp-3) var(--sp-4);
+  background: color-mix(in srgb, var(--c-warning) 12%, transparent);
+  font-size: var(--fs-sm);
 }
 .file-conflict-banner > span {
   flex: 1;
@@ -751,10 +751,10 @@
 }
 .file-conflict-banner button,
 .file-conflict-actions button {
-  padding: 6px 10px;
-  border: 1px solid var(--c-border, #ccc);
-  border-radius: 6px;
-  background: var(--c-surface, white);
+  padding: var(--sp-1-5) var(--sp-2-5);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-xs);
+  background: var(--c-surface);
   color: inherit;
   cursor: pointer;
 }
@@ -763,34 +763,34 @@
   flex-direction: column;
   min-height: 300px;
   height: 100%;
-  padding: 12px;
-  gap: 12px;
+  padding: var(--sp-3);
+  gap: var(--sp-3);
 }
 .file-conflict-editor p {
   margin: 0;
-  font-size: 13px;
+  font-size: var(--fs-sm);
 }
 .file-conflict-headings {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 28px;
-  font-size: 13px;
+  gap: var(--sp-7);
+  font-size: var(--fs-sm);
 }
 .file-conflict-comparison {
   flex: 1;
   min-height: 180px;
   overflow: auto;
-  border: 1px solid var(--c-border, #ddd);
+  border: 1px solid var(--c-border);
 }
 .file-conflict-comparison .cm-mergeView {
   min-height: 100%;
 }
 .file-conflict-comparison .cm-editor {
-  font-size: 13px;
+  font-size: var(--fs-sm);
 }
 .file-conflict-actions {
   display: flex;
-  gap: 8px;
+  gap: var(--sp-2);
   flex-wrap: wrap;
   justify-content: flex-end;
 }

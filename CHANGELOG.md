@@ -6,6 +6,9 @@ to draft `docs/releases/vX.Y.Z.md`.
 
 ## Unreleased
 
+- Preserve text drafts across file conflicts, navigation and refresh with delayed IndexedDB backups, manual comparison and an explicit discard action; viewing external Markdown updates no longer writes stale text back.
+- **Breaking for App developers:** overwriting workspace files through `workspace.write` or the raw file PUT API now requires `expectedRevision` from a preceding read. Missing preconditions return 428; stale versions return 409. Update installed Apps to read, review and conditionally write before upgrading. Creation remains supported without a revision, or with `"missing"`.
+
 ## v0.6.6 - 2026-08-31
 
 - Separate replaceable Store App programs from user-owned Workspaces with a copy-validated, rollback-safe migration that never blocks OpenGrove startup, retains legacy data for recovery, and exports structured layout evidence in the diagnostic bundle.

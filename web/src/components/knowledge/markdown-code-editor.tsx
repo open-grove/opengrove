@@ -62,6 +62,7 @@ interface MarkdownCodeEditorProps {
   autoFocus?: boolean;
   placeholder?: string;
   onChange(value: string): void;
+  onSnapshot?(read: () => string): void;
   onOpenLink?(href: string): boolean;
   onTextSelectionChange?(selection: MarkdownEditorSelection | null): void;
 }
@@ -214,6 +215,8 @@ export const MarkdownCodeEditor = forwardRef<MarkdownCodeEditorHandle, MarkdownC
     const hostRef = useRef<HTMLDivElement | null>(null);
     const viewRef = useRef<EditorView | null>(null);
     const onChangeRef = useRef(props.onChange);
+    const onSnapshotRef = useRef(props.onSnapshot);
+    onSnapshotRef.current = props.onSnapshot;
     const onOpenLinkRef = useRef(props.onOpenLink);
     const onTextSelectionChangeRef = useRef(props.onTextSelectionChange);
     const valueRef = useRef(props.value);
@@ -250,9 +253,15 @@ export const MarkdownCodeEditor = forwardRef<MarkdownCodeEditorHandle, MarkdownC
             update.docChanged &&
             !update.transactions.some((transaction) => transaction.annotation(externalValueUpdate))
           ) {
-            const nextValue = update.state.doc.toString();
-            valueRef.current = nextValue;
-            onChangeRef.current(nextValue);
+            const document = update.state.doc;
+            let value: string | undefined;
+            const read = () => {
+              value ??= document.toString();
+              if (viewRef.current?.state.doc === document) valueRef.current = value;
+              return value;
+            };
+            if (onSnapshotRef.current) onSnapshotRef.current(read);
+            else onChangeRef.current(read());
           }
           if (update.docChanged || update.selectionSet || update.focusChanged || update.viewportChanged) {
             emitTextSelection(update.view, onTextSelectionChangeRef.current);

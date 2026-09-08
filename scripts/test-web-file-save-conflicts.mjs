@@ -89,7 +89,12 @@ try {
   await expect(editor).toContainText("Human draft.");
   await page.waitForTimeout(1200);
   assert.equal(await page.evaluate(() => window.saves.length), 0, "conflicted drafts must not autosave");
-  assert.equal(await page.evaluate(() => window.dirtyState.save()), false, "navigation must be told the save failed");
+  assert.equal(
+    await page.evaluate(() => window.dirtyState.save()),
+    false,
+    "conflicts require explicit review to write",
+  );
+  assert.equal(await page.evaluate(() => window.dirtyState.preserve()), true, "a durable conflict permits navigation");
   await page.reload();
   await expect(editor).toContainText("Human draft.");
   await expect(page.getByText(/automatic saving is paused/)).toBeVisible();
@@ -111,6 +116,15 @@ try {
   await right.click();
   await right.press("ControlOrMeta+a");
   await page.keyboard.insertText("# Reviewed result\n\nHuman and Agent edits kept.\n");
+  await page.evaluate(() => {
+    window.failSave = true;
+  });
+  await page.getByRole("button", { name: "Save reviewed result" }).click();
+  await expect(page.getByText(/The result was not saved/)).toBeVisible();
+  await expect(right).toContainText("Human and Agent edits kept.");
+  await page.evaluate(() => {
+    window.failSave = false;
+  });
   await page.getByRole("button", { name: "Save reviewed result" }).click();
   await expect(editor).toContainText("Reviewed result");
   assert.equal(await page.evaluate(() => window.disk.content), "# Reviewed result\n\nHuman and Agent edits kept.\n");
@@ -136,6 +150,9 @@ try {
   await expect.poll(() => page.evaluate(() => window.dirtyState.dirty)).toBe(false);
 
   // A failed save and switching away must preserve the draft across a real reload.
+  await page.addInitScript(() => {
+    window.failSave = true;
+  });
   await page.evaluate(() => {
     window.failSave = true;
   });
@@ -157,15 +174,18 @@ try {
   await page.getByRole("button", { name: "Compare changes", exact: true }).click();
   await expect(left).toHaveText("");
   await expect(right).toContainText("Unsaved recovery.");
+  await page.evaluate(() => {
+    window.failSave = false;
+  });
   await page.getByRole("button", { name: "Save reviewed result" }).click();
   await expect(editor).toContainText("Unsaved recovery.");
   assert.notEqual(await page.evaluate(() => window.disk.revision), "missing");
   // Storage failure must be visible; an in-memory draft is not durable recovery.
   await page.evaluate(() => {
-    const setItem = Storage.prototype.setItem;
-    Storage.prototype.setItem = function (key, value) {
-      if (key.startsWith("opengrove:file-draft:")) throw new DOMException("quota exceeded", "QuotaExceededError");
-      return setItem.call(this, key, value);
+    const put = IDBObjectStore.prototype.put;
+    IDBObjectStore.prototype.put = function (...args) {
+      if (this.name === "drafts") throw new DOMException("quota exceeded", "QuotaExceededError");
+      return put.apply(this, args);
     };
     window.failSave = true;
   });
@@ -173,6 +193,7 @@ try {
   await page.keyboard.insertText(" Storage unavailable.");
   await expect(page.getByText(/The draft could not be stored locally/)).toBeVisible();
   await expect(page.getByRole("button", { name: "Download my draft" })).toBeVisible();
+  assert.equal(await page.evaluate(() => window.dirtyState.preserve()), false, "failed backup must block navigation");
   assert.deepEqual(errors, []);
   console.log("web-file-save-conflicts passed");
 } finally {

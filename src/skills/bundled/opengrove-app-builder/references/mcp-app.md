@@ -38,6 +38,19 @@ Choose only supported per-App tools:
 
 `opengrove.app.command.run` accepts a `commandId` declared in `capabilities.cli`; it never accepts an arbitrary executable. Omit write and command tools unless the UI needs them.
 
+## Workspace write contract
+
+Before replacing a file, call `opengrove.app.workspace.read` and pass its
+`structuredContent.revision` as `expectedRevision` to `opengrove.app.workspace.write`.
+Inspect the returned content before deciding what to replace. Omit the revision
+only for creation, or use `"missing"` to explicitly require a missing file.
+A missing read reports `workspace_file_not_found`. Existing files without a
+revision fail with `workspace_file_revision_required` (428); a stale revision
+fails with `workspace_file_conflict` (409). Check `isError` on tool results,
+show the error, and read/review again before retrying. Never silently retry an
+overwrite with a newly fetched revision. Existing Apps must adopt this contract
+before they can overwrite files on Hosts enforcing conditional writes.
+
 ## View rules
 
 - Use `@modelcontextprotocol/ext-apps` for production View code and bundle dependencies into the entry HTML.

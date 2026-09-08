@@ -176,6 +176,12 @@ export const EN = {
   "filePreview.changedAgain":
     "The file changed again. Click Compare changes to review the latest version before saving.",
   "filePreview.copyDiskVersion": "Copy entire disk version to result",
+  "filePreview.discardDraft": "Discard my draft",
+  "filePreview.reviewSaveFailed":
+    "The result was not saved. Your draft is kept. Check the latest disk version and try again.",
+  "filePreview.draftRecoveryError": "The saved draft could not be loaded. Retry before editing this file.",
+  "filePreview.cannotLeaveDraft":
+    "Your latest changes could not be backed up. Stay here and retry, or download your draft.",
   "filePreview.keepDraft": "Keep draft for later",
   "filePreview.saveResolution": "Save reviewed result",
   "filePreview.save": "Save",

@@ -93,6 +93,7 @@ function entrySource() {
     import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
     import { FilePreviewPanel } from ${JSON.stringify(previewPath)};
     import { MountedAppWorkbench } from ${JSON.stringify(workbenchPath)};
+    import { ToastProvider } from ${JSON.stringify(resolve(projectRoot, "web/src/components/ui/toast.tsx"))};
     import { ConfirmProvider } from ${JSON.stringify(confirmPath)};
 
     window.saves = [];
@@ -111,8 +112,9 @@ function entrySource() {
     }
     function WorkbenchHarness() {
       const [path, setPath] = useState("");
+      window.selectWorkbenchFile = setPath;
       return <MountedAppWorkbench
-        app={{ name: "refresh-harness", metadata: {}, deployments: [] }}
+        app={{ name: "refresh-harness", metadata: { ui: { tabs: [{ component: "file-tree", label: "Files" }, { component: "dashboard", label: "Dashboard", source: { type: "local_mock" } }] } }, deployments: [] }}
         selectedPath={path}
         onSelectedPathChange={setPath}
       />;
@@ -120,9 +122,9 @@ function entrySource() {
     window.__OPENGROVE_API_BASE__ = "http://opengrove.test/api/";
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     createRoot(document.getElementById("root")).render(
-      <QueryClientProvider client={queryClient}><ConfirmProvider>
+      <QueryClientProvider client={queryClient}><ConfirmProvider><ToastProvider>
         {location.search ? <WorkbenchHarness /> : <Harness />}
-      </ConfirmProvider></QueryClientProvider>
+      </ToastProvider></ConfirmProvider></QueryClientProvider>
     );
   `;
 }
@@ -134,6 +136,10 @@ async function checkWorkbenchPolling(page, htmlPath) {
   const writes = [];
   let allowWrites = false;
   let conflictNextSave = false;
+  let missingFile = false;
+  let missingReads = 0;
+  let holdFiles = false;
+  let releaseFiles;
   const entry = { name: "outline.md", path: "outline.md", kind: "file", mimeType: "text/markdown" };
   const other = { ...entry, name: "other.md", path: "other.md" };
   await page.route("http://opengrove.test/api/**", async (route) => {
@@ -157,11 +163,28 @@ async function checkWorkbenchPolling(page, htmlPath) {
       return;
     }
     if (path.endsWith("/files")) {
-      body = { ok: true, entries: [entry, other], truncated: false, revision: String(reads) };
+      if (holdFiles)
+        await new Promise((resolve) => {
+          releaseFiles = resolve;
+        });
+      body = {
+        app: { id: "fixture", workspaceRoot: "/fixture/workspace" },
+        ok: true,
+        entries: [entry, other],
+        truncated: false,
+        revision: String(reads),
+      };
+    } else if (path.endsWith("/dashboard")) {
+      body = { ok: true, items: [], source: "local_mock" };
     } else if (path.endsWith("/flows")) {
       body = { ok: true, flows: [], revision: "1" };
     } else if (path.endsWith("/file")) {
       reads++;
+      if (missingFile) {
+        missingReads++;
+        await route.fulfill({ status: 404, json: { error: "app_file_not_found", revision: "missing" } });
+        return;
+      }
       const isOther = new URL(request.url()).searchParams.get("path") === "other.md";
       body = {
         ok: true,
@@ -196,6 +219,14 @@ async function checkWorkbenchPolling(page, htmlPath) {
   await expect(editor).toContainText("My workbench edit.");
   assert.equal(writes.length, 1, "a rejected save must stop retrying automatically");
   await page.getByText("other.md", { exact: true }).click();
+  await expect(editor).toContainText("Other file");
+  await page.getByText("outline.md", { exact: true }).click();
+  await expect(editor).toContainText("My workbench edit.");
+  await page.getByRole("tab", { name: "Dashboard", exact: true }).click();
+  await expect(page.getByRole("tab", { name: "Dashboard", exact: true })).toHaveAttribute("aria-selected", "true");
+  await expect(editor).toHaveCount(0);
+  await page.getByRole("tab", { name: "Files", exact: true }).click();
+  await page.getByText("outline.md", { exact: true }).click();
   await expect(editor).toContainText("My workbench edit.");
   await page.getByRole("button", { name: "Compare changes", exact: true }).click();
   await expect(page.locator(".cm-merge-a .cm-content")).toContainText("Concurrent Agent write");
@@ -209,4 +240,42 @@ async function checkWorkbenchPolling(page, htmlPath) {
   assert.equal(content, "# Final workbench result\n\nBoth changes reviewed.\n");
   await page.getByText("other.md", { exact: true }).click();
   await expect(editor).toContainText("Other file");
+  await page.getByText("outline.md", { exact: true }).click();
+  conflictNextSave = true;
+  await editor.press("ControlOrMeta+End");
+  await page.keyboard.insertText("Restore deleted draft.");
+  await expect(page.getByText(/automatic saving is paused/)).toBeVisible();
+  await page.getByText("other.md", { exact: true }).click();
+  await expect(editor).toContainText("Other file");
+
+  // A deleted-file 404 has no App metadata. Wait for stable workspace identity,
+  // then recover under the same key even if the directory response arrives late.
+  missingFile = true;
+  holdFiles = true;
+  await page.goto(`${pathToFileURL(htmlPath).href}?workbench-missing`);
+  await expect.poll(() => typeof releaseFiles).toBe("function");
+  await page.evaluate(() => window.selectWorkbenchFile("outline.md"));
+  await expect.poll(() => missingReads).toBeGreaterThan(0);
+  await expect(editor).toHaveCount(0);
+  holdFiles = false;
+  releaseFiles();
+  await expect(editor).toContainText("Restore deleted draft.");
+  await expect(page.getByText(/automatic saving is paused/)).toBeVisible();
+  const writesBeforeDiscard = writes.length;
+  await page.getByRole("button", { name: "Discard my draft", exact: true }).click();
+  await expect(editor).not.toContainText("Restore deleted draft.");
+  await page.waitForTimeout(900);
+  assert.equal(writes.length, writesBeforeDiscard, "discard adopts disk without writing");
+
+  // Failed backup prevents navigation with a visible explanation.
+  await page.evaluate(() => {
+    IDBObjectStore.prototype.put = function () {
+      throw new DOMException("full", "QuotaExceededError");
+    };
+  });
+  await editor.click();
+  await page.keyboard.insertText("Only in memory.");
+  await page.getByText("other.md", { exact: true }).click();
+  await expect(editor).toContainText("Only in memory.");
+  await expect(page.getByText(/Your latest changes could not be backed up/)).toBeVisible();
 }

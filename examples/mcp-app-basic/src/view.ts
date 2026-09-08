@@ -29,14 +29,30 @@ requiredElement<HTMLButtonElement>("list-files").addEventListener("click", () =>
 );
 requiredElement<HTMLButtonElement>("write-read-file").addEventListener("click", () =>
   runAction(async () => {
-    const path = `runs/mcp-app-demo-${crypto.randomUUID()}.txt`;
-    await app.callServerTool({
+    const path = "runs/mcp-app-demo.txt";
+    const current = await app.callServerTool({
+      name: "opengrove.app.workspace.read",
+      arguments: { path },
+    });
+    const missing =
+      current.isError &&
+      current.content.some((item) => item.type === "text" && item.text === "workspace_file_not_found");
+    if (current.isError && !missing) return current;
+    const revision = missing ? "missing" : current.structuredContent?.revision;
+    if (typeof revision !== "string") throw new Error("读取结果缺少文件版本，无法安全保存");
+    // Append to the content we actually read, preserving previous clicks/edits.
+    const previous = missing ? "" : current.structuredContent?.content;
+    if (typeof previous !== "string") throw new Error("未能完整读取文本，无法安全保存");
+    const saved = await app.callServerTool({
       name: "opengrove.app.workspace.write",
       arguments: {
         path,
-        content: "workspace round trip complete",
+        content: previous + "workspace round trip complete\n",
+        expectedRevision: revision,
       },
     });
+    // Surface a concurrent change; retrying with a new revision requires a new read.
+    if (saved.isError) return saved;
     return app.callServerTool({
       name: "opengrove.app.workspace.read",
       arguments: { path },

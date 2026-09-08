@@ -159,14 +159,24 @@ export class LocalFilesystemWorkspaceStore implements WorkspaceStore {
     if (!filePath) return undefined;
     mkdirSync(dirname(filePath), { recursive: true });
     const temporary = `${filePath}.upload-${randomUUID()}.tmp`;
+    const bytes = Buffer.from(data);
     try {
-      writeFileSync(temporary, data, { flag: "wx" });
+      writeFileSync(temporary, bytes, { flag: "wx" });
+      const stat = statSync(temporary);
+      const mimeType = contentTypeForPath(filePath);
+      const saved: WorkspaceFileReadResult = {
+        entry: fileEntry(scope.root, filePath, stat.mtime.toISOString(), bytes.length, mimeType),
+        revision: workspaceContentRevision(bytes),
+        content: isTextMimeType(mimeType) ? bytes.toString("utf8") : undefined,
+        contentTruncated: false,
+      };
       assertWorkspaceFileRevision(filePath, options.expectedRevision);
       renameSync(temporary, filePath);
+      // A later filesystem read may already belong to another writer.
+      return saved;
     } finally {
       rmSync(temporary, { force: true });
     }
-    return this.readFile(scope, path, { textSizeLimit: Buffer.byteLength(data) });
   }
 
   openRawFile(scope: WorkspaceScope, path: string): WorkspaceRawFileResult | undefined {

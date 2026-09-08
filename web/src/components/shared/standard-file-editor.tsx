@@ -26,6 +26,7 @@ type StandardFileEditorProps = {
   autoFocus?: boolean;
   placeholder?: string;
   onChange(value: string): void;
+  onSnapshot?(read: () => string): void;
   onAttachSelection?(selection: StandardFileEditorSelection): void;
   onTextSelectionChange?(selection: StandardFileEditorSelection | null): void;
 };
@@ -53,6 +54,7 @@ export const StandardFileEditor = forwardRef<StandardFileEditorHandle, StandardF
             autoFocus={props.autoFocus}
             placeholder={props.placeholder ?? ""}
             onChange={props.onChange}
+            onSnapshot={props.onSnapshot}
             onAttachSelection={props.onAttachSelection}
             onTextSelectionChange={props.onTextSelectionChange}
           />
@@ -68,6 +70,7 @@ export const StandardFileEditor = forwardRef<StandardFileEditorHandle, StandardF
           autoFocus={props.autoFocus}
           placeholder={props.placeholder ?? ""}
           onChange={props.onChange}
+          onSnapshot={props.onSnapshot}
           onTextSelectionChange={props.onTextSelectionChange}
         />
       </Suspense>
