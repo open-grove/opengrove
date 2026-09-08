@@ -371,7 +371,7 @@ export function MountedAppWorkbench(props: {
       return response.unchanged && previous ? { ...previous, revision: response.revision } : response;
     },
     enabled: Boolean(appId && props.selectedPath && directoryMode !== "dashboard" && directoryMode !== "view"),
-    refetchInterval: fileDirtyState ? false : 3_000,
+    refetchInterval: fileDirtyState?.dirty && fileDirtyState.path === props.selectedPath ? false : 3_000,
     refetchIntervalInBackground: false,
     refetchOnWindowFocus: true,
   });

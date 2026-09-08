@@ -6,6 +6,11 @@ const execFileAsync = promisify(execFile);
 
 const harnesses = [
   {
+    name: "Markdown external refresh preserves file contents without autosaving",
+    script: "scripts/test-web-markdown-external-refresh.mjs",
+    marker: "web-markdown-external-refresh passed",
+  },
+  {
     name: "Main navigation supports resizing, restoring and temporary reveal",
     script: "scripts/test-web-app-rail-navigation-ui.mjs",
     marker: "web-app-rail-navigation-ui passed",
