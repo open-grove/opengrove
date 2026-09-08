@@ -38,6 +38,7 @@ const SYSTEM_ICON_LABEL_KEYS = {
 } satisfies Record<AppSystemIconName, TranslationKey>;
 
 export function AppIconPickerField(props: {
+  appId?: string;
   value?: string;
   title: string;
   disabled?: boolean;
@@ -50,7 +51,12 @@ export function AppIconPickerField(props: {
     <div className="app-icon-picker-dialog-layout">
       <aside className="app-icon-picker-dialog-preview">
         <span>{t("appIcon.preview")}</span>
-        <AppIdentityIconTile icon={props.value} input={{ title: props.title }} iconSize={72} aria-hidden="true" />
+        <AppIdentityIconTile
+          icon={props.value}
+          input={{ appId: props.appId, title: props.title }}
+          iconSize={72}
+          aria-hidden="true"
+        />
         <strong>{props.title}</strong>
       </aside>
       <AppIconPicker value={props.value} disabled={props.disabled} onChange={props.onChange} />
@@ -71,7 +77,12 @@ export function AppIconPickerField(props: {
         disabled={props.disabled}
         onClick={() => setOpen(true)}
       >
-        <AppIdentityIconTile icon={props.value} input={{ title: props.title }} iconSize={52} aria-hidden="true" />
+        <AppIdentityIconTile
+          icon={props.value}
+          input={{ appId: props.appId, title: props.title }}
+          iconSize={52}
+          aria-hidden="true"
+        />
       </IdentityImageTrigger>
       {insideDialog && open ? (
         <DialogSubpage

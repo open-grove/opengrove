@@ -201,9 +201,28 @@ assert.equal(canonicalEnglishCatalog[0]?.summary, "Canonical English description
 assert.equal(canonicalEnglishCatalog[0]?.agents?.[0]?.name, "Canonical Architect");
 assert.deepEqual(
   presentAppStoreCatalogPackages([localizedCatalogSource], "zh-CN"),
-  [localizedCatalogSource],
+  [{ ...localizedCatalogSource, icon: "seed" }],
   "Chinese presentation keeps canonical publisher metadata",
 );
+const gardenPackage: AppStorePackageRecord = {
+  ...localizedCatalogSource,
+  id: "welltop-pipeline-package",
+  appId: "welltop-pipeline",
+  title: "故事花园",
+  category: "writing",
+  defaultLocale: "zh-CN",
+  locales: { en: { title: "Story Garden" } },
+};
+for (const language of ["zh-CN", "en"] as const) {
+  const [garden] = presentAppStoreCatalogPackages([gardenPackage], language);
+  assert.equal(garden?.title, language === "en" ? "Story Garden" : "故事花园");
+  assert.equal(garden?.icon, "garden", "Catalog icons must be inferred before translating display titles");
+  assert.equal(
+    presentAppStoreCatalogPackages([{ ...gardenPackage, icon: "phosphor:camera" }], language)[0]?.icon,
+    "phosphor:camera",
+    "Explicit App icons must take precedence over inferred icons",
+  );
+}
 
 const normalizedReleaseEmployee = normalizeReleaseEmployee({
   memberId: "member-app-release-avatar",

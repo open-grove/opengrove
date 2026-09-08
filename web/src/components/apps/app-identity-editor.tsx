@@ -9,6 +9,7 @@ export interface AppIdentityDraft {
 }
 
 export function AppIdentityEditor(props: {
+  appId?: string;
   value: AppIdentityDraft;
   disabled?: boolean;
   onChange(value: AppIdentityDraft): void;
@@ -17,6 +18,7 @@ export function AppIdentityEditor(props: {
   return (
     <div className={styles.editor}>
       <AppIconPickerField
+        appId={props.appId}
         value={props.value.icon}
         title={props.value.title || t("app.createApp")}
         disabled={props.disabled}

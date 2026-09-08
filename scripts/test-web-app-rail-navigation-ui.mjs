@@ -52,11 +52,13 @@ try {
   const panel = page.locator(".app-navigation-slot");
   const rail = page.locator(".app-rail");
   const toggle = page.locator("#app-navigation-toggle");
-  const width = () => handle.getAttribute("aria-valuenow").then(Number);
+  const width = async () => Number(await handle.getAttribute("aria-valuenow"));
   const floating = (value) => expect(panel).toHaveAttribute("data-floating", String(value));
   const expectWidth = (value) => expect.poll(width).toBe(value);
   async function dragTo(target) {
     const current = await width();
+    // The width state changes before the handle's position transition finishes.
+    await handle.hover();
     const box = await handle.boundingBox();
     assert.ok(box);
     const x = box.x + box.width / 2;
@@ -74,6 +76,7 @@ try {
     await page.mouse.move(20, 150);
   }
 
+  await expect(handle).toBeVisible({ timeout: 30_000 });
   await expectWidth(126);
   await expect(page.locator(".app-store-page")).toBeVisible();
   await expect(page.locator(".rooms-list-panel")).toHaveCount(0);
@@ -261,6 +264,28 @@ try {
   await expect(overflowMenu.getByRole("menuitem")).toHaveCount(3);
   if (captureDir) await page.screenshot({ path: join(captureDir, "navigation-expanded-menu.png") });
   await page.keyboard.press("Escape");
+  // Opening App settings updates the App shell without changing any rail badges.
+  await appOverflow.click();
+  await rail.evaluate((node) => {
+    const query = node.querySelectorAll;
+    window.railBadgeScans = 0;
+    node.querySelectorAll = function (selector) {
+      if (selector.includes("iconUnreadAnchor")) window.railBadgeScans++;
+      return query.call(this, selector);
+    };
+  });
+  await overflowMenu.getByRole("menuitem", { name: "App 设置", exact: true }).click();
+  const settingsDialog = page.getByRole("dialog", { name: "App 设置", exact: true });
+  await expect(settingsDialog.getByRole("button", { name: "保存", exact: true })).toBeVisible();
+  assert.equal(
+    await page.evaluate(() => window.railBadgeScans),
+    0,
+    "Unchanged badges must not be rescanned on unrelated App renders",
+  );
+  await rail.evaluate((node) => {
+    delete node.querySelectorAll;
+  });
+  await settingsDialog.getByRole("button", { name: "取消", exact: true }).click();
   const roomSnapshot = await page.request.get(new URL("/api/rooms", url).href).then((response) => response.json());
   const appRoom = roomSnapshot.rooms.find(
     (room) => room.scope?.appId === createdApp.appId && room.scope.role === "default",
@@ -330,7 +355,9 @@ try {
   const manifestPath = join(createdApp.appRoot, "opengrove.app.json");
   const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
   manifest.title = "故事花园";
-  manifest.locales = { en: { title: "Story Garden" } };
+  manifest.description = "整理故事创作资料。";
+  manifest.defaultLocale = "zh-CN";
+  manifest.locales = { en: { title: "Story Garden", description: "Organize story materials." } };
   await writeFile(manifestPath, JSON.stringify(manifest));
   const appIcon = page.locator(".app-rail-user-tab-icon svg");
   let originalIcon;
@@ -347,6 +374,26 @@ try {
     const icon = await appIcon.innerHTML();
     if (originalIcon === undefined) originalIcon = icon;
     else assert.equal(icon, originalIcon, "Translating an App title must not change its icon");
+    await page.locator(".app-rail-user-tab").hover();
+    await appOverflow.click();
+    const settingsLabel = languagePreference === "en" ? "App settings" : "App 设置";
+    await page.getByRole("menuitem", { name: settingsLabel, exact: true }).click();
+    const dialog = page.getByRole("dialog", { name: settingsLabel, exact: true });
+    await expect(dialog.getByRole("textbox").first()).toHaveValue("故事花园");
+    await expect(dialog.locator("textarea")).toHaveValue("整理故事创作资料。");
+    await expect(dialog.locator('[data-grove-tone="garden"]')).toBeVisible();
+    assert.equal(
+      await dialog.locator('[data-grove-tone="garden"] svg').innerHTML(),
+      originalIcon,
+      "Settings and navigation must show the same inferred App icon",
+    );
+    await dialog.getByRole("button", { name: languagePreference === "en" ? "Save" : "保存", exact: true }).click();
+    await expect(dialog).toBeHidden();
+    assert.deepEqual(
+      JSON.parse(await readFile(manifestPath, "utf8")),
+      manifest,
+      "Saving unchanged settings in either language must preserve canonical text and all translations",
+    );
   }
   const unreadGroups = [];
   for (const [title, unread] of [
@@ -420,6 +467,31 @@ try {
   await expect(picker.getByRole("button", { name: "Unread group A", exact: true })).toBeVisible();
   await expect(picker.locator(".mounted-app-room-picker-unread")).toHaveCount(0);
   await expect(groupTrigger.locator("[data-variant]")).toHaveCount(0);
+  await page.keyboard.press("Escape");
+  await page.locator(".app-rail-user-tab").hover();
+  await appOverflow.click();
+  await page.getByRole("menuitem", { name: "App settings", exact: true }).click();
+  const identityDialog = page.getByRole("dialog", { name: "App settings", exact: true });
+  await identityDialog.getByRole("textbox").first().fill("故事花园编辑版");
+  await identityDialog.locator("textarea").fill("修改后的原始描述。");
+  await identityDialog.getByRole("button", { name: "Change App icon", exact: true }).click();
+  await page.getByRole("button", { name: "Icon: Photography", exact: true }).click();
+  await page.getByRole("button", { name: "Confirm", exact: true }).click();
+  await identityDialog.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(identityDialog).toBeHidden();
+  assert.deepEqual(
+    JSON.parse(await readFile(manifestPath, "utf8")),
+    {
+      ...manifest,
+      title: "故事花园编辑版",
+      description: "修改后的原始描述。",
+      icon: "phosphor:camera",
+    },
+    "Editing original fields and an explicit icon must leave display translations intact",
+  );
+  await page.reload();
+  await expect(page.locator(".app-rail-user-tab")).toHaveAttribute("title", "Story Garden");
+  assert.notEqual(await appIcon.innerHTML(), originalIcon, "An explicit icon must override the inferred plant");
   assert.deepEqual(pageErrors, []);
   console.log(
     "web-app-rail-navigation-ui passed: boundary alignment, cursor-only hover and visible keyboard focus, unframed overlay, resize, snap, restore, reload, hover, menus, headings, Escape, keyboard, mobile",

@@ -70,7 +70,7 @@ export function AppSettingsDialog(props: {
           <div className={styles.state}>{t("appSettings.loading")}</div>
         ) : (
           <>
-            <AppIdentityEditor value={draft} disabled={saveMutation.isPending} onChange={setDraft} />
+            <AppIdentityEditor appId={appId} value={draft} disabled={saveMutation.isPending} onChange={setDraft} />
             {error ? (
               <div className="app-create-error" role="alert">
                 {rawDiagnosticText(error instanceof Error ? error.message : String(error))}
@@ -100,8 +100,8 @@ function identityFromInventory(app: ExtensionItemRecord | undefined): MountedApp
   const icon = stringValue(app?.metadata?.icon) || stringValue(recordValue(app?.metadata?.ui).icon);
   return {
     id: app?.name || app?.id || "",
-    title: app?.title || "",
-    description: app?.description || "",
+    title: stringValue(app?.metadata?.title) || app?.name || app?.id || "",
+    description: stringValue(app?.metadata?.description),
     ...(icon ? { icon } : {}),
   };
 }
