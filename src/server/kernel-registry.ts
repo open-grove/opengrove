@@ -209,6 +209,7 @@ const KERNEL_DESCRIPTORS: Record<BridgeKernelId, BridgeKernelDescriptor> = {
     externalProviderRoutes: [
       { protocol: "openai-compatible", credentialKinds: API_CREDENTIALS },
       { protocol: "anthropic-compatible", credentialKinds: API_CREDENTIALS },
+      { protocol: "gemini-compatible", credentialKinds: API_CREDENTIALS },
     ],
     bindingMode: "env",
     nativeControls: { reasoning: false, speed: false },

@@ -2183,6 +2183,10 @@ async function main() {
         baseUrl: "https://api.deepseek.com",
         envKey: "OPENGROVE_DEEPSEEK_API_KEY",
         wireApi: "responses",
+        modelContextWindows: {
+          "deepseek-v4-flash": 1_000_000,
+          "deepseek-v4-pro": 1_000_000,
+        },
       });
 
       const codexVolc: BridgeProviderProfile = {

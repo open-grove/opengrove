@@ -175,6 +175,11 @@ export function providerBindingFingerprint(input: {
       providerId: input.provider?.id ?? "login",
       sourceKernel: input.provider?.sourceKernel,
       protocol: plan.protocol,
+      wireApi: input.provider?.wireApi,
+      models:
+        plan.kind === "external-provider"
+          ? input.provider?.models.map(({ id, apiModelId, metadata }) => ({ id, apiModelId, metadata }))
+          : undefined,
       credentialKind: plan.credentialKind,
       openaiBaseUrl: input.provider?.openaiBaseUrl,
       anthropicBaseUrl: input.provider?.anthropicBaseUrl,

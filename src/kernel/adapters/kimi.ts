@@ -362,14 +362,30 @@ export function buildKimiProviderEnv(profile: ProviderProfile): Record<string, s
     profile.protocol === "anthropic-compatible"
       ? "anthropic"
       : profile.protocol === "openai-compatible"
-        ? "openai"
-        : undefined;
+        ? profile.wireApi === "responses"
+          ? "openai_responses"
+          : "openai"
+        : profile.protocol === "gemini-compatible"
+          ? "google-genai"
+          : undefined;
   if (!providerType) return undefined;
+  const model = profile.models?.find((m) => m.id === profile.model || m.apiModelId === profile.model);
+  const metadata = model?.metadata;
   return {
     KIMI_MODEL_NAME: profile.model,
     KIMI_MODEL_API_KEY: profile.apiKey,
-    KIMI_MODEL_BASE_URL: profile.baseUrl,
+    // Kimi 0.41's Google SDK appends the version itself. Host Gemini endpoints
+    // include that version for Pi / OpenCode; retain custom proxy path prefixes.
+    // https://moonshotai.github.io/kimi-code/en/configuration/providers.html
+    // Remove this conversion if Kimi accepts a versioned API base directly.
+    KIMI_MODEL_BASE_URL:
+      providerType === "google-genai"
+        ? profile.baseUrl.replace(/\/+$/, "").replace(/\/v1(?:beta)?$/, "")
+        : profile.baseUrl,
     KIMI_MODEL_PROVIDER_TYPE: providerType,
+    ...(metadata?.contextWindow ? { KIMI_MODEL_MAX_CONTEXT_SIZE: String(metadata.contextWindow) } : {}),
+    ...(metadata?.maxOutputTokens ? { KIMI_MODEL_MAX_OUTPUT_SIZE: String(metadata.maxOutputTokens) } : {}),
+    ...(metadata?.interleaved ? { KIMI_MODEL_REASONING_KEY: metadata.interleaved.field } : {}),
   };
 }
 

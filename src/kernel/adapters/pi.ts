@@ -118,7 +118,11 @@ export function resolvePiRuntimeModel(
   const known = piKnownProviderCandidates(provider, modelId)
     .map((candidate) => getKnownPiModel(candidate, modelId))
     .find((candidate): candidate is Model<Api> => Boolean(candidate));
-  if (known && (known.api === provider.api || (provider.kind === "openai" && known.api === "openai-responses"))) {
+  if (
+    known &&
+    (known.api === provider.api ||
+      (provider.kind === "openai" && !env.OPENGROVE_PI_WIRE_API && known.api === "openai-responses"))
+  ) {
     return applyPiModelMetadata({ ...known, baseUrl: provider.baseUrl }, metadata);
   }
   if (known) {
@@ -166,7 +170,7 @@ function applyPiModelMetadata(model: Model<Api>, metadata: ModelMetadata | undef
 function resolvePiProvider(env: NodeJS.ProcessEnv): {
   kind: "openai" | "anthropic" | "google";
   configuredProvider?: string;
-  api: "openai-completions" | "anthropic-messages" | "google-generative-ai";
+  api: "openai-completions" | "openai-responses" | "anthropic-messages" | "google-generative-ai";
   provider: string;
   baseUrl: string;
 } {
@@ -181,7 +185,7 @@ function resolvePiProvider(env: NodeJS.ProcessEnv): {
     return {
       kind: "openai",
       ...(configuredProvider ? { configuredProvider } : {}),
-      api: "openai-completions",
+      api: env.OPENGROVE_PI_WIRE_API === "responses" ? "openai-responses" : "openai-completions",
       provider: "opengrove-openai",
       baseUrl: openAiBaseUrl || "https://api.openai.com/v1",
     };
@@ -533,6 +537,7 @@ export function buildPiProviderEnv(profile: ProviderProfile): Record<string, str
   const env: Record<string, string> = {
     OPENGROVE_PI_PROVIDER_ID: profile.id,
     ...(profile.protocol ? { OPENGROVE_PI_PROTOCOL: profile.protocol } : {}),
+    ...(profile.wireApi ? { OPENGROVE_PI_WIRE_API: profile.wireApi } : {}),
   };
 
   const openaiBaseUrl =

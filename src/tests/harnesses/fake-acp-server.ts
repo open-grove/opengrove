@@ -16,6 +16,9 @@ export interface FakeAcpServerOptions {
   compactUsageUsed?: number;
   thoughtText?: string;
   sessionSetupRecordPath?: string;
+  modelOptions?: Array<{ value: string; name: string }>;
+  modelConfigId?: string;
+  modelOptionsApi?: "config" | "legacy";
   notificationRecordPath?: string;
   mcpToolCall?: {
     name: string;
@@ -130,6 +133,12 @@ export function fakeAcpServerSource(options: FakeAcpServerOptions = {}): string 
   const toolTitle = options.toolTitle ?? "terminal: printf OK";
   const toolInput = options.toolInput ?? "printf OK";
   const toolOutput = options.toolOutput ?? "OK";
+  const modelConfigId = options.modelConfigId ?? "model";
+  const modelState = !options.modelOptions
+    ? {}
+    : options.modelOptionsApi === "legacy"
+      ? { models: { availableModels: options.modelOptions.map(({ value, name }) => ({ modelId: value, name })) } }
+      : { configOptions: [{ id: modelConfigId, category: "model", type: "select", options: options.modelOptions }] };
   return [
     "import { createInterface } from 'node:readline';",
     "import { appendFileSync, readFileSync, existsSync } from 'node:fs';",
@@ -191,7 +200,7 @@ export function fakeAcpServerSource(options: FakeAcpServerOptions = {}): string 
         ]
       : []),
     ...(options.mcpToolCall ? ["    await startMcp(msg.params.mcpServers?.[0]);"] : []),
-    `    send({ jsonrpc: '2.0', id: msg.id, result: { sessionId: ${JSON.stringify(sessionId)} } });`,
+    `    send({ jsonrpc: '2.0', id: msg.id, result: { sessionId: ${JSON.stringify(sessionId)}, ...${JSON.stringify(modelState)} } });`,
     "  } else if (msg.method === 'session/load') {",
     ...(options.sessionSetupRecordPath
       ? [
@@ -199,8 +208,21 @@ export function fakeAcpServerSource(options: FakeAcpServerOptions = {}): string 
         ]
       : []),
     ...(options.mcpToolCall ? ["    await startMcp(msg.params.mcpServers?.[0]);"] : []),
-    "    send({ jsonrpc: '2.0', id: msg.id, result: { sessionId: msg.params.sessionId } });",
+    `    send({ jsonrpc: '2.0', id: msg.id, result: { sessionId: msg.params.sessionId, ...${JSON.stringify(modelState)} } });`,
+    "  } else if (msg.method === 'session/set_config_option') {",
+    `    if (msg.params.configId !== ${JSON.stringify(modelConfigId)} || !${JSON.stringify(options.modelOptions?.map((m) => m.value) ?? [])}.includes(msg.params.value)) { send({ jsonrpc: '2.0', id: msg.id, error: { code: -32602, message: 'Expected advertised config ID and native model value' } }); continue; }`,
+    `    send({ jsonrpc: '2.0', id: msg.id, result: ${JSON.stringify(modelState)} });`,
     "  } else if (msg.method === 'session/set_model') {",
+    ...(options.modelOptions && options.modelOptionsApi !== "legacy"
+      ? [
+          "    send({ jsonrpc: '2.0', id: msg.id, error: { code: -32601, message: 'Use advertised config options' } }); continue;",
+        ]
+      : []),
+    ...(options.modelOptions
+      ? [
+          `    if (!${JSON.stringify(options.modelOptions.map((m) => m.value))}.includes(msg.params.modelId)) { send({ jsonrpc: '2.0', id: msg.id, error: { code: -32602, message: 'Expected native model alias' } }); continue; }`,
+        ]
+      : []),
     "    send({ jsonrpc: '2.0', id: msg.id, result: {} });",
     "  } else if (msg.method === 'session/prompt') {",
     "    const sessionId = msg.params.sessionId;",

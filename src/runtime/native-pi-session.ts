@@ -47,6 +47,7 @@ import {
 import { anthropicMessagesApi } from "@earendil-works/pi-ai/api/anthropic-messages.lazy";
 import { googleGenerativeAIApi } from "@earendil-works/pi-ai/api/google-generative-ai.lazy";
 import { openAICompletionsApi } from "@earendil-works/pi-ai/api/openai-completions.lazy";
+import { openAIResponsesApi } from "@earendil-works/pi-ai/api/openai-responses.lazy";
 import { builtinModels } from "@earendil-works/pi-ai/providers/all";
 import { WorkingStateStore } from "../core.js";
 import type {
@@ -1076,7 +1077,10 @@ function createNativePiModels(getApiKey?: AgentOptions["getApiKey"]): MutableMod
       name: "OpenGrove OpenAI-compatible",
       auth: { apiKey: envApiKeyAuth("OpenGrove OpenAI-compatible API key", ["OPENAI_API_KEY", "MODEL_API_KEY"]) },
       models: [],
-      api: openAICompletionsApi(),
+      api: {
+        "openai-completions": openAICompletionsApi(),
+        "openai-responses": openAIResponsesApi(),
+      },
     }),
   );
   models.setProvider(

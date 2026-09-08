@@ -502,7 +502,10 @@ function opencodeApiConfigContent(profile: ProviderProfile): string | undefined 
     ...(qualifiedModel ? { model: qualifiedModel, small_model: qualifiedModel } : {}),
     provider: {
       [providerKey]: {
-        npm: OPENCODE_PROVIDER_PACKAGES[profile.protocol ?? "openai-compatible"],
+        npm:
+          (!profile.protocol || profile.protocol === "openai-compatible") && profile.wireApi === "responses"
+            ? "@ai-sdk/openai"
+            : OPENCODE_PROVIDER_PACKAGES[profile.protocol ?? "openai-compatible"],
         name: profile.name || profile.id,
         options: {
           // Anthropic's SDK adds /v1 itself; the AI SDK expects it in baseURL.
