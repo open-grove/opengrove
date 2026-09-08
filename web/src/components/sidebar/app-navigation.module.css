@@ -1,10 +1,8 @@
 .rail {
   --app-rail-item-height: 36px;
   --app-rail-icon-column: 38px;
-  /* Optical clearance for the fixed badge center: 99+ at 10px/500 plus its
-     2px outline leaves about 0.25px before the aligned label on macOS.
-     8.6px is font-metric tuning, not a new step in the spacing scale. */
-  --app-rail-label-gap: 8.6px;
+  /* Updated from rendered badge widths so sparse reminders do not reserve 99+ space. */
+  --app-rail-label-gap: 0px;
   grid-column: 1;
   grid-row: 2;
   display: grid;
@@ -839,6 +837,10 @@
 .userTabMenuButton:focus-visible {
   opacity: 1;
   pointer-events: auto;
+}
+
+.rail:not([data-expanded="true"]) .userTabMenuButton {
+  display: none;
 }
 
 .userTabMenuButton:hover {

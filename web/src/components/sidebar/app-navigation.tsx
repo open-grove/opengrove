@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import clsx from "clsx";
 import {
   Activity,
@@ -43,8 +43,9 @@ import { countryLabelForLocale } from "../../country-codes";
 import { useI18n, type ResolvedLanguage, type TranslationFn } from "../../i18n";
 import { cachedDateTimeFormat, cachedNumberFormat } from "../../intl-formatters";
 import { Dialog, DialogContent, DialogTitle } from "../ui/dialog";
-import { AppIdentityIcon, resolveGroveAppIconName } from "../ui/grove-app-icon";
-import { MotionMenu, MotionMenuItem, MotionMenuSurface } from "../ui/motion/menu";
+import { AppIdentityIcon } from "../ui/grove-app-icon";
+import { resolveGroveAppIconName } from "../../../../src/app-icons/grove-identity";
+import { MotionContextMenu, MotionMenu, MotionMenuItem, MotionMenuSurface } from "../ui/motion/menu";
 import { NameAvatar } from "../ui/name-avatar";
 import { ProductIcon, type ProductIconName } from "../ui/product-icon";
 import { UnreadCountAnchor, type UnreadCountVariant } from "../ui/unread-count";
@@ -507,6 +508,45 @@ export function AppRail(props: {
   const { language, t } = useI18n();
   const fixtureAccountCopy = __OPENGROVE_DEV_FIXTURE_ACCOUNTS__ ? devFixtureAccountCopy(language) : undefined;
   const { preference: iconStyle } = useIconStylePreference();
+  const railRef = useRef<HTMLElement>(null);
+  useLayoutEffect(() => {
+    const rail = railRef.current;
+    if (!rail || !props.expanded) return;
+    const badges = Array.from(rail.querySelectorAll<HTMLElement>(`.${styles.iconUnreadAnchor} > [data-variant]`));
+    const updateClearance = () => {
+      let gap = 0;
+      for (const badge of badges) {
+        const button = badge.closest("button");
+        const label = button?.querySelector<HTMLElement>(`.${styles.buttonLabel}`);
+        if (!button || !label) continue;
+        const scale = button.getBoundingClientRect().width / button.offsetWidth;
+        if (!scale) continue;
+        const iconColumn = Number.parseFloat(getComputedStyle(button).gridTemplateColumns);
+        const outline = Number.parseFloat(getComputedStyle(badge).outlineWidth);
+        // Use the grid boundary rather than the label rect, which moves during
+        // its entrance animation. Every row shares the widest current clearance.
+        gap = Math.max(
+          gap,
+          (badge.getBoundingClientRect().right - button.getBoundingClientRect().left) / scale -
+            iconColumn +
+            outline +
+            0.25,
+        );
+      }
+      rail.style.setProperty("--app-rail-label-gap", `${gap}px`);
+    };
+    const observer = new ResizeObserver(updateClearance);
+    for (const badge of badges) observer.observe(badge);
+    updateClearance();
+    return () => observer.disconnect();
+  }, [
+    props.expanded,
+    props.mountedApps,
+    props.mountedAppBadges,
+    props.sectionBadges,
+    props.developerMode,
+    props.directKernelChatEnabled,
+  ]);
   const accountMenuRef = useRef<HTMLDivElement | null>(null);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const [accountDialogOpen, setAccountDialogOpen] = useState(false);
@@ -935,6 +975,7 @@ export function AppRail(props: {
   return (
     <aside
       className={clsx("app-rail", styles.rail)}
+      ref={railRef}
       data-expanded={props.expanded ? "true" : "false"}
       aria-label={t("app.mainNav")}
     >
@@ -2915,12 +2956,76 @@ function UserAppRailItem(props: {
   deleteLabel?: string;
 }) {
   const { t } = useI18n();
-  const [menuOpen, setMenuOpen] = useState(false);
+  const [openMenu, setOpenMenu] = useState<"overflow" | "context" | null>(null);
+  const menuOpen = openMenu !== null;
   useEffect(() => {
     props.onMenuOpenChange?.(props.id, menuOpen);
     return () => props.onMenuOpenChange?.(props.id, false);
   }, [props.id, props.onMenuOpenChange, menuOpen]);
   const unreadCount = props.badge?.count ?? 0;
+
+  const menuItems = (
+    <>
+      {props.onManageVersions ? (
+        <MotionMenuItem onClick={() => props.onManageVersions?.(props.id)}>
+          <History size={15} />
+          <span>{t("nav.versionManagement")}</span>
+        </MotionMenuItem>
+      ) : null}
+      {props.onEdit ? (
+        <MotionMenuItem onClick={() => props.onEdit?.(props.id)}>
+          <Settings size={15} />
+          <span>{t("appSettings.menuItem")}</span>
+        </MotionMenuItem>
+      ) : null}
+      {props.onDelete ? (
+        <MotionMenuItem danger onClick={() => props.onDelete?.(props.id)}>
+          <Trash2 size={15} />
+          <span>{props.deleteLabel ?? t("nav.deleteApp")}</span>
+        </MotionMenuItem>
+      ) : null}
+    </>
+  );
+
+  const entry = (
+    <button
+      className={clsx("app-rail-button app-rail-user-tab", styles.button, styles.userTab)}
+      data-active={props.active ? "true" : "false"}
+      data-tooltip={props.title}
+      type="button"
+      onClick={props.onClick}
+      onKeyDown={(event) => {
+        if (event.key !== "ContextMenu" && !(event.shiftKey && event.key === "F10")) return;
+        // Icon mode has no overflow button, so keep a keyboard route to its actions.
+        event.preventDefault();
+        const bounds = event.currentTarget.getBoundingClientRect();
+        event.currentTarget.dispatchEvent(
+          new MouseEvent("contextmenu", {
+            bubbles: true,
+            cancelable: true,
+            button: 2,
+            clientX: bounds.left,
+            clientY: bounds.bottom,
+          }),
+        );
+      }}
+      aria-label={unreadCount ? t("app.unreadCount", { label: props.title, count: unreadCount }) : props.title}
+      title={props.title}
+    >
+      <span className={clsx("app-rail-user-tab-icon", styles.userTabIcon)} aria-hidden="true">
+        <UnreadCountAnchor count={unreadCount} className={styles.iconUnreadAnchor} variant={props.badge?.variant}>
+          <AppIdentityIcon
+            icon={props.appIcon}
+            input={{ id: props.id, title: props.title }}
+            size={20}
+            aria-hidden="true"
+          />
+        </UnreadCountAnchor>
+        <span className={clsx("app-rail-user-tab-marker", styles.userTabMarker)} />
+      </span>
+      <span className={clsx(styles.buttonLabel, styles.userTabLabel)}>{props.title}</span>
+    </button>
+  );
 
   return (
     <div
@@ -2928,31 +3033,18 @@ function UserAppRailItem(props: {
       data-active={props.active ? "true" : "false"}
       data-menu-open={menuOpen ? "true" : "false"}
     >
-      <button
-        className={clsx("app-rail-button app-rail-user-tab", styles.button, styles.userTab)}
-        data-active={props.active ? "true" : "false"}
-        data-tooltip={props.title}
-        type="button"
-        onClick={props.onClick}
-        aria-label={unreadCount ? t("app.unreadCount", { label: props.title, count: unreadCount }) : props.title}
-        title={props.title}
+      <MotionContextMenu
+        open={openMenu === "context"}
+        onOpenChange={(open) => setOpenMenu((current) => (open ? "context" : current === "context" ? null : current))}
+        trigger={entry}
+        className="app-rail-user-app-menu"
+        ariaLabel={t("nav.appActions", { title: props.title })}
       >
-        <span className={clsx("app-rail-user-tab-icon", styles.userTabIcon)} aria-hidden="true">
-          <UnreadCountAnchor count={unreadCount} className={styles.iconUnreadAnchor} variant={props.badge?.variant}>
-            <AppIdentityIcon
-              icon={props.appIcon}
-              input={{ id: props.id, title: props.title }}
-              size={20}
-              aria-hidden="true"
-            />
-          </UnreadCountAnchor>
-          <span className={clsx("app-rail-user-tab-marker", styles.userTabMarker)} />
-        </span>
-        <span className={clsx(styles.buttonLabel, styles.userTabLabel)}>{props.title}</span>
-      </button>
+        {menuItems}
+      </MotionContextMenu>
       <MotionMenu
-        open={menuOpen}
-        onOpenChange={setMenuOpen}
+        open={openMenu === "overflow"}
+        onOpenChange={(open) => setOpenMenu((current) => (open ? "overflow" : current === "overflow" ? null : current))}
         side="right"
         align="start"
         className="app-rail-user-app-menu"
@@ -2969,24 +3061,7 @@ function UserAppRailItem(props: {
           </button>
         }
       >
-        {props.onManageVersions ? (
-          <MotionMenuItem onClick={() => props.onManageVersions?.(props.id)}>
-            <History size={15} />
-            <span>{t("nav.versionManagement")}</span>
-          </MotionMenuItem>
-        ) : null}
-        {props.onEdit ? (
-          <MotionMenuItem onClick={() => props.onEdit?.(props.id)}>
-            <Settings size={15} />
-            <span>{t("appSettings.menuItem")}</span>
-          </MotionMenuItem>
-        ) : null}
-        {props.onDelete ? (
-          <MotionMenuItem danger onClick={() => props.onDelete?.(props.id)}>
-            <Trash2 size={15} />
-            <span>{props.deleteLabel ?? t("nav.deleteApp")}</span>
-          </MotionMenuItem>
-        ) : null}
+        {menuItems}
       </MotionMenu>
     </div>
   );
@@ -3040,7 +3115,8 @@ function mountedAppIcon(app: ExtensionItemRecord): string {
       icon: metadataIcon,
       id: app.id,
       appId: app.name,
-      title: app.title,
+      // Display titles are localized; infer identity from the stable manifest title.
+      title: stringFromUnknown(app.metadata?.title) || stringFromUnknown(app.metadata?.displayName) || app.title,
     })
   );
 }

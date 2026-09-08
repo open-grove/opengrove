@@ -55,7 +55,6 @@ import { readWwRuntimeAuth, type BridgeSecurity } from "../bridge-security.js";
 import { migrateMountedAppManifestV1 } from "../migrations/app-manifest-v1.js";
 import { callMountedMcpAppTool, createMountedMcpAppContract, McpAppToolError } from "../mcp-app-runtime.js";
 import { resolveHostLanguageSettings } from "../language-preference.js";
-import { resolveAppManifestPresentation } from "../../app-builder/manifest-localization.js";
 import { handleMountedAppVersionsRoute } from "./app-versions.js";
 import { handleMountedAppReleaseRoute } from "./app-release.js";
 import { localAppDraftStore, saveMountedAppDraft } from "../mounted-app-draft-service.js";
@@ -1014,11 +1013,7 @@ async function handleMountedAppSetupRoute(context: AppRouteContext, target: Moun
 
 async function handleMountedAppIdentityRoute(context: AppRouteContext, target: MountedAppTarget): Promise<void> {
   if (context.request.method === "GET") {
-    context.sendJson(
-      context.response,
-      200,
-      mountedAppIdentityPayload(target, resolveHostLanguageSettings(context.state.settings)),
-    );
+    context.sendJson(context.response, 200, mountedAppIdentityPayload(target));
     return;
   }
   if (context.request.method !== "PATCH") {
@@ -1050,11 +1045,7 @@ async function handleMountedAppIdentityRoute(context: AppRouteContext, target: M
     });
     const nextTarget = { ...target, title, manifest: nextManifest };
     emitMountedAppRuntimeChanged(context.state, nextTarget);
-    context.sendJson(
-      context.response,
-      200,
-      mountedAppIdentityPayload(nextTarget, resolveHostLanguageSettings(context.state.settings)),
-    );
+    context.sendJson(context.response, 200, mountedAppIdentityPayload(nextTarget));
   } catch (error) {
     context.sendJson(context.response, 400, {
       ok: false,
@@ -1063,14 +1054,15 @@ async function handleMountedAppIdentityRoute(context: AppRouteContext, target: M
   }
 }
 
-function mountedAppIdentityPayload(target: MountedAppTarget, language: SupportedLocale): Record<string, unknown> {
-  const presentation = resolveAppManifestPresentation(target.manifest, language);
+function mountedAppIdentityPayload(target: MountedAppTarget): Record<string, unknown> {
+  // This is the editing contract: display-only translations must never become
+  // the baseline for a subsequent PATCH of the canonical manifest fields.
   return {
     ok: true,
     app: {
       id: target.id,
-      title: presentation.title || target.title,
-      description: presentation.description,
+      title: stringValue(target.manifest.title) || target.id,
+      description: stringValue(target.manifest.description),
       ...(stringValue(target.manifest.icon) ? { icon: stringValue(target.manifest.icon) } : {}),
     },
   };

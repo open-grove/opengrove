@@ -451,6 +451,13 @@ export function App() {
     () => appStoreUpdateCount(appStoreCatalogQuery.data),
     [appStoreCatalogQuery.data],
   );
+  const sectionBadges = useMemo(
+    () => ({
+      rooms: { count: roomsUnreadCount },
+      network: { count: availableAppStoreUpdateCount, variant: "danger" as const },
+    }),
+    [roomsUnreadCount, availableAppStoreUpdateCount],
+  );
   const extensionsInventoryNeeded =
     developerMode &&
     (activeView === "extensions" ||
@@ -2058,10 +2065,7 @@ export function App() {
             mountedApps={mountedApps}
             activeMountedAppId={activeView === "app" ? activeMountedApp?.name : ""}
             mountedAppBadges={mountedAppUnreadBadges}
-            sectionBadges={{
-              rooms: { count: roomsUnreadCount },
-              network: { count: availableAppStoreUpdateCount, variant: "danger" },
-            }}
+            sectionBadges={sectionBadges}
             onCreateApp={openAppCreateDialog}
             onSelectMountedApp={(appId) => {
               requestAppStorePublishLeave(() => {

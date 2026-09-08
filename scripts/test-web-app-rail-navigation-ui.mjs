@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve, join } from "node:path";
 import { chromium, expect } from "@playwright/test";
@@ -52,11 +52,13 @@ try {
   const panel = page.locator(".app-navigation-slot");
   const rail = page.locator(".app-rail");
   const toggle = page.locator("#app-navigation-toggle");
-  const width = () => handle.getAttribute("aria-valuenow").then(Number);
+  const width = async () => Number(await handle.getAttribute("aria-valuenow"));
   const floating = (value) => expect(panel).toHaveAttribute("data-floating", String(value));
   const expectWidth = (value) => expect.poll(width).toBe(value);
   async function dragTo(target) {
     const current = await width();
+    // The width state changes before the handle's position transition finishes.
+    await handle.hover();
     const box = await handle.boundingBox();
     assert.ok(box);
     const x = box.x + box.width / 2;
@@ -74,6 +76,7 @@ try {
     await page.mouse.move(20, 150);
   }
 
+  await expect(handle).toBeVisible({ timeout: 30_000 });
   await expectWidth(126);
   await expect(page.locator(".app-store-page")).toBeVisible();
   await expect(page.locator(".rooms-list-panel")).toHaveCount(0);
@@ -218,6 +221,277 @@ try {
   await migratedPage.mouse.move(migratedBox.x + migratedBox.width / 2, migratedBox.y + 200);
   await assertCursorOnly(migratedHandle);
   if (captureDir) await migratedPage.screenshot({ path: join(captureDir, "navigation-migrated-icons.png") });
+  // Add an App through the real API only after the empty-instance navigation checks.
+  const settingsResponse = await page.request.patch(new URL("/api/settings", url).href, {
+    data: { developerMode: true },
+  });
+  assert.ok(settingsResponse.ok(), await settingsResponse.text());
+  const createResponse = await page.request.post(new URL("/api/apps/create", url).href, {
+    data: { title: "导航菜单回归" },
+  });
+  assert.ok(createResponse.ok(), await createResponse.text());
+  const createdApp = await createResponse.json();
+  assert.equal(createdApp.ok, true);
+  await page.setViewportSize({ width: 1024, height: 760 });
+  await page.reload();
+  await handle.press("Home");
+  await handle.press("ArrowRight");
+  await expectWidth(58);
+  const appEntry = page.locator('.app-rail-user-tab[title="导航菜单回归"]');
+  const appOverflow = page.locator(".app-rail-user-tab-menu-button");
+  await appEntry.hover();
+  await expect(appOverflow).toBeHidden();
+  await appEntry.focus();
+  await expect(appOverflow).toBeHidden();
+  await appEntry.click({ button: "right" });
+  const appMenu = page.getByRole("menu", { name: "导航菜单回归 操作" });
+  await expect(appMenu).toBeVisible();
+  await expect(appMenu.getByRole("menuitem")).toHaveCount(3);
+  await page.keyboard.press("Escape");
+  await expect(appMenu).toBeHidden();
+  await appEntry.press("Shift+F10");
+  await expect(appMenu).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(appMenu).toBeHidden();
+  if (captureDir) await page.screenshot({ path: join(captureDir, "navigation-compact-app-hover.png") });
+  await handle.press("ArrowRight");
+  await expectWidth(126);
+  await appEntry.hover();
+  await expect(appOverflow).toBeVisible();
+  await appOverflow.click();
+  const overflowMenu = page.getByRole("menu", { name: "导航菜单回归 更多操作" });
+  await expect(overflowMenu).toBeVisible();
+  await expect(overflowMenu.getByRole("menuitem")).toHaveCount(3);
+  if (captureDir) await page.screenshot({ path: join(captureDir, "navigation-expanded-menu.png") });
+  await page.keyboard.press("Escape");
+  // Opening App settings updates the App shell without changing any rail badges.
+  await appOverflow.click();
+  await rail.evaluate((node) => {
+    const query = node.querySelectorAll;
+    window.railBadgeScans = 0;
+    node.querySelectorAll = function (selector) {
+      if (selector.includes("iconUnreadAnchor")) window.railBadgeScans++;
+      return query.call(this, selector);
+    };
+  });
+  await overflowMenu.getByRole("menuitem", { name: "App 设置", exact: true }).click();
+  const settingsDialog = page.getByRole("dialog", { name: "App 设置", exact: true });
+  await expect(settingsDialog.getByRole("button", { name: "保存", exact: true })).toBeVisible();
+  assert.equal(
+    await page.evaluate(() => window.railBadgeScans),
+    0,
+    "Unchanged badges must not be rescanned on unrelated App renders",
+  );
+  await rail.evaluate((node) => {
+    delete node.querySelectorAll;
+  });
+  await settingsDialog.getByRole("button", { name: "取消", exact: true }).click();
+  const roomSnapshot = await page.request.get(new URL("/api/rooms", url).href).then((response) => response.json());
+  const appRoom = roomSnapshot.rooms.find(
+    (room) => room.scope?.appId === createdApp.appId && room.scope.role === "default",
+  );
+  assert.ok(appRoom, "Creating an App must create its own default room");
+  const senderId = appRoom.memberIds.find((id) => id.endsWith("-pm"));
+  assert.ok(senderId, "The fixture App must have a coordinator");
+  const readUrl = new URL(`/api/rooms/${appRoom.id}/read`, url).href;
+  const markRead = async () => {
+    const snapshot = await page.request.get(new URL("/api/rooms", url).href).then((response) => response.json());
+    const response = await page.request.post(readUrl, { data: { observedEventSeq: snapshot.currentEventSeq } });
+    assert.ok(response.ok(), await response.text());
+    await page.reload();
+  };
+  const measureClearance = () =>
+    appEntry.evaluate((entry) => {
+      const label = entry.querySelector('[class*="buttonLabel"]');
+      const anchor = entry.querySelector('[class*="iconUnreadAnchor"]');
+      const badge = anchor.querySelector("[data-variant]");
+      const rail = entry.closest(".app-rail");
+      const labelX = label.getBoundingClientRect().left;
+      return {
+        gap: Number.parseFloat(getComputedStyle(rail).getPropertyValue("--app-rail-label-gap")),
+        clear: badge
+          ? labelX - badge.getBoundingClientRect().right - Number.parseFloat(getComputedStyle(badge).outlineWidth)
+          : null,
+        badgeCenter: badge
+          ? (badge.getBoundingClientRect().left + badge.getBoundingClientRect().right) / 2 -
+            anchor.getBoundingClientRect().left
+          : null,
+        aligned: Array.from(rail.querySelectorAll('[class*="buttonLabel"]')).every(
+          (node) => Math.abs(node.getBoundingClientRect().left - labelX) < 0.1,
+        ),
+      };
+    });
+  await markRead();
+  await expect(appEntry).toHaveAttribute("aria-label", "导航菜单回归");
+  await expect.poll(async () => (await measureClearance()).gap).toBe(0);
+  let sent = 0;
+  for (const count of [1, 12, 100]) {
+    while (sent < count) {
+      const response = await page.request.post(new URL(`/api/rooms/${appRoom.id}/agent-messages`, url).href, {
+        data: { senderId, text: `导航角标消息 ${++sent}` },
+      });
+      assert.ok(response.ok(), await response.text());
+    }
+    await page.reload();
+    await expect(appEntry).toHaveAttribute("aria-label", `导航菜单回归，${count} 条未读`);
+    await expect.poll(async () => (await measureClearance()).clear).toBeCloseTo(0.25, 1);
+    const geometry = await measureClearance();
+    assert.ok(
+      Math.abs(geometry.clear - 0.25) < 0.05,
+      "Badge outlines should clear aligned labels without excess whitespace",
+    );
+    assert.ok(
+      Math.abs(geometry.badgeCenter - 25) < 0.05,
+      "The badge center must stay attached to the same icon corner",
+    );
+    assert.ok(geometry.aligned, "All expanded labels must remain aligned");
+    if (count === 1)
+      assert.ok(Math.abs(geometry.gap - 2.75) < 0.05, "Single-digit reminders must not reserve the 99+ gap");
+    if (captureDir) await page.screenshot({ path: join(captureDir, `navigation-spacing-${count}.png`) });
+  }
+  await markRead();
+  await expect.poll(async () => (await measureClearance()).gap).toBe(0);
+  // Installed Apps may have a translated display name but no explicit icon.
+  const manifestPath = join(createdApp.appRoot, "opengrove.app.json");
+  const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
+  manifest.title = "故事花园";
+  manifest.description = "整理故事创作资料。";
+  manifest.defaultLocale = "zh-CN";
+  manifest.locales = { en: { title: "Story Garden", description: "Organize story materials." } };
+  await writeFile(manifestPath, JSON.stringify(manifest));
+  const appIcon = page.locator(".app-rail-user-tab-icon svg");
+  let originalIcon;
+  for (const languagePreference of ["zh-CN", "en"]) {
+    const response = await page.request.patch(new URL("/api/settings", url).href, {
+      data: { languagePreference },
+    });
+    assert.ok(response.ok(), await response.text());
+    await page.reload();
+    await expect(page.locator(".app-rail-user-tab")).toHaveAttribute(
+      "title",
+      languagePreference === "en" ? "Story Garden" : "故事花园",
+    );
+    const icon = await appIcon.innerHTML();
+    if (originalIcon === undefined) originalIcon = icon;
+    else assert.equal(icon, originalIcon, "Translating an App title must not change its icon");
+    await page.locator(".app-rail-user-tab").hover();
+    await appOverflow.click();
+    const settingsLabel = languagePreference === "en" ? "App settings" : "App 设置";
+    await page.getByRole("menuitem", { name: settingsLabel, exact: true }).click();
+    const dialog = page.getByRole("dialog", { name: settingsLabel, exact: true });
+    await expect(dialog.getByRole("textbox").first()).toHaveValue("故事花园");
+    await expect(dialog.locator("textarea")).toHaveValue("整理故事创作资料。");
+    await expect(dialog.locator('[data-grove-tone="garden"]')).toBeVisible();
+    assert.equal(
+      await dialog.locator('[data-grove-tone="garden"] svg').innerHTML(),
+      originalIcon,
+      "Settings and navigation must show the same inferred App icon",
+    );
+    await dialog.getByRole("button", { name: languagePreference === "en" ? "Save" : "保存", exact: true }).click();
+    await expect(dialog).toBeHidden();
+    assert.deepEqual(
+      JSON.parse(await readFile(manifestPath, "utf8")),
+      manifest,
+      "Saving unchanged settings in either language must preserve canonical text and all translations",
+    );
+  }
+  const unreadGroups = [];
+  for (const [title, unread] of [
+    ["Unread group A", 12],
+    ["Unread group B", 1],
+    ["Archived group", 5],
+  ]) {
+    const response = await page.request.post(new URL("/api/rooms", url).href, {
+      data: { title, scope: { kind: "app", appId: createdApp.appId, role: "group" }, memberIds: [senderId] },
+    });
+    assert.ok(response.ok(), await response.text());
+    const { room } = await response.json();
+    unreadGroups.push(room);
+    for (let i = 0; i < unread; i++) {
+      const message = await page.request.post(new URL(`/api/rooms/${room.id}/agent-messages`, url).href, {
+        data: { senderId, text: `Unread message ${i}` },
+      });
+      assert.ok(message.ok(), await message.text());
+    }
+  }
+  const archived = await page.request.patch(new URL(`/api/rooms/${unreadGroups[2].id}`, url).href, {
+    data: { archived: true },
+  });
+  assert.ok(archived.ok(), await archived.text());
+  await page.reload();
+  await page.locator('.app-rail-user-tab[title="Story Garden"]').click();
+  const groupTrigger = page.locator(".mounted-app-room-target");
+  await groupTrigger.click();
+  const picker = page.getByRole("dialog", { name: "Switch App chat" });
+  const groupA = picker.getByRole("button", { name: "Unread group A, 12 unread items", exact: true });
+  const groupB = picker.getByRole("button", { name: "Unread group B, 1 unread item", exact: true });
+  await expect(groupA.locator(".mounted-app-room-picker-unread")).toHaveText("12");
+  await expect(groupB.locator(".mounted-app-room-picker-unread")).toHaveText("1");
+  await expect(picker.getByRole("button", { name: /Archived group/ })).toHaveCount(0);
+  await expect(groupTrigger.locator("[data-variant]")).toHaveCount(0);
+  await picker.getByPlaceholder("Search groups").fill("Unread group A");
+  await expect(groupA.locator(".mounted-app-room-picker-unread")).toHaveText("12");
+  await expect(groupB).toBeHidden();
+  await picker.getByPlaceholder("Search groups").fill("");
+  await expect(groupB.locator(".mounted-app-room-picker-unread")).toHaveText("1");
+  if (captureDir) {
+    await expect(picker).toHaveCSS("opacity", "1");
+    await page.screenshot({ path: join(captureDir, "app-group-picker-unread.png") });
+  }
+  await groupA.click();
+  await groupTrigger.click();
+  await expect(picker.getByRole("button", { name: "Unread group A", exact: true })).toBeVisible();
+  await groupB.click();
+  const defaultMessage = await page.request.post(new URL(`/api/rooms/${appRoom.id}/agent-messages`, url).href, {
+    data: { senderId, text: "Unread in the default group" },
+  });
+  assert.ok(defaultMessage.ok(), await defaultMessage.text());
+  await groupTrigger.click();
+  const defaultGroup = picker.getByRole("button").filter({ hasText: "workflow collaboration" });
+  await expect(defaultGroup.locator(".mounted-app-room-picker-unread")).toHaveText("1");
+  await defaultGroup.click();
+  await groupTrigger.click();
+  await expect(defaultGroup.locator(".mounted-app-room-picker-unread")).toHaveCount(0);
+  await page.keyboard.press("Escape");
+  for (let i = 0; i < 100; i++) {
+    const response = await page.request.post(new URL(`/api/rooms/${unreadGroups[0].id}/agent-messages`, url).href, {
+      data: { senderId, text: `Many unread messages ${i}` },
+    });
+    assert.ok(response.ok(), await response.text());
+  }
+  await groupTrigger.click();
+  const cappedGroup = picker.getByRole("button", { name: "Unread group A, 100 unread items", exact: true });
+  await expect(cappedGroup.locator(".mounted-app-room-picker-unread")).toHaveText("99+");
+  await cappedGroup.click();
+  await groupTrigger.click();
+  await expect(picker.getByRole("button", { name: "Unread group A", exact: true })).toBeVisible();
+  await expect(picker.locator(".mounted-app-room-picker-unread")).toHaveCount(0);
+  await expect(groupTrigger.locator("[data-variant]")).toHaveCount(0);
+  await page.keyboard.press("Escape");
+  await page.locator(".app-rail-user-tab").hover();
+  await appOverflow.click();
+  await page.getByRole("menuitem", { name: "App settings", exact: true }).click();
+  const identityDialog = page.getByRole("dialog", { name: "App settings", exact: true });
+  await identityDialog.getByRole("textbox").first().fill("故事花园编辑版");
+  await identityDialog.locator("textarea").fill("修改后的原始描述。");
+  await identityDialog.getByRole("button", { name: "Change App icon", exact: true }).click();
+  await page.getByRole("button", { name: "Icon: Photography", exact: true }).click();
+  await page.getByRole("button", { name: "Confirm", exact: true }).click();
+  await identityDialog.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(identityDialog).toBeHidden();
+  assert.deepEqual(
+    JSON.parse(await readFile(manifestPath, "utf8")),
+    {
+      ...manifest,
+      title: "故事花园编辑版",
+      description: "修改后的原始描述。",
+      icon: "phosphor:camera",
+    },
+    "Editing original fields and an explicit icon must leave display translations intact",
+  );
+  await page.reload();
+  await expect(page.locator(".app-rail-user-tab")).toHaveAttribute("title", "Story Garden");
+  assert.notEqual(await appIcon.innerHTML(), originalIcon, "An explicit icon must override the inferred plant");
   assert.deepEqual(pageErrors, []);
   console.log(
     "web-app-rail-navigation-ui passed: boundary alignment, cursor-only hover and visible keyboard focus, unframed overlay, resize, snap, restore, reload, hover, menus, headings, Escape, keyboard, mobile",

@@ -1,5 +1,6 @@
 import type { UserLanguagePreference } from "../core.js";
 import { resolveAppManifestPresentation } from "../app-builder/manifest-localization.js";
+import { resolveGroveAppIconName } from "../app-icons/grove-identity.js";
 import type { AppStoreAgentSummary, AppStorePackageRecord } from "./app-store.js";
 
 export function presentAppStoreCatalogPackages(
@@ -33,6 +34,8 @@ function presentLocalizedPackage(
   };
   return {
     ...item,
+    // Resolve identity before replacing canonical display text with translations.
+    ...(item.publishKind === "app" ? { icon: item.icon || resolveGroveAppIconName(item) } : {}),
     ...(localizedPresentation?.title ? { title: localizedPresentation.title } : {}),
     ...(localizedPresentation?.description ? { summary: localizedPresentation.description } : {}),
     ...(localizedPresentation?.title ? { workspaceName: localizedPresentation.title } : {}),
