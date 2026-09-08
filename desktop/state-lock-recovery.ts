@@ -4,6 +4,8 @@ import { join } from "node:path";
 import { LEGACY_JSON_STATE_FILE_NAME, SQLITE_STATE_FILE_NAME } from "../src/storage/default-data-dir.js";
 import { localMachineIdentity } from "../src/storage/machine-identity.js";
 import { canonicalizeStatePath } from "../src/storage/state-identity.js";
+import { acquireStateOwnership, STATE_OWNERSHIP_PROTOCOL } from "../src/storage/state-ownership.js";
+import { inspectLegacyStateLock, type LegacyLockInspectionOptions } from "../src/storage/legacy-state-lock.compat.js";
 
 const DESKTOP_STATE_FILE_NAMES = [SQLITE_STATE_FILE_NAME, LEGACY_JSON_STATE_FILE_NAME] as const;
 let recoveryCounter = 0;
@@ -14,11 +16,12 @@ export interface DesktopStateLockHolder {
   readonly statePath: string;
   readonly host: string;
   readonly machineId?: string;
+  readonly ownershipProtocol?: string;
 }
 
 export type RecoveredDesktopStateLock =
   | {
-      readonly reason: "dead_holder";
+      readonly reason: "dead_holder" | "released_ownership" | "reused_pid";
       readonly lockPath: string;
       readonly statePath: string;
       readonly holder: DesktopStateLockHolder;
@@ -32,6 +35,7 @@ export type RecoveredDesktopStateLock =
 
 export type DesktopStateLockBlockerReason =
   | "holder_alive"
+  | "ownership_busy"
   | "foreign_host"
   | "untrusted_lock"
   | "recovery_failed"
@@ -51,9 +55,8 @@ export interface DesktopStateLockRecoveryResult {
   readonly blockers: DesktopStateLockBlocker[];
 }
 
-interface DesktopStateLockRecoveryOptions {
+interface DesktopStateLockRecoveryOptions extends LegacyLockInspectionOptions {
   allowLegacyHostnameDriftRecovery?: boolean;
-  isProcessAlive?(pid: number): boolean;
   machineId?: string;
   fileSystem?: DesktopStateLockFileSystem;
 }
@@ -101,15 +104,14 @@ const defaultFileSystem: DesktopStateLockFileSystem = {
 /**
  * Current atomic publication cannot expose partially written lock contents, so
  * readable malformed artifacts are safe to fence and remove. Valid locks are
- * recovered only when their stable machine identity matches and the PID is
- * dead. Legacy Desktop locks may opt into one-time hostname-drift recovery when
+ * recovered while holding OS exclusion and after ruling out a legacy writer.
+ * Legacy Desktop locks may opt into one-time hostname-drift recovery when
  * they live inside the machine-local Desktop userData boundary.
  */
 export function recoverStaleDesktopStateLocks(
   userDataDir: string,
   options: DesktopStateLockRecoveryOptions = {},
 ): DesktopStateLockRecoveryResult {
-  const isProcessAlive = options.isProcessAlive ?? defaultIsProcessAlive;
   const machineId = options.machineId ?? localMachineIdentity();
   const fileSystem = options.fileSystem ?? defaultFileSystem;
   const recovered: RecoveredDesktopStateLock[] = [];
@@ -117,17 +119,35 @@ export function recoverStaleDesktopStateLocks(
 
   for (const fileName of DESKTOP_STATE_FILE_NAMES) {
     const statePath = canonicalizeStatePath(join(userDataDir, "data", fileName));
-    const result = recoverStateLock(
-      statePath,
-      isProcessAlive,
-      fileSystem,
-      machineId,
-      options.allowLegacyHostnameDriftRecovery === true,
-    );
-    if (result.kind === "recovered") {
-      recovered.push(result.value);
-    } else if (result.kind === "blocked") {
-      blockers.push(result.value);
+    const ownership = acquireStateOwnership(statePath);
+    if (!ownership) {
+      const observed = observeDesktopStateLock(`${statePath}.lock`, statePath, fileSystem);
+      blockers.push(
+        blocker(
+          `${statePath}.lock`,
+          statePath,
+          observed.kind === "trusted" ? "holder_alive" : "ownership_busy",
+          "another writer holds the operating-system state lock",
+          observed.kind === "trusted" ? observed.holder : undefined,
+        ),
+      );
+      continue;
+    }
+    try {
+      const result = recoverStateLock(
+        statePath,
+        options,
+        fileSystem,
+        machineId,
+        options.allowLegacyHostnameDriftRecovery === true,
+      );
+      if (result.kind === "recovered") {
+        recovered.push(result.value);
+      } else if (result.kind === "blocked") {
+        blockers.push(result.value);
+      }
+    } finally {
+      ownership.release();
     }
   }
 
@@ -136,7 +156,7 @@ export function recoverStaleDesktopStateLocks(
 
 function recoverStateLock(
   statePath: string,
-  isProcessAlive: (pid: number) => boolean,
+  inspectionOptions: LegacyLockInspectionOptions,
   fileSystem: DesktopStateLockFileSystem,
   machineId: string,
   allowLegacyHostnameDriftRecovery: boolean,
@@ -196,7 +216,11 @@ function recoverStateLock(
         ),
       };
     }
-    if (isProcessAlive(observed.holder.pid)) {
+    const ownerStatus =
+      observed.holder.ownershipProtocol === STATE_OWNERSHIP_PROTOCOL
+        ? "released_ownership"
+        : inspectLegacyStateLock(observed.holder, inspectionOptions);
+    if (ownerStatus === "holder_alive") {
       return {
         kind: "blocked",
         value: blocker(
@@ -234,7 +258,7 @@ function recoverStateLock(
     return {
       kind: "recovered",
       value: {
-        reason: "dead_holder",
+        reason: ownerStatus,
         lockPath,
         statePath,
         holder: observed.holder,
@@ -346,17 +370,9 @@ function isDesktopStateLockHolder(value: unknown): value is DesktopStateLockHold
     typeof holder.startedAt === "string" &&
     typeof holder.statePath === "string" &&
     typeof holder.host === "string" &&
-    (holder.machineId === undefined || typeof holder.machineId === "string")
+    (holder.machineId === undefined || typeof holder.machineId === "string") &&
+    (holder.ownershipProtocol === undefined || typeof holder.ownershipProtocol === "string")
   );
-}
-
-function defaultIsProcessAlive(pid: number): boolean {
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch (error) {
-    return !isNodeCode(error, "ESRCH");
-  }
 }
 
 function nextRecoveryPath(lockPath: string, fileSystem: DesktopStateLockFileSystem): string {

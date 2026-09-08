@@ -14,8 +14,12 @@ export function repairDesktopStateAccess(userDataDir: string): void {
     `${sqlitePath}-shm`,
     `${sqlitePath}-journal`,
     `${sqlitePath}.lock`,
+    `${sqlitePath}.lock.sqlite`,
+    `${sqlitePath}.lock.sqlite-journal`,
     legacyJsonPath,
     `${legacyJsonPath}.lock`,
+    `${legacyJsonPath}.lock.sqlite`,
+    `${legacyJsonPath}.lock.sqlite-journal`,
     join(dataDir, "bridge-settings.json"),
   ]) {
     repairOwnedFile(path);

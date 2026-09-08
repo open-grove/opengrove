@@ -19,6 +19,7 @@ import {
   type RecoveredDesktopStateLock,
 } from "./state-lock-recovery.js";
 import { desktopBridgeListenerProcessIds, ownedDesktopBridgeProcessIds } from "./bridge-process-control.js";
+import { stopDesktopBridgeChild } from "./bridge-child-shutdown.js";
 
 const BRIDGE_LOG_POLICY = { maxBytes: 10 * 1024 * 1024, retainedFiles: 2 } as const;
 
@@ -166,6 +167,7 @@ export class DesktopBridgeSupervisor {
   private preferredPort = 0;
   private stopping = false;
   private startPromise?: Promise<DesktopBridgeRuntimeInfo>;
+  private stopPromise?: Promise<void>;
   private bridgeLogWriter: BoundedLogWriter;
   private bridgeCrashLogWriter: BoundedLogWriter;
 
@@ -205,6 +207,7 @@ export class DesktopBridgeSupervisor {
   }
 
   async start(options: DesktopBridgeStartOptions = {}): Promise<DesktopBridgeRuntimeInfo> {
+    if (this.stopPromise) await this.stopPromise;
     if (this.runtimeInfo && this.status === "running") {
       return this.runtimeInfo;
     }
@@ -218,7 +221,7 @@ export class DesktopBridgeSupervisor {
     try {
       return await this.startPromise;
     } catch (error) {
-      this.status = "failed";
+      this.status = this.stopping ? "stopped" : "failed";
       this.notifyStatus();
       throw error;
     } finally {
@@ -234,37 +237,37 @@ export class DesktopBridgeSupervisor {
   }
 
   async stop(): Promise<void> {
+    if (!this.stopPromise) {
+      this.stopPromise = this.stopBridge().finally(() => {
+        this.stopPromise = undefined;
+      });
+    }
+    return this.stopPromise;
+  }
+
+  private async stopBridge(): Promise<void> {
     this.stopping = true;
-    this.status = "stopped";
     if (this.runtimeInfo?.mode === "reused") {
       this.runtimeInfo = undefined;
+      this.status = "stopped";
       this.notifyStatus();
       await this.flushLogs();
       return;
     }
     const child = this.child;
+    if (child) {
+      try {
+        await stopDesktopBridgeChild(child);
+      } catch (error) {
+        this.status = "failed";
+        this.notifyStatus();
+        throw error;
+      }
+    }
     this.child = undefined;
     this.runtimeInfo = undefined;
+    this.status = "stopped";
     this.notifyStatus();
-    if (!child || child.exitCode !== null || child.killed) {
-      await this.flushLogs();
-      return;
-    }
-    await new Promise<void>((resolve) => {
-      const timeout = setTimeout(() => {
-        child.kill("SIGKILL");
-        resolve();
-      }, 2_500);
-      child.once("exit", () => {
-        clearTimeout(timeout);
-        resolve();
-      });
-      if (child.connected) {
-        child.send({ type: "opengrove.desktop.bridge.shutdown" });
-      } else {
-        child.kill("SIGTERM");
-      }
-    });
     await this.flushLogs();
   }
 
@@ -425,6 +428,7 @@ export class DesktopBridgeSupervisor {
 
   private async spawnBridge(): Promise<DesktopBridgeRuntimeInfo> {
     const env = await resolveDesktopEnvironment(process.env);
+    if (this.stopping) throw new Error("desktop_bridge_stopped_during_startup");
     const bridgeEntry = this.bridgeEntryPath();
     return new Promise((resolve, reject) => {
       let settled = false;
@@ -466,6 +470,7 @@ export class DesktopBridgeSupervisor {
       child.stdout?.on("data", (chunk: Buffer) => this.writeBridgeLog(chunk));
       child.stderr?.on("data", (chunk: Buffer) => this.writeCrashLog(chunk));
       child.on("message", (message: unknown) => {
+        if (this.stopping) return;
         if (isDesktopBridgeStartupActivityMessage(message)) {
           this.notifyStartupActivity(message.activity);
           return;
@@ -505,6 +510,10 @@ export class DesktopBridgeSupervisor {
       });
       child.once("exit", (code, signal) => {
         if (this.stopping) {
+          if (!settled) {
+            settled = true;
+            reject(new Error("desktop_bridge_stopped_during_startup"));
+          }
           return;
         }
         this.child = undefined;

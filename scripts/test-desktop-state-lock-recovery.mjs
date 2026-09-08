@@ -424,7 +424,7 @@ function writeHolderLock(statePath, pid, host, machineId) {
     `${statePath}.lock`,
     `${JSON.stringify({
       pid,
-      startedAt: "2026-08-06T02:50:55.478Z",
+      startedAt: new Date().toISOString(),
       statePath: resolve(statePath),
       host,
       ...(machineId ? { machineId } : {}),

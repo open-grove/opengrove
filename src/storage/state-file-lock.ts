@@ -12,6 +12,8 @@ import { hostname } from "node:os";
 import { basename, dirname, resolve } from "node:path";
 import { canonicalizeStatePath } from "./state-identity.js";
 import { localMachineIdentity } from "./machine-identity.js";
+import { acquireStateOwnership, STATE_OWNERSHIP_PROTOCOL, type StateOwnership } from "./state-ownership.js";
+import { inspectLegacyStateLock } from "./legacy-state-lock.compat.js";
 
 export interface StateFileLock {
   readonly lockPath: string;
@@ -25,6 +27,7 @@ interface LockHolder {
   statePath: string;
   host: string;
   machineId?: string;
+  ownershipProtocol?: string;
 }
 
 interface StateFileLockError extends Error {
@@ -61,6 +64,19 @@ export function acquireStateFileLock(statePath: string): StateFileLock {
     );
   }
 
+  const ownership = acquireStateOwnership(canonical);
+  if (!ownership) {
+    throw lockError("STATE_LOCKED", `state_locked: ${canonical} has an active writer`, canonical, lockPath);
+  }
+  try {
+    return acquireOwnedStateFileLock(canonical, lockPath, ownership);
+  } catch (error) {
+    ownership.release();
+    throw error;
+  }
+}
+
+function acquireOwnedStateFileLock(canonical: string, lockPath: string, ownership: StateOwnership): StateFileLock {
   for (let attempt = 0; attempt < 3; attempt += 1) {
     const holder = createHolder(canonical);
     const publishResult = tryPublishLock(lockPath, holder);
@@ -77,6 +93,7 @@ export function acquireStateFileLock(statePath: string): StateFileLock {
           }
           releaseLockFile(lockPath, holder);
           cleanupOwnArtifacts(lockPath);
+          ownership.release();
         },
       };
       heldLocks.set(canonical, lock);
@@ -120,6 +137,7 @@ function createHolder(statePath: string): LockHolder {
     pid: process.pid,
     startedAt: new Date().toISOString(),
     statePath,
+    ownershipProtocol: STATE_OWNERSHIP_PROTOCOL,
     host: currentHost,
     machineId: currentMachineId,
   };
@@ -177,15 +195,13 @@ function isStaleHolder(holder: LockHolder, canonical: string): boolean {
   if (holder.machineId ? holder.machineId !== currentMachineId : holder.host !== currentHost) {
     return false;
   }
+  // The caller owns the OS lock. A marker from this protocol cannot still
+  // belong to a writer, even if its recorded PID now identifies another process.
+  if (holder.ownershipProtocol === STATE_OWNERSHIP_PROTOCOL) return true;
   if (holder.pid === process.pid && !heldLocks.has(canonical)) {
     return true;
   }
-  try {
-    process.kill(holder.pid, 0);
-    return false;
-  } catch (error) {
-    return isNodeCode(error, "ESRCH");
-  }
+  return inspectLegacyStateLock(holder) !== "holder_alive";
 }
 
 function stealStaleLock(lockPath: string, canonical: string, stale: LockHolder): boolean {
@@ -296,7 +312,8 @@ function isLockHolder(value: unknown): value is LockHolder {
     typeof item.startedAt === "string" &&
     typeof item.statePath === "string" &&
     typeof item.host === "string" &&
-    (item.machineId === undefined || typeof item.machineId === "string")
+    (item.machineId === undefined || typeof item.machineId === "string") &&
+    (item.ownershipProtocol === undefined || typeof item.ownershipProtocol === "string")
   );
 }
 
