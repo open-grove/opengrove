@@ -1,10 +1,19 @@
-import { execFileSync } from "node:child_process";
+import { execFile } from "node:child_process";
 import { readFileSync } from "node:fs";
+import { promisify } from "node:util";
+
+const execFileAsync = promisify(execFile);
+const processQueryOptions = {
+  encoding: "utf8" as const,
+  timeout: process.platform === "win32" ? 8_000 : 2_000,
+  maxBuffer: 64 * 1024,
+  windowsHide: true,
+};
 
 interface DesktopBridgeProcessControlDependencies {
   isAlive?(pid: number): boolean;
   kill?(pid: number, signal: NodeJS.Signals): void;
-  readCommandLine?(pid: number): string;
+  readCommandLine?(pid: number): string | Promise<string>;
   wait?(delayMs: number): Promise<void>;
 }
 
@@ -19,52 +28,61 @@ export async function stopOwnedDesktopBridgeProcesses(
   const kill = dependencies.kill ?? ((pid, signal) => process.kill(pid, signal));
   const wait = dependencies.wait ?? ((delayMs) => new Promise((resolve) => setTimeout(resolve, delayMs)));
 
+  const signalled: number[] = [];
   for (const pid of targets) {
-    const commandLine = readCommandLine(pid);
+    if (!isAlive(pid)) continue;
+    const commandLine = await readCommandLine(pid);
     if (!desktopBridgeCommandLooksOwned(commandLine)) {
       throw new Error(`desktop_bridge_blocker_not_owned:${pid}`);
     }
-  }
-  for (const pid of targets) {
-    if (isAlive(pid)) kill(pid, "SIGTERM");
+    if (isAlive(pid)) {
+      kill(pid, "SIGTERM");
+      signalled.push(pid);
+    }
   }
   for (let attempt = 0; attempt < 40; attempt += 1) {
-    if (targets.every((pid) => !isAlive(pid))) return;
+    if (signalled.every((pid) => !isAlive(pid))) return;
     await wait(50);
   }
-  throw new Error(`desktop_bridge_blocker_did_not_stop:${targets.join(",")}`);
+  throw new Error(`desktop_bridge_blocker_did_not_stop:${signalled.join(",")}`);
 }
 
-export function ownedDesktopBridgeProcessIds(pids: number[]): number[] {
-  return [...new Set(pids.filter((pid) => Number.isSafeInteger(pid) && pid > 0))].filter((pid) => {
+export async function ownedDesktopBridgeProcessIds(pids: number[]): Promise<number[]> {
+  const owned: number[] = [];
+  for (const pid of new Set(pids.filter((pid) => Number.isSafeInteger(pid) && pid > 0))) {
     try {
-      return desktopBridgeCommandLooksOwned(readDesktopProcessCommandLine(pid));
+      if (desktopBridgeCommandLooksOwned(await readDesktopProcessCommandLine(pid))) owned.push(pid);
     } catch {
-      return false;
+      // non-critical-fallback: omit process controls when ownership cannot be verified.
     }
-  });
+  }
+  return owned;
 }
 
-export function desktopBridgeListenerProcessIds(port: number): number[] {
+export async function desktopBridgeListenerProcessIds(port: number): Promise<number[]> {
   if (!Number.isSafeInteger(port) || port <= 0 || port > 65_535) return [];
   try {
     const output =
       process.platform === "win32"
-        ? execFileSync(
-            "powershell.exe",
-            [
-              "-NoProfile",
-              "-NonInteractive",
-              "-Command",
-              `(Get-NetTCPConnection -State Listen -LocalPort ${port}).OwningProcess`,
-            ],
-            { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], windowsHide: true },
-          )
-        : execFileSync(
-            process.platform === "darwin" ? "/usr/sbin/lsof" : "lsof",
-            ["-nP", `-iTCP:${port}`, "-sTCP:LISTEN", "-t"],
-            { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] },
-          );
+        ? (
+            await execFileAsync(
+              "powershell.exe",
+              [
+                "-NoProfile",
+                "-NonInteractive",
+                "-Command",
+                `(Get-NetTCPConnection -State Listen -LocalPort ${port}).OwningProcess`,
+              ],
+              processQueryOptions,
+            )
+          ).stdout
+        : (
+            await execFileAsync(
+              process.platform === "darwin" ? "/usr/sbin/lsof" : "lsof",
+              ["-nP", `-iTCP:${port}`, "-sTCP:LISTEN", "-t"],
+              processQueryOptions,
+            )
+          ).stdout;
     return [
       ...new Set(
         output
@@ -85,26 +103,25 @@ export function desktopBridgeCommandLooksOwned(commandLine: string): boolean {
   return /opengrove[^\s]*\/dist\/cli\.(?:js|cjs|mjs)\s+(?:start|bridge|web)(?:$|\s)/iu.test(normalized);
 }
 
-function readDesktopProcessCommandLine(pid: number): string {
+async function readDesktopProcessCommandLine(pid: number): Promise<string> {
   if (process.platform === "linux") {
     return readFileSync(`/proc/${pid}/cmdline`, "utf8").replace(/\0/gu, " ");
   }
   if (process.platform === "win32") {
-    return execFileSync(
-      "powershell.exe",
-      [
-        "-NoProfile",
-        "-NonInteractive",
-        "-Command",
-        `(Get-CimInstance Win32_Process -Filter \"ProcessId = ${pid}\").CommandLine`,
-      ],
-      { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], windowsHide: true },
-    ).trim();
+    return (
+      await execFileAsync(
+        "powershell.exe",
+        [
+          "-NoProfile",
+          "-NonInteractive",
+          "-Command",
+          `(Get-CimInstance Win32_Process -Filter \"ProcessId = ${pid}\").CommandLine`,
+        ],
+        processQueryOptions,
+      )
+    ).stdout.trim();
   }
-  return execFileSync("/bin/ps", ["-p", String(pid), "-o", "command="], {
-    encoding: "utf8",
-    stdio: ["ignore", "pipe", "ignore"],
-  }).trim();
+  return (await execFileAsync("/bin/ps", ["-p", String(pid), "-o", "command="], processQueryOptions)).stdout.trim();
 }
 
 function isProcessAlive(pid: number): boolean {

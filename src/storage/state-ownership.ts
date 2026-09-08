@@ -6,6 +6,7 @@ import { canonicalizeStatePath } from "./state-identity.js";
 export const STATE_OWNERSHIP_PROTOCOL = "sqlite-v1";
 
 export interface StateOwnership {
+  readonly released: boolean;
   release(): void;
 }
 
@@ -19,8 +20,8 @@ const ownedPaths = new Set<string>();
  */
 export function acquireStateOwnership(statePath: string): StateOwnership | undefined {
   const canonical = canonicalizeStatePath(statePath);
-  // On POSIX, opening and closing another connection to the same file in this
-  // process can release its existing file locks. Reject before opening it.
+  // Reject duplicate acquisitions in this process without opening another
+  // SQLite connection. SQLite's VFS manages its own OS file-lock bookkeeping.
   if (ownedPaths.has(canonical)) return undefined;
   mkdirSync(dirname(canonical), { recursive: true });
   const database = new DatabaseSync(`${canonical}.lock.sqlite`, { timeout: 0 });
@@ -34,11 +35,21 @@ export function acquireStateOwnership(statePath: string): StateOwnership | undef
   ownedPaths.add(canonical);
   let released = false;
   return {
+    get released() {
+      return released;
+    },
     release() {
       if (released) return;
-      database.close();
-      ownedPaths.delete(canonical);
-      released = true;
+      try {
+        database.close();
+      } finally {
+        // A failed close may leave the connection open: retain exclusion and
+        // the retryable handle until it actually closes.
+        if (!database.isOpen) {
+          ownedPaths.delete(canonical);
+          released = true;
+        }
+      }
     },
   };
 }

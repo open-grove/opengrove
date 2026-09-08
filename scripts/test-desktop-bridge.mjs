@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { fork } from "node:child_process";
+import { fork, spawn } from "node:child_process";
+import { createInterface } from "node:readline";
 import { randomBytes } from "node:crypto";
 import {
   existsSync,
@@ -23,6 +24,26 @@ const projectRoot = resolve(scriptDir, "..");
 const packageJson = JSON.parse(readFileSync(join(projectRoot, "package.json"), "utf8"));
 const entry = join(projectRoot, "dist", "server", "desktop-bridge-entry.js");
 
+await withDesktopBridge({
+  name: "standalone",
+  allowUnauthenticated: true,
+  withoutIpc: true,
+  async verify(ready) {
+    const response = await fetch(`${ready.apiBase}/health`);
+    assert.equal(response.status, 200, "a standalone bridge without IPC must stay running");
+  },
+});
+await withDesktopBridge({
+  name: "parent-disconnect",
+  allowUnauthenticated: true,
+  async verify(ready, { child }) {
+    const exited = once(child, "exit", { signal: AbortSignal.timeout(5_000) });
+    child.disconnect();
+    await exited;
+    const replacement = createSqliteStateStore(ready.statePath);
+    await replacement.close();
+  },
+});
 await runProtectedBridgeCase();
 await runUnauthenticatedDevBridgeCase();
 await runSessionAuthBridgeCase();
@@ -267,7 +288,7 @@ async function withDesktopBridge(options) {
       );
     }
     await options.prepare?.({ dataDir, statePath, settingsPath, programsDir, workspacesDir, legacyAppsDir });
-    child = fork(entry, [], {
+    const launchOptions = {
       cwd: options.cwdRelativeToTempRoot ? tempRoot : projectRoot,
       env: {
         ...process.env,
@@ -287,8 +308,9 @@ async function withDesktopBridge(options) {
         OPENGROVE_BRIDGE_HOST: "127.0.0.1",
       },
       serialization: "json",
-      stdio: ["ignore", "pipe", "pipe", "ipc"],
-    });
+      stdio: options.withoutIpc ? ["ignore", "pipe", "pipe"] : ["ignore", "pipe", "pipe", "ipc"],
+    };
+    child = options.withoutIpc ? spawn(process.execPath, [entry], launchOptions) : fork(entry, [], launchOptions);
     const startupActivities = [];
     let stdout = "";
     let stderr = "";
@@ -303,7 +325,7 @@ async function withDesktopBridge(options) {
         startupActivities.push(message.activity);
       }
     });
-    const ready = await waitForReady(child);
+    const ready = await waitForReady(child, options.withoutIpc);
     assert.equal(ready.type, "opengrove.desktop.bridge.ready");
     assert.equal(ready.host, "127.0.0.1");
     assert.notEqual(ready.port, 37371, "desktop bridge should use a random port in the harness");
@@ -314,33 +336,46 @@ async function withDesktopBridge(options) {
     assert.ok(existsSync(dataDir), "desktop bridge should create data dir");
     assert.ok(existsSync(logDir), "desktop bridge should create log dir");
 
-    await options.verify(ready, { startupActivities, stdout, stderr });
+    await options.verify(ready, { startupActivities, stdout, stderr, child });
   } finally {
-    if (child?.connected) {
-      child.send({ type: "opengrove.desktop.bridge.shutdown" });
-    }
-    if (child) {
-      await Promise.race([
-        once(child, "exit"),
-        new Promise((resolve) => setTimeout(resolve, 2_500)).then(() => child.kill("SIGKILL")),
-      ]);
+    if (child && child.exitCode === null && child.signalCode === null) {
+      const exited = once(child, "exit");
+      const timer = setTimeout(() => child.kill("SIGKILL"), 2_500);
+      try {
+        if (child.connected) child.send({ type: "opengrove.desktop.bridge.shutdown" });
+        else child.kill("SIGTERM");
+        await exited;
+      } finally {
+        clearTimeout(timer);
+      }
     }
     rmSync(tempRoot, { recursive: true, force: true });
   }
 }
 
-function waitForReady(target) {
+function waitForReady(target, withoutIpc = false) {
   return new Promise((resolveReady, rejectReady) => {
+    const lines = withoutIpc ? createInterface({ input: target.stdout }) : undefined;
     const timeout = setTimeout(() => {
       rejectReady(new Error("desktop_bridge_ready_timeout"));
     }, 30_000);
-    target.on("message", (message) => {
+    const onMessage = (message) => {
       if (message?.type !== "opengrove.desktop.bridge.ready") return;
       clearTimeout(timeout);
+      lines?.close();
       resolveReady(message);
+    };
+    target.on("message", onMessage);
+    lines?.on("line", (line) => {
+      try {
+        onMessage(JSON.parse(line));
+      } catch {
+        /* Other stdout diagnostics are not ready messages. */
+      }
     });
     target.once("exit", (code, signal) => {
       clearTimeout(timeout);
+      lines?.close();
       rejectReady(new Error(`desktop_bridge_exited:${code ?? signal ?? "unknown"}`));
     });
   });

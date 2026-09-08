@@ -66,7 +66,13 @@ export function acquireStateFileLock(statePath: string): StateFileLock {
 
   const ownership = acquireStateOwnership(canonical);
   if (!ownership) {
-    throw lockError("STATE_LOCKED", `state_locked: ${canonical} has an active writer`, canonical, lockPath);
+    let holder: LockHolder | undefined;
+    try {
+      holder = readLockHolder(lockPath, canonical);
+    } catch {
+      // non-critical-fallback: diagnostics cannot override an active OS lock.
+    }
+    throw lockError("STATE_LOCKED", `state_locked: ${canonical} has an active writer`, canonical, lockPath, holder);
   }
   try {
     return acquireOwnedStateFileLock(canonical, lockPath, ownership);
@@ -87,13 +93,16 @@ function acquireOwnedStateFileLock(canonical: string, lockPath: string, ownershi
         statePath: canonical,
         release() {
           if (released) return;
-          released = true;
-          if (heldLocks.get(canonical) === lock) {
-            heldLocks.delete(canonical);
-          }
           releaseLockFile(lockPath, holder);
           cleanupOwnArtifacts(lockPath);
-          ownership.release();
+          try {
+            ownership.release();
+          } finally {
+            if (ownership.released) {
+              released = true;
+              if (heldLocks.get(canonical) === lock) heldLocks.delete(canonical);
+            }
+          }
         },
       };
       heldLocks.set(canonical, lock);
@@ -342,7 +351,7 @@ function lockedError(canonical: string, lockPath: string, holder: LockHolder, se
 function unreadableError(canonical: string, lockPath: string, reason: string): StateFileLockError {
   return lockError(
     "state_lock_unreadable",
-    `state_lock_unreadable: ${lockPath} cannot be trusted (${reason}). Delete it manually or use another OPENGROVE_STATE_PATH.`,
+    `state_lock_unreadable: ${lockPath} cannot be trusted (${reason}). After all OpenGrove processes have stopped, remove only this .lock JSON marker. Do not delete the .lock.sqlite coordination file or use a wildcard. Alternatively, use another OPENGROVE_STATE_PATH.`,
     canonical,
     lockPath,
   );

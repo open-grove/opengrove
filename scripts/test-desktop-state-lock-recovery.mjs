@@ -56,14 +56,14 @@ try {
     pathToFileURL(processControlBundlePath).href
   );
 
-  verifySameHostDeadLockRecovery(testRoot, recoverStaleDesktopStateLocks);
-  verifyMachineIdentitySurvivesHostnameDrift(testRoot, recoverStaleDesktopStateLocks);
-  verifyLegacyDesktopHostnameDriftRecovery(testRoot, recoverStaleDesktopStateLocks);
-  verifyCrossHostLocksRemainProtected(testRoot, recoverStaleDesktopStateLocks);
-  verifyLiveLocksRemainProtectedAndMalformedLocksRecover(testRoot, recoverStaleDesktopStateLocks);
-  verifyUnreadableLockBlocks(testRoot, recoverStaleDesktopStateLocks);
-  verifyUninspectableLockBlocks(testRoot, recoverStaleDesktopStateLocks);
-  verifyRecoveryRaceDoesNotLeakFencedLock(testRoot, recoverStaleDesktopStateLocks);
+  await verifySameHostDeadLockRecovery(testRoot, recoverStaleDesktopStateLocks);
+  await verifyMachineIdentitySurvivesHostnameDrift(testRoot, recoverStaleDesktopStateLocks);
+  await verifyLegacyDesktopHostnameDriftRecovery(testRoot, recoverStaleDesktopStateLocks);
+  await verifyCrossHostLocksRemainProtected(testRoot, recoverStaleDesktopStateLocks);
+  await verifyLiveLocksRemainProtectedAndMalformedLocksRecover(testRoot, recoverStaleDesktopStateLocks);
+  await verifyUnreadableLockBlocks(testRoot, recoverStaleDesktopStateLocks);
+  await verifyUninspectableLockBlocks(testRoot, recoverStaleDesktopStateLocks);
+  await verifyRecoveryRaceDoesNotLeakFencedLock(testRoot, recoverStaleDesktopStateLocks);
   await verifyOwnedBridgeProcessControl(desktopBridgeCommandLooksOwned, stopOwnedDesktopBridgeProcesses);
   await verifySupervisorRecoversBeforeSpawn(
     testRoot,
@@ -98,10 +98,15 @@ async function verifyOwnedBridgeProcessControl(desktopBridgeCommandLooksOwned, s
       killed.push({ pid, signal });
       alive.delete(pid);
     },
-    readCommandLine: () => "node /app/dist/server/desktop-bridge-entry.js",
+    readCommandLine: async () => "node /app/dist/server/desktop-bridge-entry.js",
     wait: async () => undefined,
   });
   assert.deepEqual(killed, [{ pid: 4242, signal: "SIGTERM" }]);
+  await stopOwnedDesktopBridgeProcesses([4244], {
+    isAlive: () => false,
+    kill: () => assert.fail("an already exited process must not be signalled"),
+    readCommandLine: () => assert.fail("an already exited process needs no ownership query"),
+  });
 
   await assert.rejects(
     () =>
@@ -140,8 +145,8 @@ async function verifySupervisorRecoversBeforeSpawn(
     isPackaged: true,
     channel: "stable",
     onStateLockRecovered: (recovered) => recoveredEvents.push(recovered),
-    recoverStateLocks: (targetUserDataDir) => {
-      const result = recoverStaleDesktopStateLocks(targetUserDataDir, {
+    recoverStateLocks: async (targetUserDataDir) => {
+      const result = await recoverStaleDesktopStateLocks(targetUserDataDir, {
         isProcessAlive: () => false,
       });
       return {
@@ -176,7 +181,7 @@ async function verifySupervisorRecoversBeforeSpawn(
   }
 }
 
-function verifySameHostDeadLockRecovery(root, recoverStaleDesktopStateLocks) {
+async function verifySameHostDeadLockRecovery(root, recoverStaleDesktopStateLocks) {
   const userDataDir = join(root, "same-host-dead", "OpenGrove");
   const dataDir = join(userDataDir, "data");
   const statePaths = [join(dataDir, "local-state.sqlite"), join(dataDir, "local-state.json")];
@@ -186,7 +191,7 @@ function verifySameHostDeadLockRecovery(root, recoverStaleDesktopStateLocks) {
     writeHolderLock(statePath, 24_200, hostname());
   }
 
-  const result = recoverStaleDesktopStateLocks(userDataDir, {
+  const result = await recoverStaleDesktopStateLocks(userDataDir, {
     isProcessAlive: () => false,
   });
 
@@ -205,7 +210,7 @@ function verifySameHostDeadLockRecovery(root, recoverStaleDesktopStateLocks) {
   );
 }
 
-function verifyCrossHostLocksRemainProtected(root, recoverStaleDesktopStateLocks) {
+async function verifyCrossHostLocksRemainProtected(root, recoverStaleDesktopStateLocks) {
   const userDataDir = join(root, "cross-host", "OpenGrove");
   const dataDir = join(userDataDir, "data");
   const statePath = join(dataDir, "local-state.sqlite");
@@ -213,7 +218,7 @@ function verifyCrossHostLocksRemainProtected(root, recoverStaleDesktopStateLocks
   writeFileSync(statePath, "", "utf8");
   writeHolderLock(statePath, 24_200, "another-machine.local", "machine-b");
 
-  const result = recoverStaleDesktopStateLocks(userDataDir, {
+  const result = await recoverStaleDesktopStateLocks(userDataDir, {
     isProcessAlive: () => false,
     machineId: "machine-a",
   });
@@ -226,14 +231,14 @@ function verifyCrossHostLocksRemainProtected(root, recoverStaleDesktopStateLocks
   assert.equal(existsSync(`${statePath}.lock`), true);
 }
 
-function verifyMachineIdentitySurvivesHostnameDrift(root, recoverStaleDesktopStateLocks) {
+async function verifyMachineIdentitySurvivesHostnameDrift(root, recoverStaleDesktopStateLocks) {
   const userDataDir = join(root, "machine-id-hostname-drift", "OpenGrove");
   const statePath = join(userDataDir, "data", "local-state.sqlite");
   mkdirSync(join(userDataDir, "data"), { recursive: true });
   writeFileSync(statePath, "", "utf8");
   writeHolderLock(statePath, 24_200, "old-mac-name.local", "stable-machine-a");
 
-  const result = recoverStaleDesktopStateLocks(userDataDir, {
+  const result = await recoverStaleDesktopStateLocks(userDataDir, {
     isProcessAlive: () => false,
     machineId: "stable-machine-a",
   });
@@ -243,14 +248,14 @@ function verifyMachineIdentitySurvivesHostnameDrift(root, recoverStaleDesktopSta
   assert.equal(existsSync(`${statePath}.lock`), false);
 }
 
-function verifyLegacyDesktopHostnameDriftRecovery(root, recoverStaleDesktopStateLocks) {
+async function verifyLegacyDesktopHostnameDriftRecovery(root, recoverStaleDesktopStateLocks) {
   const userDataDir = join(root, "legacy-hostname-drift", "OpenGrove");
   const statePath = join(userDataDir, "data", "local-state.sqlite");
   mkdirSync(join(userDataDir, "data"), { recursive: true });
   writeFileSync(statePath, "", "utf8");
   writeHolderLock(statePath, 24_200, "old-mac-name.local");
 
-  const result = recoverStaleDesktopStateLocks(userDataDir, {
+  const result = await recoverStaleDesktopStateLocks(userDataDir, {
     allowLegacyHostnameDriftRecovery: true,
     isProcessAlive: () => false,
     machineId: "stable-machine-a",
@@ -261,7 +266,7 @@ function verifyLegacyDesktopHostnameDriftRecovery(root, recoverStaleDesktopState
   assert.equal(existsSync(`${statePath}.lock`), false);
 }
 
-function verifyLiveLocksRemainProtectedAndMalformedLocksRecover(root, recoverStaleDesktopStateLocks) {
+async function verifyLiveLocksRemainProtectedAndMalformedLocksRecover(root, recoverStaleDesktopStateLocks) {
   const userDataDir = join(root, "protected", "OpenGrove");
   const dataDir = join(userDataDir, "data");
   const liveStatePath = join(dataDir, "local-state.sqlite");
@@ -272,7 +277,7 @@ function verifyLiveLocksRemainProtectedAndMalformedLocksRecover(root, recoverSta
   writeHolderLock(liveStatePath, 1234, hostname());
   writeFileSync(`${invalidStatePath}.lock`, "not-json\n", "utf8");
 
-  const result = recoverStaleDesktopStateLocks(userDataDir, {
+  const result = await recoverStaleDesktopStateLocks(userDataDir, {
     isProcessAlive: (pid) => pid === 1234,
   });
 
@@ -293,7 +298,7 @@ function verifyLiveLocksRemainProtectedAndMalformedLocksRecover(root, recoverSta
   );
 }
 
-function verifyRecoveryRaceDoesNotLeakFencedLock(root, recoverStaleDesktopStateLocks) {
+async function verifyRecoveryRaceDoesNotLeakFencedLock(root, recoverStaleDesktopStateLocks) {
   const userDataDir = join(root, "recovery-race", "OpenGrove");
   const dataDir = join(userDataDir, "data");
   const statePath = join(dataDir, "local-state.sqlite");
@@ -333,7 +338,7 @@ function verifyRecoveryRaceDoesNotLeakFencedLock(root, recoverStaleDesktopStateL
     unlinkSync,
   };
 
-  const result = recoverStaleDesktopStateLocks(userDataDir, {
+  const result = await recoverStaleDesktopStateLocks(userDataDir, {
     fileSystem,
     isProcessAlive: (pid) => pid === replacementPid,
   });
@@ -351,7 +356,7 @@ function verifyRecoveryRaceDoesNotLeakFencedLock(root, recoverStaleDesktopStateL
   );
 }
 
-function verifyUnreadableLockBlocks(root, recoverStaleDesktopStateLocks) {
+async function verifyUnreadableLockBlocks(root, recoverStaleDesktopStateLocks) {
   const userDataDir = join(root, "unreadable", "OpenGrove");
   const dataDir = join(userDataDir, "data");
   const statePath = join(dataDir, "local-state.sqlite");
@@ -373,7 +378,7 @@ function verifyUnreadableLockBlocks(root, recoverStaleDesktopStateLocks) {
     renameSync,
     unlinkSync,
   };
-  const result = recoverStaleDesktopStateLocks(userDataDir, { fileSystem });
+  const result = await recoverStaleDesktopStateLocks(userDataDir, { fileSystem });
 
   assert.deepEqual(
     result.blockers.map((item) => item.reason),
@@ -387,7 +392,7 @@ function verifyUnreadableLockBlocks(root, recoverStaleDesktopStateLocks) {
   );
 }
 
-function verifyUninspectableLockBlocks(root, recoverStaleDesktopStateLocks) {
+async function verifyUninspectableLockBlocks(root, recoverStaleDesktopStateLocks) {
   const userDataDir = join(root, "uninspectable", "OpenGrove");
   const dataDir = join(userDataDir, "data");
   const statePath = join(dataDir, "local-state.sqlite");
@@ -409,7 +414,7 @@ function verifyUninspectableLockBlocks(root, recoverStaleDesktopStateLocks) {
     renameSync,
     unlinkSync,
   };
-  const result = recoverStaleDesktopStateLocks(userDataDir, { fileSystem });
+  const result = await recoverStaleDesktopStateLocks(userDataDir, { fileSystem });
 
   assert.deepEqual(
     result.blockers.map((item) => item.reason),

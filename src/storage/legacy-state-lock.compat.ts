@@ -1,4 +1,7 @@
-import { execFileSync } from "node:child_process";
+import { execFile, execFileSync, type ExecFileSyncOptionsWithStringEncoding } from "node:child_process";
+import { promisify } from "node:util";
+
+const execFileAsync = promisify(execFile);
 
 interface LegacyLockHolder {
   readonly pid: number;
@@ -8,6 +11,23 @@ interface LegacyLockHolder {
 export interface LegacyLockInspectionOptions {
   isProcessAlive?(pid: number): boolean;
   readProcessStartedAt?(pid: number): number | undefined;
+}
+
+export interface AsyncLegacyLockInspectionOptions {
+  isProcessAlive?(pid: number): boolean;
+  readProcessStartedAt?(pid: number): number | undefined | Promise<number | undefined>;
+}
+
+export async function inspectLegacyStateLockAsync(
+  holder: LegacyLockHolder,
+  options: AsyncLegacyLockInspectionOptions = {},
+): Promise<"dead_holder" | "reused_pid" | "holder_alive"> {
+  if (!(options.isProcessAlive ?? isProcessAlive)(holder.pid)) return "dead_holder";
+  const startedAt = await (options.readProcessStartedAt ?? readProcessStartedAtAsync)(holder.pid);
+  return inspectLegacyStateLock(holder, {
+    isProcessAlive: options.isProcessAlive,
+    readProcessStartedAt: () => startedAt,
+  });
 }
 
 /**
@@ -34,37 +54,68 @@ export function inspectLegacyStateLock(
 export function readProcessStartedAt(
   pid: number,
   platform: NodeJS.Platform = process.platform,
-  query: (file: string, args: string[]) => string = queryProcess,
+  query: (file: string, args: string[], options: ExecFileSyncOptionsWithStringEncoding) => string = execFileSync,
 ): number | undefined {
   if (!Number.isSafeInteger(pid) || pid <= 0) return undefined;
   try {
-    const raw =
-      platform === "win32"
-        ? query("powershell.exe", [
-            "-NoProfile",
-            "-NonInteractive",
-            "-Command",
-            `(Get-Process -Id ${pid} -ErrorAction Stop).StartTime.ToUniversalTime().ToString('o')`,
-          ]).trim()
-        : query("/bin/ps", ["-p", String(pid), "-o", "lstart="]).trim();
-    if (!raw) return undefined;
-    const timestamp = Date.parse(platform === "win32" ? raw : `${raw} UTC`);
-    return Number.isFinite(timestamp) ? timestamp : undefined;
+    const command = processStartCommand(pid, platform);
+    return parseProcessStartedAt(query(command.file, command.args, processQueryOptions(platform)), platform);
   } catch {
     // non-critical-fallback: unavailable process metadata preserves the lock.
     return undefined;
   }
 }
 
-function queryProcess(file: string, args: string[]): string {
-  return execFileSync(file, args, {
+export async function readProcessStartedAtAsync(
+  pid: number,
+  platform: NodeJS.Platform = process.platform,
+  query: (file: string, args: string[], options: ExecFileSyncOptionsWithStringEncoding) => Promise<string> = async (
+    file,
+    args,
+    options,
+  ) => (await execFileAsync(file, args, options)).stdout,
+): Promise<number | undefined> {
+  if (!Number.isSafeInteger(pid) || pid <= 0) return undefined;
+  try {
+    const command = processStartCommand(pid, platform);
+    return parseProcessStartedAt(await query(command.file, command.args, processQueryOptions(platform)), platform);
+  } catch {
+    // non-critical-fallback: unavailable process metadata preserves the lock.
+    return undefined;
+  }
+}
+
+function processStartCommand(pid: number, platform: NodeJS.Platform): { file: string; args: string[] } {
+  return platform === "win32"
+    ? {
+        file: "powershell.exe",
+        args: [
+          "-NoProfile",
+          "-NonInteractive",
+          "-Command",
+          `(Get-Process -Id ${pid} -ErrorAction Stop).StartTime.ToUniversalTime().ToString('o')`,
+        ],
+      }
+    : { file: "/bin/ps", args: ["-p", String(pid), "-o", "lstart="] };
+}
+
+function parseProcessStartedAt(output: string, platform: NodeJS.Platform): number | undefined {
+  const raw = output.trim();
+  if (!raw) return undefined;
+  const timestamp = Date.parse(platform === "win32" ? raw : `${raw} UTC`);
+  return Number.isFinite(timestamp) ? timestamp : undefined;
+}
+
+function processQueryOptions(platform: NodeJS.Platform): ExecFileSyncOptionsWithStringEncoding {
+  return {
     encoding: "utf8",
     stdio: ["ignore", "pipe", "ignore"],
     windowsHide: true,
-    timeout: 2_000,
+    // Windows PowerShell cold startup can exceed a short POSIX ps budget.
+    timeout: platform === "win32" ? 8_000 : 2_000,
     maxBuffer: 64 * 1024,
     env: { ...process.env, LC_ALL: "C", TZ: "UTC" },
-  });
+  };
 }
 
 function isProcessAlive(pid: number): boolean {

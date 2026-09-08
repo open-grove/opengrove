@@ -139,7 +139,8 @@ export function startDesktopBridgeFromEnv() {
       process.once("disconnect", listener);
     },
     isConnected() {
-      return process.connected === true;
+      // Standalone launches have no IPC channel (undefined), not a lost parent.
+      return process.connected !== false;
     },
     exit() {
       process.exit(0);

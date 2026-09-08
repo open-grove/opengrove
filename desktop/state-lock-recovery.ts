@@ -5,7 +5,11 @@ import { LEGACY_JSON_STATE_FILE_NAME, SQLITE_STATE_FILE_NAME } from "../src/stor
 import { localMachineIdentity } from "../src/storage/machine-identity.js";
 import { canonicalizeStatePath } from "../src/storage/state-identity.js";
 import { acquireStateOwnership, STATE_OWNERSHIP_PROTOCOL } from "../src/storage/state-ownership.js";
-import { inspectLegacyStateLock, type LegacyLockInspectionOptions } from "../src/storage/legacy-state-lock.compat.js";
+import {
+  inspectLegacyStateLockAsync,
+  readProcessStartedAtAsync,
+  type AsyncLegacyLockInspectionOptions,
+} from "../src/storage/legacy-state-lock.compat.js";
 
 const DESKTOP_STATE_FILE_NAMES = [SQLITE_STATE_FILE_NAME, LEGACY_JSON_STATE_FILE_NAME] as const;
 let recoveryCounter = 0;
@@ -55,7 +59,7 @@ export interface DesktopStateLockRecoveryResult {
   readonly blockers: DesktopStateLockBlocker[];
 }
 
-interface DesktopStateLockRecoveryOptions extends LegacyLockInspectionOptions {
+interface DesktopStateLockRecoveryOptions extends AsyncLegacyLockInspectionOptions {
   allowLegacyHostnameDriftRecovery?: boolean;
   machineId?: string;
   fileSystem?: DesktopStateLockFileSystem;
@@ -108,14 +112,28 @@ const defaultFileSystem: DesktopStateLockFileSystem = {
  * Legacy Desktop locks may opt into one-time hostname-drift recovery when
  * they live inside the machine-local Desktop userData boundary.
  */
-export function recoverStaleDesktopStateLocks(
+export async function recoverStaleDesktopStateLocks(
   userDataDir: string,
   options: DesktopStateLockRecoveryOptions = {},
-): DesktopStateLockRecoveryResult {
+): Promise<DesktopStateLockRecoveryResult> {
   const machineId = options.machineId ?? localMachineIdentity();
   const fileSystem = options.fileSystem ?? defaultFileSystem;
   const recovered: RecoveredDesktopStateLock[] = [];
   const blockers: DesktopStateLockBlocker[] = [];
+  // Both legacy state files can name the same writer. Query it once per
+  // recovery attempt, asynchronously so a Windows cold start does not freeze UI.
+  const processStarts = new Map<number, Promise<number | undefined>>();
+  const inspectionOptions: AsyncLegacyLockInspectionOptions = {
+    isProcessAlive: options.isProcessAlive,
+    readProcessStartedAt(pid) {
+      let pending = processStarts.get(pid);
+      if (!pending) {
+        pending = Promise.resolve((options.readProcessStartedAt ?? readProcessStartedAtAsync)(pid));
+        processStarts.set(pid, pending);
+      }
+      return pending;
+    },
+  };
 
   for (const fileName of DESKTOP_STATE_FILE_NAMES) {
     const statePath = canonicalizeStatePath(join(userDataDir, "data", fileName));
@@ -134,9 +152,9 @@ export function recoverStaleDesktopStateLocks(
       continue;
     }
     try {
-      const result = recoverStateLock(
+      const result = await recoverStateLock(
         statePath,
-        options,
+        inspectionOptions,
         fileSystem,
         machineId,
         options.allowLegacyHostnameDriftRecovery === true,
@@ -154,16 +172,17 @@ export function recoverStaleDesktopStateLocks(
   return { recovered, blockers };
 }
 
-function recoverStateLock(
+async function recoverStateLock(
   statePath: string,
-  inspectionOptions: LegacyLockInspectionOptions,
+  inspectionOptions: AsyncLegacyLockInspectionOptions,
   fileSystem: DesktopStateLockFileSystem,
   machineId: string,
   allowLegacyHostnameDriftRecovery: boolean,
-):
+): Promise<
   | { kind: "none" }
   | { kind: "recovered"; value: RecoveredDesktopStateLock }
-  | { kind: "blocked"; value: DesktopStateLockBlocker } {
+  | { kind: "blocked"; value: DesktopStateLockBlocker }
+> {
   const lockPath = `${statePath}.lock`;
   for (let attempt = 0; attempt < 3; attempt += 1) {
     const observed = observeDesktopStateLock(lockPath, statePath, fileSystem);
@@ -219,7 +238,7 @@ function recoverStateLock(
     const ownerStatus =
       observed.holder.ownershipProtocol === STATE_OWNERSHIP_PROTOCOL
         ? "released_ownership"
-        : inspectLegacyStateLock(observed.holder, inspectionOptions);
+        : await inspectLegacyStateLockAsync(observed.holder, inspectionOptions);
     if (ownerStatus === "holder_alive") {
       return {
         kind: "blocked",
