@@ -13,6 +13,8 @@ export type FileDraftState = {
   phase: "idle" | "dirty" | "saving" | "saved" | "error";
   storageError: boolean;
   ready: boolean;
+  memoryOnly: boolean;
+  backupCorrupt: boolean;
   editVersion: number;
   backupPending: boolean;
 };
@@ -52,6 +54,8 @@ export class FileDraft {
     phase: "idle",
     storageError: false,
     ready: false,
+    memoryOnly: false,
+    backupCorrupt: false,
     editVersion: 0,
     backupPending: false,
   };
@@ -59,7 +63,6 @@ export class FileDraft {
   private pending?: Promise<boolean>;
   private backup?: Promise<boolean>;
   private recovery: Promise<void>;
-  private recovering = false;
   private content?: () => string;
   private version = 0;
   private durableVersion = 0;
@@ -80,20 +83,15 @@ export class FileDraft {
     };
   };
 
-  retryRecovery(): void {
-    if (this.state.ready || this.recovering) return;
-    this.recovery = this.restore();
-  }
-
   private async restore(): Promise<void> {
-    this.recovering = true;
     this.update({ storageError: false });
     try {
-      const stored = await readFileDraft(this.key);
+      const { draft: stored, quarantined } = await readFileDraft(this.key);
       const remote = this.state.remote;
       this.hasBackup = !!stored;
       this.update({
         ready: true,
+        backupCorrupt: quarantined,
         storageError: false,
         remote: undefined,
         ...(stored
@@ -103,9 +101,11 @@ export class FileDraft {
       if (remote) this.receive(remote);
     } catch (error) {
       console.warn("[file-draft] recovery unavailable", error);
-      this.update({ storageError: true });
-    } finally {
-      this.recovering = false;
+      // Keep editing independent from recovery. Do not write backups in this
+      // controller: a failed read may hide an older draft we must not overwrite.
+      const remote = this.state.remote;
+      this.update({ ready: true, memoryOnly: true, storageError: true, remote: undefined });
+      if (remote) this.receive(remote);
     }
   }
 
@@ -147,7 +147,12 @@ export class FileDraft {
       const draft = this.content();
       this.content = undefined;
       const dirty = this.state.conflict || draft !== this.state.base?.content;
-      this.update({ draft, dirty, ...(!dirty && !this.pending ? { phase: "idle" } : {}) });
+      this.update({
+        draft,
+        dirty,
+        ...(this.state.memoryOnly ? { backupPending: dirty } : {}),
+        ...(!dirty && !this.pending ? { phase: "idle" } : {}),
+      });
     }
     return this.state.draft;
   }
@@ -166,6 +171,10 @@ export class FileDraft {
   async flush(): Promise<boolean> {
     await this.recovery;
     if (!this.state.ready) return false;
+    if (this.state.memoryOnly) {
+      this.getContent();
+      return !this.state.dirty;
+    }
     if (this.timer) clearTimeout(this.timer);
     this.timer = undefined;
     this.backupDue = undefined;
@@ -239,6 +248,10 @@ export class FileDraft {
   }
 
   private scheduleBackup(): void {
+    if (this.state.memoryOnly) {
+      this.update({ backupPending: this.state.dirty });
+      return;
+    }
     this.version++;
     this.update({ backupPending: true });
     if (this.timer) clearTimeout(this.timer);

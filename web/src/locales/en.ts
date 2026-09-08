@@ -165,6 +165,10 @@ export const EN = {
   "filePreview.conflictNotice": "The file changed elsewhere. Your draft is kept; automatic saving is paused.",
   "filePreview.compareChanges": "Compare changes",
   "filePreview.downloadDraft": "Download my draft",
+  "filePreview.draftCorrupt":
+    "The old draft backup was damaged and has been set aside for recovery. The disk version is shown; you can continue editing.",
+  "filePreview.draftMemoryOnly":
+    "Draft backup is unavailable for this editing session. You can still edit and save the file. Download any unsaved changes before closing or reloading.",
   "filePreview.draftStorageError": "The draft could not be stored locally. Download it before leaving this page.",
   "filePreview.saveFailedDraftKept": "Save failed. Your draft is still here.",
   "filePreview.retrySave": "Retry save",

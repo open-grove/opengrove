@@ -516,9 +516,16 @@ editor snapshot. Markdown serialization and draft backups are coalesced after
 The Host saves against the content revision the editor read and refuses stale
 saves. A committed IndexedDB record contains one draft body and its base revision,
 scoped to the resolved workspace, App and file. Editing waits for that stable
-identity and draft recovery; a reload can then recover the draft. Storage is
-local to this browser profile and origin, and remains subject to its storage
-availability and quota.
+identity and the initial draft recovery attempt. If backup storage cannot be
+read, editing, conditional file saving and draft downloads remain available;
+that controller keeps new input in memory and does not overwrite unread backups.
+Unsaved input still triggers navigation/unload protection; successfully saving
+the file releases it. Reopening after saving or reloading can retry recovery.
+Malformed records are atomically moved out of the recovery store into quarantine,
+with a visible notice, so users can edit and back up a new draft. The original
+malformed value is retained for recovery; a failed quarantine leaves it intact
+and falls back to in-memory editing. Storage remains local to this browser
+profile/origin and subject to availability and quota.
 
 When both the draft and disk change, automatic saving pauses. The workbench
 shows a manual comparison with the disk version on the left and an editable

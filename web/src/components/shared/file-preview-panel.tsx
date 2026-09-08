@@ -234,17 +234,7 @@ export function FilePreviewPanel(props: {
     );
   }
 
-  if (props.onSaveText && props.revision && capability.editable && !state.ready) {
-    if (!storageError) return <FilePreviewLoadingState />;
-    return (
-      <div className="file-conflict-banner" role="alert">
-        <span>{t("filePreview.draftRecoveryError")}</span>
-        <button type="button" onClick={() => controller.retryRecovery()}>
-          {t("common.retry")}
-        </button>
-      </div>
-    );
-  }
+  if (props.onSaveText && props.revision && capability.editable && !state.ready) return <FilePreviewLoadingState />;
 
   if (props.loading) {
     return <FilePreviewLoadingState />;
@@ -311,9 +301,14 @@ export function FilePreviewPanel(props: {
               {t("filePreview.fileDeleted")}
             </div>
           ) : null}
-          {storageError && state.backupPending ? (
+          {canEditText && state.backupCorrupt ? (
             <div className="file-conflict-banner" role="alert">
-              <span>{t("filePreview.draftStorageError")}</span>
+              {t("filePreview.draftCorrupt")}
+            </div>
+          ) : null}
+          {canEditText && (state.memoryOnly || (storageError && state.backupPending)) ? (
+            <div className="file-conflict-banner" role="alert">
+              <span>{t(state.memoryOnly ? "filePreview.draftMemoryOnly" : "filePreview.draftStorageError")}</span>
               <button type="button" onClick={downloadDraft}>
                 {t("filePreview.downloadDraft")}
               </button>

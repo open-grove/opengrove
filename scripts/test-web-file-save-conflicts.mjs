@@ -195,6 +195,68 @@ try {
   await expect(page.getByRole("button", { name: "Download my draft" })).toBeVisible();
   assert.equal(await page.evaluate(() => window.dirtyState.preserve()), false, "failed backup must block navigation");
   assert.deepEqual(errors, []);
+  // Losing backup storage must not turn the actual editor into a read-only error page.
+  const unavailable = await browser.newPage();
+  const unavailableErrors = [];
+  unavailable.on("pageerror", (error) => unavailableErrors.push(error.message));
+  await unavailable.addInitScript(() => {
+    IDBFactory.prototype.open = () => {
+      throw new DOMException("storage disabled", "SecurityError");
+    };
+    window.failSave = true;
+  });
+  await unavailable.goto(pathToFileURL(html).href);
+  const memoryEditor = unavailable.locator(".milkdown .ProseMirror");
+  await expect(memoryEditor).toContainText("Original");
+  await expect(unavailable.getByText(/Draft backup is unavailable for this editing session/)).toBeVisible();
+  assert.equal(
+    await unavailable.evaluate(() => window.dirtyState.preserve()),
+    true,
+    "viewing does not require backups",
+  );
+  await memoryEditor.press("ControlOrMeta+End");
+  await unavailable.keyboard.insertText("Memory-only draft.");
+  assert.equal(await unavailable.evaluate(() => window.dirtyState.preserve()), false);
+  const downloadPending = unavailable.waitForEvent("download");
+  await unavailable.getByRole("button", { name: "Download my draft", exact: true }).click();
+  const download = await downloadPending;
+  const stream = await download.createReadStream();
+  const chunks = [];
+  for await (const chunk of stream) chunks.push(chunk);
+  assert.match(Buffer.concat(chunks).toString("utf8"), /Memory-only draft\./);
+  await unavailable.evaluate(() => {
+    window.failSave = false;
+  });
+  assert.equal(await unavailable.evaluate(() => window.dirtyState.save()), true);
+  assert.match(await unavailable.evaluate(() => window.disk.content), /Memory-only draft\./);
+  assert.equal(await unavailable.evaluate(() => window.dirtyState.preserve()), true);
+  assert.deepEqual(unavailableErrors, []);
+  await unavailable.close();
+  const damaged = await browser.newPage();
+  await damaged.goto(pathToFileURL(html).href);
+  const repairedEditor = damaged.locator(".milkdown .ProseMirror");
+  await expect(repairedEditor).toContainText("Original");
+  await damaged.evaluate(async () => {
+    const database = await new Promise((resolve, reject) => {
+      const request = indexedDB.open("opengrove-file-drafts");
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    await new Promise((resolve, reject) => {
+      const transaction = database.transaction("drafts", "readwrite");
+      transaction.objectStore("drafts").put({ draft: "damaged backup text" }, "fixture:outline.md");
+      transaction.oncomplete = resolve;
+      transaction.onabort = () => reject(transaction.error);
+    });
+    database.close();
+  });
+  await damaged.reload();
+  await expect(repairedEditor).toContainText("Original");
+  await expect(damaged.getByText(/The old draft backup was damaged/)).toBeVisible();
+  await repairedEditor.press("ControlOrMeta+End");
+  await damaged.keyboard.insertText("New draft after quarantine.");
+  assert.equal(await damaged.evaluate(() => window.dirtyState.preserve()), true);
+  await damaged.close();
   console.log("web-file-save-conflicts passed");
 } finally {
   await browser?.close();

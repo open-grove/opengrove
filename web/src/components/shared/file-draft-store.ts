@@ -1,16 +1,25 @@
-import { readLegacyFileDraft, removeLegacyFileDraft } from "./migrations/file-draft-local-storage-v1";
-
 export type StoredFileDraft = { baseRevision: string; draft: string };
+export type FileDraftRecovery = { draft?: StoredFileDraft; quarantined: boolean };
 const DATABASE = "opengrove-file-drafts";
 const STORE = "drafts";
+const QUARANTINE = "quarantined-drafts";
 let database: Promise<IDBDatabase> | undefined;
 
 function openDatabase(): Promise<IDBDatabase> {
   if (!database) {
     database = new Promise<IDBDatabase>((resolve, reject) => {
-      const request = indexedDB.open(DATABASE, 1);
-      request.onupgradeneeded = () => request.result.createObjectStore(STORE);
+      const request = indexedDB.open(DATABASE, 2);
+      let blocked = false;
+      request.onupgradeneeded = () => {
+        for (const name of [STORE, QUARANTINE]) {
+          if (!request.result.objectStoreNames.contains(name)) request.result.createObjectStore(name);
+        }
+      };
       request.onsuccess = () => {
+        if (blocked) {
+          request.result.close();
+          return;
+        }
         request.result.onversionchange = () => {
           request.result.close();
           database = undefined;
@@ -18,7 +27,10 @@ function openDatabase(): Promise<IDBDatabase> {
         resolve(request.result);
       };
       request.onerror = () => reject(request.error);
-      request.onblocked = () => reject(new Error("file_draft_database_blocked"));
+      request.onblocked = () => {
+        blocked = true;
+        reject(new Error("file_draft_database_blocked"));
+      };
     }).catch((error: unknown) => {
       database = undefined;
       throw error;
@@ -27,32 +39,51 @@ function openDatabase(): Promise<IDBDatabase> {
   return database;
 }
 
-export async function readFileDraft(key: string): Promise<StoredFileDraft | undefined> {
+export async function readFileDraft(key: string): Promise<FileDraftRecovery> {
   const db = await openDatabase();
-  const value = await new Promise<unknown>((resolve, reject) => {
-    const request = db.transaction(STORE).objectStore(STORE).get(key);
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error);
+  return new Promise((resolve, reject) => {
+    // Inspect and quarantine atomically: another writer must not replace the
+    // record between validation and removal. Retain damaged text for recovery.
+    const transaction = db.transaction([STORE, QUARANTINE], "readwrite", { durability: "strict" });
+    const result: FileDraftRecovery = { quarantined: false };
+    transaction.oncomplete = () => {
+      if (result.quarantined) console.warn("[file-draft] invalid backup quarantined");
+      resolve(result);
+    };
+    transaction.onerror = () => reject(transaction.error);
+    transaction.onabort = () => reject(transaction.error ?? new Error("file_draft_recovery_aborted"));
+    const store = transaction.objectStore(STORE);
+    const request = store.get(key);
+    request.onsuccess = () => {
+      try {
+        const value: unknown = request.result;
+        if (value === undefined) return;
+        if (isStoredFileDraft(value)) {
+          result.draft = { baseRevision: value.baseRevision, draft: value.draft };
+        } else {
+          transaction.objectStore(QUARANTINE).put({ value, quarantinedAt: Date.now() }, key);
+          store.delete(key);
+          result.quarantined = true;
+        }
+      } catch (error) {
+        transaction.abort();
+        reject(error);
+      }
+    };
   });
-  if (value !== undefined) {
-    if (
-      !value ||
-      typeof value !== "object" ||
-      !("baseRevision" in value) ||
-      typeof value.baseRevision !== "string" ||
-      !("draft" in value) ||
-      typeof value.draft !== "string"
-    )
-      throw new Error("invalid_file_draft");
-    removeLegacyFileDraft(key);
-    return { baseRevision: value.baseRevision, draft: value.draft };
-  }
-  const legacy = readLegacyFileDraft(key);
-  if (legacy) {
-    await writeFileDraft(key, legacy);
-    removeLegacyFileDraft(key);
-  }
-  return legacy;
+}
+
+function isStoredFileDraft(value: unknown): value is StoredFileDraft {
+  return (
+    !!value &&
+    typeof value === "object" &&
+    !Array.isArray(value) &&
+    "baseRevision" in value &&
+    typeof value.baseRevision === "string" &&
+    value.baseRevision.length > 0 &&
+    "draft" in value &&
+    typeof value.draft === "string"
+  );
 }
 
 export async function writeFileDraft(key: string, value?: StoredFileDraft): Promise<void> {

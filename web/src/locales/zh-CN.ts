@@ -163,6 +163,8 @@ export const ZH_CN = {
   "filePreview.conflictNotice": "文件已被其他地方修改。你的草稿已保留，自动保存已暂停。",
   "filePreview.compareChanges": "对比修改",
   "filePreview.downloadDraft": "下载我的草稿",
+  "filePreview.draftCorrupt": "旧草稿备份损坏，已隔离保留以便找回文字。当前显示磁盘版本，可继续编辑。",
+  "filePreview.draftMemoryOnly": "本次编辑无法自动备份草稿，但仍可编辑和保存文件。关闭或刷新前，请下载尚未保存的修改。",
   "filePreview.draftStorageError": "草稿无法存到本机。离开页面前请下载保留。",
   "filePreview.saveFailedDraftKept": "保存失败，你的草稿仍然保留。",
   "filePreview.retrySave": "重试保存",

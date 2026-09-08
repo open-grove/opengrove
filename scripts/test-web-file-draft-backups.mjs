@@ -17,7 +17,7 @@ try {
     import { fileDraftFor } from ${JSON.stringify(join(root, "web/src/components/shared/file-draft.ts"))};
     import { readFileDraft } from ${JSON.stringify(join(root, "web/src/components/shared/file-draft-store.ts"))};
     window.draftFor = fileDraftFor;
-    window.readBackup = readFileDraft;
+    window.readBackup = async (key) => (await readFileDraft(key)).draft;
   `,
   );
   await build({
@@ -35,6 +35,66 @@ try {
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.goto(pathToFileURL(html).href);
+  // Adding quarantine storage preserves valid records from the existing database.
+  await page.evaluate(async () => {
+    const database = await new Promise((resolve, reject) => {
+      const request = indexedDB.open("opengrove-file-drafts", 1);
+      request.onupgradeneeded = () => request.result.createObjectStore("drafts");
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    await new Promise((resolve, reject) => {
+      const transaction = database.transaction("drafts", "readwrite");
+      transaction
+        .objectStore("drafts")
+        .put({ baseRevision: "before", draft: "existing IndexedDB draft" }, "existing.md");
+      transaction.oncomplete = resolve;
+      transaction.onabort = () => reject(transaction.error);
+    });
+    database.close();
+  });
+  const unavailable = await page.evaluate(async () => {
+    const open = IDBFactory.prototype.open;
+    IDBFactory.prototype.open = () => {
+      throw new DOMException("storage disabled", "SecurityError");
+    };
+    const file = window.draftFor("unavailable.md");
+    file.subscribe(() => {});
+    file.receive({ content: "disk content", revision: "disk" });
+    const cleanCanLeave = await file.flush();
+    const ready = file.getSnapshot().ready;
+    file.edit(() => "in-memory input");
+    const backedUp = await file.flush();
+    const beforeSave = new Event("beforeunload", { cancelable: true });
+    window.dispatchEvent(beforeSave);
+    const content = file.getContent();
+    const saved = await file.save(async (content, revision) => {
+      if (revision !== "disk") throw new Error("wrong base after failed recovery");
+      return { content, revision: "saved" };
+    });
+    const afterSave = new Event("beforeunload", { cancelable: true });
+    window.dispatchEvent(afterSave);
+    IDBFactory.prototype.open = open;
+    return {
+      cleanCanLeave,
+      ready,
+      content,
+      backedUp,
+      saved,
+      beforeSave: beforeSave.defaultPrevented,
+      afterSave: afterSave.defaultPrevented,
+    };
+  });
+  assert.deepEqual(unavailable, {
+    cleanCanLeave: true,
+    ready: true,
+    content: "in-memory input",
+    backedUp: false,
+    saved: true,
+    beforeSave: true,
+    afterSave: false,
+  });
+
   const result = await page.evaluate(async () => {
     const draft = window.draftFor("typing.md");
     draft.subscribe(() => {});
@@ -112,6 +172,10 @@ try {
   assert.equal(result.caughtUp, true);
   assert.deepEqual(result.latest, { baseRevision: "1", draft: "input during commit" });
   assert.deepEqual(result.large, [true, true, true]);
+  assert.deepEqual(await page.evaluate(() => window.readBackup("existing.md")), {
+    baseRevision: "before",
+    draft: "existing IndexedDB draft",
+  });
   await page.reload();
   const recovered = await page.evaluate(async () => {
     const file = window.draftFor("large-2.md");
@@ -130,35 +194,121 @@ try {
   });
   assert.deepEqual(recovered, { length: 1_500_000, first: "b", conflict: true, removed: true, adopted: "new disk" });
 
-  const migration = await page.evaluate(async () => {
-    const key = "opengrove:file-draft:v1:legacy.md";
-    localStorage.setItem(
-      key,
-      JSON.stringify({ base: { revision: "old", content: "old text" }, draft: "legacy draft" }),
-    );
-    const file = window.draftFor("legacy.md");
+  const corrupt = await page.evaluate(async () => {
+    const database = await new Promise((resolve, reject) => {
+      const request = indexedDB.open("opengrove-file-drafts");
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    const broken = { draft: "recoverable old words", baseRevision: 42 };
+    await new Promise((resolve, reject) => {
+      const transaction = database.transaction("drafts", "readwrite");
+      transaction.objectStore("drafts").put(broken, "corrupt.md");
+      transaction.oncomplete = resolve;
+      transaction.onabort = () => reject(transaction.error);
+    });
+    database.close();
+    const file = window.draftFor("corrupt.md");
     file.subscribe(() => {});
-    file.receive({ revision: "new", content: "external text" }); // arrives before async recovery
+    file.receive({ content: "current disk", revision: "disk" });
     await file.flush();
     const state = file.getSnapshot();
-    const record = await window.readBackup("legacy.md");
-    file.discard();
+    file.edit(() => "new input");
+    const backedUp = await file.flush();
+    return { ready: state.ready, memoryOnly: state.memoryOnly, draft: state.draft, backedUp };
+  });
+  assert.deepEqual(corrupt, { ready: true, memoryOnly: false, draft: "current disk", backedUp: true });
+
+  const quarantined = await page.evaluate(async () => {
+    const request = indexedDB.open("opengrove-file-drafts");
+    const database = await new Promise((resolve, reject) => {
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    const value = await new Promise((resolve, reject) => {
+      const read = database.transaction("quarantined-drafts").objectStore("quarantined-drafts").get("corrupt.md");
+      read.onsuccess = () => resolve(read.result.value);
+      read.onerror = () => reject(read.error);
+    });
+    database.close();
+    return value;
+  });
+  assert.deepEqual(quarantined, { draft: "recoverable old words", baseRevision: 42 });
+  await page.reload();
+  const healthyAgain = await page.evaluate(async () => {
+    const file = window.draftFor("corrupt.md");
+    file.subscribe(() => {});
+    file.receive({ content: "current disk", revision: "disk" });
     await file.flush();
-    return {
-      text: state.draft,
-      conflict: state.conflict,
-      record,
-      legacyRemoved: localStorage.getItem(key) === null,
-      discarded: (await window.readBackup("legacy.md")) === undefined,
+    return { content: file.getContent(), memoryOnly: file.getSnapshot().memoryOnly };
+  });
+  assert.deepEqual(healthyAgain, { content: "new input", memoryOnly: false });
+
+  // A transient read failure must not let new edits silently replace an unread backup.
+  const unread = await page.evaluate(async () => {
+    const get = IDBObjectStore.prototype.get;
+    IDBObjectStore.prototype.get = function (key) {
+      if (key === "typing.md") throw new DOMException("read unavailable", "InvalidStateError");
+      return get.call(this, key);
     };
+    const file = window.draftFor("typing.md");
+    file.subscribe(() => {});
+    file.receive({ content: "current disk", revision: "disk" });
+    await file.flush();
+    IDBObjectStore.prototype.get = get;
+    file.edit(() => "new memory-only edit");
+    const preserved = await file.flush();
+    const previous = await window.readBackup("typing.md");
+    file.discard();
+    return { preserved, previous };
   });
-  assert.deepEqual(migration, {
-    text: "legacy draft",
-    conflict: true,
-    record: { baseRevision: "old", draft: "legacy draft" },
-    legacyRemoved: true,
-    discarded: true,
+  assert.deepEqual(unread, { preserved: false, previous: { baseRevision: "1", draft: "input during commit" } });
+
+  const quarantineFailure = await page.evaluate(async () => {
+    const database = await new Promise((resolve, reject) => {
+      const request = indexedDB.open("opengrove-file-drafts");
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    await new Promise((resolve, reject) => {
+      const transaction = database.transaction("drafts", "readwrite");
+      transaction.objectStore("drafts").put({ draft: "retained damaged backup" }, "cannot-quarantine.md");
+      transaction.oncomplete = resolve;
+      transaction.onabort = () => reject(transaction.error);
+    });
+    const put = IDBObjectStore.prototype.put;
+    IDBObjectStore.prototype.put = function (...args) {
+      if (this.name === "quarantined-drafts") throw new DOMException("storage full", "QuotaExceededError");
+      return put.apply(this, args);
+    };
+    const file = window.draftFor("cannot-quarantine.md");
+    file.subscribe(() => {});
+    file.receive({ content: "disk text", revision: "disk" });
+    await file.flush();
+    IDBObjectStore.prototype.put = put;
+    const original = await new Promise((resolve, reject) => {
+      const read = database.transaction("drafts").objectStore("drafts").get("cannot-quarantine.md");
+      read.onsuccess = () => resolve(read.result);
+      read.onerror = () => reject(read.error);
+    });
+    database.close();
+    return { ready: file.getSnapshot().ready, memoryOnly: file.getSnapshot().memoryOnly, original };
   });
+  assert.deepEqual(quarantineFailure, {
+    ready: true,
+    memoryOnly: true,
+    original: { draft: "retained damaged backup" },
+  });
+
+  const orphanedPreview = await page.evaluate(async () => {
+    localStorage.setItem("opengrove:file-draft:v1:preview.md", "invalid JSON from an unreleased preview");
+    const file = window.draftFor("preview.md");
+    file.subscribe(() => {});
+    file.receive({ revision: "disk", content: "disk content" });
+    await file.flush();
+    return { ready: file.getSnapshot().ready, memoryOnly: file.getSnapshot().memoryOnly, text: file.getContent() };
+  });
+  assert.deepEqual(orphanedPreview, { ready: true, memoryOnly: false, text: "disk content" });
 
   // Continuous typing is backed up periodically, rather than postponing forever.
   const continuous = await page.evaluate(async () => {
