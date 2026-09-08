@@ -33,9 +33,43 @@ try {
   verifyRestoredAgentEventsKeepArchiveIdentity(root);
   verifyRestoredSnapshotNormalizesRuntimeState(root);
   verifyDiagnosticArchiveSkipsUnrelatedBlobsAndReportsMissingEvidence(root);
+  await verifyCloseFailureCanBeRetried(root);
   console.log("sqlite-state-store-harness ok");
 } finally {
   rmSync(root, { recursive: true, force: true });
+}
+
+async function verifyCloseFailureCanBeRetried(rootDir: string): Promise<void> {
+  // Exercise the real public store, including the business connection and both
+  // coordination connections. No layer may claim completion before cleanup.
+  for (const failAt of [1, 2, 3]) {
+    for (const closeFirst of [false, true]) {
+      const statePath = join(rootDir, `close-retry-${failAt}-${closeFirst}`, "local-state.sqlite");
+      const store = createSqliteStateStore(statePath);
+      assert.ok(store.close);
+      const close = DatabaseSync.prototype.close;
+      let calls = 0;
+      DatabaseSync.prototype.close = function (this: DatabaseSync) {
+        if (++calls === failAt) {
+          if (closeFirst) close.call(this);
+          throw new Error("injected_close_failure");
+        }
+        return close.call(this);
+      };
+      try {
+        await assert.rejects(store.close(), /injected_close_failure/);
+      } finally {
+        DatabaseSync.prototype.close = close;
+      }
+      if (!closeFirst) {
+        assert.throws(() => createSqliteStateStore(statePath), { code: "STATE_LOCKED" });
+      }
+      await store.close();
+      const replacement = createSqliteStateStore(statePath);
+      assert.ok(replacement.close);
+      await replacement.close();
+    }
+  }
 }
 
 function verifyRestoredSnapshotNormalizesRuntimeState(rootDir: string): void {

@@ -286,6 +286,21 @@ jobs:
       - run: npm ci
       - run: xvfb-run -a npm run test:desktop-protocol-proxy-electron
 
+  state-ownership-windows:
+    name: State ownership recovery (Windows)
+    needs: scope
+    if: needs.scope.outputs.server == 'true' || needs.scope.outputs.desktop == 'true'
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run test:windows:state-ownership
+
   media-streaming-windows:
     name: Media streaming cleanup (Windows)
     needs: scope
@@ -340,6 +355,7 @@ jobs:
       - web-packaging
       - browser-ui
       - desktop-protocol
+      - state-ownership-windows
       - media-streaming-windows
       - app-store-windows
       - real-agent
@@ -366,6 +382,7 @@ jobs:
             web-packaging=${{ needs.scope.outputs.web_packaging == 'true' && 'success' || 'skipped' }}
             browser-ui=${{ needs.scope.outputs.browser_ui == 'true' && 'success' || 'skipped' }}
             desktop-protocol=${{ needs.scope.outputs.desktop == 'true' && 'success' || 'skipped' }}
+            state-ownership-windows=${{ (needs.scope.outputs.server == 'true' || needs.scope.outputs.desktop == 'true') && 'success' || 'skipped' }}
             media-streaming-windows=${{ needs.scope.outputs.windows_media_cleanup == 'true' && 'success' || 'skipped' }}
             app-store-windows=${{ needs.scope.outputs.windows_app_store == 'true' && 'success' || 'skipped' }}
             real-agent=${{ needs.scope.outputs.real_agent == 'true' && 'success' || 'skipped' }}

@@ -52,6 +52,7 @@ const expectedDependencies = [
   "web-packaging",
   "browser-ui",
   "desktop-protocol",
+  "state-ownership-windows",
   "media-streaming-windows",
   "app-store-windows",
   "real-agent",
@@ -93,6 +94,15 @@ for (const [job, output] of [
   );
 }
 assert.match(requiredSection, /run: node scripts\/check-ci-results\.mjs/u);
+assert.match(
+  prWorkflow,
+  /state-ownership-windows:\n    name: State ownership recovery \(Windows\)\n    needs: scope\n    if: needs.scope.outputs.server == 'true' \|\| needs.scope.outputs.desktop == 'true'/u,
+);
+assert.match(
+  requiredSection,
+  /state-ownership-windows=\$\{\{ \(needs.scope.outputs.server == 'true' \|\| needs.scope.outputs.desktop == 'true'\) && 'success' \|\| 'skipped' \}\}/u,
+);
+assert.match(mainWorkflow, /command: test:windows:state-ownership/u);
 assert.match(prWorkflow, /^  real-agent:\n    name: Real Agent contracts$/mu);
 assert.match(prWorkflow, /^    uses: \.\/\.github\/workflows\/real-agent-smoke\.yml$/mu);
 assert.match(prWorkflow, /^    secrets: inherit$/mu);

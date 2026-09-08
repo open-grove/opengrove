@@ -222,7 +222,13 @@ if (!hasSingleInstanceLock) {
         onStateLockRecovered: (recovered) => {
           if (recovered.reason === "dead_holder") {
             logMain(`recovered stale desktop state lock for dead pid ${recovered.holder.pid}: ${recovered.lockPath}`);
-          } else {
+          } else if (recovered.reason === "released_ownership") {
+            logMain(`recovered abandoned desktop state marker after acquiring OS lock: ${recovered.lockPath}`);
+          } else if (recovered.reason === "reused_pid") {
+            logMain(
+              `recovered legacy desktop state lock after pid ${recovered.holder.pid} was reused: ${recovered.lockPath}`,
+            );
+          } else if (recovered.reason === "untrusted_lock") {
             logMain(`recovered malformed desktop state lock (${recovered.detail}): ${recovered.lockPath}`);
           }
         },
@@ -321,10 +327,15 @@ app.on("before-quit", (event) => {
       ? "desktop quitting; detaching reused bridge"
       : "desktop quitting; stopping bridge",
   );
-  void bridgeSupervisor.stop().finally(() => {
-    bridgeSupervisor = undefined;
-    app.quit();
-  });
+  void bridgeSupervisor
+    .stop()
+    .catch((error: unknown) => {
+      logMain(`desktop Bridge shutdown failed: ${error instanceof Error ? error.message : String(error)}`);
+    })
+    .finally(() => {
+      bridgeSupervisor = undefined;
+      app.quit();
+    });
 });
 
 app.on("window-all-closed", () => {

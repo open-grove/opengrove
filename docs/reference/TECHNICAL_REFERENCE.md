@@ -333,6 +333,40 @@ knowledge vault does so when `OPENGROVE_DATA_DIR` is unset, and diagnostic
 captures do so unless their capture-specific paths are overridden. The path
 overrides below select storage for the current runtime only.
 
+Each state writer holds an exclusive transaction on a separate, empty
+`<state-path>.lock.sqlite` coordination file for its whole lifetime. This uses
+SQLite's operating-system file locks without holding a transaction on the
+business database. Process exit releases ownership even after a crash. The
+coordination file is stable and must not be deleted or replaced while a writer
+may be running or starting. JSON stores and the legacy JSON migration path use
+the same ownership protocol so two Bridges cannot overwrite each other's
+in-memory state.
+
+The adjacent `.lock` JSON marker remains for compatibility with OpenGrove
+versions through 0.6.6. It carries `ownershipProtocol: "sqlite-v1"` for new
+writers and is no longer authoritative after OS ownership has been acquired.
+PID-only legacy markers are recovered only for a matching machine when the
+recorded process is gone or its creation time establishes that the PID was
+reused. Unavailable process metadata and foreign-machine markers remain
+protected. Desktop process inspection is asynchronous and shares one query per
+PID within each recovery attempt; Windows allows eight seconds for PowerShell
+startup. This compatibility path can be removed when PID-only writers and
+their persisted markers are no longer supported. Desktop recovery holds the
+same OS ownership while inspecting and recovering markers; it never removes a
+live new writer's marker, even if that marker is missing or malformed.
+
+Desktop shutdown waits for the owned Bridge's actual exit before completing or
+starting a replacement. It requests graceful shutdown over IPC and then uses a
+bounded forced-exit wait. A Bridge also shuts down when its parent disconnects,
+including parent loss before its lifecycle listeners were installed. Standalone
+Bridge launches without an IPC parent remain supported. Failed shutdown retains
+the owned process and exposes a stop/retry action; quitting cancels pending
+startup and crash-restart work before another writer can be admitted.
+
+If manual cleanup of an unreadable legacy marker is necessary, stop all
+OpenGrove processes first and remove only the exact `.lock` JSON file named in
+the error. Do not use a wildcard or delete the `.lock.sqlite` coordination file.
+
 Override paths with:
 
 ```bash

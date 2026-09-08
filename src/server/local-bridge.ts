@@ -34,7 +34,7 @@ function friendlyStateLockMessage(
     return `Another OpenGrove bridge is already using ${error.statePath ?? "this state file"} (${holder}). Stop it first, or set OPENGROVE_STATE_PATH to a different file.`;
   }
   if (error.code === "state_lock_unreadable") {
-    return `OpenGrove cannot trust the state lock ${error.lockPath ?? ""}. Delete that lock file manually after confirming no bridge is running, or set OPENGROVE_STATE_PATH to a different file.`;
+    return `OpenGrove cannot read the JSON lock marker ${error.lockPath ?? ""}. After confirming all OpenGrove processes have stopped, remove only that .lock JSON file and retry. Do not delete the .lock.sqlite coordination file or use a wildcard. Alternatively, set OPENGROVE_STATE_PATH to a different file.`;
   }
   return error.message;
 }

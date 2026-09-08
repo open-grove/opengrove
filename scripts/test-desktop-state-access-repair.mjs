@@ -34,8 +34,12 @@ try {
     join(dataDir, "local-state.sqlite-wal"),
     join(dataDir, "local-state.sqlite-shm"),
     join(dataDir, "local-state.sqlite.lock"),
+    join(dataDir, "local-state.sqlite.lock.sqlite"),
+    join(dataDir, "local-state.sqlite.lock.sqlite-journal"),
     join(dataDir, "local-state.json"),
     join(dataDir, "local-state.json.lock"),
+    join(dataDir, "local-state.json.lock.sqlite"),
+    join(dataDir, "local-state.json.lock.sqlite-journal"),
     join(dataDir, "bridge-settings.json"),
   ];
 

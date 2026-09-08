@@ -152,6 +152,8 @@ jobs:
         include:
           - name: Media cleanup
             command: test:windows:media-cleanup
+          - name: State ownership recovery
+            command: test:windows:state-ownership
           - name: App Store lifecycle
             command: test:windows:app-store-lifecycle
     steps:

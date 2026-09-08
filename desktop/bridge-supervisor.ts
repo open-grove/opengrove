@@ -19,6 +19,7 @@ import {
   type RecoveredDesktopStateLock,
 } from "./state-lock-recovery.js";
 import { desktopBridgeListenerProcessIds, ownedDesktopBridgeProcessIds } from "./bridge-process-control.js";
+import { stopDesktopBridgeChild } from "./bridge-child-shutdown.js";
 
 const BRIDGE_LOG_POLICY = { maxBytes: 10 * 1024 * 1024, retainedFiles: 2 } as const;
 
@@ -83,7 +84,7 @@ interface DesktopBridgeSupervisorOptions {
   onStatus?(diagnostics: DesktopBridgeDiagnostics): void;
   onStartupActivity?(activity: DesktopBridgeStartupActivity): void;
   onStateLockRecovered?(recovered: RecoveredDesktopStateLock): void;
-  recoverStateLocks?(userDataDir: string): DesktopStateLockRecoveryResult;
+  recoverStateLocks?(userDataDir: string): DesktopStateLockRecoveryResult | Promise<DesktopStateLockRecoveryResult>;
 }
 
 export interface DesktopBridgeStartOptions {
@@ -166,6 +167,8 @@ export class DesktopBridgeSupervisor {
   private preferredPort = 0;
   private stopping = false;
   private startPromise?: Promise<DesktopBridgeRuntimeInfo>;
+  private stopPromise?: Promise<void>;
+  private shutdownGeneration = 0;
   private bridgeLogWriter: BoundedLogWriter;
   private bridgeCrashLogWriter: BoundedLogWriter;
 
@@ -205,11 +208,23 @@ export class DesktopBridgeSupervisor {
   }
 
   async start(options: DesktopBridgeStartOptions = {}): Promise<DesktopBridgeRuntimeInfo> {
+    if (this.stopPromise) {
+      try {
+        await this.stopPromise;
+      } catch (error) {
+        // A failed stop is actionable, but never permission to overlap writers.
+        this.writeCrashLog(Buffer.from(`bridge stop before start failed: ${messageOf(error)}\n`));
+      }
+    }
     if (this.runtimeInfo && this.status === "running") {
       return this.runtimeInfo;
     }
     if (this.startPromise) {
+      if (this.stopping) throw this.unfinishedStopBlocker();
       return this.startPromise;
+    }
+    if (this.child && this.child.exitCode === null && this.child.signalCode === null) {
+      throw this.unfinishedStopBlocker();
     }
     this.stopping = false;
     this.status = this.restartCount > 0 ? "restarting" : "starting";
@@ -218,7 +233,7 @@ export class DesktopBridgeSupervisor {
     try {
       return await this.startPromise;
     } catch (error) {
-      this.status = "failed";
+      this.status = this.stopping && !this.child ? "stopped" : "failed";
       this.notifyStatus();
       throw error;
     } finally {
@@ -234,38 +249,61 @@ export class DesktopBridgeSupervisor {
   }
 
   async stop(): Promise<void> {
+    if (!this.stopPromise) {
+      this.stopPromise = this.stopBridge().finally(() => {
+        this.stopPromise = undefined;
+      });
+    }
+    return this.stopPromise;
+  }
+
+  private async stopBridge(): Promise<void> {
     this.stopping = true;
-    this.status = "stopped";
+    this.shutdownGeneration += 1;
     if (this.runtimeInfo?.mode === "reused") {
       this.runtimeInfo = undefined;
+      this.status = "stopped";
       this.notifyStatus();
       await this.flushLogs();
       return;
     }
     const child = this.child;
+    if (child) {
+      try {
+        await stopDesktopBridgeChild(child);
+      } catch (error) {
+        this.status = "failed";
+        this.notifyStatus();
+        throw error;
+      }
+    }
+    if (this.startPromise) {
+      try {
+        await this.startPromise;
+      } catch {
+        // Startup cancellation/failure is already reported by start(). Wait
+        // for it to release any recovery locks before admitting a replacement.
+      }
+    }
     this.child = undefined;
     this.runtimeInfo = undefined;
+    this.status = "stopped";
     this.notifyStatus();
-    if (!child || child.exitCode !== null || child.killed) {
-      await this.flushLogs();
-      return;
-    }
-    await new Promise<void>((resolve) => {
-      const timeout = setTimeout(() => {
-        child.kill("SIGKILL");
-        resolve();
-      }, 2_500);
-      child.once("exit", () => {
-        clearTimeout(timeout);
-        resolve();
-      });
-      if (child.connected) {
-        child.send({ type: "opengrove.desktop.bridge.shutdown" });
-      } else {
-        child.kill("SIGTERM");
-      }
-    });
     await this.flushLogs();
+  }
+
+  private unfinishedStopBlocker(): DesktopBridgeBlockerError {
+    this.status = "failed";
+    this.notifyStatus();
+    const pid = this.child?.pid;
+    return desktopBridgeBlocker(
+      "LOCAL_STATE_LOCKED",
+      "The previous OpenGrove Bridge has not finished stopping. Stop that process, then retry.",
+      {
+        actions: [...(pid ? ["stop_blocking_process" as const] : []), "open_data_dir", "retry"],
+        blockingPids: pid ? [pid] : [],
+      },
+    );
   }
 
   diagnostics(): DesktopBridgeDiagnostics {
@@ -300,6 +338,7 @@ export class DesktopBridgeSupervisor {
   private async startBridge(options: DesktopBridgeStartOptions): Promise<DesktopBridgeRuntimeInfo> {
     if (options.allowReuse !== false) {
       const reuse = await this.tryReuseExternalBridge();
+      if (this.stopping) throw new Error("desktop_bridge_stopped_during_startup");
       if (reuse.action === "reuse") {
         const runtimeInfo = this.reusedRuntimeInfo(reuse.probe);
         this.runtimeInfo = runtimeInfo;
@@ -314,7 +353,7 @@ export class DesktopBridgeSupervisor {
     }
     let lockRecovery: DesktopStateLockRecoveryResult;
     try {
-      lockRecovery = this.recoverStateLocks(this.paths.userDataDir);
+      lockRecovery = await this.recoverStateLocks(this.paths.userDataDir);
     } catch (error) {
       throw desktopBridgeBlocker(
         "LOCAL_STATE_LOCKED",
@@ -322,6 +361,7 @@ export class DesktopBridgeSupervisor {
         { actions: ["repair_state_access", "open_data_dir", "retry"] },
       );
     }
+    if (this.stopping) throw new Error("desktop_bridge_stopped_during_startup");
     for (const recovered of lockRecovery.recovered) {
       try {
         this.onStateLockRecovered?.(recovered);
@@ -333,7 +373,7 @@ export class DesktopBridgeSupervisor {
       const liveHolderPids = lockRecovery.blockers
         .filter((blocked) => blocked.reason === "holder_alive" && blocked.holder)
         .map((blocked) => blocked.holder?.pid ?? 0);
-      const blockingPids = ownedDesktopBridgeProcessIds(liveHolderPids);
+      const blockingPids = await ownedDesktopBridgeProcessIds(liveHolderPids);
       const accessRepairAvailable = lockRecovery.blockers.some(
         (blocked) => blocked.repairable === true || blocked.reason === "recovery_failed",
       );
@@ -367,7 +407,7 @@ export class DesktopBridgeSupervisor {
         code: "LEGACY_BRIDGE_RUNNING",
         message:
           "Detected an older OpenGrove bridge on port 37371. It does not expose state identity and may overwrite desktop data. Quit the old bridge or restart it after updating OpenGrove, then retry.",
-        ...runningBridgeBlockerDetails(probe.pid),
+        ...(await runningBridgeBlockerDetails(probe.pid)),
       };
     }
     const expectedStateId = stateIdFor(this.paths.statePath);
@@ -384,7 +424,7 @@ export class DesktopBridgeSupervisor {
         action: "blocked",
         code: "STALE_BRIDGE_RUNNING",
         message: `Detected an OpenGrove bridge from a different app version on port 37371 (bridge=${bridgePackageVersion || "unknown"}, app=${this.expectedPackageVersion}). Quit the old bridge or restart OpenGrove before continuing.`,
-        ...runningBridgeBlockerDetails(probe.pid),
+        ...(await runningBridgeBlockerDetails(probe.pid)),
       };
     }
 
@@ -397,7 +437,7 @@ export class DesktopBridgeSupervisor {
         code: "PROTECTED_BRIDGE_RUNNING",
         message:
           "Detected an OpenGrove bridge on port 37371 already using this desktop state file, but it requires authentication the desktop cannot reuse. Quit that bridge, then retry.",
-        ...runningBridgeBlockerDetails(probe.pid),
+        ...(await runningBridgeBlockerDetails(probe.pid)),
       };
     }
     if (probe.requiresToken === false && sameState) {
@@ -425,6 +465,7 @@ export class DesktopBridgeSupervisor {
 
   private async spawnBridge(): Promise<DesktopBridgeRuntimeInfo> {
     const env = await resolveDesktopEnvironment(process.env);
+    if (this.stopping) throw new Error("desktop_bridge_stopped_during_startup");
     const bridgeEntry = this.bridgeEntryPath();
     return new Promise((resolve, reject) => {
       let settled = false;
@@ -466,6 +507,7 @@ export class DesktopBridgeSupervisor {
       child.stdout?.on("data", (chunk: Buffer) => this.writeBridgeLog(chunk));
       child.stderr?.on("data", (chunk: Buffer) => this.writeCrashLog(chunk));
       child.on("message", (message: unknown) => {
+        if (this.stopping || this.child !== child) return;
         if (isDesktopBridgeStartupActivityMessage(message)) {
           this.notifyStartupActivity(message.activity);
           return;
@@ -496,6 +538,7 @@ export class DesktopBridgeSupervisor {
         }
       });
       child.once("error", (error) => {
+        if (this.child !== child) return;
         this.writeCrashLog(Buffer.from(`${error.stack || error.message}\n`));
         if (!settled) {
           settled = true;
@@ -504,11 +547,16 @@ export class DesktopBridgeSupervisor {
         }
       });
       child.once("exit", (code, signal) => {
-        if (this.stopping) {
-          return;
-        }
+        if (this.child !== child) return;
         this.child = undefined;
         this.runtimeInfo = undefined;
+        if (this.stopping) {
+          if (!settled) {
+            settled = true;
+            reject(new Error("desktop_bridge_stopped_during_startup"));
+          }
+          return;
+        }
         this.crashCount += 1;
         this.writeCrashLog(Buffer.from(`bridge exited code=${code ?? "null"} signal=${signal ?? "null"}\n`));
         if (!settled) {
@@ -524,6 +572,7 @@ export class DesktopBridgeSupervisor {
   }
 
   private async scheduleRestart(): Promise<void> {
+    const generation = this.shutdownGeneration;
     if (this.consecutiveCrashRestarts >= 3) {
       this.status = "failed";
       this.notifyStatus();
@@ -534,6 +583,7 @@ export class DesktopBridgeSupervisor {
     this.status = "restarting";
     this.notifyStatus();
     await new Promise((resolve) => setTimeout(resolve, 1_000));
+    if (this.stopping || generation !== this.shutdownGeneration) return;
     try {
       await this.start({ allowReuse: false });
     } catch {
@@ -656,12 +706,12 @@ function desktopBridgeBlocker(
   return error;
 }
 
-function runningBridgeBlockerDetails(pid: number | undefined): {
+async function runningBridgeBlockerDetails(pid: number | undefined): Promise<{
   actions: DesktopBridgeStartupBlockerAction[];
   blockingPids: number[];
-} {
-  const candidates = typeof pid === "number" ? [pid] : desktopBridgeListenerProcessIds(37_371);
-  const blockingPids = ownedDesktopBridgeProcessIds(candidates);
+}> {
+  const candidates = typeof pid === "number" ? [pid] : await desktopBridgeListenerProcessIds(37_371);
+  const blockingPids = await ownedDesktopBridgeProcessIds(candidates);
   return {
     actions: [...(blockingPids.length > 0 ? ["stop_blocking_process" as const] : []), "retry"],
     blockingPids,
@@ -698,6 +748,9 @@ function describeStateLockBlockers(blockers: DesktopStateLockBlocker[]): string 
       }
       if (blocked.reason === "foreign_host" && blocked.holder) {
         return `${blocked.statePath} is owned by OpenGrove on ${blocked.holder.host}. Close that instance before retrying; the lock was preserved to prevent concurrent writes.`;
+      }
+      if (blocked.reason === "ownership_busy") {
+        return `${blocked.statePath} is in use by another OpenGrove process. Close that process and retry.`;
       }
       return `${blocked.statePath} could not be safely recovered (${blocked.detail}).`;
     })

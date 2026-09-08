@@ -40,6 +40,7 @@ interface DesktopBridgeClosableServer {
 interface DesktopBridgeParentLifecycle {
   onMessage(listener: (message: unknown) => void): void;
   onDisconnect(listener: () => void): void;
+  isConnected?(): boolean;
   exit(): void;
 }
 
@@ -136,6 +137,10 @@ export function startDesktopBridgeFromEnv() {
     },
     onDisconnect(listener) {
       process.once("disconnect", listener);
+    },
+    isConnected() {
+      // Standalone launches have no IPC channel (undefined), not a lost parent.
+      return process.connected !== false;
     },
     exit() {
       process.exit(0);
@@ -254,6 +259,8 @@ export function installDesktopBridgeParentLifecycle(
   // Closing on IPC disconnect turns the next launch into the normal dead-lock
   // recovery path instead of leaving a live orphan that blocks the user.
   lifecycle.onDisconnect(shutdown);
+  // Parent loss can precede listener installation during module/startup work.
+  if (lifecycle.isConnected?.() === false) shutdown();
 }
 
 function envValue(name: string): string | undefined {

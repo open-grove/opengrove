@@ -112,6 +112,24 @@ async function verifyDesktopBridgeStopsWhenParentDisconnects(): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve, 30));
   assert.equal(forcedConnectionCloseCount, 1, "disconnect must terminate long-lived Bridge connections");
   assert.equal(forcedExitCount, 1, "disconnect must force the orphaned Bridge to exit by its deadline");
+
+  let alreadyDisconnectedExitCount = 0;
+  installDesktopBridgeParentLifecycle(
+    {
+      close(callback) {
+        callback();
+      },
+    },
+    {
+      onMessage() {},
+      onDisconnect() {},
+      isConnected: () => false,
+      exit() {
+        alreadyDisconnectedExitCount += 1;
+      },
+    },
+  );
+  assert.equal(alreadyDisconnectedExitCount, 1, "parent loss before listener installation must also stop the Bridge");
 }
 
 async function verifyAbandonedRecoveryArtifactsCleanAfterAcquire(root: string): Promise<void> {
@@ -321,7 +339,7 @@ function writeHolderLock(statePath: string, pid: number, host = hostname(), mach
     lockPath,
     `${JSON.stringify({
       pid,
-      startedAt: "2026-06-16T00:00:00.000Z",
+      startedAt: new Date().toISOString(),
       statePath: canonical,
       host,
       ...(machineId ? { machineId } : {}),
