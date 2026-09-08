@@ -24,10 +24,10 @@ capability certifications retain their own versions; a Provider transport check
 does not certify every capability of a newer runtime.
 
 Pi uses the public 0.85.1 AgentHarness and AgentLane contracts for durable
-turns, native tools, cancellation recovery and compaction. Sessions written by
-the 0.84.4 adapter are imported through Pi's public storage mutations before
-opening; the original JSONL is retained alongside it with a `.pre-pi085` suffix.
-Unknown old record kinds fail explicitly and leave the source unchanged.
+turns, native tools, cancellation recovery and compaction. This upgrade starts
+fresh native sessions for the former adapter's hashed session IDs. Old files
+remain untouched; their native history is not imported. New sessions use Host
+IDs in the native header, so listing sessions does not load their transcripts.
 
 Use `npm run certify:openclaw` for the current Gateway handshake and model-list
 contract; the version-specific 2026.8.2 command remains reproducible.

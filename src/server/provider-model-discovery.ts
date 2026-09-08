@@ -185,14 +185,14 @@ function providerDiscoveryIdentity(profile: BridgeProviderProfile): DiscoveryIde
   if (!isDiscoverableProviderId(profile.id) || profile.enabled === false) return undefined;
   const apiKey = profile.apiKey?.trim() || (profile.apiKeyEnv ? process.env[profile.apiKeyEnv]?.trim() : undefined);
   if (!apiKey) return undefined;
+  if (profile.id === "gemini" && !profile.geminiBaseUrl) return undefined;
+  if (profile.id === "deepseek" && !profile.openaiBaseUrl) return undefined;
   const source =
     profile.id === "gemini"
       ? `${profile.geminiBaseUrl?.trim().replace(/\/+$/, "")}/models`
       : profile.id === "deepseek" || profile.id === "openai"
         ? openAiModelsSource(profile)
         : anthropicModelsSource(profile);
-  if (profile.id === "gemini" && !profile.geminiBaseUrl) return undefined;
-  if (profile.id === "deepseek" && !profile.openaiBaseUrl) return undefined;
   return {
     providerId: profile.id,
     source,

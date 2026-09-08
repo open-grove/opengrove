@@ -657,7 +657,7 @@ export interface ProviderProfile {
   docsUrl?: string;
   /** Read-only state joined by the Bridge. Never include it in settings PATCHes. */
   runtime?: ProviderRuntimeState;
-  /** Read-only Host binding decisions. Never persist in Provider settings. */
+  /** Read-only Host decisions. Missing means no external Kernel binding. Never persist in settings. */
   bindings?: Record<string, string>;
 }
 

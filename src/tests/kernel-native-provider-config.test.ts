@@ -15,7 +15,7 @@ import {
   hermesProviderConfigForKernel,
 } from "../server/provider-profiles.js";
 
-test("Kimi binds Google through its native SDK and receives the selected model limits", () => {
+test("Kimi binds Google through its native SDK without unrelated protocol overrides", () => {
   const google = getAllBridgeProviderProfiles(undefined).find((p) => p.id === "gemini");
   assert.ok(google);
   const binding = providerProfileForKernel(
@@ -30,6 +30,23 @@ test("Kimi binds Google through its native SDK and receives the selected model l
   assert.equal(env?.KIMI_MODEL_BASE_URL, "https://generativelanguage.googleapis.com");
   assert.equal(env?.KIMI_MODEL_MAX_CONTEXT_SIZE, "1048576");
   assert.equal(env?.KIMI_MODEL_MAX_OUTPUT_SIZE, "65536");
+  assert.equal(env?.KIMI_MODEL_REASONING_KEY, undefined);
+});
+
+test("Kimi Responses receives DeepSeek's output cap instead of a context-sized fallback", () => {
+  const deepseek = getAllBridgeProviderProfiles(undefined).find((p) => p.id === "deepseek");
+  assert.ok(deepseek);
+  const binding = providerProfileForKernel(
+    "kimi",
+    { ...deepseek, enabled: true, apiKey: "test-key" },
+    "deepseek-v4-flash",
+  );
+  assert.ok(binding);
+  const env = buildKimiProviderEnv(binding);
+  assert.equal(env?.KIMI_MODEL_PROVIDER_TYPE, "openai_responses");
+  assert.equal(env?.KIMI_MODEL_MAX_CONTEXT_SIZE, "1000000");
+  assert.equal(env?.KIMI_MODEL_MAX_OUTPUT_SIZE, "384000");
+  assert.equal(env?.KIMI_MODEL_REASONING_KEY, undefined);
 });
 
 test("a native Responses Codex route preserves the selected model context without entering the Chat proxy", () => {
@@ -52,7 +69,7 @@ test("a native Responses Codex route preserves the selected model context withou
   assert.equal(codexThreadConfig(config, { model: "uncatalogued" }).model_context_window, undefined);
 });
 
-test("changing a Provider's wire API or model limits invalidates the cached native binding", () => {
+test("provider catalog refreshes preserve native session identity across Kernels", () => {
   const provider = {
     id: "external",
     name: "External",
@@ -67,13 +84,18 @@ test("changing a Provider's wire API or model limits invalidates the cached nati
     providerBindingFingerprint({ kernelId: "codex", provider: { ...provider, wireApi: "responses" } }),
     current,
   );
-  assert.notEqual(
-    providerBindingFingerprint({
-      kernelId: "codex",
-      provider: { ...provider, models: [{ id: "custom-model", label: "Custom", metadata: { contextWindow: 64000 } }] },
-    }),
-    current,
-  );
+  for (const kernelId of ["codex", "claude-code", "hermes", "kimi", "opencode", "pi"] as const) {
+    const input = { kernelId, providerModel: "custom-model", kernelModel: "custom-model" };
+    const original = providerBindingFingerprint({ ...input, provider });
+    const expanded = [...provider.models, { id: "unrelated", label: "New", metadata: { contextWindow: 64000 } }];
+    for (const models of [
+      expanded,
+      [...expanded].reverse(),
+      [{ ...provider.models[0]!, metadata: { contextWindow: 64000 } }],
+    ]) {
+      assert.equal(providerBindingFingerprint({ ...input, provider: { ...provider, models } }), original);
+    }
+  }
 });
 
 test("Claude receives the selected context window without inheriting another model's limit", () => {

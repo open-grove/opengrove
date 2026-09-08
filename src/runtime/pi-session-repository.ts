@@ -1,20 +1,18 @@
-import { createHash } from "node:crypto";
 import {
   BACKGROUND_CONTEXT as background,
   JsonlSessionRepo,
   MemorySessionRepo,
-  value,
   type ExecutionEnv,
   type Session,
 } from "@earendil-works/pi-agent-core";
 import { NodeExecutionEnv } from "@earendil-works/pi-agent-core/node";
 import type { AgentSessionInfo } from "../core.js";
-import { migratePi084Sessions } from "./pi-session-upgrade.compat.js";
-
-export const openGroveSessionIdentity = value<string>("opengrove.session.id");
+// Pi 0.85 sessions use Host IDs directly so native list() needs only headers.
+// Pre-0.85 hashed IDs are intentionally left untouched; upgrading starts fresh.
+const SESSION_PREFIX = "opengrove-session:";
 
 export function nativePiSessionId(id: string): string {
-  return `opengrove-${createHash("sha256").update(id).digest("hex").slice(0, 32)}`;
+  return `${SESSION_PREFIX}${id}`;
 }
 
 /** Owns Host identity mapping; transcript and fork storage remain native Pi operations. */
@@ -22,12 +20,11 @@ export class NativePiSessionRepository {
   private readonly jsonl?: JsonlSessionRepo;
   private readonly memory = new MemorySessionRepo();
   private readonly sessions = new Map<string, Promise<Session>>();
-  private ready?: Promise<void>;
 
   constructor(
-    private readonly root?: string,
+    root?: string,
     private readonly cwd = process.cwd(),
-    private readonly env: ExecutionEnv = new NodeExecutionEnv({ cwd }),
+    env: ExecutionEnv = new NodeExecutionEnv({ cwd }),
   ) {
     if (root?.trim()) {
       this.jsonl = new JsonlSessionRepo({ fileSystem: env, sessionsRoot: root.trim() });
@@ -35,7 +32,6 @@ export class NativePiSessionRepository {
   }
 
   private async open(id: string, create: boolean): Promise<Session | undefined> {
-    await (this.ready ??= this.root?.trim() ? migratePi084Sessions(this.root.trim(), this.env) : Promise.resolve());
     const nativeId = nativePiSessionId(id);
     const cached = this.sessions.get(nativeId);
     if (cached) return cached;
@@ -54,12 +50,6 @@ export class NativePiSessionRepository {
         : create
           ? await this.remember(nativeId, () => this.memory.create({ id: nativeId }, background))
           : undefined;
-    }
-    if (session) {
-      if ((await session.getValue(openGroveSessionIdentity, background))?.value !== id) {
-        await session.setValue(openGroveSessionIdentity, id, background);
-      }
-      this.sessions.set(nativeId, Promise.resolve(session));
     }
     return session;
   }
@@ -80,23 +70,15 @@ export class NativePiSessionRepository {
   }
 
   async list(): Promise<AgentSessionInfo[]> {
-    await (this.ready ??= this.root?.trim() ? migratePi084Sessions(this.root.trim(), this.env) : Promise.resolve());
     const candidates = this.jsonl
-      ? (await this.jsonl.list({ cwd: this.cwd }, background)).map((metadata) => ({
-          metadata,
-          open: () => this.jsonl!.open(metadata, background),
-        }))
-      : (await this.memory.list(undefined, background)).map((metadata) => ({
-          metadata,
-          open: () => this.memory.open(metadata, background),
-        }));
-    const result: AgentSessionInfo[] = [];
-    for (const { metadata, open } of candidates) {
-      const session = await this.remember(metadata.id, open);
-      const identity = (await session.getValue(openGroveSessionIdentity, background))?.value;
-      result.push({ sessionId: identity ?? metadata.id, nativeSessionId: metadata.id });
-    }
-    return result;
+      ? await this.jsonl.list({ cwd: this.cwd }, background)
+      : await this.memory.list(undefined, background);
+    return candidates
+      .filter(({ id }) => id.startsWith(SESSION_PREFIX))
+      .map(({ id }) => ({
+        sessionId: id.slice(SESSION_PREFIX.length),
+        nativeSessionId: id,
+      }));
   }
 
   /** Drop only a handle whose Harness has already closed the native session. */
@@ -105,7 +87,6 @@ export class NativePiSessionRepository {
   }
 
   async delete(id: string): Promise<boolean> {
-    await (this.ready ??= this.root?.trim() ? migratePi084Sessions(this.root.trim(), this.env) : Promise.resolve());
     const nativeId = nativePiSessionId(id);
     const session = await this.sessions.get(nativeId);
     await session?.close(background);
@@ -134,8 +115,15 @@ export class NativePiSessionRepository {
       )!;
       fork = await this.jsonl.fork(metadata, { scope: "tree", id }, background);
     } else fork = await this.memory.fork(source.metadata, { scope: "tree", id }, background);
-    await fork.setValue(openGroveSessionIdentity, targetId, background);
     this.sessions.set(id, Promise.resolve(fork));
     return "forked";
+  }
+
+  async close(): Promise<void> {
+    try {
+      await (this.jsonl ?? this.memory).close(background);
+    } finally {
+      this.sessions.clear();
+    }
   }
 }

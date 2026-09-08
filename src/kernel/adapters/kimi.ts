@@ -358,6 +358,9 @@ async function disposeRuntime(runtime: AgentRuntime | undefined): Promise<void> 
 
 export function buildKimiProviderEnv(profile: ProviderProfile): Record<string, string> | undefined {
   if (!profile.apiKey || !profile.baseUrl || !profile.model) return undefined;
+  // Verified with Kimi 0.41.0: `kimi acp` uses agent-core-v2, whose Provider
+  // registry accepts google-genai and openai_responses (unlike the legacy env parser).
+  // https://github.com/MoonshotAI/kimi-code/blob/%40moonshot-ai/kimi-code%400.41.0/apps/kimi-code/src/cli/sub/acp.ts
   const providerType =
     profile.protocol === "anthropic-compatible"
       ? "anthropic"
@@ -384,8 +387,13 @@ export function buildKimiProviderEnv(profile: ProviderProfile): Record<string, s
         : profile.baseUrl,
     KIMI_MODEL_PROVIDER_TYPE: providerType,
     ...(metadata?.contextWindow ? { KIMI_MODEL_MAX_CONTEXT_SIZE: String(metadata.contextWindow) } : {}),
+    // In 0.41 ACP, maxOutputSize also caps the shared completion budget for
+    // OpenAI and Google. Without it, the fallback can exceed a Provider's cap.
+    // https://github.com/MoonshotAI/kimi-code/blob/%40moonshot-ai/kimi-code%400.41.0/packages/agent-core-v2/src/kosong/model/completionBudget.ts
     ...(metadata?.maxOutputTokens ? { KIMI_MODEL_MAX_OUTPUT_SIZE: String(metadata.maxOutputTokens) } : {}),
-    ...(metadata?.interleaved ? { KIMI_MODEL_REASONING_KEY: metadata.interleaved.field } : {}),
+    ...(providerType === "openai" && metadata?.interleaved
+      ? { KIMI_MODEL_REASONING_KEY: metadata.interleaved.field }
+      : {}),
   };
 }
 

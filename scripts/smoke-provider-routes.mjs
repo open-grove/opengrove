@@ -86,7 +86,13 @@ try {
         results.push(result);
         console.log(redact(result));
       } catch (error) {
-        const result = { provider: providerId, kernel, ok: false, error: error.message };
+        const result = {
+          provider: providerId,
+          kernel,
+          ok: false,
+          elapsedMs: Date.now() - started,
+          error: error.message,
+        };
         results.push(result);
         console.log(redact(result));
       }
@@ -332,15 +338,8 @@ async function checkKimi(profile) {
     .trim();
   const errors = events.filter((e) => e.type === "error");
   const read = events.some((e) => e.type === "tool.finished" && e.result?.ok);
-  const prior = events.find((e) => e.type === "model.requested")?.request;
-  const resumedHistory =
-    (prior?.session?.priorMessageCount ?? 0) >= 4 && JSON.stringify(prior?.messages).includes("OG_PROVIDER_SMOKE_OK");
-  if (
-    errors.length ||
-    (resume ? !resumedHistory || events.some((e) => e.type === "tool.started") : !read) ||
-    answer !== "OG_PROVIDER_SMOKE_OK"
-  )
-    throw new Error(JSON.stringify({ errors, read, answer }));
+  if (errors.length || !read || answer !== "OG_PROVIDER_SMOKE_OK")
+    throw new Error(JSON.stringify({ errors, read, answer, directory, timedOut: controller.signal.aborted }));
   return { api: env.KIMI_MODEL_PROVIDER_TYPE, toolRoundTrip: true, answer, directory };
 }
 

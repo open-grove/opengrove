@@ -79,6 +79,7 @@ export interface PiSessionFactory {
   listSessions?(): Promise<AgentSessionInfo[]>;
   deleteSession?(sessionId: string): Promise<AgentSessionDeleteResult>;
   forkSession?(sourceSessionId: string, targetSessionId: string): Promise<AgentSessionForkResult>;
+  dispose?(): Promise<void>;
 }
 
 export interface PiAgentRuntimeOptions {
@@ -96,6 +97,10 @@ const DEFAULT_SYSTEM = [
 
 export class PiAgentRuntime implements AgentRuntime {
   constructor(private readonly options: PiAgentRuntimeOptions) {}
+
+  async dispose(): Promise<void> {
+    await this.options.createSession.dispose?.();
+  }
 
   async *runTurn(request: AgentTurnRequest): AsyncIterable<AgentEvent> {
     const runId = resolveRuntimeRunId(request.runId);

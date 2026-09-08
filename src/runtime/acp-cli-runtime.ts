@@ -869,6 +869,7 @@ export class AcpCliRuntime implements AgentRuntime {
   }
 
   private rememberAcpModelOptions(client: StdioJsonRpcClient, sessionId: string, setup: Record<string, unknown>): void {
+    if (!Array.isArray(setup.configOptions) && !Array.isArray(asObject(setup.models).availableModels)) return;
     const configOptions = Array.isArray(setup.configOptions) ? setup.configOptions.map(asObject) : [];
     const selector = configOptions.find(
       (option) => option.type === "select" && (option.category === "model" || option.id === "model"),

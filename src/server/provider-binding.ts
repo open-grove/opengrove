@@ -176,10 +176,7 @@ export function providerBindingFingerprint(input: {
       sourceKernel: input.provider?.sourceKernel,
       protocol: plan.protocol,
       wireApi: input.provider?.wireApi,
-      models:
-        plan.kind === "external-provider"
-          ? input.provider?.models.map(({ id, apiModelId, metadata }) => ({ id, apiModelId, metadata }))
-          : undefined,
+      // Catalog updates change runtime configuration, never the identity of a native conversation.
       credentialKind: plan.credentialKind,
       openaiBaseUrl: input.provider?.openaiBaseUrl,
       anthropicBaseUrl: input.provider?.anthropicBaseUrl,

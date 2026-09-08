@@ -57,6 +57,7 @@ test("Pi's actual model registry dispatches a custom Responses route to /respons
       if (event.type === "error") errors.push(event.message);
     }
     assert.deepEqual(paths, ["/v1/responses"]);
+    assert.equal(errors.length, 1, "one failed provider request must emit one error");
     assert.ok(errors.some((message) => message.includes("Transport probe complete")));
   } finally {
     await adapter.dispose?.();

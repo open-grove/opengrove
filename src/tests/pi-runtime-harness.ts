@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createAssistantMessageEventStream, createModels, createProvider } from "@earendil-works/pi-ai";
@@ -261,7 +261,6 @@ async function main() {
   await assertNativePiApprovalContinuesSameLoop();
   await assertNativePiForkedSkillIsEphemeral();
   await assertNativePiDurableSessionRestart();
-  await assertNativePi084Resume();
   await assertNativePiRejectsActiveSessionDeletion();
   await assertNativePiCompaction();
 
@@ -858,6 +857,11 @@ async function assertNativePiAbortHasSettlementBound(): Promise<void> {
   ]);
   assert.equal(outcome, "settled", "Pi abort must not wait forever for a provider that ignores cancellation");
   assert.ok(events.some((event) => event.type === "error" && /pi_abort_settlement_timeout/.test(event.message)));
+  assert.equal(
+    events.filter((event) => event.type === "error").length,
+    1,
+    "forced close must not add HarnessClosed noise",
+  );
 }
 
 async function assertNativePiAbortRepairsPendingToolHistory(): Promise<void> {
@@ -1141,62 +1145,6 @@ async function assertNativePiForkedSkillIsEphemeral(): Promise<void> {
     ["pi-fork-skill-parent"],
     "forked skill execution must not pollute the durable Pi session list",
   );
-}
-
-async function assertNativePi084Resume(): Promise<void> {
-  for (const compacted of [false, true]) {
-    const root = mkdtempSync(join(tmpdir(), "opengrove-pi-084-resume-"));
-    try {
-      const directory = join(root, "--opengrove-upgrade-fixture--");
-      mkdirSync(directory);
-      writeFileSync(
-        join(directory, "fixture.jsonl"),
-        readFileSync(`src/tests/fixtures/pi-084/${compacted ? "compacted-session" : "tool-session"}.jsonl`),
-      );
-      const model = nativeTestModel("pi-upgraded-model");
-      const makeRuntime = () =>
-        new PiAgentRuntime({
-          createSession: createNativePiSessionFactory({
-            model,
-            sessionRoot: root,
-            cwd: "/opengrove-upgrade-fixture",
-            streamFn: (_model, context) => {
-              if (compacted) assert.match(JSON.stringify(context.messages), /The original marker was cedar-314/);
-              else
-                assert.ok(
-                  context.messages.some(
-                    (message) => message.role === "toolResult" && message.toolCallId === "fixture-read",
-                  ),
-                );
-              assert.match(JSON.stringify(context.messages), /cedar-314/);
-              return assistantStream("continued cedar-314", model.id);
-            },
-          }),
-        });
-      const first = await collect(makeRuntime(), createContext("pi-084-upgrade-session"), "continue after upgrading");
-      assert.ok(
-        first.some((event) => event.type === "model.response" && event.response.text === "continued cedar-314"),
-      );
-      assert.deepEqual(
-        first.filter((event) => event.type === "error"),
-        [],
-      );
-      const second = await collect(
-        makeRuntime(),
-        createContext("pi-084-upgrade-session"),
-        "continue after restarting again",
-      );
-      const request = second.find((event) => event.type === "model.requested");
-      assert.ok(request?.type === "model.requested");
-      assert.match(JSON.stringify(request.request.messages), /continue after upgrading/);
-      assert.deepEqual(
-        second.filter((event) => event.type === "error"),
-        [],
-      );
-    } finally {
-      rmSync(root, { recursive: true, force: true });
-    }
-  }
 }
 
 async function assertNativePiDurableSessionRestart(): Promise<void> {

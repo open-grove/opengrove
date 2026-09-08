@@ -1,5 +1,7 @@
 import {
   AgentHarness,
+  HarnessClosed,
+  HarnessFault,
   BACKGROUND_CONTEXT as background,
   type AgentLane,
   type HarnessEvent,
@@ -134,6 +136,7 @@ export function createNativePiSessionFactory(options: NativePiSessionOptions): P
     if (active?.isRunning) {
       return { ok: false, deleted: false, error: "pi_session_busy" };
     }
+    await active?.close();
     const deleted = await repository.delete(sessionId);
     // Forget an inactive Host handle even when no durable entry existed. This
     // keeps repository and factory caches aligned for a later fork/create.
@@ -157,6 +160,14 @@ export function createNativePiSessionFactory(options: NativePiSessionOptions): P
       session: { sessionId: targetSessionId, nativeSessionId: nativePiSessionId(targetSessionId) },
     };
   };
+  factory.dispose = async () => {
+    try {
+      await Promise.all([...sessions.values()].map((session) => session.close()));
+    } finally {
+      sessions.clear();
+      await repository.close();
+    }
+  };
   return factory;
 }
 
@@ -164,6 +175,9 @@ class NativePiSession implements PiSession {
   readonly emitsModelRequests = true;
   private harness?: AgentHarness<ExecutionToolContext>;
   private lane?: AgentLane;
+  private opening?: Promise<void>;
+  private closing?: Promise<void>;
+  private faulted = false;
   private streamFn?: StreamFn;
   private removeToolGate?: () => void;
   private nativeToolNames = new Map<string, string>();
@@ -183,12 +197,40 @@ class NativePiSession implements PiSession {
   }
 
   get isRunning(): boolean {
-    return this.activeRuns > 0;
+    return this.activeRuns > 0 || this.opening !== undefined || this.closing !== undefined;
+  }
+
+  async close(): Promise<void> {
+    await this.opening;
+    await this.closeNativeHarness();
+  }
+
+  private closeNativeHarness(): Promise<void> {
+    if (this.closing) return this.closing;
+    const harness = this.harness;
+    if (!harness) return Promise.resolve();
+    this.harness = undefined;
+    this.lane = undefined;
+    this.faulted = false;
+    this.removeToolGate?.();
+    this.removeToolGate = undefined;
+    this.closing = Promise.resolve()
+      .then(() => harness.close(background))
+      .finally(() => {
+        this.repository.release(this.sessionId);
+        this.closing = undefined;
+      });
+    return this.closing;
   }
 
   async trace(): Promise<AgentSessionTrace> {
-    await this.ensureNativeSession();
-    return this.createSessionTrace();
+    try {
+      await this.ensureNativeSession();
+      return await this.createSessionTrace();
+    } catch (error) {
+      if (error instanceof HarnessFault) this.faulted = true;
+      throw error;
+    }
   }
 
   private async createSessionTrace(): Promise<AgentSessionTrace> {
@@ -208,6 +250,9 @@ class NativePiSession implements PiSession {
     this.activeRuns += 1;
     try {
       yield* this.runActiveTurn(input, context);
+    } catch (error) {
+      if (error instanceof HarnessFault) this.faulted = true;
+      throw error;
     } finally {
       this.activeRuns = Math.max(0, this.activeRuns - 1);
     }
@@ -221,6 +266,7 @@ class NativePiSession implements PiSession {
     let wake: (() => void) | undefined;
     let streamingMessage: NativeAgentMessage | undefined;
     const turnMessages: NativeAgentMessage[] = [];
+    let faultReported = false;
     const projector = new PiNativeMessageProjector(context.runId);
     const push = (events: NativeSessionEvent[]) => {
       queue.push(...events);
@@ -269,6 +315,7 @@ class NativePiSession implements PiSession {
     ).map((type) =>
       this.harness!.events.on(type, (event) => {
         if (event.type === "fault" || event.type === "handler_error") {
+          if (event.type === "fault") faultReported = true;
           push([
             { type: "error", runId: context.runId, message: event.type === "fault" ? event.message : event.error },
           ]);
@@ -278,9 +325,6 @@ class NativePiSession implements PiSession {
         if (event.type === "message_end") {
           streamingMessage = undefined;
           turnMessages.push(event.message);
-          if (event.message.role === "assistant" && event.message.errorMessage) {
-            push([{ type: "error", runId: context.runId, message: event.message.errorMessage }]);
-          }
         }
         if (event.type === "run_end") {
           if (event.status === "aborted") project(projector.abort(streamingMessage));
@@ -315,16 +359,9 @@ class NativePiSession implements PiSession {
             message: "pi_abort_settlement_timeout: Pi provider or tool did not settle after cancellation",
           },
         ]);
-        const harness = this.harness!;
-        closeTask = harness
-          .close(background)
-          .then(() => {
-            this.repository.release(this.sessionId);
-            this.harness = undefined;
-            this.lane = undefined;
-            this.removeToolGate = undefined;
-          })
-          .catch((error) => push([{ type: "error", runId: context.runId, message: String(error) }]));
+        closeTask = this.closeNativeHarness().catch((error) =>
+          push([{ type: "error", runId: context.runId, message: String(error) }]),
+        );
       }, this.options.abortSettleTimeoutMs ?? 15_000);
       // Pi closes the effect gate; reopening reconciles orphaned tools and partial
       // assistant frames through its own recovery. Never fabricate tool results.
@@ -337,7 +374,12 @@ class NativePiSession implements PiSession {
           )
             throw result.error;
         })
-        .catch((error) => push([{ type: "error", runId: context.runId, message: String(error) }]));
+        .catch((error) => {
+          // Closing an in-flight abort rejects with HarnessClosed; an abort
+          // started after close instead returns Result.err(Closed).
+          if (!(abortTimedOut && error instanceof HarnessClosed))
+            push([{ type: "error", runId: context.runId, message: String(error) }]);
+        });
     };
     const prompt = (async () => {
       if (context.requestedSkillInvocation?.context === "inline") {
@@ -360,7 +402,8 @@ class NativePiSession implements PiSession {
       if (result.value.kind !== "settled") throw new Error(`pi_operation_waiting: ${result.value.reason}`);
     })()
       .catch((error) => {
-        if (!abortTimedOut)
+        if (error instanceof HarnessFault) this.faulted = true;
+        if (!abortTimedOut && !(faultReported && error instanceof HarnessFault))
           push([
             { type: "error", runId: context.runId, message: error instanceof Error ? error.message : String(error) },
           ]);
@@ -387,6 +430,7 @@ class NativePiSession implements PiSession {
       if (abortTimer) clearTimeout(abortTimer);
       for (const unsubscribe of listeners) unsubscribe();
     }
+    while (queue.length) yield queue.shift()!;
   }
 
   async compact(request: AgentCompactRequest): Promise<AgentCompactResult> {
@@ -418,6 +462,7 @@ class NativePiSession implements PiSession {
         ? { ok: false, compacted: false, error: result.value.compaction.error?.message ?? "pi_compaction_failed" }
         : { ok: true, compacted };
     } catch (error) {
+      if (error instanceof HarnessFault) this.faulted = true;
       return { ok: false, compacted: false, error: error instanceof Error ? error.message : String(error) };
     }
   }
@@ -558,7 +603,16 @@ class NativePiSession implements PiSession {
   }
 
   private async ensureNativeSession(): Promise<void> {
+    await this.closing;
+    if (this.faulted) await this.closeNativeHarness();
     if (this.harness) return;
+    this.opening ??= this.openNativeSession().finally(() => {
+      this.opening = undefined;
+    });
+    await this.opening;
+  }
+
+  private async openNativeSession(): Promise<void> {
     const session = await this.repository.openOrCreate(this.sessionId);
     const catalog = this.options.models!;
     const models = new Proxy(catalog, {
@@ -579,29 +633,43 @@ class NativePiSession implements PiSession {
         return typeof member === "function" ? member.bind(target) : member;
       },
     });
-    const { harness, open } = await AgentHarness.create(
-      {
-        session,
-        models,
-        model: resolveModel(this.options.model, this.runtimeContext.requestedModelId),
-        thinkingLevel: resolveThinkingLevel(this.options.thinkingLevel, this.runtimeContext.requestedEffort),
-        systemPrompt: () => this.runtimeContext.system,
-        toolContext: { env: this.options.executionEnv! },
-        toolExecution: this.options.toolExecution ?? "parallel",
-        // The Host owns the user-selected trigger; Pi owns summarization and storage.
-        compaction: { ...DEFAULT_COMPACTION_SETTINGS, enabled: false },
-        toProviderMessages: convertNativeSessionMessages,
-      },
-      background,
-    );
-    const lane = await harness.lane("main", background);
-    for (const operation of open) {
-      const interrupted = await harness.lane(operation.lane, background);
-      const settled = await interrupted.abort(background);
-      if (!settled.ok) throw settled.error;
+    let harness: AgentHarness<ExecutionToolContext> | undefined;
+    try {
+      const created = await AgentHarness.create(
+        {
+          session,
+          models,
+          model: resolveModel(this.options.model, this.runtimeContext.requestedModelId),
+          thinkingLevel: resolveThinkingLevel(this.options.thinkingLevel, this.runtimeContext.requestedEffort),
+          systemPrompt: () => this.runtimeContext.system,
+          toolContext: { env: this.options.executionEnv! },
+          toolExecution: this.options.toolExecution ?? "parallel",
+          // The Host owns the user-selected trigger; Pi owns summarization and storage.
+          compaction: { ...DEFAULT_COMPACTION_SETTINGS, enabled: false },
+          toProviderMessages: convertNativeSessionMessages,
+        },
+        background,
+      );
+      harness = created.harness;
+      const lane = await harness.lane("main", background);
+      for (const operation of created.open) {
+        const interrupted = await harness.lane(operation.lane, background);
+        const settled = await interrupted.abort(background);
+        if (!settled.ok) throw settled.error;
+      }
+      this.harness = harness;
+      this.lane = lane;
+      harness.events.on("fault", () => {
+        this.faulted = true;
+      });
+    } catch (error) {
+      try {
+        await (harness ?? session).close(background);
+      } finally {
+        this.repository.release(this.sessionId);
+      }
+      throw error;
     }
-    this.harness = harness;
-    this.lane = lane;
   }
 
   private async configureAgentForTurn(
