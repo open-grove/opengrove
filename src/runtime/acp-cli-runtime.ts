@@ -67,6 +67,10 @@ export class AcpCliRuntime implements AgentRuntime {
   private readonly acpClientsByEnv = new Map<string, StdioJsonRpcClient>();
   private readonly acpClientReadyByEnv = new Map<string, Promise<StdioJsonRpcClient>>();
   private readonly acpSessionsByClient = new WeakMap<StdioJsonRpcClient, Set<string>>();
+  private readonly acpModelOptionsByClient = new WeakMap<
+    StdioJsonRpcClient,
+    Map<string, { configId?: string; options: Array<{ id: string; name: string }> }>
+  >();
   private readonly acpImagePromptSupportedByClient = new WeakMap<StdioJsonRpcClient, boolean>();
   private readonly acpClientLeases = new Map<StdioJsonRpcClient, number>();
   private readonly retiredAcpClients = new Set<StdioJsonRpcClient>();
@@ -180,6 +184,8 @@ export class AcpCliRuntime implements AgentRuntime {
       const params = asObject(notification.params);
       if (readString(params, "sessionId") !== nativeSessionId) return;
       const update = asObject(params.update);
+      if (update.sessionUpdate === "config_option_update")
+        this.rememberAcpModelOptions(client, nativeSessionId, update);
       const usage = readAcpContextUsage(update);
       if (usage) observedUsage = usage;
       if (readString(update, "sessionUpdate") === "agent_message_chunk") {
@@ -432,6 +438,8 @@ export class AcpCliRuntime implements AgentRuntime {
       const params = asObject(notification.params);
       if (readString(params, "sessionId") !== nativeSession.sessionId) return;
       const update = asObject(params.update);
+      if (update.sessionUpdate === "config_option_update")
+        this.rememberAcpModelOptions(client, nativeSession.sessionId, update);
       const contextUsage = readAcpContextUsage(update);
       if (contextUsage) {
         this.contextUsageBySession.set(nativeSession.sessionId, contextUsage);
@@ -791,6 +799,7 @@ export class AcpCliRuntime implements AgentRuntime {
       throw new Error(`${this.options.kernelId}_acp_session_id_missing`);
     }
     clientSessions.add(sessionId);
+    this.rememberAcpModelOptions(client, sessionId, created);
     rememberAcpSession(request, this.options.kernelId, sessionId, sessionBindingFingerprint);
     await this.maybeSetAcpSessionModel(client, sessionId, requestedModel, request.signal);
     return { sessionId, resuming: false };
@@ -811,7 +820,9 @@ export class AcpCliRuntime implements AgentRuntime {
           { timeoutMs: this.options.controlRequestTimeoutMs ?? 30_000, signal },
         ),
       );
-      return readString(loaded, "sessionId") ?? sessionId;
+      const loadedSessionId = readString(loaded, "sessionId") ?? sessionId;
+      this.rememberAcpModelOptions(client, loadedSessionId, loaded);
+      return loadedSessionId;
     } catch (error) {
       if (isAbandonedAcpControlRequest(error, signal)) throw error;
       return undefined;
@@ -825,12 +836,27 @@ export class AcpCliRuntime implements AgentRuntime {
     signal?: AbortSignal,
   ): Promise<void> {
     if (!requestedModel) return;
+    const selector = this.acpModelOptionsByClient.get(client)?.get(sessionId);
+    const options = selector?.options ?? [];
+    const named = options.filter((option) => option.name === requestedModel);
+    // ACP selectors advertise opaque IDs. Kimi 0.34's environment-defined
+    // model exposes its API name as the label, but requires the advertised
+    // alias for session/set_model. Never invent that alias or guess among
+    // duplicate labels; exact IDs always take priority.
+    const modelId =
+      options.some((option) => option.id === requestedModel) || named.length !== 1 ? requestedModel : named[0]!.id;
     try {
-      await client.request(
-        "session/set_model",
-        { sessionId, modelId: requestedModel },
-        { timeoutMs: this.options.controlRequestTimeoutMs ?? 15_000, signal },
+      // ACP v1 configOptions supersedes the unstable model selector. Keep the
+      // legacy method only for agents that do not advertise this surface.
+      // https://agentclientprotocol.com/protocol/v1/session-config-options
+      const result = asObject(
+        await client.request(
+          selector?.configId ? "session/set_config_option" : "session/set_model",
+          selector?.configId ? { sessionId, configId: selector.configId, value: modelId } : { sessionId, modelId },
+          { timeoutMs: this.options.controlRequestTimeoutMs ?? 15_000, signal },
+        ),
       );
+      if (Array.isArray(result.configOptions)) this.rememberAcpModelOptions(client, sessionId, result);
     } catch (error) {
       if (isAbandonedAcpControlRequest(error, signal)) throw error;
       if (this.options.setModelFailure === "error") {
@@ -840,6 +866,33 @@ export class AcpCliRuntime implements AgentRuntime {
         );
       }
     }
+  }
+
+  private rememberAcpModelOptions(client: StdioJsonRpcClient, sessionId: string, setup: Record<string, unknown>): void {
+    if (!Array.isArray(setup.configOptions) && !Array.isArray(asObject(setup.models).availableModels)) return;
+    const configOptions = Array.isArray(setup.configOptions) ? setup.configOptions.map(asObject) : [];
+    const selector = configOptions.find(
+      (option) => option.type === "select" && (option.category === "model" || option.id === "model"),
+    );
+    const values = Array.isArray(selector?.options)
+      ? selector.options.flatMap((value) => {
+          const option = asObject(value);
+          return Array.isArray(option.options) ? option.options : [option];
+        })
+      : [];
+    const models = asObject(setup.models);
+    const legacy = Array.isArray(models.availableModels) ? models.availableModels : [];
+    const options = (selector ? values : legacy).flatMap((value) => {
+      const option = asObject(value);
+      const id = readString(option, "value") ?? readString(option, "modelId");
+      return id ? [{ id, name: readString(option, "name") ?? id }] : [];
+    });
+    const sessions = this.acpModelOptionsByClient.get(client) ?? new Map();
+    sessions.set(sessionId, {
+      configId: readString(selector ?? {}, "id"),
+      options: [...new Map(options.map((option) => [option.id, option])).values()],
+    });
+    this.acpModelOptionsByClient.set(client, sessions);
   }
 
   private async handleAcpPermissionRequest(

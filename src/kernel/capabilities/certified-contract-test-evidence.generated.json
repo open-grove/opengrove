@@ -649,8 +649,10 @@
     "capability": "session.compact",
     "testId": "pi.session.compact",
     "passed": true,
-    "checkedAt": "2026-07-20",
-    "legacyHostVersion": "0.6.5",
+    "checkedAt": "2026-09-08",
+    "hostVersion": "0.6.6",
+    "kernelVersion": "0.85.1",
+    "runtimeMode": "sdk",
     "verification": "real_runtime"
   },
   {
@@ -703,8 +705,14 @@
     "capability": "diagnostics.usage",
     "testId": "pi.diagnostics.usage",
     "passed": true,
-    "checkedAt": "2026-08-06",
-    "legacyHostVersion": "0.6.5",
+    "checkedAt": "2026-09-08",
+    "hostVersion": "0.6.6",
+    "kernelVersion": "0.85.1",
+    "runtimeMode": "sdk",
+    "provider": {
+      "kind": "openai-compatible",
+      "model": "deepseek-v4-flash"
+    },
     "verification": "real_runtime"
   },
   {
@@ -756,12 +764,23 @@
   },
   {
     "kernel": "pi",
+    "capability": "tool.progress",
+    "testId": "pi.tool.progress",
+    "passed": true,
+    "checkedAt": "2026-09-08",
+    "hostVersion": "0.6.6",
+    "kernelVersion": "0.85.1",
+    "runtimeMode": "sdk",
+    "verification": "real_runtime"
+  },
+  {
+    "kernel": "pi",
     "capability": "tools.nativeTool",
     "testId": "pi.tools.nativeTool",
     "passed": true,
-    "checkedAt": "2026-09-03",
+    "checkedAt": "2026-09-08",
     "hostVersion": "0.6.6",
-    "kernelVersion": "0.84.4",
+    "kernelVersion": "0.85.1",
     "runtimeMode": "sdk",
     "verification": "real_runtime"
   }

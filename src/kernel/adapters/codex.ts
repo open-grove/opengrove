@@ -128,12 +128,18 @@ export function codexProviderConfigFromProfile(
         .replace(/^_+|_+$/g, "") || "PROVIDER"
     }_API_KEY`,
   );
+  const modelContextWindows = Object.fromEntries(
+    (provider.models ?? []).flatMap((m) =>
+      m.metadata?.contextWindow ? [[m.apiModelId || m.id, m.metadata.contextWindow]] : [],
+    ),
+  );
   const config: NonNullable<CodexRuntimeOptions["providerConfig"]> = {
     providerKey,
     name: provider.name || provider.id,
     baseUrl,
     envKey,
     wireApi: provider.wireApi ?? "responses",
+    ...(Object.keys(modelContextWindows).length ? { modelContextWindows } : {}),
   };
   return config.wireApi === "chat"
     ? withCodexResponsesChatProxy(config, {

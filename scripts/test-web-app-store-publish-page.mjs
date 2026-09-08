@@ -863,6 +863,7 @@ function entrySource(path, toast, confirm, globalStyles, appStoreStyles) {
             id: "ww",
             name: "WW",
             protocol: "anthropic-compatible",
+            bindings: { "claude-code": "anthropic-compatible", pi: "anthropic-compatible" },
             anthropicBaseUrl: "https://ww.test",
             apiKey: "ww_test_key",
             enabled: true,

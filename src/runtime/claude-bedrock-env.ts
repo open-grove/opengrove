@@ -32,6 +32,7 @@ const BEDROCK_ONLY_ENV_KEYS = [
 // bundled Claude Code. A host-managed binding must not retain a second
 // provider inherited from the parent process or a per-turn app environment.
 const CLAUDE_PROVIDER_ROUTING_ENV_KEYS = [
+  "CLAUDE_CODE_MAX_CONTEXT_TOKENS",
   "CLAUDE_CODE_PROVIDER_MANAGED_BY_HOST",
   "CLAUDE_CODE_USE_BEDROCK",
   "CLAUDE_CODE_USE_VERTEX",

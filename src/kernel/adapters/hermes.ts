@@ -208,7 +208,7 @@ export function createHermesKernelAdapterFromOptions(
   });
 }
 
-function hermesProviderConfigFromProfile(
+export function hermesProviderConfigFromProfile(
   provider: import("../types.js").ProviderProfile,
   model: string | undefined,
 ): import("../../runtime/hermes-runtime.js").HermesProviderRuntimeConfig | undefined {
@@ -216,7 +216,11 @@ function hermesProviderConfigFromProfile(
   if (!baseUrl) return undefined;
   const protocol = provider.protocol;
   const apiMode: import("../../runtime/hermes-runtime.js").HermesProviderApiMode =
-    protocol === "anthropic-compatible" ? "anthropic_messages" : "chat_completions";
+    protocol === "anthropic-compatible"
+      ? "anthropic_messages"
+      : provider.wireApi === "responses"
+        ? "codex_responses"
+        : "chat_completions";
   const providerKey = `opengrove-${
     provider.id
       .trim()
@@ -233,12 +237,17 @@ function hermesProviderConfigFromProfile(
   }_API_KEY`;
   return {
     providerKey,
-    name: provider.id,
+    name: provider.name || provider.id,
     baseUrl,
     apiKeyEnv: provider.apiKeyEnv || envKey,
     apiMode,
     model: model?.trim(),
-    models: [],
+    models: provider.models?.map((m) => m.apiModelId || m.id) ?? [],
+    modelContextWindows: Object.fromEntries(
+      (provider.models ?? []).flatMap((m) =>
+        m.metadata?.contextWindow ? [[m.apiModelId || m.id, m.metadata.contextWindow]] : [],
+      ),
+    ),
   };
 }
 

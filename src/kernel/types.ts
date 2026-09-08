@@ -1,3 +1,4 @@
+import type { ModelMetadata } from "./model-metadata.js";
 import type {
   AgentCompactRequest,
   AgentCompactResult,
@@ -409,6 +410,7 @@ export interface ModelOption {
   canonicalModelId?: string;
   family?: string;
   status?: "alpha" | "beta" | "deprecated";
+  metadata?: ModelMetadata;
 }
 
 export interface RuntimeControls {

@@ -233,9 +233,10 @@ export class CodexRuntime implements AgentRuntime {
     const runtimeEnvFingerprint = envFingerprint(runtimeEnv);
     const contextBudget = resolveContextTokenBudget(
       request.contextTokenBudget,
-      readCodexModelContextWindow(model, runtimeEnv),
+      this.options.providerConfig?.modelContextWindows?.[model ?? ""] ?? readCodexModelContextWindow(model, runtimeEnv),
     );
     const threadConfig = codexThreadConfig(this.options.providerConfig, {
+      model,
       reasoningEffort,
       reasoningSummary: reasoningEffort ? "detailed" : undefined,
       serviceTier,
@@ -1156,6 +1157,7 @@ export function readCodexModelContextWindow(
 export function codexThreadConfig(
   provider: CodexModelProviderRuntimeConfig | undefined,
   overrides: {
+    model?: string;
     reasoningEffort?: string;
     reasoningSummary?: "auto" | "concise" | "detailed" | "none";
     serviceTier?: string;
@@ -1170,8 +1172,10 @@ export function codexThreadConfig(
     ...(overrides.contextTokenBudget ? { model_auto_compact_token_limit: overrides.contextTokenBudget } : {}),
   };
   if (!provider) return config;
+  const contextWindow = provider.modelContextWindows?.[overrides.model ?? ""];
   return {
     ...config,
+    ...(contextWindow ? { model_context_window: contextWindow } : {}),
     model_provider: provider.providerKey,
     [`model_providers.${provider.providerKey}.name`]: provider.name,
     [`model_providers.${provider.providerKey}.base_url`]: provider.baseUrl,

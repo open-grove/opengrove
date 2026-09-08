@@ -32,6 +32,7 @@ export type CodexModelProviderRuntimeConfig = {
   baseUrl: string;
   envKey: string;
   wireApi: "chat" | "responses";
+  modelContextWindows?: Record<string, number>;
 };
 
 export type RpcRequest = {

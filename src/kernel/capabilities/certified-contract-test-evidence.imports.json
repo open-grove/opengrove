@@ -54,17 +54,54 @@
     },
     {
       "kernel": "pi",
-      "receiptSha256": "f39bc566094c1dfefc5dbb80f85b3bbe2e4d8a1fcf4dfb8e2a7accda975fe433",
+      "receiptSha256": "51b8c9a79988c266e790780f090261bca73dcee696652de5001540f6c6567575",
       "certifications": [
         {
           "kernel": "pi",
           "capability": "tools.nativeTool",
           "testId": "pi.tools.nativeTool",
           "passed": true,
-          "checkedAt": "2026-09-03",
+          "checkedAt": "2026-09-08",
           "hostVersion": "0.6.6",
-          "kernelVersion": "0.84.4",
+          "kernelVersion": "0.85.1",
           "runtimeMode": "sdk",
+          "verification": "real_runtime"
+        },
+        {
+          "kernel": "pi",
+          "capability": "tool.progress",
+          "testId": "pi.tool.progress",
+          "passed": true,
+          "checkedAt": "2026-09-08",
+          "hostVersion": "0.6.6",
+          "kernelVersion": "0.85.1",
+          "runtimeMode": "sdk",
+          "verification": "real_runtime"
+        },
+        {
+          "kernel": "pi",
+          "capability": "session.compact",
+          "testId": "pi.session.compact",
+          "passed": true,
+          "checkedAt": "2026-09-08",
+          "hostVersion": "0.6.6",
+          "kernelVersion": "0.85.1",
+          "runtimeMode": "sdk",
+          "verification": "real_runtime"
+        },
+        {
+          "kernel": "pi",
+          "capability": "diagnostics.usage",
+          "testId": "pi.diagnostics.usage",
+          "passed": true,
+          "checkedAt": "2026-09-08",
+          "hostVersion": "0.6.6",
+          "kernelVersion": "0.85.1",
+          "runtimeMode": "sdk",
+          "provider": {
+            "kind": "openai-compatible",
+            "model": "deepseek-v4-flash"
+          },
           "verification": "real_runtime"
         }
       ]

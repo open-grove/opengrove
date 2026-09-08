@@ -7,23 +7,25 @@ import { join } from "node:path";
 import { discoverOpenClawGatewayProviderProfiles } from "../dist/runtime/openclaw-gateway-runtime.js";
 import { nodePackageManagerInvocation } from "./node-package-manager-invocation.mjs";
 
-const certifiedVersion = "2026.8.2";
-const stateDir = mkdtempSync(join(tmpdir(), "opengrove-openclaw-2026-8-2-"));
-const token = "opengrove-openclaw-2026-8-2-certification-local-only";
+const certifiedVersion = process.argv[2] ?? "2026.8.2";
+assert.match(certifiedVersion, /^\d{4}\.\d+\.\d+(?:-\d+)?$/, "Specify an exact stable OpenClaw version");
+const installedCliPath = process.argv[3];
+const openClawInvocation = (args) =>
+  installedCliPath
+    ? { command: process.execPath, args: [installedCliPath, ...args] }
+    : nodePackageManagerInvocation("npx", ["--yes", `openclaw@${certifiedVersion}`, ...args]);
+const stateDir = mkdtempSync(join(tmpdir(), `opengrove-openclaw-${certifiedVersion}-`));
+const token = "opengrove-openclaw-certification-local-only";
 const port = await reservePort();
 const gatewayUrl = `ws://127.0.0.1:${port}`;
 let gateway;
 let gatewayOutput = "";
 
 try {
-  const versionOutput = await runAndCollect(
-    nodePackageManagerInvocation("npx", ["--yes", `openclaw@${certifiedVersion}`, "--version"]),
-  );
+  const versionOutput = await runAndCollect(openClawInvocation(["--version"]));
   assert.match(versionOutput, new RegExp(`OpenClaw\\s+${certifiedVersion.replaceAll(".", "\\.")}(?:\\s|$)`));
 
-  const invocation = nodePackageManagerInvocation("npx", [
-    "--yes",
-    `openclaw@${certifiedVersion}`,
+  const invocation = openClawInvocation([
     "gateway",
     "--allow-unconfigured",
     "--dev",
