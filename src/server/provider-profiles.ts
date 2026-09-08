@@ -1,3 +1,4 @@
+import { normalizeModelMetadata } from "../kernel/model-metadata.js";
 import { migrateWwProvisioning } from "./migrations/ww-provisioning-v1.js";
 import { createHash } from "node:crypto";
 import { appEnvName, readAppEnv } from "../identity.js";
@@ -18,7 +19,8 @@ import {
   UNCONFIGURED_PROVIDER_BINDING_ID,
 } from "./bridge-types.js";
 import { buildProviderEnvForKernel } from "./kernel-registry.js";
-import type { HermesProviderApiMode, HermesProviderRuntimeConfig } from "../runtime/hermes-runtime.js";
+import type { HermesProviderRuntimeConfig } from "../runtime/hermes-runtime.js";
+import { hermesProviderConfigFromProfile } from "../kernel/adapters/hermes.js";
 import {
   planProviderBinding,
   providerHasTransferableCredential,
@@ -170,7 +172,9 @@ export function getBridgeProviderProfiles(): BridgeProviderProfile[] {
       name: "Google AI Studio (Gemini API Key)",
       protocol: "gemini-compatible",
       description: "A Gemini API key created and managed in Google AI Studio.",
-      geminiBaseUrl: "https://generativelanguage.googleapis.com",
+      geminiBaseUrl: "https://generativelanguage.googleapis.com/v1beta",
+      openaiBaseUrl: "https://generativelanguage.googleapis.com/v1beta/openai/",
+      wireApi: "chat",
       apiKeyEnv: "GEMINI_API_KEY",
       credentialKind: "env-key",
       models: [
@@ -764,6 +768,7 @@ function normalizeProviderModels(input: unknown): BridgeRuntimeControlOption[] {
       canonicalModelId: stringOrUndefined(source.canonicalModelId),
       family: stringOrUndefined(source.family),
       status: normalizeModelStatus(source.status),
+      metadata: normalizeModelMetadata(source.metadata),
     });
   }
   return models;
@@ -895,6 +900,7 @@ export function providerProfileForKernel(
       canonicalModelId: m.canonicalModelId,
       family: m.family,
       status: m.status,
+      metadata: m.metadata,
     })),
   };
 }
@@ -926,44 +932,12 @@ export function providerCanBindKernel(kernelId: BridgeKernelId, profile: BridgeP
   return providerSupportForBindingStatus(kernelId, profile).supported;
 }
 
-function codexProviderApiKeyEnv(providerId: string): string {
-  const normalized = providerId
-    .trim()
-    .toUpperCase()
-    .replace(/[^A-Z0-9]+/g, "_")
-    .replace(/^_+|_+$/g, "");
-  return appEnvName(`${normalized || "PROVIDER"}_API_KEY`);
-}
-
 export function hermesProviderConfigForKernel(
   profile: BridgeProviderProfile | undefined,
   model: string | undefined,
 ): HermesProviderRuntimeConfig | undefined {
-  if (!profile) return undefined;
-  if (profile.enabled === false) return undefined;
-  const support = providerSupportForKernel("hermes", profile);
-  const protocol = support.supported ? hermesProtocolForProvider(profile) : undefined;
-  if (!protocol) return undefined;
-  const baseUrl = protocol === "anthropic-compatible" ? profile.anthropicBaseUrl : profile.openaiBaseUrl;
-  const trimmedBaseUrl = baseUrl?.trim();
-  if (!trimmedBaseUrl) return undefined;
-  const apiKeyEnv = profile.apiKeyEnv || codexProviderApiKeyEnv(profile.id);
-  const selectedRoute = providerModelForSelection(profile, model);
-  const selectedModel =
-    selectedRoute?.apiModelId ||
-    selectedRoute?.id ||
-    model?.trim() ||
-    profile.models[0]?.apiModelId ||
-    profile.models[0]?.id;
-  return {
-    providerKey: hermesProviderKey(profile.id),
-    name: profile.name,
-    baseUrl: trimmedBaseUrl,
-    apiKeyEnv,
-    apiMode: hermesApiModeForProtocol(protocol),
-    model: selectedModel,
-    models: profile.models.map((item) => item.id),
-  };
+  const binding = providerProfileForKernel("hermes", profile, model);
+  return binding ? hermesProviderConfigFromProfile(binding, binding.model) : undefined;
 }
 
 export function providerSupportForKernel(
@@ -999,27 +973,4 @@ function providerSupportForBindingStatus(
       ? { ...profile, apiKeyEnv: "OPENGROVE_PROVIDER_BINDING_STATUS_KEY" }
       : profile;
   return providerSupportForKernel(kernelId, profileForPlanning);
-}
-
-function hermesProtocolForProvider(
-  profile: BridgeProviderProfile,
-): "openai-compatible" | "anthropic-compatible" | undefined {
-  if (profile.protocol === "anthropic-compatible" && profile.anthropicBaseUrl) {
-    return "anthropic-compatible";
-  }
-  if (profile.openaiBaseUrl) {
-    return "openai-compatible";
-  }
-  if (profile.anthropicBaseUrl) {
-    return "anthropic-compatible";
-  }
-  return undefined;
-}
-
-function hermesApiModeForProtocol(protocol: "openai-compatible" | "anthropic-compatible"): HermesProviderApiMode {
-  return protocol === "anthropic-compatible" ? "anthropic_messages" : "chat_completions";
-}
-
-function hermesProviderKey(providerId: string): string {
-  return `opengrove-${slug(providerId) || "provider"}`.slice(0, 64);
 }

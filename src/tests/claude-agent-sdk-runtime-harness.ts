@@ -153,7 +153,7 @@ async function main() {
         ? systemPrompt
         : Array.isArray(systemPrompt)
           ? systemPrompt.join("\n")
-          : typeof systemPrompt?.append === "string"
+          : systemPrompt?.type === "preset" && typeof systemPrompt.append === "string"
             ? systemPrompt.append
             : "";
     capturedModel = params.options?.model ?? "";

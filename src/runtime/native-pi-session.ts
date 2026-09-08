@@ -1,8 +1,10 @@
-import { createHash } from "node:crypto";
 import {
-  Agent,
-  buildSessionContext,
-  compact as compactPiSession,
+  AgentHarness,
+  HarnessClosed,
+  HarnessFault,
+  BACKGROUND_CONTEXT as background,
+  type AgentLane,
+  type HarnessEvent,
   convertToLlm as convertNativeSessionMessages,
   createBashTool,
   createEditTool,
@@ -11,11 +13,7 @@ import {
   DEFAULT_COMPACTION_SETTINGS,
   estimateContextTokens,
   estimateTokens,
-  InMemorySessionRepo,
-  JsonlSessionRepo,
-  prepareCompaction,
   shouldCompact,
-  type Session,
   type AgentMessage as NativeAgentMessage,
   type AgentEvent as NativePiEvent,
   type AgentOptions,
@@ -40,14 +38,17 @@ import {
   type ImageContent,
   type Model,
   type MutableModels,
+  type Models,
+  createAssistantMessageEventStream,
   type TSchema,
-  type ToolResultMessage as NativeToolResultMessage,
   type UserMessage,
 } from "@earendil-works/pi-ai";
 import { anthropicMessagesApi } from "@earendil-works/pi-ai/api/anthropic-messages.lazy";
 import { googleGenerativeAIApi } from "@earendil-works/pi-ai/api/google-generative-ai.lazy";
 import { openAICompletionsApi } from "@earendil-works/pi-ai/api/openai-completions.lazy";
+import { openAIResponsesApi } from "@earendil-works/pi-ai/api/openai-responses.lazy";
 import { builtinModels } from "@earendil-works/pi-ai/providers/all";
+import { NativePiSessionRepository, nativePiSessionId } from "./pi-session-repository.js";
 import { WorkingStateStore } from "../core.js";
 import type {
   AgentContext,
@@ -56,7 +57,6 @@ import type {
   AgentEvent,
   AgentModelRequestTrace,
   AgentSessionTrace,
-  AgentSessionInfo,
   ApprovalKind,
   ApprovalRequest,
   ContextEnvelope,
@@ -83,7 +83,7 @@ export interface NativePiSessionOptions {
   cwd?: string;
   /** Injectable for deterministic compaction tests and custom provider catalogs. */
   models?: MutableModels;
-  /** Maximum time to wait for a provider to settle after Agent.abort(). */
+  /** Close and natively recover a provider/tool that ignores cancellation beyond this deadline. */
   abortSettleTimeoutMs?: number;
   /** Injectable execution boundary for Pi's official coding tools. */
   executionEnv?: ExecutionEnv;
@@ -136,6 +136,7 @@ export function createNativePiSessionFactory(options: NativePiSessionOptions): P
     if (active?.isRunning) {
       return { ok: false, deleted: false, error: "pi_session_busy" };
     }
+    await active?.close();
     const deleted = await repository.delete(sessionId);
     // Forget an inactive Host handle even when no durable entry existed. This
     // keeps repository and factory caches aligned for a later fork/create.
@@ -159,17 +160,29 @@ export function createNativePiSessionFactory(options: NativePiSessionOptions): P
       session: { sessionId: targetSessionId, nativeSessionId: nativePiSessionId(targetSessionId) },
     };
   };
+  factory.dispose = async () => {
+    try {
+      await Promise.all([...sessions.values()].map((session) => session.close()));
+    } finally {
+      sessions.clear();
+      await repository.close();
+    }
+  };
   return factory;
 }
 
 class NativePiSession implements PiSession {
   readonly emitsModelRequests = true;
-  private agent?: Agent;
+  private harness?: AgentHarness<ExecutionToolContext>;
+  private lane?: AgentLane;
+  private opening?: Promise<void>;
+  private closing?: Promise<void>;
+  private faulted = false;
+  private streamFn?: StreamFn;
+  private removeToolGate?: () => void;
   private nativeToolNames = new Map<string, string>();
   private pendingSkillOverlay?: InvokedSkillRecord;
   private activeSkillOverlay?: InvokedSkillRecord;
-  private nativeSession?: Session<any>;
-  private restoredMessages: NativeAgentMessage[] = [];
   private activeRuns = 0;
 
   constructor(
@@ -184,16 +197,45 @@ class NativePiSession implements PiSession {
   }
 
   get isRunning(): boolean {
-    return this.activeRuns > 0 || this.agent?.state.isStreaming === true;
+    return this.activeRuns > 0 || this.opening !== undefined || this.closing !== undefined;
+  }
+
+  async close(): Promise<void> {
+    await this.opening;
+    await this.closeNativeHarness();
+  }
+
+  private closeNativeHarness(): Promise<void> {
+    if (this.closing) return this.closing;
+    const harness = this.harness;
+    if (!harness) return Promise.resolve();
+    this.harness = undefined;
+    this.lane = undefined;
+    this.faulted = false;
+    this.removeToolGate?.();
+    this.removeToolGate = undefined;
+    this.closing = Promise.resolve()
+      .then(() => harness.close(background))
+      .finally(() => {
+        this.repository.release(this.sessionId);
+        this.closing = undefined;
+      });
+    return this.closing;
   }
 
   async trace(): Promise<AgentSessionTrace> {
-    await this.ensureNativeSession();
-    return this.createSessionTrace();
+    try {
+      await this.ensureNativeSession();
+      return await this.createSessionTrace();
+    } catch (error) {
+      if (error instanceof HarnessFault) this.faulted = true;
+      throw error;
+    }
   }
 
-  private createSessionTrace(): AgentSessionTrace {
-    const messages = this.agent?.state.messages ?? this.restoredMessages;
+  private async createSessionTrace(): Promise<AgentSessionTrace> {
+    const entries = await this.lane!.findEntries({ order: "oldestFirst" }, background);
+    const messages = entries.flatMap((entry) => (entry.type === "message" ? [entry.message] : []));
     return {
       provider: "pi",
       sessionId: this.sessionId,
@@ -208,6 +250,9 @@ class NativePiSession implements PiSession {
     this.activeRuns += 1;
     try {
       yield* this.runActiveTurn(input, context);
+    } catch (error) {
+      if (error instanceof HarnessFault) this.faulted = true;
+      throw error;
     } finally {
       this.activeRuns = Math.max(0, this.activeRuns - 1);
     }
@@ -216,169 +261,176 @@ class NativePiSession implements PiSession {
   private async *runActiveTurn(input: string, context: PiSessionContext): AsyncIterable<AgentEvent> {
     await this.ensureNativeSession();
     const images = piImageContent(context);
-    const contextPreparation = await this.prepareNativeContext(input, images, context);
-    for (const event of contextPreparation.events) {
-      yield event;
-    }
-    if (contextPreparation.error) {
-      yield { type: "error", runId: context.runId, message: contextPreparation.error };
-      return;
-    }
-    const queue: Array<NativeSessionEvent> = [];
+    const queue: NativeSessionEvent[] = [];
     let done = false;
-    let aborted = false;
-    let abortTimedOut = false;
-    let acceptingEvents = true;
-    let abortSettlementTimer: ReturnType<typeof setTimeout> | undefined;
-    let abortSettlement: Promise<void> | undefined;
-    let unsubscribe: (() => void) | undefined;
-    const messageProjector = new PiNativeMessageProjector(context.runId);
     let wake: (() => void) | undefined;
-
+    let streamingMessage: NativeAgentMessage | undefined;
+    const turnMessages: NativeAgentMessage[] = [];
+    let faultReported = false;
+    const projector = new PiNativeMessageProjector(context.runId);
     const push = (events: NativeSessionEvent[]) => {
-      if (!acceptingEvents || events.length === 0) {
-        return;
-      }
       queue.push(...events);
       wake?.();
       wake = undefined;
     };
-
-    const agent = this.configureAgentForTurn(input, context, push);
-    const nativeToolNames = this.nativeToolNames;
-    const mapProjection = (projection: PiNativeMessageProjection): NativeSessionEvent[] => {
-      const mapped = [...projection.events];
-      if (projection.terminalMessage) {
-        mapped.push({
-          type: "model.response",
-          runId: context.runId,
-          response: {
-            text: readAssistantText(projection.terminalMessage),
-            usage: toUsageStats(
-              projection.terminalMessage,
-              resolveModel(this.options.model, this.runtimeContext.requestedModelId),
-            ),
-          },
-        });
-        mapped.push(createPiMessageDiagnostic(context.runId, projection.terminalMessage));
-      }
-      return mapped;
-    };
-    const abortTurn = () => {
-      if (aborted) {
-        return;
-      }
-      aborted = true;
-      agent.abort();
-      abortSettlementTimer = setTimeout(() => {
-        if (done) return;
-        abortSettlement = (async () => {
-          abortTimedOut = true;
-          unsubscribe?.();
-          unsubscribe = undefined;
-          push([
-            ...mapProjection(messageProjector.abort(agent.state.streamingMessage)),
-            {
-              type: "error",
-              runId: context.runId,
-              message: "pi_abort_settlement_timeout: Pi provider did not settle after cancellation",
+    const project = (projection: PiNativeMessageProjection) => {
+      push(projection.events);
+      if (projection.terminalMessage)
+        push([
+          {
+            type: "model.response",
+            runId: context.runId,
+            response: {
+              text: readAssistantText(projection.terminalMessage),
+              usage: toUsageStats(
+                projection.terminalMessage,
+                resolveModel(this.options.model, this.runtimeContext.requestedModelId),
+              ),
             },
-          ]);
-          if (this.agent === agent) {
-            const repaired = repairAbortedNativeToolHistory(agent.state.messages);
-            this.restoredMessages = repaired.messages;
-            this.agent = undefined;
-            try {
-              if (!this.nativeSession) throw new Error("Pi native session is unavailable");
-              for (const result of repaired.addedToolResults) {
-                await this.nativeSession.appendMessage(toDurableNativeMessage(result));
-              }
-            } catch (error) {
-              push([
-                {
-                  type: "error",
-                  runId: context.runId,
-                  message: `pi_abort_history_repair_failed: ${error instanceof Error ? error.message : String(error)}`,
-                },
-              ]);
-            }
-          }
-          done = true;
-          wake?.();
-          wake = undefined;
-        })();
-      }, this.options.abortSettleTimeoutMs ?? 15_000);
+          },
+          createPiMessageDiagnostic(context.runId, projection.terminalMessage),
+        ]);
     };
-
-    if (context.requestedSkillInvocation?.context === "inline") {
-      this.pendingSkillOverlay = undefined;
-      this.activeSkillOverlay = context.requestedSkillInvocation;
-      agent.steer(createSkillSteeringMessage(context.requestedSkillInvocation));
+    await this.configureAgentForTurn(input, context, push);
+    const contextPreparation = await this.prepareNativeContext(input, images, context);
+    for (const event of contextPreparation.events) yield event;
+    if (contextPreparation.error) {
+      yield { type: "error", runId: context.runId, message: contextPreparation.error };
+      return;
     }
-
-    unsubscribe = agent.subscribe(async (event) => {
-      this.handleLoopEvent(event, context, push);
-      const projection = messageProjector.project(event);
-      const mapped = [...mapProjection(projection), ...mapNativeToolEvent(event, context.runId, nativeToolNames)];
-
-      if (event.type === "message_end" && event.message.role === "assistant") {
-        if (event.message.errorMessage) {
-          mapped.push({ type: "error", runId: context.runId, message: event.message.errorMessage });
+    const listeners = (
+      [
+        "message_start",
+        "message_update",
+        "message_end",
+        "turn_start",
+        "turn_end",
+        "tool_start",
+        "tool_update",
+        "tool_end",
+        "run_end",
+        "fault",
+        "handler_error",
+      ] as const
+    ).map((type) =>
+      this.harness!.events.on(type, (event) => {
+        if (event.type === "fault" || event.type === "handler_error") {
+          if (event.type === "fault") faultReported = true;
+          push([
+            { type: "error", runId: context.runId, message: event.type === "fault" ? event.message : event.error },
+          ]);
+          return;
         }
-      }
-
-      push(mapped);
-      if (event.type === "message_end") {
-        await this.nativeSession?.appendMessage(toDurableNativeMessage(event.message));
-      }
-    });
-
-    if (context.assembledContext?.promptBlock) {
-      agent.steer(createContextSteeringMessage(context.assembledContext));
-    }
-
-    const prompt = agent
-      .prompt(input, images)
-      .catch((error) => {
+        if (event.type === "message_start" || event.type === "message_update") streamingMessage = event.message;
+        if (event.type === "message_end") {
+          streamingMessage = undefined;
+          turnMessages.push(event.message);
+        }
+        if (event.type === "run_end") {
+          if (event.status === "aborted") project(projector.abort(streamingMessage));
+          else project(projector.project({ type: "agent_end", messages: turnMessages }));
+          if (event.status === "failed") push([{ type: "error", runId: context.runId, message: event.error.message }]);
+          return;
+        }
+        const nativeEvent = toPiAgentEvent(event);
+        if (nativeEvent) {
+          this.handleLoopEvent(nativeEvent, context, push);
+          project(projector.project(nativeEvent));
+          push(mapNativeToolEvent(nativeEvent, context.runId, this.nativeToolNames));
+        }
+      }),
+    );
+    let abortRequested = false;
+    let abortTimedOut = false;
+    let abortTimer: ReturnType<typeof setTimeout> | undefined;
+    let closeTask: Promise<void> | undefined;
+    let abortTask: Promise<void> | undefined;
+    const abortTurn = () => {
+      if (abortRequested) return;
+      abortRequested = true;
+      abortTimer = setTimeout(() => {
+        if (done) return;
+        abortTimedOut = true;
+        project(projector.abort(streamingMessage));
         push([
           {
             type: "error",
             runId: context.runId,
-            message: error instanceof Error ? error.message : String(error),
+            message: "pi_abort_settlement_timeout: Pi provider or tool did not settle after cancellation",
           },
         ]);
+        closeTask = this.closeNativeHarness().catch((error) =>
+          push([{ type: "error", runId: context.runId, message: String(error) }]),
+        );
+      }, this.options.abortSettleTimeoutMs ?? 15_000);
+      // Pi closes the effect gate; reopening reconciles orphaned tools and partial
+      // assistant frames through its own recovery. Never fabricate tool results.
+      abortTask = this.lane!.abort(background)
+        .then((result) => {
+          if (
+            !result.ok &&
+            result.error._tag !== "NoActiveOperation" &&
+            !(abortTimedOut && result.error._tag === "Closed")
+          )
+            throw result.error;
+        })
+        .catch((error) => {
+          // Closing an in-flight abort rejects with HarnessClosed; an abort
+          // started after close instead returns Result.err(Closed).
+          if (!(abortTimedOut && error instanceof HarnessClosed))
+            push([{ type: "error", runId: context.runId, message: String(error) }]);
+        });
+    };
+    const prompt = (async () => {
+      if (context.requestedSkillInvocation?.context === "inline") {
+        this.pendingSkillOverlay = undefined;
+        this.activeSkillOverlay = context.requestedSkillInvocation;
+        await this.lane!.steer(createSkillSteeringMessage(context.requestedSkillInvocation), undefined, background);
+      }
+      if (context.assembledContext?.promptBlock)
+        await this.lane!.steer(createContextSteeringMessage(context.assembledContext), undefined, background);
+      // Explicit admission closes the cancel-before-start race.
+      const admitted = await this.lane!.accept({ kind: "prompt", prompt: input, images }, background);
+      if (!admitted.ok) throw admitted.error;
+      context.signal?.addEventListener("abort", abortTurn, { once: true });
+      if (context.signal?.aborted) abortTurn();
+      const result = await this.lane!.drive(
+        { operationId: admitted.value.operationId, waitForRetry: true, pollDeferred: true },
+        background,
+      );
+      if (!result.ok) throw result.error;
+      if (result.value.kind !== "settled") throw new Error(`pi_operation_waiting: ${result.value.reason}`);
+    })()
+      .catch((error) => {
+        if (error instanceof HarnessFault) this.faulted = true;
+        if (!abortTimedOut && !(faultReported && error instanceof HarnessFault))
+          push([
+            { type: "error", runId: context.runId, message: error instanceof Error ? error.message : String(error) },
+          ]);
       })
       .finally(() => {
         done = true;
-        if (abortSettlementTimer) clearTimeout(abortSettlementTimer);
         wake?.();
         wake = undefined;
       });
-    context.signal?.addEventListener("abort", abortTurn, { once: true });
-    if (context.signal?.aborted) {
-      abortTurn();
-    }
-
     try {
-      while (!done || queue.length > 0) {
-        while (queue.length > 0) {
-          yield queue.shift()!;
-        }
-
-        if (!done) {
+      while (!done || queue.length) {
+        while (queue.length) yield queue.shift()!;
+        if (!done)
           await new Promise<void>((resolve) => {
             wake = resolve;
           });
-        }
       }
     } finally {
       context.signal?.removeEventListener("abort", abortTurn);
-      if (abortSettlementTimer) clearTimeout(abortSettlementTimer);
-      unsubscribe?.();
-      acceptingEvents = false;
-      if (abortSettlement) await abortSettlement;
-      if (!abortTimedOut) await prompt;
+      if (!done) abortTurn();
+      await prompt;
+      await abortTask;
+      await closeTask;
+      if (abortTimer) clearTimeout(abortTimer);
+      for (const unsubscribe of listeners) unsubscribe();
     }
+    while (queue.length) yield queue.shift()!;
   }
 
   async compact(request: AgentCompactRequest): Promise<AgentCompactResult> {
@@ -392,49 +444,48 @@ class NativePiSession implements PiSession {
   ): Promise<AgentCompactResult> {
     try {
       await this.ensureNativeSession();
-      if (!this.nativeSession) return { ok: false, compacted: false, error: "pi_native_session_unavailable" };
-      if (this.agent?.state.isStreaming) return { ok: false, compacted: false, error: "pi_session_busy" };
-      const entries = await this.nativeSession.findEntriesOnBranch({ order: "oldestFirst" });
-      const prepared = prepareCompaction(entries, settings);
-      if (!prepared.ok) return { ok: false, compacted: false, error: prepared.error.message };
-      if (
-        !prepared.value ||
-        (prepared.value.messagesToSummarize.length === 0 && prepared.value.turnPrefixMessages.length === 0)
-      )
-        return { ok: true, compacted: false };
-      const model = resolveModel(this.options.model, this.runtimeContext.requestedModelId);
-      const thinkingLevel = clampThinkingLevel(
-        model,
-        resolveThinkingLevel(this.options.thinkingLevel, this.runtimeContext.requestedEffort),
-      );
-      const result = await compactPiSession(
-        prepared.value,
-        this.options.models!,
-        model,
-        request.reason,
-        undefined,
-        thinkingLevel,
-      );
-      if (!result.ok) return { ok: false, compacted: false, error: result.error.message };
-      await this.nativeSession.appendEntry(
-        {
-          type: "compaction",
-          id: this.nativeSession.idGenerator.next(),
-          summary: result.value.summary,
-          tokensBefore: result.value.tokensBefore,
-          retainedTail: result.value.retainedTail,
-          ...(result.value.details === undefined ? {} : { details: result.value.details }),
-          ...(result.value.usage === undefined ? {} : { usage: result.value.usage }),
-        },
-        "main",
-      );
-      const rebuilt = buildSessionContext(await this.nativeSession.findEntriesOnBranch({ order: "oldestFirst" }));
-      this.restoredMessages = rebuilt.messages;
-      if (this.agent) this.agent.state.messages = rebuilt.messages;
-      return { ok: true, compacted: true };
+      if ((await this.lane!.inspectExecution(background)).current)
+        return { ok: false, compacted: false, error: "pi_session_busy" };
+      await this.harness!.setCompactionSettings(settings, background);
+      let result;
+      try {
+        result = await this.lane!.compact({ customInstructions: request.reason }, background);
+      } finally {
+        await this.harness!.setCompactionSettings({ ...settings, enabled: false }, background);
+      }
+      if (!result.ok)
+        return result.error._tag === "NothingToCompact"
+          ? { ok: true, compacted: false }
+          : { ok: false, compacted: false, error: result.error.message };
+      const compacted = result.value.compaction.status === "completed";
+      return result.value.compaction.status === "failed"
+        ? { ok: false, compacted: false, error: result.value.compaction.error?.message ?? "pi_compaction_failed" }
+        : { ok: true, compacted };
     } catch (error) {
+      if (error instanceof HarnessFault) this.faulted = true;
       return { ok: false, compacted: false, error: error instanceof Error ? error.message : String(error) };
     }
+  }
+
+  /** Estimate only: the Harness independently assembles the actual provider context. */
+  private async estimateNativeContext(incoming: NativeAgentMessage) {
+    const entries = await this.lane!.findEntries({ order: "newestFirst", stopAtType: "compaction" }, background);
+    const messages: NativeAgentMessage[] = [];
+    let summaryTokens = 0;
+    for (const entry of entries.reverse()) {
+      if (entry.type === "message") messages.push(entry.message);
+      else if (entry.type === "compaction") {
+        summaryTokens += Math.ceil(entry.summary.length / 4) + 40;
+        messages.push(...entry.retainedTail);
+      }
+    }
+    messages.push(incoming);
+    const usage = estimateContextTokens(messages);
+    return {
+      ...usage,
+      tokens: usage.tokens + summaryTokens,
+      estimatedTokens: messages.reduce((sum, message) => sum + estimateTokens(message), summaryTokens),
+    };
   }
 
   private async prepareNativeContext(
@@ -445,12 +496,11 @@ class NativePiSession implements PiSession {
     const model = resolveModel(this.options.model, this.runtimeContext.requestedModelId);
     const budget = resolveContextTokenBudget(context.contextTokenBudget, model.contextWindow);
     const triggerWindow = budget.effectiveBudget ?? budget.modelContextWindow;
-    const messages = this.agent?.state.messages ?? this.restoredMessages;
     const incomingMessage = createPiBudgetMessage(
       [context.assembledContext?.promptBlock, input].filter(Boolean).join("\n\n"),
       images,
     );
-    const usage = estimateContextTokens([...messages, incomingMessage]);
+    const usage = await this.estimateNativeContext(incomingMessage);
     const usageSource = usage.usageTokens > 0 ? ("native" as const) : ("estimated" as const);
 
     if (triggerWindow === undefined) {
@@ -536,11 +586,7 @@ class NativePiSession implements PiSession {
       });
     }
 
-    const rebuiltMessages = this.agent?.state.messages ?? this.restoredMessages;
-    const rebuiltTokens = [...rebuiltMessages, incomingMessage].reduce(
-      (total, message) => total + estimateTokens(message),
-      0,
-    );
+    const rebuiltTokens = (await this.estimateNativeContext(incomingMessage)).estimatedTokens;
     const hardWindowExceeded = budget.modelContextWindow !== undefined && rebuiltTokens >= budget.modelContextWindow;
     if (hardWindowExceeded) {
       return {
@@ -557,17 +603,80 @@ class NativePiSession implements PiSession {
   }
 
   private async ensureNativeSession(): Promise<void> {
-    if (this.nativeSession) return;
-    this.nativeSession = await this.repository.openOrCreate(this.sessionId);
-    const restored = buildSessionContext(await this.nativeSession.findEntriesOnBranch({ order: "oldestFirst" }));
-    this.restoredMessages = restored.messages;
+    await this.closing;
+    if (this.faulted) await this.closeNativeHarness();
+    if (this.harness) return;
+    this.opening ??= this.openNativeSession().finally(() => {
+      this.opening = undefined;
+    });
+    await this.opening;
   }
 
-  private configureAgentForTurn(
+  private async openNativeSession(): Promise<void> {
+    const session = await this.repository.openOrCreate(this.sessionId);
+    const catalog = this.options.models!;
+    const models = new Proxy(catalog, {
+      get: (target, property, receiver) => {
+        if (property === "getModel")
+          return (provider: string, id: string) => {
+            const selected = resolveModel(this.options.model, this.runtimeContext.requestedModelId);
+            return selected.provider === provider && selected.id === id ? selected : target.getModel(provider, id);
+          };
+        if (property === "streamSimple")
+          return ((model, context, options) => {
+            const stream = this.streamFn ?? this.options.streamFn;
+            return stream
+              ? bridgePiStream(stream, model, context, options)
+              : target.streamSimple(model, context, options);
+          }) satisfies Models["streamSimple"];
+        const member = Reflect.get(target, property, receiver);
+        return typeof member === "function" ? member.bind(target) : member;
+      },
+    });
+    let harness: AgentHarness<ExecutionToolContext> | undefined;
+    try {
+      const created = await AgentHarness.create(
+        {
+          session,
+          models,
+          model: resolveModel(this.options.model, this.runtimeContext.requestedModelId),
+          thinkingLevel: resolveThinkingLevel(this.options.thinkingLevel, this.runtimeContext.requestedEffort),
+          systemPrompt: () => this.runtimeContext.system,
+          toolContext: { env: this.options.executionEnv! },
+          toolExecution: this.options.toolExecution ?? "parallel",
+          // The Host owns the user-selected trigger; Pi owns summarization and storage.
+          compaction: { ...DEFAULT_COMPACTION_SETTINGS, enabled: false },
+          toProviderMessages: convertNativeSessionMessages,
+        },
+        background,
+      );
+      harness = created.harness;
+      const lane = await harness.lane("main", background);
+      for (const operation of created.open) {
+        const interrupted = await harness.lane(operation.lane, background);
+        const settled = await interrupted.abort(background);
+        if (!settled.ok) throw settled.error;
+      }
+      this.harness = harness;
+      this.lane = lane;
+      harness.events.on("fault", () => {
+        this.faulted = true;
+      });
+    } catch (error) {
+      try {
+        await (harness ?? session).close(background);
+      } finally {
+        this.repository.release(this.sessionId);
+      }
+      throw error;
+    }
+  }
+
+  private async configureAgentForTurn(
     input: string,
     context: PiSessionContext,
     push: (events: NativeSessionEvent[]) => void,
-  ): Agent {
+  ): Promise<void> {
     this.nativeToolNames = createNativeToolNameMap(this.runtimeContext.tools);
     const model = resolveModel(this.options.model, this.runtimeContext.requestedModelId);
     const thinkingLevel = clampThinkingLevel(
@@ -576,7 +685,7 @@ class NativePiSession implements PiSession {
     );
     const tools = [
       ...toNativeTools(this.runtimeContext.tools, context, this.nativeToolNames, {
-        onSkillInvoked: (invocation) => {
+        onSkillInvoked: async (invocation) => {
           const manifest =
             context.agent.skills.get(invocation.skillId) ?? context.agent.skills.get(invocation.skillName);
           if (manifest) {
@@ -596,7 +705,7 @@ class NativePiSession implements PiSession {
           }
           if (invocation.context === "inline") {
             this.pendingSkillOverlay = invocation;
-            this.agent?.steer(createSkillSteeringMessage(invocation));
+            await this.lane!.steer(createSkillSteeringMessage(invocation), undefined, background);
           }
         },
         runForkedSkill: async (invocation) => {
@@ -623,38 +732,22 @@ class NativePiSession implements PiSession {
           ]);
           return result;
         },
-      }),
-      ...createPiCodingTools(this.options.executionEnv!),
+      }).map(toHarnessTool),
+      ...createPiCodingTools(),
     ];
-    const streamFn = this.createTracingStreamFn(input, context, push);
-
-    if (!this.agent) {
-      this.agent = new Agent({
-        initialState: {
-          systemPrompt: this.runtimeContext.system,
-          model,
-          thinkingLevel,
-          tools,
-          messages: this.restoredMessages,
-        },
-        streamFn,
-        convertToLlm: convertNativeSessionMessages,
-        getApiKey: this.options.getApiKey,
-        sessionId: this.sessionId,
-        toolExecution: this.options.toolExecution ?? "parallel",
-      });
-    }
-
-    this.agent.state.systemPrompt = this.runtimeContext.system;
-    this.agent.state.model = model;
-    this.agent.state.thinkingLevel = thinkingLevel;
-    this.agent.state.tools = tools;
-    this.agent.streamFunction = streamFn;
-    this.agent.getApiKey = this.options.getApiKey;
-    this.agent.sessionId = this.sessionId;
-    this.agent.toolExecution = this.options.toolExecution ?? "parallel";
-    this.agent.beforeToolCall = async (nativeContext, signal) => {
-      const toolId = toOriginalToolId(this.nativeToolNames, nativeContext.toolCall.name);
+    this.streamFn = this.createTracingStreamFn(input, context, push);
+    await this.harness!.setTools(tools, background);
+    await this.lane!.setActiveTools(
+      tools.map((tool) => tool.name),
+      background,
+    );
+    await this.lane!.setModel({ provider: model.provider, modelId: model.id }, background);
+    await this.lane!.setThinkingLevel(thinkingLevel, background);
+    await this.harness!.setCompactionSettings({ ...DEFAULT_COMPACTION_SETTINGS, enabled: false }, background);
+    this.removeToolGate?.();
+    this.removeToolGate = this.harness!.hooks.on("before_tool", async (nativeContext, nativeRequestContext) => {
+      const signal = nativeRequestContext.abortSignal;
+      const toolId = toOriginalToolId(this.nativeToolNames, nativeContext.toolName);
       const capabilityId = findCapabilityId(this.runtimeContext.tools, context, toolId);
       const decision = await context.beforeToolCall({
         toolId,
@@ -719,14 +812,12 @@ class NativePiSession implements PiSession {
             ]);
             return undefined;
           }
-          return { block: true, reason: `${decision.reason} Approval ${resolved.status}: ${request.id}` };
+          return { block: { reason: `${decision.reason} Approval ${resolved.status}: ${request.id}` } };
         }
-        return { block: true, reason: decision.reason };
+        return { block: { reason: decision.reason } };
       }
       return undefined;
-    };
-
-    return this.agent;
+    });
   }
 
   private createTracingStreamFn(
@@ -737,7 +828,7 @@ class NativePiSession implements PiSession {
     const delegate =
       this.options.streamFn ??
       ((model, llmContext, options) => this.options.models!.streamSimple(model, llmContext, options));
-    return async (model, llmContext, options) => {
+    return (model, llmContext, options) => {
       push([
         {
           type: "model.requested",
@@ -858,159 +949,6 @@ class NativePiSession implements PiSession {
   }
 }
 
-class NativePiSessionRepository {
-  private readonly memoryRepo?: InMemorySessionRepo;
-  private readonly jsonlRepo?: JsonlSessionRepo;
-  private readonly cwd: string;
-  private readonly sessionPromises = new Map<string, Promise<Session<any>>>();
-  private readonly openGroveIds = new Map<string, string>();
-
-  constructor(sessionRoot?: string, cwd = process.cwd(), executionEnv: ExecutionEnv = new NodeExecutionEnv({ cwd })) {
-    this.cwd = cwd;
-    if (sessionRoot?.trim()) {
-      this.jsonlRepo = new JsonlSessionRepo({
-        fs: executionEnv,
-        sessionsRoot: sessionRoot.trim(),
-      });
-    } else {
-      this.memoryRepo = new InMemorySessionRepo();
-    }
-  }
-
-  openOrCreate(openGroveSessionId: string): Promise<Session<any>> {
-    const nativeId = nativePiSessionId(openGroveSessionId);
-    this.openGroveIds.set(nativeId, openGroveSessionId);
-    const existing = this.sessionPromises.get(nativeId);
-    if (existing) return existing;
-    const pending = this.openOrCreateResolved(nativeId, openGroveSessionId).catch((error) => {
-      this.sessionPromises.delete(nativeId);
-      throw error;
-    });
-    this.sessionPromises.set(nativeId, pending);
-    return pending;
-  }
-
-  async list(): Promise<AgentSessionInfo[]> {
-    if (this.jsonlRepo) {
-      const metadata = await this.jsonlRepo.list({ cwd: this.cwd });
-      return metadata.map((candidate): AgentSessionInfo => {
-        const original = candidate.metadata?.openGroveSessionId;
-        return {
-          sessionId: typeof original === "string" && original ? original : candidate.id,
-          nativeSessionId: candidate.id,
-        };
-      });
-    }
-    const metadata = await this.memoryRepo!.list();
-    return metadata.map((candidate) => ({
-      sessionId: this.openGroveIds.get(candidate.id) ?? candidate.id,
-      nativeSessionId: candidate.id,
-    }));
-  }
-
-  async delete(openGroveSessionId: string): Promise<boolean> {
-    const nativeId = nativePiSessionId(openGroveSessionId);
-    await this.sessionPromises.get(nativeId)?.catch(() => undefined);
-    if (this.jsonlRepo) {
-      const metadata = (await this.jsonlRepo.list({ cwd: this.cwd })).find((candidate) => candidate.id === nativeId);
-      if (!metadata) {
-        this.clearCached(nativeId);
-        return false;
-      }
-      await this.jsonlRepo.delete(metadata);
-    } else {
-      const repo = this.memoryRepo!;
-      const metadata = (await repo.list()).find((candidate) => candidate.id === nativeId);
-      if (!metadata) {
-        this.clearCached(nativeId);
-        return false;
-      }
-      await repo.delete(metadata);
-    }
-    this.clearCached(nativeId);
-    return true;
-  }
-
-  async fork(
-    sourceSessionId: string,
-    targetSessionId: string,
-  ): Promise<"forked" | "source_not_found" | "target_exists"> {
-    const source = await this.openExisting(sourceSessionId);
-    if (!source) return "source_not_found";
-    const targetNativeId = nativePiSessionId(targetSessionId);
-    if (this.jsonlRepo) {
-      const existing = (await this.jsonlRepo.list({ cwd: this.cwd })).some(
-        (candidate) => candidate.id === targetNativeId,
-      );
-      // A cached target is still owned by a live in-process Session even when
-      // its repository metadata has not been flushed yet; never overwrite it.
-      if (existing || this.sessionPromises.has(targetNativeId)) return "target_exists";
-      const forked = await this.jsonlRepo.fork(await source.getMetadata(), {
-        id: targetNativeId,
-        cwd: this.cwd,
-        metadata: { openGroveSessionId: targetSessionId },
-      });
-      this.sessionPromises.set(targetNativeId, Promise.resolve(forked));
-    } else {
-      const repo = this.memoryRepo!;
-      const existing = (await repo.list()).some((candidate) => candidate.id === targetNativeId);
-      // A cached target is still owned by a live in-process Session even when
-      // its repository metadata has not been flushed yet; never overwrite it.
-      if (existing || this.sessionPromises.has(targetNativeId)) return "target_exists";
-      const forked = await repo.fork(await source.getMetadata(), { id: targetNativeId });
-      this.sessionPromises.set(targetNativeId, Promise.resolve(forked));
-    }
-    this.openGroveIds.set(targetNativeId, targetSessionId);
-    return "forked";
-  }
-
-  private clearCached(nativeId: string): void {
-    this.sessionPromises.delete(nativeId);
-    this.openGroveIds.delete(nativeId);
-  }
-
-  private async openExisting(openGroveSessionId: string): Promise<Session<any> | undefined> {
-    const nativeId = nativePiSessionId(openGroveSessionId);
-    const pending = this.sessionPromises.get(nativeId);
-    if (pending) return pending;
-    if (this.jsonlRepo) {
-      const metadata = (await this.jsonlRepo.list({ cwd: this.cwd })).find((candidate) => candidate.id === nativeId);
-      if (!metadata) return undefined;
-      const session = await this.jsonlRepo.open(metadata);
-      this.sessionPromises.set(nativeId, Promise.resolve(session));
-      this.openGroveIds.set(nativeId, openGroveSessionId);
-      return session;
-    }
-    const repo = this.memoryRepo!;
-    const metadata = (await repo.list()).find((candidate) => candidate.id === nativeId);
-    if (!metadata) return undefined;
-    const session = await repo.open(metadata);
-    this.sessionPromises.set(nativeId, Promise.resolve(session));
-    this.openGroveIds.set(nativeId, openGroveSessionId);
-    return session;
-  }
-
-  private async openOrCreateResolved(nativeId: string, openGroveSessionId: string): Promise<Session<any>> {
-    if (this.jsonlRepo) {
-      const metadata = (await this.jsonlRepo.list({ cwd: this.cwd })).find((candidate) => candidate.id === nativeId);
-      return metadata
-        ? this.jsonlRepo.open(metadata)
-        : this.jsonlRepo.create({
-            id: nativeId,
-            cwd: this.cwd,
-            metadata: { openGroveSessionId },
-          });
-    }
-    const repo = this.memoryRepo!;
-    const metadata = (await repo.list()).find((candidate) => candidate.id === nativeId);
-    return metadata ? repo.open(metadata) : repo.create({ id: nativeId });
-  }
-}
-
-function nativePiSessionId(openGroveSessionId: string): string {
-  return `opengrove-${createHash("sha256").update(openGroveSessionId).digest("hex").slice(0, 32)}`;
-}
-
 class CallbackCredentialStore implements CredentialStore {
   private readonly credentials = new Map<string, Credential>();
   private readonly disabled = new Set<string>();
@@ -1076,7 +1014,10 @@ function createNativePiModels(getApiKey?: AgentOptions["getApiKey"]): MutableMod
       name: "OpenGrove OpenAI-compatible",
       auth: { apiKey: envApiKeyAuth("OpenGrove OpenAI-compatible API key", ["OPENAI_API_KEY", "MODEL_API_KEY"]) },
       models: [],
-      api: openAICompletionsApi(),
+      api: {
+        "openai-completions": openAICompletionsApi(),
+        "openai-responses": openAIResponsesApi(),
+      },
     }),
   );
   models.setProvider(
@@ -1161,7 +1102,7 @@ function toNativeTools(
   context: PiSessionContext,
   nativeToolNames: Map<string, string>,
   hooks: {
-    onSkillInvoked(invocation: InvokedSkillRecord): void;
+    onSkillInvoked(invocation: InvokedSkillRecord): void | Promise<void>;
     runForkedSkill(invocation: InvokedSkillRecord): Promise<{ forkSessionId: string; text: string }>;
   },
 ): AgentTool[] {
@@ -1202,7 +1143,7 @@ function toNativeTools(
         if (tool.spec.id === "skill.invoke") {
           const invocation = readInvokedSkillFromWorkingState(context.agent.workingState.get().invokedSkills, params);
           if (invocation) {
-            hooks.onSkillInvoked(invocation);
+            await hooks.onSkillInvoked(invocation);
             if (invocation.context === "fork") {
               const forked = await hooks.runForkedSkill(invocation);
               return {
@@ -1238,23 +1179,90 @@ function toNativeTools(
 
 const PI_CODING_TOOL_NAMES = new Set(["read", "write", "edit", "bash"]);
 
-function createPiCodingTools(env: ExecutionEnv): AgentTool[] {
-  const context: ExecutionToolContext = { env };
-  const tools: AgentHarnessTool<ExecutionToolContext>[] = [
-    createReadTool(),
-    createWriteTool(),
-    createEditTool(),
-    createBashTool(),
-  ];
-  return tools.map(
-    (tool): AgentTool => ({
-      name: tool.name,
-      label: tool.label,
-      description: tool.description,
-      parameters: tool.parameters,
-      execute: (toolCallId, params, signal, onUpdate) => tool.execute(toolCallId, params, signal, onUpdate, context),
-    }),
-  );
+function createPiCodingTools(): AgentHarnessTool<ExecutionToolContext>[] {
+  return [createReadTool(), createWriteTool(), createEditTool(), createBashTool()];
+}
+
+function toHarnessTool(tool: AgentTool): AgentHarnessTool<ExecutionToolContext> {
+  return {
+    ...tool,
+    execute: (id, params, onUpdate, _env, _invocation, context) =>
+      tool.execute(id, params, context.abortSignal, (update) => onUpdate?.(update)),
+  };
+}
+
+function toPiAgentEvent(event: HarnessEvent): NativePiEvent | undefined {
+  switch (event.type) {
+    case "message_start":
+    case "message_end":
+      return { type: event.type, message: event.message };
+    case "message_update":
+      return { type: "message_update", message: event.message, assistantMessageEvent: event.event };
+    case "turn_start":
+      return { type: "turn_start" };
+    case "turn_end":
+      return { type: "turn_end", message: event.message, toolResults: event.toolResults };
+    case "tool_start":
+      return { type: "tool_execution_start", toolCallId: event.toolCallId, toolName: event.toolName, args: event.args };
+    case "tool_update":
+      return {
+        type: "tool_execution_update",
+        toolCallId: event.toolCallId,
+        toolName: event.toolName,
+        args: undefined,
+        partialResult: event.partialResult,
+      };
+    case "tool_end":
+      return {
+        type: "tool_execution_end",
+        toolCallId: event.toolCallId,
+        toolName: event.toolName,
+        result: event.result,
+        isError: event.isError,
+      };
+    default:
+      return undefined;
+  }
+}
+
+function bridgePiStream(
+  streamFn: StreamFn,
+  model: Parameters<Models["streamSimple"]>[0],
+  context: NativeModelContext,
+  options: Parameters<Models["streamSimple"]>[2],
+) {
+  const result = streamFn(model, context, options);
+  if (Symbol.asyncIterator in result) return result;
+  const output = createAssistantMessageEventStream();
+  void (async () => {
+    try {
+      const stream = await result;
+      for await (const event of stream) output.push(event);
+      output.end(await stream.result());
+    } catch (error) {
+      const message: AssistantMessage = {
+        role: "assistant",
+        content: [],
+        api: model.api,
+        model: model.id,
+        provider: model.provider,
+        stopReason: "error",
+        timestamp: Date.now(),
+        errorMessage: error instanceof Error ? error.message : String(error),
+        usage: {
+          input: 0,
+          output: 0,
+          cacheRead: 0,
+          cacheWrite: 0,
+          totalTokens: 0,
+          cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+        },
+      };
+      output.push({ type: "error", reason: "error", error: message });
+      output.end(message);
+    }
+  })();
+  return output;
 }
 
 function piApprovalKind(toolId: string): ApprovalKind {
@@ -1570,47 +1578,6 @@ function stringifyToolResult(result: ToolResult): string {
   return JSON.stringify(result.value ?? { ok: result.ok, error: result.error });
 }
 
-function repairAbortedNativeToolHistory(messages: NativeAgentMessage[]): {
-  messages: NativeAgentMessage[];
-  addedToolResults: NativeToolResultMessage[];
-} {
-  const unresolvedCalls = new Map<string, string>();
-  for (const message of messages) {
-    if (readMessageRole(message) === "assistant") {
-      const content = (message as { content?: unknown }).content;
-      if (!Array.isArray(content)) continue;
-      for (const part of content) {
-        if (!part || typeof part !== "object") continue;
-        const candidate = part as { type?: unknown; id?: unknown; name?: unknown };
-        if (candidate.type === "toolCall" && typeof candidate.id === "string" && typeof candidate.name === "string") {
-          unresolvedCalls.set(candidate.id, candidate.name);
-        }
-      }
-      continue;
-    }
-    if (readMessageRole(message) === "toolResult") {
-      const toolCallId = (message as { toolCallId?: unknown }).toolCallId;
-      if (typeof toolCallId === "string") unresolvedCalls.delete(toolCallId);
-    }
-  }
-  const timestamp = Date.now();
-  const addedToolResults = Array.from(
-    unresolvedCalls,
-    ([toolCallId, toolName]): NativeToolResultMessage => ({
-      role: "toolResult",
-      toolCallId,
-      toolName,
-      content: [{ type: "text", text: "Tool execution was cancelled because the turn did not settle after abort." }],
-      isError: true,
-      timestamp,
-    }),
-  );
-  return {
-    messages: [...messages, ...addedToolResults],
-    addedToolResults,
-  };
-}
-
 function stringifyProgress(update: JsonValue): string {
   return typeof update === "string" ? update : safeJson(update);
 }
@@ -1762,10 +1729,6 @@ function asJsonValue(value: unknown): JsonValue {
   } catch {
     return String(value);
   }
-}
-
-function toDurableNativeMessage(message: NativeAgentMessage): NativeAgentMessage {
-  return asJsonValue(message) as unknown as NativeAgentMessage;
 }
 
 function asJsonObject(value: unknown): JsonObject {

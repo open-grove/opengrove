@@ -1,6 +1,7 @@
+import type { ModelMetadata } from "../model-metadata.js";
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
-import type { Model } from "@earendil-works/pi-ai";
+import type { Api, Model, ThinkingLevelMap } from "@earendil-works/pi-ai";
 import { getBuiltinModel } from "@earendil-works/pi-ai/providers/all";
 import { createRuntimeKernelAdapter } from "../adapter.js";
 import { bridgeKernelSupportsHostTools } from "../host-tools.js";
@@ -9,6 +10,7 @@ import type {
   KernelAdapterContract,
   KernelCapabilities,
   KernelDiscovery,
+  ModelOption,
   ProviderProfile,
 } from "../types.js";
 import { APP_PRODUCT_NAME, APP_PROTOCOL_ID, appEnvName, readAppEnv } from "../../identity.js";
@@ -37,6 +39,7 @@ export interface PiKernelAdapterOptions {
   configuredModel?: string;
   runtimeBindingFingerprint?: string;
   env?: NodeJS.ProcessEnv;
+  provider?: ProviderProfile;
 }
 
 const PI_KERNEL_CAPABILITIES: KernelCapabilities = {
@@ -71,7 +74,8 @@ export function createPiKernelAdapter(options: PiKernelAdapterOptions = {}): Ker
     runtime: new PiAgentRuntime({
       workspaceRoot: options.cwd,
       createSession: createNativePiSessionFactory({
-        model: (requestedModelId) => resolvePiRuntimeModel(env, requestedModelId ?? options.configuredModel),
+        model: (requestedModelId) =>
+          resolvePiRuntimeModel(env, requestedModelId ?? options.configuredModel, options.provider?.models),
         getApiKey: (provider) => resolvePiApiKey(env, provider),
         cwd: options.cwd,
         sessionRoot: dataDir ? resolve(dataDir, "pi-sessions") : undefined,
@@ -86,6 +90,7 @@ export function createPiKernelAdapterFromOptions(options: import("../types.js").
   return createPiKernelAdapter({
     cwd: options.cwd,
     configuredModel: options.model,
+    provider: options.provider,
     runtimeBindingFingerprint: options.runtimeBindingFingerprint,
     env: options.env,
   });
@@ -99,44 +104,98 @@ export function canResolvePiRuntimeModel(env: NodeJS.ProcessEnv = process.env): 
   );
 }
 
-export function resolvePiRuntimeModel(env: NodeJS.ProcessEnv, requestedModelId?: string): Model<any> {
+export function resolvePiRuntimeModel(
+  env: NodeJS.ProcessEnv,
+  requestedModelId?: string,
+  modelOptions?: ModelOption[],
+): Model<Api> {
   const modelId =
     requestedModelId?.trim() ||
     readEnv(env, "PI_MODEL", "OPENAI_MODEL", "DEFAULT_MODEL", "ANTHROPIC_MODEL", "GEMINI_MODEL") ||
     "gpt-4o-mini";
   const provider = resolvePiProvider(env);
+  const metadata = modelOptions?.find((model) => model.id === modelId || model.apiModelId === modelId)?.metadata;
   const known = piKnownProviderCandidates(provider, modelId)
     .map((candidate) => getKnownPiModel(candidate, modelId))
-    .find((candidate): candidate is Model<any> => Boolean(candidate));
-  if (known && (!provider.baseUrl || known.baseUrl === provider.baseUrl)) {
-    return known;
+    .find((candidate): candidate is Model<Api> => Boolean(candidate));
+  if (
+    known &&
+    (known.api === provider.api ||
+      (provider.kind === "openai" && !env.OPENGROVE_PI_WIRE_API && known.api === "openai-responses"))
+  ) {
+    return applyPiModelMetadata({ ...known, baseUrl: provider.baseUrl }, metadata);
   }
-  if (known && provider.baseUrl) {
-    return { ...known, baseUrl: provider.baseUrl };
+  if (known) {
+    // Model facts can cross transports; provider headers and compatibility flags cannot.
+    const {
+      api: _api,
+      provider: _provider,
+      baseUrl: _baseUrl,
+      compat: _compat,
+      headers: _headers,
+      ...modelFacts
+    } = known;
+    return applyPiModelMetadata({ ...createCustomPiModel(provider, modelId), ...modelFacts }, metadata);
   }
-  return createCustomPiModel(provider, modelId);
+  return applyPiModelMetadata(createCustomPiModel(provider, modelId), metadata);
+}
+
+function applyPiModelMetadata(model: Model<Api>, metadata: ModelMetadata | undefined): Model<Api> {
+  if (!metadata) return model;
+  const input = metadata.inputModalities?.filter(
+    (modality): modality is "text" | "image" => modality === "text" || modality === "image",
+  );
+  const thinkingLevelMap: ThinkingLevelMap | undefined = metadata.reasoningEfforts?.length
+    ? {
+        ...model.thinkingLevelMap,
+        ...Object.fromEntries(
+          (["minimal", "low", "medium", "high", "xhigh", "max"] as const).map((level) => [
+            level,
+            metadata.reasoningEfforts?.includes(level) ? (model.thinkingLevelMap?.[level] ?? level) : null,
+          ]),
+        ),
+      }
+    : model.thinkingLevelMap;
+  return {
+    ...model,
+    reasoning: metadata.reasoning ?? model.reasoning,
+    contextWindow: metadata.contextWindow ?? model.contextWindow,
+    maxTokens: metadata.maxOutputTokens ?? model.maxTokens,
+    input: input?.length ? input : model.input,
+    thinkingLevelMap,
+    cost: metadata.cost ? { cacheRead: 0, cacheWrite: 0, ...metadata.cost } : model.cost,
+  };
 }
 
 function resolvePiProvider(env: NodeJS.ProcessEnv): {
   kind: "openai" | "anthropic" | "google";
   configuredProvider?: string;
-  api: "openai-completions" | "anthropic-messages" | "google-generative-ai";
+  api: "openai-completions" | "openai-responses" | "anthropic-messages" | "google-generative-ai";
   provider: string;
   baseUrl: string;
 } {
   const configuredProvider = readEnv(env, "OPENGROVE_PI_PROVIDER_ID");
+  const selectedProtocol = readEnv(env, "OPENGROVE_PI_PROTOCOL");
   const openAiBaseUrl = readEnv(env, "OPENAI_BASE_URL", "MODEL_BASE_URL");
-  if (readEnv(env, "OPENAI_API_KEY", "MODEL_API_KEY") || openAiBaseUrl) {
+  if (
+    selectedProtocol
+      ? selectedProtocol === "openai-compatible"
+      : readEnv(env, "OPENAI_API_KEY", "MODEL_API_KEY") || openAiBaseUrl
+  ) {
     return {
       kind: "openai",
       ...(configuredProvider ? { configuredProvider } : {}),
-      api: "openai-completions",
+      api: env.OPENGROVE_PI_WIRE_API === "responses" ? "openai-responses" : "openai-completions",
       provider: "opengrove-openai",
       baseUrl: openAiBaseUrl || "https://api.openai.com/v1",
     };
   }
   const anthropicBaseUrl = readEnv(env, "ANTHROPIC_BASE_URL");
-  if (readEnv(env, "ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN") || anthropicBaseUrl) {
+  if (
+    selectedProtocol
+      ? selectedProtocol === "anthropic-compatible"
+      : readEnv(env, "ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN") || anthropicBaseUrl
+  ) {
     return {
       kind: "anthropic",
       ...(configuredProvider ? { configuredProvider } : {}),
@@ -150,7 +209,7 @@ function resolvePiProvider(env: NodeJS.ProcessEnv): {
     ...(configuredProvider ? { configuredProvider } : {}),
     api: "google-generative-ai",
     provider: "opengrove-google",
-    baseUrl: readEnv(env, "GEMINI_BASE_URL", "GOOGLE_BASE_URL") || "https://generativelanguage.googleapis.com",
+    baseUrl: readEnv(env, "GEMINI_BASE_URL", "GOOGLE_BASE_URL") || "https://generativelanguage.googleapis.com/v1beta",
   };
 }
 
@@ -171,22 +230,22 @@ function piKnownProviderCandidates(provider: ReturnType<typeof resolvePiProvider
   return Array.from(new Set(candidates.filter((candidate): candidate is string => Boolean(candidate))));
 }
 
-function getKnownPiModel(provider: string, modelId: string): Model<any> | undefined {
+function getKnownPiModel(provider: string, modelId: string): Model<Api> | undefined {
   try {
-    return (getBuiltinModel as (provider: string, modelId: string) => Model<any> | undefined)(provider, modelId);
+    return (getBuiltinModel as (provider: string, modelId: string) => Model<Api> | undefined)(provider, modelId);
   } catch {
     return undefined;
   }
 }
 
-function createCustomPiModel(provider: ReturnType<typeof resolvePiProvider>, modelId: string): Model<any> {
+function createCustomPiModel(provider: ReturnType<typeof resolvePiProvider>, modelId: string): Model<Api> {
   return {
     id: modelId,
     name: modelId,
     api: provider.api,
     provider: provider.provider,
     baseUrl: provider.baseUrl,
-    reasoning: /gpt-5|o[134]|claude|glm|deepseek|qwen|kimi/i.test(modelId),
+    reasoning: false,
     input: ["text"],
     cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
     contextWindow: 128_000,
@@ -204,6 +263,10 @@ function createCustomPiModel(provider: ReturnType<typeof resolvePiProvider>, mod
 }
 
 function resolvePiApiKey(env: NodeJS.ProcessEnv, provider: string): string | undefined {
+  const selectedProtocol = readEnv(env, "OPENGROVE_PI_PROTOCOL");
+  if (selectedProtocol === "openai-compatible") return readEnv(env, "OPENAI_API_KEY", "MODEL_API_KEY");
+  if (selectedProtocol === "anthropic-compatible") return readEnv(env, "ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN");
+  if (selectedProtocol === "gemini-compatible") return readEnv(env, "GEMINI_API_KEY", "GOOGLE_API_KEY");
   const normalized = provider.toLowerCase();
   if (normalized.includes("anthropic")) {
     return readEnv(env, "ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN");
@@ -473,6 +536,8 @@ export function buildPiProviderEnv(profile: ProviderProfile): Record<string, str
   if (!profile.apiKey) return undefined;
   const env: Record<string, string> = {
     OPENGROVE_PI_PROVIDER_ID: profile.id,
+    ...(profile.protocol ? { OPENGROVE_PI_PROTOCOL: profile.protocol } : {}),
+    ...(profile.wireApi ? { OPENGROVE_PI_WIRE_API: profile.wireApi } : {}),
   };
 
   const openaiBaseUrl =

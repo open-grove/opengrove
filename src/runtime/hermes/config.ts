@@ -2,7 +2,7 @@ import { copyFileSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { resolve } from "node:path";
 
-export type HermesProviderApiMode = "chat_completions" | "anthropic_messages";
+export type HermesProviderApiMode = "chat_completions" | "codex_responses" | "anthropic_messages";
 
 export interface HermesProviderRuntimeConfig {
   providerKey: string;
@@ -12,6 +12,7 @@ export interface HermesProviderRuntimeConfig {
   apiMode: HermesProviderApiMode;
   model?: string;
   models?: string[];
+  modelContextWindows?: Record<string, number>;
 }
 
 export function writeHermesHomeConfig(
@@ -70,7 +71,13 @@ export function buildHermesConfigYaml(
     if (providerConfig.models?.length) {
       lines.push("    models:");
       for (const model of providerConfig.models) {
-        lines.push(`      ${yamlScalar(model)}: {}`);
+        const contextWindow = providerConfig.modelContextWindows?.[model];
+        if (contextWindow) {
+          lines.push(`      ${yamlScalar(model)}:`);
+          lines.push(`        context_length: ${contextWindow}`);
+        } else {
+          lines.push(`      ${yamlScalar(model)}: {}`);
+        }
       }
     }
     lines.push("");
@@ -93,7 +100,10 @@ export function normalizeHermesProviderConfig(
   const providerKey = normalizeOptionalString(input?.providerKey);
   const name = normalizeOptionalString(input?.name);
   const baseUrl = normalizeOptionalString(input?.baseUrl);
-  const apiMode = input?.apiMode === "anthropic_messages" ? "anthropic_messages" : "chat_completions";
+  const apiMode =
+    input?.apiMode === "anthropic_messages" || input?.apiMode === "codex_responses"
+      ? input.apiMode
+      : "chat_completions";
   if (!providerKey || !name || !baseUrl) return undefined;
   const model = normalizeOptionalString(input?.model);
   const models = Array.from(
@@ -107,6 +117,7 @@ export function normalizeHermesProviderConfig(
     apiKeyEnv: normalizeOptionalString(input?.apiKeyEnv),
     model,
     models,
+    modelContextWindows: input?.modelContextWindows,
   };
 }
 

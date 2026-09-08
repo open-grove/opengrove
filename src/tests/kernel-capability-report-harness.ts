@@ -12,7 +12,7 @@ import { STANDARD_KERNEL_CAPABILITY_IDS } from "../kernel/capabilities/types.js"
 async function main() {
   const noCertifiedEvidence: typeof CERTIFIED_KERNEL_CONTRACT_TESTS = [];
 
-  assert.equal(CERTIFIED_KERNEL_CONTRACT_TESTS.length, 84);
+  assert.equal(CERTIFIED_KERNEL_CONTRACT_TESTS.length, 85);
   assert.deepEqual(
     Object.fromEntries(
       [...new Set(CERTIFIED_KERNEL_CONTRACT_TESTS.map((evidence) => evidence.kernel))]
@@ -29,7 +29,7 @@ async function main() {
       kimi: 12,
       openclaw: 6,
       opencode: 12,
-      pi: 10,
+      pi: 11,
     },
   );
 

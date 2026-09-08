@@ -180,6 +180,7 @@
     "check:kernel-evidence": "node scripts/generate-certified-kernel-evidence.mjs --check",
     "test:capabilities": "npm run build:server && npm run check:kernel-evidence && node dist/tests/kernel-event-contract-harness.js && node dist/tests/kernel-capability-source-harness.js && node dist/tests/kernel-capability-report-harness.js && node dist/tests/kernel-capability-requirements-harness.js && node dist/tests/pi-native-tool-real-runtime-evidence-harness.js && node dist/tests/pi-story-seed-business-e2e-harness.js && node scripts/test-kernel-capability-ui-policy.mjs",
     "certify:openclaw:2026.8.2": "npm run build:server && node scripts/certify-openclaw-gateway-2026-8-2.mjs",
+    "certify:openclaw": "npm run build:server && node scripts/certify-openclaw-gateway-2026-8-2.mjs 2026.9.2",
     "test:capabilities:real": "npm run build:server && node dist/tests/kernel-capability-real-runtime-probe-runner.js",
     "test:kimi-acp-room-host-tools:real": "npm run build:server && node dist/tests/kimi-acp-room-host-tool-real-probe.js",
     "test:kimi-acp-room-host-tools:packaged-real": "npm run build:server && node scripts/run-packaged-kimi-acp-room-host-tool-real-probe.mjs",
@@ -297,9 +298,10 @@
     "node": ">=24"
   },
   "dependencies": {
-    "@anthropic-ai/claude-agent-sdk": "0.3.251",
-    "@earendil-works/pi-agent-core": "0.84.4",
-    "@earendil-works/pi-ai": "0.84.4",
+    "@anthropic-ai/claude-agent-sdk": "0.3.263",
+    "@anthropic-ai/sdk": "0.123.0",
+    "@earendil-works/pi-agent-core": "0.85.1",
+    "@earendil-works/pi-ai": "0.85.1",
     "@modelcontextprotocol/ext-apps": "^1.7.5",
     "@modelcontextprotocol/sdk": "^1.30.0",
     "cross-spawn": "^7.0.6",
@@ -308,7 +310,6 @@
     "zod": "^4.5.4"
   },
   "overrides": {
-    "@anthropic-ai/sdk": "^0.95.2",
     "fast-uri": "^3.1.7",
     "js-yaml": "$js-yaml"
   },

@@ -47,6 +47,7 @@ export interface RuntimeControlOption {
   canonicalModelId?: string;
   family?: string;
   status?: "alpha" | "beta" | "deprecated";
+  metadata?: { reasoning?: boolean; reasoningEfforts?: string[] };
 }
 export interface RuntimeControls {
   kernel: KernelPreference;

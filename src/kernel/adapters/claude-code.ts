@@ -789,7 +789,7 @@ export function buildClaudeCodeProviderEnv(profile: ProviderProfile): Record<str
     const region = profile.baseUrl.match(/bedrock-runtime[.-]([a-z0-9-]+)\.amazonaws\.com/i)?.[1];
     if (region) env.AWS_REGION = region;
     if (profile.apiKey) env.AWS_BEARER_TOKEN_BEDROCK = profile.apiKey;
-    applyClaudeModelEnvVars(env, profile.model);
+    applyClaudeModelEnvVars(env, profile);
     return env;
   }
 
@@ -800,7 +800,7 @@ export function buildClaudeCodeProviderEnv(profile: ProviderProfile): Record<str
       CLAUDE_CODE_USE_VERTEX: "1",
       ANTHROPIC_VERTEX_BASE_URL: profile.baseUrl,
     };
-    applyClaudeModelEnvVars(env, profile.model);
+    applyClaudeModelEnvVars(env, profile);
     return env;
   }
 
@@ -816,16 +816,19 @@ export function buildClaudeCodeProviderEnv(profile: ProviderProfile): Record<str
   } else {
     env.ANTHROPIC_AUTH_TOKEN = profile.apiKey;
   }
-  applyClaudeModelEnvVars(env, profile.model);
+  applyClaudeModelEnvVars(env, profile);
   return env;
 }
 
-function applyClaudeModelEnvVars(env: Record<string, string>, model: string | undefined): void {
+function applyClaudeModelEnvVars(env: Record<string, string>, profile: ProviderProfile): void {
+  const model = profile.model;
   if (!model) return;
   env.ANTHROPIC_MODEL = model;
   env.ANTHROPIC_DEFAULT_OPUS_MODEL = model;
   env.ANTHROPIC_DEFAULT_SONNET_MODEL = model;
   env.ANTHROPIC_DEFAULT_HAIKU_MODEL = model;
+  const contextWindow = profile.models?.find((m) => m.id === model || m.apiModelId === model)?.metadata?.contextWindow;
+  if (contextWindow) env.CLAUDE_CODE_MAX_CONTEXT_TOKENS = String(contextWindow);
 }
 
 // ===== Kernel-local Login/Provider route reader =====
