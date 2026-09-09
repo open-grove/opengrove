@@ -9,12 +9,21 @@ const errors = [400, 401, 403, 409, 503].map((status) => ({
 
 export const inspectNetworkAccountOperation = defineHostOperation({
   id: "network.account.inspect",
+  summary: "Read whether this installation has an Agent Router configured",
+  description: "Read local configuration only. Does not exchange credentials or create an account.",
+  method: "GET",
+  path: "/network/account",
+  risk: "read",
+  success: { status: 200, body: z.object({ ok: z.literal(true), configured: z.boolean() }) },
+});
+export const connectNetworkAccountOperation = defineHostOperation({
+  id: "network.account.connect",
   summary: "Connect the signed-in admin's Agent network account",
   description:
     "Exchange the current OpenGrove login at the operator's trusted Agent Router node and return public sender identity. Requires admin; credentials remain in Host memory.",
   method: "POST",
   path: "/network/account",
-  risk: "read",
+  risk: "write",
   body: z.object({}).strict(),
   success: { status: 200, body: z.object({ ok: z.literal(true), account }) },
   errors,
@@ -22,7 +31,7 @@ export const inspectNetworkAccountOperation = defineHostOperation({
 export const addNetworkContactOperation = defineHostOperation({
   id: "network.contact.add",
   summary: "Add a remote Agent to Contacts",
-  description: "Resolve an Agent network address and save a bound remote member for direct conversations.",
+  description: "Resolve an Agent network address and save a bound remote member for Room conversations.",
   method: "POST",
   path: "/network/contacts",
   risk: "write",
@@ -30,6 +39,7 @@ export const addNetworkContactOperation = defineHostOperation({
   success: { status: 200, body: z.object({ ok: z.literal(true), memberId: z.string() }) },
   errors,
 });
+export type ConnectNetworkAccountOperation = typeof connectNetworkAccountOperation;
 export type InspectNetworkAccountOperation = typeof inspectNetworkAccountOperation;
 export type AddNetworkContactOperation = typeof addNetworkContactOperation;
 
@@ -42,7 +52,7 @@ export const networkOperationGroup = defineHostOperationGroup({
       id: "account",
       title: "Accounts",
       description: "Communication identity for the current OpenGrove admin account.",
-      operations: [inspectNetworkAccountOperation],
+      operations: [inspectNetworkAccountOperation, connectNetworkAccountOperation],
     }),
     defineHostOperationResource({
       id: "contact",

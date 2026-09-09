@@ -27,7 +27,6 @@ export async function startRemoteAgentService() {
     directoryUnavailable: false,
   };
   const directoryRequests: string[] = [];
-  const pendingCancellations = new Set<string>();
   let sequence = 0;
   let baseUrl = "";
   let host = "";
@@ -139,7 +138,8 @@ export async function startRemoteAgentService() {
       let task: Task | undefined;
       if (rpc.method === "SendMessage") {
         const message = rpc.params.message!;
-        const text = message.parts[0]!.text;
+        const content = message.parts[0]!.text;
+        const text = /<current-message>\n([\s\S]*)\n<\/current-message>/.exec(content)?.[1] ?? content;
         const contextId = message.contextId ?? `context-${message.messageId}`;
         const first = !tasks[message.messageId];
         if (first) {
@@ -188,12 +188,25 @@ export async function startRemoteAgentService() {
       } else {
         task = Object.values(tasks).find((candidate) => candidate.id === rpc.params.id);
         if (task && rpc.method === "CancelTask") {
-          if (config.delayCancellation) pendingCancellations.add(task.id);
-          else task.status.state = "TASK_STATE_CANCELED";
-        } else if (task && pendingCancellations.has(task.id)) {
-          pendingCancellations.delete(task.id);
-          task.status.state = "TASK_STATE_CANCELED";
+          if (!config.delayCancellation) task.status.state = "TASK_STATE_CANCELED";
         }
+      }
+      if (rpc.method === "SubscribeToTask" && task) {
+        response.writeHead(200, { "content-type": "text/event-stream" });
+        let previous = "";
+        const tick = () => {
+          const latest = Object.values(tasks).find((candidate) => candidate.id === rpc.params.id)!;
+          const next = JSON.stringify(latest);
+          if (next !== previous) {
+            previous = next;
+            response.write(`data: ${JSON.stringify({ jsonrpc: "2.0", id: rpc.id, result: { task: latest } })}\n\n`);
+          }
+          if (!["TASK_STATE_WORKING", "TASK_STATE_SUBMITTED"].includes(latest.status.state)) response.end();
+        };
+        const timer = setInterval(tick, 25);
+        response.on("close", () => clearInterval(timer));
+        tick();
+        return;
       }
       return send(200, { jsonrpc: "2.0", id: rpc.id, result: rpc.method === "SendMessage" ? { task } : task });
     }

@@ -1,4 +1,3 @@
-import { resumeRemoteRoomRuns } from "../../room-runs.js";
 import type { AppRoomScope, RoomChannelMember, RoomChannelRoom } from "../../../rooms/channel-store.js";
 import { isLegacyRoomPmMember, isRoomPmMember, pmAgentMemberId } from "../../../rooms/room-pm.js";
 import { record } from "../../http-utils.js";
@@ -43,7 +42,6 @@ async function handleRoomsInitRoute(context: RoomsRouteContext): Promise<boolean
       )
     : false;
   if (groveWelcomeChanged) state.store.saveFrom(state.app);
-  await resumeRemoteRoomRuns(context);
   const snapshot = state.app.rooms.getInit(
     Math.min(readPositiveInt(url.searchParams.get("limit"), 80), 200),
     Math.min(readPositiveInt(url.searchParams.get("totalLimit"), 500), 1_000),

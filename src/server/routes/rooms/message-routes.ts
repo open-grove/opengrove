@@ -1,3 +1,4 @@
+import { remoteFailureText } from "../../remote-agents/execution.js";
 import { Buffer } from "node:buffer";
 import type { CreateRoomMessageOperation } from "#protocol";
 import type { PostRoomMessageResult, RoomChannelMember, RoomChannelMessage } from "../../../rooms/channel-store.js";
@@ -72,7 +73,6 @@ async function handleMessagesListRoute(context: RoomsRouteContext): Promise<bool
   const messagesAction = url.pathname.match(/^\/rooms\/([^/]+)\/messages$/);
   if (!messagesAction || request.method !== "GET") return false;
   const encodedRoomId = messagesAction[1]!;
-  await resumeRemoteRoomRuns(context, decodeURIComponent(encodedRoomId));
   const messages = state.app.rooms.listVisibleMessages(decodeURIComponent(encodedRoomId), {
     limit: Math.min(readPositiveInt(url.searchParams.get("limit"), 80), 200),
     beforeSeq: readOptionalPositiveInt(url.searchParams.get("beforeSeq")),
@@ -145,13 +145,17 @@ export async function handleCreateRoomMessageOperation(
   const assistantTargets = targetIds
     .map((id) => state.app.rooms.listMembers().find((member) => member.id === id))
     .filter((member): member is RoomChannelMember => Boolean(member));
+  const remoteFailures = new Map<string, string>();
   for (const target of assistantTargets.filter((member) => member.source === "remote")) {
     try {
       await requireNetworkConnection(context, target.remoteAgent);
     } catch (error) {
       const problem = networkProblem(error);
-      sendJson(response, problem.status, { ok: false, error: problem.error });
-      return true;
+      if (state.app.rooms.getRoom(roomId)?.kind === "direct") {
+        sendJson(response, problem.status, { ok: false, error: problem.error });
+        return true;
+      }
+      remoteFailures.set(target.id, problem.error);
     }
   }
   // A retried remote send must reuse its local ledger entry as well as its network request.
@@ -165,7 +169,7 @@ export async function handleCreateRoomMessageOperation(
       sendJson(response, 409, { ok: false, error: "message_id_conflict" });
       return true;
     }
-    await resumeRemoteRoomRuns(context, roomId);
+    await resumeRemoteRoomRuns(state, roomId);
     sendJson(
       response,
       200,
@@ -253,7 +257,13 @@ export async function handleCreateRoomMessageOperation(
     selectedFile,
   });
   state.store.saveFrom(state.app);
-  const updatedMessages = await scheduleAndFallbackAssistantMessages(context, result, assistantTargets, roomId);
+  const updatedMessages = await scheduleAndFallbackAssistantMessages(
+    context,
+    result,
+    assistantTargets,
+    roomId,
+    remoteFailures,
+  );
   if (updatedMessages.size) {
     result.assistantMessages = result.assistantMessages.map((message) => updatedMessages.get(message.id) ?? message);
     result.currentEventSeq = state.app.rooms.snapshot().currentEventSeq;
@@ -298,12 +308,13 @@ async function scheduleAndFallbackAssistantMessages(
   },
   assistantTargets: RoomChannelMember[],
   roomId: string,
+  remoteFailures = new Map<string, string>(),
 ): Promise<Map<string, RoomChannelMessage>> {
   const { request, state } = context;
   const runnablePairs = result.assistantMessages
     .map((message, index) => ({ message, target: assistantTargets[index] }))
     .filter((pair): pair is { message: RoomChannelMessage; target: RoomChannelMember } =>
-      Boolean(pair.target && isRunnableRoomAssistantTarget(pair.target)),
+      Boolean(pair.target && !remoteFailures.has(pair.target.id) && isRunnableRoomAssistantTarget(pair.target)),
     );
   const wwAuth = context.security
     ? (await readWwRuntimeAuth(request, context.response, context.security))?.auth
@@ -320,7 +331,18 @@ async function scheduleAndFallbackAssistantMessages(
   for (const [index, message] of result.assistantMessages.entries()) {
     const target = assistantTargets[index];
     if (!target || updatedMessages.has(message.id)) continue;
-    const fallback = updateNonRunnableLocalTarget(state, roomId, target, message);
+    const failure = remoteFailures.get(target.id);
+    const fallback = failure
+      ? state.app.rooms.updateMessage(roomId, message.id, {
+          status: "failed",
+          remoteTask: {
+            messageId: message.id,
+            triggerMessageId: result.userMessage.id,
+            pending: true,
+            statusText: remoteFailureText(failure, resolveHostLanguageSettings(state.settings)),
+          },
+        })!
+      : updateNonRunnableLocalTarget(state, roomId, target, message);
     updatedMessages.set(fallback.id, fallback);
   }
   return updatedMessages;
@@ -355,7 +377,7 @@ async function handleMessageCancelRoute(context: RoomsRouteContext): Promise<boo
     state.app.rooms.updateMessage(roomId, message.id, { remoteTask: { ...message.remoteTask, cancelRequested: true } });
     state.store.saveFrom(state.app);
     if (message.runId) cancelRoomAssistantRun(state, message.runId);
-    await resumeRemoteRoomRuns(context, roomId);
+    await resumeRemoteRoomRuns(state, roomId);
     sendJson(response, 200, {
       ok: true,
       cancelled: true,

@@ -10,7 +10,7 @@ manages its execution environment, model, context, and permissions.
 2. In **Contacts** or **Messages**, open **+**, select **Add remote Agent**,
    and enter the employee's address and an optional local display name.
 3. Select **Send message** to open the existing Rooms interface. Direct
-   conversations support text, execution status, replies, and Stop.
+   and group conversations support text, mentions, replies, execution status, and Stop.
 4. Continue in the same conversation to reuse its remote context. **New
    conversation** creates a new Room and context while retaining earlier history.
 
@@ -35,12 +35,11 @@ trusted by the operator. This is installation configuration, not per-user
 communication-account setup, and it is never taken from a contact's address.
 The node must configure that provider against the existing Cloud account
 `GET /v1/users/me` endpoint with `subjectPath: ["data", "user_id"]`,
-`rolesPath: ["data", "roles"]`, and `requiredRoles: ["admin"]`. These settings
-come from the SDK's packaged README and CONFIGURATION.md; OpenGrove does not configure or deploy nodes.
+`rolesPath: ["data", "roles"]`, and `requiredRoles: ["admin"]`. These deployment-specific mappings belong to the operator configuration; the Router SDK is product-independent. OpenGrove does not configure or deploy nodes.
 For isolated local HTTP tests only, `OPENGROVE_AGENT_ROUTER_ALLOW_LOCAL_HTTP=1`
 permits loopback addresses. Other HTTP endpoints remain prohibited.
 
-SDK 0.1.2 is supplied as the original distribution archive under `vendor/`,
+SDK 0.1.3 is supplied as the original distribution archive under `vendor/`,
 with its checksum pinned in the npm lockfile. It is not yet a registry release.
 
 ## Account and credential lifetime
@@ -51,7 +50,9 @@ OpenGrove's normal auth flow owns product-token refresh; remote requests can
 refresh through that flow while returning updated cookies to the caller.
 Background observation never consumes a one-time product refresh token. If the
 product login is no longer usable, the pending task is preserved until the user
-restores their login and reopens the conversation.
+restores their login or selects **Retry** in execution status.
+
+The Host has one current product account, matching the existing single-principal local Host design. Stale requests from an old login cannot clear that account's network connection.
 
 Logging out or switching accounts immediately disconnects the old account's
 requests, clears local communication credentials, and attempts remote session
@@ -61,26 +62,24 @@ match that binding; another account, node, or sender cannot adopt the conversati
 Role removal prevents subsequent exchange; the node may accept an already-issued
 token until its expiry or revocation, as documented by the SDK.
 
-Conversations created with the earlier CLI integration retain their history and
-original sender binding. They are not silently rebound to a product account.
-Re-add the remote address using the current login to start a new conversation.
+Malformed remote bindings disable only the affected contact. Malformed task metadata interrupts only that reply; local contacts and conversation history still load. Unshipped CLI bindings are not supported.
 
 ## Delivery and recovery
 
 Contacts persist the SDK `resolve` result as an address and Matrix ID pair. All
 task operations pass it as `resolvedTarget` and use the trusted home gateway;
 existing conversations keep working if the recipient directory is unavailable.
+Resolving a new address makes an unauthenticated outbound HTTPS directory request to the host named in that address. Product and network tokens are sent only to the configured trusted home node, never to that directory.
 A newly resolved recipient identity creates a separate contact, so a pending
 task never silently changes recipient.
 
 The local Room ledger is authoritative for the UI. Each turn persists its message
 ID and original text before sending. The first response supplies the remote
-context ID; following turns use that context. Reopening after a connection failure
-recovers the same request. An uncertain submission replays its original message
+context ID; following turns for the same Employee in the same Room use that context. Different Rooms and Employees have separate contexts. Restoring the login after startup or choosing **Retry** after a connection failure recovers the same request. Reading Rooms or message history never reconnects or replays work. An uncertain submission replays its original message
 ID and identical input; a known task is queried by task ID. A request for more
 input continues with both the pending task ID and the context ID.
 
-The SDK provides durable task polling, not token streaming. Connection progress,
+The SDK consumes A2A task subscriptions through the official A2A client. Status and artifact updates are applied as they arrive; broken subscriptions reconnect with bounded exponential backoff. Exhausted retries pause observation with a visible failure and a **Retry** action. Connection progress,
 waiting, cancellation, and errors appear in execution status; the reply body
 contains only remote task content. A malformed response is a visible failure,
 never a fabricated answer. Closing OpenGrove stops local observation without
@@ -88,20 +87,19 @@ canceling remote work; reopening recovers its latest result under the same accou
 
 Stop requests remote cancellation and follows the returned task state. An
 acknowledgment alone is not treated as confirmed cancellation. Completed, failed,
-rejected, canceled, input-required, and auth-required task states stop polling.
+rejected, canceled, input-required, and auth-required task states stop observation.
 Remote side effects already performed cannot be undone by stopping observation.
 
 ## Boundaries
 
 - Contacts belong to the local address book; adding one does not import network
   contacts or grant receiving or execution permissions.
-- Local workspace files, attachments, Employee prompts, and local tools are not
-  forwarded. Attached files are rejected visibly. Text is limited to 32,000
-  characters per message.
-- Remote groups, incoming exposure of local Employees, worker deployment,
+- Local workspace files, attachments, Employee system prompts, and local tools are not forwarded. Attached files are rejected visibly. The transmitted text, including Room context, is limited to 32,000 characters.
+- Group delivery reuses normal Rooms targeting and scheduling. It includes the current message, reply/delegation relation, member names and a bounded excerpt of visible group history. Internal messages are excluded. A remote connection failure affects that Employee's reply while other selected Employees can continue.
+- A remote executor does not gain this Host's tools merely by joining a group. Tool access is a separate capability and authorization boundary.
+- Incoming exposure of local Employees, worker deployment,
   account registration UI, and reply-policy editing are outside this version.
 
-The public Host operations are `network.account.inspect` (no profile input) and
-`network.contact.add` (`address` and optional `name`). Conversation creation,
+The public Host operations are `network.account.inspect` (read-only installation availability), `network.account.connect` (an explicit write that exchanges credentials and resumes pending work), and `network.contact.add` (`address` and optional `name`). Conversation creation,
 sending, history, events, and cancellation reuse Rooms. See
 [Client and protocol boundary](../architecture/CLIENT_PROTOCOL.md).

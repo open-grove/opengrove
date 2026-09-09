@@ -1,3 +1,4 @@
+import { resumeRemoteRoomRuns } from "../room-runs.js";
 import {
   clearNetworkSession,
   networkSessionGeneration,
@@ -562,6 +563,7 @@ async function completeWwSignIn(input: {
 }): Promise<Record<string, unknown>> {
   const { request, response, services, state, traceId, wwBaseUrl, tokens, user } = input;
   const sessionId = createLocalSessionId();
+  void clearNetworkSession(state, "remote_account_changed");
   beginWwProviderSession({ state, baseUrl: wwBaseUrl, userId: user.userId });
   clearWwProviderRecoveryBlock(state, { issuer: wwBaseUrl, userId: user.userId });
   const providerProvisioning = await provisionWwProviderAfterLogin({
@@ -604,7 +606,6 @@ async function completeWwSignIn(input: {
   // failed switch must leave the previous cookies and session usable.
   input.onSession?.(sessionId);
   clearAuthSessionCache(readAuthTokens(request));
-  await clearNetworkSession(state, "remote_account_changed");
   writeAuthTokens(response, tokens, sessionId);
   cacheAuthSessionUser(sessionId, tokens.accessToken, user, tokens.accessTokenExpiresIn);
   return { user, isNewUser: tokens.isNewUser, providerProvisioning, defaultStoreApps, appUpdates };
@@ -792,7 +793,18 @@ async function handleSession(
     return;
   }
   initializeHostLanguageFromSession(state, request, traceId);
-  if (authResult.verification !== "stale") updateNetworkProductSession(state, session, networkGeneration);
+  try {
+    if (authResult.verification !== "stale" && updateNetworkProductSession(state, session, networkGeneration)) {
+      const generation = networkSessionGeneration(state);
+      if (resumedNetworkGeneration.get(state) !== generation) {
+        resumedNetworkGeneration.set(state, generation);
+        void resumeRemoteRoomRuns(state).catch(() => console.warn("remote_resume_unavailable"));
+      }
+    }
+  } catch {
+    // An unavailable optional communication service must not make the product login fail.
+    console.warn("remote_session_update_unavailable");
+  }
   const providerProvisioning = await provisionWwProviderAfterLogin({
     state,
     client: createWwHostedServices(session.auth.baseUrl).providerCredentials,
@@ -1223,3 +1235,5 @@ function stableAuthDiagnosticCode(error: unknown): string {
 function isWwError(value: unknown): value is WwApiError {
   return value instanceof Error && typeof (value as WwApiError).publicCode === "string";
 }
+
+const resumedNetworkGeneration = new WeakMap<BridgeState, number>();

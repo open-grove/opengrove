@@ -9,9 +9,11 @@ import {
   type BridgeSecurity,
 } from "../bridge-security.js";
 import type { BridgeState } from "../bridge-types.js";
+import { readWwProviderLocalState, wwProviderAccountMatches } from "../ww-provider-local-state.js";
 import { AgentNetworkSessions, type NetworkConnection } from "./client.js";
 
 const sessions = new WeakMap<BridgeState, AgentNetworkSessions>();
+const generations = new WeakMap<BridgeState, number>();
 
 export function networkSessionsFor(state: BridgeState): AgentNetworkSessions {
   let network = sessions.get(state);
@@ -29,6 +31,7 @@ export function networkSessionsFor(state: BridgeState): AgentNetworkSessions {
 }
 
 export async function clearNetworkSession(state: BridgeState, reason = "not_authenticated"): Promise<void> {
+  generations.set(state, networkSessionGeneration(state) + 1);
   await sessions.get(state)?.clear(reason);
 }
 
@@ -36,22 +39,31 @@ export function updateNetworkProductSession(
   state: BridgeState,
   session: BridgeRuntimeAuthSession,
   generation?: number,
-): void {
-  const network = sessions.get(state);
-  if (!network || (generation !== undefined && network.generation !== generation)) return;
+): boolean {
+  if (generation !== undefined && networkSessionGeneration(state) !== generation) return false;
+  const network =
+    sessions.get(state) ?? (readAppEnv("AGENT_ROUTER_URL")?.trim() ? networkSessionsFor(state) : undefined);
+  if (!network) return false;
+  const product = {
+    accountIssuer: session.auth.baseUrl,
+    accountUserId: session.auth.userId,
+    accessToken: session.auth.accessToken,
+  };
+  if (!network.matches(product) || !isCurrentHostAccount(state, session)) return false;
   if (!bridgeSessionUserHasRole(session.user, "admin")) {
-    void network.clear("external_role_required");
-    return;
+    void clearNetworkSession(state, "external_role_required");
+    return false;
   }
   network.observe({
     accountIssuer: session.auth.baseUrl,
     accountUserId: session.auth.userId,
     accessToken: session.auth.accessToken,
   });
+  return true;
 }
 
-export function networkSessionGeneration(state: BridgeState): number | undefined {
-  return sessions.get(state)?.generation;
+export function networkSessionGeneration(state: BridgeState): number {
+  return generations.get(state) ?? 0;
 }
 
 interface NetworkRouteContext {
@@ -76,8 +88,13 @@ export async function requireNetworkConnection(
     if (auth.status === "unauthenticated") throw new AgentRouterError("not_authenticated", 401);
     if (auth.status === "temporarily_unavailable" || auth.verification === "stale")
       throw new AgentRouterError("remote_account_unavailable", 503);
+    if (
+      !isCurrentHostAccount(state, auth.session) ||
+      !network.matches({ accountIssuer: auth.session.auth.baseUrl, accountUserId: auth.session.auth.userId })
+    )
+      throw new AgentRouterError("remote_account_changed", 409);
     if (!bridgeSessionUserHasRole(auth.session.user, "admin")) {
-      await network.clear("external_role_required");
+      await clearNetworkSession(state, "external_role_required");
       throw new AgentRouterError("external_role_required", 403);
     }
     network.observe(
@@ -104,4 +121,11 @@ export function networkProblem(error: unknown): { error: string; status: number 
     return { error: "remote_connection_unavailable", status: 503 };
   console.warn("remote_unexpected_error", error instanceof Error ? error.name : "unknown");
   return { error: "invalid_response", status: 503 };
+}
+
+function isCurrentHostAccount(state: BridgeState, session: BridgeRuntimeAuthSession): boolean {
+  return (
+    !readWwProviderLocalState(state).ownerUserId ||
+    wwProviderAccountMatches(state, { issuer: session.auth.baseUrl, userId: session.auth.userId })
+  );
 }

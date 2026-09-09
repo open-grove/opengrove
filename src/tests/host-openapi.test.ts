@@ -59,7 +59,7 @@ test("Host Protocol projects every operation into OpenAPI 3.1", () => {
     { type: "null" },
   ]);
   assert.deepEqual(readRecord(requestProperties.attachments).anyOf, [{ type: "array", items: {} }, { type: "null" }]);
-  assert.deepEqual(Object.keys(responses), ["200", "400", "401", "403", "404", "503"]);
+  assert.deepEqual(Object.keys(responses), ["200", "400", "401", "403", "404", "409", "503"]);
 
   const publish = readRecord(readRecord(document.paths["/apps/{appId}/publish"]).post);
   assert.deepEqual(Object.keys(readRecord(publish.responses)).slice(0, 2), ["200", "202"]);

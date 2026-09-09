@@ -126,15 +126,6 @@ test("logout aborts bound requests and a late exchange cannot install credential
   const current = await network.connect();
   assert.equal(current.sender.id, "sender-b");
   await assert.rejects(network.connect({ ...current.binding, accountUserId: "a" }), /remote_account_changed/);
-  await assert.rejects(
-    network.connect({
-      profile: "legacy",
-      senderAgentId: "sender-b",
-      owner: current.sender.owner,
-      address: "owner/agent@agents.example",
-    }),
-    /remote_reconnect_required/,
-  );
   await network.clear();
   assert.equal(current.signal.aborted, true);
   await assert.rejects(

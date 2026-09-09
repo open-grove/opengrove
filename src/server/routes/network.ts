@@ -1,13 +1,27 @@
+import { readAppEnv } from "../../identity.js";
+import { resumeRemoteRoomRuns } from "../room-runs.js";
 import { createHash } from "node:crypto";
-import type { AddNetworkContactOperation, InspectNetworkAccountOperation } from "#protocol";
+import type {
+  AddNetworkContactOperation,
+  InspectNetworkAccountOperation,
+  ConnectNetworkAccountOperation,
+} from "#protocol";
 import { requireNetworkConnection, networkProblem } from "../remote-agents/session.js";
 import type { HostOperationRouteContext } from "../router.js";
 
 export async function handleInspectNetworkAccount(
   context: HostOperationRouteContext<InspectNetworkAccountOperation>,
 ): Promise<true> {
+  context.sendJson(context.response, 200, { ok: true, configured: Boolean(readAppEnv("AGENT_ROUTER_URL")?.trim()) });
+  return true;
+}
+
+export async function handleConnectNetworkAccount(
+  context: HostOperationRouteContext<ConnectNetworkAccountOperation>,
+): Promise<true> {
   try {
     const { sender: account } = await requireNetworkConnection(context);
+    await resumeRemoteRoomRuns(context.state);
     context.sendJson(context.response, 200, { ok: true, account });
   } catch (error) {
     const problem = networkProblem(error);

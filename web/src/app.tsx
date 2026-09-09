@@ -2345,6 +2345,10 @@ export function App() {
             key={roomsSessionKey}
             openRemoteAgentDialog={openRemoteAgentDialog}
             focusMemberId={contactFocusMemberId}
+            onNavigationConsumed={() => {
+              setOpenRemoteAgentDialog(false);
+              setContactFocusMemberId("");
+            }}
             activeKernel={activeKernel}
             activeModel={model}
             activeWorkspaceRoot={activeWorkspaceRoot}

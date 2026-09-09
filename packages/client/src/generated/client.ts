@@ -17,6 +17,7 @@ export const openGroveClientOperationIds = [
   "app.update.schedule",
   "room.message.create",
   "network.account.inspect",
+  "network.account.connect",
   "network.contact.add",
 ] as const;
 
@@ -190,6 +191,12 @@ export function bindOpenGroveClient(request: HostOperationRequest) {
           options?: OpenGroveRequestOptions,
         ): Promise<HostOperationOutput<(typeof hostOperationById)["network.account.inspect"]>> =>
           request(hostOperationById["network.account.inspect"], {
+            signal: options?.signal,
+          }),
+        connect: (
+          options?: OpenGroveRequestOptions,
+        ): Promise<HostOperationOutput<(typeof hostOperationById)["network.account.connect"]>> =>
+          request(hostOperationById["network.account.connect"], {
             body: {},
             signal: options?.signal,
           }),

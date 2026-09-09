@@ -1,3 +1,4 @@
+import { openGroveClient } from "../../opengrove-client";
 import {
   Fragment,
   memo,
@@ -226,6 +227,7 @@ const RoomMessageItem = memo(function RoomMessageItem(props: {
   const [actionSurfaceActive, setActionSurfaceActive] = useState(false);
   const [overflowMenuOpen, setOverflowMenuOpen] = useState(false);
   const [exportingDiagnostics, setExportingDiagnostics] = useState(false);
+  const [reconnecting, setReconnecting] = useState(false);
   const contentRef = useRef<HTMLDivElement | null>(null);
   const toolbarRef = useRef<HTMLDivElement | null>(null);
   const [toolbarPlacement, setToolbarPlacement] = useState<RoomMessageToolbarPlacement>("right");
@@ -496,6 +498,27 @@ const RoomMessageItem = memo(function RoomMessageItem(props: {
             hasTextPart={hasTextPart}
             status={message.status}
             statusText={agentStatusText}
+            retry={
+              message.remoteTask?.pending && message.status !== "running"
+                ? {
+                    pending: reconnecting,
+                    onRetry: async () => {
+                      setReconnecting(true);
+                      try {
+                        await openGroveClient.network.account.connect();
+                      } catch (error) {
+                        toast?.({
+                          title: t("remoteAgent.reconnectError"),
+                          description: rawDiagnosticText(error instanceof Error ? error.message : String(error)),
+                          kind: "error",
+                        });
+                      } finally {
+                        setReconnecting(false);
+                      }
+                    },
+                  }
+                : undefined
+            }
             duration={doneDuration}
             cancel={
               message.status === "running" && props.onCancelRun
@@ -965,6 +988,7 @@ function RoomAgentMessageBody(props: {
   hasTextPart: boolean;
   status: MessageStatus;
   statusText?: string;
+  retry?: { pending: boolean; onRetry(): Promise<void> };
   duration?: string;
   cancel?: RoomRunCancel;
   activeChoiceFormKey?: string;
@@ -1104,6 +1128,16 @@ function RoomAgentMessageBody(props: {
             {props.status === "done" ? <Check size={12} className="room-chat-status-check" aria-hidden="true" /> : null}
             {props.statusText}
           </div>
+          {props.retry ? (
+            <button
+              type="button"
+              className="ghost-button"
+              disabled={props.retry.pending}
+              onClick={() => void props.retry?.onRetry()}
+            >
+              {props.retry.pending ? t("remoteAgent.connecting") : t("common.retry")}
+            </button>
+          ) : null}
         </div>
       ) : null}
     </div>

@@ -13,6 +13,8 @@ export const ZH_CN = {
   "remoteAgent.address": "Agent 地址",
   "remoteAgent.name": "备注名（可选）",
   "remoteAgent.connecting": "正在连接…",
+  "remoteAgent.reconnectError": "暂时无法重连，请检查账号和网络后重试。",
+  "remoteAgent.refreshError": "员工已添加，但通讯录刷新失败。重新打开通讯录即可查看。",
   "remoteAgent.addError": "无法添加或打开远端 Agent，请检查地址和网络后重试。",
   "remoteAgent.newConversation": "新对话",
 

@@ -105,6 +105,7 @@ const INTERACTIONS = [
     async open(page) {
       await gotoRailSection(page, "rooms", ["rooms", "contacts"]);
       await gotoRoomView(page, "contacts");
+      await page.locator('[data-room-action="contacts-create-menu"]').click();
       const addEmployee = await requiredLocator(
         page,
         '[data-room-action="add-employee"]',

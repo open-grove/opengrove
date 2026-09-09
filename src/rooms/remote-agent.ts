@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { legacyRemoteAgentBindingSchema } from "./remote-agent.compat.js";
 
 export const accountRemoteAgentBindingSchema = z
   .object({
@@ -14,7 +13,7 @@ export const accountRemoteAgentBindingSchema = z
   })
   .strict();
 export type AccountRemoteAgentBinding = z.infer<typeof accountRemoteAgentBindingSchema>;
-export const remoteAgentBindingSchema = z.union([accountRemoteAgentBindingSchema, legacyRemoteAgentBindingSchema]);
+export const remoteAgentBindingSchema = accountRemoteAgentBindingSchema;
 export type RemoteAgentBinding = z.infer<typeof remoteAgentBindingSchema>;
 
 export const remoteRoomTaskSchema = z

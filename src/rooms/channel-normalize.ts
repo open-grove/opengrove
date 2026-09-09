@@ -73,6 +73,7 @@ function normalizeRoom(input: Partial<RoomChannelRoom>): RoomChannelRoom | undef
 export function normalizeMember(input: Partial<RoomChannelMember>): RoomChannelMember {
   const id = readString(input.id) || createId("member");
   const kernel = readString(input.kernel) || id;
+  const binding = input.source === "remote" ? remoteAgentBindingSchema.safeParse(input.remoteAgent) : undefined;
   return {
     id,
     employeeDefinitionId: readOptionalString(input.employeeDefinitionId),
@@ -100,8 +101,7 @@ export function normalizeMember(input: Partial<RoomChannelMember>): RoomChannelM
     avatarSeed: readOptionalString(input.avatarSeed),
     avatarDataUrl: normalizedRoomMemberAvatarDataUrl(input.avatarDataUrl),
     source: normalizeMemberSource(input.source),
-    remoteAgent:
-      input.source === "remote" && input.remoteAgent ? remoteAgentBindingSchema.parse(input.remoteAgent) : undefined,
+    remoteAgent: binding?.success ? binding.data : undefined,
     sourceLabel: normalizeSourceLabel(input.sourceLabel, input.source),
     visibility: normalizeVisibility(input.visibility),
     publicDescription: readOptionalString(input.publicDescription),
@@ -114,7 +114,7 @@ export function normalizeMember(input: Partial<RoomChannelMember>): RoomChannelM
     displayOutputSpec: readOptionalString(input.displayOutputSpec),
     userOverrides: readStringArray(input.userOverrides),
     manifestDefaults: normalizeManifestDefaults(input.manifestDefaults),
-    disabled: Boolean(input.disabled),
+    disabled: Boolean(input.disabled) || (input.source === "remote" && !binding?.success),
   };
 }
 
@@ -169,6 +169,7 @@ function normalizeMessage(input: Partial<RoomChannelMessage>): RoomChannelMessag
   const roomId = readString(input.roomId);
   if (!id || !roomId) return undefined;
   const createdAt = readString(input.createdAt) || nowIso();
+  const task = input.remoteTask === undefined ? undefined : remoteRoomTaskSchema.safeParse(input.remoteTask);
   return {
     id,
     roomId,
@@ -178,13 +179,13 @@ function normalizeMessage(input: Partial<RoomChannelMessage>): RoomChannelMessag
     senderType: input.senderType === "agent" || input.senderType === "user" ? input.senderType : "system",
     text: stripModelTemplateTokens(readString(input.text)),
     targetIds: uniqueIds(Array.isArray(input.targetIds) ? input.targetIds : []),
-    status: normalizeMessageStatus(input.status),
+    status: task && !task.success ? "interrupted" : normalizeMessageStatus(input.status),
     createdAt,
     updatedAt: readString(input.updatedAt) || createdAt,
     attachments: Array.isArray(input.attachments) ? input.attachments : undefined,
     duration: readOptionalString(input.duration),
     runId: readOptionalString(input.runId),
-    remoteTask: input.remoteTask ? remoteRoomTaskSchema.parse(input.remoteTask) : undefined,
+    remoteTask: task?.success ? task.data : undefined,
     parts: Array.isArray(input.parts) ? input.parts : undefined,
     startedAt: readOptionalString(input.startedAt),
     finishedAt: readOptionalString(input.finishedAt),

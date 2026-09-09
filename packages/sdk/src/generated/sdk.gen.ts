@@ -39,8 +39,10 @@ import type {
   AuthSessionGetData,
   AuthSessionGetErrors,
   AuthSessionGetResponses,
+  NetworkAccountConnectData,
+  NetworkAccountConnectErrors,
+  NetworkAccountConnectResponses,
   NetworkAccountInspectData,
-  NetworkAccountInspectErrors,
   NetworkAccountInspectResponses,
   NetworkContactAddData,
   NetworkContactAddErrors,
@@ -341,16 +343,30 @@ export class Room extends HeyApiClient {
 
 export class Account extends HeyApiClient {
   /**
+   * Read whether this installation has an Agent Router configured
+   *
+   * Read local configuration only. Does not exchange credentials or create an account.
+   */
+  public inspect<ThrowOnError extends boolean = false>(
+    options?: Options<NetworkAccountInspectData, ThrowOnError>,
+  ): RequestResult<NetworkAccountInspectResponses, unknown, ThrowOnError> {
+    return (options?.client ?? this.client).get<NetworkAccountInspectResponses, unknown, ThrowOnError>({
+      url: "/network/account",
+      ...options,
+    });
+  }
+
+  /**
    * Connect the signed-in admin's Agent network account
    *
    * Exchange the current OpenGrove login at the operator's trusted Agent Router node and return public sender identity. Requires admin; credentials remain in Host memory.
    */
-  public inspect<ThrowOnError extends boolean = false>(
-    options: Options<NetworkAccountInspectData, ThrowOnError>,
-  ): RequestResult<NetworkAccountInspectResponses, NetworkAccountInspectErrors, ThrowOnError> {
+  public connect<ThrowOnError extends boolean = false>(
+    options: Options<NetworkAccountConnectData, ThrowOnError>,
+  ): RequestResult<NetworkAccountConnectResponses, NetworkAccountConnectErrors, ThrowOnError> {
     return (options.client ?? this.client).post<
-      NetworkAccountInspectResponses,
-      NetworkAccountInspectErrors,
+      NetworkAccountConnectResponses,
+      NetworkAccountConnectErrors,
       ThrowOnError
     >({
       url: "/network/account",
@@ -367,7 +383,7 @@ export class Contact extends HeyApiClient {
   /**
    * Add a remote Agent to Contacts
    *
-   * Resolve an Agent network address and save a bound remote member for direct conversations.
+   * Resolve an Agent network address and save a bound remote member for Room conversations.
    */
   public add<ThrowOnError extends boolean = false>(
     options: Options<NetworkContactAddData, ThrowOnError>,

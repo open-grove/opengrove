@@ -48,6 +48,14 @@ export class AgentNetworkSessions {
     return this.revision;
   }
 
+  matches(product: Pick<NetworkProductAccount, "accountIssuer" | "accountUserId">): boolean {
+    return (
+      !this.active ||
+      (this.active.product.accountIssuer === product.accountIssuer &&
+        this.active.product.accountUserId === product.accountUserId)
+    );
+  }
+
   observe(product: NetworkProductAccount, generation = this.revision): void {
     if (generation !== this.revision) throw new AgentRouterError("remote_account_changed", 409);
     if (this.active) {
@@ -68,7 +76,7 @@ export class AgentNetworkSessions {
     this.revision++;
     old?.lifetime.abort(new AgentRouterError(reason, 401));
     // Clear locally before waiting for the best-effort remote revocation.
-    if (old?.network) await this.revoke(old.network);
+    if (old?.network) void this.revoke(old.network);
   }
 
   private async revoke(session: NetworkSession): Promise<void> {
@@ -122,7 +130,6 @@ export class AgentNetworkSessions {
   }
 
   async connect(expected?: RemoteAgentBinding | NetworkIdentity, signal?: AbortSignal): Promise<NetworkConnection> {
-    if (expected && !("accountUserId" in expected)) throw new AgentRouterError("remote_reconnect_required", 409);
     const account = this.active;
     if (!account) throw new AgentRouterError("not_authenticated", 401);
     if (

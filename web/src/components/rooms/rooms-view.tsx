@@ -1,3 +1,4 @@
+import { useNetworkConfigured } from "./use-network-configured";
 import {
   useEffect,
   useLayoutEffect,
@@ -130,6 +131,7 @@ export function RoomsView(props: {
   const deletedMemberIds = props.roomsSnapshot.deletedMemberIds ?? [];
   const { setRooms, setMembers, setDeletedMemberIds, setActiveRoomId, recordServerEventSeq, markRoomRead } =
     props.roomsActions;
+  const networkConfigured = useNetworkConfigured();
   const [draft, setDraft] = useState("");
   const [attachments, setAttachments] = useState<AttachmentPayload[]>([]);
   const [replyingToMessageId, setReplyingToMessageId] = useState("");
@@ -1332,6 +1334,7 @@ export function RoomsView(props: {
         onRenameRoom={renameActiveRoom}
         onDissolveRoom={() => void dissolveActiveRoom()}
         sidebarProps={{
+          networkConfigured,
           activeRoom,
           rooms: visibleRooms,
           members,

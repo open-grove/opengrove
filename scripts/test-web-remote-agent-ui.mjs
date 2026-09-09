@@ -31,6 +31,7 @@ try {
     };
     function Fixture() {
       const [open, setOpen] = useState(true);
+      window.__setOpen = setOpen;
       return <RemoteAgentDialog open={open} onOpenChange={setOpen} onAdded={async (id) => { window.__added = id; }} />;
     }
     createRoot(document.getElementById("root")).render(<Fixture />);
@@ -73,6 +74,14 @@ try {
     });
     await page.getByRole("button", { name: "添加云端员工", exact: true }).click();
     await expect(page.getByRole("alert")).toHaveText("请使用管理员账号登录 OpenGrove 后重试。");
+    assert.equal(await page.getByLabel("Agent 地址").getAttribute("maxlength"), "512");
+    assert.equal(await page.getByLabel("备注名（可选）").getAttribute("maxlength"), "80");
+    await page.getByRole("button", { name: "取消", exact: true }).click();
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    await page.evaluate(() => window.__setOpen(true));
+    await expect(page.getByLabel("Agent 地址")).toHaveValue("");
+    await expect(page.getByRole("alert")).toHaveCount(0);
+    await page.getByLabel("Agent 地址").fill("owner/agent@agents.example");
     await page.evaluate(() => window.__setLanguage("en"));
     await expect(page.getByRole("heading", { name: "Add remote Agent" })).toBeVisible();
     await page.setViewportSize({ width: 390, height: 844 });

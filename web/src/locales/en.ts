@@ -13,6 +13,8 @@ export const EN = {
   "remoteAgent.address": "Agent address",
   "remoteAgent.name": "Display name (optional)",
   "remoteAgent.connecting": "Connecting…",
+  "remoteAgent.reconnectError": "Could not reconnect. Check your account and connection, then retry.",
+  "remoteAgent.refreshError": "The employee was added, but Contacts could not refresh. Reopen Contacts to see it.",
   "remoteAgent.addError": "Could not add or open the remote Agent. Check the address and connection, then retry.",
   "remoteAgent.newConversation": "New conversation",
 

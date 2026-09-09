@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { OpenGroveClientError } from "@opengrove/client";
 import { useI18n } from "../../i18n";
 import { openGroveClient } from "../../opengrove-client";
@@ -15,7 +15,15 @@ export function RemoteAgentDialog(props: {
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  useEffect(() => {
+    if (props.open) {
+      setAddress("");
+      setName("");
+      setError("");
+    }
+  }, [props.open]);
   const add = async () => {
+    let memberId: string;
     setBusy(true);
     setError("");
     try {
@@ -23,7 +31,7 @@ export function RemoteAgentDialog(props: {
         address: address.trim(),
         name: name.trim() || undefined,
       });
-      await props.onAdded(result.memberId);
+      memberId = result.memberId;
       props.onOpenChange(false);
       setAddress("");
       setName("");
@@ -42,9 +50,11 @@ export function RemoteAgentDialog(props: {
                   ? t("remoteAgent.accountChanged")
                   : t("remoteAgent.addError"),
       );
+      return;
     } finally {
       setBusy(false);
     }
+    await props.onAdded(memberId);
   };
   return (
     <Dialog open={props.open} onOpenChange={props.onOpenChange}>
@@ -60,6 +70,7 @@ export function RemoteAgentDialog(props: {
           <label>
             {t("remoteAgent.address")}
             <input
+              maxLength={512}
               value={address}
               placeholder={t("remoteAgent.addressExample")}
               disabled={busy}
@@ -70,7 +81,7 @@ export function RemoteAgentDialog(props: {
           </label>
           <label>
             {t("remoteAgent.name")}
-            <input value={name} disabled={busy} onChange={(event) => setName(event.target.value)} />
+            <input maxLength={80} value={name} disabled={busy} onChange={(event) => setName(event.target.value)} />
           </label>
           {error ? (
             <p role="alert" className={styles["remote-agent-error"]}>

@@ -18,6 +18,7 @@ import {
 } from "./rooms-model";
 
 type RoomSidebarProps = {
+  networkConfigured?: boolean;
   activeRoom: Room;
   rooms: Room[];
   members: RoomMember[];
@@ -105,7 +106,11 @@ export function RoomSidebar(props: RoomSidebarProps) {
               <ThemedPixelIcon pixelIcon="user" professionalIcon={UserPlus} professionalSize={17} pixelSize={18} />
               <span>{t("remoteAgent.addLocal")}</span>
             </MotionMenuItem>
-            <MotionMenuItem onClick={props.onRecruitRemoteAgent}>
+            <MotionMenuItem
+              disabled={!props.networkConfigured}
+              title={props.networkConfigured ? undefined : t("remoteAgent.notConfigured")}
+              onClick={props.onRecruitRemoteAgent}
+            >
               <Cloud size={17} />
               <span>{t("remoteAgent.add")}</span>
             </MotionMenuItem>

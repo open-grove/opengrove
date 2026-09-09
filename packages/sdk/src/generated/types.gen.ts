@@ -1500,6 +1500,25 @@ export type RoomMessageCreateResponses = {
 export type RoomMessageCreateResponse = RoomMessageCreateResponses[keyof RoomMessageCreateResponses];
 
 export type NetworkAccountInspectData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: "/network/account";
+};
+
+export type NetworkAccountInspectResponses = {
+  /**
+   * Successful response.
+   */
+  200: {
+    ok: true;
+    configured: boolean;
+  };
+};
+
+export type NetworkAccountInspectResponse = NetworkAccountInspectResponses[keyof NetworkAccountInspectResponses];
+
+export type NetworkAccountConnectData = {
   body: {
     [key: string]: never;
   };
@@ -1508,7 +1527,7 @@ export type NetworkAccountInspectData = {
   url: "/network/account";
 };
 
-export type NetworkAccountInspectErrors = {
+export type NetworkAccountConnectErrors = {
   /**
    * Error response.
    */
@@ -1551,9 +1570,9 @@ export type NetworkAccountInspectErrors = {
   };
 };
 
-export type NetworkAccountInspectError = NetworkAccountInspectErrors[keyof NetworkAccountInspectErrors];
+export type NetworkAccountConnectError = NetworkAccountConnectErrors[keyof NetworkAccountConnectErrors];
 
-export type NetworkAccountInspectResponses = {
+export type NetworkAccountConnectResponses = {
   /**
    * Successful response.
    */
@@ -1568,7 +1587,7 @@ export type NetworkAccountInspectResponses = {
   };
 };
 
-export type NetworkAccountInspectResponse = NetworkAccountInspectResponses[keyof NetworkAccountInspectResponses];
+export type NetworkAccountConnectResponse = NetworkAccountConnectResponses[keyof NetworkAccountConnectResponses];
 
 export type NetworkContactAddData = {
   body: {

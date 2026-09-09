@@ -630,6 +630,17 @@ export class RoomChannelStore {
     return room ? cloneRoom(room) : undefined;
   }
 
+  /** Copy only pending delivery records, without copying unrelated history or events. */
+  listPendingRemoteMessages(roomId?: string): RoomChannelMessage[] {
+    const buckets = roomId ? [this.messagesByRoom.get(roomId) ?? []] : this.messagesByRoom.values();
+    const pending: RoomChannelMessage[] = [];
+    for (const messages of buckets)
+      for (const message of messages) {
+        if (message.remoteTask?.pending) pending.push(cloneMessage(message));
+      }
+    return pending;
+  }
+
   listMessages(
     roomId: string,
     options: {

@@ -3030,14 +3030,47 @@
       }
     },
     "/network/account": {
-      "post": {
+      "get": {
         "operationId": "network.account.inspect",
+        "summary": "Read whether this installation has an Agent Router configured",
+        "description": "Read local configuration only. Does not exchange credentials or create an account.",
+        "tags": ["network"],
+        "x-opengrove-group": "network",
+        "x-opengrove-resource": "account",
+        "x-opengrove-risk": "read",
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "const": true
+                    },
+                    "configured": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": ["ok", "configured"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "network.account.connect",
         "summary": "Connect the signed-in admin's Agent network account",
         "description": "Exchange the current OpenGrove login at the operator's trusted Agent Router node and return public sender identity. Requires admin; credentials remain in Host memory.",
         "tags": ["network"],
         "x-opengrove-group": "network",
         "x-opengrove-resource": "account",
-        "x-opengrove-risk": "read",
+        "x-opengrove-risk": "write",
         "requestBody": {
           "required": true,
           "content": {
@@ -3207,7 +3240,7 @@
       "post": {
         "operationId": "network.contact.add",
         "summary": "Add a remote Agent to Contacts",
-        "description": "Resolve an Agent network address and save a bound remote member for direct conversations.",
+        "description": "Resolve an Agent network address and save a bound remote member for Room conversations.",
         "tags": ["network"],
         "x-opengrove-group": "network",
         "x-opengrove-resource": "contact",

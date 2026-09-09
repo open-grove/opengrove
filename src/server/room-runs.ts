@@ -1,6 +1,5 @@
 import { executeRemoteRoomRun } from "./remote-agents/execution.js";
-import { networkProblem, requireNetworkConnection } from "./remote-agents/session.js";
-import type { RoomsRouteContext } from "./routes/rooms/route-context.js";
+import { networkProblem, networkSessionsFor } from "./remote-agents/session.js";
 import {
   createAssistantFinalEvent,
   collectAssistantText,
@@ -787,9 +786,8 @@ function durationLabel(durationMs: number): string {
 }
 
 /** Reattach only locally initiated, unfinished network requests; never execute imported history. */
-export async function resumeRemoteRoomRuns(context: RoomsRouteContext, roomId?: string): Promise<void> {
-  const { state } = context;
-  for (const message of state.app.rooms.snapshot().messages) {
+export async function resumeRemoteRoomRuns(state: BridgeState, roomId?: string): Promise<void> {
+  for (const message of state.app.rooms.listPendingRemoteMessages(roomId)) {
     if (
       (roomId && message.roomId !== roomId) ||
       !message.remoteTask?.pending ||
@@ -799,12 +797,12 @@ export async function resumeRemoteRoomRuns(context: RoomsRouteContext, roomId?: 
     const target = state.app.rooms.listMembers().find((member) => member.id === message.senderId);
     if (!target || target.source !== "remote" || target.disabled) continue;
     try {
-      await requireNetworkConnection(context, target.remoteAgent);
+      await networkSessionsFor(state).connect(target.remoteAgent);
     } catch (error) {
       // Reading local history stays available while authorization is unavailable.
       // The pending task and its captured account are retained for a later retry.
       const problem = networkProblem(error);
-      console.warn("remote_resume_paused", problem.error);
+      if (problem.status === 503) console.warn("remote_resume_paused", problem.error);
       continue;
     }
     if (message.runId && hasActiveRoomRunController(state, message.runId)) continue;

@@ -1,3 +1,4 @@
+import { useNetworkConfigured } from "./use-network-configured";
 import { RemoteAgentDialog } from "./remote-agent-panel";
 import { Cloud, UserPlus } from "lucide-react";
 import { MotionMenu, MotionMenuItem } from "../ui/motion/menu";
@@ -71,6 +72,7 @@ export function ContactsView(props: {
   onOpenMessages(roomId?: string): void;
   openRemoteAgentDialog?: boolean;
   focusMemberId?: string;
+  onNavigationConsumed(): void;
 }) {
   const { t } = useI18n();
   const systemDetail = (error: unknown) =>
@@ -80,13 +82,20 @@ export function ContactsView(props: {
   const state = props.roomsState;
   const setState = props.setRoomsState;
   const [query, setQuery] = useState("");
-  const [remoteDialogOpen, setRemoteDialogOpen] = useState(props.openRemoteAgentDialog === true);
+  const networkConfigured = useNetworkConfigured();
+  const [remoteDialogOpen, setRemoteDialogOpen] = useState(false);
   const [createMenuOpen, setCreateMenuOpen] = useState(false);
   const [activeSection, setActiveSection] = useState<"employees" | "groups">("employees");
   const [selectedMemberId, setSelectedMemberId] = useState(props.focusMemberId || state.members[0]?.id || "");
   const [employeeDialogOpen, setEmployeeDialogOpen] = useState(false);
   const [publishingEmployee, setPublishingEmployee] = useState(false);
   const [employeeDeleteTargetId, setEmployeeDeleteTargetId] = useState("");
+  useEffect(() => {
+    if (!props.openRemoteAgentDialog && !props.focusMemberId) return;
+    if (props.openRemoteAgentDialog) setRemoteDialogOpen(true);
+    if (props.focusMemberId) setSelectedMemberId(props.focusMemberId);
+    props.onNavigationConsumed();
+  }, [props.openRemoteAgentDialog, props.focusMemberId, props.onNavigationConsumed]);
 
   const contactMembers = useMemo(() => {
     const deletedMembers = new Set(state.deletedMemberIds ?? []);
@@ -402,9 +411,13 @@ export function ContactsView(props: {
 
   async function openRemoteConversation(member: RoomMember) {
     try {
-      const result = await openServerDirectRoom(member.id, member.name, {
-        roomId: `remote-chat-${crypto.randomUUID()}`,
-      });
+      const result = await openServerDirectRoom(
+        member.id,
+        `${roomMemberDisplayName(member)} · ${new Date().toLocaleString()}`,
+        {
+          roomId: `remote-chat-${crypto.randomUUID()}`,
+        },
+      );
       const snapshot = await fetchRoomsInit();
       setState((current) => ({ ...current, rooms: roomsFromServerSnapshot(snapshot), activeRoomId: result.room.id }));
       props.onOpenMessages(result.room.id);
@@ -419,14 +432,18 @@ export function ContactsView(props: {
         open={remoteDialogOpen}
         onOpenChange={setRemoteDialogOpen}
         onAdded={async (memberId) => {
-          const snapshot = await fetchRoomsInit();
-          setState((current) => ({
-            ...current,
-            members: snapshot.members,
-            rooms: roomsFromServerSnapshot(snapshot),
-            deletedMemberIds: snapshot.deletedMemberIds ?? [],
-          }));
-          setSelectedMemberId(memberId);
+          try {
+            const snapshot = await fetchRoomsInit();
+            setState((current) => ({
+              ...current,
+              members: snapshot.members,
+              rooms: roomsFromServerSnapshot(snapshot),
+              deletedMemberIds: snapshot.deletedMemberIds ?? [],
+            }));
+            setSelectedMemberId(memberId);
+          } catch (error) {
+            toast({ title: t("remoteAgent.refreshError"), description: systemDetail(error), kind: "error" });
+          }
         }}
       />
       <aside className="contacts-nav-panel">
@@ -443,7 +460,7 @@ export function ContactsView(props: {
               <button
                 className="rooms-icon-button"
                 type="button"
-                data-room-action="add-employee"
+                data-room-action="contacts-create-menu"
                 aria-label={t("rooms.createNew")}
               >
                 <ProductIcon name="add" size={16} />
@@ -451,6 +468,7 @@ export function ContactsView(props: {
             }
           >
             <MotionMenuItem
+              data-room-action="add-employee"
               onClick={() => {
                 setCreateMenuOpen(false);
                 openCreateEmployeeDialog();
@@ -460,6 +478,8 @@ export function ContactsView(props: {
               <span>{t("remoteAgent.addLocal")}</span>
             </MotionMenuItem>
             <MotionMenuItem
+              disabled={!networkConfigured}
+              title={networkConfigured ? undefined : t("remoteAgent.notConfigured")}
               onClick={() => {
                 setCreateMenuOpen(false);
                 setRemoteDialogOpen(true);
