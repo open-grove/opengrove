@@ -5,6 +5,7 @@ import "./rooms-layout.css";
 import "./rooms-menus.css";
 import "./room-workspace.css";
 import "./room-members.css";
+import { CompactBackButton, type useCompactDetail } from "../shared/compact-list-detail";
 import { useI18n } from "../../i18n";
 import { Dialog, DialogContent, DialogTitle } from "../ui/dialog";
 import { EmptyState } from "../ui/empty-state";
@@ -61,6 +62,7 @@ export function RoomsLoadingState() {
 }
 
 export function RoomsActiveLayout(props: {
+  compactDetail: ReturnType<typeof useCompactDetail>;
   activeRoom: Room;
   activeRoomMembers: RoomMember[];
   activeDirectMember?: RoomMember;
@@ -83,14 +85,28 @@ export function RoomsActiveLayout(props: {
 
   return (
     <section
-      className="rooms-view"
-      data-members-open={memberPanelOpen ? "true" : "false"}
+      className={`rooms-view ${props.compactDetail.className}`}
+      data-list-detail={props.compactDetail.compact ? "compact" : "wide"}
+      data-detail-open={String(props.compactDetail.detailOpen)}
+      data-members-open={memberPanelOpen && !props.compactDetail.compact ? "true" : "false"}
       aria-label={t("contacts.messages")}
     >
-      <RoomSidebar {...props.sidebarProps} />
+      <RoomSidebar
+        {...props.sidebarProps}
+        listRef={props.compactDetail.listRef}
+        inert={props.compactDetail.compact && props.compactDetail.detailOpen}
+      />
 
-      <section className="room-main-panel">
+      <section
+        className="room-main-panel"
+        ref={props.compactDetail.detailRef}
+        data-detail-panel
+        inert={props.compactDetail.compact && !props.compactDetail.detailOpen}
+      >
         <header className="room-header">
+          {props.compactDetail.compact ? (
+            <CompactBackButton label={t("compact.messages")} onClick={props.compactDetail.showList} />
+          ) : null}
           <div className="room-header-main">
             {activeDirectMember ? (
               <Tooltip content={t("employee.profileSettingsTitle")} side="bottom">
@@ -152,7 +168,20 @@ export function RoomsActiveLayout(props: {
         <RoomChatSurface {...props.chatSurfaceProps} />
       </section>
 
-      <RoomSettingsPanel {...props.settingsPanelProps} />
+      {props.compactDetail.compact ? (
+        <Dialog
+          open={memberPanelOpen}
+          onOpenChange={(open) => {
+            if (!open) props.settingsPanelProps.onClose();
+          }}
+        >
+          <DialogContent className="compact-room-settings" aria-label={t("rooms.groupSettings")}>
+            <RoomSettingsPanel {...props.settingsPanelProps} />
+          </DialogContent>
+        </Dialog>
+      ) : (
+        <RoomSettingsPanel {...props.settingsPanelProps} />
+      )}
       <CreateGroupDialog {...props.createGroupDialogProps} />
       <EmployeeDialog {...props.employeeDialogProps} />
       {props.employeeSettingsDialogProps ? <EmployeeSettingsDialog {...props.employeeSettingsDialogProps} /> : null}

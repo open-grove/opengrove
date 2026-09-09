@@ -1,4 +1,4 @@
-import { Bot, Download, LoaderCircle, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { Bot, Download, History, LoaderCircle, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import type { ClientUpdateResponse } from "../../bridge";
 import type { OpenGroveDesktopClientUpdateState, OpenGroveDesktopSourceUpdateState } from "../../desktop-api";
 import { resolveTitlebarClientUpdate, resolveTitlebarClientUpdateAction } from "../../client-update-presentation";
@@ -13,6 +13,7 @@ export function AppTitlebar(props: {
   officialRelease: boolean | undefined;
   railVisible: boolean;
   onToggleRail(): void;
+  onOpenConversations?(): void;
   sourceUpdate: OpenGroveDesktopSourceUpdateState | undefined;
   onSourceUpdate(): void;
   clientUpdate: ClientUpdateResponse | undefined;
@@ -52,6 +53,18 @@ export function AppTitlebar(props: {
             <PanelLeftOpen size={16} aria-hidden="true" />
           )}
         </button>
+        {props.onOpenConversations ? (
+          <button
+            id="app-conversations-toggle"
+            className="app-titlebar-control"
+            type="button"
+            onClick={props.onOpenConversations}
+            aria-label={t("compact.conversations")}
+            title={t("compact.conversations")}
+          >
+            <History size={20} aria-hidden="true" />
+          </button>
+        ) : null}
         <span className="app-titlebar-brand" title={APP_PRODUCT_NAME}>
           <span className="app-titlebar-brand-mark" aria-hidden="true">
             <OpenGroveSaplingMark />

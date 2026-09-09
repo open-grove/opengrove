@@ -9,6 +9,7 @@ import {
 } from "react";
 import { clamp } from "../../format";
 import { useI18n } from "../../i18n";
+import { AdaptiveSplitLayout, type WorkspacePane } from "../shared/adaptive-split-layout";
 import { ResizeHandle } from "../ui/resize-handle";
 import "./mounted-app-workbench.css";
 
@@ -18,8 +19,18 @@ const MAX_DEVELOPER_PANEL_WIDTH = 860;
 const MIN_APP_CANVAS_WIDTH = 320;
 const RESIZE_HANDLE_WIDTH = 10;
 
-export function MountedAppDeveloperLayout(props: { appId: string; open: boolean; canvas: ReactNode; chat: ReactNode }) {
+export function MountedAppDeveloperLayout(props: {
+  appId: string;
+  open: boolean;
+  canvas: ReactNode;
+  chat: ReactNode;
+  chatUnreadCount?: number;
+}) {
   const { t } = useI18n();
+  const [pane, setPane] = useState<WorkspacePane>("workspace");
+  useEffect(() => {
+    if (props.open) setPane("chat");
+  }, [props.open]);
   const layoutRef = useRef<HTMLDivElement | null>(null);
   const resizeRef = useRef<{
     pointerId: number;
@@ -31,8 +42,7 @@ export function MountedAppDeveloperLayout(props: { appId: string; open: boolean;
   const [panelWidth, setPanelWidth] = useState(() => readStoredDeveloperPanelWidth(props.appId));
 
   useEffect(() => {
-    const containerWidth = layoutRef.current?.getBoundingClientRect().width ?? 0;
-    setPanelWidth(constrainDeveloperPanelWidth(readStoredDeveloperPanelWidth(props.appId), containerWidth));
+    setPanelWidth(readStoredDeveloperPanelWidth(props.appId));
   }, [props.appId]);
 
   function persistPanelWidth(width: number, containerWidth: number) {
@@ -86,31 +96,40 @@ export function MountedAppDeveloperLayout(props: { appId: string; open: boolean;
   }
 
   return (
-    <div
+    <AdaptiveSplitLayout
       ref={layoutRef}
       className="mounted-app-developer-layout"
       data-open={props.open ? "true" : "false"}
       style={{ "--mounted-app-developer-panel-width": `${panelWidth}px` } as CSSProperties}
-    >
-      <main className="mounted-app-developer-canvas">{props.canvas}</main>
-      <ResizeHandle
-        className="mounted-app-resize-handle mounted-app-developer-resize-handle"
-        aria-label={t("mountedApp.resizeChat")}
-        aria-orientation="vertical"
-        aria-valuemin={MIN_DEVELOPER_PANEL_WIDTH}
-        aria-valuemax={MAX_DEVELOPER_PANEL_WIDTH}
-        aria-valuenow={panelWidth}
-        tabIndex={props.open ? 0 : -1}
-        onKeyDown={adjustPanelWidthWithKeyboard}
-        onPointerCancel={finishPanelResize}
-        onPointerDown={beginPanelResize}
-        onPointerMove={updatePanelResize}
-        onPointerUp={finishPanelResize}
-      />
-      <aside className="mounted-app-developer-chat" aria-label={t("mountedApp.developerChatLabel")}>
-        {props.chat}
-      </aside>
-    </div>
+      pane={pane}
+      onPaneChange={setPane}
+      primaryLabel={t("common.backToApp")}
+      secondaryLabel={t("mountedApp.developerChatLabel")}
+      secondaryOpen={props.open}
+      secondaryUnreadCount={props.chatUnreadCount}
+      primary={<main className="mounted-app-developer-canvas">{props.canvas}</main>}
+      resizeHandle={
+        <ResizeHandle
+          className="mounted-app-resize-handle mounted-app-developer-resize-handle"
+          aria-label={t("mountedApp.resizeChat")}
+          aria-orientation="vertical"
+          aria-valuemin={MIN_DEVELOPER_PANEL_WIDTH}
+          aria-valuemax={MAX_DEVELOPER_PANEL_WIDTH}
+          aria-valuenow={panelWidth}
+          tabIndex={props.open ? 0 : -1}
+          onKeyDown={adjustPanelWidthWithKeyboard}
+          onPointerCancel={finishPanelResize}
+          onPointerDown={beginPanelResize}
+          onPointerMove={updatePanelResize}
+          onPointerUp={finishPanelResize}
+        />
+      }
+      secondary={
+        <aside className="mounted-app-developer-chat" aria-label={t("mountedApp.developerChatLabel")}>
+          {props.chat}
+        </aside>
+      }
+    />
   );
 }
 

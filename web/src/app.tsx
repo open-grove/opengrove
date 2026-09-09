@@ -45,6 +45,8 @@ import {
 import { modelBindingKey, readStoredModelBindings, writeStoredModelBinding } from "./runtime/app-shell-state";
 import { useAppLayoutResize } from "./runtime/app-layout-resize";
 import { useAppRailLayout } from "./runtime/use-app-rail-layout";
+import { useCompactLayout, useVisualViewportHeight } from "./runtime/use-compact-layout";
+import { ConversationNavigation } from "./components/app-shell/compact-navigation-dialog";
 import { AppNavigationPanel } from "./components/app-shell/app-navigation-panel";
 import { ResizeHandle } from "./components/ui/resize-handle";
 import {
@@ -265,6 +267,10 @@ export function App() {
   const [openRemoteAgentDialog, setOpenRemoteAgentDialog] = useState(false);
   const [contactFocusMemberId, setContactFocusMemberId] = useState("");
   const railLayout = useAppRailLayout();
+  const compact = useCompactLayout();
+  useVisualViewportHeight();
+  const [compactNavigationOpen, setCompactNavigationOpen] = useState(false);
+  const [compactConversationsOpen, setCompactConversationsOpen] = useState(false);
   const [railOverlayOpen, setRailOverlayOpen] = useState(false);
   const { sidebarWidth, onComposerPointerDown, onSidebarResizePointerDown } = useAppLayoutResize({
     composerHeight,
@@ -1964,6 +1970,7 @@ export function App() {
     <div
       className="app-shell react-app"
       data-view={activeView}
+      data-compact={compact ? "true" : "false"}
       data-sidebar-collapsed={sidebarCollapsed ? "true" : "false"}
       style={
         {
@@ -1976,8 +1983,9 @@ export function App() {
         desktopPlatform={desktopPlatform}
         desktopFullscreen={desktopWindowFullscreen}
         officialRelease={desktopRuntime?.isOfficialRelease}
-        railVisible={railLayout.mode !== "hidden"}
-        onToggleRail={railLayout.toggle}
+        railVisible={compact ? compactNavigationOpen : railLayout.mode !== "hidden"}
+        onToggleRail={compact ? () => setCompactNavigationOpen((open) => !open) : railLayout.toggle}
+        onOpenConversations={compact && activeView === "chat" ? () => setCompactConversationsOpen(true) : undefined}
         sourceUpdate={sourceUpdate}
         onSourceUpdate={handleTitlebarSourceUpdate}
         clientUpdate={clientUpdateQuery.data}
@@ -2000,6 +2008,9 @@ export function App() {
       />
       <AppNavigationPanel
         layout={railLayout}
+        compact={compact}
+        compactOpen={compactNavigationOpen}
+        onCompactOpenChange={setCompactNavigationOpen}
         overlayOpen={railOverlayOpen || appCreateDialogOpen || Boolean(mountedAppSettingsId)}
       >
         {(expanded) => (
@@ -2070,24 +2081,40 @@ export function App() {
             activeMountedAppId={activeView === "app" ? activeMountedApp?.name : ""}
             mountedAppBadges={mountedAppUnreadBadges}
             sectionBadges={sectionBadges}
-            onCreateApp={openAppCreateDialog}
+            onCreateApp={() => {
+              setCompactNavigationOpen(false);
+              openAppCreateDialog();
+            }}
             onSelectMountedApp={(appId) => {
               requestAppStorePublishLeave(() => {
                 setMountedAppVersionManagementId("");
                 selectMountedApp(appId);
+                setCompactNavigationOpen(false);
               });
             }}
-            onManageMountedAppVersions={openMountedAppVersionManagement}
-            onEditMountedApp={setMountedAppSettingsId}
+            onManageMountedAppVersions={(id) => {
+              setCompactNavigationOpen(false);
+              openMountedAppVersionManagement(id);
+            }}
+            onEditMountedApp={(id) => {
+              setCompactNavigationOpen(false);
+              setMountedAppSettingsId(id);
+            }}
             onDeleteMountedApp={deleteMountedAppTab}
-            onOpenSection={openRailSection}
-            onOpenSettings={() => openRailSection("settings")}
+            onOpenSection={(section) => {
+              openRailSection(section);
+              setCompactNavigationOpen(false);
+            }}
+            onOpenSettings={() => {
+              openRailSection("settings");
+              setCompactNavigationOpen(false);
+            }}
           />
         )}
       </AppNavigationPanel>
 
       <Dialog open={appCreateDialogOpen} onOpenChange={setAppCreateDialogState}>
-        <DialogContent className="app-create-dialog" aria-label={t("app.createApp")}>
+        <DialogContent mobilePresentation="page" className="app-create-dialog" aria-label={t("app.createApp")}>
           <DialogTitle>{t("app.createApp")}</DialogTitle>
           <AppCreateWizard
             title={appDraftTitle}
@@ -2118,7 +2145,12 @@ export function App() {
         }}
       />
 
-      <aside className="sidebar" data-section={activeRailSection} aria-label={t("layout.sidebar")}>
+      <ConversationNavigation
+        compact={compact}
+        open={compactConversationsOpen}
+        onOpenChange={setCompactConversationsOpen}
+        section={activeRailSection}
+      >
         <nav className="nav-list" aria-label={t("layout.spaceNav")}>
           {activeRailSection === "chat" ? (
             <ConversationSidebar
@@ -2139,7 +2171,10 @@ export function App() {
               onOpenNewProject={openNewProject}
               onOpenFolderProject={openFolderProject}
               onOpenNewThread={openNewThread}
-              onOpenThread={openThread}
+              onOpenThread={(id) => {
+                openThread(id);
+                setCompactConversationsOpen(false);
+              }}
               onToggleProjectCollapsed={(projectId) =>
                 setProjectCollapsedIds((ids) =>
                   ids.includes(projectId) ? ids.filter((id) => id !== projectId) : [...ids, projectId],
@@ -2157,7 +2192,7 @@ export function App() {
             />
           ) : null}
         </nav>
-      </aside>
+      </ConversationNavigation>
 
       <ResizeHandle
         className="sidebar-resize-handle"

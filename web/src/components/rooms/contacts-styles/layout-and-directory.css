@@ -757,6 +757,8 @@
 
 .contacts-employee-overview-page {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
   align-content: start;
   gap: var(--sp-3);
 }
@@ -891,6 +893,8 @@
 }
 
 .contacts-employee-activity-summary {
+  box-sizing: border-box;
+  min-width: 0;
   position: relative;
   display: grid;
   gap: var(--sp-3);
@@ -969,7 +973,7 @@
 
 .contacts-employee-activity-metrics {
   display: grid;
-  grid-template-columns: repeat(3, minmax(88px, 120px));
+  grid-template-columns: repeat(3, minmax(0, 120px));
   justify-content: center;
   gap: var(--sp-6);
 }
@@ -1118,10 +1122,6 @@
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .contacts-nav-panel {
-    display: none;
-  }
-
   .contacts-employee-body {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -1143,4 +1143,8 @@
   color: var(--muted);
   font-size: var(--fs-sm);
   line-height: var(--lh-normal);
+}
+
+.contacts-view[data-list-detail="compact"] .contacts-main-panel {
+  grid-template-rows: auto minmax(0, 1fr);
 }

@@ -1,4 +1,7 @@
 import { useState, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
+import { MoreHorizontal } from "lucide-react";
+import { useI18n } from "../../i18n";
+import styles from "./resource-link.module.css";
 import type { ChatResourceAction, ChatResourceRef } from "./resource-model";
 import { ResourceContextMenu, type ResourceMenuPosition } from "./resource-context-menu";
 
@@ -9,6 +12,7 @@ export function ResourceLink(props: {
   className?: string;
   onOpenResource?(resource: ChatResourceRef, action?: ChatResourceAction): void;
 }) {
+  const { t } = useI18n();
   const [menuPosition, setMenuPosition] = useState<ResourceMenuPosition | null>(null);
   const open = (action: ChatResourceAction = "preview") => {
     setMenuPosition(null);
@@ -50,6 +54,19 @@ export function ResourceLink(props: {
       >
         {props.children}
       </span>
+      <button
+        type="button"
+        className={styles.more}
+        aria-label={t("thread.resourceMore", { title: props.resource.title })}
+        onClick={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          const rect = event.currentTarget.getBoundingClientRect();
+          setMenuPosition({ x: rect.left, y: rect.bottom });
+        }}
+      >
+        <MoreHorizontal size={16} aria-hidden="true" />
+      </button>
       {menuPosition ? (
         <ResourceContextMenu
           resource={props.resource}

@@ -21,6 +21,7 @@ export function ResourceCardFrame(props: {
     setMenuPosition({ x: event.clientX, y: event.clientY });
   };
   const onKeyDown = (event: KeyboardEvent<HTMLElement>) => {
+    if (event.target !== event.currentTarget) return;
     if (event.key === "Enter" || event.key === " ") {
       event.preventDefault();
       open("preview");

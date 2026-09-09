@@ -14,6 +14,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { ProductIcon } from "./product-icon";
+import { useCompactLayout } from "../../runtime/use-compact-layout";
 import "./dialog.css";
 
 export const Dialog = DialogPrimitive.Root;
@@ -33,8 +34,10 @@ export function DialogContent({
   children,
   className,
   onEscapeKeyDown,
+  mobilePresentation = "dialog",
   ...props
-}: ComponentPropsWithoutRef<typeof DialogPrimitive.Content>) {
+}: ComponentPropsWithoutRef<typeof DialogPrimitive.Content> & { mobilePresentation?: "dialog" | "page" }) {
+  const compactPage = useCompactLayout() && mobilePresentation === "page";
   const contentRef = useRef<HTMLDivElement>(null);
   const [subpageHost, setSubpageHost] = useState<HTMLDivElement | null>(null);
   const [activeSubpage, setActiveSubpage] = useState<{ id: symbol; onBack(): void } | null>(null);
@@ -80,10 +83,11 @@ export function DialogContent({
   return (
     <DialogPrimitive.Portal>
       <DialogPrimitive.Overlay className="modal-overlay" />
-      <div className="modal-shell">
+      <div className="modal-shell" data-compact-page={compactPage || undefined}>
         <DialogPrimitive.Content
           ref={contentRef}
           className={clsx("modal-card", className)}
+          data-compact-page={compactPage || undefined}
           onEscapeKeyDown={(event) => {
             onEscapeKeyDown?.(event);
             if (event.defaultPrevented) return;

@@ -28,7 +28,7 @@ import { MountedAppDeveloperLayout } from "../apps/mounted-app-developer-layout"
 import { DirectKernelRuntimePicker, type DirectKernelRuntimeOption } from "../chat/direct-kernel-runtime-picker";
 import { MountedAppWorkbench } from "../apps/mounted-app-workbench";
 import { rawDiagnosticText, useI18n } from "../../i18n";
-import type { RoomsState } from "../rooms/rooms-model";
+import { appScopedGroupUnreadCount, type RoomsState } from "../rooms/rooms-model";
 
 export function ChatWorkspaceView(props: {
   empty: boolean;
@@ -162,6 +162,7 @@ export function MountedAppWorkspaceView(props: {
   onRetryInventory?(): void;
 }) {
   const [selectedPath, setSelectedPath] = useState("");
+  const [workspaceRevealRequest, setWorkspaceRevealRequest] = useState(0);
   const [queuedAttachment, setQueuedAttachment] = useState<AttachmentPayload | null>(null);
   const fallbackRuntime = mountedAppUiRuntime(props.app);
   const appId = props.app?.name || "";
@@ -269,7 +270,10 @@ export function MountedAppWorkspaceView(props: {
       onResolveApproval={props.onResolveApproval}
       onResolveQuestion={props.onResolveQuestion}
       queuedAttachment={queuedAttachment}
-      onOpenWorkspacePath={setSelectedPath}
+      onOpenWorkspacePath={(path) => {
+        setSelectedPath(path);
+        setWorkspaceRevealRequest((request) => request + 1);
+      }}
       onPendingCountChange={props.onPendingCountChange}
     />
   ) : null;
@@ -282,8 +286,10 @@ export function MountedAppWorkspaceView(props: {
           layoutMode={props.embedded ? "embedded" : "standard"}
           runtimeRevision={runtimeQuery.data?.revision}
           selectedPath={selectedPath}
+          revealRequest={workspaceRevealRequest}
           corePanel={chatPanel}
           chatOpen={developerModeOpen}
+          chatUnreadCount={appScopedGroupUnreadCount(props.roomsState.rooms, appId)}
           onAddSelectionAttachment={setQueuedAttachment}
           onSelectedPathChange={setSelectedPath}
         />
@@ -296,6 +302,7 @@ export function MountedAppWorkspaceView(props: {
       <MountedAppDeveloperLayout
         appId={appId}
         open={developerModeOpen}
+        chatUnreadCount={appScopedGroupUnreadCount(props.roomsState.rooms, appId)}
         canvas={
           surface === "setup" ? (
             <MountedAppSetupSurface

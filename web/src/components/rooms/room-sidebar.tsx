@@ -21,6 +21,8 @@ import {
 
 type RoomSidebarProps = {
   networkConfiguration: NetworkConfiguration;
+  inert?: boolean;
+  listRef?: import("react").RefObject<HTMLElement | null>;
   activeRoom: Room;
   rooms: Room[];
   members: RoomMember[];
@@ -64,7 +66,7 @@ export function RoomSidebar(props: RoomSidebarProps) {
   const hasSearchResults = kernelSearchResults.length > 0 || roomSearchResults.length > 0;
 
   return (
-    <aside className="rooms-list-panel">
+    <aside className="rooms-list-panel" ref={props.listRef} data-list-panel inert={props.inert}>
       <header className="rooms-list-header">
         <div className="rooms-list-title">
           <span className="rooms-title-icon" aria-hidden="true">

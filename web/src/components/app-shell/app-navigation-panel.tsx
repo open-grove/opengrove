@@ -5,10 +5,14 @@ import type { AppRailLayoutController } from "../../runtime/use-app-rail-layout"
 import { ResizeHandle } from "../ui/resize-handle";
 import clsx from "clsx";
 import styles from "./app-navigation-panel.module.css";
+import { CompactNavigationDialog } from "./compact-navigation-dialog";
 
 export function AppNavigationPanel(props: {
   layout: AppRailLayoutController;
   overlayOpen: boolean;
+  compact: boolean;
+  compactOpen: boolean;
+  onCompactOpenChange(open: boolean): void;
   children(expanded: boolean): ReactNode;
 }) {
   const { t } = useI18n();
@@ -71,6 +75,19 @@ export function AppNavigationPanel(props: {
   const panelWidth = hidden ? layout.lastVisibleWidth : layout.width;
   const expanded = getRailMode(panelWidth) === "full";
   const inactive = hidden && !floating;
+
+  if (props.compact) {
+    return (
+      <CompactNavigationDialog
+        open={props.compactOpen}
+        onOpenChange={props.onCompactOpenChange}
+        title={t("compact.navigation")}
+        triggerId="app-navigation-toggle"
+      >
+        <div id="app-main-navigation">{props.children(true)}</div>
+      </CompactNavigationDialog>
+    );
+  }
 
   return (
     <div

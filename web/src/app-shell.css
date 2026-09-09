@@ -352,13 +352,3 @@ body:has(.resize-handle[data-resizing="true"]) .app-shell {
   margin-right: -10px;
   z-index: 80;
 }
-
-@media (max-width: 900px) {
-  .app-shell {
-    --app-titlebar-height: 0px;
-  }
-
-  .app-titlebar {
-    display: none;
-  }
-}
