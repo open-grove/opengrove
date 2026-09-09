@@ -1,4 +1,4 @@
-import type { RemoteAgentBinding } from "../../../../src/rooms/remote-agent";
+import type { RemoteAgentBinding, RemoteRoomTask } from "../../../../src/rooms/remote-agent";
 import type { AttachmentPayload, KernelOption, MessagePart, ModelId, ReasoningEffort } from "../../bridge";
 import { DEFAULT_MODEL_ID } from "../../bridge";
 import { translate, type TranslationFn } from "../../i18n";
@@ -99,6 +99,7 @@ export type RoomMessage = {
   attachments?: AttachmentPayload[];
   duration?: string;
   runId?: string;
+  remoteTask?: RemoteRoomTask;
   parts?: MessagePart[];
   startedAt?: string;
   finishedAt?: string;

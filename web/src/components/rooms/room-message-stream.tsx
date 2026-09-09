@@ -250,13 +250,14 @@ const RoomMessageItem = memo(function RoomMessageItem(props: {
             ? t("rooms.doneWithDuration", { duration: doneDuration })
             : formatRoomMessageTime(message.createdAt);
   const agentStatusText =
-    !isUser &&
+    message.remoteTask?.statusText ||
+    (!isUser &&
     message.status !== "running" &&
     message.status !== "failed" &&
     message.status !== "interrupted" &&
     !doneDuration
       ? undefined
-      : statusText;
+      : statusText);
   const parts = roomDisplayParts(message, props.runtimeEvents);
   const turnGroups = isUser
     ? { answerGroups: [], processGroups: [], segments: [] }
@@ -268,7 +269,7 @@ const RoomMessageItem = memo(function RoomMessageItem(props: {
     !isUser && (message.status === "running" || hasRunningProcess)
       ? {
           state: agentOrbStateFromRun(props.runtimeEvents, turnGroups.processGroups, message.runId),
-          label: t("rooms.statusRunning"),
+          label: message.remoteTask?.statusText || t("rooms.statusRunning"),
         }
       : undefined;
   const canUseMessageActions = !isSystem && !(message.senderType === "agent" && message.status === "running");

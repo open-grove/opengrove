@@ -126,7 +126,9 @@ test("remote Contacts and Rooms preserve context, cancel and recover an accepted
     await waitMessage("file", (message) => message.status === "failed");
     assert.equal(sendCalls().length, countBeforeFile, "local file references are never forwarded");
     await send("remote-first", "hold", "HOLD");
-    await waitMessage("hold", (message) => Boolean(message.remoteTask?.taskId));
+    const working = await waitMessage("hold", (message) => Boolean(message.remoteTask?.taskId));
+    assert.equal(working.text, "", "connection and progress belong to execution status, not the reply body");
+    assert.match(working.remoteTask?.statusText ?? "", /working|处理/);
     await request("/rooms/remote-first/messages/hold/cancel", {});
     await waitMessage("hold", (message) => message.status === "interrupted" && message.remoteTask?.pending === false);
     assert.ok(fixture().calls.some((args) => args[2] === "cancel" && args[4] === "task-hold"));

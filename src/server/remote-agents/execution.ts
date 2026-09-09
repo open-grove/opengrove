@@ -30,9 +30,11 @@ export async function executeRemoteRoomRun(state: BridgeState, input: RoomRunExe
     pending: true,
     ...(previous?.needsInput && previous.taskId ? { inputTaskId: previous.taskId } : {}),
   };
-  const persist = (text: string, status: "running" | "done" | "failed" | "interrupted") => {
+  let replyText = assistant?.text ?? "";
+  const persist = (statusText: string, status: "running" | "done" | "failed" | "interrupted") => {
+    network = { ...network, statusText };
     rooms.updateMessage(input.roomId, input.assistantMessageId, {
-      text,
+      text: replyText,
       status,
       remoteTask: network,
       finishedAt: status === "running" ? undefined : new Date().toISOString(),
@@ -49,8 +51,7 @@ export async function executeRemoteRoomRun(state: BridgeState, input: RoomRunExe
       return;
     }
     network = { ...network, cancelRequested: true };
-    const message = rooms.getMessage(input.roomId, input.assistantMessageId);
-    if (message) persist(message.text, "running");
+    persist(hostMessage(locale, "remote.cancel_requested"), "running");
   };
   input.signal?.addEventListener("abort", cancel, { once: true });
   try {
@@ -97,17 +98,17 @@ export async function executeRemoteRoomRun(state: BridgeState, input: RoomRunExe
         pending: !(done || failed || cancelled),
         needsInput: phase === "TASK_STATE_INPUT_REQUIRED",
       };
+      replyText = remoteTaskText(task);
       persist(
-        remoteTaskText(task) ||
-          (phase === "TASK_STATE_INPUT_REQUIRED"
-            ? hostMessage(locale, "remote.input_required")
-            : done
-              ? hostMessage(locale, "remote.completed")
-              : cancelled
-                ? hostMessage(locale, "remote.cancelled")
-                : failed
-                  ? hostMessage(locale, "remote.failed")
-                  : hostMessage(locale, "remote.working")),
+        phase === "TASK_STATE_INPUT_REQUIRED"
+          ? hostMessage(locale, "remote.input_required")
+          : done
+            ? hostMessage(locale, "remote.completed")
+            : cancelled
+              ? hostMessage(locale, "remote.cancelled")
+              : failed
+                ? hostMessage(locale, "remote.failed")
+                : hostMessage(locale, "remote.working"),
         done ? "done" : failed ? "failed" : cancelled ? "interrupted" : "running",
       );
       if (!network.pending) return;

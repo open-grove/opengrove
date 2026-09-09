@@ -21,6 +21,7 @@ export const remoteRoomTaskSchema = z
     needsInput: z.boolean().optional(),
     pending: z.boolean(),
     cancelRequested: z.boolean().optional(),
+    statusText: z.string().optional(),
   })
   .strict();
 export type RemoteRoomTask = z.infer<typeof remoteRoomTaskSchema>;
