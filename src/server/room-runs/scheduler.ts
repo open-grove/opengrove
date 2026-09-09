@@ -62,7 +62,7 @@ export function scheduleRoomAssistantRunsWithExecutor(
     const controller = new AbortController();
     let releaseActiveRun: () => void;
     try {
-      releaseActiveRun = registerActiveBridgeRun(state, runId, { cancel: () => controller.abort() });
+      releaseActiveRun = registerActiveBridgeRun(state, runId, { cancel: (reason) => controller.abort(reason) });
     } catch (error) {
       if (!(error instanceof Error) || error.message !== "bridge_runs_paused_for_storage_maintenance") throw error;
       const language = resolveHostLanguageSettings((state.rootState ?? state).settings);

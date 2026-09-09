@@ -206,6 +206,8 @@ function migrateMember(member: RoomChannelMember): RoomChannelMember {
 }
 
 function isRemovedStackMember(member: RoomChannelMember): boolean {
+  // Explicit Agent Router bindings are current Contacts, not the retired cloud member format.
+  if (member.remoteAgent) return false;
   const legacy = member as unknown as {
     source?: unknown;
     remote?: { provider?: unknown };

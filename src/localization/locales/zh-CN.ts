@@ -1,6 +1,20 @@
 import type { EN_HOST_MESSAGES } from "./en.js";
 
 export const ZH_CN_HOST_MESSAGES = {
+  "remote.cancelled_before_send": "已取消，消息未发送。",
+  "remote.connecting": "正在连接远端 Agent…",
+  "remote.connection_paused": "已断开本机连接。重新打开对话后会继续获取远端任务结果。",
+  "remote.cancel_requested": "已向远端 Agent 请求取消。",
+  "remote.input_required": "远端 Agent 需要你补充信息，请继续发送消息。",
+  "remote.completed": "已完成。",
+  "remote.cancelled": "已取消。",
+  "remote.failed": "远端请求失败。",
+  "remote.working": "远端 Agent 正在处理…",
+  "remote.text_only": "远端对话目前支持文字，请移除附件后重新发送。",
+  "remote.sender_changed": "此连接当前选中的发送 Agent 已改变，请恢复原来的选择后重试。",
+  "remote.message_too_large": "消息超出远端 Agent 的 32,000 字符限制。",
+  "remote.direct_only": "远端 Agent 目前仅支持一对一对话。",
+  "remote.connection_unavailable": "远端连接暂不可用。重新打开对话可恢复现有请求。",
   "agent.final_missing": "这次运行没有生成可显示的最终回复，请查看运行详情。",
   "agent.run_failed": "这次运行失败了，请查看运行详情。",
   "app.cli.check_failed": "CLI「{cliId}」自检命令未通过：{detail}",

@@ -39,6 +39,12 @@ import type {
   AuthSessionGetData,
   AuthSessionGetErrors,
   AuthSessionGetResponses,
+  NetworkAccountInspectData,
+  NetworkAccountInspectErrors,
+  NetworkAccountInspectResponses,
+  NetworkContactAddData,
+  NetworkContactAddErrors,
+  NetworkContactAddResponses,
   RoomMessageCreateData,
   RoomMessageCreateErrors,
   RoomMessageCreateResponses,
@@ -333,6 +339,62 @@ export class Room extends HeyApiClient {
   }
 }
 
+export class Account extends HeyApiClient {
+  /**
+   * Connect an existing Agent network account
+   *
+   * Verify a local CLI profile and return public sender identity. Does not register accounts or expose credentials.
+   */
+  public inspect<ThrowOnError extends boolean = false>(
+    options: Options<NetworkAccountInspectData, ThrowOnError>,
+  ): RequestResult<NetworkAccountInspectResponses, NetworkAccountInspectErrors, ThrowOnError> {
+    return (options.client ?? this.client).post<
+      NetworkAccountInspectResponses,
+      NetworkAccountInspectErrors,
+      ThrowOnError
+    >({
+      url: "/network/account",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+}
+
+export class Contact extends HeyApiClient {
+  /**
+   * Add a remote Agent to Contacts
+   *
+   * Resolve an Agent network address and save a bound remote member for direct conversations.
+   */
+  public add<ThrowOnError extends boolean = false>(
+    options: Options<NetworkContactAddData, ThrowOnError>,
+  ): RequestResult<NetworkContactAddResponses, NetworkContactAddErrors, ThrowOnError> {
+    return (options.client ?? this.client).post<NetworkContactAddResponses, NetworkContactAddErrors, ThrowOnError>({
+      url: "/network/contacts",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+}
+
+export class Network extends HeyApiClient {
+  private _account?: Account;
+  get account(): Account {
+    return (this._account ??= new Account({ client: this.client }));
+  }
+
+  private _contact?: Contact;
+  get contact(): Contact {
+    return (this._contact ??= new Contact({ client: this.client }));
+  }
+}
+
 export class OpenGroveApi extends HeyApiClient {
   public static readonly __registry: HeyApiRegistry<OpenGroveApi> = new HeyApiRegistry<OpenGroveApi>();
 
@@ -357,5 +419,10 @@ export class OpenGroveApi extends HeyApiClient {
   private _room?: Room;
   get room(): Room {
     return (this._room ??= new Room({ client: this.client }));
+  }
+
+  private _network?: Network;
+  get network(): Network {
+    return (this._network ??= new Network({ client: this.client }));
   }
 }

@@ -1,3 +1,6 @@
+import { RemoteAgentDetail, RemoteAgentDialog } from "./remote-agent-panel";
+import { Cloud, UserPlus } from "lucide-react";
+import { MotionMenu, MotionMenuItem } from "../ui/motion/menu";
 import { useEffect, useMemo, useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import "./rooms.css";
@@ -26,6 +29,8 @@ import { EmployeeSettingsSurface } from "./employee-settings-surface";
 import { RoomMemberAvatar } from "./member-avatar";
 import { visibleEmployeeDefinitions } from "./contacts-model";
 import {
+  fetchRoomsInit,
+  roomsFromServerSnapshot,
   openServerDirectRoom,
   patchServerRoomMember,
   restoreServerRoomMemberAppDefaults,
@@ -63,6 +68,8 @@ export function ContactsView(props: {
   roomsState: RoomsState;
   setRoomsState: Dispatch<SetStateAction<RoomsState>>;
   onOpenMessages(roomId?: string): void;
+  openRemoteAgentDialog?: boolean;
+  focusMemberId?: string;
 }) {
   const { t } = useI18n();
   const systemDetail = (error: unknown) =>
@@ -72,8 +79,10 @@ export function ContactsView(props: {
   const state = props.roomsState;
   const setState = props.setRoomsState;
   const [query, setQuery] = useState("");
+  const [remoteDialogOpen, setRemoteDialogOpen] = useState(props.openRemoteAgentDialog === true);
+  const [createMenuOpen, setCreateMenuOpen] = useState(false);
   const [activeSection, setActiveSection] = useState<"employees" | "groups">("employees");
-  const [selectedMemberId, setSelectedMemberId] = useState(state.members[0]?.id || "");
+  const [selectedMemberId, setSelectedMemberId] = useState(props.focusMemberId || state.members[0]?.id || "");
   const [employeeDialogOpen, setEmployeeDialogOpen] = useState(false);
   const [publishingEmployee, setPublishingEmployee] = useState(false);
   const [employeeDeleteTargetId, setEmployeeDeleteTargetId] = useState("");
@@ -104,6 +113,7 @@ export function ContactsView(props: {
         member.role.toLowerCase().includes(value) ||
         member.kernel.toLowerCase().includes(value) ||
         member.model.toLowerCase().includes(value) ||
+        member.remoteAgent?.address.toLowerCase().includes(value) ||
         roomMemberSourceLabel(member).toLowerCase().includes(value) ||
         roomMemberSourceDetail(member).toLowerCase().includes(value),
     );
@@ -389,22 +399,75 @@ export function ContactsView(props: {
     }
   }
 
+  async function openRemoteConversation(member: RoomMember) {
+    try {
+      const result = await openServerDirectRoom(member.id, member.name, {
+        roomId: `remote-chat-${crypto.randomUUID()}`,
+      });
+      const snapshot = await fetchRoomsInit();
+      setState((current) => ({ ...current, rooms: roomsFromServerSnapshot(snapshot), activeRoomId: result.room.id }));
+      props.onOpenMessages(result.room.id);
+    } catch (error) {
+      toast({ title: t("remoteAgent.addError"), description: systemDetail(error), kind: "error" });
+    }
+  }
+
   return (
     <section className="contacts-view" aria-label={t("contacts.viewLabel")}>
+      <RemoteAgentDialog
+        open={remoteDialogOpen}
+        onOpenChange={setRemoteDialogOpen}
+        onAdded={async (memberId) => {
+          const snapshot = await fetchRoomsInit();
+          setState((current) => ({
+            ...current,
+            members: snapshot.members,
+            rooms: roomsFromServerSnapshot(snapshot),
+            deletedMemberIds: snapshot.deletedMemberIds ?? [],
+          }));
+          setSelectedMemberId(memberId);
+        }}
+      />
       <aside className="contacts-nav-panel">
         <header className="contacts-nav-header">
           <h1>{t("contacts.messages")}</h1>
-          <Tooltip content={t("employee.addEmployee")} side="bottom">
-            <button
-              className="rooms-icon-button"
-              type="button"
-              data-room-action="add-employee"
-              onClick={openCreateEmployeeDialog}
-              aria-label={t("employee.addEmployee")}
+          <MotionMenu
+            open={createMenuOpen}
+            onOpenChange={setCreateMenuOpen}
+            ariaLabel={t("rooms.createNew")}
+            align="end"
+            tooltipContent={t("rooms.createNew")}
+            tooltipSide="bottom"
+            trigger={
+              <button
+                className="rooms-icon-button"
+                type="button"
+                data-room-action="add-employee"
+                aria-label={t("rooms.createNew")}
+              >
+                <ProductIcon name="add" size={16} />
+              </button>
+            }
+          >
+            <MotionMenuItem
+              onClick={() => {
+                setCreateMenuOpen(false);
+                openCreateEmployeeDialog();
+              }}
             >
-              <ProductIcon name="add" size={16} />
-            </button>
-          </Tooltip>
+              <UserPlus size={17} />
+              <span>{t("remoteAgent.addLocal")}</span>
+            </MotionMenuItem>
+            <MotionMenuItem
+              onClick={() => {
+                setCreateMenuOpen(false);
+                setRemoteDialogOpen(true);
+              }}
+            >
+              <Cloud size={17} />
+              <span>{t("remoteAgent.add")}</span>
+            </MotionMenuItem>
+          </MotionMenu>
         </header>
         <nav className="collaboration-switch" aria-label={t("contacts.messageViews")}>
           <button type="button" data-room-view-target="rooms" onClick={() => props.onOpenMessages()}>
@@ -470,7 +533,14 @@ export function ContactsView(props: {
               className="contacts-detail-panel contacts-employee-detail"
               aria-label={t("contacts.employeeProfile")}
             >
-              {selectedMember ? (
+              {selectedMember?.source === "remote" ? (
+                <RemoteAgentDetail
+                  member={selectedMember}
+                  onMessage={() => void openDirectMember(selectedMember)}
+                  onNewConversation={() => void openRemoteConversation(selectedMember)}
+                  onDelete={() => setEmployeeDeleteTargetId(selectedMember.id)}
+                />
+              ) : selectedMember ? (
                 <EmployeeSettingsSurface
                   key={selectedMember.id}
                   member={selectedMember}

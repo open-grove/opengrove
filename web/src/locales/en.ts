@@ -1,4 +1,28 @@
 export const EN = {
+  "remoteAgent.remote": "Remote Agent",
+  "remoteAgent.addLocal": "Add local employee",
+  "remoteAgent.profileExample": "default",
+  "remoteAgent.addressExample": "owner/agent@agents.example",
+  "remoteAgent.remoteExecution": "Model and workspace managed remotely",
+  "remoteAgent.add": "Add remote Agent",
+  "remoteAgent.addHint": "Add a network address to talk to a remote Agent here.",
+  "remoteAgent.profile": "Existing local account profile",
+  "remoteAgent.profileHint": "Enter a signed-in Agent Router CLI profile. This does not register a new account.",
+  "remoteAgent.sendAs": "Send as {address}",
+  "remoteAgent.address": "Agent address",
+  "remoteAgent.name": "Display name (optional)",
+  "remoteAgent.connect": "Connect account",
+  "remoteAgent.connecting": "Connecting…",
+  "remoteAgent.connectionError":
+    "Connection failed. Check that the CLI is installed and this profile is signed in with an Agent selected.",
+  "remoteAgent.addError": "Could not add or open the remote Agent. Check the address and connection, then retry.",
+  "remoteAgent.description":
+    "Messages execute remotely and replies appear in this conversation. Follow-up messages keep the remote context.",
+  "remoteAgent.account": "Sending account",
+  "remoteAgent.execution": "Execution",
+  "remoteAgent.message": "Message",
+  "remoteAgent.newConversation": "New conversation",
+
   "app.chat": "Kernel",
   "app.rooms": "Employees",
   "app.ops": "Ops",

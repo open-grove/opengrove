@@ -148,7 +148,9 @@ export function RoomSettingsPanel(props: RoomSettingsPanelProps) {
                 {props.activeRoom.kind !== "group" ? (
                   <span>
                     {props.activeDirectMember
-                      ? `${props.activeDirectMember.kernel} / ${memberModelLabel(props.activeDirectMember)}`
+                      ? props.activeDirectMember.source === "remote"
+                        ? t("remoteAgent.remoteExecution")
+                        : `${props.activeDirectMember.kernel} / ${memberModelLabel(props.activeDirectMember)}`
                       : t("contacts.directBadge")}
                   </span>
                 ) : null}
@@ -395,7 +397,9 @@ function MemberPicker(props: {
               <span>
                 <strong>{roomMemberDisplayName(member)}</strong>
                 <small>
-                  {member.kernel} / {memberModelLabel(member)}
+                  {member.source === "remote"
+                    ? t("remoteAgent.remoteExecution")
+                    : `${member.kernel} / ${memberModelLabel(member)}`}
                 </small>
               </span>
             </button>

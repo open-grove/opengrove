@@ -1,3 +1,4 @@
+import { executeRemoteRoomRun } from "./remote-agents/execution.js";
 import {
   createAssistantFinalEvent,
   collectAssistantText,
@@ -90,7 +91,8 @@ export function scheduleRoomAssistantRuns(state: BridgeState, input: RoomRunInpu
 async function executeRoomRunSafely(state: BridgeState, input: RoomRunExecutionInput): Promise<void> {
   const startedAt = Date.now();
   try {
-    await executeRoomRun(state, input);
+    if (input.target.source === "remote") await executeRemoteRoomRun(state, input);
+    else await executeRoomRun(state, input);
   } catch (error) {
     const triggerText = state.app.rooms.getMessage(input.roomId, input.triggerMessageId)?.text ?? "";
     await handleRoomRunError(state, input, {
@@ -780,4 +782,24 @@ function syncRoomExecutionSessionMetadata(
 
 function durationLabel(durationMs: number): string {
   return `${Math.max(0.1, durationMs / 1000).toFixed(1)}s`;
+}
+
+/** Reattach only locally initiated, unfinished network requests; never execute imported history. */
+export function resumeRemoteRoomRuns(state: BridgeState, roomId?: string): void {
+  for (const message of state.app.rooms.snapshot().messages) {
+    if (
+      (roomId && message.roomId !== roomId) ||
+      !message.remoteTask?.pending ||
+      (message.runId && hasActiveRoomRunController(state, message.runId))
+    )
+      continue;
+    const target = state.app.rooms.listMembers().find((member) => member.id === message.senderId);
+    if (!target || target.source !== "remote" || target.disabled) continue;
+    scheduleRoomAssistantRuns(state, {
+      roomId: message.roomId,
+      triggerMessageId: message.remoteTask.triggerMessageId,
+      targets: [target],
+      assistantMessages: [message],
+    });
+  }
 }

@@ -1,4 +1,22 @@
 export const EN_HOST_MESSAGES = {
+  "remote.cancelled_before_send": "Canceled before sending.",
+  "remote.connecting": "Connecting to remote Agent…",
+  "remote.connection_paused":
+    "Disconnected from the remote Agent. Reopen this conversation to continue following the task.",
+  "remote.cancel_requested": "Cancellation requested from the remote Agent.",
+  "remote.input_required": "The remote Agent needs more input.",
+  "remote.completed": "Completed.",
+  "remote.cancelled": "Canceled.",
+  "remote.failed": "Remote request failed.",
+  "remote.working": "Remote Agent is working…",
+  "remote.text_only": "This remote conversation currently supports text. Remove attachments and send again.",
+  "remote.sender_changed":
+    "The sending Agent in this account configuration changed. Restore the original selection before sending.",
+  "remote.message_too_large": "Message exceeds the remote Agent's 32,000 character limit.",
+  "remote.direct_only": "Remote Agents currently support direct conversations.",
+  "remote.connection_unavailable":
+    "The remote connection is unavailable. Reopen this conversation to reconnect to the existing request.",
+
   "agent.final_missing": "This run did not produce a displayable final reply. Check the run details.",
   "agent.run_failed": "This run failed. Check the run details.",
   "app.cli.check_failed": 'CLI "{cliId}" failed its readiness check: {detail}',

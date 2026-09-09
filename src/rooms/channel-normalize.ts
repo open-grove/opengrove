@@ -1,3 +1,4 @@
+import { remoteAgentBindingSchema, remoteRoomTaskSchema } from "./remote-agent.js";
 import type {
   RoomChannelEvent,
   RoomChannelEventType,
@@ -99,6 +100,8 @@ export function normalizeMember(input: Partial<RoomChannelMember>): RoomChannelM
     avatarSeed: readOptionalString(input.avatarSeed),
     avatarDataUrl: normalizedRoomMemberAvatarDataUrl(input.avatarDataUrl),
     source: normalizeMemberSource(input.source),
+    remoteAgent:
+      input.source === "remote" && input.remoteAgent ? remoteAgentBindingSchema.parse(input.remoteAgent) : undefined,
     sourceLabel: normalizeSourceLabel(input.sourceLabel, input.source),
     visibility: normalizeVisibility(input.visibility),
     publicDescription: readOptionalString(input.publicDescription),
@@ -181,6 +184,7 @@ function normalizeMessage(input: Partial<RoomChannelMessage>): RoomChannelMessag
     attachments: Array.isArray(input.attachments) ? input.attachments : undefined,
     duration: readOptionalString(input.duration),
     runId: readOptionalString(input.runId),
+    remoteTask: input.remoteTask ? remoteRoomTaskSchema.parse(input.remoteTask) : undefined,
     parts: Array.isArray(input.parts) ? input.parts : undefined,
     startedAt: readOptionalString(input.startedAt),
     finishedAt: readOptionalString(input.finishedAt),
@@ -370,7 +374,7 @@ function normalizeMemberStatus(value: unknown): RoomMemberStatus {
 }
 
 function normalizeMemberSource(value: unknown): RoomMemberSource | undefined {
-  return value === "human" || value === "local" ? value : undefined;
+  return value === "human" || value === "local" || value === "remote" ? value : undefined;
 }
 
 function normalizeSourceLabel(value: unknown, source: unknown): string | undefined {

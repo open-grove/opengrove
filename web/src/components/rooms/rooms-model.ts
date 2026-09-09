@@ -1,3 +1,4 @@
+import type { RemoteAgentBinding } from "../../../../src/rooms/remote-agent";
 import type { AttachmentPayload, KernelOption, MessagePart, ModelId, ReasoningEffort } from "../../bridge";
 import { DEFAULT_MODEL_ID } from "../../bridge";
 import { translate, type TranslationFn } from "../../i18n";
@@ -49,6 +50,7 @@ export type RoomMember = {
   avatarSeed?: string;
   avatarDataUrl?: string;
   source?: RoomMemberSource;
+  remoteAgent?: RemoteAgentBinding;
   sourceLabel?: string;
   visibility?: RoomMemberVisibility;
   publicDescription?: string;
@@ -325,6 +327,7 @@ export function roomMemberSourceLabel(
   member: Pick<RoomMember, "source" | "sourceLabel">,
   t: TranslationFn = translate,
 ): string {
+  if (member.source === "remote") return t("remoteAgent.remote");
   const label = member.sourceLabel?.trim();
   // sourceLabel 会被持久化，历史值可能是 local/human/本机/人类/Local/Human，统一归一到当前语言。
   const normalized = label?.toLowerCase();
@@ -350,6 +353,7 @@ export function roomMemberSourceDetail(
   member: Pick<RoomMember, "source" | "kernel" | "model">,
   t: TranslationFn = translate,
 ): string {
+  if (member.source === "remote") return t("remoteAgent.remoteExecution");
   if (member.source === "human") {
     return t("rooms.sourceHumanMember");
   }
@@ -706,7 +710,7 @@ export function normalizeRoomMemberModelForKernel(kernel: string, model: string)
 }
 
 function roomMemberDedupeKey(member: RoomMember): string {
-  if (member.source === "human") return "";
+  if (member.source === "human" || member.source === "remote") return "";
   if ((member.appId || member.storePackageId) && !isUserCreatedDedupeCandidate(member)) return "";
   const normalizedName = normalizeDedupeText(member.name);
   const normalizedKernel = normalizeDedupeText(member.kernel);

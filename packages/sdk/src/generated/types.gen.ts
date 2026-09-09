@@ -1488,3 +1488,148 @@ export type RoomMessageCreateResponses = {
 };
 
 export type RoomMessageCreateResponse = RoomMessageCreateResponses[keyof RoomMessageCreateResponses];
+
+export type NetworkAccountInspectData = {
+  body: {
+    /**
+     * An existing, explicitly selected Agent Router CLI profile.
+     */
+    profile: string;
+  };
+  path?: never;
+  query?: never;
+  url: "/network/account";
+};
+
+export type NetworkAccountInspectErrors = {
+  /**
+   * Error response.
+   */
+  400: {
+    error: string;
+    ok?: false;
+    [key: string]: unknown;
+  };
+  /**
+   * Error response.
+   */
+  401: {
+    error: string;
+    ok?: false;
+    [key: string]: unknown;
+  };
+  /**
+   * Error response.
+   */
+  403: {
+    error: string;
+    ok?: false;
+    [key: string]: unknown;
+  };
+  /**
+   * Error response.
+   */
+  409: {
+    error: string;
+    ok?: false;
+    [key: string]: unknown;
+  };
+  /**
+   * Error response.
+   */
+  503: {
+    error: string;
+    ok?: false;
+    [key: string]: unknown;
+  };
+};
+
+export type NetworkAccountInspectError = NetworkAccountInspectErrors[keyof NetworkAccountInspectErrors];
+
+export type NetworkAccountInspectResponses = {
+  /**
+   * Successful response.
+   */
+  200: {
+    ok: true;
+    account: {
+      id: string;
+      owner: string;
+      address: string;
+      name: string;
+    };
+  };
+};
+
+export type NetworkAccountInspectResponse = NetworkAccountInspectResponses[keyof NetworkAccountInspectResponses];
+
+export type NetworkContactAddData = {
+  body: {
+    /**
+     * An existing, explicitly selected Agent Router CLI profile.
+     */
+    profile: string;
+    address: string;
+    name?: string;
+  };
+  path?: never;
+  query?: never;
+  url: "/network/contacts";
+};
+
+export type NetworkContactAddErrors = {
+  /**
+   * Error response.
+   */
+  400: {
+    error: string;
+    ok?: false;
+    [key: string]: unknown;
+  };
+  /**
+   * Error response.
+   */
+  401: {
+    error: string;
+    ok?: false;
+    [key: string]: unknown;
+  };
+  /**
+   * Error response.
+   */
+  403: {
+    error: string;
+    ok?: false;
+    [key: string]: unknown;
+  };
+  /**
+   * Error response.
+   */
+  409: {
+    error: string;
+    ok?: false;
+    [key: string]: unknown;
+  };
+  /**
+   * Error response.
+   */
+  503: {
+    error: string;
+    ok?: false;
+    [key: string]: unknown;
+  };
+};
+
+export type NetworkContactAddError = NetworkContactAddErrors[keyof NetworkContactAddErrors];
+
+export type NetworkContactAddResponses = {
+  /**
+   * Successful response.
+   */
+  200: {
+    ok: true;
+    memberId: string;
+  };
+};
+
+export type NetworkContactAddResponse = NetworkContactAddResponses[keyof NetworkContactAddResponses];

@@ -160,6 +160,11 @@ Local room ledger 是 room members、messages、run status 和 UI 增量事件�
 
 当消息指向本地成员时，bridge 会为每个 runnable target 调度一个 room agent run，用当前消息和近期 ledger window 构造 per-member prompt，然后把最终结果写回同一个 ledger。支持 native sessions 的 kernels 仍在这个 ledger-backed prompt 后面保持 per-room-member 的原生连续性。如果 agent 需要更早的 channel context，可以用 `room.ledger.read`，传入 `roomId`、可选 `query`、`limit`、`beforeSeq` 或 `afterSeq`。工具默认只返回房间内可见消息，并通过 `sourceRoomId` 标明实际读取的权威房间；核对当前成员状态时必须显式传 `includeMembers: true`，此时只附带成员 ID、名称、状态、最近活动和停用标记，不返回完整岗位、Kernel、模型或 App 配置。账本附件永不暴露宿主机本地路径；超过 16 KiB 的内联文本或 data URL 会被省略，但仍保留附件元数据。
 
+### 远端 Agent 对话
+
+远端联系人通过可选的 Agent Router 连接执行，不启动本机 Kernel。连接方法、
+上下文延续、恢复方式和支持范围见[远端 Agent 对话](../product/REMOTE_AGENTS.md)。
+
 ## App 商店
 
 App 商店是可配置的软件包 registry。列表、archive 下载、安装、修复和 mounted App

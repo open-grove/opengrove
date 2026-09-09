@@ -1,4 +1,4 @@
-import { MessageCircleMore, Plus, Search, UserPlus, UsersRound, X } from "lucide-react";
+import { Cloud, MessageCircleMore, Plus, Search, UserPlus, UsersRound, X } from "lucide-react";
 import { useI18n } from "../../i18n";
 import { ThemedPixelIcon } from "../sidebar/app-navigation";
 import { MotionMenu, MotionMenuItem } from "../ui/motion/menu";
@@ -25,6 +25,7 @@ type RoomSidebarProps = {
   onCreateMenuOpenChange(open: boolean): void;
   onCreateGroup(): void;
   onRecruitEmployee(): void;
+  onRecruitRemoteAgent(): void;
   onOpenContacts(): void;
   onRoomQueryChange(value: string): void;
   onOpenRoom(roomId: string): void;
@@ -51,7 +52,7 @@ export function RoomSidebar(props: RoomSidebarProps) {
     ? props.members.filter((member) => {
         if (member.disabled) return false;
         const text =
-          `${roomMemberDisplayName(member)} ${member.name} ${member.kernel} ${member.role} ${member.model}`.toLowerCase();
+          `${roomMemberDisplayName(member)} ${member.name} ${member.kernel} ${member.role} ${member.model} ${member.remoteAgent?.address ?? ""}`.toLowerCase();
         const sourceText = `${roomMemberSourceLabel(member)} ${roomMemberSourceDetail(member)}`.toLowerCase();
         return `${text} ${sourceText}`.includes(query);
       })
@@ -101,7 +102,11 @@ export function RoomSidebar(props: RoomSidebarProps) {
             </MotionMenuItem>
             <MotionMenuItem onClick={props.onRecruitEmployee}>
               <ThemedPixelIcon pixelIcon="user" professionalIcon={UserPlus} professionalSize={17} pixelSize={18} />
-              <span>{t("employee.addEmployee")}</span>
+              <span>{t("remoteAgent.addLocal")}</span>
+            </MotionMenuItem>
+            <MotionMenuItem onClick={props.onRecruitRemoteAgent}>
+              <Cloud size={17} />
+              <span>{t("remoteAgent.add")}</span>
             </MotionMenuItem>
           </MotionMenu>
         </div>

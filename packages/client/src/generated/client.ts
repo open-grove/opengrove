@@ -16,6 +16,8 @@ export const openGroveClientOperationIds = [
   "app.release.keep-local",
   "app.update.schedule",
   "room.message.create",
+  "network.account.inspect",
+  "network.contact.add",
 ] as const;
 
 export function bindOpenGroveClient(request: HostOperationRequest) {
@@ -177,6 +179,34 @@ export function bindOpenGroveClient(request: HostOperationRequest) {
               targetIds: input.targetIds,
               text: input.text,
               userMessageId: input.userMessageId,
+            },
+            signal: options?.signal,
+          }),
+      },
+    },
+    network: {
+      account: {
+        inspect: (
+          input: HostOperationInput<(typeof hostOperationById)["network.account.inspect"]>,
+          options?: OpenGroveRequestOptions,
+        ): Promise<HostOperationOutput<(typeof hostOperationById)["network.account.inspect"]>> =>
+          request(hostOperationById["network.account.inspect"], {
+            body: {
+              profile: input.profile,
+            },
+            signal: options?.signal,
+          }),
+      },
+      contact: {
+        add: (
+          input: HostOperationInput<(typeof hostOperationById)["network.contact.add"]>,
+          options?: OpenGroveRequestOptions,
+        ): Promise<HostOperationOutput<(typeof hostOperationById)["network.contact.add"]>> =>
+          request(hostOperationById["network.contact.add"], {
+            body: {
+              address: input.address,
+              name: input.name,
+              profile: input.profile,
             },
             signal: options?.signal,
           }),

@@ -22,6 +22,19 @@ and workspace data kept on the user's machine.
   migration, ordinary updates never move the Workspace. See
   [Store App storage layout](APP_STORAGE_LAYOUT.md).
 
+## Remote Agent conversations
+
+Contacts may also bind an external **Remote Agent** through an explicitly selected
+Agent Router CLI profile. The Host dispatches those direct Room messages through
+the network client, before local Kernel selection. Account credentials remain in
+the CLI profile; the local ledger stores public identities, task IDs, context IDs,
+and an idempotency key persisted before submission. The remote service allocates
+the first context; the Host adopts it for following turns. Reopening a conversation
+reattaches pending requests, including requests whose submission response was lost.
+The remote owner controls execution permissions and models. This outbound path
+does not expose local Employees to incoming network requests or synchronize the
+network's address book. See [Remote Agent conversations](../product/REMOTE_AGENTS.md).
+
 ## Local storage accounting and maintenance
 
 The desktop storage page scans the Host-owned data roots instead of presenting

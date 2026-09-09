@@ -4,7 +4,12 @@ import type { PostRoomMessageResult, RoomChannelMember, RoomChannelMessage } fro
 import { normalizeRoomMessageDeliveryKind, normalizeRoomSelectedFile } from "../../../rooms/channel-normalize.js";
 import { readWwRuntimeAuth } from "../../bridge-security.js";
 import { findRoomPmMember } from "../../room-delegation.js";
-import { cancelRoomAssistantRun, isRunnableRoomAssistantTarget, scheduleRoomAssistantRuns } from "../../room-runs.js";
+import {
+  cancelRoomAssistantRun,
+  isRunnableRoomAssistantTarget,
+  scheduleRoomAssistantRuns,
+  resumeRemoteRoomRuns,
+} from "../../room-runs.js";
 import { roomTargetSupportsHostTools } from "../../room-runs/execution-state.js";
 import { canRoomPmAutoRoute } from "../../../rooms/room-pm.js";
 import { record } from "../../http-utils.js";
@@ -66,6 +71,7 @@ function handleMessagesListRoute(context: RoomsRouteContext): boolean {
   const messagesAction = url.pathname.match(/^\/rooms\/([^/]+)\/messages$/);
   if (!messagesAction || request.method !== "GET") return false;
   const encodedRoomId = messagesAction[1]!;
+  resumeRemoteRoomRuns(state, decodeURIComponent(encodedRoomId));
   const messages = state.app.rooms.listVisibleMessages(decodeURIComponent(encodedRoomId), {
     limit: Math.min(readPositiveInt(url.searchParams.get("limit"), 80), 200),
     beforeSeq: readOptionalPositiveInt(url.searchParams.get("beforeSeq")),
@@ -138,6 +144,32 @@ export async function handleCreateRoomMessageOperation(
   const assistantTargets = targetIds
     .map((id) => state.app.rooms.listMembers().find((member) => member.id === id))
     .filter((member): member is RoomChannelMember => Boolean(member));
+  // A retried remote send must reuse its local ledger entry as well as its network request.
+  const existingUserMessage = body.userMessageId ? state.app.rooms.getMessage(roomId, body.userMessageId) : undefined;
+  if (existingUserMessage && assistantTargets.some((member) => member.source === "remote")) {
+    if (
+      existingUserMessage.senderType !== "user" ||
+      existingUserMessage.text !== text ||
+      JSON.stringify(existingUserMessage.targetIds) !== JSON.stringify(targetIds)
+    ) {
+      sendJson(response, 409, { ok: false, error: "message_id_conflict" });
+      return true;
+    }
+    resumeRemoteRoomRuns(state, roomId);
+    sendJson(
+      response,
+      200,
+      presentPostRoomMessageResult({
+        room: state.app.rooms.getRoom(roomId)!,
+        userMessage: existingUserMessage,
+        assistantMessages: state.app.rooms
+          .listMessages(roomId, { limit: 0 })
+          .filter((message) => message.senderType === "agent" && message.inReplyToMessageId === existingUserMessage.id),
+        currentEventSeq: state.app.rooms.snapshot().currentEventSeq,
+      }),
+    );
+    return true;
+  }
   if (targetIds.length === 0) {
     const pm = findRoomPmMember(state, roomId);
     if (pm) {

@@ -109,7 +109,7 @@ export function RoomsView(props: {
     action: "answer" | "decline" | "cancel",
     response?: unknown,
   ): Promise<unknown> | void;
-  onOpenContacts(): void;
+  onOpenContacts(options?: { addRemoteAgent?: boolean; memberId?: string }): void;
   onDismissOnboardingGuide?(): void;
   onCompleteOnboardingGuide?(): void;
 }) {
@@ -534,6 +534,10 @@ export function RoomsView(props: {
 
   function openEmployeeProfile(member: RoomMember) {
     if (member.source === "human") return;
+    if (member.source === "remote") {
+      props.onOpenContacts({ memberId: member.id });
+      return;
+    }
     setEditingEmployeeId(member.id);
     setEmployeeDialogOpen(true);
     setCreateMenuOpen(false);
@@ -1336,6 +1340,7 @@ export function RoomsView(props: {
           onCreateMenuOpenChange: setCreateMenuOpen,
           onCreateGroup: openCreateGroupDialog,
           onRecruitEmployee: openRecruitEmployeeDialog,
+          onRecruitRemoteAgent: () => props.onOpenContacts({ addRemoteAgent: true }),
           onOpenContacts: props.onOpenContacts,
           onRoomQueryChange: setRoomQuery,
           onOpenRoom: openRoom,

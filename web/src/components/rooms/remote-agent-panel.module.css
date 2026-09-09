@@ -1,0 +1,93 @@
+.remote-agent-dialog {
+  width: min(520px, calc(100vw - 32px));
+}
+.remote-agent-dialog form,
+.remote-agent-dialog label {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+.remote-agent-dialog form {
+  gap: var(--sp-5);
+  margin-top: var(--sp-5);
+}
+.remote-agent-dialog label {
+  font-size: var(--fs-base);
+  font-weight: 550;
+}
+.remote-agent-dialog input {
+  min-width: 0;
+  padding: var(--sp-2-5) var(--sp-3);
+  border: 1px solid var(--c-border-strong);
+  border-radius: var(--r-sm);
+  background: var(--c-surface);
+  color: inherit;
+  font: inherit;
+}
+.remote-agent-muted {
+  opacity: 0.65;
+  font-size: var(--fs-base);
+  line-height: 1.6;
+  margin: 0;
+}
+.remote-agent-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2-5);
+  align-items: center;
+}
+.remote-agent-dialog .remote-agent-actions {
+  justify-content: flex-end;
+}
+.remote-agent-account {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1-5);
+  padding: var(--sp-3);
+  border-radius: var(--r-sm);
+  background: var(--c-fill);
+  font-size: var(--fs-sm);
+  overflow-wrap: anywhere;
+}
+.remote-agent-error {
+  color: var(--c-error);
+  font-size: var(--fs-base);
+}
+.remote-agent-detail {
+  padding: var(--sp-8);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--sp-5);
+}
+.remote-agent-detail h2 {
+  font-size: var(--fs-2xl);
+  font-weight: 600;
+  margin: 0;
+}
+.remote-agent-address {
+  font-family: var(--font-mono, monospace);
+  overflow-wrap: anywhere;
+  font-size: var(--fs-base);
+  margin: 0;
+}
+.remote-agent-badge {
+  border: 1px solid var(--c-border-strong);
+  border-radius: var(--r-pill);
+  padding: var(--sp-1) var(--sp-2-5);
+  color: var(--c-interaction-blue);
+  font-size: var(--fs-sm);
+}
+.remote-agent-detail dl {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--sp-3) var(--sp-6);
+  font-size: var(--fs-base);
+}
+.remote-agent-detail dt {
+  opacity: 0.6;
+}
+.remote-agent-detail dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
