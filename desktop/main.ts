@@ -181,7 +181,7 @@ if (!hasSingleInstanceLock) {
     .whenReady()
     .then(async () => {
       desktopLanguage = resolveSupportedLocale(app.getLocale());
-      bridgeToken = app.isPackaged ? randomBytes(32).toString("base64url") : "";
+      bridgeToken = randomBytes(32).toString("base64url");
       desktopProxyToken = randomBytes(32).toString("base64url");
       bridgeAuthCookies = new DesktopAuthCookieJar(join(app.getPath("userData"), "auth-cookies.json"));
       registerDesktopProtocol(join(app.getAppPath(), "web-dist"), () => ({
