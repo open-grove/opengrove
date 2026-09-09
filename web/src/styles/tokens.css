@@ -44,6 +44,7 @@
   --c-success: oklch(55.966% 0.1292 156.01);
   --c-unread-solid: #4EB279;
   --c-unread-ink: var(--og-white);
+  --c-remote-agent: #0f6cbd;
   --c-warning: oklch(54.334% 0.1190 59.54);
   --c-error: oklch(50.034% 0.1821 29.51);
   --c-auth-entry-error: oklch(50.034% 0.1821 29.51);
@@ -281,6 +282,7 @@
   --c-success: oklch(73.422% 0.1336 145.14);
   --c-unread-solid: #4EB279;
   --c-unread-ink: #081015;
+  --c-remote-agent: #479ef5;
   --c-warning: oklch(80.665% 0.1258 74.03);
   --c-error: oklch(74.172% 0.1312 34.58);
   --c-auth-entry-error: oklch(50.034% 0.1821 29.51);
@@ -370,6 +372,7 @@
     --c-success: oklch(73.422% 0.1336 145.14);
     --c-unread-solid: #4EB279;
     --c-unread-ink: #081015;
+    --c-remote-agent: #479ef5;
     --c-warning: oklch(80.665% 0.1258 74.03);
     --c-error: oklch(74.172% 0.1312 34.58);
     --c-auth-entry-error: oklch(50.034% 0.1821 29.51);

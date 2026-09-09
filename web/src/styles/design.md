@@ -101,6 +101,8 @@ colors:
   # It remains fixed across themes so one unread count has one recognizable color.
   unread-solid: { light: "#4EB279", dark: "#4EB279" } # --c-unread-solid
   unread-ink: { light: "{colors.white}", dark: "#081015" } # --c-unread-ink, numeral on notification-count fills
+  # Remote identity uses Fluent Web colorBrandForeground1 in each theme.
+  remote-agent: { light: "#0f6cbd", dark: "#479ef5" } # --c-remote-agent, cloud outline beside a remote Agent's name
   warning: { light: "oklch(54.334% 0.1190 59.54)", dark: "oklch(80.665% 0.1258 74.03)" } # --c-warning
   error: { light: "oklch(50.034% 0.1821 29.51)", dark: "oklch(74.172% 0.1312 34.58)" } # --c-error
   auth-entry-error: { light: "oklch(50.034% 0.1821 29.51)", dark: "oklch(50.034% 0.1821 29.51)" } # fixed AA error text on the light-only auth entry
