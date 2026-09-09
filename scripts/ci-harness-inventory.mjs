@@ -21,6 +21,7 @@ export const integrationSuites = [
 // One canonical record per executable harness. `owner` assigns the Main/Nightly
 // shard; `suite` preserves the smaller affected-integration subsets used by PRs.
 export const harnessInventory = [
+  task("web-remote-agent-ui", "scripts/test-web-remote-agent-ui.mjs", "web-desktop"),
   task("web-mounted-app-group-deletion", "scripts/test-web-mounted-app-group-deletion.mjs", "apps-knowledge"),
   task("web-account-profile-storage", "scripts/test-web-account-profile-storage.mjs", "state-storage"),
   task("web-development-proxy", "scripts/test-web-development-proxy.mjs", "web-desktop"),

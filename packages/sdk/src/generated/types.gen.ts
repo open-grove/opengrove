@@ -1405,6 +1405,16 @@ export type RoomMessageCreateErrors = {
     [key: string]: unknown;
   };
   /**
+   * The message ID conflicts with an earlier message, or the remote conversation belongs to another account or sender.
+   */
+  409: {
+    ok?: false;
+    error: string;
+    code?: string;
+    traceId?: string;
+    [key: string]: unknown;
+  };
+  /**
    * The authenticated session is temporarily unavailable.
    */
   503: {
@@ -1491,10 +1501,7 @@ export type RoomMessageCreateResponse = RoomMessageCreateResponses[keyof RoomMes
 
 export type NetworkAccountInspectData = {
   body: {
-    /**
-     * An existing, explicitly selected Agent Router CLI profile.
-     */
-    profile: string;
+    [key: string]: never;
   };
   path?: never;
   query?: never;
@@ -1565,10 +1572,6 @@ export type NetworkAccountInspectResponse = NetworkAccountInspectResponses[keyof
 
 export type NetworkContactAddData = {
   body: {
-    /**
-     * An existing, explicitly selected Agent Router CLI profile.
-     */
-    profile: string;
     address: string;
     name?: string;
   };

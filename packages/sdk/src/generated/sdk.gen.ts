@@ -341,9 +341,9 @@ export class Room extends HeyApiClient {
 
 export class Account extends HeyApiClient {
   /**
-   * Connect an existing Agent network account
+   * Connect the signed-in admin's Agent network account
    *
-   * Verify a local CLI profile and return public sender identity. Does not register accounts or expose credentials.
+   * Exchange the current OpenGrove login at the operator's trusted Agent Router node and return public sender identity. Requires admin; credentials remain in Host memory.
    */
   public inspect<ThrowOnError extends boolean = false>(
     options: Options<NetworkAccountInspectData, ThrowOnError>,

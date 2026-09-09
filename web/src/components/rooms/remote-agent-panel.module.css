@@ -1,5 +1,8 @@
 .remote-agent-dialog {
-  width: min(520px, calc(100vw - 32px));
+  width: min(520px, 100%);
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
 }
 .remote-agent-dialog form,
 .remote-agent-dialog label {
@@ -38,16 +41,6 @@
 }
 .remote-agent-dialog .remote-agent-actions {
   justify-content: flex-end;
-}
-.remote-agent-account {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-1-5);
-  padding: var(--sp-3);
-  border-radius: var(--r-sm);
-  background: var(--c-fill);
-  font-size: var(--fs-sm);
-  overflow-wrap: anywhere;
 }
 .remote-agent-error {
   color: var(--c-error);

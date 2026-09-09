@@ -2970,6 +2970,34 @@
               }
             }
           },
+          "409": {
+            "description": "The message ID conflicts with an earlier message, or the remote conversation belongs to another account or sender.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "const": false
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "traceId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["error"],
+                  "additionalProperties": {}
+                }
+              }
+            }
+          },
           "503": {
             "description": "The authenticated session is temporarily unavailable.",
             "content": {
@@ -3004,8 +3032,8 @@
     "/network/account": {
       "post": {
         "operationId": "network.account.inspect",
-        "summary": "Connect an existing Agent network account",
-        "description": "Verify a local CLI profile and return public sender identity. Does not register accounts or expose credentials.",
+        "summary": "Connect the signed-in admin's Agent network account",
+        "description": "Exchange the current OpenGrove login at the operator's trusted Agent Router node and return public sender identity. Requires admin; credentials remain in Host memory.",
         "tags": ["network"],
         "x-opengrove-group": "network",
         "x-opengrove-resource": "account",
@@ -3017,14 +3045,8 @@
               "schema": {
                 "$schema": "https://json-schema.org/draft/2020-12/schema",
                 "type": "object",
-                "properties": {
-                  "profile": {
-                    "type": "string",
-                    "pattern": "^[a-zA-Z0-9_-]{1,64}$",
-                    "description": "An existing, explicitly selected Agent Router CLI profile."
-                  }
-                },
-                "required": ["profile"]
+                "properties": {},
+                "additionalProperties": false
               }
             }
           }
@@ -3198,11 +3220,6 @@
                 "$schema": "https://json-schema.org/draft/2020-12/schema",
                 "type": "object",
                 "properties": {
-                  "profile": {
-                    "type": "string",
-                    "pattern": "^[a-zA-Z0-9_-]{1,64}$",
-                    "description": "An existing, explicitly selected Agent Router CLI profile."
-                  },
                   "address": {
                     "type": "string",
                     "minLength": 1,
@@ -3213,7 +3230,8 @@
                     "maxLength": 80
                   }
                 },
-                "required": ["profile", "address"]
+                "required": ["address"],
+                "additionalProperties": false
               }
             }
           }

@@ -49,6 +49,7 @@
     }
   },
   "files": [
+    "vendor",
     "assets",
     "desktop-dist",
     "dist",
@@ -293,12 +294,17 @@
     "write:desktop-release-gates": "node scripts/write-desktop-release-gate-receipt.mjs",
     "publish:desktop-release": "node scripts/publish-desktop-release.mjs",
     "control:desktop-release": "node scripts/control-desktop-release.mjs",
-    "prepack": "npm run build"
+    "prepack": "npm run build",
+    "test:remote-agents": "npm run build:server && node --test dist/tests/agent-network-sessions.test.js dist/tests/remote-agent-room.test.js && node scripts/test-web-remote-agent-ui.mjs"
   },
+  "bundleDependencies": [
+    "@agent-router/sdk"
+  ],
   "engines": {
     "node": ">=24"
   },
   "dependencies": {
+    "@agent-router/sdk": "file:vendor/agent-router-sdk-0.1.2.tgz",
     "@anthropic-ai/claude-agent-sdk": "0.3.263",
     "@anthropic-ai/sdk": "0.123.0",
     "@earendil-works/pi-agent-core": "0.85.1",

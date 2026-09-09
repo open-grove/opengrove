@@ -1,28 +1,17 @@
 import { createHash } from "node:crypto";
 import type { AddNetworkContactOperation, InspectNetworkAccountOperation } from "#protocol";
-import { AgentRouterClient } from "../remote-agents/client.js";
+import { requireNetworkConnection, networkProblem } from "../remote-agents/session.js";
 import type { HostOperationRouteContext } from "../router.js";
-
-const networkErrors = new Set([
-  "remote_cli_not_installed",
-  "remote_connection_unavailable",
-  "remote_response_invalid",
-  "remote_profile_invalid",
-  "remote_address_invalid",
-  "remote_sender_changed",
-]);
-function networkError(error: unknown) {
-  return error instanceof Error && networkErrors.has(error.message) ? error.message : "remote_response_invalid";
-}
 
 export async function handleInspectNetworkAccount(
   context: HostOperationRouteContext<InspectNetworkAccountOperation>,
 ): Promise<true> {
   try {
-    const account = await new AgentRouterClient(context.input.body.profile).connect();
+    const { sender: account } = await requireNetworkConnection(context);
     context.sendJson(context.response, 200, { ok: true, account });
   } catch (error) {
-    context.sendJson(context.response, 503, { error: networkError(error) });
+    const problem = networkProblem(error);
+    context.sendJson(context.response, problem.status, { error: problem.error });
   }
   return true;
 }
@@ -30,15 +19,14 @@ export async function handleInspectNetworkAccount(
 export async function handleAddNetworkContact(
   context: HostOperationRouteContext<AddNetworkContactOperation>,
 ): Promise<true> {
-  const { profile, address, name } = context.input.body;
+  const { address, name } = context.input.body;
   try {
-    const client = new AgentRouterClient(profile);
-    const sender = await client.connect();
-    const remote = await client.resolve(address);
+    const connection = await requireNetworkConnection(context);
+    const remote = await connection.request(({ client, signal }) => client.resolve(address, { signal }));
     const id =
       "remote-" +
       createHash("sha256")
-        .update(JSON.stringify([sender.id, remote.address]))
+        .update(JSON.stringify([connection.binding, remote.address, remote.matrixId]))
         .digest("hex")
         .slice(0, 24);
     const existing = context.state.app.rooms.listMembers().find((member) => member.id === id);
@@ -55,10 +43,9 @@ export async function handleAddNetworkContact(
           color: "#3b82f6",
           lastActive: new Date().toISOString(),
           remoteAgent: {
-            profile,
-            senderAgentId: sender.id,
-            owner: sender.owner,
+            ...connection.binding,
             address: remote.address,
+            matrixId: remote.matrixId,
           },
           publicDescription: remote.address,
         },
@@ -68,7 +55,8 @@ export async function handleAddNetworkContact(
     }
     context.sendJson(context.response, 200, { ok: true, memberId: id });
   } catch (error) {
-    context.sendJson(context.response, 503, { error: networkError(error) });
+    const problem = networkProblem(error);
+    context.sendJson(context.response, problem.status, { error: problem.error });
   }
   return true;
 }

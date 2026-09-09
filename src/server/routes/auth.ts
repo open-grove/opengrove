@@ -1,3 +1,8 @@
+import {
+  clearNetworkSession,
+  networkSessionGeneration,
+  updateNetworkProductSession,
+} from "../remote-agents/session.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type {
   CreateAuthEmailCodeOperation,
@@ -598,6 +603,8 @@ async function completeWwSignIn(input: {
   // Commit the browser session only after sign-in preparation succeeds. A
   // failed switch must leave the previous cookies and session usable.
   input.onSession?.(sessionId);
+  clearAuthSessionCache(readAuthTokens(request));
+  await clearNetworkSession(state, "remote_account_changed");
   writeAuthTokens(response, tokens, sessionId);
   cacheAuthSessionUser(sessionId, tokens.accessToken, user, tokens.accessTokenExpiresIn);
   return { user, isNewUser: tokens.isNewUser, providerProvisioning, defaultStoreApps, appUpdates };
@@ -699,6 +706,7 @@ async function handleSession(
   sendJson: SendJson,
   refreshAfterProvisionFailure = false,
 ): Promise<void> {
+  const networkGeneration = networkSessionGeneration(state);
   const authResult = await resolveWwRuntimeAuth(request, response, security, {
     forceRefresh: refreshAfterProvisionFailure,
   });
@@ -784,6 +792,7 @@ async function handleSession(
     return;
   }
   initializeHostLanguageFromSession(state, request, traceId);
+  if (authResult.verification !== "stale") updateNetworkProductSession(state, session, networkGeneration);
   const providerProvisioning = await provisionWwProviderAfterLogin({
     state,
     client: createWwHostedServices(session.auth.baseUrl).providerCredentials,
@@ -982,6 +991,7 @@ async function handleLogout(
   invalidateWwProviderSession(state);
   clearAuthTokens(response);
   clearAuthSessionCache(tokens);
+  await clearNetworkSession(state);
   if (tokens?.refreshToken && security.wwBaseUrl) {
     try {
       await createWwHostedServices(security.wwBaseUrl).account.logout(tokens.refreshToken);

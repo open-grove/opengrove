@@ -1,4 +1,12 @@
 export const EN_HOST_MESSAGES = {
+  "remote.login_required": "Sign in to OpenGrove again, then reopen this conversation to resume.",
+  "remote.admin_required": "Remote Agents require an OpenGrove administrator account. The pending task is preserved.",
+  "remote.account_changed":
+    "This conversation belongs to another OpenGrove account. Sign in to that account to resume.",
+  "remote.reconnect_required":
+    "Add this remote Agent again using your OpenGrove account. This earlier conversation keeps its original identity and history.",
+  "remote.invalid_response":
+    "The remote service returned an invalid response. Reopen the conversation to retry the saved request.",
   "remote.cancelled_before_send": "Canceled before sending.",
   "remote.connecting": "Connecting to remote Agent…",
   "remote.connection_paused":
@@ -11,7 +19,7 @@ export const EN_HOST_MESSAGES = {
   "remote.working": "Remote Agent is working…",
   "remote.text_only": "This remote conversation currently supports text. Remove attachments and send again.",
   "remote.sender_changed":
-    "The sending Agent in this account configuration changed. Restore the original selection before sending.",
+    "The sending identity or service changed. Restore the original connection to resume this conversation.",
   "remote.message_too_large": "Message exceeds the remote Agent's 32,000 character limit.",
   "remote.direct_only": "Remote Agents currently support direct conversations.",
   "remote.connection_unavailable":

@@ -187,13 +187,10 @@ export function bindOpenGroveClient(request: HostOperationRequest) {
     network: {
       account: {
         inspect: (
-          input: HostOperationInput<(typeof hostOperationById)["network.account.inspect"]>,
           options?: OpenGroveRequestOptions,
         ): Promise<HostOperationOutput<(typeof hostOperationById)["network.account.inspect"]>> =>
           request(hostOperationById["network.account.inspect"], {
-            body: {
-              profile: input.profile,
-            },
+            body: {},
             signal: options?.signal,
           }),
       },
@@ -206,7 +203,6 @@ export function bindOpenGroveClient(request: HostOperationRequest) {
             body: {
               address: input.address,
               name: input.name,
-              profile: input.profile,
             },
             signal: options?.signal,
           }),

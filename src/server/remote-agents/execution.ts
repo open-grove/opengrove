@@ -2,7 +2,8 @@ import { setTimeout as delay } from "node:timers/promises";
 import type { BridgeState } from "../bridge-types.js";
 import type { RoomRunExecutionInput } from "../room-runs/scheduler.js";
 import type { RemoteRoomTask } from "../../rooms/remote-agent.js";
-import { AgentRouterClient, remoteTaskText, type RemoteTask } from "./client.js";
+import { AgentRouterError, taskText, taskStatusText, type Task } from "@agent-router/sdk";
+import { networkSessionsFor } from "./session.js";
 import { hostMessage } from "../../localization/host-messages.js";
 import { resolveHostLanguageSettings } from "../language-preference.js";
 
@@ -12,7 +13,6 @@ export async function executeRemoteRoomRun(state: BridgeState, input: RoomRunExe
   const binding = input.target.remoteAgent;
   if (!binding) throw new Error("remote_binding_missing");
   const shutdown = new AbortController();
-  const client = new AgentRouterClient(binding.profile, undefined, shutdown.signal);
   const locale = resolveHostLanguageSettings(state.settings);
   const trigger = rooms.getMessage(input.roomId, input.triggerMessageId);
   const assistant = rooms.getMessage(input.roomId, input.assistantMessageId);
@@ -31,6 +31,7 @@ export async function executeRemoteRoomRun(state: BridgeState, input: RoomRunExe
     ...(previous?.needsInput && previous.taskId ? { inputTaskId: previous.taskId } : {}),
   };
   let replyText = assistant?.text ?? "";
+  let cancelSent = false;
   const persist = (statusText: string, status: "running" | "done" | "failed" | "interrupted") => {
     network = { ...network, statusText };
     rooms.updateMessage(input.roomId, input.assistantMessageId, {
@@ -60,7 +61,12 @@ export async function executeRemoteRoomRun(state: BridgeState, input: RoomRunExe
     if (rooms.getRoom(input.roomId)?.kind !== "direct") throw new Error("remote_direct_only");
     if (trigger.attachments?.length || trigger.selectedFile) throw new Error("remote_text_only");
     if (trigger.text.length > 32000) throw new Error("remote_message_too_large");
-    await client.verifySender(binding.senderAgentId);
+    network = { ...network, requestText: network.requestText ?? trigger.text };
+    const connection = await networkSessionsFor(state).connect(binding, shutdown.signal);
+    // This is the SDK protocol boundary: earlier CLI contacts are retained for
+    // history but have no authenticated product-account or resolved target.
+    if (!("matrixId" in binding)) throw new AgentRouterError("remote_reconnect_required", 409);
+    const resolvedTarget = { address: binding.address, matrixId: binding.matrixId };
     shutdown.signal.throwIfAborted();
     if (network.cancelRequested && !network.sendStarted && !network.taskId) {
       network.pending = false;
@@ -70,10 +76,22 @@ export async function executeRemoteRoomRun(state: BridgeState, input: RoomRunExe
     network = { ...network, sendStarted: true };
     persist(hostMessage(locale, "remote.connecting"), "running");
     // The server allocates the first context. Persist the key before sending so even a lost first response is replayable.
-    let task: RemoteTask = network.taskId
-      ? await client.get(binding.address, network.taskId)
-      : await client.send(binding.address, trigger.text, network.contextId, network.messageId, network.inputTaskId);
-    if (network.contextId && task.contextId !== network.contextId) throw new Error("remote_context_mismatch");
+    let task: Task = await connection.request(({ client, sender, signal }) =>
+      network.taskId
+        ? client.get({ agentId: sender.id, address: binding.address, resolvedTarget, taskId: network.taskId, signal })
+        : client.send({
+            agentId: sender.id,
+            address: binding.address,
+            resolvedTarget,
+            text: network.requestText!,
+            contextId: network.contextId,
+            messageId: network.messageId,
+            taskId: network.inputTaskId,
+            signal,
+          }),
+    );
+    if ((network.contextId && task.contextId !== network.contextId) || (network.taskId && task.id !== network.taskId))
+      throw new Error("remote_context_mismatch");
     network = { ...network, taskId: task.id, contextId: task.contextId };
     while (true) {
       shutdown.signal.throwIfAborted();
@@ -83,11 +101,13 @@ export async function executeRemoteRoomRun(state: BridgeState, input: RoomRunExe
         "TASK_STATE_CANCELED",
         "TASK_STATE_REJECTED",
       ].includes(task.status.state);
-      if ((network.cancelRequested || input.signal?.aborted) && !terminal) {
-        await client.cancel(binding.address, task.id);
-        network = { ...network, pending: false };
-        persist(hostMessage(locale, "remote.cancel_requested"), "interrupted");
-        return;
+      if (network.cancelRequested && !cancelSent && !terminal) {
+        task = await connection.request(({ client, sender, signal }) =>
+          client.cancel({ agentId: sender.id, address: binding.address, resolvedTarget, taskId: task.id, signal }),
+        );
+        if (task.id !== network.taskId || task.contextId !== network.contextId)
+          throw new Error("remote_context_mismatch");
+        cancelSent = true;
       }
       const phase = task.status.state;
       const done = phase === "TASK_STATE_COMPLETED" || phase === "TASK_STATE_INPUT_REQUIRED";
@@ -98,23 +118,30 @@ export async function executeRemoteRoomRun(state: BridgeState, input: RoomRunExe
         pending: !(done || failed || cancelled),
         needsInput: phase === "TASK_STATE_INPUT_REQUIRED",
       };
-      replyText = remoteTaskText(task);
+      replyText = taskText(task);
+      const remoteStatus = taskStatusText(task);
       persist(
-        phase === "TASK_STATE_INPUT_REQUIRED"
-          ? hostMessage(locale, "remote.input_required")
-          : done
-            ? hostMessage(locale, "remote.completed")
-            : cancelled
-              ? hostMessage(locale, "remote.cancelled")
-              : failed
-                ? hostMessage(locale, "remote.failed")
-                : hostMessage(locale, "remote.working"),
+        network.cancelRequested && network.pending
+          ? hostMessage(locale, "remote.cancel_requested")
+          : remoteStatus ||
+              (phase === "TASK_STATE_INPUT_REQUIRED"
+                ? hostMessage(locale, "remote.input_required")
+                : done
+                  ? hostMessage(locale, "remote.completed")
+                  : cancelled
+                    ? hostMessage(locale, "remote.cancelled")
+                    : failed
+                      ? hostMessage(locale, "remote.failed")
+                      : hostMessage(locale, "remote.working")),
         done ? "done" : failed ? "failed" : cancelled ? "interrupted" : "running",
       );
       if (!network.pending) return;
-      await delay(1200);
-      await client.verifySender(binding.senderAgentId);
-      task = await client.get(binding.address, task.id);
+      await delay(1200, undefined, { signal: connection.signal });
+      const updated = await connection.request(({ client, sender, signal }) =>
+        client.get({ agentId: sender.id, address: binding.address, resolvedTarget, taskId: task.id, signal }),
+      );
+      if (updated.id !== task.id || updated.contextId !== network.contextId) throw new Error("remote_context_mismatch");
+      task = updated;
     }
   } catch (error) {
     if (shutdown.signal.aborted) {
@@ -122,9 +149,9 @@ export async function executeRemoteRoomRun(state: BridgeState, input: RoomRunExe
       persist(hostMessage(locale, "remote.connection_paused"), "interrupted");
       return;
     }
-    const code = error instanceof Error ? error.message : "remote_connection_unavailable";
+    const failure = error instanceof Error && error.cause instanceof AgentRouterError ? error.cause : error;
+    const code = failure instanceof Error ? failure.message : "remote_connection_unavailable";
     const permanent = [
-      "remote_sender_changed",
       "remote_binding_missing",
       "remote_trigger_missing",
       "remote_text_only",
@@ -136,13 +163,23 @@ export async function executeRemoteRoomRun(state: BridgeState, input: RoomRunExe
     const reason =
       code === "remote_text_only"
         ? hostMessage(locale, "remote.text_only")
-        : code === "remote_sender_changed"
-          ? hostMessage(locale, "remote.sender_changed")
-          : code === "remote_message_too_large"
-            ? hostMessage(locale, "remote.message_too_large")
-            : code === "remote_direct_only"
-              ? hostMessage(locale, "remote.direct_only")
-              : hostMessage(locale, "remote.connection_unavailable");
+        : code === "not_authenticated" || code === "external_session_invalid"
+          ? hostMessage(locale, "remote.login_required")
+          : code === "external_role_required"
+            ? hostMessage(locale, "remote.admin_required")
+            : code === "remote_account_changed"
+              ? hostMessage(locale, "remote.account_changed")
+              : code === "remote_reconnect_required"
+                ? hostMessage(locale, "remote.reconnect_required")
+                : code === "invalid_response"
+                  ? hostMessage(locale, "remote.invalid_response")
+                  : code === "remote_sender_changed" || code === "remote_service_changed"
+                    ? hostMessage(locale, "remote.sender_changed")
+                    : code === "remote_message_too_large"
+                      ? hostMessage(locale, "remote.message_too_large")
+                      : code === "remote_direct_only"
+                        ? hostMessage(locale, "remote.direct_only")
+                        : hostMessage(locale, "remote.connection_unavailable");
     persist(reason, "failed");
   } finally {
     input.signal?.removeEventListener("abort", cancel);

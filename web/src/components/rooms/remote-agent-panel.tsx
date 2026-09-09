@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { OpenGroveClientError } from "@opengrove/client";
 import { useI18n } from "../../i18n";
 import { openGroveClient } from "../../opengrove-client";
 import { Dialog, DialogContent, DialogTitle } from "../ui/dialog";
@@ -10,29 +11,15 @@ export function RemoteAgentDialog(props: {
   onAdded(memberId: string): Promise<void>;
 }) {
   const { t } = useI18n();
-  const [profile, setProfile] = useState("");
   const [address, setAddress] = useState("");
   const [name, setName] = useState("");
-  const [account, setAccount] = useState<{ owner: string; address: string }>();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const connect = async () => {
-    setBusy(true);
-    setError("");
-    try {
-      setAccount((await openGroveClient.network.account.inspect({ profile: profile.trim() })).account);
-    } catch {
-      setError(t("remoteAgent.connectionError"));
-    } finally {
-      setBusy(false);
-    }
-  };
   const add = async () => {
     setBusy(true);
     setError("");
     try {
       const result = await openGroveClient.network.contact.add({
-        profile: profile.trim(),
         address: address.trim(),
         name: name.trim() || undefined,
       });
@@ -40,8 +27,21 @@ export function RemoteAgentDialog(props: {
       props.onOpenChange(false);
       setAddress("");
       setName("");
-    } catch {
-      setError(t("remoteAgent.addError"));
+    } catch (error) {
+      const code = error instanceof OpenGroveClientError ? (error.code ?? error.message) : undefined;
+      setError(
+        code === "not_authenticated" || code === "external_session_invalid"
+          ? t("remoteAgent.loginRequired")
+          : code === "external_role_required"
+            ? t("remoteAgent.adminRequired")
+            : code === "remote_not_configured" || code === "invalid_service_url"
+              ? t("remoteAgent.notConfigured")
+              : code === "invalid_agent_address"
+                ? t("remoteAgent.invalidAddress")
+                : code === "remote_account_changed"
+                  ? t("remoteAgent.accountChanged")
+                  : t("remoteAgent.addError"),
+      );
     } finally {
       setBusy(false);
     }
@@ -54,46 +54,24 @@ export function RemoteAgentDialog(props: {
         <form
           onSubmit={(event) => {
             event.preventDefault();
-            void (account ? add() : connect());
+            void add();
           }}
         >
           <label>
-            {t("remoteAgent.profile")}
+            {t("remoteAgent.address")}
             <input
-              value={profile}
-              placeholder={t("remoteAgent.profileExample")}
+              value={address}
+              placeholder={t("remoteAgent.addressExample")}
               disabled={busy}
-              onChange={(event) => {
-                setProfile(event.target.value);
-                setAccount(undefined);
-              }}
+              onChange={(event) => setAddress(event.target.value)}
               autoComplete="off"
+              autoFocus
             />
           </label>
-          <p className={styles["remote-agent-muted"]}>{t("remoteAgent.profileHint")}</p>
-          {account ? (
-            <>
-              <div className={styles["remote-agent-account"]}>
-                <strong>{account.owner}</strong>
-                <span>{t("remoteAgent.sendAs", { address: account.address })}</span>
-              </div>
-              <label>
-                {t("remoteAgent.address")}
-                <input
-                  value={address}
-                  placeholder={t("remoteAgent.addressExample")}
-                  disabled={busy}
-                  onChange={(event) => setAddress(event.target.value)}
-                  autoComplete="off"
-                  autoFocus
-                />
-              </label>
-              <label>
-                {t("remoteAgent.name")}
-                <input value={name} disabled={busy} onChange={(event) => setName(event.target.value)} />
-              </label>
-            </>
-          ) : null}
+          <label>
+            {t("remoteAgent.name")}
+            <input value={name} disabled={busy} onChange={(event) => setName(event.target.value)} />
+          </label>
           {error ? (
             <p role="alert" className={styles["remote-agent-error"]}>
               {error}
@@ -103,12 +81,8 @@ export function RemoteAgentDialog(props: {
             <button className="ghost-button" type="button" disabled={busy} onClick={() => props.onOpenChange(false)}>
               {t("common.cancel")}
             </button>
-            <button
-              className="primary-button"
-              type="submit"
-              disabled={busy || !profile.trim() || Boolean(account && !address.trim())}
-            >
-              {busy ? t("remoteAgent.connecting") : account ? t("remoteAgent.add") : t("remoteAgent.connect")}
+            <button className="primary-button" type="submit" disabled={busy || !address.trim()}>
+              {busy ? t("remoteAgent.connecting") : t("remoteAgent.add")}
             </button>
           </div>
         </form>

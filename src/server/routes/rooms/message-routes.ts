@@ -3,6 +3,7 @@ import type { CreateRoomMessageOperation } from "#protocol";
 import type { PostRoomMessageResult, RoomChannelMember, RoomChannelMessage } from "../../../rooms/channel-store.js";
 import { normalizeRoomMessageDeliveryKind, normalizeRoomSelectedFile } from "../../../rooms/channel-normalize.js";
 import { readWwRuntimeAuth } from "../../bridge-security.js";
+import { networkProblem, requireNetworkConnection } from "../../remote-agents/session.js";
 import { findRoomPmMember } from "../../room-delegation.js";
 import {
   cancelRoomAssistantRun,
@@ -66,12 +67,12 @@ function handleMessageAttachmentContentRoute(context: RoomsRouteContext): boolea
   return true;
 }
 
-function handleMessagesListRoute(context: RoomsRouteContext): boolean {
+async function handleMessagesListRoute(context: RoomsRouteContext): Promise<boolean> {
   const { request, response, url, state, sendJson } = context;
   const messagesAction = url.pathname.match(/^\/rooms\/([^/]+)\/messages$/);
   if (!messagesAction || request.method !== "GET") return false;
   const encodedRoomId = messagesAction[1]!;
-  resumeRemoteRoomRuns(state, decodeURIComponent(encodedRoomId));
+  await resumeRemoteRoomRuns(context, decodeURIComponent(encodedRoomId));
   const messages = state.app.rooms.listVisibleMessages(decodeURIComponent(encodedRoomId), {
     limit: Math.min(readPositiveInt(url.searchParams.get("limit"), 80), 200),
     beforeSeq: readOptionalPositiveInt(url.searchParams.get("beforeSeq")),
@@ -144,6 +145,15 @@ export async function handleCreateRoomMessageOperation(
   const assistantTargets = targetIds
     .map((id) => state.app.rooms.listMembers().find((member) => member.id === id))
     .filter((member): member is RoomChannelMember => Boolean(member));
+  for (const target of assistantTargets.filter((member) => member.source === "remote")) {
+    try {
+      await requireNetworkConnection(context, target.remoteAgent);
+    } catch (error) {
+      const problem = networkProblem(error);
+      sendJson(response, problem.status, { ok: false, error: problem.error });
+      return true;
+    }
+  }
   // A retried remote send must reuse its local ledger entry as well as its network request.
   const existingUserMessage = body.userMessageId ? state.app.rooms.getMessage(roomId, body.userMessageId) : undefined;
   if (existingUserMessage && assistantTargets.some((member) => member.source === "remote")) {
@@ -155,7 +165,7 @@ export async function handleCreateRoomMessageOperation(
       sendJson(response, 409, { ok: false, error: "message_id_conflict" });
       return true;
     }
-    resumeRemoteRoomRuns(state, roomId);
+    await resumeRemoteRoomRuns(context, roomId);
     sendJson(
       response,
       200,
@@ -331,6 +341,27 @@ async function handleMessageCancelRoute(context: RoomsRouteContext): Promise<boo
   }
   if (message.senderType !== "agent") {
     sendJson(response, 409, { ok: false, error: "message_not_cancelable" });
+    return true;
+  }
+  if (message.remoteTask?.pending) {
+    const target = state.app.rooms.listMembers().find((member) => member.id === message.senderId);
+    try {
+      await requireNetworkConnection(context, target?.remoteAgent);
+    } catch (error) {
+      const problem = networkProblem(error);
+      sendJson(response, problem.status, { ok: false, error: problem.error });
+      return true;
+    }
+    state.app.rooms.updateMessage(roomId, message.id, { remoteTask: { ...message.remoteTask, cancelRequested: true } });
+    state.store.saveFrom(state.app);
+    if (message.runId) cancelRoomAssistantRun(state, message.runId);
+    await resumeRemoteRoomRuns(context, roomId);
+    sendJson(response, 200, {
+      ok: true,
+      cancelled: true,
+      message: presentRoomMessage(state.app.rooms.getMessage(roomId, message.id)!),
+      currentEventSeq: state.app.rooms.snapshot().currentEventSeq,
+    });
     return true;
   }
   // run 已结束才点：幂等返回成功(连同权威 message,让前端把乐观态对齐回真实终态)，

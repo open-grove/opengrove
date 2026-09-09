@@ -1,126 +1,183 @@
-import { execFile } from "node:child_process";
-import { z } from "zod";
+import {
+  AgentRouterClient,
+  AgentRouterError,
+  type Agent,
+  type ClientOptions,
+  type NetworkSession,
+} from "@agent-router/sdk";
+import type { AccountRemoteAgentBinding, RemoteAgentBinding } from "../../rooms/remote-agent.js";
 
-const agentSchema = z.object({
-  id: z.string().min(1),
-  owner: z.string().min(1),
-  address: z.string().min(1),
-  name: z.string().min(1),
-});
-const partSchema = z.object({ text: z.string().optional() }).passthrough();
-const messageSchema = z.object({ parts: z.array(partSchema).default([]), role: z.string().optional() }).passthrough();
-export const remoteTaskSchema = z
-  .object({
-    id: z.string().min(1),
-    contextId: z.string().min(1),
-    status: z.object({
-      state: z.enum([
-        "TASK_STATE_SUBMITTED",
-        "TASK_STATE_WORKING",
-        "TASK_STATE_INPUT_REQUIRED",
-        "TASK_STATE_AUTH_REQUIRED",
-        "TASK_STATE_COMPLETED",
-        "TASK_STATE_FAILED",
-        "TASK_STATE_CANCELED",
-        "TASK_STATE_REJECTED",
-      ]),
-      message: messageSchema.optional(),
-    }),
-    artifacts: z.array(z.object({ parts: z.array(partSchema) }).passthrough()).default([]),
-    history: z.array(messageSchema).default([]),
-  })
-  .passthrough();
-export type RemoteTask = z.infer<typeof remoteTaskSchema>;
-export type RouterInvoker = (args: readonly string[], input?: string, signal?: AbortSignal) => Promise<unknown>;
+export interface NetworkProductAccount {
+  accountIssuer: string;
+  accountUserId: string;
+  accessToken: string;
+}
 
-async function invokeRouter(args: readonly string[], input?: string, signal?: AbortSignal): Promise<unknown> {
-  const command = process.env.OPENGROVE_AGENT_ROUTER_BIN?.trim() || "agent-router";
-  return new Promise((resolve, reject) => {
-    const child = execFile(
-      command,
-      [...args],
-      { timeout: 45_000, maxBuffer: 4 * 1024 * 1024, windowsHide: true, signal },
-      (error, stdout) => {
-        // CLI diagnostics may contain operator paths. Only expose stable errors to Rooms.
-        if (error) {
-          reject(new Error(error.code === "ENOENT" ? "remote_cli_not_installed" : "remote_connection_unavailable"));
-          return;
-        }
-        try {
-          resolve(JSON.parse(stdout));
-        } catch {
-          reject(new Error("remote_response_invalid"));
+interface AccountSession {
+  product: NetworkProductAccount;
+  lifetime: AbortController;
+  network?: NetworkSession;
+  exchange?: Promise<NetworkSession>;
+}
+
+type NetworkIdentity = Omit<AccountRemoteAgentBinding, "address" | "matrixId">;
+interface NetworkRequest {
+  client: AgentRouterClient;
+  sender: Agent;
+  signal: AbortSignal;
+}
+export interface NetworkConnection {
+  sender: Agent;
+  binding: NetworkIdentity;
+  signal: AbortSignal;
+  request<T>(operation: (request: NetworkRequest) => Promise<T>): Promise<T>;
+}
+
+/** Owns only in-memory communication sessions; product-token renewal stays with WW auth. */
+export class AgentNetworkSessions {
+  private active?: AccountSession;
+  private revision = 0;
+  private readonly bootstrap: AgentRouterClient;
+  private readonly now: () => number;
+  constructor(private readonly options: Omit<ClientOptions, "accessToken"> & { provider: string; now?: () => number }) {
+    this.bootstrap = new AgentRouterClient({ ...options, accessToken: "" });
+    this.now = options.now ?? Date.now;
+  }
+
+  get generation(): number {
+    return this.revision;
+  }
+
+  observe(product: NetworkProductAccount, generation = this.revision): void {
+    if (generation !== this.revision) throw new AgentRouterError("remote_account_changed", 409);
+    if (this.active) {
+      if (
+        this.active.product.accountIssuer !== product.accountIssuer ||
+        this.active.product.accountUserId !== product.accountUserId
+      )
+        throw new AgentRouterError("remote_account_changed", 409);
+      this.active.product = { ...product };
+    } else {
+      this.active = { product: { ...product }, lifetime: new AbortController() };
+    }
+  }
+
+  async clear(reason = "not_authenticated"): Promise<void> {
+    const old = this.active;
+    this.active = undefined;
+    this.revision++;
+    old?.lifetime.abort(new AgentRouterError(reason, 401));
+    // Clear locally before waiting for the best-effort remote revocation.
+    if (old?.network) await this.revoke(old.network);
+  }
+
+  private async revoke(session: NetworkSession): Promise<void> {
+    try {
+      await new AgentRouterClient({
+        ...this.options,
+        baseUrl: session.serviceUrl,
+        accessToken: session.accessToken,
+        timeoutMs: 3000,
+      }).revokeSession();
+    } catch {
+      console.warn("remote_session_revocation_unavailable");
+    }
+  }
+
+  private assertActive(account: AccountSession): void {
+    account.lifetime.signal.throwIfAborted();
+    if (this.active !== account) throw new AgentRouterError("remote_account_changed", 409);
+  }
+
+  private async session(account: AccountSession): Promise<NetworkSession> {
+    this.assertActive(account);
+    if (account.network && Date.parse(account.network.expiresAt) > this.now() + 30_000) return account.network;
+    if (!account.exchange) {
+      account.exchange = this.bootstrap
+        .exchange(
+          { provider: this.options.provider, accessToken: account.product.accessToken },
+          { signal: account.lifetime.signal },
+        )
+        .then(async (session) => {
+          if (this.active !== account || account.lifetime.signal.aborted) {
+            await this.revoke(session);
+            throw new AgentRouterError("remote_account_changed", 409);
+          }
+          if (Date.parse(session.expiresAt) <= this.now() + 30_000) throw new AgentRouterError("invalid_response");
+          if (
+            account.network &&
+            (account.network.owner !== session.owner || account.network.agent.id !== session.agent.id)
+          ) {
+            await this.revoke(session);
+            throw new AgentRouterError("remote_sender_changed", 409);
+          }
+          account.network = session;
+          return session;
+        })
+        .finally(() => {
+          account.exchange = undefined;
+        });
+    }
+    return account.exchange;
+  }
+
+  async connect(expected?: RemoteAgentBinding | NetworkIdentity, signal?: AbortSignal): Promise<NetworkConnection> {
+    if (expected && !("accountUserId" in expected)) throw new AgentRouterError("remote_reconnect_required", 409);
+    const account = this.active;
+    if (!account) throw new AgentRouterError("not_authenticated", 401);
+    if (
+      expected &&
+      (expected.accountIssuer !== account.product.accountIssuer ||
+        expected.accountUserId !== account.product.accountUserId)
+    )
+      throw new AgentRouterError("remote_account_changed", 409);
+    if (expected && (expected.serviceUrl !== this.bootstrap.baseUrl || expected.provider !== this.options.provider))
+      throw new AgentRouterError("remote_service_changed", 409);
+    const requestSignal = signal ? AbortSignal.any([signal, account.lifetime.signal]) : account.lifetime.signal;
+    requestSignal.throwIfAborted();
+    const session = await this.session(account);
+    requestSignal.throwIfAborted();
+    if (expected && (expected.owner !== session.owner || expected.senderAgentId !== session.agent.id))
+      throw new AgentRouterError("remote_sender_changed", 409);
+    const binding: NetworkIdentity = {
+      accountIssuer: account.product.accountIssuer,
+      accountUserId: account.product.accountUserId,
+      serviceUrl: session.serviceUrl,
+      provider: this.options.provider,
+      owner: session.owner,
+      senderAgentId: session.agent.id,
+    };
+    const client = new AgentRouterClient({
+      ...this.options,
+      accessToken: async () => {
+        requestSignal.throwIfAborted();
+        const current = await this.session(account);
+        requestSignal.throwIfAborted();
+        return current.accessToken;
+      },
+    });
+    return {
+      sender: session.agent,
+      binding,
+      signal: requestSignal,
+      request: async <T>(operation: (request: NetworkRequest) => Promise<T>): Promise<T> => {
+        for (let attempt = 0; ; attempt++) {
+          requestSignal.throwIfAborted();
+          try {
+            const result = await operation({ client, sender: session.agent, signal: requestSignal });
+            requestSignal.throwIfAborted();
+            return result;
+          } catch (error) {
+            // A credential rejection is safe to retry. Uncertain sends are never
+            // retried here; Rooms owns the durable, identical message replay.
+            if (attempt > 0 || !(error instanceof AgentRouterError) || error.code !== "account_session_invalid")
+              throw error;
+            this.assertActive(account);
+            if (account.network) account.network = { ...account.network, expiresAt: new Date(0).toISOString() };
+            await this.session(account);
+          }
         }
       },
-    );
-    child.stdin?.on("error", () => reject(new Error("remote_connection_unavailable")));
-    child.stdin?.end(input);
-  });
-}
-
-export class AgentRouterClient {
-  constructor(
-    readonly profile: string,
-    private readonly invoke: RouterInvoker = invokeRouter,
-    private readonly signal?: AbortSignal,
-  ) {
-    if (!/^[a-zA-Z0-9_-]{1,64}$/.test(profile)) throw new Error("remote_profile_invalid");
+    };
   }
-  async current() {
-    return z.object({ agent: agentSchema }).parse(await this.call(["agent-current"])).agent;
-  }
-  async verifySender(expected: string) {
-    const selected = await this.current();
-    if (selected.id !== expected) throw new Error("remote_sender_changed");
-    return selected;
-  }
-  async connect() {
-    const selected = await this.current();
-    z.object({ status: z.literal("ready") }).parse(await this.call(["connect"]));
-    return selected;
-  }
-  async resolve(address: string) {
-    if (!/^[^\s/@]+\/[a-z][a-z0-9-]{0,47}@[a-zA-Z0-9.-]+(?::[0-9]+)?$/.test(address))
-      throw new Error("remote_address_invalid");
-    return z
-      .object({ address: z.string().min(1), matrixId: z.string().min(1) })
-      .parse(await this.call(["agent-resolve", address]));
-  }
-  async send(address: string, text: string, contextId: string | undefined, messageId: string, inputTaskId?: string) {
-    // stdin keeps messages out of process arguments and treats literal "-" / "--help" as text.
-    return remoteTaskSchema.parse(
-      await this.call(
-        [
-          "send",
-          ...(contextId ? ["--context-id", contextId] : []),
-          "--message-id",
-          messageId,
-          ...(inputTaskId ? ["--task-id", inputTaskId] : []),
-          "--",
-          address,
-          "-",
-        ],
-        text,
-      ),
-    );
-  }
-  async get(address: string, taskId: string) {
-    return remoteTaskSchema.parse(await this.call(["get", address, taskId]));
-  }
-  async cancel(address: string, taskId: string) {
-    await this.call(["cancel", address, taskId]);
-  }
-  private call(args: readonly string[], input?: string) {
-    return this.invoke(["--profile", this.profile, ...args], input, this.signal);
-  }
-}
-
-export function remoteTaskText(task: RemoteTask): string {
-  const artifact = task.artifacts
-    .flatMap((item) => item.parts)
-    .flatMap((part) => (part.text ? [part.text] : []))
-    .join("\n\n");
-  if (artifact) return artifact;
-  const message = task.status.message ?? [...task.history].reverse().find((item) => item.role === "ROLE_AGENT");
-  return message?.parts.flatMap((part) => (part.text ? [part.text] : [])).join("\n\n") ?? "";
 }

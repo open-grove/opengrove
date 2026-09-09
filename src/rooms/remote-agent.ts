@@ -1,19 +1,27 @@
 import { z } from "zod";
+import { legacyRemoteAgentBindingSchema } from "./remote-agent.compat.js";
 
-export const remoteAgentBindingSchema = z
+export const accountRemoteAgentBindingSchema = z
   .object({
-    profile: z.string().regex(/^[a-zA-Z0-9_-]{1,64}$/),
+    accountIssuer: z.string().url(),
+    accountUserId: z.string().min(1),
+    serviceUrl: z.string().url(),
+    matrixId: z.string().min(1),
+    provider: z.string().min(1),
     senderAgentId: z.string().min(1),
     owner: z.string().min(1),
     address: z.string().min(1),
   })
   .strict();
+export type AccountRemoteAgentBinding = z.infer<typeof accountRemoteAgentBindingSchema>;
+export const remoteAgentBindingSchema = z.union([accountRemoteAgentBindingSchema, legacyRemoteAgentBindingSchema]);
 export type RemoteAgentBinding = z.infer<typeof remoteAgentBindingSchema>;
 
 export const remoteRoomTaskSchema = z
   .object({
     contextId: z.string().min(1).optional(),
     messageId: z.string().min(1),
+    requestText: z.string().min(1).max(32000).optional(),
     triggerMessageId: z.string().min(1),
     taskId: z.string().min(1).optional(),
     inputTaskId: z.string().min(1).optional(),
