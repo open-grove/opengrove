@@ -17,6 +17,36 @@
   stroke-width: 2;
   paint-order: stroke fill;
 }
+
+:global(.contacts-person-row) .cloud {
+  --cloud-badge-size: var(--sp-2-5);
+  --avatar-badge-ring-size: 1px;
+  --avatar-ring-color: var(--og-sidebar-bg);
+  right: -1px;
+  bottom: -1px;
+  background: var(--c-accent-solid);
+  color: var(--og-white);
+  box-shadow: 0 0 0 var(--avatar-badge-ring-size) var(--avatar-ring-color);
+}
+
+:global(.contacts-person-row:hover) .cloud,
+:global(.contacts-person-row:focus-visible) .cloud {
+  --avatar-ring-color: var(--og-section-hover);
+}
+
+:global(.contacts-person-row[data-active="true"]) .cloud {
+  --avatar-ring-color: var(--rooms-blue-soft);
+}
+
+:global(.contacts-person-row) .cloud svg {
+  width: var(--sp-2);
+  height: var(--sp-2);
+  color: var(--og-white);
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.5;
+}
+
 .running {
   top: 0;
   bottom: auto;
