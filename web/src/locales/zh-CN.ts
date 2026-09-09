@@ -1,5 +1,5 @@
 export const ZH_CN = {
-  "remoteAgent.remote": "远端 Agent",
+  "remoteAgent.remote": "云端员工",
   "remoteAgent.addLocal": "添加本机员工",
   "remoteAgent.profileExample": "default",
   "remoteAgent.addressExample": "owner/agent@agents.example",
@@ -15,10 +15,6 @@ export const ZH_CN = {
   "remoteAgent.connecting": "正在连接…",
   "remoteAgent.connectionError": "连接失败。请检查 CLI 是否已安装、该账号是否已登录并选中了 Agent。",
   "remoteAgent.addError": "无法添加或打开远端 Agent，请检查地址和网络后重试。",
-  "remoteAgent.description": "消息会发送到远端执行，回复会保存在当前对话中。继续对话会保留远端上下文。",
-  "remoteAgent.account": "发送账号",
-  "remoteAgent.execution": "执行位置",
-  "remoteAgent.message": "发送消息",
   "remoteAgent.newConversation": "新对话",
 
   "app.chat": "内核",

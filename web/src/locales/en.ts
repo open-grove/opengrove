@@ -16,11 +16,6 @@ export const EN = {
   "remoteAgent.connectionError":
     "Connection failed. Check that the CLI is installed and this profile is signed in with an Agent selected.",
   "remoteAgent.addError": "Could not add or open the remote Agent. Check the address and connection, then retry.",
-  "remoteAgent.description":
-    "Messages execute remotely and replies appear in this conversation. Follow-up messages keep the remote context.",
-  "remoteAgent.account": "Sending account",
-  "remoteAgent.execution": "Execution",
-  "remoteAgent.message": "Message",
   "remoteAgent.newConversation": "New conversation",
 
   "app.chat": "Kernel",

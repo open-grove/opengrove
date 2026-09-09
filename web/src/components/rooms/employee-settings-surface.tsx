@@ -50,6 +50,7 @@ export type EmployeeSettingsSurfaceProps = {
   skills?: SkillRecord[];
   publishPending?: boolean;
   onMessage?(): void;
+  onNewConversation?(): void;
   onPublish?(): unknown | Promise<unknown>;
   onDelete?(): void;
   onRestoreAppDefaults?(): unknown | Promise<unknown>;
@@ -135,6 +136,7 @@ export function EmployeeSettingsSurface(props: EmployeeSettingsSurfaceProps) {
   }, [autosave.error, autosave.retry, t, toast]);
 
   const canEditRuntime = canEditEmployeeRuntime(member);
+  const isRemote = member.source === "remote";
   const appOverrideItems = appEmployeeOverrideItems(member);
   const appOverrideCount = appOverrideItems.length;
   const appOverrideLabels = appOverrideItems.map((item) => t(APP_EMPLOYEE_OVERRIDE_ITEM_LABEL_KEYS[item]));
@@ -365,7 +367,7 @@ export function EmployeeSettingsSurface(props: EmployeeSettingsSurfaceProps) {
                 </button>
               </Tooltip>
               <div className="contacts-employee-title">
-                {canEditRuntime ? (
+                {canEditRuntime || isRemote ? (
                   <input
                     value={nameDraft}
                     disabled={directSaving}
@@ -436,7 +438,21 @@ export function EmployeeSettingsSurface(props: EmployeeSettingsSurfaceProps) {
                   </button>
                 </Tooltip>
               ) : null}
-              {canEditRuntime && props.onDelete ? (
+              {props.onNewConversation ? (
+                <Tooltip content={t("remoteAgent.newConversation")}>
+                  <button
+                    className="contacts-message-button"
+                    type="button"
+                    onClick={props.onNewConversation}
+                    aria-label={t("remoteAgent.newConversation")}
+                  >
+                    <span className="contacts-summary-action-icon" aria-hidden="true">
+                      <ProductIcon name="add" size={17} />
+                    </span>
+                  </button>
+                </Tooltip>
+              ) : null}
+              {(canEditRuntime || isRemote) && props.onDelete ? (
                 <Tooltip content={t("common.delete")}>
                   <button
                     className="contacts-message-button danger"
@@ -505,23 +521,32 @@ export function EmployeeSettingsSurface(props: EmployeeSettingsSurfaceProps) {
                     </div>
                   </button>
                 </section>
-                <section className="contacts-employee-runtime-card" aria-label={t("employee.runtimeSettingsTitle")}>
-                  <div className="contacts-shared-employee-editor contacts-employee-overview-runtime-editor">
-                    {renderEmployeeEditor("runtime")}
-                  </div>
-                </section>
-                <div className="contacts-employee-overview-group">
-                  <EmployeeOverviewRow
-                    icon="extensions"
-                    label={t("contacts.tabCapabilities")}
-                    onClick={() => void openEmployeePage("capabilities")}
-                  />
-                  <EmployeeOverviewRow
-                    icon="rooms"
-                    label={t("employee.responsibilityTitle")}
-                    onClick={() => void openEmployeePage("collaboration")}
-                  />
-                </div>
+                {isRemote ? (
+                  <section className="contacts-activity-card" aria-label={t("remoteAgent.address")}>
+                    <strong>{t("remoteAgent.address")}</strong>
+                    <p>{member.remoteAgent?.address}</p>
+                  </section>
+                ) : (
+                  <>
+                    <section className="contacts-employee-runtime-card" aria-label={t("employee.runtimeSettingsTitle")}>
+                      <div className="contacts-shared-employee-editor contacts-employee-overview-runtime-editor">
+                        {renderEmployeeEditor("runtime")}
+                      </div>
+                    </section>
+                    <div className="contacts-employee-overview-group">
+                      <EmployeeOverviewRow
+                        icon="extensions"
+                        label={t("contacts.tabCapabilities")}
+                        onClick={() => void openEmployeePage("capabilities")}
+                      />
+                      <EmployeeOverviewRow
+                        icon="rooms"
+                        label={t("employee.responsibilityTitle")}
+                        onClick={() => void openEmployeePage("collaboration")}
+                      />
+                    </div>
+                  </>
+                )}
               </section>
             ) : null}
 

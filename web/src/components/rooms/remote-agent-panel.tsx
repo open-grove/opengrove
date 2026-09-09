@@ -2,8 +2,6 @@ import { useState } from "react";
 import { useI18n } from "../../i18n";
 import { openGroveClient } from "../../opengrove-client";
 import { Dialog, DialogContent, DialogTitle } from "../ui/dialog";
-import { RoomMemberAvatar } from "./member-avatar";
-import type { RoomMember } from "./rooms-model";
 import styles from "./remote-agent-panel.module.css";
 
 export function RemoteAgentDialog(props: {
@@ -116,41 +114,5 @@ export function RemoteAgentDialog(props: {
         </form>
       </DialogContent>
     </Dialog>
-  );
-}
-
-export function RemoteAgentDetail(props: {
-  member: RoomMember;
-  onMessage(): void;
-  onNewConversation(): void;
-  onDelete(): void;
-}) {
-  const { t } = useI18n();
-  const binding = props.member.remoteAgent;
-  return (
-    <section className={styles["remote-agent-detail"]}>
-      <span className={styles["remote-agent-badge"]}>{t("remoteAgent.remote")}</span>
-      <RoomMemberAvatar member={props.member} />
-      <h2>{props.member.name}</h2>
-      <p className={styles["remote-agent-address"]}>{binding?.address}</p>
-      <p className={styles["remote-agent-muted"]}>{t("remoteAgent.description")}</p>
-      <dl>
-        <dt>{t("remoteAgent.account")}</dt>
-        <dd>{binding?.owner}</dd>
-        <dt>{t("remoteAgent.execution")}</dt>
-        <dd>{t("remoteAgent.remoteExecution")}</dd>
-      </dl>
-      <div className={styles["remote-agent-actions"]}>
-        <button type="button" className="primary-button" onClick={props.onMessage}>
-          {t("remoteAgent.message")}
-        </button>
-        <button type="button" className="ghost-button" onClick={props.onNewConversation}>
-          {t("remoteAgent.newConversation")}
-        </button>
-        <button type="button" className="ghost-button" onClick={props.onDelete}>
-          {t("common.remove")}
-        </button>
-      </div>
-    </section>
   );
 }

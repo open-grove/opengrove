@@ -1,0 +1,15 @@
+.cloud {
+  width: clamp(var(--sp-3-5), 25%, var(--sp-6));
+  height: clamp(var(--sp-3-5), 25%, var(--sp-6));
+  background: var(--c-surface);
+  color: var(--og-text-muted);
+}
+.cloud svg {
+  width: 75%;
+  height: 75%;
+  stroke-width: 2;
+}
+.running {
+  top: 0;
+  bottom: auto;
+}

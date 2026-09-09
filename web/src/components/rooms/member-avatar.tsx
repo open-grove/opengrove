@@ -1,3 +1,5 @@
+import { Cloud } from "lucide-react";
+import styles from "./member-avatar.module.css";
 import { useEffect, useState, type CSSProperties } from "react";
 import { useI18n } from "../../i18n";
 import { Avatar, AvatarBadge, AvatarFallback, AvatarImage } from "../ui/avatar";
@@ -63,6 +65,7 @@ export function RoomMemberAvatar(props: {
     (hasAppAvatar || avatarWasManuallyGenerated);
   const generatedEmployeeAvatar = useEmployeeAvatarDataUri(generatedIdentity, shouldGenerateEmployeeAvatar);
   const imageSource = showCustomAvatar ? avatarDataUrl : generatedEmployeeAvatar;
+  const isRemote = props.member?.source === "remote";
   const showRunningStatus = props.showStatus !== false && status === "running";
   const className = [
     "rooms-avatar",
@@ -104,7 +107,18 @@ export function RoomMemberAvatar(props: {
           <AvvvatarsFallbackContent value={initialsIdentity} displayValue={name || "?"} initialSize={40} />
         )}
       </AvatarFallback>
-      {showRunningStatus ? <AvatarBadge role="status" aria-label={t("rooms.membersRunning", { names: name })} /> : null}
+      {isRemote ? (
+        <AvatarBadge className={styles.cloud} aria-label={t("remoteAgent.remote")} title={t("remoteAgent.remote")}>
+          <Cloud aria-hidden="true" />
+        </AvatarBadge>
+      ) : null}
+      {showRunningStatus ? (
+        <AvatarBadge
+          className={isRemote ? styles.running : undefined}
+          role="status"
+          aria-label={t("rooms.membersRunning", { names: name })}
+        />
+      ) : null}
     </Avatar>
   );
 }

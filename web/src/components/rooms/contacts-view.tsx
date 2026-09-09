@@ -1,4 +1,4 @@
-import { RemoteAgentDetail, RemoteAgentDialog } from "./remote-agent-panel";
+import { RemoteAgentDialog } from "./remote-agent-panel";
 import { Cloud, UserPlus } from "lucide-react";
 import { MotionMenu, MotionMenuItem } from "../ui/motion/menu";
 import { useEffect, useMemo, useState } from "react";
@@ -533,14 +533,7 @@ export function ContactsView(props: {
               className="contacts-detail-panel contacts-employee-detail"
               aria-label={t("contacts.employeeProfile")}
             >
-              {selectedMember?.source === "remote" ? (
-                <RemoteAgentDetail
-                  member={selectedMember}
-                  onMessage={() => void openDirectMember(selectedMember)}
-                  onNewConversation={() => void openRemoteConversation(selectedMember)}
-                  onDelete={() => setEmployeeDeleteTargetId(selectedMember.id)}
-                />
-              ) : selectedMember ? (
+              {selectedMember ? (
                 <EmployeeSettingsSurface
                   key={selectedMember.id}
                   member={selectedMember}
@@ -556,6 +549,9 @@ export function ContactsView(props: {
                   skills={props.skills}
                   publishPending={publishingEmployee}
                   onMessage={() => void openDirectMember(selectedMember)}
+                  onNewConversation={
+                    selectedMember.source === "remote" ? () => void openRemoteConversation(selectedMember) : undefined
+                  }
                   onPublish={() => publishSelectedEmployee()}
                   onDelete={() => setEmployeeDeleteTargetId(selectedMember.id)}
                   onRestoreAppDefaults={restoreSelectedEmployeeAppDefaults}
