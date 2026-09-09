@@ -5,6 +5,7 @@ import { MotionMenu, MotionMenuItem } from "../ui/motion/menu";
 import { Tooltip } from "../ui/tooltip";
 import { UnreadCount, UnreadCountAnchor } from "../ui/unread-count";
 import { RoomMemberAvatar } from "./member-avatar";
+import { RoomMemberName } from "./member-name";
 import { RoomGroupAvatar, isGroveRoomTitle } from "./room-group-avatar";
 import { findLastVisibleRoomMessage, formatRoomPreview, formatShortTime } from "./room-message-model";
 import {
@@ -158,7 +159,9 @@ export function RoomSidebar(props: RoomSidebarProps) {
                     >
                       <RoomMemberAvatar member={member} className="rooms-kernel-icon" />
                       <span className="rooms-list-copy">
-                        <span className="rooms-list-name">{roomMemberDisplayName(member)}</span>
+                        <span className="rooms-list-name">
+                          <RoomMemberName member={member} />
+                        </span>
                       </span>
                       <span className="rooms-room-badge">{t("contacts.directBadge")}</span>
                     </button>
@@ -208,7 +211,7 @@ export function RoomSidebar(props: RoomSidebarProps) {
                       />
                     )}
                   </UnreadCountAnchor>
-                  <span>{title}</span>
+                  <RoomMemberName member={directMember} name={title} />
                 </button>
               );
             })}
@@ -258,7 +261,9 @@ function RoomSearchResult(props: { room: Room; members: RoomMember[]; onOpenRoom
         />
       )}
       <span className="rooms-list-copy">
-        <span className="rooms-list-name">{title}</span>
+        <span className="rooms-list-name">
+          <RoomMemberName member={directMember} name={title} />
+        </span>
         <span className="rooms-list-preview">{formatRoomPreview(lastMessage)}</span>
       </span>
       {props.room.badge ? <span className="rooms-room-badge">{props.room.badge}</span> : null}
@@ -296,7 +301,9 @@ function RoomListItem(props: { room: Room; active: boolean; members: RoomMember[
         />
       )}
       <span className="rooms-list-copy">
-        <span className="rooms-list-name">{title}</span>
+        <span className="rooms-list-name">
+          <RoomMemberName member={directMember} name={title} />
+        </span>
         <span className="rooms-list-preview">{formatRoomPreview(lastMessage)}</span>
       </span>
       {props.room.unread > 0 ? (

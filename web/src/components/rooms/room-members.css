@@ -160,7 +160,7 @@
   line-height: var(--lh-tight);
 }
 
-.rooms-group-profile-copy span {
+.rooms-group-profile-copy > span {
   justify-self: start;
   min-width: 0;
   border: 0;
@@ -202,7 +202,7 @@
   outline: none;
 }
 
-.rooms-group-profile-copy span {
+.rooms-group-profile-copy > span {
   color: var(--og-section-muted);
 }
 
@@ -471,7 +471,7 @@
   font-size: var(--rooms-member-mini-avatar-font-size);
 }
 
-.rooms-member-picker-option span:last-child {
+.rooms-member-picker-option > span:last-child {
   display: grid;
   gap: 1px;
   min-width: 0;
@@ -559,7 +559,7 @@
   white-space: nowrap;
 }
 
-.rooms-member-row-title span {
+.rooms-member-row-title > span {
   flex: 0 0 auto;
   border-radius: var(--rooms-member-row-badge-radius);
   background: var(--og-section-hover);

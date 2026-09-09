@@ -70,6 +70,7 @@ import { ProductIcon } from "../ui/product-icon";
 import { Tooltip } from "../ui/tooltip";
 import { useOptionalToast } from "../ui/toast";
 import { RoomMemberAvatar } from "./member-avatar";
+import { RoomMemberName } from "./member-name";
 import {
   cloneMessageParts,
   formatRoomDayLabel,
@@ -476,10 +477,12 @@ const RoomMessageItem = memo(function RoomMessageItem(props: {
                 >
                   @
                 </motion.span>
-                <span className="room-chat-author-name-text">{senderDisplayName}</span>
+                <RoomMemberName member={member} name={senderDisplayName} className="room-chat-author-name-text" />
               </motion.button>
             ) : (
-              <strong>{senderDisplayName}</strong>
+              <strong>
+                <RoomMemberName member={member} name={senderDisplayName} />
+              </strong>
             )}
             <span className="room-chat-time">{formatRoomMessageTime(message.createdAt)}</span>
           </div>

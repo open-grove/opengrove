@@ -30,6 +30,7 @@ import {
 import { EmployeeAvatarPicker } from "./employee-avatar-picker";
 import { EmployeeDialog, type EmployeeEditorTab } from "./employee-dialog";
 import { RoomMemberAvatar } from "./member-avatar";
+import { RemoteAgentIndicator, RoomMemberName } from "./member-name";
 import type { Room, RoomMember } from "./rooms-model";
 import { roomMemberDisplayName } from "./rooms-model";
 import { useEmployeeSettingsAutosave, type EmployeeSettingsPatchOptions } from "./use-employee-settings-autosave";
@@ -366,7 +367,7 @@ export function EmployeeSettingsSurface(props: EmployeeSettingsSurfaceProps) {
                   ) : null}
                 </button>
               </Tooltip>
-              <div className="contacts-employee-title">
+              <div className="contacts-employee-title" data-remote={isRemote ? "true" : undefined}>
                 {canEditRuntime || isRemote ? (
                   <input
                     value={nameDraft}
@@ -394,8 +395,11 @@ export function EmployeeSettingsSurface(props: EmployeeSettingsSurfaceProps) {
                     }}
                   />
                 ) : (
-                  <h3>{memberDisplayName}</h3>
+                  <h3>
+                    <RoomMemberName member={member} />
+                  </h3>
                 )}
+                {isRemote ? <RemoteAgentIndicator /> : null}
               </div>
             </div>
             <div className="contacts-detail-actions contacts-summary-actions">

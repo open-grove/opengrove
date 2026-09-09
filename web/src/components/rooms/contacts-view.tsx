@@ -27,6 +27,7 @@ import { Tooltip } from "../ui/tooltip";
 import { EmployeeDialog } from "./employee-dialog";
 import { EmployeeSettingsSurface } from "./employee-settings-surface";
 import { RoomMemberAvatar } from "./member-avatar";
+import { RoomMemberName } from "./member-name";
 import { visibleEmployeeDefinitions } from "./contacts-model";
 import {
   fetchRoomsInit,
@@ -515,7 +516,9 @@ export function ContactsView(props: {
               >
                 <RoomMemberAvatar member={member} />
                 <span>
-                  <strong>{roomMemberDisplayName(member)}</strong>
+                  <strong>
+                    <RoomMemberName member={member} />
+                  </strong>
                 </span>
               </button>
             ))}
