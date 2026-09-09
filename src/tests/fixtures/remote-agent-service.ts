@@ -19,6 +19,8 @@ export async function startRemoteAgentService() {
   const credentials = new Map<string, string>();
   const revoked: string[] = [];
   const config = {
+    exchangeGate: undefined as Promise<void> | undefined,
+    routerUnavailable: false,
     rejectExchange: false,
     rejectExternalOnce: false,
     changedSender: false,
@@ -39,6 +41,8 @@ export async function startRemoteAgentService() {
       response.writeHead(status, { "content-type": "application/json" });
       response.end(JSON.stringify(value));
     };
+    if (config.routerUnavailable && path.startsWith("/_agent-router/"))
+      return send(503, { error: "service_unavailable" });
     const productToken = request.headers.authorization?.replace("Bearer ", "") ?? "";
     const user = productToken.split("-")[1] ?? "";
     if (path === "/v1/users/me")
@@ -82,6 +86,7 @@ export async function startRemoteAgentService() {
     if (path === "/_agent-router/v1/auth/exchange") {
       assert.equal(request.headers.authorization, undefined);
       exchanges.push({ provider: body.provider!, accessToken: body.accessToken! });
+      await config.exchangeGate;
       if (config.rejectExternalOnce) {
         config.rejectExternalOnce = false;
         return send(401, { error: "external_session_invalid" });

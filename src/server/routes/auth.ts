@@ -1,6 +1,7 @@
 import { resumeRemoteRoomRuns } from "../room-runs.js";
 import {
   clearNetworkSession,
+  clearNetworkSessionForRequest,
   networkSessionGeneration,
   updateNetworkProductSession,
 } from "../remote-agents/session.js";
@@ -794,7 +795,10 @@ async function handleSession(
   }
   initializeHostLanguageFromSession(state, request, traceId);
   try {
-    if (authResult.verification !== "stale" && updateNetworkProductSession(state, session, networkGeneration)) {
+    if (
+      authResult.verification !== "stale" &&
+      updateNetworkProductSession(state, session, request, networkGeneration)
+    ) {
       const generation = networkSessionGeneration(state);
       if (resumedNetworkGeneration.get(state) !== generation) {
         resumedNetworkGeneration.set(state, generation);
@@ -1003,7 +1007,7 @@ async function handleLogout(
   invalidateWwProviderSession(state);
   clearAuthTokens(response);
   clearAuthSessionCache(tokens);
-  await clearNetworkSession(state);
+  await clearNetworkSessionForRequest(state, request);
   if (tokens?.refreshToken && security.wwBaseUrl) {
     try {
       await createWwHostedServices(security.wwBaseUrl).account.logout(tokens.refreshToken);

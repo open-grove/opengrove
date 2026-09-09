@@ -4,7 +4,7 @@ import type { CreateRoomMessageOperation } from "#protocol";
 import type { PostRoomMessageResult, RoomChannelMember, RoomChannelMessage } from "../../../rooms/channel-store.js";
 import { normalizeRoomMessageDeliveryKind, normalizeRoomSelectedFile } from "../../../rooms/channel-normalize.js";
 import { readWwRuntimeAuth } from "../../bridge-security.js";
-import { networkProblem, requireNetworkConnection } from "../../remote-agents/session.js";
+import { authorizeNetworkAccount, networkProblem, requireNetworkConnection } from "../../remote-agents/session.js";
 import { findRoomPmMember } from "../../room-delegation.js";
 import {
   cancelRoomAssistantRun,
@@ -146,16 +146,24 @@ export async function handleCreateRoomMessageOperation(
     .map((id) => state.app.rooms.listMembers().find((member) => member.id === id))
     .filter((member): member is RoomChannelMember => Boolean(member));
   const remoteFailures = new Map<string, string>();
-  for (const target of assistantTargets.filter((member) => member.source === "remote")) {
+  const remoteTargets = assistantTargets.filter((member) => member.source === "remote");
+  if (remoteTargets.length && state.app.rooms.getRoom(roomId)?.kind !== "direct") {
+    // Group acceptance cannot wait for a Router exchange. Each remote executor connects independently.
     try {
-      await requireNetworkConnection(context, target.remoteAgent);
+      await authorizeNetworkAccount(context);
     } catch (error) {
       const problem = networkProblem(error);
-      if (state.app.rooms.getRoom(roomId)?.kind === "direct") {
+      for (const target of remoteTargets) remoteFailures.set(target.id, problem.error);
+    }
+  } else {
+    for (const target of remoteTargets) {
+      try {
+        await requireNetworkConnection(context, target.remoteAgent);
+      } catch (error) {
+        const problem = networkProblem(error);
         sendJson(response, problem.status, { ok: false, error: problem.error });
         return true;
       }
-      remoteFailures.set(target.id, problem.error);
     }
   }
   // A retried remote send must reuse its local ledger entry as well as its network request.

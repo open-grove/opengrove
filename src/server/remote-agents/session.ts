@@ -3,7 +3,9 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { readAppEnv } from "../../identity.js";
 import type { RemoteAgentBinding } from "../../rooms/remote-agent.js";
 import {
+  authSessionFingerprint,
   bridgeSessionUserHasRole,
+  readAuthTokens,
   resolveWwRuntimeAuth,
   type BridgeRuntimeAuthSession,
   type BridgeSecurity,
@@ -14,6 +16,7 @@ import { AgentNetworkSessions, type NetworkConnection } from "./client.js";
 
 const sessions = new WeakMap<BridgeState, AgentNetworkSessions>();
 const generations = new WeakMap<BridgeState, number>();
+const authorizedSessions = new WeakMap<BridgeState, Set<string>>();
 
 export function networkSessionsFor(state: BridgeState): AgentNetworkSessions {
   let network = sessions.get(state);
@@ -32,12 +35,20 @@ export function networkSessionsFor(state: BridgeState): AgentNetworkSessions {
 
 export async function clearNetworkSession(state: BridgeState, reason = "not_authenticated"): Promise<void> {
   generations.set(state, networkSessionGeneration(state) + 1);
+  authorizedSessions.delete(state);
   await sessions.get(state)?.clear(reason);
+}
+
+/** Logout clears only communication state authorized by this existing product session. No remote auth lookup. */
+export async function clearNetworkSessionForRequest(state: BridgeState, request: IncomingMessage): Promise<void> {
+  const fingerprint = authSessionFingerprint(readAuthTokens(request));
+  if (fingerprint && authorizedSessions.get(state)?.has(fingerprint)) await clearNetworkSession(state);
 }
 
 export function updateNetworkProductSession(
   state: BridgeState,
   session: BridgeRuntimeAuthSession,
+  request: IncomingMessage,
   generation?: number,
 ): boolean {
   if (generation !== undefined && networkSessionGeneration(state) !== generation) return false;
@@ -59,6 +70,7 @@ export function updateNetworkProductSession(
     accountUserId: session.auth.userId,
     accessToken: session.auth.accessToken,
   });
+  rememberAuthorizedSession(state, request);
   return true;
 }
 
@@ -73,44 +85,66 @@ interface NetworkRouteContext {
   response: ServerResponse;
 }
 
-/** A desktop Bridge token alone never grants communication-account authority. */
+/** Verify product authority without waiting for the Router. A Bridge token alone grants no network authority. */
+export async function authorizeNetworkAccount(
+  context: NetworkRouteContext,
+  options: { generation?: number; forceRefresh?: boolean } = {},
+): Promise<void> {
+  const { state, security, request, response } = context;
+  if (!security) throw new AgentRouterError("not_authenticated", 401);
+  const network = networkSessionsFor(state);
+  const generation = options.generation ?? network.generation;
+  const auth = await resolveWwRuntimeAuth(request, response, security, { forceRefresh: options.forceRefresh === true });
+  if (network.generation !== generation) throw new AgentRouterError("remote_account_changed", 409);
+  if (auth.status === "unauthenticated") throw new AgentRouterError("not_authenticated", 401);
+  if (auth.status === "temporarily_unavailable" || auth.verification === "stale")
+    throw new AgentRouterError("remote_account_unavailable", 503);
+  if (
+    !isCurrentHostAccount(state, auth.session) ||
+    !network.matches({ accountIssuer: auth.session.auth.baseUrl, accountUserId: auth.session.auth.userId })
+  )
+    throw new AgentRouterError("remote_account_changed", 409);
+  if (!bridgeSessionUserHasRole(auth.session.user, "admin")) {
+    await clearNetworkSession(state, "external_role_required");
+    throw new AgentRouterError("external_role_required", 403);
+  }
+  network.observe(
+    {
+      accountIssuer: auth.session.auth.baseUrl,
+      accountUserId: auth.session.auth.userId,
+      accessToken: auth.session.auth.accessToken,
+    },
+    generation,
+  );
+  rememberAuthorizedSession(state, request);
+}
+
 export async function requireNetworkConnection(
   context: NetworkRouteContext,
   binding?: RemoteAgentBinding,
 ): Promise<NetworkConnection> {
-  const { state, security, request, response } = context;
-  if (!security) throw new AgentRouterError("not_authenticated", 401);
-  const network = networkSessionsFor(state);
+  if (!context.security) throw new AgentRouterError("not_authenticated", 401);
+  const network = networkSessionsFor(context.state);
   const generation = network.generation;
   for (let attempt = 0; ; attempt++) {
-    const auth = await resolveWwRuntimeAuth(request, response, security, { forceRefresh: attempt > 0 });
-    if (network.generation !== generation) throw new AgentRouterError("remote_account_changed", 409);
-    if (auth.status === "unauthenticated") throw new AgentRouterError("not_authenticated", 401);
-    if (auth.status === "temporarily_unavailable" || auth.verification === "stale")
-      throw new AgentRouterError("remote_account_unavailable", 503);
-    if (
-      !isCurrentHostAccount(state, auth.session) ||
-      !network.matches({ accountIssuer: auth.session.auth.baseUrl, accountUserId: auth.session.auth.userId })
-    )
-      throw new AgentRouterError("remote_account_changed", 409);
-    if (!bridgeSessionUserHasRole(auth.session.user, "admin")) {
-      await clearNetworkSession(state, "external_role_required");
-      throw new AgentRouterError("external_role_required", 403);
-    }
-    network.observe(
-      {
-        accountIssuer: auth.session.auth.baseUrl,
-        accountUserId: auth.session.auth.userId,
-        accessToken: auth.session.auth.accessToken,
-      },
-      generation,
-    );
+    await authorizeNetworkAccount(context, { generation, forceRefresh: attempt > 0 });
     try {
       return await network.connect(binding);
     } catch (error) {
       if (attempt > 0 || !(error instanceof AgentRouterError) || error.code !== "external_session_invalid") throw error;
     }
   }
+}
+
+function rememberAuthorizedSession(state: BridgeState, request: IncomingMessage): void {
+  const fingerprint = authSessionFingerprint(readAuthTokens(request));
+  if (!fingerprint) return;
+  let authorized = authorizedSessions.get(state);
+  if (!authorized) {
+    authorized = new Set();
+    authorizedSessions.set(state, authorized);
+  }
+  authorized.add(fingerprint);
 }
 
 export function networkProblem(error: unknown): { error: string; status: number } {

@@ -24,14 +24,13 @@ and workspace data kept on the user's machine.
 
 ## Remote Agent conversations
 
-Contacts may also bind an external **Remote Agent** through the signed-in OpenGrove admin account and the Agent Router SDK. The Host dispatches those direct Room messages through
-the network client, before local Kernel selection. Short-lived communication credentials stay in Host memory, are renewed for the
+Contacts may also bind an external **Remote Agent** through the signed-in OpenGrove admin account and the Agent Router SDK. Direct and group messages use the same Rooms targeting and scheduling; only the selected Employee's execution dispatch chooses the network adapter or a local Kernel. Short-lived communication credentials stay in Host memory, are renewed for the
 same captured product account, and are cleared and revoked on logout or account
 switch. The local ledger binds each contact to the product account, trusted node,
 and sender; it stores task IDs, context IDs, original request text, and an
 idempotency key before submission. The remote service allocates
-the first context; the Host adopts it for following turns. Reopening a conversation
-reattaches pending requests, including requests whose submission response was lost.
+the first context; the Host adopts it for following turns. Restoring the login or explicitly reconnecting
+reattaches pending requests, including requests whose submission response was lost. Reading conversation history never initiates recovery.
 The remote owner controls execution permissions and models. This outbound path
 does not expose local Employees to incoming network requests or synchronize the
 network's address book. See [Remote Agent conversations](../product/REMOTE_AGENTS.md).

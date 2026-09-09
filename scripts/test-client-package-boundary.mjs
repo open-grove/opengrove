@@ -29,6 +29,19 @@ if (existsSync(join(projectRoot, "packages", "client", "src", "generated", "hey-
   errors.push("packages/client must not contain the external Hey API SDK");
 }
 
+for (const [file, specifier, allowed] of [
+  ["src/server/remote-agents/client.ts", "@agent-router/sdk", true],
+  ["src/tests/remote-agent.test.ts", "@agent-router/sdk", true],
+  ["src/rooms/channel-store.ts", "@agent-router/sdk", false],
+  ["web/src/app.tsx", "@agent-router/sdk", false],
+  ["src/server/remote-agents/client.ts", "matrix-js-sdk", false],
+  ["src/server/remote-agents/client.ts", "@a2a-js/sdk/client", false],
+]) {
+  if (communicationImportAllowed(join(projectRoot, file), specifier) !== allowed) {
+    errors.push(`communication boundary scanner failed for ${file}: ${specifier}`);
+  }
+}
+
 for (const rule of packageRules) {
   const sourceRoot = join(projectRoot, "packages", rule.name, "src");
   if (!existsSync(sourceRoot)) {
@@ -80,6 +93,9 @@ for (const rule of runtimeRules) {
           `${rule.name} must not depend on the external SDK in ${file.slice(projectRoot.length + 1)}: ${specifier}`,
         );
       }
+      if (!communicationImportAllowed(file, specifier)) {
+        errors.push(`Communication SDK imports belong only to the server remote-agents adapter: ${file}: ${specifier}`);
+      }
       if (rule.name === "Web runtime" && webForbiddenImports.has(specifier)) {
         errors.push(
           `Web runtime has a forbidden Protocol build import in ${file.slice(projectRoot.length + 1)}: ${specifier}`,
@@ -95,6 +111,15 @@ if (errors.length) {
 }
 
 console.log("Client package boundaries passed.");
+
+function communicationImportAllowed(file, specifier) {
+  const path = relative(projectRoot, file).replaceAll("\\", "/");
+  if (path.startsWith("src/tests/")) return true;
+  if (specifier === "@agent-router/sdk" || specifier.startsWith("@agent-router/sdk/")) {
+    return path.startsWith("src/server/remote-agents/");
+  }
+  return !["matrix-js-sdk", "@a2a-js/sdk"].some((name) => specifier === name || specifier.startsWith(`${name}/`));
+}
 
 function moduleSpecifiers(source) {
   return Array.from(
