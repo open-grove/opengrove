@@ -303,6 +303,7 @@
 }
 
 .mounted-app-pane-topbar .mounted-app-directory-tabs {
+  width: max-content;
   position: absolute;
   left: 50%;
   top: 50%;

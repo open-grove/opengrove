@@ -1,12 +1,14 @@
-import { useLayoutEffect, useRef, useState } from "react";
+import { useLayoutEffect, useRef, type SyntheticEvent } from "react";
 import { ArrowLeft } from "lucide-react";
+import { usePageDetail } from "../../runtime/use-page-detail";
 import { useCompactLayout } from "../../runtime/use-compact-layout";
 import styles from "./compact-list-detail.module.css";
 import paneStyles from "./adaptive-split-layout.module.css";
 
-export function useCompactDetail(initialDetail = false) {
+export function useCompactDetail(field: "room" | "member") {
   const compact = useCompactLayout();
-  const [detailOpen, setDetailOpen] = useState(initialDetail);
+  const { detailId, showDetail, showList } = usePageDetail(field);
+  const detailOpen = Boolean(detailId);
   const listRef = useRef<HTMLElement | null>(null);
   const detailRef = useRef<HTMLElement | null>(null);
   const returnFocus = useRef<HTMLElement | null>(null);
@@ -23,12 +25,13 @@ export function useCompactDetail(initialDetail = false) {
     listRef,
     detailRef,
     detailOpen,
-    showDetail: () => {
-      if (document.activeElement instanceof HTMLElement && listRef.current?.contains(document.activeElement))
-        returnFocus.current = document.activeElement;
-      setDetailOpen(true);
+    detailId,
+    rememberListTarget: (event: SyntheticEvent<HTMLElement>) => {
+      if (event.target instanceof Element)
+        returnFocus.current = event.target.closest<HTMLElement>("button, [role=button], input, [tabindex]");
     },
-    showList: () => setDetailOpen(false),
+    showDetail,
+    showList,
   };
 }
 

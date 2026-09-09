@@ -119,7 +119,7 @@ export function RoomsView(props: {
   const systemDetail = (error: unknown) =>
     rawDiagnosticText(error instanceof Error ? error.message : String(error ?? ""));
   const confirm = useConfirm();
-  const compactDetail = useCompactDetail(Boolean(props.focusRoomId));
+  const compactDetail = useCompactDetail("room");
   const streamRef = useRef<HTMLElement | null>(null);
   const composerInputRef = useRef<HTMLTextAreaElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -206,7 +206,12 @@ export function RoomsView(props: {
   }, [activeRoom?.id]);
 
   useEffect(() => {
-    if ((compactDetail.compact && !compactDetail.detailOpen) || !roomsHydrated || !activeRoom?.unread) return;
+    if (
+      (compactDetail.compact && (!compactDetail.detailOpen || activeRoom?.id !== compactDetail.detailId)) ||
+      !roomsHydrated ||
+      !activeRoom?.unread
+    )
+      return;
     void markRoomRead(activeRoom.id);
   }, [
     activeRoom?.id,
@@ -215,17 +220,18 @@ export function RoomsView(props: {
     roomsHydrated,
     compactDetail.compact,
     compactDetail.detailOpen,
+    compactDetail.detailId,
   ]);
 
   useEffect(() => {
     const nextRoomId = resolveVisibleRoomFocus(
       activeRoomId,
-      props.focusRoomId,
+      compactDetail.detailId || props.focusRoomId,
       visibleRooms.map((room) => room.id),
     );
     if (nextRoomId === null) return;
     openRoom(nextRoomId, Boolean(props.focusRoomId));
-  }, [activeRoomId, props.focusRoomId, visibleRooms]);
+  }, [activeRoomId, compactDetail.detailId, props.focusRoomId, visibleRooms]);
 
   useEffect(() => {
     membersRef.current = members.map((member) =>
@@ -517,7 +523,7 @@ export function RoomsView(props: {
   }
 
   function openRoom(roomId: string, showDetail = true) {
-    if (showDetail) compactDetail.showDetail();
+    if (showDetail) compactDetail.showDetail(roomId);
     if (roomId === activeRoomId) return;
     rememberActiveRoom(roomId);
     setActiveRoomId(roomId);

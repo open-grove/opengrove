@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { createServer } from "node:http";
 import { build } from "esbuild";
-import { chromium, expect } from "@playwright/test";
+import { chromium, webkit, expect } from "@playwright/test";
 
 const project = resolve(import.meta.dirname, "..");
 const root = await mkdtemp(join(tmpdir(), "opengrove-adaptive-workbench-"));
@@ -15,6 +15,7 @@ try {
     import React, { useEffect, useRef, useState } from "react";
     import { createRoot } from "react-dom/client";
     import { WorkspaceWorkbenchLayout } from ${JSON.stringify(join(project, "web/src/components/shared/workspace-workbench-layout.tsx"))};
+    import { ResourceLink } from ${JSON.stringify(join(project, "web/src/components/chat/resource-link.tsx"))};
     import { ChatResourcePreviewPanel } from ${JSON.stringify(join(project, "web/src/components/chat/chat-resource-preview-panel.tsx"))};
     import { usePaneVisible } from ${JSON.stringify(join(project, "web/src/components/shared/adaptive-split-layout.tsx"))};
     import ${JSON.stringify(join(project, "web/src/components/apps/mounted-app-workbench.css"))};
@@ -27,11 +28,11 @@ try {
       const [pane, setPane] = useState("workspace");
       const [detail, setDetail] = useState(false);
       const [preview, setPreview] = useState(false);
-      return <><WorkspaceWorkbenchLayout pane={pane} onPaneChange={setPane} detailOpen={detail} onOpenDirectory={() => setDetail(false)}
+      return <><WorkspaceWorkbenchLayout chatPendingCount={2} pane={pane} onPaneChange={setPane} detailOpen={detail} onOpenDirectory={() => setDetail(false)}
         editorTopbar={<header>Project</header>}
         directory={<aside className="mounted-app-tree-pane"><button onClick={() => setDetail(true)}>chapter.md</button></aside>}
         directoryResizeHandle={<div className="mounted-app-resize-handle-files" />}
-        preview={<section className="mounted-app-preview-pane"><textarea aria-label="File draft" defaultValue="" /><button onClick={() => setPane("chat")}>Attach selection</button><button onClick={() => setPreview(true)}>Preview resource</button></section>}
+        preview={<section className="mounted-app-preview-pane"><textarea aria-label="File draft" defaultValue="" /><button onClick={() => setPane("chat")}>Attach selection</button><ResourceLink resource={{id:"resource",title:"Preview resource",origin:"workspace",kind:"file",path:"chapter.md"}} onOpenResource={() => setPreview(true)}>Preview resource</ResourceLink></section>}
         chatResizeHandle={<div className="mounted-app-resize-handle-chat" />}
         chat={<Chat />} />{preview ? <ChatResourcePreviewPanel preview={{resource: {id: "resource", title: "chapter.md", origin: "workspace", kind: "file"}, selectedPath: "chapter.md", loading: false, error: "File is unavailable"}} onClose={() => setPreview(false)} /> : null}</>;
     }
@@ -64,7 +65,7 @@ try {
     response.end(await readFile(join(root, filename)));
   });
   await new Promise((done) => server.listen(0, "127.0.0.1", done));
-  browser = await chromium.launch({ headless: true });
+  browser = await (process.env.OPENGROVE_UI_TEST_BROWSER === "webkit" ? webkit : chromium).launch({ headless: true });
   const page = await browser.newPage({ viewport: { width: 390, height: 664 }, locale: "en-US" });
   page.setDefaultTimeout(5000);
   const errors = [];
@@ -74,6 +75,7 @@ try {
   const instance = await chat.getAttribute("data-chat-instance");
   await expect(page.getByRole("tab", { name: "Workspace", exact: true })).toBeVisible();
   await expect(chat).toBeHidden();
+  await expect(page.getByRole("tab", { name: /Chat/ })).toContainText("2");
   await expect(chat).toHaveAttribute("data-visible", "false");
   await page.getByRole("button", { name: "chapter.md" }).click();
   await page.getByRole("textbox", { name: "File draft" }).fill("unsaved chapter");
@@ -85,6 +87,7 @@ try {
   await expect(page.getByRole("textbox", { name: "File draft" })).toHaveValue("unsaved chapter");
   await page.getByRole("button", { name: "Files", exact: true }).click();
   await expect(page.getByRole("textbox", { name: "File draft" })).toBeHidden();
+  await expect(page.getByRole("button", { name: "chapter.md" })).toBeFocused();
   await page.getByRole("button", { name: "chapter.md" }).click();
   await expect(page.getByRole("textbox", { name: "File draft" })).toHaveValue("unsaved chapter");
   await page.getByRole("tab", { name: "Workspace", exact: true }).focus();

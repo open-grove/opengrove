@@ -94,6 +94,8 @@ export function RoomsActiveLayout(props: {
       <RoomSidebar
         {...props.sidebarProps}
         listRef={props.compactDetail.listRef}
+        onClickCapture={props.compactDetail.rememberListTarget}
+        onFocusCapture={props.compactDetail.rememberListTarget}
         inert={props.compactDetail.compact && props.compactDetail.detailOpen}
       />
 
