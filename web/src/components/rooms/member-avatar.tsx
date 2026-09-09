@@ -109,7 +109,7 @@ export function RoomMemberAvatar(props: {
       </AvatarFallback>
       {isRemote ? (
         <AvatarBadge className={styles.cloud} aria-label={t("remoteAgent.remote")} title={t("remoteAgent.remote")}>
-          <Cloud aria-hidden="true" />
+          <Cloud className={styles.icon} aria-hidden="true" />
         </AvatarBadge>
       ) : null}
       {showRunningStatus ? (
