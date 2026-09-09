@@ -1,3 +1,5 @@
+import controlStyles from "./mounted-app-workbench-controls.module.css";
+import { usePageDetail } from "../../runtime/use-page-detail";
 import { FileSaveConflict } from "../shared/file-draft";
 import {
   Component,
@@ -241,6 +243,7 @@ export function MountedAppWorkbench(props: {
   corePanel?: ReactNode;
   chatOpen?: boolean;
   chatUnreadCount?: number;
+  chatPendingCount?: number;
   onAddSelectionAttachment?(attachment: AttachmentPayload): void;
   onSelectedPathChange(path: string): void;
 }) {
@@ -255,10 +258,12 @@ export function MountedAppWorkbench(props: {
   const queryClient = useQueryClient();
   const workbenchRef = useRef<HTMLDivElement | null>(null);
   const [compactPane, setCompactPane] = useState<WorkspacePane>("workspace");
-  const [compactDetailOpen, setCompactDetailOpen] = useState(Boolean(props.selectedPath));
+  const fileDetail = usePageDetail("file");
+  const compactDetailOpen = Boolean(fileDetail.detailId);
+
   useEffect(() => {
     if (props.selectedPath) {
-      setCompactDetailOpen(true);
+      fileDetail.showDetail(props.selectedPath);
       setCompactPane("workspace");
     }
   }, [props.selectedPath, props.revealRequest]);
@@ -284,6 +289,12 @@ export function MountedAppWorkbench(props: {
   const [editingPath, setEditingPath] = useState("");
   const tabs = useMemo(() => resolveMountedAppTabs(props.app, t), [props.app?.metadata?.ui, props.app?.name, t]);
   const [activeTabIdx, setActiveTabIdx] = useState(0);
+  const fileTabIndex = tabs.findIndex((tab) => tab.component === "file-tree" || tab.component === "flow-list");
+  useEffect(() => {
+    if (!fileDetail.detailId) return;
+    if (fileDetail.detailId !== props.selectedPath) props.onSelectedPathChange(fileDetail.detailId);
+    if (fileTabIndex >= 0) setActiveTabIdx(fileTabIndex);
+  }, [fileDetail.detailId, fileTabIndex]);
   const activeTabIndex = Math.min(activeTabIdx, Math.max(tabs.length - 1, 0));
   const activeTab = tabs[activeTabIndex] ?? { component: "file-tree" as const, label: t("mountedApp.files") };
   const [activatedViewIds, setActivatedViewIds] = useState<string[]>([]);
@@ -498,6 +509,7 @@ export function MountedAppWorkbench(props: {
       mergeFileSystemResult(result);
       if (props.selectedPath === payload.sourcePath || props.selectedPath.startsWith(`${payload.sourcePath}/`)) {
         props.onSelectedPathChange("");
+        fileDetail.clearDetail();
       }
     },
   });
@@ -562,7 +574,7 @@ export function MountedAppWorkbench(props: {
   });
 
   useEffect(() => {
-    props.onSelectedPathChange("");
+    props.onSelectedPathChange(fileDetail.detailId);
     setActiveTabIdx(0);
     setSelectedDashboardItemId("");
   }, [appId]);
@@ -655,7 +667,7 @@ export function MountedAppWorkbench(props: {
 
   async function requestSelectedPathChange(path: string) {
     if (path === props.selectedPath) {
-      setCompactDetailOpen(true);
+      fileDetail.showDetail(path);
       setCompactPane("workspace");
       return;
     }
@@ -663,7 +675,7 @@ export function MountedAppWorkbench(props: {
       toast({ kind: "error", title: t("filePreview.cannotLeaveDraft") });
       return;
     }
-    setCompactDetailOpen(true);
+    fileDetail.showDetail(path);
     setCompactPane("workspace");
     props.onSelectedPathChange(path);
   }
@@ -813,6 +825,7 @@ export function MountedAppWorkbench(props: {
         return;
       }
       props.onSelectedPathChange("");
+      fileDetail.clearDetail();
     }
     setActiveTabIdx(index);
   }
@@ -898,10 +911,11 @@ export function MountedAppWorkbench(props: {
         pane={compactPane}
         onPaneChange={setCompactPane}
         detailOpen={compactDetailOpen}
-        onOpenDirectory={() => setCompactDetailOpen(false)}
+        onOpenDirectory={fileDetail.showList}
         directoryCollapsed={directoryMode === "view" || directoryCollapsed}
         chatOpen={props.chatOpen}
         chatUnreadCount={props.chatUnreadCount}
+        chatPendingCount={props.chatPendingCount}
         ref={workbenchRef}
         style={
           {
@@ -933,7 +947,9 @@ export function MountedAppWorkbench(props: {
                         void selectDirectoryTab(index);
                       }}
                     >
-                      {tab.label}
+                      <span className={controlStyles.tabLabel} title={tab.label}>
+                        {tab.label}
+                      </span>
                       {tab.component === "flow-list" && flowGroups.length ? (
                         <span className="mounted-app-directory-tabs-count">{flowGroups.length}</span>
                       ) : null}

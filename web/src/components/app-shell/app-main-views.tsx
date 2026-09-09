@@ -1,5 +1,6 @@
+import { useSearchParams } from "react-router";
 import type { Dispatch, ReactNode, RefObject, SetStateAction } from "react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
@@ -161,8 +162,17 @@ export function MountedAppWorkspaceView(props: {
   ): Promise<unknown> | void;
   onRetryInventory?(): void;
 }) {
-  const [selectedPath, setSelectedPath] = useState("");
+  const [routeParams] = useSearchParams();
+  const [selectedPath, setSelectedPath] = useState(() => routeParams.get("file") ?? "");
   const [workspaceRevealRequest, setWorkspaceRevealRequest] = useState(0);
+  const [chatPendingCount, setChatPendingCount] = useState(0);
+  const reportPendingCount = useCallback(
+    (count: number) => {
+      setChatPendingCount(count);
+      props.onPendingCountChange?.(count);
+    },
+    [props.onPendingCountChange],
+  );
   const [queuedAttachment, setQueuedAttachment] = useState<AttachmentPayload | null>(null);
   const fallbackRuntime = mountedAppUiRuntime(props.app);
   const appId = props.app?.name || "";
@@ -212,7 +222,7 @@ export function MountedAppWorkspaceView(props: {
   });
 
   useEffect(() => {
-    setSelectedPath("");
+    setSelectedPath(routeParams.get("file") ?? "");
     setQueuedAttachment(null);
   }, [appId]);
 
@@ -274,7 +284,7 @@ export function MountedAppWorkspaceView(props: {
         setSelectedPath(path);
         setWorkspaceRevealRequest((request) => request + 1);
       }}
-      onPendingCountChange={props.onPendingCountChange}
+      onPendingCountChange={reportPendingCount}
     />
   ) : null;
 
@@ -290,6 +300,7 @@ export function MountedAppWorkspaceView(props: {
           corePanel={chatPanel}
           chatOpen={developerModeOpen}
           chatUnreadCount={appScopedGroupUnreadCount(props.roomsState.rooms, appId)}
+          chatPendingCount={chatPendingCount}
           onAddSelectionAttachment={setQueuedAttachment}
           onSelectedPathChange={setSelectedPath}
         />
@@ -303,6 +314,7 @@ export function MountedAppWorkspaceView(props: {
         appId={appId}
         open={developerModeOpen}
         chatUnreadCount={appScopedGroupUnreadCount(props.roomsState.rooms, appId)}
+        chatPendingCount={chatPendingCount}
         canvas={
           surface === "setup" ? (
             <MountedAppSetupSurface

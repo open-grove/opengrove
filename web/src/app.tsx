@@ -1,3 +1,5 @@
+import { useBlocker } from "react-router";
+import { useAppNavigation } from "./runtime/use-app-navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -215,7 +217,7 @@ export function App() {
   const {
     model,
     messages,
-    activeView,
+    activeView: storedView,
     projectId,
     projects,
     threads,
@@ -223,7 +225,7 @@ export function App() {
     composerHeight,
     contextText,
     setModel,
-    setView,
+    setView: storeView,
     setSending,
     setComposerHeight,
     clearContext,
@@ -240,6 +242,15 @@ export function App() {
     deleteThread: deleteThreadFromStore,
     deleteProject: deleteProjectFromStore,
   } = useUiStore();
+  const { activeView, setView, requestedAppId } = useAppNavigation(storedView, storeView);
+  const navigationBlocker = useBlocker(({ historyAction }) => historyAction === "POP" && appStorePublishDirty);
+  useEffect(() => {
+    if (navigationBlocker.state !== "blocked") return;
+    void confirmAppStorePublishLeave().then((leave) => {
+      if (leave) navigationBlocker.proceed();
+      else navigationBlocker.reset();
+    });
+  }, [navigationBlocker]);
   const [directKernelChatSelection, setDirectKernelChatSelection] = useState<DirectKernelChatSelection>(() =>
     readDirectKernelChatSelection(threadId),
   );
@@ -621,6 +632,7 @@ export function App() {
     unresolvedMountedAppRequestId,
   } = useMountedAppWorkflow({
     activeView,
+    requestedAppId,
     confirm,
     inventoryItems: inventory?.mountedApps?.items ?? [],
     queryClient,
@@ -677,18 +689,6 @@ export function App() {
     } else if (developerMode || !developerOnlyView(activeView)) return;
     setView(mountedApps[0] ? "app" : "app-store");
   }, [activeView, developerMode, directKernelChatEnabled, mountedApps, settingsReady, setView]);
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    if (params.get("view") === "app") {
-      const requestedApp = params.get("app");
-      if (requestedApp) selectMountedApp(requestedApp);
-      setView("app");
-      return;
-    }
-    if (params.get("view") === "rooms") {
-      setView("rooms");
-    }
-  }, [setView]);
 
   useEffect(() => {
     const desktop = readDesktopApi();
@@ -1672,22 +1672,26 @@ export function App() {
     />
   );
 
-  function requestAppStorePublishLeave(onLeave: () => void) {
-    if (!appStorePublishDirty) {
-      onLeave();
-      return;
-    }
-    void confirm({
+  async function confirmAppStorePublishLeave(): Promise<boolean> {
+    if (!appStorePublishDirty) return true;
+    const result = await confirm({
       title: t("appStore.version.unsavedTitle"),
       body: t("appStore.release.unsavedLeaveBody"),
       confirmLabel: t("appStore.version.goSave"),
       alternateLabel: t("appStore.release.discardAndLeave"),
       alternateDanger: true,
-    }).then((result) => {
-      if (result !== "alternate") return;
-      setAppStorePublishDirty(false);
-      onLeave();
     });
+    if (result !== "alternate") return false;
+    setAppStorePublishDirty(false);
+    return true;
+  }
+
+  function requestAppStorePublishLeave(onLeave: () => void) {
+    if (!appStorePublishDirty) onLeave();
+    else
+      void confirmAppStorePublishLeave().then((leave) => {
+        if (leave) onLeave();
+      });
   }
 
   function applyRailSection(section: RailSectionId) {

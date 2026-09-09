@@ -1,4 +1,4 @@
-import { useState, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
+import { useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
 import { MoreHorizontal } from "lucide-react";
 import { useI18n } from "../../i18n";
 import styles from "./resource-link.module.css";
@@ -13,9 +13,11 @@ export function ResourceLink(props: {
   onOpenResource?(resource: ChatResourceRef, action?: ChatResourceAction): void;
 }) {
   const { t } = useI18n();
+  const triggerRef = useRef<HTMLSpanElement | null>(null);
   const [menuPosition, setMenuPosition] = useState<ResourceMenuPosition | null>(null);
   const open = (action: ChatResourceAction = "preview") => {
     setMenuPosition(null);
+    triggerRef.current?.focus({ preventScroll: true });
     props.onOpenResource?.(props.resource, action);
   };
   const handleClick = (event: MouseEvent<HTMLSpanElement>) => {
@@ -36,6 +38,7 @@ export function ResourceLink(props: {
   return (
     <>
       <span
+        ref={triggerRef}
         className={props.className ?? "thread-md-file-link"}
         role="button"
         tabIndex={0}

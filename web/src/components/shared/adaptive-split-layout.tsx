@@ -1,4 +1,5 @@
 import { Tabs } from "@base-ui/react/tabs";
+import { CircleAlert } from "lucide-react";
 import {
   createContext,
   forwardRef,
@@ -32,6 +33,7 @@ export const AdaptiveSplitLayout = forwardRef<
     primaryLabel: string;
     secondaryLabel: string;
     secondaryUnreadCount?: number;
+    secondaryPendingCount?: number;
     pane: WorkspacePane;
     onPaneChange(pane: WorkspacePane): void;
   }
@@ -44,6 +46,7 @@ export const AdaptiveSplitLayout = forwardRef<
     primaryLabel,
     secondaryLabel,
     secondaryUnreadCount = 0,
+    secondaryPendingCount = 0,
     pane,
     onPaneChange,
     className,
@@ -94,14 +97,27 @@ export const AdaptiveSplitLayout = forwardRef<
         <Tabs.Tab value="workspace">{primaryLabel}</Tabs.Tab>
         <Tabs.Tab
           value="chat"
-          aria-label={
+          aria-label={[
             secondaryUnreadCount
               ? t("app.unreadCount", { label: secondaryLabel, count: secondaryUnreadCount })
-              : secondaryLabel
-          }
+              : secondaryLabel,
+            secondaryPendingCount ? t("shell.pendingReplyCount", { count: secondaryPendingCount }) : "",
+          ]
+            .filter(Boolean)
+            .join(" · ")}
         >
           {secondaryLabel}
           <UnreadCount count={secondaryUnreadCount} />
+          {secondaryPendingCount > 0 ? (
+            <span
+              className={styles.pending}
+              title={t("shell.pendingReplyCount", { count: secondaryPendingCount })}
+              aria-hidden="true"
+            >
+              <CircleAlert size={16} />
+              {secondaryPendingCount}
+            </span>
+          ) : null}
         </Tabs.Tab>
       </Tabs.List>
       <Tabs.Panel

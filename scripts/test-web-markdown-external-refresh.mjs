@@ -90,6 +90,7 @@ function entrySource() {
   return `
     import React, { useState } from "react";
     import { createRoot } from "react-dom/client";
+    import { MemoryRouter } from "react-router";
     import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
     import { FilePreviewPanel } from ${JSON.stringify(previewPath)};
     import { MountedAppWorkbench } from ${JSON.stringify(workbenchPath)};
@@ -123,7 +124,7 @@ function entrySource() {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     createRoot(document.getElementById("root")).render(
       <QueryClientProvider client={queryClient}><ConfirmProvider><ToastProvider>
-        {location.search ? <WorkbenchHarness /> : <Harness />}
+        <MemoryRouter>{location.search ? <WorkbenchHarness /> : <Harness />}</MemoryRouter>
       </ToastProvider></ConfirmProvider></QueryClientProvider>
     );
   `;

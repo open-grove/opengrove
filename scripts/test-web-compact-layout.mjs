@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { chromium, expect } from "@playwright/test";
+import { chromium, webkit, expect } from "@playwright/test";
 import { startOpenGroveServer } from "../dist/server/create-server.js";
 
 const root = await mkdtemp(join(tmpdir(), "opengrove-compact-layout-"));
@@ -34,7 +34,7 @@ try {
     });
   const address = server.address();
   assert.ok(address && typeof address === "object");
-  browser = await chromium.launch({ headless: true });
+  browser = await (process.env.OPENGROVE_UI_TEST_BROWSER === "webkit" ? webkit : chromium).launch({ headless: true });
   const page = await browser.newPage({ viewport: { width: 390, height: 664 }, locale: "zh-CN", hasTouch: true });
   page.setDefaultTimeout(5000);
   const errors = [];
@@ -66,7 +66,10 @@ try {
     data: { senderId: employeeId, text: "Unread while the list is visible" },
   });
   assert.ok(postMessage.ok(), await postMessage.text());
-  await page.goto(`${origin}/ui/`);
+  await page.goto(`${origin}/ui/?view=settings`);
+  await expect(page.locator(".settings-screen")).toBeVisible();
+  await page.reload();
+  await expect(page.locator(".settings-screen")).toBeVisible();
   await expect(page.locator(".app-shell")).toBeVisible({ timeout: 30_000 });
   const toggle = page.locator("#app-navigation-toggle");
   await expect(toggle).toBeVisible({ timeout: 1500 });
@@ -88,12 +91,21 @@ try {
   await nav.getByRole("button", { name: /^员工/ }).click();
   await expect(page.locator(".rooms-list-panel")).toBeVisible();
   await expect(page.locator(".room-main-panel")).toBeHidden();
+  await page.goBack();
+  await expect(page.locator(".settings-screen")).toBeVisible();
+  await page.goForward();
+  await expect(page.locator(".rooms-list-panel")).toBeVisible();
   const groupButton = page.locator(".rooms-list-panel").getByRole("button", { name: /Compact group/ });
   await expect(groupButton).toHaveAttribute("aria-label", /1.*未读/);
   await groupButton.click();
   await expect(page.locator(".room-main-panel")).toBeVisible();
   const draft = page.locator(".room-main-panel textarea");
   await draft.fill("保留未发送草稿");
+  await page.goBack();
+  await expect(page.locator(".rooms-list-panel")).toBeVisible();
+  await expect(page.locator(".room-main-panel")).toBeHidden();
+  await page.goForward();
+  await expect(draft).toHaveValue("保留未发送草稿");
   await page.getByRole("button", { name: "消息列表", exact: true }).click();
   await expect(page.locator(".rooms-list-panel")).toBeVisible();
   await expect(groupButton).toBeFocused();
@@ -125,6 +137,57 @@ try {
   assert.ok(modal.x >= 0 && modal.x + modal.width <= 390 && modal.y + modal.height <= 664);
   await page.keyboard.press("Escape");
   await expect(createDialog).toBeHidden();
+  const appResponse = await page.request.post(`${origin}/api/apps/create`, { data: { title: "Compact files" } });
+  assert.ok(appResponse.ok(), await appResponse.text());
+  const { appId, appRoot } = await appResponse.json();
+  const setup = await page.request.post(`${origin}/api/apps/${appId}/setup`, { data: { choice: "file-workbench" } });
+  assert.ok(setup.ok(), await setup.text());
+  const manifestPath = join(appRoot, "opengrove.app.json");
+  const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
+  manifest.ui.tabs = [
+    { component: "file-tree", label: "Creative Workspace" },
+    { component: "file-tree", label: "Project Management" },
+  ];
+  await writeFile(manifestPath, JSON.stringify(manifest));
+  for (const data of [
+    { kind: "file", parentPath: "", name: "chapter.md", content: "# Chapter\n" },
+    { kind: "folder", parentPath: "", name: "Drafts" },
+  ]) {
+    const response = await page.request.post(`${origin}/api/apps/${appId}/file-system`, { data });
+    assert.ok(response.ok(), await response.text());
+  }
+  await page.goto(`${origin}/ui/?view=app&app=${encodeURIComponent(appId)}&file=chapter.md`);
+  await page.getByRole("tab", { name: "工作区", exact: true }).click();
+  const filesBack = page.getByRole("button", { name: "文件", exact: true });
+  await expect(filesBack).toBeVisible();
+  for (const name of ["Creative Workspace", "Project Management"]) {
+    const tab = page.getByRole("tab", { name, exact: true });
+    assert.ok(
+      await tab.evaluate((node) => node.scrollWidth <= node.clientWidth),
+      "Long App view labels must not paint over adjacent tabs",
+    );
+  }
+  await expect(page.locator(".workspace-preview-slot")).toBeVisible();
+  await filesBack.click();
+  await expect(page.locator(".workspace-directory-slot")).toBeVisible();
+  const chapter = page.locator('[data-mounted-app-path="chapter.md"]');
+  await chapter.click();
+  await expect(filesBack).toBeVisible();
+  await page.goBack();
+  await expect(chapter).toBeVisible();
+  await page.goForward();
+  await expect(filesBack).toBeVisible();
+  await filesBack.click();
+  await page.getByRole("button", { name: "chapter.md 更多", exact: true }).click();
+  await page.getByRole("menuitem", { name: "移动到…", exact: true }).click();
+  await page.getByRole("combobox", { name: "目标文件夹", exact: true }).selectOption("Drafts");
+  await page.getByRole("button", { name: "移动到…", exact: true }).click();
+  await expect.poll(() => new URL(page.url()).searchParams.get("file")).toBe("Drafts/chapter.md");
+  await page.reload();
+  await page.getByRole("tab", { name: "工作区", exact: true }).click();
+  await expect(filesBack).toBeVisible();
+  await filesBack.click();
+  await expect(page.locator('[data-mounted-app-path="Drafts/chapter.md"]')).toBeVisible();
   await page.setViewportSize({ width: 1440, height: 1000 });
   const handle = page.getByRole("separator", { name: "调整主导航宽度", exact: true });
   await expect(handle).toBeVisible();

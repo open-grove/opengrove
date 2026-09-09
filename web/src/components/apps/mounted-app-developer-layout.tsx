@@ -25,6 +25,7 @@ export function MountedAppDeveloperLayout(props: {
   canvas: ReactNode;
   chat: ReactNode;
   chatUnreadCount?: number;
+  chatPendingCount?: number;
 }) {
   const { t } = useI18n();
   const [pane, setPane] = useState<WorkspacePane>("workspace");
@@ -107,6 +108,7 @@ export function MountedAppDeveloperLayout(props: {
       secondaryLabel={t("mountedApp.developerChatLabel")}
       secondaryOpen={props.open}
       secondaryUnreadCount={props.chatUnreadCount}
+      secondaryPendingCount={props.chatPendingCount}
       primary={<main className="mounted-app-developer-canvas">{props.canvas}</main>}
       resizeHandle={
         <ResizeHandle

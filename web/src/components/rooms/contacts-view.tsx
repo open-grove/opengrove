@@ -80,7 +80,7 @@ export function ContactsView(props: {
   const systemDetail = (error: unknown) =>
     rawDiagnosticText(error instanceof Error ? error.message : String(error ?? ""));
   const confirm = useConfirm();
-  const compactDetail = useCompactDetail(Boolean(props.focusMemberId));
+  const compactDetail = useCompactDetail("member");
   const { toast } = useToast();
   const state = props.roomsState;
   const setState = props.setRoomsState;
@@ -93,6 +93,12 @@ export function ContactsView(props: {
   const [employeeDialogOpen, setEmployeeDialogOpen] = useState(false);
   const [publishingEmployee, setPublishingEmployee] = useState(false);
   const [employeeDeleteTargetId, setEmployeeDeleteTargetId] = useState("");
+  useEffect(() => {
+    if (compactDetail.detailId) {
+      setSelectedMemberId(compactDetail.detailId);
+      setActiveSection("employees");
+    }
+  }, [compactDetail.detailId]);
   useEffect(() => {
     if (!props.openRemoteAgentDialog && !props.focusMemberId) return;
     if (props.openRemoteAgentDialog) setRemoteDialogOpen(true);
@@ -264,7 +270,7 @@ export function ContactsView(props: {
   }
 
   function selectMember(memberId: string) {
-    compactDetail.showDetail();
+    compactDetail.showDetail(memberId);
     setSelectedMemberId(memberId);
     setActiveSection("employees");
   }
@@ -457,6 +463,8 @@ export function ContactsView(props: {
       />
       <aside
         ref={compactDetail.listRef}
+        onClickCapture={compactDetail.rememberListTarget}
+        onFocusCapture={compactDetail.rememberListTarget}
         className="contacts-nav-panel"
         data-list-panel
         inert={compactDetail.compact && compactDetail.detailOpen}
