@@ -136,3 +136,5 @@ do not count it again.
 
 See [PROJECT_OVERVIEW.md](../../PROJECT_OVERVIEW.md) for the repository map and
 [SECURITY_MODEL.md](../reference/SECURITY_MODEL.md) for trust boundaries.
+
+See [Responsive UI](RESPONSIVE_UI.md) for shared layout ownership and compact interaction contracts.

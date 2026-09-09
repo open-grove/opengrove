@@ -8,6 +8,7 @@ import "./rooms.css";
 import "./rooms-layout.css";
 import "./rooms-menus.css";
 import "./contacts-view.css";
+import { CompactBackButton, useCompactDetail } from "../shared/compact-list-detail";
 import { publishEmployeeToAppStore } from "../../bridge";
 import type {
   ExtensionItemCollection,
@@ -78,6 +79,7 @@ export function ContactsView(props: {
   const systemDetail = (error: unknown) =>
     rawDiagnosticText(error instanceof Error ? error.message : String(error ?? ""));
   const confirm = useConfirm();
+  const compactDetail = useCompactDetail(Boolean(props.focusMemberId));
   const { toast } = useToast();
   const state = props.roomsState;
   const setState = props.setRoomsState;
@@ -93,7 +95,7 @@ export function ContactsView(props: {
   useEffect(() => {
     if (!props.openRemoteAgentDialog && !props.focusMemberId) return;
     if (props.openRemoteAgentDialog) setRemoteDialogOpen(true);
-    if (props.focusMemberId) setSelectedMemberId(props.focusMemberId);
+    if (props.focusMemberId) selectMember(props.focusMemberId);
     props.onNavigationConsumed();
   }, [props.openRemoteAgentDialog, props.focusMemberId, props.onNavigationConsumed]);
 
@@ -261,6 +263,7 @@ export function ContactsView(props: {
   }
 
   function selectMember(memberId: string) {
+    compactDetail.showDetail();
     setSelectedMemberId(memberId);
     setActiveSection("employees");
   }
@@ -427,7 +430,12 @@ export function ContactsView(props: {
   }
 
   return (
-    <section className="contacts-view" aria-label={t("contacts.viewLabel")}>
+    <section
+      className={`contacts-view ${compactDetail.className}`}
+      aria-label={t("contacts.viewLabel")}
+      data-list-detail={compactDetail.compact ? "compact" : "wide"}
+      data-detail-open={String(compactDetail.detailOpen)}
+    >
       <RemoteAgentDialog
         open={remoteDialogOpen}
         onOpenChange={setRemoteDialogOpen}
@@ -440,13 +448,18 @@ export function ContactsView(props: {
               rooms: roomsFromServerSnapshot(snapshot),
               deletedMemberIds: snapshot.deletedMemberIds ?? [],
             }));
-            setSelectedMemberId(memberId);
+            selectMember(memberId);
           } catch (error) {
             toast({ title: t("remoteAgent.refreshError"), description: systemDetail(error), kind: "error" });
           }
         }}
       />
-      <aside className="contacts-nav-panel">
+      <aside
+        ref={compactDetail.listRef}
+        className="contacts-nav-panel"
+        data-list-panel
+        inert={compactDetail.compact && compactDetail.detailOpen}
+      >
         <header className="contacts-nav-header">
           <h1>{t("contacts.messages")}</h1>
           <MotionMenu
@@ -549,7 +562,15 @@ export function ContactsView(props: {
         </section>
       </aside>
 
-      <main className="contacts-main-panel">
+      <main
+        className="contacts-main-panel"
+        ref={compactDetail.detailRef}
+        data-detail-panel
+        inert={compactDetail.compact && !compactDetail.detailOpen}
+      >
+        {compactDetail.compact ? (
+          <CompactBackButton label={t("compact.employees")} onClick={compactDetail.showList} />
+        ) : null}
         {activeSection === "employees" ? (
           <div className="contacts-detail-layout">
             <section

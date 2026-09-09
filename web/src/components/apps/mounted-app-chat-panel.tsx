@@ -93,6 +93,7 @@ import {
 import { RoomMemberAvatar } from "../rooms/member-avatar";
 import { groupEventsByRunId } from "../rooms/rooms-guide";
 import { countMountedAppPendingActionParts } from "./mounted-app-shell-model";
+import { usePaneVisible } from "../shared/adaptive-split-layout";
 import { mountedAppWorkspaceHint } from "./mounted-app-model";
 
 type EnsuredMountedAppRoom = {
@@ -148,6 +149,7 @@ export function MountedAppChatPanel(props: {
 }) {
   const { t } = useI18n();
   const confirm = useConfirm();
+  const paneVisible = usePaneVisible();
   const streamRef = useRef<HTMLElement | null>(null);
   const headerRef = useRef<HTMLElement | null>(null);
   const headerMoreButtonRef = useRef<HTMLButtonElement | null>(null);
@@ -299,9 +301,10 @@ export function MountedAppChatPanel(props: {
     setReplyingToMessageId("");
   }, [activeRoom?.id]);
   useEffect(() => {
-    if (!props.roomsHydrated || !activeRoomIsValid || !activeRoom?.unread || !props.onMarkRoomRead) return;
+    if (!paneVisible || !props.roomsHydrated || !activeRoomIsValid || !activeRoom?.unread || !props.onMarkRoomRead)
+      return;
     void props.onMarkRoomRead(activeRoom.id);
-  }, [activeRoom?.id, activeRoom?.unread, activeRoomIsValid, props.onMarkRoomRead, props.roomsHydrated]);
+  }, [activeRoom?.id, activeRoom?.unread, activeRoomIsValid, props.onMarkRoomRead, props.roomsHydrated, paneVisible]);
   const activeRoomRunIds = useMemo(() => {
     const runIds = new Set<string>();
     for (const message of activeRoom?.messages ?? []) {

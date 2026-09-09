@@ -748,14 +748,6 @@
 }
 
 @media (max-width: 900px) {
-  .app-shell[data-view="rooms"] {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .app-shell[data-view="rooms"] .workspace {
-    grid-column: 1;
-  }
-
   .rooms-view {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -765,12 +757,26 @@
   }
 }
 
-@media (max-width: 640px) {
-  .room-header-actions {
-    display: none;
-  }
-}
-
 /* The dark --rooms-* overrides were removed — the vars now map to global
    tokens that already switch with the theme. The room-composer dark background
    override is also gone: the composer is transparent in both themes. */
+
+.rooms-view[data-list-detail="compact"] .room-header {
+  flex-wrap: wrap;
+  gap: var(--sp-1);
+  padding: var(--sp-1-5) var(--sp-2);
+}
+
+.rooms-view[data-list-detail="compact"] .room-header > .compact-detail-back {
+  flex-basis: 100%;
+}
+
+.rooms-view[data-list-detail="compact"] .room-header-main {
+  flex: 1;
+}
+
+.compact-room-settings.modal-card {
+  padding: var(--sp-2);
+  overflow: hidden;
+  height: min(720px, calc(100dvh - 48px));
+}

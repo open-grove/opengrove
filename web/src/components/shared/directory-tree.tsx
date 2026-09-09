@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { CSSProperties, DragEvent, KeyboardEvent, ReactNode } from "react";
 import clsx from "clsx";
-import { ChevronRight, FilePlus2, FileText, Folder, FolderPlus, Pencil, Trash2 } from "lucide-react";
+import { ChevronRight, FilePlus2, FileText, Folder, FolderPlus, FolderInput, Pencil, Trash2 } from "lucide-react";
 import { MotionMenu, MotionMenuItem, MotionMenuSeparator } from "../ui/motion/menu";
 import { ProductIcon } from "../ui/product-icon";
 
@@ -25,6 +25,7 @@ export type DirectoryTreeLabels = {
   newFile: string;
   newFolder: string;
   rename: string;
+  move?: string;
   delete: string;
 };
 
@@ -62,6 +63,7 @@ export type DirectoryTreeProps<TData = unknown> = {
   canDropOn?(sourcePath: string, target: DirectoryTreeNode<TData>, depth: number): boolean;
   renderIcon?(context: DirectoryTreeNodeContext<TData>): ReactNode;
   renderMenuIcon?(action: DirectoryTreeMenuAction, node: DirectoryTreeNode<TData>): ReactNode;
+  onRequestMove?(node: DirectoryTreeNode<TData>): void;
   onCancelRename(): void;
   onCreateFile(parentPath: string, node: DirectoryTreeNode<TData>): void;
   onCreateFolder(parentPath: string, node: DirectoryTreeNode<TData>): void;
@@ -184,7 +186,7 @@ function DirectoryTreeNodeView<TData>(
   }
 
   function handleKeyDown(event: KeyboardEvent<HTMLDivElement>) {
-    if (isEditing) return;
+    if (isEditing || event.target !== event.currentTarget) return;
     if (event.key !== "Enter" && event.key !== " ") return;
     event.preventDefault();
     selectOrToggle();
@@ -247,6 +249,12 @@ function DirectoryTreeNodeView<TData>(
             {props.renderMenuIcon?.("rename", props.node) ?? <Pencil size={13} />}
             <span>{props.labels.rename}</span>
           </MotionMenuItem>
+          {props.onRequestMove && props.labels.move ? (
+            <MotionMenuItem onClick={() => props.onRequestMove?.(props.node)}>
+              <FolderInput size={13} />
+              <span>{props.labels.move}</span>
+            </MotionMenuItem>
+          ) : null}
           <MotionMenuItem
             danger
             onClick={() => {

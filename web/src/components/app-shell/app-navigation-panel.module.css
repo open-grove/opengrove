@@ -61,9 +61,3 @@
     transition: none;
   }
 }
-
-@media (max-width: 900px) {
-  .slot {
-    display: none;
-  }
-}

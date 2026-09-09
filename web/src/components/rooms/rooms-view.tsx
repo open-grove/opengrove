@@ -60,6 +60,7 @@ import {
 import { removedMemberForRoom } from "./rooms-guide";
 import { useRoomsDerivedState } from "./rooms-derived-state";
 import { useRoomRunReconciliation } from "./rooms-run-reconciliation";
+import { useCompactDetail } from "../shared/compact-list-detail";
 import { RoomsActiveLayout, RoomsEmptyState } from "./rooms-view-layout";
 import type { RoomsSharedActions, RoomsSharedSnapshot } from "./rooms-shared-state";
 import {
@@ -118,6 +119,7 @@ export function RoomsView(props: {
   const systemDetail = (error: unknown) =>
     rawDiagnosticText(error instanceof Error ? error.message : String(error ?? ""));
   const confirm = useConfirm();
+  const compactDetail = useCompactDetail(Boolean(props.focusRoomId));
   const streamRef = useRef<HTMLElement | null>(null);
   const composerInputRef = useRef<HTMLTextAreaElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -204,9 +206,16 @@ export function RoomsView(props: {
   }, [activeRoom?.id]);
 
   useEffect(() => {
-    if (!roomsHydrated || !activeRoom?.unread) return;
+    if ((compactDetail.compact && !compactDetail.detailOpen) || !roomsHydrated || !activeRoom?.unread) return;
     void markRoomRead(activeRoom.id);
-  }, [activeRoom?.id, activeRoom?.unread, markRoomRead, roomsHydrated]);
+  }, [
+    activeRoom?.id,
+    activeRoom?.unread,
+    markRoomRead,
+    roomsHydrated,
+    compactDetail.compact,
+    compactDetail.detailOpen,
+  ]);
 
   useEffect(() => {
     const nextRoomId = resolveVisibleRoomFocus(
@@ -215,7 +224,7 @@ export function RoomsView(props: {
       visibleRooms.map((room) => room.id),
     );
     if (nextRoomId === null) return;
-    openRoom(nextRoomId);
+    openRoom(nextRoomId, Boolean(props.focusRoomId));
   }, [activeRoomId, props.focusRoomId, visibleRooms]);
 
   useEffect(() => {
@@ -507,7 +516,9 @@ export function RoomsView(props: {
     props.onActiveRoomChange?.(roomId);
   }
 
-  function openRoom(roomId: string) {
+  function openRoom(roomId: string, showDetail = true) {
+    if (showDetail) compactDetail.showDetail();
+    if (roomId === activeRoomId) return;
     rememberActiveRoom(roomId);
     setActiveRoomId(roomId);
     setMemberPanelOpen(false);
@@ -1323,6 +1334,7 @@ export function RoomsView(props: {
   return (
     <>
       <RoomsActiveLayout
+        compactDetail={compactDetail}
         activeRoom={activeRoom}
         activeRoomMembers={roomMembers}
         activeDirectMember={activeDirectMember}

@@ -64,7 +64,7 @@ export function AppSettingsDialog(props: {
   const error = identityQuery.error || saveMutation.error;
   return (
     <Dialog open={props.open} onOpenChange={props.onOpenChange}>
-      <DialogContent className={styles.dialog} aria-label={t("appSettings.title")}>
+      <DialogContent mobilePresentation="page" className={styles.dialog} aria-label={t("appSettings.title")}>
         <DialogTitle>{t("appSettings.title")}</DialogTitle>
         {loading ? (
           <div className={styles.state}>{t("appSettings.loading")}</div>
