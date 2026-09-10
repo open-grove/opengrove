@@ -19,6 +19,10 @@ import {
 
 type RoomSidebarProps = {
   networkConfigured?: boolean;
+  inert?: boolean;
+  onClickCapture?: import("react").MouseEventHandler<HTMLElement>;
+  onFocusCapture?: import("react").FocusEventHandler<HTMLElement>;
+  listRef?: import("react").RefObject<HTMLElement | null>;
   activeRoom: Room;
   rooms: Room[];
   members: RoomMember[];
@@ -62,7 +66,14 @@ export function RoomSidebar(props: RoomSidebarProps) {
   const hasSearchResults = kernelSearchResults.length > 0 || roomSearchResults.length > 0;
 
   return (
-    <aside className="rooms-list-panel">
+    <aside
+      className="rooms-list-panel"
+      ref={props.listRef}
+      onClickCapture={props.onClickCapture}
+      onFocusCapture={props.onFocusCapture}
+      data-list-panel
+      inert={props.inert}
+    >
       <header className="rooms-list-header">
         <div className="rooms-list-title">
           <span className="rooms-title-icon" aria-hidden="true">

@@ -1,4 +1,4 @@
-import { useState, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
+import { useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
 import { MoreHorizontal } from "lucide-react";
 import { useI18n } from "../../i18n";
 import type { ChatResourceAction, ChatResourceRef } from "./resource-model";
@@ -10,9 +10,11 @@ export function ResourceCardFrame(props: {
   onOpenResource?(resource: ChatResourceRef, action?: ChatResourceAction): void;
 }) {
   const { t } = useI18n();
+  const triggerRef = useRef<HTMLElement | null>(null);
   const [menuPosition, setMenuPosition] = useState<ResourceMenuPosition | null>(null);
   const open = (action: ChatResourceAction = "preview") => {
     setMenuPosition(null);
+    triggerRef.current?.focus({ preventScroll: true });
     props.onOpenResource?.(props.resource, action);
   };
   const openMenu = (event: MouseEvent) => {
@@ -21,6 +23,7 @@ export function ResourceCardFrame(props: {
     setMenuPosition({ x: event.clientX, y: event.clientY });
   };
   const onKeyDown = (event: KeyboardEvent<HTMLElement>) => {
+    if (event.target !== event.currentTarget) return;
     if (event.key === "Enter" || event.key === " ") {
       event.preventDefault();
       open("preview");
@@ -29,6 +32,7 @@ export function ResourceCardFrame(props: {
   return (
     <>
       <article
+        ref={triggerRef}
         className="thread-artifact-card thread-resource-card"
         role="button"
         tabIndex={0}

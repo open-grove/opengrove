@@ -1,3 +1,5 @@
+import { useBlocker } from "react-router";
+import { useAppNavigation } from "./runtime/use-app-navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -9,7 +11,6 @@ import "./components/sidebar/icon-primitives.css";
 import "./components/sidebar/sidebar-shell.css";
 import "./components/sidebar/sidebar-conversations.css";
 import "./components/sidebar/section-sidebar.css";
-import { Bot } from "lucide-react";
 import type {
   BridgeSettingsResponse,
   BridgeSettings,
@@ -45,6 +46,8 @@ import {
 import { modelBindingKey, readStoredModelBindings, writeStoredModelBinding } from "./runtime/app-shell-state";
 import { useAppLayoutResize } from "./runtime/app-layout-resize";
 import { useAppRailLayout } from "./runtime/use-app-rail-layout";
+import { useCompactLayout, useVisualViewportHeight } from "./runtime/use-compact-layout";
+import { ConversationNavigation } from "./components/app-shell/compact-navigation-dialog";
 import { AppNavigationPanel } from "./components/app-shell/app-navigation-panel";
 import { ResizeHandle } from "./components/ui/resize-handle";
 import {
@@ -69,7 +72,7 @@ import { modelOptionMatchesId, modelOptionsForKernel, runtimeControlsForKernel }
 import { settingsWithProviderModels } from "./runtime/provider-model-catalog";
 import { SlashCommandMenu } from "./components/chat/skill-command-menu";
 import { ThreadShell } from "./components/chat/thread-shell";
-import { AppRail, MobileNav, railSectionForView, type RailSectionId } from "./components/sidebar/app-navigation";
+import { AppRail, railSectionForView, type RailSectionId } from "./components/sidebar/app-navigation";
 import { developerOnlyRailSection, developerOnlyView } from "./components/sidebar/navigation-mode-policy";
 import { RoomsView } from "./components/rooms/rooms-view";
 import { RoomsLoadingState } from "./components/rooms/rooms-view-layout";
@@ -111,7 +114,8 @@ import {
   TeamAccountPickerScreen,
   TeamGateScreen,
 } from "./components/app-shell/app-gates";
-import { AppTitlebar } from "./components/app-shell/app-titlebar";
+import type { WorkspacePane } from "./components/shared/adaptive-split-layout";
+import { AppTitlebar, AppChatButton } from "./components/app-shell/app-titlebar";
 import { ChatWorkspaceView, MountedAppWorkspaceView } from "./components/app-shell/app-main-views";
 import { useBridgeAuthGate } from "./app-auth-gate";
 import { devFixtureAccountSwitcherAvailable } from "./dev-fixture-accounts";
@@ -188,6 +192,8 @@ export function App() {
   const [sourceUpdate, setSourceUpdate] = useState<OpenGroveDesktopSourceUpdateState | undefined>();
   const [clientUpdate, setClientUpdate] = useState<OpenGroveDesktopClientUpdateState | undefined>();
   const [mountedAppDeveloperModeOpen, setMountedAppDeveloperModeOpen] = useState(false);
+  const [mountedAppPane, setMountedAppPane] = useState<WorkspacePane>("workspace");
+  const [mountedAppCompact, setMountedAppCompact] = useState(false);
   const [mountedAppPendingCrewCount, setMountedAppPendingCrewCount] = useState(0);
   const [mountedAppSettingsId, setMountedAppSettingsId] = useState("");
   const [mountedAppVersionManagementId, setMountedAppVersionManagementId] = useState("");
@@ -213,7 +219,7 @@ export function App() {
   const {
     model,
     messages,
-    activeView,
+    activeView: storedView,
     projectId,
     projects,
     threads,
@@ -221,7 +227,7 @@ export function App() {
     composerHeight,
     contextText,
     setModel,
-    setView,
+    setView: storeView,
     setSending,
     setComposerHeight,
     clearContext,
@@ -238,6 +244,15 @@ export function App() {
     deleteThread: deleteThreadFromStore,
     deleteProject: deleteProjectFromStore,
   } = useUiStore();
+  const { activeView, setView, requestedAppId } = useAppNavigation(storedView, storeView);
+  const navigationBlocker = useBlocker(({ historyAction }) => historyAction === "POP" && appStorePublishDirty);
+  useEffect(() => {
+    if (navigationBlocker.state !== "blocked") return;
+    void confirmAppStorePublishLeave().then((leave) => {
+      if (leave) navigationBlocker.proceed();
+      else navigationBlocker.reset();
+    });
+  }, [navigationBlocker]);
   const [directKernelChatSelection, setDirectKernelChatSelection] = useState<DirectKernelChatSelection>(() =>
     readDirectKernelChatSelection(threadId),
   );
@@ -265,6 +280,10 @@ export function App() {
   const [openRemoteAgentDialog, setOpenRemoteAgentDialog] = useState(false);
   const [contactFocusMemberId, setContactFocusMemberId] = useState("");
   const railLayout = useAppRailLayout();
+  const compact = useCompactLayout();
+  useVisualViewportHeight();
+  const [compactNavigationOpen, setCompactNavigationOpen] = useState(false);
+  const [compactConversationsOpen, setCompactConversationsOpen] = useState(false);
   const [railOverlayOpen, setRailOverlayOpen] = useState(false);
   const { sidebarWidth, onComposerPointerDown, onSidebarResizePointerDown } = useAppLayoutResize({
     composerHeight,
@@ -615,6 +634,7 @@ export function App() {
     unresolvedMountedAppRequestId,
   } = useMountedAppWorkflow({
     activeView,
+    requestedAppId,
     confirm,
     inventoryItems: inventory?.mountedApps?.items ?? [],
     queryClient,
@@ -636,6 +656,7 @@ export function App() {
   );
   useEffect(() => {
     setMountedAppPendingCrewCount(0);
+    setMountedAppPane("workspace");
     if (!activeMountedAppId) {
       setMountedAppDeveloperModeOpen(false);
       return;
@@ -651,8 +672,14 @@ export function App() {
     }
   }, [activeMountedAppId, activeMountedAppSurface]);
 
+  const mountedAppChatOpen = mountedAppCompact ? mountedAppPane === "chat" : mountedAppDeveloperModeOpen;
+
   function toggleMountedAppDeveloperMode() {
     if (!activeMountedAppId) return;
+    if (mountedAppCompact) {
+      setMountedAppPane((pane) => (pane === "chat" ? "workspace" : "chat"));
+      return;
+    }
     setMountedAppDeveloperModeOpen((current) => {
       const next = !current;
       try {
@@ -671,18 +698,6 @@ export function App() {
     } else if (developerMode || !developerOnlyView(activeView)) return;
     setView(mountedApps[0] ? "app" : "app-store");
   }, [activeView, developerMode, directKernelChatEnabled, mountedApps, settingsReady, setView]);
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    if (params.get("view") === "app") {
-      const requestedApp = params.get("app");
-      if (requestedApp) selectMountedApp(requestedApp);
-      setView("app");
-      return;
-    }
-    if (params.get("view") === "rooms") {
-      setView("rooms");
-    }
-  }, [setView]);
 
   useEffect(() => {
     const desktop = readDesktopApi();
@@ -1666,22 +1681,26 @@ export function App() {
     />
   );
 
-  function requestAppStorePublishLeave(onLeave: () => void) {
-    if (!appStorePublishDirty) {
-      onLeave();
-      return;
-    }
-    void confirm({
+  async function confirmAppStorePublishLeave(): Promise<boolean> {
+    if (!appStorePublishDirty) return true;
+    const result = await confirm({
       title: t("appStore.version.unsavedTitle"),
       body: t("appStore.release.unsavedLeaveBody"),
       confirmLabel: t("appStore.version.goSave"),
       alternateLabel: t("appStore.release.discardAndLeave"),
       alternateDanger: true,
-    }).then((result) => {
-      if (result !== "alternate") return;
-      setAppStorePublishDirty(false);
-      onLeave();
     });
+    if (result !== "alternate") return false;
+    setAppStorePublishDirty(false);
+    return true;
+  }
+
+  function requestAppStorePublishLeave(onLeave: () => void) {
+    if (!appStorePublishDirty) onLeave();
+    else
+      void confirmAppStorePublishLeave().then((leave) => {
+        if (leave) onLeave();
+      });
   }
 
   function applyRailSection(section: RailSectionId) {
@@ -1898,22 +1917,14 @@ export function App() {
   if (embeddedMountedAppMode) {
     return (
       <div className="embedded-mounted-app-shell" data-layout="embedded-app">
-        <button
-          className="app-titlebar-developer-button embedded-mounted-app-developer-button"
-          data-open={mountedAppDeveloperModeOpen ? "true" : "false"}
-          type="button"
+        <AppChatButton
+          className="embedded-mounted-app-developer-button"
+          open={mountedAppChatOpen}
+          compact={mountedAppCompact}
+          unreadCount={mountedAppUnreadBadges[activeMountedAppId]?.count}
+          pendingReplies={mountedAppPendingCrewCount}
           onClick={toggleMountedAppDeveloperMode}
-          aria-label={mountedAppDeveloperModeOpen ? t("shell.exitAppDeveloperMode") : t("shell.enterAppDeveloperMode")}
-          title={mountedAppDeveloperModeOpen ? t("shell.exitAppDeveloperMode") : t("shell.enterAppDeveloperMode")}
-        >
-          <Bot size={17} aria-hidden="true" />
-          {mountedAppPendingCrewCount > 0 ? (
-            <span
-              className="app-titlebar-developer-badge"
-              aria-label={t("shell.pendingReplyCount", { count: mountedAppPendingCrewCount })}
-            />
-          ) : null}
-        </button>
+        />
         <MountedAppWorkspaceView
           app={activeMountedApp}
           embedded
@@ -1929,6 +1940,9 @@ export function App() {
           onRetryInventory={() => void inventoryQuery.refetch()}
           chatPanelKey={`${roomsSessionKey}:${activeMountedApp?.name ?? "app"}`}
           developerModeOpen={mountedAppDeveloperModeOpen}
+          pane={mountedAppPane}
+          onPaneChange={setMountedAppPane}
+          onCompactChange={setMountedAppCompact}
           runtimeEvents={events}
           pendingApprovals={pendingApprovals}
           pendingQuestionIds={pendingQuestionIds}
@@ -1964,6 +1978,7 @@ export function App() {
     <div
       className="app-shell react-app"
       data-view={activeView}
+      data-compact={compact ? "true" : "false"}
       data-sidebar-collapsed={sidebarCollapsed ? "true" : "false"}
       style={
         {
@@ -1976,8 +1991,9 @@ export function App() {
         desktopPlatform={desktopPlatform}
         desktopFullscreen={desktopWindowFullscreen}
         officialRelease={desktopRuntime?.isOfficialRelease}
-        railVisible={railLayout.mode !== "hidden"}
-        onToggleRail={railLayout.toggle}
+        railVisible={compact ? compactNavigationOpen : railLayout.mode !== "hidden"}
+        onToggleRail={compact ? () => setCompactNavigationOpen((open) => !open) : railLayout.toggle}
+        onOpenConversations={compact && activeView === "chat" ? () => setCompactConversationsOpen(true) : undefined}
         sourceUpdate={sourceUpdate}
         onSourceUpdate={handleTitlebarSourceUpdate}
         clientUpdate={clientUpdateQuery.data}
@@ -1994,12 +2010,17 @@ export function App() {
         }
         onAccountRetry={() => void sessionQuery.refetch()}
         developerModeVisible={activeView === "app" && Boolean(activeMountedApp)}
-        developerModeOpen={mountedAppDeveloperModeOpen}
+        developerModeOpen={mountedAppChatOpen}
+        compactChat={mountedAppCompact}
+        unreadChatCount={mountedAppUnreadBadges[activeMountedAppId]?.count}
         pendingDeveloperReplies={mountedAppPendingCrewCount}
         onToggleDeveloperMode={toggleMountedAppDeveloperMode}
       />
       <AppNavigationPanel
         layout={railLayout}
+        compact={compact}
+        compactOpen={compactNavigationOpen}
+        onCompactOpenChange={setCompactNavigationOpen}
         overlayOpen={railOverlayOpen || appCreateDialogOpen || Boolean(mountedAppSettingsId)}
       >
         {(expanded) => (
@@ -2070,24 +2091,40 @@ export function App() {
             activeMountedAppId={activeView === "app" ? activeMountedApp?.name : ""}
             mountedAppBadges={mountedAppUnreadBadges}
             sectionBadges={sectionBadges}
-            onCreateApp={openAppCreateDialog}
+            onCreateApp={() => {
+              setCompactNavigationOpen(false);
+              openAppCreateDialog();
+            }}
             onSelectMountedApp={(appId) => {
               requestAppStorePublishLeave(() => {
                 setMountedAppVersionManagementId("");
                 selectMountedApp(appId);
+                setCompactNavigationOpen(false);
               });
             }}
-            onManageMountedAppVersions={openMountedAppVersionManagement}
-            onEditMountedApp={setMountedAppSettingsId}
+            onManageMountedAppVersions={(id) => {
+              setCompactNavigationOpen(false);
+              openMountedAppVersionManagement(id);
+            }}
+            onEditMountedApp={(id) => {
+              setCompactNavigationOpen(false);
+              setMountedAppSettingsId(id);
+            }}
             onDeleteMountedApp={deleteMountedAppTab}
-            onOpenSection={openRailSection}
-            onOpenSettings={() => openRailSection("settings")}
+            onOpenSection={(section) => {
+              openRailSection(section);
+              setCompactNavigationOpen(false);
+            }}
+            onOpenSettings={() => {
+              openRailSection("settings");
+              setCompactNavigationOpen(false);
+            }}
           />
         )}
       </AppNavigationPanel>
 
       <Dialog open={appCreateDialogOpen} onOpenChange={setAppCreateDialogState}>
-        <DialogContent className="app-create-dialog" aria-label={t("app.createApp")}>
+        <DialogContent mobilePresentation="page" className="app-create-dialog" aria-label={t("app.createApp")}>
           <DialogTitle>{t("app.createApp")}</DialogTitle>
           <AppCreateWizard
             title={appDraftTitle}
@@ -2118,7 +2155,12 @@ export function App() {
         }}
       />
 
-      <aside className="sidebar" data-section={activeRailSection} aria-label={t("layout.sidebar")}>
+      <ConversationNavigation
+        compact={compact}
+        open={compactConversationsOpen}
+        onOpenChange={setCompactConversationsOpen}
+        section={activeRailSection}
+      >
         <nav className="nav-list" aria-label={t("layout.spaceNav")}>
           {activeRailSection === "chat" ? (
             <ConversationSidebar
@@ -2139,7 +2181,10 @@ export function App() {
               onOpenNewProject={openNewProject}
               onOpenFolderProject={openFolderProject}
               onOpenNewThread={openNewThread}
-              onOpenThread={openThread}
+              onOpenThread={(id) => {
+                openThread(id);
+                setCompactConversationsOpen(false);
+              }}
               onToggleProjectCollapsed={(projectId) =>
                 setProjectCollapsedIds((ids) =>
                   ids.includes(projectId) ? ids.filter((id) => id !== projectId) : [...ids, projectId],
@@ -2157,31 +2202,13 @@ export function App() {
             />
           ) : null}
         </nav>
-      </aside>
+      </ConversationNavigation>
 
       <ResizeHandle
         className="sidebar-resize-handle"
         aria-label={t("layout.resizeSidebar")}
         aria-orientation="vertical"
         onPointerDown={onSidebarResizePointerDown}
-      />
-
-      <MobileNav
-        activeView={activeView}
-        developerMode={railDeveloperMode}
-        directKernelChatEnabled={railDirectKernelChatEnabled}
-        activeMountedAppId={activeView === "app" ? activeMountedApp?.name : ""}
-        mountedApps={mountedApps}
-        onSelectMountedApp={(appId) => {
-          requestAppStorePublishLeave(() => selectMountedApp(appId));
-        }}
-        onSelect={(view) => {
-          if (view === "rooms") {
-            requestAppStorePublishLeave(() => openRoomsMessages());
-            return;
-          }
-          requestAppStorePublishLeave(() => setView(view));
-        }}
       />
 
       <main className="workspace">
@@ -2239,6 +2266,9 @@ export function App() {
             onRetryInventory={() => void inventoryQuery.refetch()}
             chatPanelKey={`${roomsSessionKey}:${activeMountedApp?.name ?? "app"}`}
             developerModeOpen={mountedAppDeveloperModeOpen}
+            pane={mountedAppPane}
+            onPaneChange={setMountedAppPane}
+            onCompactChange={setMountedAppCompact}
             runtimeEvents={events}
             pendingApprovals={pendingApprovals}
             pendingQuestionIds={pendingQuestionIds}

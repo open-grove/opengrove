@@ -1,4 +1,4 @@
-import { Bot, Download, LoaderCircle, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { Bot, Download, History, LoaderCircle, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import type { ClientUpdateResponse } from "../../bridge";
 import type { OpenGroveDesktopClientUpdateState, OpenGroveDesktopSourceUpdateState } from "../../desktop-api";
 import { resolveTitlebarClientUpdate, resolveTitlebarClientUpdateAction } from "../../client-update-presentation";
@@ -6,6 +6,8 @@ import { APP_PRODUCT_NAME } from "../../identity";
 import { useI18n, type TranslationFn } from "../../i18n";
 import { AccountServiceStatus } from "./app-gates";
 import { OpenGroveSaplingMark } from "../ui/opengrove-sapling-mark";
+import { UnreadCountAnchor } from "../ui/unread-count";
+import clsx from "clsx";
 
 export function AppTitlebar(props: {
   desktopPlatform: string;
@@ -13,6 +15,7 @@ export function AppTitlebar(props: {
   officialRelease: boolean | undefined;
   railVisible: boolean;
   onToggleRail(): void;
+  onOpenConversations?(): void;
   sourceUpdate: OpenGroveDesktopSourceUpdateState | undefined;
   onSourceUpdate(): void;
   clientUpdate: ClientUpdateResponse | undefined;
@@ -24,6 +27,8 @@ export function AppTitlebar(props: {
   onAccountRetry(): void;
   developerModeVisible: boolean;
   developerModeOpen: boolean;
+  compactChat?: boolean;
+  unreadChatCount?: number;
   pendingDeveloperReplies: number;
   onToggleDeveloperMode(): void;
 }) {
@@ -52,6 +57,18 @@ export function AppTitlebar(props: {
             <PanelLeftOpen size={16} aria-hidden="true" />
           )}
         </button>
+        {props.onOpenConversations ? (
+          <button
+            id="app-conversations-toggle"
+            className="app-titlebar-control"
+            type="button"
+            onClick={props.onOpenConversations}
+            aria-label={t("compact.conversations")}
+            title={t("compact.conversations")}
+          >
+            <History size={20} aria-hidden="true" />
+          </button>
+        ) : null}
         <span className="app-titlebar-brand" title={APP_PRODUCT_NAME}>
           <span className="app-titlebar-brand-mark" aria-hidden="true">
             <OpenGroveSaplingMark />
@@ -76,24 +93,55 @@ export function AppTitlebar(props: {
       />
       <div className="app-titlebar-drag-space" aria-hidden="true" />
       {props.developerModeVisible ? (
-        <button
-          className="app-titlebar-developer-button"
-          data-open={props.developerModeOpen ? "true" : "false"}
-          type="button"
+        <AppChatButton
+          open={props.developerModeOpen}
+          compact={props.compactChat}
+          unreadCount={props.unreadChatCount}
+          pendingReplies={props.pendingDeveloperReplies}
           onClick={props.onToggleDeveloperMode}
-          aria-label={props.developerModeOpen ? t("shell.exitAppDeveloperMode") : t("shell.enterAppDeveloperMode")}
-          title={props.developerModeOpen ? t("shell.exitAppDeveloperMode") : t("shell.enterAppDeveloperMode")}
-        >
-          <Bot size={17} aria-hidden="true" />
-          {props.pendingDeveloperReplies > 0 ? (
-            <span
-              className="app-titlebar-developer-badge"
-              aria-label={t("shell.pendingReplyCount", { count: props.pendingDeveloperReplies })}
-            />
-          ) : null}
-        </button>
+        />
       ) : null}
     </header>
+  );
+}
+
+export function AppChatButton(props: {
+  open: boolean;
+  compact?: boolean;
+  unreadCount?: number;
+  pendingReplies: number;
+  className?: string;
+  onClick(): void;
+}) {
+  const { t } = useI18n();
+  const action = props.compact
+    ? props.open
+      ? t("compact.backToWorkspace")
+      : t("compact.openChat")
+    : props.open
+      ? t("shell.exitAppDeveloperMode")
+      : t("shell.enterAppDeveloperMode");
+  const label = [
+    props.unreadCount ? t("app.unreadCount", { label: action, count: props.unreadCount }) : action,
+    props.pendingReplies > 0 ? t("shell.pendingReplyCount", { count: props.pendingReplies }) : "",
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  return (
+    <button
+      className={clsx("app-titlebar-developer-button", props.className)}
+      data-open={props.open ? "true" : "false"}
+      type="button"
+      onClick={props.onClick}
+      aria-pressed={props.open}
+      aria-label={label}
+      title={label}
+    >
+      <UnreadCountAnchor count={props.unreadCount ?? 0}>
+        <Bot size={17} aria-hidden="true" />
+      </UnreadCountAnchor>
+      {props.pendingReplies > 0 ? <span className="app-titlebar-developer-badge" aria-hidden="true" /> : null}
+    </button>
   );
 }
 

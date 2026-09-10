@@ -189,7 +189,13 @@ try {
   await expectWidth(280);
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(panel).toBeHidden();
-  await expect(page.locator(".mobile-nav")).toBeVisible();
+  await expect(page.locator(".mobile-nav")).toHaveCount(0);
+  await page.locator("#app-navigation-toggle").click();
+  const drawer = page.getByRole("dialog", { name: "导航", exact: true });
+  await expect(drawer).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(drawer).toBeHidden();
+  await expect(page.locator("#app-navigation-toggle")).toBeFocused();
 
   const migratedPage = await browser.newPage({
     viewport: { width: 1024, height: 760 },

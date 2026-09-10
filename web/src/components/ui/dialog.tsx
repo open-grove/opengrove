@@ -14,7 +14,9 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { ProductIcon } from "./product-icon";
+import { useCompactLayout } from "../../runtime/use-compact-layout";
 import "./dialog.css";
+import styles from "./dialog.module.css";
 
 export const Dialog = DialogPrimitive.Root;
 type DialogContentContextValue = {
@@ -33,8 +35,14 @@ export function DialogContent({
   children,
   className,
   onEscapeKeyDown,
+  mobilePresentation = "dialog",
+  placement = "center",
   ...props
-}: ComponentPropsWithoutRef<typeof DialogPrimitive.Content>) {
+}: ComponentPropsWithoutRef<typeof DialogPrimitive.Content> & {
+  mobilePresentation?: "dialog" | "page";
+  placement?: "center" | "left";
+}) {
+  const compactPage = useCompactLayout() && mobilePresentation === "page";
   const contentRef = useRef<HTMLDivElement>(null);
   const [subpageHost, setSubpageHost] = useState<HTMLDivElement | null>(null);
   const [activeSubpage, setActiveSubpage] = useState<{ id: symbol; onBack(): void } | null>(null);
@@ -80,10 +88,14 @@ export function DialogContent({
   return (
     <DialogPrimitive.Portal>
       <DialogPrimitive.Overlay className="modal-overlay" />
-      <div className="modal-shell">
+      <div
+        className={clsx("modal-shell", placement === "left" && styles.drawerShell)}
+        data-compact-page={compactPage || undefined}
+      >
         <DialogPrimitive.Content
           ref={contentRef}
-          className={clsx("modal-card", className)}
+          className={clsx("modal-card", placement === "left" && styles.drawerContent, className)}
+          data-compact-page={compactPage || undefined}
           onEscapeKeyDown={(event) => {
             onEscapeKeyDown?.(event);
             if (event.defaultPrevented) return;

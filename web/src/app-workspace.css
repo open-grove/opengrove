@@ -223,11 +223,3 @@
   color: var(--c-muted);
   font-size: var(--fs-base);
 }
-
-@media (max-width: 900px) {
-  .workspace {
-    margin: 0;
-    border: 0;
-    border-radius: var(--workspace-radius);
-  }
-}

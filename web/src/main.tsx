@@ -2,6 +2,8 @@ import React, { type ErrorInfo, type ReactNode } from "react";
 import ReactDOM from "react-dom/client";
 import type { Root } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { createBrowserRouter } from "react-router";
+import { RouterProvider } from "react-router/dom";
 import "./styles.css";
 import { App } from "./app";
 import { CloudAuthLoadingScreen } from "./components/app-shell/app-gates";
@@ -77,7 +79,8 @@ async function renderApplication() {
       renderWithProviders(root, <DesktopBootstrapGate desktop={desktop!} />);
     }
     await loadClientBootstrapForRuntime(desktop);
-    renderWithProviders(root, <App />);
+    const router = createBrowserRouter([{ path: "*", element: <App /> }]);
+    renderWithProviders(root, <RouterProvider router={router} />);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     root.render(
