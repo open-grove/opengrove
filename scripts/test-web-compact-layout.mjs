@@ -38,7 +38,15 @@ try {
   const page = await browser.newPage({ viewport: { width: 390, height: 664 }, locale: "zh-CN", hasTouch: true });
   page.setDefaultTimeout(5000);
   const errors = [];
-  page.on("pageerror", (error) => errors.push(error.message));
+  // WebKit's console protocol can report a cancelled long poll during reload as
+  // a pageerror. Observe browser error/rejection events directly in every frame;
+  // this still fails on uncaught product exceptions without treating that network
+  // diagnostic as a JavaScript exception.
+  await page.exposeBinding("reportHarnessJavaScriptError", (_, message) => errors.push(message));
+  await page.addInitScript(() => {
+    window.addEventListener("error", (event) => window.reportHarnessJavaScriptError(event.message));
+    window.addEventListener("unhandledrejection", (event) => window.reportHarnessJavaScriptError(String(event.reason)));
+  });
   const origin = `http://127.0.0.1:${address.port}`;
   const settings = await page.request.patch(`${origin}/api/settings`, {
     data: { developerMode: true, directKernelChatEnabled: true },
@@ -76,6 +84,16 @@ try {
   await toggle.click();
   const nav = page.getByRole("dialog", { name: "导航", exact: true });
   await expect(nav).toBeVisible();
+  await expect.poll(async () => Math.round((await nav.boundingBox()).x)).toBe(0);
+  const drawer = await nav.boundingBox();
+  assert.equal(drawer.y, 0, "Navigation must slide from the left edge, without a floating margin");
+  assert.equal(drawer.height, 664, "Navigation must fill the available height");
+  assert.ok(drawer.width <= 346, "Leave the underlying page visible beside the drawer");
+  await expect(page.locator(".mobile-nav")).toHaveCount(0);
+  await page.mouse.click(375, 300);
+  await expect(nav).toBeHidden();
+  await expect(toggle).toBeFocused();
+  await toggle.click();
   await nav.getByRole("button", { name: "设置", exact: true }).click();
   await expect(nav).toBeHidden();
   await expect(page.locator(".settings-screen")).toBeVisible();
@@ -157,7 +175,50 @@ try {
     assert.ok(response.ok(), await response.text());
   }
   await page.goto(`${origin}/ui/?view=app&app=${encodeURIComponent(appId)}&file=chapter.md`);
-  await page.getByRole("tab", { name: "工作区", exact: true }).click();
+  await expect(page.getByRole("tab", { name: "工作区", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("tab", { name: "聊天", exact: true })).toHaveCount(0);
+  const robot = page.locator(".app-titlebar-developer-button");
+  await expect(robot).toHaveAccessibleName(/^打开聊天/);
+  await expect(robot).toHaveAttribute("aria-pressed", "false");
+  await toggle.click();
+  await expect(nav.getByRole("button", { name: /^Compact files(?:，|$)/ })).toHaveAttribute("data-active", "true");
+  await nav.getByRole("button", { name: /^Compact files(?:，|$)/ }).click();
+  await expect(nav).toBeHidden();
+  const chatPanel = page.locator(".adaptive-secondary-pane");
+  await expect(chatPanel).toBeHidden();
+  await expect(robot).toHaveAccessibleName(/未读/);
+  await robot.click();
+  await expect(robot).toHaveAccessibleName(/^返回工作区/);
+  await expect(chatPanel).toBeVisible();
+  await expect(robot).not.toHaveAccessibleName(/未读/);
+  const appDraft = chatPanel.locator("textarea");
+  await appDraft.fill("保留 App 聊天草稿");
+  await robot.click();
+  await expect(chatPanel).toBeHidden();
+  await expect(page.locator(".workspace-preview-slot")).toBeVisible();
+  // The workbench can be compact even while the outer shell has its desktop rail.
+  await page.setViewportSize({ width: 901, height: 664 });
+  await expect(page.locator(".app-shell")).toHaveAttribute("data-compact", "false");
+  await expect(page.locator(".adaptive-split-layout")).toHaveAttribute("data-compact", "true");
+  await robot.click();
+  await expect(appDraft).toHaveValue("保留 App 聊天草稿");
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await expect(chatPanel).toBeVisible();
+  await expect(page.locator(".workspace-preview-slot")).toBeVisible();
+  await robot.click();
+  await expect(chatPanel).toBeHidden();
+  await page.setViewportSize({ width: 390, height: 664 });
+  await expect(appDraft).toBeVisible();
+  await expect(appDraft).toHaveValue("保留 App 聊天草稿");
+  await robot.click();
+  await expect(chatPanel).toBeHidden();
+  await robot.click();
+  await expect(appDraft).toBeVisible();
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await expect(chatPanel).toBeHidden();
+  await expect(robot).toHaveAttribute("aria-pressed", "false");
+  await page.setViewportSize({ width: 390, height: 664 });
+  await robot.click();
   const filesBack = page.getByRole("button", { name: "文件", exact: true });
   await expect(filesBack).toBeVisible();
   for (const name of ["Creative Workspace", "Project Management"]) {
@@ -184,7 +245,6 @@ try {
   await page.getByRole("button", { name: "移动到…", exact: true }).click();
   await expect.poll(() => new URL(page.url()).searchParams.get("file")).toBe("Drafts/chapter.md");
   await page.reload();
-  await page.getByRole("tab", { name: "工作区", exact: true }).click();
   await expect(filesBack).toBeVisible();
   await filesBack.click();
   await expect(page.locator('[data-mounted-app-path="Drafts/chapter.md"]')).toBeVisible();

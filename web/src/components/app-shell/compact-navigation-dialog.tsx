@@ -41,6 +41,7 @@ export function CompactNavigationDialog(props: {
   return (
     <Dialog open={props.open} onOpenChange={props.onOpenChange}>
       <DialogContent
+        placement="left"
         className="compact-navigation-dialog"
         aria-describedby={undefined}
         onCloseAutoFocus={(event) => {

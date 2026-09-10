@@ -1,4 +1,4 @@
-import { forwardRef, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { forwardRef, useLayoutEffect, useRef, type CSSProperties, type ReactNode } from "react";
 import { CompactBackButton } from "./compact-list-detail";
 import clsx from "clsx";
 import { useI18n } from "../../i18n";
@@ -13,13 +13,11 @@ type Props = {
   chatResizeHandle?: ReactNode;
   chat?: ReactNode;
   chatOpen?: boolean;
-  chatUnreadCount?: number;
-  chatPendingCount?: number;
   directoryCollapsed?: boolean;
   className?: string;
   style?: CSSProperties;
   pane?: WorkspacePane;
-  onPaneChange?(pane: WorkspacePane): void;
+  onCompactChange?(compact: boolean): void;
   detailOpen?: boolean;
   onOpenDirectory?(): void;
 };
@@ -27,7 +25,6 @@ type Props = {
 export const WorkspaceWorkbenchLayout = forwardRef<HTMLDivElement, Props>(
   function WorkspaceWorkbenchLayout(props, ref) {
     const { t } = useI18n();
-    const [pane, setPane] = useState<WorkspacePane>("workspace");
     return (
       <AdaptiveSplitLayout
         ref={ref}
@@ -36,12 +33,10 @@ export const WorkspaceWorkbenchLayout = forwardRef<HTMLDivElement, Props>(
         data-editor-banner={props.editorBanner ? "true" : "false"}
         data-chat={props.chat && props.chatOpen !== false ? "true" : "false"}
         style={props.style}
-        pane={props.pane ?? pane}
-        onPaneChange={props.onPaneChange ?? setPane}
+        pane={props.pane ?? "workspace"}
+        onCompactChange={props.onCompactChange}
         primaryLabel={t("compact.workspace")}
         secondaryLabel={t("compact.chat")}
-        secondaryUnreadCount={props.chatUnreadCount}
-        secondaryPendingCount={props.chatPendingCount}
         secondaryOpen={Boolean(props.chat) && props.chatOpen !== false}
         primary={<WorkbenchEditor {...props} />}
         resizeHandle={props.chatResizeHandle}

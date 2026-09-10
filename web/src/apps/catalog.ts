@@ -30,7 +30,6 @@ export interface OpenGroveAppDefinition {
   navLabel: string;
   icon: AppIconName;
   rail: boolean;
-  mobile: boolean;
 }
 
 export const REGISTERED_APPS: OpenGroveAppDefinition[] = [
@@ -43,7 +42,6 @@ export const REGISTERED_APPS: OpenGroveAppDefinition[] = [
     navLabel: "Agent",
     icon: "chat",
     rail: true,
-    mobile: true,
   },
   {
     id: "rooms",
@@ -54,7 +52,6 @@ export const REGISTERED_APPS: OpenGroveAppDefinition[] = [
     navLabel: "Rooms",
     icon: "rooms",
     rail: true,
-    mobile: false,
   },
   {
     id: "ops-center",
@@ -65,7 +62,6 @@ export const REGISTERED_APPS: OpenGroveAppDefinition[] = [
     navLabel: "Ops",
     icon: "ops",
     rail: false,
-    mobile: false,
   },
   {
     id: "extension-manager",
@@ -76,7 +72,6 @@ export const REGISTERED_APPS: OpenGroveAppDefinition[] = [
     navLabel: "Extensions",
     icon: "extensions",
     rail: true,
-    mobile: true,
   },
   {
     id: "app-store",
@@ -87,7 +82,6 @@ export const REGISTERED_APPS: OpenGroveAppDefinition[] = [
     navLabel: "App Store",
     icon: "store",
     rail: true,
-    mobile: false,
   },
   {
     id: "mounted-app",
@@ -98,7 +92,6 @@ export const REGISTERED_APPS: OpenGroveAppDefinition[] = [
     navLabel: "App",
     icon: "document",
     rail: false,
-    mobile: false,
   },
   {
     id: "capability-settings",
@@ -109,12 +102,10 @@ export const REGISTERED_APPS: OpenGroveAppDefinition[] = [
     navLabel: "Settings",
     icon: "settings",
     rail: false,
-    mobile: false,
   },
 ];
 
 export const RAIL_APPS = REGISTERED_APPS.filter((app) => app.rail);
-export const MOBILE_APPS = REGISTERED_APPS.filter((app) => app.mobile);
 
 export function appForView(view: ViewId): OpenGroveAppDefinition {
   return (

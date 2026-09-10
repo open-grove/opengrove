@@ -1,5 +1,3 @@
-import { Tabs } from "@base-ui/react/tabs";
-import { CircleAlert } from "lucide-react";
 import {
   createContext,
   forwardRef,
@@ -11,8 +9,6 @@ import {
   type ReactNode,
 } from "react";
 import clsx from "clsx";
-import { UnreadCount } from "../ui/unread-count";
-import { useI18n } from "../../i18n";
 import styles from "./adaptive-split-layout.module.css";
 
 const PaneVisibleContext = createContext(true);
@@ -32,10 +28,8 @@ export const AdaptiveSplitLayout = forwardRef<
     secondaryOpen: boolean;
     primaryLabel: string;
     secondaryLabel: string;
-    secondaryUnreadCount?: number;
-    secondaryPendingCount?: number;
     pane: WorkspacePane;
-    onPaneChange(pane: WorkspacePane): void;
+    onCompactChange?(compact: boolean): void;
   }
 >(function AdaptiveSplitLayout(
   {
@@ -45,16 +39,13 @@ export const AdaptiveSplitLayout = forwardRef<
     secondaryOpen,
     primaryLabel,
     secondaryLabel,
-    secondaryUnreadCount = 0,
-    secondaryPendingCount = 0,
     pane,
-    onPaneChange,
+    onCompactChange,
     className,
     ...props
   },
   forwardedRef,
 ) {
-  const { t } = useI18n();
   const ref = useRef<HTMLDivElement | null>(null);
   const parentVisible = usePaneVisible();
   const [compact, setCompact] = useState<boolean | null>(null);
@@ -70,85 +61,45 @@ export const AdaptiveSplitLayout = forwardRef<
     observer.observe(node);
     return () => observer.disconnect();
   }, []);
-  const selected = secondaryOpen ? pane : "workspace";
-  const primaryVisible = parentVisible && (compact === false || selected === "workspace");
-  const secondaryVisible = parentVisible && secondaryOpen && (compact === false || selected === "chat");
+  useLayoutEffect(() => {
+    if (compact !== null) onCompactChange?.(compact);
+  }, [compact, onCompactChange]);
+  // Compact presentation is independent of the persisted desktop split preference.
+  const secondaryVisible =
+    parentVisible && Boolean(secondary) && (compact === false ? secondaryOpen : compact === true && pane === "chat");
+  const primaryVisible = parentVisible && (compact === false || !secondaryVisible);
   return (
-    <Tabs.Root
+    <div
       {...props}
       ref={(node) => {
         ref.current = node;
         if (typeof forwardedRef === "function") return forwardedRef(node);
         if (forwardedRef) forwardedRef.current = node;
       }}
-      value={selected}
-      onValueChange={(value) => {
-        if (value === "workspace" || value === "chat") onPaneChange(value);
-      }}
       className={clsx("adaptive-split-layout", styles.root, className)}
       data-compact={compact ? "true" : "false"}
     >
-      <Tabs.List
-        activateOnFocus
-        className={clsx("adaptive-pane-tabs", styles.tabs)}
-        hidden={!compact || !secondaryOpen}
-        aria-label={t("compact.panes", { primary: primaryLabel, secondary: secondaryLabel })}
-      >
-        <Tabs.Tab value="workspace">{primaryLabel}</Tabs.Tab>
-        <Tabs.Tab
-          value="chat"
-          aria-label={[
-            secondaryUnreadCount
-              ? t("app.unreadCount", { label: secondaryLabel, count: secondaryUnreadCount })
-              : secondaryLabel,
-            secondaryPendingCount ? t("shell.pendingReplyCount", { count: secondaryPendingCount }) : "",
-          ]
-            .filter(Boolean)
-            .join(" · ")}
-        >
-          {secondaryLabel}
-          <UnreadCount count={secondaryUnreadCount} />
-          {secondaryPendingCount > 0 ? (
-            <span
-              className={styles.pending}
-              title={t("shell.pendingReplyCount", { count: secondaryPendingCount })}
-              aria-hidden="true"
-            >
-              <CircleAlert size={16} />
-              {secondaryPendingCount}
-            </span>
-          ) : null}
-        </Tabs.Tab>
-      </Tabs.List>
-      <Tabs.Panel
-        keepMounted
-        value="workspace"
+      <section
         className={clsx("adaptive-primary-pane", styles.primary)}
         hidden={!primaryVisible}
         inert={!primaryVisible}
-        role={compact ? "tabpanel" : "region"}
         aria-label={primaryLabel}
-        tabIndex={compact ? 0 : -1}
       >
         <CompactSplitContext.Provider value={compact === true}>
           <PaneVisibleContext.Provider value={primaryVisible}>{primary}</PaneVisibleContext.Provider>
         </CompactSplitContext.Provider>
-      </Tabs.Panel>
+      </section>
       {!compact && secondaryOpen ? resizeHandle : null}
-      <Tabs.Panel
-        keepMounted
-        value="chat"
+      <section
         className={clsx("adaptive-secondary-pane", styles.secondary)}
         hidden={!secondaryVisible}
         inert={!secondaryVisible}
-        role={compact ? "tabpanel" : "region"}
         aria-label={secondaryLabel}
-        tabIndex={compact ? 0 : -1}
       >
         <CompactSplitContext.Provider value={compact === true}>
           <PaneVisibleContext.Provider value={secondaryVisible}>{secondary}</PaneVisibleContext.Provider>
         </CompactSplitContext.Provider>
-      </Tabs.Panel>
-    </Tabs.Root>
+      </section>
+    </div>
   );
 });
