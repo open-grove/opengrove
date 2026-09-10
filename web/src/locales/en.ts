@@ -1,6 +1,7 @@
 export const EN = {
   "common.close": "Close",
-  "compact.panes": "{primary} / {secondary}",
+  "compact.openChat": "Open chat",
+  "compact.backToWorkspace": "Back to workspace",
   "thread.resourceMore": "More actions for {title}",
   "compact.moveFile": "Move to…",
   "compact.moveDestination": "Destination folder",

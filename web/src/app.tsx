@@ -11,7 +11,6 @@ import "./components/sidebar/icon-primitives.css";
 import "./components/sidebar/sidebar-shell.css";
 import "./components/sidebar/sidebar-conversations.css";
 import "./components/sidebar/section-sidebar.css";
-import { Bot } from "lucide-react";
 import type {
   BridgeSettingsResponse,
   BridgeSettings,
@@ -73,7 +72,7 @@ import { modelOptionMatchesId, modelOptionsForKernel, runtimeControlsForKernel }
 import { settingsWithProviderModels } from "./runtime/provider-model-catalog";
 import { SlashCommandMenu } from "./components/chat/skill-command-menu";
 import { ThreadShell } from "./components/chat/thread-shell";
-import { AppRail, MobileNav, railSectionForView, type RailSectionId } from "./components/sidebar/app-navigation";
+import { AppRail, railSectionForView, type RailSectionId } from "./components/sidebar/app-navigation";
 import { developerOnlyRailSection, developerOnlyView } from "./components/sidebar/navigation-mode-policy";
 import { RoomsView } from "./components/rooms/rooms-view";
 import { RoomsLoadingState } from "./components/rooms/rooms-view-layout";
@@ -115,7 +114,8 @@ import {
   TeamAccountPickerScreen,
   TeamGateScreen,
 } from "./components/app-shell/app-gates";
-import { AppTitlebar } from "./components/app-shell/app-titlebar";
+import type { WorkspacePane } from "./components/shared/adaptive-split-layout";
+import { AppTitlebar, AppChatButton } from "./components/app-shell/app-titlebar";
 import { ChatWorkspaceView, MountedAppWorkspaceView } from "./components/app-shell/app-main-views";
 import { useBridgeAuthGate } from "./app-auth-gate";
 import { devFixtureAccountSwitcherAvailable } from "./dev-fixture-accounts";
@@ -192,6 +192,8 @@ export function App() {
   const [sourceUpdate, setSourceUpdate] = useState<OpenGroveDesktopSourceUpdateState | undefined>();
   const [clientUpdate, setClientUpdate] = useState<OpenGroveDesktopClientUpdateState | undefined>();
   const [mountedAppDeveloperModeOpen, setMountedAppDeveloperModeOpen] = useState(false);
+  const [mountedAppPane, setMountedAppPane] = useState<WorkspacePane>("workspace");
+  const [mountedAppCompact, setMountedAppCompact] = useState(false);
   const [mountedAppPendingCrewCount, setMountedAppPendingCrewCount] = useState(0);
   const [mountedAppSettingsId, setMountedAppSettingsId] = useState("");
   const [mountedAppVersionManagementId, setMountedAppVersionManagementId] = useState("");
@@ -654,6 +656,7 @@ export function App() {
   );
   useEffect(() => {
     setMountedAppPendingCrewCount(0);
+    setMountedAppPane("workspace");
     if (!activeMountedAppId) {
       setMountedAppDeveloperModeOpen(false);
       return;
@@ -669,8 +672,14 @@ export function App() {
     }
   }, [activeMountedAppId, activeMountedAppSurface]);
 
+  const mountedAppChatOpen = mountedAppCompact ? mountedAppPane === "chat" : mountedAppDeveloperModeOpen;
+
   function toggleMountedAppDeveloperMode() {
     if (!activeMountedAppId) return;
+    if (mountedAppCompact) {
+      setMountedAppPane((pane) => (pane === "chat" ? "workspace" : "chat"));
+      return;
+    }
     setMountedAppDeveloperModeOpen((current) => {
       const next = !current;
       try {
@@ -1908,22 +1917,14 @@ export function App() {
   if (embeddedMountedAppMode) {
     return (
       <div className="embedded-mounted-app-shell" data-layout="embedded-app">
-        <button
-          className="app-titlebar-developer-button embedded-mounted-app-developer-button"
-          data-open={mountedAppDeveloperModeOpen ? "true" : "false"}
-          type="button"
+        <AppChatButton
+          className="embedded-mounted-app-developer-button"
+          open={mountedAppChatOpen}
+          compact={mountedAppCompact}
+          unreadCount={mountedAppUnreadBadges[activeMountedAppId]?.count}
+          pendingReplies={mountedAppPendingCrewCount}
           onClick={toggleMountedAppDeveloperMode}
-          aria-label={mountedAppDeveloperModeOpen ? t("shell.exitAppDeveloperMode") : t("shell.enterAppDeveloperMode")}
-          title={mountedAppDeveloperModeOpen ? t("shell.exitAppDeveloperMode") : t("shell.enterAppDeveloperMode")}
-        >
-          <Bot size={17} aria-hidden="true" />
-          {mountedAppPendingCrewCount > 0 ? (
-            <span
-              className="app-titlebar-developer-badge"
-              aria-label={t("shell.pendingReplyCount", { count: mountedAppPendingCrewCount })}
-            />
-          ) : null}
-        </button>
+        />
         <MountedAppWorkspaceView
           app={activeMountedApp}
           embedded
@@ -1939,6 +1940,9 @@ export function App() {
           onRetryInventory={() => void inventoryQuery.refetch()}
           chatPanelKey={`${roomsSessionKey}:${activeMountedApp?.name ?? "app"}`}
           developerModeOpen={mountedAppDeveloperModeOpen}
+          pane={mountedAppPane}
+          onPaneChange={setMountedAppPane}
+          onCompactChange={setMountedAppCompact}
           runtimeEvents={events}
           pendingApprovals={pendingApprovals}
           pendingQuestionIds={pendingQuestionIds}
@@ -2006,7 +2010,9 @@ export function App() {
         }
         onAccountRetry={() => void sessionQuery.refetch()}
         developerModeVisible={activeView === "app" && Boolean(activeMountedApp)}
-        developerModeOpen={mountedAppDeveloperModeOpen}
+        developerModeOpen={mountedAppChatOpen}
+        compactChat={mountedAppCompact}
+        unreadChatCount={mountedAppUnreadBadges[activeMountedAppId]?.count}
         pendingDeveloperReplies={mountedAppPendingCrewCount}
         onToggleDeveloperMode={toggleMountedAppDeveloperMode}
       />
@@ -2205,24 +2211,6 @@ export function App() {
         onPointerDown={onSidebarResizePointerDown}
       />
 
-      <MobileNav
-        activeView={activeView}
-        developerMode={railDeveloperMode}
-        directKernelChatEnabled={railDirectKernelChatEnabled}
-        activeMountedAppId={activeView === "app" ? activeMountedApp?.name : ""}
-        mountedApps={mountedApps}
-        onSelectMountedApp={(appId) => {
-          requestAppStorePublishLeave(() => selectMountedApp(appId));
-        }}
-        onSelect={(view) => {
-          if (view === "rooms") {
-            requestAppStorePublishLeave(() => openRoomsMessages());
-            return;
-          }
-          requestAppStorePublishLeave(() => setView(view));
-        }}
-      />
-
       <main className="workspace">
         {activeView === "chat" ? (
           <ChatWorkspaceView
@@ -2278,6 +2266,9 @@ export function App() {
             onRetryInventory={() => void inventoryQuery.refetch()}
             chatPanelKey={`${roomsSessionKey}:${activeMountedApp?.name ?? "app"}`}
             developerModeOpen={mountedAppDeveloperModeOpen}
+            pane={mountedAppPane}
+            onPaneChange={setMountedAppPane}
+            onCompactChange={setMountedAppCompact}
             runtimeEvents={events}
             pendingApprovals={pendingApprovals}
             pendingQuestionIds={pendingQuestionIds}

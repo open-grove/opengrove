@@ -63,11 +63,6 @@
   box-shadow: var(--og-paper-shadow);
 }
 
-.mounted-app-developer-layout[data-open="false"] .mounted-app-developer-resize-handle,
-.mounted-app-developer-layout[data-open="false"] .mounted-app-developer-chat {
-  display: none;
-}
-
 .mounted-app-setup,
 .mounted-app-none-surface {
   display: grid;

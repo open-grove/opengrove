@@ -28,7 +28,7 @@ try {
       const [pane, setPane] = useState("workspace");
       const [detail, setDetail] = useState(false);
       const [preview, setPreview] = useState(false);
-      return <><WorkspaceWorkbenchLayout chatPendingCount={2} pane={pane} onPaneChange={setPane} detailOpen={detail} onOpenDirectory={() => setDetail(false)}
+      return <><button aria-label="Toggle chat" aria-pressed={pane === "chat"} onClick={() => setPane(pane === "chat" ? "workspace" : "chat")}>Chat</button><WorkspaceWorkbenchLayout pane={pane} detailOpen={detail} onOpenDirectory={() => setDetail(false)}
         editorTopbar={<header>Project</header>}
         directory={<aside className="mounted-app-tree-pane"><button onClick={() => setDetail(true)}>chapter.md</button></aside>}
         directoryResizeHandle={<div className="mounted-app-resize-handle-files" />}
@@ -50,7 +50,7 @@ try {
   });
   await writeFile(
     join(root, "index.html"),
-    '<html><head><link rel="stylesheet" href="bundle.css"><style>html,body,#root{height:100%;margin:0}button,textarea{box-sizing:border-box}textarea{max-width:100%}</style></head><body><div id="root"></div><script type="module" src="bundle.js"></script></body></html>',
+    '<html><head><link rel="stylesheet" href="bundle.css"><style>html,body,#root{height:100%;margin:0}#root{display:flex;flex-direction:column}.workspace-workbench-layout{flex:1;min-height:0}button,textarea{box-sizing:border-box}textarea{max-width:100%}</style></head><body><div id="root"></div><script type="module" src="bundle.js"></script></body></html>',
   );
   server = createServer(async (request, response) => {
     const filename = request.url === "/" ? "index.html" : request.url?.slice(1);
@@ -73,9 +73,8 @@ try {
   await page.goto(`http://127.0.0.1:${server.address().port}/`);
   const chat = page.locator("[data-chat-instance]");
   const instance = await chat.getAttribute("data-chat-instance");
-  await expect(page.getByRole("tab", { name: "Workspace", exact: true })).toBeVisible();
+  await expect(page.getByRole("tablist")).toHaveCount(0);
   await expect(chat).toBeHidden();
-  await expect(page.getByRole("tab", { name: /Chat/ })).toContainText("2");
   await expect(chat).toHaveAttribute("data-visible", "false");
   await page.getByRole("button", { name: "chapter.md" }).click();
   await page.getByRole("textbox", { name: "File draft" }).fill("unsaved chapter");
@@ -83,18 +82,17 @@ try {
   await expect(chat).toBeVisible();
   await expect(chat).toHaveAttribute("data-visible", "true");
   await page.getByRole("textbox", { name: "Message draft" }).fill("unfinished message");
-  await page.getByRole("tab", { name: "Workspace", exact: true }).click();
+  await page.getByRole("button", { name: "Toggle chat", exact: true }).click();
   await expect(page.getByRole("textbox", { name: "File draft" })).toHaveValue("unsaved chapter");
   await page.getByRole("button", { name: "Files", exact: true }).click();
   await expect(page.getByRole("textbox", { name: "File draft" })).toBeHidden();
   await expect(page.getByRole("button", { name: "chapter.md" })).toBeFocused();
   await page.getByRole("button", { name: "chapter.md" }).click();
   await expect(page.getByRole("textbox", { name: "File draft" })).toHaveValue("unsaved chapter");
-  await page.getByRole("tab", { name: "Workspace", exact: true }).focus();
-  await page.keyboard.press("ArrowRight");
+  await page.getByRole("button", { name: "Toggle chat", exact: true }).focus();
+  await page.keyboard.press("Space");
   await expect(page.getByRole("textbox", { name: "Message draft" })).toHaveValue("unfinished message");
   await page.setViewportSize({ width: 1440, height: 1000 });
-  await expect(page.getByRole("tab", { name: "Workspace", exact: true })).toBeHidden();
   await expect(page.getByRole("textbox", { name: "File draft" })).toBeVisible();
   await expect(page.getByRole("textbox", { name: "Message draft" })).toBeVisible();
   const primary = await page.locator(".adaptive-primary-pane").boundingBox();
@@ -107,7 +105,7 @@ try {
   );
   await page.setViewportSize({ width: 390, height: 664 });
   await expect(page.getByRole("textbox", { name: "Message draft" })).toHaveValue("unfinished message");
-  await page.getByRole("tab", { name: "Workspace", exact: true }).click();
+  await page.getByRole("button", { name: "Toggle chat", exact: true }).click();
   const previewButton = page.getByRole("button", { name: "Preview resource", exact: true });
   await previewButton.click();
   const dialog = page.getByRole("dialog");

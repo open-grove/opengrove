@@ -5,9 +5,6 @@
     "app-chat-frame.css": {
       "spacingLiteral": 8
     },
-    "app-mobile-nav.css": {
-      "spacingLiteral": 2
-    },
     "app-shell.css": {
       "spacingLiteral": 12
     },

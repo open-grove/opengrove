@@ -113,10 +113,13 @@ function entrySource() {
     }
     function WorkbenchHarness() {
       const [path, setPath] = useState("");
+      const [pane, setPane] = useState("workspace");
       window.selectWorkbenchFile = setPath;
       return <MountedAppWorkbench
         app={{ name: "refresh-harness", metadata: { ui: { tabs: [{ component: "file-tree", label: "Files" }, { component: "dashboard", label: "Dashboard", source: { type: "local_mock" } }] } }, deployments: [] }}
         selectedPath={path}
+        pane={pane}
+        onPaneChange={setPane}
         onSelectedPathChange={setPath}
       />;
     }

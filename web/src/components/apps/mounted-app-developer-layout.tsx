@@ -24,14 +24,10 @@ export function MountedAppDeveloperLayout(props: {
   open: boolean;
   canvas: ReactNode;
   chat: ReactNode;
-  chatUnreadCount?: number;
-  chatPendingCount?: number;
+  pane: WorkspacePane;
+  onCompactChange?(compact: boolean): void;
 }) {
   const { t } = useI18n();
-  const [pane, setPane] = useState<WorkspacePane>("workspace");
-  useEffect(() => {
-    if (props.open) setPane("chat");
-  }, [props.open]);
   const layoutRef = useRef<HTMLDivElement | null>(null);
   const resizeRef = useRef<{
     pointerId: number;
@@ -102,13 +98,11 @@ export function MountedAppDeveloperLayout(props: {
       className="mounted-app-developer-layout"
       data-open={props.open ? "true" : "false"}
       style={{ "--mounted-app-developer-panel-width": `${panelWidth}px` } as CSSProperties}
-      pane={pane}
-      onPaneChange={setPane}
+      pane={props.pane}
+      onCompactChange={props.onCompactChange}
       primaryLabel={t("common.backToApp")}
       secondaryLabel={t("mountedApp.developerChatLabel")}
       secondaryOpen={props.open}
-      secondaryUnreadCount={props.chatUnreadCount}
-      secondaryPendingCount={props.chatPendingCount}
       primary={<main className="mounted-app-developer-canvas">{props.canvas}</main>}
       resizeHandle={
         <ResizeHandle

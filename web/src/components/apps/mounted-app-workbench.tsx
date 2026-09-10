@@ -242,8 +242,9 @@ export function MountedAppWorkbench(props: {
   selectedPath: string;
   corePanel?: ReactNode;
   chatOpen?: boolean;
-  chatUnreadCount?: number;
-  chatPendingCount?: number;
+  pane: WorkspacePane;
+  onPaneChange(pane: WorkspacePane): void;
+  onCompactChange?(compact: boolean): void;
   onAddSelectionAttachment?(attachment: AttachmentPayload): void;
   onSelectedPathChange(path: string): void;
 }) {
@@ -257,21 +258,15 @@ export function MountedAppWorkbench(props: {
   );
   const queryClient = useQueryClient();
   const workbenchRef = useRef<HTMLDivElement | null>(null);
-  const [compactPane, setCompactPane] = useState<WorkspacePane>("workspace");
   const fileDetail = usePageDetail("file");
   const compactDetailOpen = Boolean(fileDetail.detailId);
 
   useEffect(() => {
     if (props.selectedPath) {
       fileDetail.showDetail(props.selectedPath);
-      setCompactPane("workspace");
+      props.onPaneChange("workspace");
     }
   }, [props.selectedPath, props.revealRequest]);
-  const previousChatOpen = useRef(props.chatOpen);
-  useEffect(() => {
-    if (props.chatOpen && !previousChatOpen.current) setCompactPane("chat");
-    previousChatOpen.current = props.chatOpen;
-  }, [props.chatOpen]);
   const dashboardRefreshSpinnerTimeoutRef = useRef<number | null>(null);
   const resizeCleanupRef = useRef<(() => void) | null>(null);
   const resizeRef = useRef<{
@@ -668,7 +663,7 @@ export function MountedAppWorkbench(props: {
   async function requestSelectedPathChange(path: string) {
     if (path === props.selectedPath) {
       fileDetail.showDetail(path);
-      setCompactPane("workspace");
+      props.onPaneChange("workspace");
       return;
     }
     if (activeDirtyState && !(await activeDirtyState.preserve())) {
@@ -676,7 +671,7 @@ export function MountedAppWorkbench(props: {
       return;
     }
     fileDetail.showDetail(path);
-    setCompactPane("workspace");
+    props.onPaneChange("workspace");
     props.onSelectedPathChange(path);
   }
 
@@ -908,14 +903,12 @@ export function MountedAppWorkbench(props: {
     <>
       <WorkspaceWorkbenchLayout
         className="mounted-app-workbench"
-        pane={compactPane}
-        onPaneChange={setCompactPane}
+        pane={props.pane}
+        onCompactChange={props.onCompactChange}
         detailOpen={compactDetailOpen}
         onOpenDirectory={fileDetail.showList}
         directoryCollapsed={directoryMode === "view" || directoryCollapsed}
         chatOpen={props.chatOpen}
-        chatUnreadCount={props.chatUnreadCount}
-        chatPendingCount={props.chatPendingCount}
         ref={workbenchRef}
         style={
           {
@@ -1164,7 +1157,7 @@ export function MountedAppWorkbench(props: {
                       onAttachSelection={(selection) => {
                         if (props.app) {
                           props.onAddSelectionAttachment?.(selectionToComposerAttachment(props.app, selection, t));
-                          setCompactPane("chat");
+                          props.onPaneChange("chat");
                         }
                       }}
                       onDirtyStateChange={setFileDirtyState}

@@ -1,6 +1,7 @@
 export const ZH_CN = {
   "common.close": "关闭",
-  "compact.panes": "{primary} / {secondary}",
+  "compact.openChat": "打开聊天",
+  "compact.backToWorkspace": "返回工作区",
   "thread.resourceMore": "{title} 更多操作",
   "compact.moveFile": "移动到…",
   "compact.moveDestination": "目标文件夹",
