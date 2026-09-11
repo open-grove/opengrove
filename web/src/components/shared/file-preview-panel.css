@@ -178,7 +178,7 @@
 }
 
 .file-preview-editor-shell[data-preview-kind="markdown"] .markdown-rich-editor {
-  --markdown-block-gutter: clamp(72px, 6vw, 88px);
+  --markdown-block-gutter: clamp(72px, 6cqw, 88px);
   width: 100%;
   max-width: calc(820px + var(--markdown-block-gutter) + var(--markdown-block-gutter));
   min-height: 0;
@@ -187,6 +187,33 @@
   padding-inline: var(--markdown-block-gutter);
   overflow: visible;
   box-sizing: border-box;
+}
+
+.file-preview-content {
+  display: grid;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  container: file-preview / inline-size;
+}
+
+@container file-preview (width < 760px) {
+  .file-preview-markdown-shell,
+  .file-preview-source-shell,
+  .file-preview-editor-shell {
+    --file-preview-collapsed-inset: var(--sp-4);
+    padding: var(--sp-4);
+  }
+
+  .file-preview-editor-shell[data-preview-kind="markdown"] .markdown-rich-editor {
+    --markdown-block-gutter: 0px;
+  }
+
+  .markdown-rich-editor .milkdown-block-handle {
+    border-radius: var(--r-sm);
+    background: var(--c-surface);
+    box-shadow: var(--shadow-sm);
+  }
 }
 
 .markdown-rich-editor .milkdown {
@@ -288,6 +315,10 @@
 .markdown-rich-editor .milkdown .ProseMirror h1:first-child,
 .markdown-rich-editor .milkdown .ProseMirror h2:first-child,
 .markdown-rich-editor .milkdown .ProseMirror h3:first-child {
+  margin-top: 0;
+}
+
+.markdown-rich-editor .milkdown .ProseMirror > .prosemirror-virtual-cursor:first-child + :is(h1, h2, h3) {
   margin-top: 0;
 }
 

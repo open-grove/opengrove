@@ -24,6 +24,14 @@ Menus, dialogs and tabs reuse the installed Base UI and Radix components. Touch 
 
 The host constrains MCP App containers and provides navigation and visibility. Each embedded App remains responsible for its own forms, tables and other content within that container.
 
+File previews own a named `file-preview` inline-size container. Below 760 CSS px,
+the shared text surface owns a single 16px inset, including when a desktop chat
+column narrows the editor. Markdown block controls use the editor's existing
+placement API to float above the active block when there is no side gutter;
+the editor and its draft stay mounted. App-owned list/detail pages implement
+the same wide-split / compact-list-detail interaction within their iframe,
+without Host selectors reaching into App-owned markup.
+
 ## Verification
 
 `npm run test:web-compact-layout` exercises the built application at small widths and checks navigation, Rooms/Contacts round trips, draft retention, edge-attached drawer bounds, outside-click dismissal and restoration of desktop rail and chat preferences. It also exercises the production workbench composition for keyboard-operated pane switching, preserved editor/chat drafts, stable chat instances and desktop resizing. Both harnesses also run with `OPENGROVE_UI_TEST_BROWSER=webkit` after installing Playwright WebKit. The built-app harness covers direct URLs, reload, browser back/forward, and file moves through the real Host API. Both harnesses are registered in `tests/playwright/ui-harnesses.spec.ts`.

@@ -196,6 +196,7 @@ try {
   await robot.click();
   await expect(chatPanel).toBeHidden();
   await expect(page.locator(".workspace-preview-slot")).toBeVisible();
+  await assertReadableEditor(page);
   // The workbench can be compact even while the outer shell has its desktop rail.
   await page.setViewportSize({ width: 901, height: 664 });
   await expect(page.locator(".app-shell")).toHaveAttribute("data-compact", "false");
@@ -205,6 +206,7 @@ try {
   await page.setViewportSize({ width: 1440, height: 1000 });
   await expect(chatPanel).toBeVisible();
   await expect(page.locator(".workspace-preview-slot")).toBeVisible();
+  await assertReadableEditor(page);
   await robot.click();
   await expect(chatPanel).toBeHidden();
   await page.setViewportSize({ width: 390, height: 664 });
@@ -269,4 +271,19 @@ try {
     else process.env[key] = value;
   }
   await rm(root, { recursive: true, force: true });
+}
+
+async function assertReadableEditor(page) {
+  const editor = page.locator(".markdown-rich-editor .ProseMirror");
+  await expect(editor).toBeVisible();
+  const bounds = await editor.boundingBox();
+  const content = await page.locator(".file-preview-content").boundingBox();
+  if (content.width < 760) {
+    assert.ok(bounds.width >= content.width - 34, "Narrow editors reserve only one 16px content inset per side");
+    assert.ok(bounds.x >= content.x && bounds.x + bounds.width <= content.x + content.width + 1);
+    const heading = await editor.locator("h1").boundingBox();
+    assert.ok(heading.y <= content.y + 17, "The editor cursor must not add a second top inset before the title");
+  } else {
+    assert.ok(bounds.width <= 821, "Wide editors retain a bounded reading measure");
+  }
 }
