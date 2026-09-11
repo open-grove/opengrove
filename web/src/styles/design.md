@@ -619,6 +619,13 @@ are fluid — an operational workspace fills the space it is given (tables, tree
 run detail), so there is no global max-width. Rules:
 
 - Do not bury main objects inside nested cards.
+- Content insets have one owner: a document container supplies the reading
+  inset; its editor must not add another page margin. Below 760 CSS px of actual
+  file-content width, text previews and editors use `{spacing.4}` on every side
+  with no reserved block gutter. Block controls float above the active block.
+  Wider documents retain a bounded reading measure and side controls. Tables,
+  trees and operational dashboards fill their available width instead of
+  inheriting the document reading measure.
 - Use rows for dense operational settings; cards only for repeated items,
   modals, dialogs, and genuinely framed tools.
 - Sidebar popovers must render above clipped scroll containers.
