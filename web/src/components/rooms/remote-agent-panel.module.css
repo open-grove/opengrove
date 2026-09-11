@@ -1,0 +1,48 @@
+.remote-agent-dialog {
+  width: min(520px, 100%);
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+.remote-agent-dialog form,
+.remote-agent-dialog label {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+.remote-agent-dialog form {
+  gap: var(--sp-5);
+  margin-top: var(--sp-5);
+}
+.remote-agent-dialog label {
+  font-size: var(--fs-base);
+  font-weight: 550;
+}
+.remote-agent-dialog input {
+  min-width: 0;
+  padding: var(--sp-2-5) var(--sp-3);
+  border: 1px solid var(--c-border-strong);
+  border-radius: var(--r-sm);
+  background: var(--c-surface);
+  color: inherit;
+  font: inherit;
+}
+.remote-agent-muted {
+  opacity: 0.65;
+  font-size: var(--fs-base);
+  line-height: 1.6;
+  margin: 0;
+}
+.remote-agent-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2-5);
+  align-items: center;
+}
+.remote-agent-dialog .remote-agent-actions {
+  justify-content: flex-end;
+}
+.remote-agent-error {
+  color: var(--c-error);
+  font-size: var(--fs-base);
+}

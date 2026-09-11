@@ -1,3 +1,10 @@
+import { executeRemoteRoomRun } from "./remote-agents/execution.js";
+import {
+  assertNetworkRunAuthorized,
+  networkProblem,
+  networkSessionsFor,
+  type NetworkRunAuthorization,
+} from "./remote-agents/session.js";
 import {
   createAssistantFinalEvent,
   collectAssistantText,
@@ -90,7 +97,8 @@ export function scheduleRoomAssistantRuns(state: BridgeState, input: RoomRunInpu
 async function executeRoomRunSafely(state: BridgeState, input: RoomRunExecutionInput): Promise<void> {
   const startedAt = Date.now();
   try {
-    await executeRoomRun(state, input);
+    if (input.target.source === "remote") await executeRemoteRoomRun(state, input);
+    else await executeRoomRun(state, input);
   } catch (error) {
     const triggerText = state.app.rooms.getMessage(input.roomId, input.triggerMessageId)?.text ?? "";
     await handleRoomRunError(state, input, {
@@ -780,4 +788,40 @@ function syncRoomExecutionSessionMetadata(
 
 function durationLabel(durationMs: number): string {
   return `${Math.max(0.1, durationMs / 1000).toFixed(1)}s`;
+}
+
+/** Reattach only locally initiated, unfinished network requests; never execute imported history. */
+export async function resumeRemoteRoomRuns(
+  state: BridgeState,
+  authorization: NetworkRunAuthorization,
+  roomId?: string,
+): Promise<void> {
+  for (const message of state.app.rooms.listPendingRemoteMessages(roomId)) {
+    if (
+      (roomId && message.roomId !== roomId) ||
+      !message.remoteTask?.pending ||
+      (message.runId && hasActiveRoomRunController(state, message.runId))
+    )
+      continue;
+    const target = state.app.rooms.listMembers().find((member) => member.id === message.senderId);
+    if (!target || target.source !== "remote" || target.disabled) continue;
+    try {
+      assertNetworkRunAuthorized(state, authorization, target.remoteAgent);
+      await networkSessionsFor(state).connect(target.remoteAgent);
+    } catch (error) {
+      // Reading local history stays available while authorization is unavailable.
+      // The pending task and its captured account are retained for a later retry.
+      const problem = networkProblem(error);
+      if (problem.status === 503) console.warn("remote_resume_paused", problem.error);
+      continue;
+    }
+    if (message.runId && hasActiveRoomRunController(state, message.runId)) continue;
+    scheduleRoomAssistantRuns(state, {
+      roomId: message.roomId,
+      triggerMessageId: message.remoteTask.triggerMessageId,
+      targets: [target],
+      assistantMessages: [message],
+      networkAuthorization: authorization,
+    });
+  }
 }

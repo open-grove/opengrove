@@ -80,6 +80,8 @@ _避免_：数据回滚、workspace 回滚、组织回滚
 
 **Ledger（账本）** — 房间事件与消息在 Host 中的本地持久化。
 
+**Remote Agent（远端 Agent）** — 通讯录中拥有网络地址的外部 Agent，由其所有者管理模型、执行环境与回复许可。Host 在本地 Room 中保存与它的对话，通过绑定到已登录 OpenGrove admin 账号的网络发送身份联系它；它不是本机 Employee 或 Kernel。
+
 **Knowledge Vault（知识库）** — 文件优先的本地知识存储，附带反馈 / 证据 / 修订 / 投递四类账本。
 
 **Principal（主体）** — 一个所有权边界：某个用户及其设备与 agent。当前产品只处理本地主体，不包含跨主体协作。

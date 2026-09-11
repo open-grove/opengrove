@@ -1,6 +1,7 @@
 import type { AgentEvent, DiagnosticProblemRef } from "../../core.js";
 import type { BridgeState } from "../bridge-types.js";
 import type { BridgeWwRuntimeAuth } from "../ww-runtime-auth.js";
+import type { NetworkRunAuthorization } from "../remote-agents/session.js";
 import type { RoomChannelMember, RoomChannelMessage } from "../../rooms/channel-store.js";
 import { isRunnableRoomAssistantTarget } from "../../rooms/channel-store.js";
 import { interruptRoomRunMessage, resetInactiveRoomMember } from "../../rooms/run-liveness.js";
@@ -19,6 +20,7 @@ export interface RoomRunInput {
   targets: RoomChannelMember[];
   assistantMessages: RoomChannelMessage[];
   wwAuth?: BridgeWwRuntimeAuth;
+  networkAuthorization?: NetworkRunAuthorization;
   traceId?: string;
   onMessageFinalized?(result: {
     target: RoomChannelMember;
@@ -37,6 +39,7 @@ export interface RoomRunExecutionInput {
   runId: string;
   target: RoomChannelMember;
   wwAuth?: BridgeWwRuntimeAuth;
+  networkAuthorization?: NetworkRunAuthorization;
   traceId?: string;
   signal?: AbortSignal;
   onMessageFinalized?: RoomRunInput["onMessageFinalized"];
@@ -62,7 +65,7 @@ export function scheduleRoomAssistantRunsWithExecutor(
     const controller = new AbortController();
     let releaseActiveRun: () => void;
     try {
-      releaseActiveRun = registerActiveBridgeRun(state, runId, { cancel: () => controller.abort() });
+      releaseActiveRun = registerActiveBridgeRun(state, runId, { cancel: (reason) => controller.abort(reason) });
     } catch (error) {
       if (!(error instanceof Error) || error.message !== "bridge_runs_paused_for_storage_maintenance") throw error;
       const language = resolveHostLanguageSettings((state.rootState ?? state).settings);
@@ -100,6 +103,7 @@ export function scheduleRoomAssistantRunsWithExecutor(
           runId,
           target,
           ...(input.wwAuth ? { wwAuth: input.wwAuth } : {}),
+          networkAuthorization: input.networkAuthorization,
           traceId: input.traceId,
           signal: controller.signal,
           onMessageFinalized: notifyFinalized,

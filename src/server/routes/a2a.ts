@@ -33,7 +33,7 @@ export async function handleA2ARoute(input: {
       ok: true,
       cards: state.app.rooms
         .listMembers()
-        .filter(isRunnableRoomAssistantTarget)
+        .filter((member) => member.source !== "remote" && isRunnableRoomAssistantTarget(member))
         .map((member) => buildAgentCard(request, url, member)),
     });
     return true;
@@ -124,7 +124,7 @@ export async function handleA2ARoute(input: {
     const limit = Number.isSafeInteger(requestedLimit) && requestedLimit > 0 ? Math.min(requestedLimit, 500) : 100;
     const tasks = state.app.rooms
       .snapshot()
-      .messages.filter((message) => message.senderType === "agent" && message.runId)
+      .messages.filter((message) => message.runId && isLocalA2ATask(state, message))
       .map((message) => taskFromMessage(state, message))
       .filter((task) => !contextId || task.contextId === contextId)
       .filter((task) => !status?.success || task.status.state === status.data)
@@ -246,7 +246,11 @@ function resolveA2ARoom(state: BridgeState, member: RoomChannelMember, contextId
 }
 
 function findA2AMember(state: BridgeState, memberId: string): RoomChannelMember | undefined {
-  return state.app.rooms.listMembers().find((member) => member.id === memberId);
+  return state.app.rooms.listMembers().find((member) => member.id === memberId && member.source !== "remote");
+}
+
+function isLocalA2ATask(state: BridgeState, message: RoomChannelMessage): boolean {
+  return message.senderType === "agent" && !message.remoteTask && Boolean(findA2AMember(state, message.senderId));
 }
 
 function findA2ATask(state: BridgeState, runId: string): A2ATask | undefined {
@@ -258,7 +262,7 @@ function findA2ATaskRecord(state: BridgeState, runId: string): { message: RoomCh
   const message = state.app.rooms
     .snapshot()
     .messages.find(
-      (candidate) => candidate.senderType === "agent" && (candidate.runId === runId || candidate.id === runId),
+      (candidate) => (candidate.runId === runId || candidate.id === runId) && isLocalA2ATask(state, candidate),
     );
   return message ? { message } : undefined;
 }

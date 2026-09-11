@@ -16,6 +16,7 @@ import { Tooltip } from "../ui/tooltip";
 import "../chat/opengrove-composer.css";
 import "../shared/attachments.css";
 import { RoomMemberAvatar } from "./member-avatar";
+import { RoomMemberName } from "./member-name";
 import type { RoomMember, RoomReplyPreview } from "./rooms-model";
 
 export type MentionOption =
@@ -316,7 +317,9 @@ function MentionMenuContent(props: {
             >
               <RoomMemberAvatar member={option.member} />
               <span>
-                <strong>{option.label}</strong>
+                <strong>
+                  <RoomMemberName member={option.member} name={option.label} />
+                </strong>
               </span>
             </button>
           );

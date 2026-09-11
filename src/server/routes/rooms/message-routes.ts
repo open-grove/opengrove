@@ -3,8 +3,19 @@ import type { CreateRoomMessageOperation } from "#protocol";
 import type { PostRoomMessageResult, RoomChannelMember, RoomChannelMessage } from "../../../rooms/channel-store.js";
 import { normalizeRoomMessageDeliveryKind, normalizeRoomSelectedFile } from "../../../rooms/channel-normalize.js";
 import { readWwRuntimeAuth } from "../../bridge-security.js";
+import {
+  authorizeNetworkAccount,
+  networkProblem,
+  requireNetworkConnection,
+  type NetworkRunAuthorization,
+} from "../../remote-agents/session.js";
 import { findRoomPmMember } from "../../room-delegation.js";
-import { cancelRoomAssistantRun, isRunnableRoomAssistantTarget, scheduleRoomAssistantRuns } from "../../room-runs.js";
+import {
+  cancelRoomAssistantRun,
+  isRunnableRoomAssistantTarget,
+  scheduleRoomAssistantRuns,
+  resumeRemoteRoomRuns,
+} from "../../room-runs.js";
 import { roomTargetSupportsHostTools } from "../../room-runs/execution-state.js";
 import { canRoomPmAutoRoute } from "../../../rooms/room-pm.js";
 import { record } from "../../http-utils.js";
@@ -138,6 +149,55 @@ export async function handleCreateRoomMessageOperation(
   const assistantTargets = targetIds
     .map((id) => state.app.rooms.listMembers().find((member) => member.id === id))
     .filter((member): member is RoomChannelMember => Boolean(member));
+  const remoteFailures = new Map<string, string>();
+  let networkAuthorization: NetworkRunAuthorization | undefined;
+  const remoteTargets = assistantTargets.filter((member) => member.source === "remote");
+  if (remoteTargets.length && state.app.rooms.getRoom(roomId)?.kind !== "direct") {
+    // Group acceptance cannot wait for a Router exchange. Each remote executor connects independently.
+    try {
+      networkAuthorization = await authorizeNetworkAccount(context);
+    } catch (error) {
+      const problem = networkProblem(error);
+      console.warn("remote_send_authorization_failed", problem.error);
+      for (const target of remoteTargets) remoteFailures.set(target.id, problem.error);
+    }
+  } else {
+    for (const target of remoteTargets) {
+      try {
+        networkAuthorization = (await requireNetworkConnection(context, target.remoteAgent)).authorization;
+      } catch (error) {
+        const problem = networkProblem(error);
+        sendJson(response, problem.status, { ok: false, error: problem.error });
+        return true;
+      }
+    }
+  }
+  // A retried remote send must reuse its local ledger entry as well as its network request.
+  const existingUserMessage = body.userMessageId ? state.app.rooms.getMessage(roomId, body.userMessageId) : undefined;
+  if (existingUserMessage && assistantTargets.some((member) => member.source === "remote")) {
+    if (
+      existingUserMessage.senderType !== "user" ||
+      existingUserMessage.text !== text ||
+      JSON.stringify(existingUserMessage.targetIds) !== JSON.stringify(targetIds)
+    ) {
+      sendJson(response, 409, { ok: false, error: "message_id_conflict" });
+      return true;
+    }
+    if (networkAuthorization) await resumeRemoteRoomRuns(state, networkAuthorization, roomId);
+    sendJson(
+      response,
+      200,
+      presentPostRoomMessageResult({
+        room: state.app.rooms.getRoom(roomId)!,
+        userMessage: existingUserMessage,
+        assistantMessages: state.app.rooms
+          .listMessages(roomId, { limit: 0 })
+          .filter((message) => message.senderType === "agent" && message.inReplyToMessageId === existingUserMessage.id),
+        currentEventSeq: state.app.rooms.snapshot().currentEventSeq,
+      }),
+    );
+    return true;
+  }
   if (targetIds.length === 0) {
     const pm = findRoomPmMember(state, roomId);
     if (pm) {
@@ -211,7 +271,14 @@ export async function handleCreateRoomMessageOperation(
     selectedFile,
   });
   state.store.saveFrom(state.app);
-  const updatedMessages = await scheduleAndFallbackAssistantMessages(context, result, assistantTargets, roomId);
+  const updatedMessages = await scheduleAndFallbackAssistantMessages(
+    context,
+    result,
+    assistantTargets,
+    roomId,
+    remoteFailures,
+    networkAuthorization,
+  );
   if (updatedMessages.size) {
     result.assistantMessages = result.assistantMessages.map((message) => updatedMessages.get(message.id) ?? message);
     result.currentEventSeq = state.app.rooms.snapshot().currentEventSeq;
@@ -256,12 +323,14 @@ async function scheduleAndFallbackAssistantMessages(
   },
   assistantTargets: RoomChannelMember[],
   roomId: string,
+  remoteFailures = new Map<string, string>(),
+  networkAuthorization?: NetworkRunAuthorization,
 ): Promise<Map<string, RoomChannelMessage>> {
   const { request, state } = context;
   const runnablePairs = result.assistantMessages
     .map((message, index) => ({ message, target: assistantTargets[index] }))
     .filter((pair): pair is { message: RoomChannelMessage; target: RoomChannelMember } =>
-      Boolean(pair.target && isRunnableRoomAssistantTarget(pair.target)),
+      Boolean(pair.target && !remoteFailures.has(pair.target.id) && isRunnableRoomAssistantTarget(pair.target)),
     );
   const wwAuth = context.security
     ? (await readWwRuntimeAuth(request, context.response, context.security))?.auth
@@ -272,13 +341,26 @@ async function scheduleAndFallbackAssistantMessages(
     targets: runnablePairs.map((pair) => pair.target),
     assistantMessages: runnablePairs.map((pair) => pair.message),
     ...(wwAuth ? { wwAuth } : {}),
+    networkAuthorization,
     traceId: context.traceId,
   });
   const updatedMessages = new Map(scheduledMessages.map((message) => [message.id, message]));
   for (const [index, message] of result.assistantMessages.entries()) {
     const target = assistantTargets[index];
     if (!target || updatedMessages.has(message.id)) continue;
-    const fallback = updateNonRunnableLocalTarget(state, roomId, target, message);
+    const failure = remoteFailures.get(target.id);
+    const fallback = failure
+      ? state.app.rooms.updateMessage(roomId, message.id, {
+          status: "failed",
+          remoteTask: {
+            messageId: message.id,
+            triggerMessageId: result.userMessage.id,
+            // Authorization failed before scheduling; later login must not grant this message permission retroactively.
+            pending: false,
+            statusText: hostMessage(resolveHostLanguageSettings(state.settings), "remote.authorization_required"),
+          },
+        })!
+      : updateNonRunnableLocalTarget(state, roomId, target, message);
     updatedMessages.set(fallback.id, fallback);
   }
   return updatedMessages;
@@ -299,6 +381,28 @@ async function handleMessageCancelRoute(context: RoomsRouteContext): Promise<boo
   }
   if (message.senderType !== "agent") {
     sendJson(response, 409, { ok: false, error: "message_not_cancelable" });
+    return true;
+  }
+  if (message.remoteTask?.pending) {
+    const target = state.app.rooms.listMembers().find((member) => member.id === message.senderId);
+    let authorization: NetworkRunAuthorization;
+    try {
+      authorization = (await requireNetworkConnection(context, target?.remoteAgent)).authorization;
+    } catch (error) {
+      const problem = networkProblem(error);
+      sendJson(response, problem.status, { ok: false, error: problem.error });
+      return true;
+    }
+    state.app.rooms.updateMessage(roomId, message.id, { remoteTask: { ...message.remoteTask, cancelRequested: true } });
+    state.store.saveFrom(state.app);
+    if (message.runId) cancelRoomAssistantRun(state, message.runId);
+    await resumeRemoteRoomRuns(state, authorization, roomId);
+    sendJson(response, 200, {
+      ok: true,
+      cancelled: true,
+      message: presentRoomMessage(state.app.rooms.getMessage(roomId, message.id)!),
+      currentEventSeq: state.app.rooms.snapshot().currentEventSeq,
+    });
     return true;
   }
   // run 已结束才点：幂等返回成功(连同权威 message,让前端把乐观态对齐回真实终态)，

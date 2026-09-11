@@ -1,3 +1,10 @@
+import { resumeRemoteRoomRuns } from "../room-runs.js";
+import {
+  clearNetworkSession,
+  clearNetworkSessionForRequest,
+  networkSessionGeneration,
+  updateNetworkProductSession,
+} from "../remote-agents/session.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type {
   CreateAuthEmailCodeOperation,
@@ -557,6 +564,7 @@ async function completeWwSignIn(input: {
 }): Promise<Record<string, unknown>> {
   const { request, response, services, state, traceId, wwBaseUrl, tokens, user } = input;
   const sessionId = createLocalSessionId();
+  void clearNetworkSession(state, "remote_account_changed");
   beginWwProviderSession({ state, baseUrl: wwBaseUrl, userId: user.userId });
   clearWwProviderRecoveryBlock(state, { issuer: wwBaseUrl, userId: user.userId });
   const providerProvisioning = await provisionWwProviderAfterLogin({
@@ -598,6 +606,7 @@ async function completeWwSignIn(input: {
   // Commit the browser session only after sign-in preparation succeeds. A
   // failed switch must leave the previous cookies and session usable.
   input.onSession?.(sessionId);
+  clearAuthSessionCache(readAuthTokens(request));
   writeAuthTokens(response, tokens, sessionId);
   cacheAuthSessionUser(sessionId, tokens.accessToken, user, tokens.accessTokenExpiresIn);
   return { user, isNewUser: tokens.isNewUser, providerProvisioning, defaultStoreApps, appUpdates };
@@ -699,6 +708,7 @@ async function handleSession(
   sendJson: SendJson,
   refreshAfterProvisionFailure = false,
 ): Promise<void> {
+  const networkGeneration = networkSessionGeneration(state);
   const authResult = await resolveWwRuntimeAuth(request, response, security, {
     forceRefresh: refreshAfterProvisionFailure,
   });
@@ -784,6 +794,22 @@ async function handleSession(
     return;
   }
   initializeHostLanguageFromSession(state, request, traceId);
+  try {
+    const authorization =
+      authResult.verification !== "stale"
+        ? updateNetworkProductSession(state, session, request, networkGeneration)
+        : undefined;
+    if (authorization) {
+      const generation = networkSessionGeneration(state);
+      if (resumedNetworkGeneration.get(state) !== generation) {
+        resumedNetworkGeneration.set(state, generation);
+        void resumeRemoteRoomRuns(state, authorization).catch(() => console.warn("remote_resume_unavailable"));
+      }
+    }
+  } catch {
+    // An unavailable optional communication service must not make the product login fail.
+    console.warn("remote_session_update_unavailable");
+  }
   const providerProvisioning = await provisionWwProviderAfterLogin({
     state,
     client: createWwHostedServices(session.auth.baseUrl).providerCredentials,
@@ -982,6 +1008,7 @@ async function handleLogout(
   invalidateWwProviderSession(state);
   clearAuthTokens(response);
   clearAuthSessionCache(tokens);
+  await clearNetworkSessionForRequest(state, request);
   if (tokens?.refreshToken && security.wwBaseUrl) {
     try {
       await createWwHostedServices(security.wwBaseUrl).account.logout(tokens.refreshToken);
@@ -1213,3 +1240,5 @@ function stableAuthDiagnosticCode(error: unknown): string {
 function isWwError(value: unknown): value is WwApiError {
   return value instanceof Error && typeof (value as WwApiError).publicCode === "string";
 }
+
+const resumedNetworkGeneration = new WeakMap<BridgeState, number>();

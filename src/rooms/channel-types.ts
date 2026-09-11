@@ -7,4 +7,4 @@ export type RoomMessageDeliveryKind =
   | "agent_delegation"
   | "system_routine";
 
-export type RoomMemberSource = "local" | "human";
+export type RoomMemberSource = "local" | "human" | "remote";

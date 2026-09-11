@@ -16,6 +16,7 @@ import { RoomChatSurface } from "./room-chat-surface";
 import { RoomGroupAvatar } from "./room-group-avatar";
 import { RoomHeaderActions } from "./room-header-actions";
 import { RoomMemberAvatar } from "./member-avatar";
+import { RoomMemberName } from "./member-name";
 import { RoomSettingsPanel } from "./room-settings-panel";
 import { RoomSidebar } from "./room-sidebar";
 import { roomMemberDisplayName, type Room, type RoomMember } from "./rooms-model";
@@ -121,7 +122,12 @@ export function RoomsActiveLayout(props: {
             )}
             <div className="room-header-copy">
               <div className="room-title-row">
-                <h2>{activeDirectMember ? roomMemberDisplayName(activeDirectMember) : activeRoom.title}</h2>
+                <h2>
+                  <RoomMemberName
+                    member={activeDirectMember ?? undefined}
+                    name={activeDirectMember ? undefined : activeRoom.title}
+                  />
+                </h2>
                 {runningRoomMembers.length ? (
                   <span className="room-running-pill">
                     {t("rooms.membersRunning", { names: runningRoomMembers.map(roomMemberDisplayName).join("、") })}
@@ -215,7 +221,9 @@ export function CreateGroupForm(props: CreateGroupDialogProps) {
                 />
                 <RoomMemberAvatar member={member} />
                 <span className="rooms-create-group-member-name">
-                  <strong>{roomMemberDisplayName(member)}</strong>
+                  <strong>
+                    <RoomMemberName member={member} />
+                  </strong>
                 </span>
                 <ProductIcon name="success" size={18} />
               </label>

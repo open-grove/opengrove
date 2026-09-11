@@ -262,6 +262,8 @@ export function App() {
     setRoomsOnboardingGuideDismissed,
     sidebarCollapsed,
   } = useAppPersistentUiState(activeView);
+  const [openRemoteAgentDialog, setOpenRemoteAgentDialog] = useState(false);
+  const [contactFocusMemberId, setContactFocusMemberId] = useState("");
   const railLayout = useAppRailLayout();
   const [railOverlayOpen, setRailOverlayOpen] = useState(false);
   const { sidebarWidth, onComposerPointerDown, onSidebarResizePointerDown } = useAppLayoutResize({
@@ -1739,7 +1741,9 @@ export function App() {
     setView("rooms");
   }
 
-  function openRoomsContacts() {
+  function openRoomsContacts(options?: { addRemoteAgent?: boolean; memberId?: string }) {
+    setOpenRemoteAgentDialog(options?.addRemoteAgent === true);
+    setContactFocusMemberId(options?.memberId ?? "");
     setProjectMenuOpenId("");
     setConversationSortMenuOpen(false);
     setRoomsAppView("contacts");
@@ -2339,6 +2343,12 @@ export function App() {
         ) : (activeView === "rooms" || activeView === "contacts") && effectiveRoomsAppView === "contacts" ? (
           <ContactsView
             key={roomsSessionKey}
+            openRemoteAgentDialog={openRemoteAgentDialog}
+            focusMemberId={contactFocusMemberId}
+            onNavigationConsumed={() => {
+              setOpenRemoteAgentDialog(false);
+              setContactFocusMemberId("");
+            }}
             activeKernel={activeKernel}
             activeModel={model}
             activeWorkspaceRoot={activeWorkspaceRoot}

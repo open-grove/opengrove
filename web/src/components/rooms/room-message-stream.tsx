@@ -1,3 +1,4 @@
+import { openGroveClient } from "../../opengrove-client";
 import {
   Fragment,
   memo,
@@ -70,6 +71,7 @@ import { ProductIcon } from "../ui/product-icon";
 import { Tooltip } from "../ui/tooltip";
 import { useOptionalToast } from "../ui/toast";
 import { RoomMemberAvatar } from "./member-avatar";
+import { RoomMemberName } from "./member-name";
 import {
   cloneMessageParts,
   formatRoomDayLabel,
@@ -225,6 +227,7 @@ const RoomMessageItem = memo(function RoomMessageItem(props: {
   const [actionSurfaceActive, setActionSurfaceActive] = useState(false);
   const [overflowMenuOpen, setOverflowMenuOpen] = useState(false);
   const [exportingDiagnostics, setExportingDiagnostics] = useState(false);
+  const [reconnecting, setReconnecting] = useState(false);
   const contentRef = useRef<HTMLDivElement | null>(null);
   const toolbarRef = useRef<HTMLDivElement | null>(null);
   const [toolbarPlacement, setToolbarPlacement] = useState<RoomMessageToolbarPlacement>("right");
@@ -248,14 +251,17 @@ const RoomMessageItem = memo(function RoomMessageItem(props: {
           : doneDuration
             ? t("rooms.doneWithDuration", { duration: doneDuration })
             : formatRoomMessageTime(message.createdAt);
+  const remoteStatusText =
+    message.status === "done" && !message.remoteTask?.needsInput ? undefined : message.remoteTask?.statusText;
   const agentStatusText =
-    !isUser &&
+    remoteStatusText ||
+    (!isUser &&
     message.status !== "running" &&
     message.status !== "failed" &&
     message.status !== "interrupted" &&
     !doneDuration
       ? undefined
-      : statusText;
+      : statusText);
   const parts = roomDisplayParts(message, props.runtimeEvents);
   const turnGroups = isUser
     ? { answerGroups: [], processGroups: [], segments: [] }
@@ -267,7 +273,7 @@ const RoomMessageItem = memo(function RoomMessageItem(props: {
     !isUser && (message.status === "running" || hasRunningProcess)
       ? {
           state: agentOrbStateFromRun(props.runtimeEvents, turnGroups.processGroups, message.runId),
-          label: t("rooms.statusRunning"),
+          label: message.remoteTask?.statusText || t("rooms.statusRunning"),
         }
       : undefined;
   const canUseMessageActions = !isSystem && !(message.senderType === "agent" && message.status === "running");
@@ -476,10 +482,12 @@ const RoomMessageItem = memo(function RoomMessageItem(props: {
                 >
                   @
                 </motion.span>
-                <span className="room-chat-author-name-text">{senderDisplayName}</span>
+                <RoomMemberName member={member} name={senderDisplayName} className="room-chat-author-name-text" />
               </motion.button>
             ) : (
-              <strong>{senderDisplayName}</strong>
+              <strong>
+                <RoomMemberName member={member} name={senderDisplayName} />
+              </strong>
             )}
             <span className="room-chat-time">{formatRoomMessageTime(message.createdAt)}</span>
           </div>
@@ -492,6 +500,27 @@ const RoomMessageItem = memo(function RoomMessageItem(props: {
             hasTextPart={hasTextPart}
             status={message.status}
             statusText={agentStatusText}
+            retry={
+              message.remoteTask?.pending && message.status !== "running"
+                ? {
+                    pending: reconnecting,
+                    onRetry: async () => {
+                      setReconnecting(true);
+                      try {
+                        await openGroveClient.network.account.connect();
+                      } catch (error) {
+                        toast?.({
+                          title: t("remoteAgent.reconnectError"),
+                          description: rawDiagnosticText(error instanceof Error ? error.message : String(error)),
+                          kind: "error",
+                        });
+                      } finally {
+                        setReconnecting(false);
+                      }
+                    },
+                  }
+                : undefined
+            }
             duration={doneDuration}
             cancel={
               message.status === "running" && props.onCancelRun
@@ -961,6 +990,7 @@ function RoomAgentMessageBody(props: {
   hasTextPart: boolean;
   status: MessageStatus;
   statusText?: string;
+  retry?: { pending: boolean; onRetry(): Promise<void> };
   duration?: string;
   cancel?: RoomRunCancel;
   activeChoiceFormKey?: string;
@@ -1100,6 +1130,16 @@ function RoomAgentMessageBody(props: {
             {props.status === "done" ? <Check size={12} className="room-chat-status-check" aria-hidden="true" /> : null}
             {props.statusText}
           </div>
+          {props.retry ? (
+            <button
+              type="button"
+              className="ghost-button"
+              disabled={props.retry.pending}
+              onClick={() => void props.retry?.onRetry()}
+            >
+              {props.retry.pending ? t("remoteAgent.connecting") : t("common.retry")}
+            </button>
+          ) : null}
         </div>
       ) : null}
     </div>

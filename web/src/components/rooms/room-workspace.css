@@ -105,6 +105,7 @@
 }
 
 .room-title-row h2 {
+  min-width: 0;
   margin: 0;
   color: var(--room-workspace-title-fg);
   font-size: var(--room-workspace-title-font-size);
@@ -112,7 +113,7 @@
   line-height: var(--lh-tight);
 }
 
-.room-title-row span {
+.room-title-row > span {
   display: inline-flex;
   align-items: center;
   gap: 5px;
