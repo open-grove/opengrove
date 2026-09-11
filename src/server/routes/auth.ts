@@ -795,14 +795,15 @@ async function handleSession(
   }
   initializeHostLanguageFromSession(state, request, traceId);
   try {
-    if (
-      authResult.verification !== "stale" &&
-      updateNetworkProductSession(state, session, request, networkGeneration)
-    ) {
+    const authorization =
+      authResult.verification !== "stale"
+        ? updateNetworkProductSession(state, session, request, networkGeneration)
+        : undefined;
+    if (authorization) {
       const generation = networkSessionGeneration(state);
       if (resumedNetworkGeneration.get(state) !== generation) {
         resumedNetworkGeneration.set(state, generation);
-        void resumeRemoteRoomRuns(state).catch(() => console.warn("remote_resume_unavailable"));
+        void resumeRemoteRoomRuns(state, authorization).catch(() => console.warn("remote_resume_unavailable"));
       }
     }
   } catch {

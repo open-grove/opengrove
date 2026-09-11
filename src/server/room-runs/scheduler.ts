@@ -1,6 +1,7 @@
 import type { AgentEvent, DiagnosticProblemRef } from "../../core.js";
 import type { BridgeState } from "../bridge-types.js";
 import type { BridgeWwRuntimeAuth } from "../ww-runtime-auth.js";
+import type { NetworkRunAuthorization } from "../remote-agents/session.js";
 import type { RoomChannelMember, RoomChannelMessage } from "../../rooms/channel-store.js";
 import { isRunnableRoomAssistantTarget } from "../../rooms/channel-store.js";
 import { interruptRoomRunMessage, resetInactiveRoomMember } from "../../rooms/run-liveness.js";
@@ -19,6 +20,7 @@ export interface RoomRunInput {
   targets: RoomChannelMember[];
   assistantMessages: RoomChannelMessage[];
   wwAuth?: BridgeWwRuntimeAuth;
+  networkAuthorization?: NetworkRunAuthorization;
   traceId?: string;
   onMessageFinalized?(result: {
     target: RoomChannelMember;
@@ -37,6 +39,7 @@ export interface RoomRunExecutionInput {
   runId: string;
   target: RoomChannelMember;
   wwAuth?: BridgeWwRuntimeAuth;
+  networkAuthorization?: NetworkRunAuthorization;
   traceId?: string;
   signal?: AbortSignal;
   onMessageFinalized?: RoomRunInput["onMessageFinalized"];
@@ -100,6 +103,7 @@ export function scheduleRoomAssistantRunsWithExecutor(
           runId,
           target,
           ...(input.wwAuth ? { wwAuth: input.wwAuth } : {}),
+          networkAuthorization: input.networkAuthorization,
           traceId: input.traceId,
           signal: controller.signal,
           onMessageFinalized: notifyFinalized,

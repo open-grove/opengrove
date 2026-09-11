@@ -20,8 +20,8 @@ export async function handleConnectNetworkAccount(
   context: HostOperationRouteContext<ConnectNetworkAccountOperation>,
 ): Promise<true> {
   try {
-    const { sender: account } = await requireNetworkConnection(context);
-    await resumeRemoteRoomRuns(context.state);
+    const { sender: account, authorization } = await requireNetworkConnection(context);
+    await resumeRemoteRoomRuns(context.state, authorization);
     context.sendJson(context.response, 200, { ok: true, account });
   } catch (error) {
     const problem = networkProblem(error);

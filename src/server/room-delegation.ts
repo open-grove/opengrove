@@ -99,6 +99,7 @@ export async function delegateRoomTask(state: BridgeState, input: RoomDelegation
   }
   const target = rootState.app.rooms.listMembers().find((member) => member.id === targetMemberId);
   if (!target) return { ok: false, error: `member_not_found:${targetMemberId}` };
+  if (target.source === "remote") return { ok: false, error: "remote_authorization_required" };
   if (!isRunnableRoomAssistantTarget(target)) {
     return { ok: false, error: `member_not_runnable:${targetMemberId}` };
   }
@@ -177,6 +178,7 @@ function delegateSystemRoomTask(
   }
   const target = state.app.rooms.listMembers().find((member) => member.id === input.targetMemberId);
   if (!target) return { ok: false, error: `member_not_found:${input.targetMemberId}` };
+  if (target.source === "remote") return { ok: false, error: "remote_authorization_required" };
   if (!isRunnableRoomAssistantTarget(target)) {
     return { ok: false, error: `member_not_runnable:${input.targetMemberId}` };
   }
@@ -258,7 +260,12 @@ export function delegationTargetSummaries(
   return source.room.memberIds
     .map((memberId) => membersById.get(memberId))
     .filter((member): member is RoomChannelMember =>
-      Boolean(member && member.id !== source.sourceMember.id && isRunnableRoomAssistantTarget(member)),
+      Boolean(
+        member &&
+          member.source !== "remote" &&
+          member.id !== source.sourceMember.id &&
+          isRunnableRoomAssistantTarget(member),
+      ),
     )
     .map((member) => ({
       id: member.id,

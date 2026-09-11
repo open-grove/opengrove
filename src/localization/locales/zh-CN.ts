@@ -1,6 +1,7 @@
 import type { EN_HOST_MESSAGES } from "./en.js";
 
 export const ZH_CN_HOST_MESSAGES = {
+  "remote.authorization_required": "此任务未获准调用云端员工。请检查管理员登录和网络连接，再在对话中重新发送消息。",
   "remote.login_required": "请重新登录 OpenGrove，然后点击重试以恢复已保存的请求。",
   "remote.admin_required": "云端员工需要 OpenGrove 管理员账号，待恢复任务已保留。",
   "remote.account_changed": "此对话属于另一个 OpenGrove 账号，请登录原账号后恢复。",

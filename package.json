@@ -295,7 +295,7 @@
     "publish:desktop-release": "node scripts/publish-desktop-release.mjs",
     "control:desktop-release": "node scripts/control-desktop-release.mjs",
     "prepack": "npm run build",
-    "test:remote-agents": "npm run build:server && node --test dist/tests/agent-network-sessions.test.js dist/tests/remote-agent-room.test.js dist/tests/remote-agent-groups.test.js dist/tests/remote-agent-isolation.test.js dist/tests/remote-room-restore.test.js dist/tests/host-openapi.test.js && node scripts/test-web-remote-agent-ui.mjs"
+    "test:remote-agents": "npm run build:server && node --test dist/tests/agent-network-sessions.test.js dist/tests/remote-agent-room.test.js dist/tests/remote-agent-groups.test.js dist/tests/remote-agent-isolation.test.js dist/tests/remote-agent-authorization.test.js dist/tests/remote-room-restore.test.js dist/tests/host-openapi.test.js && node scripts/test-web-remote-agent-ui.mjs"
   },
   "bundleDependencies": [
     "@agent-router/sdk"

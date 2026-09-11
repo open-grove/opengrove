@@ -3,7 +3,7 @@ import type { BridgeState } from "../bridge-types.js";
 import type { RoomRunExecutionInput } from "../room-runs/scheduler.js";
 import type { RemoteRoomTask } from "../../rooms/remote-agent.js";
 import { AgentRouterError, taskText, taskStatusText, type Task } from "@agent-router/sdk";
-import { networkSessionsFor } from "./session.js";
+import { assertNetworkRunAuthorized, networkSessionsFor } from "./session.js";
 import { hostMessage } from "../../localization/host-messages.js";
 import { resolveHostLanguageSettings } from "../language-preference.js";
 
@@ -63,6 +63,7 @@ export async function executeRemoteRoomRun(state: BridgeState, input: RoomRunExe
   };
   input.signal?.addEventListener("abort", cancel, { once: true });
   try {
+    assertNetworkRunAuthorized(state, input.networkAuthorization, binding);
     if (input.signal?.aborted) cancel();
     if (!trigger) throw new Error("remote_trigger_missing");
     if (trigger.attachments?.length || trigger.selectedFile) throw new Error("remote_text_only");
@@ -181,6 +182,7 @@ export async function executeRemoteRoomRun(state: BridgeState, input: RoomRunExe
     const failure = error instanceof Error && error.cause instanceof AgentRouterError ? error.cause : error;
     const code = failure instanceof Error ? failure.message : "remote_connection_unavailable";
     const permanent = [
+      "remote_authorization_required",
       "remote_binding_missing",
       "remote_trigger_missing",
       "remote_text_only",
@@ -197,19 +199,21 @@ export async function executeRemoteRoomRun(state: BridgeState, input: RoomRunExe
 }
 
 export function remoteFailureText(code: string, locale: Parameters<typeof hostMessage>[0]): string {
-  return code === "remote_text_only"
-    ? hostMessage(locale, "remote.text_only")
-    : code === "not_authenticated" || code === "external_session_invalid"
-      ? hostMessage(locale, "remote.login_required")
-      : code === "external_role_required"
-        ? hostMessage(locale, "remote.admin_required")
-        : code === "remote_account_changed"
-          ? hostMessage(locale, "remote.account_changed")
-          : code === "invalid_response"
-            ? hostMessage(locale, "remote.invalid_response")
-            : code === "remote_sender_changed" || code === "remote_service_changed"
-              ? hostMessage(locale, "remote.sender_changed")
-              : code === "remote_message_too_large"
-                ? hostMessage(locale, "remote.message_too_large")
-                : hostMessage(locale, "remote.connection_unavailable");
+  return code === "remote_authorization_required"
+    ? hostMessage(locale, "remote.authorization_required")
+    : code === "remote_text_only"
+      ? hostMessage(locale, "remote.text_only")
+      : code === "not_authenticated" || code === "external_session_invalid"
+        ? hostMessage(locale, "remote.login_required")
+        : code === "external_role_required"
+          ? hostMessage(locale, "remote.admin_required")
+          : code === "remote_account_changed"
+            ? hostMessage(locale, "remote.account_changed")
+            : code === "invalid_response"
+              ? hostMessage(locale, "remote.invalid_response")
+              : code === "remote_sender_changed" || code === "remote_service_changed"
+                ? hostMessage(locale, "remote.sender_changed")
+                : code === "remote_message_too_large"
+                  ? hostMessage(locale, "remote.message_too_large")
+                  : hostMessage(locale, "remote.connection_unavailable");
 }

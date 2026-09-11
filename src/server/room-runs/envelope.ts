@@ -194,7 +194,10 @@ function buildTurnInstructions(
     .filter((memberId) => {
       if (!input.isPmAutoRoute) return true;
       const member = membersById.get(memberId);
-      return memberId !== input.target.id && Boolean(member && isRunnableRoomAssistantTarget(member));
+      return (
+        memberId !== input.target.id &&
+        Boolean(member && member.source !== "remote" && isRunnableRoomAssistantTarget(member))
+      );
     })
     .map((memberId) => {
       const member = membersById.get(memberId);

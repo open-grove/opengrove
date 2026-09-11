@@ -18,6 +18,34 @@ const sessions = new WeakMap<BridgeState, AgentNetworkSessions>();
 const generations = new WeakMap<BridgeState, number>();
 const authorizedSessions = new WeakMap<BridgeState, Set<string>>();
 
+/** Issued only after product authorization; object identity prevents reconstruction from request or ledger data. */
+export interface NetworkRunAuthorization {
+  readonly accountIssuer: string;
+  readonly accountUserId: string;
+}
+const runAuthorizations = new WeakMap<NetworkRunAuthorization, { state: BridgeState; generation: number }>();
+
+function issueNetworkRunAuthorization(state: BridgeState, session: BridgeRuntimeAuthSession): NetworkRunAuthorization {
+  const authorization = Object.freeze({ accountIssuer: session.auth.baseUrl, accountUserId: session.auth.userId });
+  runAuthorizations.set(authorization, { state, generation: networkSessionsFor(state).generation });
+  return authorization;
+}
+
+export function assertNetworkRunAuthorized(
+  state: BridgeState,
+  authorization: NetworkRunAuthorization | undefined,
+  binding?: RemoteAgentBinding,
+): void {
+  const issued = authorization && runAuthorizations.get(authorization);
+  if (!issued || issued.state !== state) throw new AgentRouterError("remote_authorization_required", 403);
+  if (
+    issued.generation !== networkSessionsFor(state).generation ||
+    (binding &&
+      (binding.accountIssuer !== authorization.accountIssuer || binding.accountUserId !== authorization.accountUserId))
+  )
+    throw new AgentRouterError("remote_account_changed", 409);
+}
+
 export function networkSessionsFor(state: BridgeState): AgentNetworkSessions {
   let network = sessions.get(state);
   if (!network) {
@@ -50,20 +78,20 @@ export function updateNetworkProductSession(
   session: BridgeRuntimeAuthSession,
   request: IncomingMessage,
   generation?: number,
-): boolean {
-  if (generation !== undefined && networkSessionGeneration(state) !== generation) return false;
+): NetworkRunAuthorization | undefined {
+  if (generation !== undefined && networkSessionGeneration(state) !== generation) return undefined;
   const network =
     sessions.get(state) ?? (readAppEnv("AGENT_ROUTER_URL")?.trim() ? networkSessionsFor(state) : undefined);
-  if (!network) return false;
+  if (!network) return undefined;
   const product = {
     accountIssuer: session.auth.baseUrl,
     accountUserId: session.auth.userId,
     accessToken: session.auth.accessToken,
   };
-  if (!network.matches(product) || !isCurrentHostAccount(state, session)) return false;
+  if (!network.matches(product) || !isCurrentHostAccount(state, session)) return undefined;
   if (!bridgeSessionUserHasRole(session.user, "admin")) {
     void clearNetworkSession(state, "external_role_required");
-    return false;
+    return undefined;
   }
   network.observe({
     accountIssuer: session.auth.baseUrl,
@@ -71,7 +99,7 @@ export function updateNetworkProductSession(
     accessToken: session.auth.accessToken,
   });
   rememberAuthorizedSession(state, request);
-  return true;
+  return issueNetworkRunAuthorization(state, session);
 }
 
 export function networkSessionGeneration(state: BridgeState): number {
@@ -89,7 +117,7 @@ interface NetworkRouteContext {
 export async function authorizeNetworkAccount(
   context: NetworkRouteContext,
   options: { generation?: number; forceRefresh?: boolean } = {},
-): Promise<void> {
+): Promise<NetworkRunAuthorization> {
   const { state, security, request, response } = context;
   if (!security) throw new AgentRouterError("not_authenticated", 401);
   const network = networkSessionsFor(state);
@@ -117,19 +145,22 @@ export async function authorizeNetworkAccount(
     generation,
   );
   rememberAuthorizedSession(state, request);
+  return issueNetworkRunAuthorization(state, auth.session);
 }
 
 export async function requireNetworkConnection(
   context: NetworkRouteContext,
   binding?: RemoteAgentBinding,
-): Promise<NetworkConnection> {
+): Promise<NetworkConnection & { authorization: NetworkRunAuthorization }> {
   if (!context.security) throw new AgentRouterError("not_authenticated", 401);
   const network = networkSessionsFor(context.state);
   const generation = network.generation;
   for (let attempt = 0; ; attempt++) {
-    await authorizeNetworkAccount(context, { generation, forceRefresh: attempt > 0 });
+    const authorization = await authorizeNetworkAccount(context, { generation, forceRefresh: attempt > 0 });
     try {
-      return await network.connect(binding);
+      const connection = await network.connect(binding);
+      assertNetworkRunAuthorized(context.state, authorization, binding);
+      return { ...connection, authorization };
     } catch (error) {
       if (attempt > 0 || !(error instanceof AgentRouterError) || error.code !== "external_session_invalid") throw error;
     }

@@ -1,10 +1,14 @@
-import { remoteFailureText } from "../../remote-agents/execution.js";
 import { Buffer } from "node:buffer";
 import type { CreateRoomMessageOperation } from "#protocol";
 import type { PostRoomMessageResult, RoomChannelMember, RoomChannelMessage } from "../../../rooms/channel-store.js";
 import { normalizeRoomMessageDeliveryKind, normalizeRoomSelectedFile } from "../../../rooms/channel-normalize.js";
 import { readWwRuntimeAuth } from "../../bridge-security.js";
-import { authorizeNetworkAccount, networkProblem, requireNetworkConnection } from "../../remote-agents/session.js";
+import {
+  authorizeNetworkAccount,
+  networkProblem,
+  requireNetworkConnection,
+  type NetworkRunAuthorization,
+} from "../../remote-agents/session.js";
 import { findRoomPmMember } from "../../room-delegation.js";
 import {
   cancelRoomAssistantRun,
@@ -146,19 +150,21 @@ export async function handleCreateRoomMessageOperation(
     .map((id) => state.app.rooms.listMembers().find((member) => member.id === id))
     .filter((member): member is RoomChannelMember => Boolean(member));
   const remoteFailures = new Map<string, string>();
+  let networkAuthorization: NetworkRunAuthorization | undefined;
   const remoteTargets = assistantTargets.filter((member) => member.source === "remote");
   if (remoteTargets.length && state.app.rooms.getRoom(roomId)?.kind !== "direct") {
     // Group acceptance cannot wait for a Router exchange. Each remote executor connects independently.
     try {
-      await authorizeNetworkAccount(context);
+      networkAuthorization = await authorizeNetworkAccount(context);
     } catch (error) {
       const problem = networkProblem(error);
+      console.warn("remote_send_authorization_failed", problem.error);
       for (const target of remoteTargets) remoteFailures.set(target.id, problem.error);
     }
   } else {
     for (const target of remoteTargets) {
       try {
-        await requireNetworkConnection(context, target.remoteAgent);
+        networkAuthorization = (await requireNetworkConnection(context, target.remoteAgent)).authorization;
       } catch (error) {
         const problem = networkProblem(error);
         sendJson(response, problem.status, { ok: false, error: problem.error });
@@ -177,7 +183,7 @@ export async function handleCreateRoomMessageOperation(
       sendJson(response, 409, { ok: false, error: "message_id_conflict" });
       return true;
     }
-    await resumeRemoteRoomRuns(state, roomId);
+    if (networkAuthorization) await resumeRemoteRoomRuns(state, networkAuthorization, roomId);
     sendJson(
       response,
       200,
@@ -271,6 +277,7 @@ export async function handleCreateRoomMessageOperation(
     assistantTargets,
     roomId,
     remoteFailures,
+    networkAuthorization,
   );
   if (updatedMessages.size) {
     result.assistantMessages = result.assistantMessages.map((message) => updatedMessages.get(message.id) ?? message);
@@ -317,6 +324,7 @@ async function scheduleAndFallbackAssistantMessages(
   assistantTargets: RoomChannelMember[],
   roomId: string,
   remoteFailures = new Map<string, string>(),
+  networkAuthorization?: NetworkRunAuthorization,
 ): Promise<Map<string, RoomChannelMessage>> {
   const { request, state } = context;
   const runnablePairs = result.assistantMessages
@@ -333,6 +341,7 @@ async function scheduleAndFallbackAssistantMessages(
     targets: runnablePairs.map((pair) => pair.target),
     assistantMessages: runnablePairs.map((pair) => pair.message),
     ...(wwAuth ? { wwAuth } : {}),
+    networkAuthorization,
     traceId: context.traceId,
   });
   const updatedMessages = new Map(scheduledMessages.map((message) => [message.id, message]));
@@ -346,8 +355,9 @@ async function scheduleAndFallbackAssistantMessages(
           remoteTask: {
             messageId: message.id,
             triggerMessageId: result.userMessage.id,
-            pending: true,
-            statusText: remoteFailureText(failure, resolveHostLanguageSettings(state.settings)),
+            // Authorization failed before scheduling; later login must not grant this message permission retroactively.
+            pending: false,
+            statusText: hostMessage(resolveHostLanguageSettings(state.settings), "remote.authorization_required"),
           },
         })!
       : updateNonRunnableLocalTarget(state, roomId, target, message);
@@ -375,8 +385,9 @@ async function handleMessageCancelRoute(context: RoomsRouteContext): Promise<boo
   }
   if (message.remoteTask?.pending) {
     const target = state.app.rooms.listMembers().find((member) => member.id === message.senderId);
+    let authorization: NetworkRunAuthorization;
     try {
-      await requireNetworkConnection(context, target?.remoteAgent);
+      authorization = (await requireNetworkConnection(context, target?.remoteAgent)).authorization;
     } catch (error) {
       const problem = networkProblem(error);
       sendJson(response, problem.status, { ok: false, error: problem.error });
@@ -385,7 +396,7 @@ async function handleMessageCancelRoute(context: RoomsRouteContext): Promise<boo
     state.app.rooms.updateMessage(roomId, message.id, { remoteTask: { ...message.remoteTask, cancelRequested: true } });
     state.store.saveFrom(state.app);
     if (message.runId) cancelRoomAssistantRun(state, message.runId);
-    await resumeRemoteRoomRuns(state, roomId);
+    await resumeRemoteRoomRuns(state, authorization, roomId);
     sendJson(response, 200, {
       ok: true,
       cancelled: true,

@@ -20,6 +20,19 @@ profile, or manual sender selection is needed. Both the Host and the trusted nod
 check admin eligibility against the account backend. A desktop Bridge token alone
 cannot authorize a communication session.
 
+Each remote Room run also requires an in-memory authorization issued after that
+product-account check. It is bound to the Host and current login generation;
+request fields and persisted messages cannot supply it. Logout or an account
+switch invalidates it. Restoring an authenticated login or selecting **Retry**
+authorizes recovery of previously accepted pending requests. Messages rejected
+at the authorization check are not pending and cannot be sent by later recovery.
+
+This version supports user-directed Rooms messages and their recovery. Routines,
+system delegation, and PM/Employee delegation do not have delegated network
+authority and cannot initiate remote work. Send to the remote Employee explicitly
+from Rooms instead. A future background integration must define and verify its
+own account authorization rather than borrow the Host's cached connection.
+
 ## Operator configuration
 
 The installation's operator selects a trusted node before starting the Host:
@@ -98,6 +111,10 @@ Remote side effects already performed cannot be undone by stopping observation.
 - Local Employee execution and local data access do not require Router configuration or credentials. A failed remote binding or request must not prevent local targets from being scheduled or historical Rooms from loading.
 - Contacts belong to the local address book; adding one does not import network
   contacts or grant receiving or execution permissions.
+- The existing local A2A interface exposes only local Employees and local tasks.
+  Remote contacts, cards, sends, task reads and cancellation are excluded even
+  when the caller supplies a valid product login. Use the authorized Rooms operations
+  to interact with remote Employees.
 - Local workspace files, attachments, Employee system prompts, and local tools are not forwarded. Attached files are rejected visibly. The transmitted text, including Room context, is limited to 32,000 characters.
 - Group delivery reuses normal Rooms targeting and scheduling. It includes the current message, reply/delegation relation, member names and a bounded excerpt of visible group history. Internal messages are excluded. A remote connection failure affects that Employee's reply while other selected Employees can continue.
 - A remote executor does not gain this Host's tools merely by joining a group. Tool access is a separate capability and authorization boundary.
