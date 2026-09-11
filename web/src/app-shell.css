@@ -296,13 +296,60 @@ body {
 .app-titlebar-developer-button:hover,
 .app-titlebar-developer-button:focus-visible,
 .app-titlebar-developer-button[data-open="true"] {
-  background: color-mix(in srgb, var(--og-text) 6%, transparent);
   color: var(--og-text);
-  outline: 0;
 }
 
-.app-titlebar-developer-button svg {
-  stroke-width: 1.8;
+.app-titlebar-developer-button:focus-visible {
+  outline: 2px solid var(--og-focus-ring);
+  outline-offset: 2px;
+}
+
+.app-chat-button-face {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+}
+
+.app-chat-button-face::before {
+  position: absolute;
+  content: "";
+  width: 28px;
+  height: 28px;
+  border-radius: var(--r-md);
+  background: transparent;
+  pointer-events: none;
+  transition: background-color var(--motion-fast) var(--motion-ease);
+}
+
+.app-titlebar-developer-button:is(:hover, :focus-visible) .app-chat-button-face::before {
+  background: var(--c-fill);
+}
+
+.app-titlebar-developer-button[data-open="true"] .app-chat-button-face::before {
+  background: var(--c-fill-strong);
+}
+
+.app-chat-icon {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.app-chat-icon-eye {
+  transition: none;
+}
+
+.app-titlebar-developer-button[data-compact="true"] .app-chat-button-face {
+  width: 20px;
+  height: 20px;
+}
+
+.app-titlebar-developer-button[data-compact="true"] .app-chat-button-face::before {
+  width: 32px;
+  height: 32px;
 }
 
 .app-titlebar-developer-badge {

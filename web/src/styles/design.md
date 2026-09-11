@@ -702,6 +702,11 @@ When motion does clarify something:
 - Keep every transition duration ≤ `{motion.duration.slow}`. Honor `prefers-reduced-motion`
   — when set, drop to instant.
 
+The chat-entry robot has one longer acknowledgement: a 700ms double blink when
+chat opens. The panel opens immediately; the eyes settle open after the two
+blinks and close in 180ms when chat closes. This sequence never loops or starts
+on mount or hover, and becomes an instant state change under reduced motion.
+
 ## Shapes
 
 Tight radii. `{rounded.md}` (10px) is the default control radius; `{rounded.lg}`

@@ -1,10 +1,11 @@
-import { Bot, Download, History, LoaderCircle, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { Download, History, LoaderCircle, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import type { ClientUpdateResponse } from "../../bridge";
 import type { OpenGroveDesktopClientUpdateState, OpenGroveDesktopSourceUpdateState } from "../../desktop-api";
 import { resolveTitlebarClientUpdate, resolveTitlebarClientUpdateAction } from "../../client-update-presentation";
 import { APP_PRODUCT_NAME } from "../../identity";
 import { useI18n, type TranslationFn } from "../../i18n";
 import { AccountServiceStatus } from "./app-gates";
+import { AppChatIcon } from "./app-chat-icon";
 import { OpenGroveSaplingMark } from "../ui/opengrove-sapling-mark";
 import { UnreadCountAnchor } from "../ui/unread-count";
 import clsx from "clsx";
@@ -131,6 +132,7 @@ export function AppChatButton(props: {
     <button
       className={clsx("app-titlebar-developer-button", props.className)}
       data-open={props.open ? "true" : "false"}
+      data-compact={props.compact ? "true" : undefined}
       type="button"
       onClick={props.onClick}
       aria-pressed={props.open}
@@ -138,7 +140,9 @@ export function AppChatButton(props: {
       title={label}
     >
       <UnreadCountAnchor count={props.unreadCount ?? 0}>
-        <Bot size={17} aria-hidden="true" />
+        <span className="app-chat-button-face">
+          <AppChatIcon open={props.open} />
+        </span>
       </UnreadCountAnchor>
       {props.pendingReplies > 0 ? <span className="app-titlebar-developer-badge" aria-hidden="true" /> : null}
     </button>
