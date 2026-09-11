@@ -68,7 +68,7 @@ function handleMessageAttachmentContentRoute(context: RoomsRouteContext): boolea
   return true;
 }
 
-async function handleMessagesListRoute(context: RoomsRouteContext): Promise<boolean> {
+function handleMessagesListRoute(context: RoomsRouteContext): boolean {
   const { request, response, url, state, sendJson } = context;
   const messagesAction = url.pathname.match(/^\/rooms\/([^/]+)\/messages$/);
   if (!messagesAction || request.method !== "GET") return false;

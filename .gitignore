@@ -9,7 +9,7 @@ docs.local/
 web-dist/
 release/
 *.tgz
-!vendor/agent-router-sdk-0.1.4.tgz
+!vendor/*.tgz
 .claude/
 .codex/
 .golutra/

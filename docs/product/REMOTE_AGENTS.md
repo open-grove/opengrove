@@ -92,7 +92,7 @@ Remote side effects already performed cannot be undone by stopping observation.
 
 ## Boundaries
 
-- The server's `remote-agents` adapter is the only production code that imports the Router SDK. Web, Rooms storage, local Kernels, and product authentication do not implement Matrix or A2A. CI checks this import boundary.
+- The server's `remote-agents` adapter is the only production code that imports the Router SDK. Web, Rooms storage, local Kernels, and product authentication do not implement Matrix or A2A. CI lints static module loads and explicit SDK re-exports; unresolved dynamic module loads in production code fail the check. These source checks do not replace runtime authorization.
 - Matrix owns homeserver identities, room events and federation. A2A owns the task/message wire model and task operations. Router's directory, product-account exchange, durable routing and Matrix application-event profile are Router features; that event profile is not an official A2A Matrix binding.
 - Product authentication owns login and product-token renewal. The adapter can observe an already verified account and disconnect its communication session; a stale or anonymous logout cannot revoke the active account's communication session. Router availability cannot determine whether the product login succeeds.
 - Local Employee execution and local data access do not require Router configuration or credentials. A failed remote binding or request must not prevent local targets from being scheduled or historical Rooms from loading.

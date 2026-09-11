@@ -220,7 +220,7 @@ Source: https://github.com/anomalyco/models.dev
 
 ## Agent Router SDK
 
-`@agent-router/sdk` 0.1.2 is distributed under Apache-2.0. The original
-`vendor/agent-router-sdk-0.1.2.tgz` includes its LICENSE; npm verifies the
+`@agent-router/sdk` 0.1.4 is distributed under Apache-2.0. The original
+`vendor/agent-router-sdk-0.1.4.tgz` includes its LICENSE; npm verifies the
 distribution checksum recorded in `package-lock.json`. The Host imports only
 the package public entry point.

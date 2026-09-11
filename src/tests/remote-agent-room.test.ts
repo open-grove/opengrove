@@ -83,6 +83,9 @@ test("streamed progress stays in execution status and Stop waits for confirmed c
   const progress = await host.waitMessage("progress", (m) => Boolean(m.remoteTask?.taskId));
   assert.equal(progress.text, "");
   assert.equal(progress.remoteTask?.statusText, "Connecting to the remote worker…");
+  await host.waitMessage("progress", () =>
+    host.fixture.calls.some((call) => call.method === "SubscribeToTask" && call.params.id === "task-progress"),
+  );
   host.fixture.tasks.progress!.status = {
     state: "TASK_STATE_COMPLETED",
     message: { parts: [{ text: "Delivery complete." }] },
@@ -104,7 +107,7 @@ test("streamed progress stays in execution status and Stop waits for confirmed c
   );
   host.fixture.tasks.hold!.status.state = "TASK_STATE_CANCELED";
   await host.waitMessage("hold", (m) => m.status === "interrupted" && m.remoteTask?.pending === false);
-  assert.ok(host.fixture.calls.some((c) => c.method === "SubscribeToTask"));
+  assert.ok(host.fixture.calls.some((c) => c.method === "SubscribeToTask" && c.params.id === "task-progress"));
   assert.ok(host.fixture.calls.some((c) => c.method === "CancelTask" && c.params.id === "task-hold"));
 });
 

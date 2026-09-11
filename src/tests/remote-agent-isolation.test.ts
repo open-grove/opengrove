@@ -1,10 +1,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { setTimeout as delay } from "node:timers/promises";
 import { startRemoteRoomHost } from "./fixtures/remote-room-host.js";
 import type { RoomChannelMember } from "../rooms/channel-store.js";
 
-test("group submission does not wait for a stalled Router exchange", async (t) => {
+test("group submission does not wait for a stalled Router exchange", { timeout: 30_000 }, async (t) => {
   const host = await startRemoteRoomHost();
   t.after(() => host.dispose());
   await host.login("admin");
@@ -15,19 +14,19 @@ test("group submission does not wait for a stalled Router exchange", async (t) =
   host.fixture.config.exchangeGate = new Promise<void>((resolve) => {
     release = resolve;
   });
+  t.signal.addEventListener("abort", release, { once: true });
   const submitting = host.request("/rooms/group/messages", {
     text: "hello",
     targetIds: [memberId],
     assistantMessageIds: ["group-cloud-reply"],
   });
   try {
-    assert.equal(
-      await Promise.race([submitting.then(() => true), delay(1000, false)]),
-      true,
-      "accepting a group message must not await the remote service",
-    );
+    // A successful response while the exchange gate is still closed proves
+    // submission does not depend on Router latency. The test timeout bounds hangs.
+    await submitting;
   } finally {
     release();
+    t.signal.removeEventListener("abort", release);
     await submitting;
   }
   await host.waitMessage("group-cloud-reply", (message) => message.status === "done");
@@ -83,6 +82,7 @@ test("stale and anonymous logout requests cannot revoke the current communicatio
   });
   await host.waitMessage("current-task", (message) => Boolean(message.remoteTask?.taskId));
   const revoked = host.fixture.revoked.length;
+  const exchanges = host.fixture.exchanges.length;
   for (const cookie of [oldCookies, ""]) {
     const response = await fetch(host.baseUrl + "/auth/logout", {
       method: "POST",
@@ -93,8 +93,22 @@ test("stale and anonymous logout requests cannot revoke the current communicatio
     assert.equal(host.fixture.revoked.length, revoked);
     assert.equal((await host.waitMessage("current-task", () => true)).status, "running");
   }
+  host.fixture.tasks["current-task"]!.artifacts = [{ parts: [{ text: "The original session is still observing." }] }];
+  host.fixture.tasks["current-task"]!.status.state = "TASK_STATE_COMPLETED";
+  assert.equal(
+    (await host.waitMessage("current-task", (message) => message.status === "done")).text,
+    "The original session is still observing.",
+  );
+  await host.request("/rooms/current/messages", {
+    text: "HOLD",
+    targetIds: [memberId],
+    assistantMessageIds: ["after-stale-logout"],
+  });
+  await host.waitMessage("after-stale-logout", (message) => Boolean(message.remoteTask?.taskId));
+  assert.equal(host.fixture.exchanges.length, exchanges, "sending must reuse the original communication session");
+  assert.equal(host.fixture.revoked.length, revoked);
   // The actual owner's logout still detaches its work immediately, including offline cleanup.
   await host.request("/auth/logout", {});
-  const paused = await host.waitMessage("current-task", (message) => message.status !== "running");
+  const paused = await host.waitMessage("after-stale-logout", (message) => message.status !== "running");
   assert.equal(paused.remoteTask?.pending, true);
 });
