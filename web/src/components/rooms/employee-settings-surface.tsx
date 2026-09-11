@@ -371,6 +371,7 @@ export function EmployeeSettingsSurface(props: EmployeeSettingsSurfaceProps) {
                 {canEditRuntime || isRemote ? (
                   <input
                     value={nameDraft}
+                    size={Math.max(2, Array.from(nameDraft).length)}
                     disabled={directSaving}
                     data-dialog-escape-stays-open="true"
                     aria-label={t("employee.nameLabel")}

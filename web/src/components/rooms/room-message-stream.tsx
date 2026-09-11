@@ -251,8 +251,10 @@ const RoomMessageItem = memo(function RoomMessageItem(props: {
           : doneDuration
             ? t("rooms.doneWithDuration", { duration: doneDuration })
             : formatRoomMessageTime(message.createdAt);
+  const remoteStatusText =
+    message.status === "done" && !message.remoteTask?.needsInput ? undefined : message.remoteTask?.statusText;
   const agentStatusText =
-    message.remoteTask?.statusText ||
+    remoteStatusText ||
     (!isUser &&
     message.status !== "running" &&
     message.status !== "failed" &&

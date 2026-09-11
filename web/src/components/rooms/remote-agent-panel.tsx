@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { OpenGroveClientError } from "@opengrove/client";
-import { useI18n } from "../../i18n";
+import { rawDiagnosticText, useI18n } from "../../i18n";
 import { openGroveClient } from "../../opengrove-client";
 import { Dialog, DialogContent, DialogTitle } from "../ui/dialog";
+import { useToast } from "../ui/toast";
 import styles from "./remote-agent-panel.module.css";
 
 export function RemoteAgentDialog(props: {
@@ -11,6 +12,7 @@ export function RemoteAgentDialog(props: {
   onAdded(memberId: string): Promise<void>;
 }) {
   const { t } = useI18n();
+  const { toast } = useToast();
   const [address, setAddress] = useState("");
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
@@ -54,7 +56,15 @@ export function RemoteAgentDialog(props: {
     } finally {
       setBusy(false);
     }
-    await props.onAdded(memberId);
+    try {
+      await props.onAdded(memberId);
+    } catch (error) {
+      toast({
+        title: t("remoteAgent.refreshError"),
+        description: rawDiagnosticText(error instanceof Error ? error.message : String(error ?? "")),
+        kind: "error",
+      });
+    }
   };
   return (
     <Dialog open={props.open} onOpenChange={props.onOpenChange}>

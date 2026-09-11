@@ -1,6 +1,7 @@
-import { useNetworkConfigured } from "./use-network-configured";
+import { useNetworkConfiguration } from "./use-network-configuration";
+import { RemoteAgentMenuItem } from "./remote-agent-menu-item";
 import { RemoteAgentDialog } from "./remote-agent-panel";
-import { Cloud, UserPlus } from "lucide-react";
+import { UserPlus } from "lucide-react";
 import { MotionMenu, MotionMenuItem } from "../ui/motion/menu";
 import { useEffect, useMemo, useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
@@ -82,7 +83,7 @@ export function ContactsView(props: {
   const state = props.roomsState;
   const setState = props.setRoomsState;
   const [query, setQuery] = useState("");
-  const networkConfigured = useNetworkConfigured();
+  const networkConfiguration = useNetworkConfiguration();
   const [remoteDialogOpen, setRemoteDialogOpen] = useState(false);
   const [createMenuOpen, setCreateMenuOpen] = useState(false);
   const [activeSection, setActiveSection] = useState<"employees" | "groups">("employees");
@@ -477,17 +478,13 @@ export function ContactsView(props: {
               <UserPlus size={17} />
               <span>{t("remoteAgent.addLocal")}</span>
             </MotionMenuItem>
-            <MotionMenuItem
-              disabled={!networkConfigured}
-              title={networkConfigured ? undefined : t("remoteAgent.notConfigured")}
-              onClick={() => {
+            <RemoteAgentMenuItem
+              configuration={networkConfiguration}
+              onSelect={() => {
                 setCreateMenuOpen(false);
                 setRemoteDialogOpen(true);
               }}
-            >
-              <Cloud size={17} />
-              <span>{t("remoteAgent.add")}</span>
-            </MotionMenuItem>
+            />
           </MotionMenu>
         </header>
         <nav className="collaboration-switch" aria-label={t("contacts.messageViews")}>

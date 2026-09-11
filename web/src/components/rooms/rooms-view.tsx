@@ -1,4 +1,5 @@
-import { useNetworkConfigured } from "./use-network-configured";
+import { useNetworkConfiguration } from "./use-network-configuration";
+import { useOptionalToast } from "../ui/toast";
 import {
   useEffect,
   useLayoutEffect,
@@ -115,6 +116,7 @@ export function RoomsView(props: {
   onCompleteOnboardingGuide?(): void;
 }) {
   const { t } = useI18n();
+  const toast = useOptionalToast()?.toast;
   const systemDetail = (error: unknown) =>
     rawDiagnosticText(error instanceof Error ? error.message : String(error ?? ""));
   const confirm = useConfirm();
@@ -131,7 +133,7 @@ export function RoomsView(props: {
   const deletedMemberIds = props.roomsSnapshot.deletedMemberIds ?? [];
   const { setRooms, setMembers, setDeletedMemberIds, setActiveRoomId, recordServerEventSeq, markRoomRead } =
     props.roomsActions;
-  const networkConfigured = useNetworkConfigured();
+  const networkConfiguration = useNetworkConfiguration();
   const [draft, setDraft] = useState("");
   const [attachments, setAttachments] = useState<AttachmentPayload[]>([]);
   const [replyingToMessageId, setReplyingToMessageId] = useState("");
@@ -382,6 +384,7 @@ export function RoomsView(props: {
         // 真失败(网络/5xx)：run 很可能还在跑，回滚到 cancel 前快照，避免留下假"已中断"。
         updateRoomMessage(roomId, messageId, () => snapshot);
         updateMemberStatus([previous.senderId], "running");
+        toast?.({ title: t("rooms.cancelFailed"), kind: "error" });
       })
       .finally(() => {
         if (runId) {
@@ -1334,7 +1337,7 @@ export function RoomsView(props: {
         onRenameRoom={renameActiveRoom}
         onDissolveRoom={() => void dissolveActiveRoom()}
         sidebarProps={{
-          networkConfigured,
+          networkConfiguration,
           activeRoom,
           rooms: visibleRooms,
           members,

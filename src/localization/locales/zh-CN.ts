@@ -1,14 +1,14 @@
 import type { EN_HOST_MESSAGES } from "./en.js";
 
 export const ZH_CN_HOST_MESSAGES = {
-  "remote.login_required": "请重新登录 OpenGrove，然后打开此对话以恢复任务。",
+  "remote.login_required": "请重新登录 OpenGrove，然后点击重试以恢复已保存的请求。",
   "remote.admin_required": "云端员工需要 OpenGrove 管理员账号，待恢复任务已保留。",
   "remote.account_changed": "此对话属于另一个 OpenGrove 账号，请登录原账号后恢复。",
   "remote.reconnect_required": "请使用 OpenGrove 账号重新添加这位云端员工。原对话保留原有身份和聊天记录。",
-  "remote.invalid_response": "远端服务返回了无效响应，请重新打开对话以重试已保存的请求。",
+  "remote.invalid_response": "远端服务返回了无效响应，请点击重试以恢复已保存的请求。",
   "remote.cancelled_before_send": "已取消，消息未发送。",
   "remote.connecting": "正在连接远端 Agent…",
-  "remote.connection_paused": "已断开本机连接。重新打开对话后会继续获取远端任务结果。",
+  "remote.connection_paused": "已断开本机连接。点击重试可继续获取远端任务结果。",
   "remote.cancel_requested": "已向远端 Agent 请求取消。",
   "remote.input_required": "远端 Agent 需要你补充信息，请继续发送消息。",
   "remote.completed": "已完成。",
@@ -19,7 +19,7 @@ export const ZH_CN_HOST_MESSAGES = {
   "remote.sender_changed": "发送身份或服务已改变，请恢复原连接后继续此对话。",
   "remote.message_too_large": "消息超出远端 Agent 的 32,000 字符限制。",
   "remote.direct_only": "远端 Agent 目前仅支持一对一对话。",
-  "remote.connection_unavailable": "远端连接暂不可用。重新打开对话可恢复现有请求。",
+  "remote.connection_unavailable": "远端连接暂不可用。点击重试可恢复现有请求。",
   "agent.final_missing": "这次运行没有生成可显示的最终回复，请查看运行详情。",
   "agent.run_failed": "这次运行失败了，请查看运行详情。",
   "app.cli.check_failed": "CLI「{cliId}」自检命令未通过：{detail}",

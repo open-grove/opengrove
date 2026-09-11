@@ -1,4 +1,6 @@
-import { Cloud, MessageCircleMore, Plus, Search, UserPlus, UsersRound, X } from "lucide-react";
+import { MessageCircleMore, Plus, Search, UserPlus, UsersRound, X } from "lucide-react";
+import { RemoteAgentMenuItem } from "./remote-agent-menu-item";
+import type { NetworkConfiguration } from "./use-network-configuration";
 import { useI18n } from "../../i18n";
 import { ThemedPixelIcon } from "../sidebar/app-navigation";
 import { MotionMenu, MotionMenuItem } from "../ui/motion/menu";
@@ -18,7 +20,7 @@ import {
 } from "./rooms-model";
 
 type RoomSidebarProps = {
-  networkConfigured?: boolean;
+  networkConfiguration: NetworkConfiguration;
   activeRoom: Room;
   rooms: Room[];
   members: RoomMember[];
@@ -106,14 +108,7 @@ export function RoomSidebar(props: RoomSidebarProps) {
               <ThemedPixelIcon pixelIcon="user" professionalIcon={UserPlus} professionalSize={17} pixelSize={18} />
               <span>{t("remoteAgent.addLocal")}</span>
             </MotionMenuItem>
-            <MotionMenuItem
-              disabled={!props.networkConfigured}
-              title={props.networkConfigured ? undefined : t("remoteAgent.notConfigured")}
-              onClick={props.onRecruitRemoteAgent}
-            >
-              <Cloud size={17} />
-              <span>{t("remoteAgent.add")}</span>
-            </MotionMenuItem>
+            <RemoteAgentMenuItem configuration={props.networkConfiguration} onSelect={props.onRecruitRemoteAgent} />
           </MotionMenu>
         </div>
       </header>
@@ -122,7 +117,7 @@ export function RoomSidebar(props: RoomSidebarProps) {
         <button type="button" data-active="true" data-room-view-target="rooms">
           {t("contacts.conversations")}
         </button>
-        <button type="button" data-room-view-target="contacts" onClick={props.onOpenContacts}>
+        <button type="button" data-room-view-target="contacts" onClick={() => props.onOpenContacts()}>
           {t("contacts.viewLabel")}
         </button>
       </nav>

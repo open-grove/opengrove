@@ -1,16 +1,15 @@
 export const EN_HOST_MESSAGES = {
-  "remote.login_required": "Sign in to OpenGrove again, then reopen this conversation to resume.",
+  "remote.login_required": "Sign in to OpenGrove again, then select Retry to resume the saved request.",
   "remote.admin_required": "Remote Agents require an OpenGrove administrator account. The pending task is preserved.",
   "remote.account_changed":
     "This conversation belongs to another OpenGrove account. Sign in to that account to resume.",
   "remote.reconnect_required":
     "Add this remote Agent again using your OpenGrove account. This earlier conversation keeps its original identity and history.",
   "remote.invalid_response":
-    "The remote service returned an invalid response. Reopen the conversation to retry the saved request.",
+    "The remote service returned an invalid response. Select Retry to resume the saved request.",
   "remote.cancelled_before_send": "Canceled before sending.",
   "remote.connecting": "Connecting to remote Agent…",
-  "remote.connection_paused":
-    "Disconnected from the remote Agent. Reopen this conversation to continue following the task.",
+  "remote.connection_paused": "Disconnected from the remote Agent. Select Retry to continue following the task.",
   "remote.cancel_requested": "Cancellation requested from the remote Agent.",
   "remote.input_required": "The remote Agent needs more input.",
   "remote.completed": "Completed.",
@@ -23,7 +22,7 @@ export const EN_HOST_MESSAGES = {
   "remote.message_too_large": "Message exceeds the remote Agent's 32,000 character limit.",
   "remote.direct_only": "Remote Agents currently support direct conversations.",
   "remote.connection_unavailable":
-    "The remote connection is unavailable. Reopen this conversation to reconnect to the existing request.",
+    "The remote connection is unavailable. Select Retry to reconnect to the existing request.",
 
   "agent.final_missing": "This run did not produce a displayable final reply. Check the run details.",
   "agent.run_failed": "This run failed. Check the run details.",
