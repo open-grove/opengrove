@@ -29,6 +29,8 @@ const appRoot = join(root, "apps", "legacy-app");
 const previousUserData = process.env[appEnvName("USER_DATA_DIR")];
 const archiveSha256 = "b".repeat(64);
 
+const states: ReturnType<typeof createBridgeState>[] = [];
+
 try {
   process.env[appEnvName("USER_DATA_DIR")] = join(root, "user-data");
   mkdirSync(join(appRoot, "workspace"), { recursive: true });
@@ -72,6 +74,7 @@ try {
   writeFileSync(join(appRoot, "workspace", "keep.md"), "business data\n", "utf8");
 
   const state = createBridgeState({ statePath: join(root, "state.json") });
+  states.push(state);
   state.settings.mountedApps = [
     {
       id: "legacy-app-mount",
@@ -270,6 +273,7 @@ try {
     "utf8",
   );
   const freshState = createBridgeState({ statePath: join(freshRegistryRoot, "state.json") });
+  states.push(freshState);
   freshState.settings.mountedApps = [
     {
       id: "fresh-registry-legacy-app-mount",
@@ -320,6 +324,7 @@ try {
 
   process.stdout.write("app release Registry migration harness passed\n");
 } finally {
+  for (const state of states) await state.store.close?.();
   if (previousUserData === undefined) delete process.env[appEnvName("USER_DATA_DIR")];
   else process.env[appEnvName("USER_DATA_DIR")] = previousUserData;
   rmSync(root, { recursive: true, force: true });

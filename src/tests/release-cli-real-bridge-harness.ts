@@ -260,8 +260,11 @@ try {
     assert.equal(userLogin.json.identity, "user");
     assert.equal(field(userLogin.json, "data", "authenticated"), true);
     assert.equal(field(userLogin.json, "data", "user", "email"), "user@example.test");
-    const jarMode = statSync(jarPath).mode & 0o777;
-    assert.equal(jarMode, 0o600, `jar must be private, got mode ${jarMode.toString(8)}`);
+    // Windows permissions use ACLs; stat.mode does not expose POSIX privacy bits.
+    if (process.platform !== "win32") {
+      const jarMode = statSync(jarPath).mode & 0o777;
+      assert.equal(jarMode, 0o600, `jar must be private, got mode ${jarMode.toString(8)}`);
+    }
     const userJar = readJar();
     assert.equal(userJar.email, "user@example.test");
     assert.equal(userJar.bridgeApiUrl, apiUrl);

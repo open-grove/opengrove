@@ -9,13 +9,18 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 const execFileAsync = promisify(execFile);
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const projectRoot = resolve(scriptDir, "..");
+const npmCommand = process.platform === "win32" ? process.execPath : "npm";
+const npmArgsPrefix =
+  process.platform === "win32"
+    ? [process.env.npm_execpath || join(dirname(process.execPath), "node_modules", "npm", "bin", "npm-cli.js")]
+    : [];
 const tempRoot = await mkdtemp(join(tmpdir(), "opengrove-packed-runtime-"));
 const installRoot = join(tempRoot, "runtime");
 
 try {
   // The caller builds first; skipping lifecycle scripts keeps this probe focused
   // on the exact files already staged for release.
-  await execFileAsync("npm", ["pack", "--ignore-scripts", "--pack-destination", tempRoot], {
+  await execFileAsync(npmCommand, [...npmArgsPrefix, "pack", "--ignore-scripts", "--pack-destination", tempRoot], {
     cwd: projectRoot,
     maxBuffer: 16 * 1024 * 1024,
     timeout: 180_000,
@@ -24,8 +29,9 @@ try {
   assert.equal(archives.length, 1, "npm pack must produce exactly one OpenGrove archive");
 
   await execFileAsync(
-    "npm",
+    npmCommand,
     [
+      ...npmArgsPrefix,
       "install",
       "--omit=dev",
       "--no-audit",

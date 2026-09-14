@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { gunzipSync } from "node:zlib";
+import { gunzipSync, gzipSync } from "node:zlib";
 import { prepareAppReleaseSourceSnapshot } from "../server/app-release-source-snapshot.js";
 import type { MountedAppReleaseDraft } from "../server/app-release.js";
 import { packAppStoreArchive } from "../server/app-store.js";
@@ -125,18 +125,19 @@ try {
     archive: modePrebuildArchive,
     employees,
   });
-  chmodSync(join(appRoot, "bin", "run"), 0o700);
+  // Change the tar metadata directly: chmod cannot exercise POSIX mode changes on Windows.
+  const modeChangedBytes = archiveWithChangedExecutableMode(modePrebuildArchive.bytes);
   const modeChanged = modeStore.save({
     localAppId: "local-snapshot-app",
     appId: "snapshot-app",
-    archive: packAppStoreArchive({
-      appRoot,
-      allowSetup: true,
-      purpose: "local-draft",
-    }),
+    archive: {
+      ...modePrebuildArchive,
+      bytes: modeChangedBytes,
+      archiveSha256: createHash("sha256").update(modeChangedBytes).digest("hex"),
+      archiveSize: modeChangedBytes.byteLength,
+    },
     employees,
   });
-  chmodSync(join(appRoot, "bin", "run"), 0o755);
   assert.equal(
     modeChanged.contentDigest,
     modePrebuild.contentDigest,
@@ -209,7 +210,8 @@ try {
   assert.deepEqual(
     first.files.map((file) => [file.path, file.mode]),
     [
-      ["bin/run", "100755"],
+      // Windows does not represent the POSIX executable bit on this local file.
+      ["bin/run", process.platform === "win32" ? "100644" : "100755"],
       ["build.mjs", "100644"],
       ["opengrove.app.json", "100644"],
       ["package-lock.json", "100644"],
@@ -410,6 +412,28 @@ function readTarFiles(bytes: Buffer): Map<string, Buffer> {
     offset = bodyOffset + Math.ceil(size / 512) * 512;
   }
   return files;
+}
+
+function archiveWithChangedExecutableMode(archive: Buffer): Buffer {
+  const bytes = gunzipSync(archive);
+  let offset = 0;
+  while (offset + 512 <= bytes.byteLength) {
+    const header = bytes.subarray(offset, offset + 512);
+    if (header.every((value) => value === 0)) break;
+    const name = tarText(header, 0, 100);
+    const prefix = tarText(header, 345, 155);
+    const path = (prefix ? `${prefix}/${name}` : name).replace(/^\.\//, "");
+    if (path === "bin/run") {
+      header.write("0000700\0", 100, 8, "ascii");
+      header.fill(0x20, 148, 156);
+      const checksum = header.reduce((sum, byte) => sum + byte, 0);
+      header.write(`${checksum.toString(8).padStart(6, "0")}\0 `, 148, 8, "ascii");
+      return gzipSync(bytes);
+    }
+    const size = Number.parseInt(tarText(header, 124, 12) || "0", 8);
+    offset += 512 + Math.ceil(size / 512) * 512;
+  }
+  throw new Error("fixture archive is missing bin/run");
 }
 
 function tarText(bytes: Buffer, offset: number, length: number): string {

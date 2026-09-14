@@ -46,6 +46,8 @@ const catalogPackage: AppStorePackageRecord = {
   packageKey: "opengrove.story-seed",
 };
 
+const states: ReturnType<typeof createBridgeState>[] = [];
+
 try {
   process.env[appEnvName("USER_DATA_DIR")] = tempRoot;
   const requests: string[] = [];
@@ -95,6 +97,7 @@ try {
   assert.equal(versions[0]?.archiveSha256, digest);
 
   const state = createBridgeState({ statePath: join(tempRoot, "state.json") });
+  states.push(state);
   globalThis.fetch = async (input, init) => {
     const url = String(input);
     requests.push(url);
@@ -350,6 +353,7 @@ try {
 
   process.stdout.write("app store version registry harness passed\n");
 } finally {
+  for (const state of states) await state.store.close?.();
   globalThis.fetch = originalFetch;
   if (previousUserData === undefined) delete process.env[appEnvName("USER_DATA_DIR")];
   else process.env[appEnvName("USER_DATA_DIR")] = previousUserData;

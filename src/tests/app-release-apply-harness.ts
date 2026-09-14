@@ -34,6 +34,8 @@ const formalRoot = join(root, "formal");
 const previousUserData = process.env[appEnvName("USER_DATA_DIR")];
 const previousAppsRoot = process.env[appEnvName("APP_STORE_APPS_DIR")];
 
+const states: ReturnType<typeof createBridgeState>[] = [];
+
 try {
   process.env[appEnvName("USER_DATA_DIR")] = join(root, "user-data");
   process.env[appEnvName("APP_STORE_APPS_DIR")] = appsRoot;
@@ -48,6 +50,7 @@ try {
   const originalWorkspaceStat = statSync(join(appRoot, "workspace"));
 
   const state = createBridgeState({ statePath: join(root, "state.json") });
+  states.push(state);
   state.settings.mountedApps = [
     {
       id: "apply-app",
@@ -227,6 +230,7 @@ try {
 
   process.stdout.write("app release apply harness passed\n");
 } finally {
+  for (const state of states) await state.store.close?.();
   if (previousUserData === undefined) delete process.env[appEnvName("USER_DATA_DIR")];
   else process.env[appEnvName("USER_DATA_DIR")] = previousUserData;
   if (previousAppsRoot === undefined) delete process.env[appEnvName("APP_STORE_APPS_DIR")];

@@ -35,6 +35,8 @@ const overriddenEnv = {
 };
 const previousEnv = Object.fromEntries(Object.keys(overriddenEnv).map((name) => [name, process.env[name]]));
 
+const states: BridgeState[] = [];
+
 try {
   Object.assign(process.env, overriddenEnv);
   assert.equal(
@@ -829,6 +831,7 @@ try {
 
   process.stdout.write("local app draft harness passed\n");
 } finally {
+  for (const state of states) await state.store.close?.();
   for (const [name, value] of Object.entries(previousEnv)) {
     if (value === undefined) delete process.env[name];
     else process.env[name] = value;
@@ -838,6 +841,7 @@ try {
 
 function mountedState(statePath: string): BridgeState {
   const state = createBridgeState({ statePath });
+  states.push(state);
   remount(state);
   return state;
 }
