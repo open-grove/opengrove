@@ -57,6 +57,8 @@ Candidates are tried by file modification time, newest first, and must complete
 an asynchronous `--version` check within two seconds with a Codex version banner.
 Failed candidates are skipped; concurrent scans share work, and ordinary reads
 reuse the validated path. Refresh scans the directory again after app updates.
+Transient validation failures retain the last validated path; reads still reject
+cached paths whose files have been deleted.
 If no usable desktop generation is found, it queries the registered `OpenAI.Codex`
 package for its bundled executable without pinning an installation volume or
 package version. Registry and package queries run asynchronously with a five-second

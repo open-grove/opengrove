@@ -48,7 +48,8 @@ export async function refreshCodexCommandPath(probe: CodexCommandPathProbe = {})
   const candidate = resolveCodexCliCommandPath(probe);
   if (!candidate && !(probe.envPath ?? readAppEnv("CODEX_BIN")?.trim())) {
     const desktopCommand = await refreshWindowsDesktopCodexCommand(refreshedEnvironment, probe.homeDir);
-    if (!desktopCommand) await refreshWindowsAppCodexCandidates(environment, queryProbe);
+    if (!desktopCommand || !isRunnableCodexCommand(desktopCommand, platform))
+      await refreshWindowsAppCodexCandidates(environment, queryProbe);
   }
   return resolveCodexCommandPath(probe);
 }

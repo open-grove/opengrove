@@ -40,8 +40,10 @@ export function refreshWindowsDesktopCodexCommand(
   const current = snapshot;
   current.pending = discoverDesktopCli(root, environment)
     .then((command) => {
-      current.command = command;
-      return command;
+      // Transient validation failures must not erase an observed install.
+      // Command resolution still rejects cached paths whose files disappeared.
+      if (command !== undefined) current.command = command;
+      return current.command;
     })
     .finally(() => {
       current.pending = undefined;

@@ -25,6 +25,7 @@ class Fixture {
     string root = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
     File.AppendAllText(Path.Combine(root, "calls.txt"), String.Join(" ", args) + "\\n");
     if (args.Length != 1 || args[0] != "--version") return 2;
+    if (File.Exists(Path.Combine(root, "hang"))) System.Threading.Thread.Sleep(10000);
     Console.WriteLine(File.ReadAllText(Path.Combine(root, "version.txt")));
     return 0;
   }
@@ -44,7 +45,7 @@ class Fixture {
   } else {
     writeFileSync(
       executable,
-      '#!/bin/sh\ndir="${0%/*}"\nprintf "%s\\n" "$*" >> "$dir/calls.txt"\n[ "$1" = "--version" ] || exit 2\n/bin/cat "$dir/version.txt"\n',
+      '#!/bin/sh\ndir="${0%/*}"\nprintf "%s\\n" "$*" >> "$dir/calls.txt"\n[ "$1" = "--version" ] || exit 2\n[ ! -f "$dir/hang" ] || exec /bin/sleep 10\n/bin/cat "$dir/version.txt"\n',
       { mode: 0o700 },
     );
   }
@@ -126,6 +127,50 @@ test("desktop CLI discovery skips unusable candidates and follows updated genera
     "--version\n",
     "explicit/PATH commands retain precedence without probing desktop candidates again",
   );
+});
+
+test("desktop CLI refresh retains a validated path after timeout, but deleted paths do not hide Store fallback", async (t) => {
+  const root = mkdtempSync(join(tmpdir(), "opengrove desktop timeout "));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const warnings = t.mock.method(console, "warn", () => {});
+  const executable = join(root, "OpenAI", "Codex", "bin", "generation", "codex.exe");
+  mkdirSync(dirname(executable), { recursive: true });
+  copyFileSync(desktopCliFixture(root), executable);
+  writeFileSync(join(dirname(executable), "version.txt"), "codex-cli 0.153.4");
+  const installLocation = join(root, "Store package");
+  const storeCommand = join(installLocation, "resources", "codex.exe");
+  mkdirSync(dirname(storeCommand), { recursive: true });
+  writeFileSync(storeCommand, "package fixture");
+  let packageQueries = 0;
+  const probe = {
+    platform: "win32" as const,
+    homeDir: root,
+    envPath: "",
+    environment: { ...process.env, LOCALAPPDATA: root, PATH: "" },
+    commandPath: { path: "" },
+    windowsQuery: (_file: string, args: readonly string[]) => {
+      if (!args.at(-1)?.includes("Get-AppxPackage")) return "";
+      packageQueries++;
+      return JSON.stringify({ installLocation, executables: [storeCommand], desktopExecutables: [] });
+    },
+  };
+  assert.equal(await refreshCodexCommandPath(probe), executable);
+  writeFileSync(join(dirname(executable), "hang"), "");
+  assert.equal(await refreshCodexCommandPath({ ...probe, force: true }), executable);
+  assert.equal(resolveCodexCommandPath(probe), executable);
+  assert.equal(warnings.mock.callCount(), 1, "the real --version timeout remains diagnosable");
+  assert.equal(
+    packageQueries,
+    0,
+    "a transient failure must not trigger a package lookup when the old path remains present",
+  );
+
+  rmSync(join(dirname(executable), "hang"));
+  assert.equal(await refreshCodexCommandPath({ ...probe, force: true }), executable);
+  rmSync(dirname(executable), { recursive: true });
+  assert.equal(resolveCodexCommandPath(probe), undefined);
+  assert.equal(await refreshCodexCommandPath({ ...probe, force: true }), storeCommand);
+  assert.equal(packageQueries, 1, "a deleted cached command must not prevent fallback discovery");
 });
 
 test("discovers the official Windows CLI install without an inherited PATH entry", (t) => {
