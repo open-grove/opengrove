@@ -1,4 +1,5 @@
-import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
+import crossSpawn from "cross-spawn";
+import type { ChildProcessWithoutNullStreams } from "node:child_process";
 import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, resolve } from "node:path";
@@ -90,9 +91,9 @@ export class CodexAppServerClient {
     env?: NodeJS.ProcessEnv;
     rpcCapture?: CodexRpcCaptureRecorder;
   }): CodexAppServerClient {
-    const invocation = resolveCommandInvocation(options.command, options.args);
+    const invocation = resolveCommandInvocation(options.command, options.args, { wrapWindowsScript: false });
     const detached = process.platform !== "win32";
-    const child = spawn(invocation.command, invocation.args, {
+    const child = crossSpawn(invocation.command, invocation.args, {
       env: buildCodexAppServerEnv(invocation.command, options.env),
       stdio: ["pipe", "pipe", "pipe"],
       detached,

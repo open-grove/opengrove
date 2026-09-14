@@ -1,4 +1,4 @@
-import { spawnSync } from "node:child_process";
+import crossSpawn from "cross-spawn";
 import { accessSync, constants, existsSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { extname, resolve } from "node:path";
@@ -54,6 +54,8 @@ export interface CommandInvocationProbe {
   environment?: NodeJS.ProcessEnv;
   nodeScript?: boolean;
   nodePath?: string;
+  /** cross-spawn and PowerShell already handle Windows scripts and their quoting. */
+  wrapWindowsScript?: boolean;
 }
 
 export function directorySource(input: KernelSourceInput): KernelKnowledgeSource {
@@ -102,7 +104,11 @@ export function resolveCommandInvocation(
       args: [resolvedCommand, ...args],
     };
   }
-  if (platform === "win32" && WINDOWS_SHELL_EXTENSIONS.has(extname(resolvedCommand).toLowerCase())) {
+  if (
+    platform === "win32" &&
+    probe.wrapWindowsScript !== false &&
+    WINDOWS_SHELL_EXTENSIONS.has(extname(resolvedCommand).toLowerCase())
+  ) {
     // Windows command scripts require cmd.exe after Node's CVE-2024-27980
     // hardening. This selects the required executable but does not escape cmd
     // metacharacters; each caller owns the trust and escaping policy for argv.
@@ -234,7 +240,7 @@ export function commandDiscoveryHealth(
 export function commandProbe(command: string | undefined, args: string[] = ["--version"]): CommandProbeResult {
   if (!command?.trim()) return { status: "failed" };
   const resolvedCommand = resolveCommandPath(command) ?? command.trim();
-  const invocation = resolveCommandInvocation(resolvedCommand, args);
+  const invocation = resolveCommandInvocation(resolvedCommand, args, { wrapWindowsScript: false });
   const cacheKey = JSON.stringify([
     invocation.command,
     invocation.args,
@@ -251,11 +257,11 @@ export function commandProbe(command: string | undefined, args: string[] = ["--v
       stdio: ["ignore", "pipe", "pipe"] as ["ignore", "pipe", "pipe"],
       timeout: 2_000,
     };
-    let result = spawnSync(invocation.command, invocation.args, options);
+    let result = crossSpawn.sync(invocation.command, invocation.args, options);
     if (process.platform === "win32" && result.status !== 0) {
       const environment = refreshWindowsPath(process.env);
       if (environment.PATH !== process.env.PATH) {
-        result = spawnSync(invocation.command, invocation.args, { ...options, env: environment });
+        result = crossSpawn.sync(invocation.command, invocation.args, { ...options, env: environment });
       }
     }
     const output = `${result.stdout || ""}${result.stderr || ""}`.trim();

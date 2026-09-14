@@ -1,6 +1,6 @@
 import { refreshClaudeCodeLocalRouteProfile } from "../kernel/adapters/claude-code.js";
 import { randomUUID } from "node:crypto";
-import { spawn } from "node:child_process";
+import crossSpawn from "cross-spawn";
 import { existsSync, readFileSync, rmSync } from "node:fs";
 import { refreshWindowsPath } from "../environment/windows-discovery.js";
 import { applyKernelProxyEnv, resolveKernelProxySettings } from "../runtime/kernel-proxy.js";
@@ -204,7 +204,10 @@ export function startKernelLoginAction(
   if (action === "login") {
     try {
       const environment = kernelLoginTerminalEnvironment(state, kernelId);
-      const invocation = resolveCommandInvocation(command, args, { environment: process.env });
+      const invocation = resolveCommandInvocation(command, args, {
+        environment: process.env,
+        wrapWindowsScript: false,
+      });
       const terminal = runtime.launchTerminal({
         command: invocation.command,
         args: invocation.args,
@@ -236,8 +239,8 @@ export function startKernelLoginAction(
     return publicLoginSession(session);
   }
 
-  const invocation = resolveCommandInvocation(command, args, { environment: process.env });
-  const child = spawn(invocation.command, invocation.args, {
+  const invocation = resolveCommandInvocation(command, args, { environment: process.env, wrapWindowsScript: false });
+  const child = crossSpawn(invocation.command, invocation.args, {
     cwd: process.cwd(),
     env: kernelLoginEnvironment(state, kernelId),
     stdio: ["ignore", "pipe", "pipe"],
@@ -364,9 +367,9 @@ function runBoundedCommand(
   env: NodeJS.ProcessEnv,
   timeoutMs: number,
 ): Promise<{ exitCode: number; stdout: string; stderr: string }> {
-  const invocation = resolveCommandInvocation(command, args, { environment: env });
+  const invocation = resolveCommandInvocation(command, args, { environment: env, wrapWindowsScript: false });
   return new Promise((resolve, reject) => {
-    const child = spawn(invocation.command, invocation.args, {
+    const child = crossSpawn(invocation.command, invocation.args, {
       env,
       stdio: ["ignore", "pipe", "pipe"],
       windowsHide: true,

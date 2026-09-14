@@ -265,12 +265,20 @@ else {
         }
         assert.equal(finished.output, "", "interactive CLI output must stay in the system terminal");
 
-        const generatedScript = join(root, "generated-login.sh");
+        const scriptPlatform = process.platform === "win32" ? "win32" : "linux";
+        const generatedScript = join(root, process.platform === "win32" ? "generated-login.ps1" : "generated-login.sh");
         const generatedResult = join(root, "generated-exit-code");
-        writeFileSync(generatedScript, systemTerminalScript(launchedCommand, generatedResult, "linux"), {
+        writeFileSync(generatedScript, systemTerminalScript(launchedCommand, generatedResult, scriptPlatform), {
           mode: 0o700,
         });
-        const generatedRun = spawnSync("/bin/sh", [generatedScript], { encoding: "utf8" });
+        const generatedRun =
+          process.platform === "win32"
+            ? spawnSync(
+                "powershell.exe",
+                ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", generatedScript],
+                { encoding: "utf8", timeout: 10_000 },
+              )
+            : spawnSync("/bin/sh", [generatedScript], { encoding: "utf8" });
         assert.equal(generatedRun.status, 0, generatedRun.stderr);
         assert.equal(readFileSync(generatedResult, "utf8"), "0");
         for (const extension of ["cmd", "bat"]) {
