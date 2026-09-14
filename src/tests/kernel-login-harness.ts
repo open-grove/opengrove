@@ -260,6 +260,9 @@ else {
         assert.deepEqual(launchedCommand?.args, [codex, "login", "--device-auth"]);
         assert.equal(launchedCommand?.environment.HTTPS_PROXY, "http://127.0.0.1:17890");
         assert.equal(launchedCommand?.environment.CODEX_HOME, join(root, "codex-home"));
+        if (process.platform === "win32") {
+          assert.ok(launchedCommand?.environment.PATH, "Windows login terminals must receive the recovered PATH");
+        }
         assert.equal(finished.output, "", "interactive CLI output must stay in the system terminal");
 
         const generatedScript = join(root, "generated-login.sh");

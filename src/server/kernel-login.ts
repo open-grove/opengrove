@@ -328,10 +328,9 @@ function kernelLoginEnvironment(state: BridgeState, kernelId: BridgeKernelId): N
 }
 
 function kernelLoginTerminalEnvironment(state: BridgeState, kernelId: BridgeKernelId): NodeJS.ProcessEnv {
-  return applyKernelProxyEnv(
-    kernelPathEnv(state.settings, kernelId),
-    resolveKernelProxySettings(state.settings.kernelProxy, process.env),
-  );
+  const environment = kernelPathEnv(state.settings, kernelId);
+  if (process.platform === "win32") environment.PATH = refreshWindowsPath(process.env).PATH;
+  return applyKernelProxyEnv(environment, resolveKernelProxySettings(state.settings.kernelProxy, process.env));
 }
 
 function accountLoginExcludedCredentialKeys(kernelId: BridgeKernelId): string[] {

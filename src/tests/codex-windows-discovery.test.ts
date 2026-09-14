@@ -248,3 +248,24 @@ test("Windows can validate a discovered CLI command with spaces and Unicode in i
   assert.equal(discovered, executable);
   assert.deepEqual(commandProbe(discovered), { status: "ok", version: "codex-cli 0.153.4" });
 });
+
+test("Windows retries a failed version probe after its environment is repaired", {
+  skip: process.platform !== "win32",
+}, (t) => {
+  const root = mkdtempSync(join(tmpdir(), "opengrove-windows-probe-"));
+  const original = process.env.OPENGROVE_TEST_CODEX_READY;
+  t.after(() => {
+    rmSync(root, { recursive: true, force: true });
+    if (original === undefined) delete process.env.OPENGROVE_TEST_CODEX_READY;
+    else process.env.OPENGROVE_TEST_CODEX_READY = original;
+  });
+  const command = join(root, "codex.mjs");
+  writeFileSync(
+    command,
+    'if (process.env.OPENGROVE_TEST_CODEX_READY === "yes") console.log("codex-cli 0.153.4"); else process.exit(1);',
+  );
+  delete process.env.OPENGROVE_TEST_CODEX_READY;
+  assert.equal(commandProbe(command).status, "failed");
+  process.env.OPENGROVE_TEST_CODEX_READY = "yes";
+  assert.deepEqual(commandProbe(command), { status: "ok", version: "codex-cli 0.153.4" });
+});

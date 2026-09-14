@@ -242,7 +242,9 @@ export function commandProbe(command: string | undefined, args: string[] = ["--v
     process.env.PATH,
   ]);
   const cached = COMMAND_PROBE_CACHE.get(cacheKey);
-  if (cached?.status === "ok") return cached;
+  // Windows PATH can change without modifying the launcher file. Failed probes
+  // must be retried after installing its dependencies; POSIX caching is unchanged.
+  if (cached && (cached.status === "ok" || process.platform !== "win32")) return cached;
   try {
     const options = {
       encoding: "utf8" as const,
