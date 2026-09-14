@@ -319,6 +319,8 @@ export const EN = {
   "composer.contextUsed": "Used",
   "composer.contextRemaining": "Remaining",
   "composer.contextTotal": "Total",
+  "settings.refreshKernels": "Refresh",
+  "settings.refreshingKernels": "Checking…",
   "settings.mode": "Mode",
   "settings.kernels": "Kernels",
   "settings.opsCenter": "Ops Center",

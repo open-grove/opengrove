@@ -4,11 +4,12 @@ import { join, resolve } from "node:path";
 import { readAppEnv } from "../../identity.js";
 import {
   refreshWindowsPath,
+  readWindowsPath,
   windowsEnvironmentValue,
   type WindowsCommandQuery,
 } from "../../environment/windows-discovery.js";
 import { resolveCommandPath, type CommandPathProbe } from "../../kernel/discovery.js";
-import { windowsAppCodexCandidates } from "./windows-app-discovery.js";
+import { refreshWindowsAppCodexCandidates, windowsAppCodexCandidates } from "./windows-app-discovery.js";
 
 export interface CodexCommandPathProbe {
   platform?: NodeJS.Platform;
@@ -18,9 +19,36 @@ export interface CodexCommandPathProbe {
   commandPath?: CommandPathProbe;
   environment?: NodeJS.ProcessEnv;
   windowsQuery?: WindowsCommandQuery;
+  force?: boolean;
 }
 
 export function resolveCodexCommandPath(probe: CodexCommandPathProbe = {}): string | undefined {
+  const candidate = resolveCodexCliCommandPath(probe);
+  if (
+    candidate ||
+    (probe.platform ?? process.platform) !== "win32" ||
+    (probe.envPath ?? readAppEnv("CODEX_BIN")?.trim())
+  )
+    return candidate;
+  return windowsAppCodexCandidates(probe.environment ?? process.env, probe.windowsQuery).find((path) =>
+    isRunnableCodexCommand(path, "win32"),
+  );
+}
+
+/** Explicit refresh boundary; settings rendering only reads the resulting snapshot. */
+export async function refreshCodexCommandPath(probe: CodexCommandPathProbe = {}): Promise<string | undefined> {
+  const platform = probe.platform ?? process.platform;
+  if (platform !== "win32") return resolveCodexCommandPath(probe);
+  const environment = probe.environment ?? process.env;
+  const queryProbe = { platform, query: probe.windowsQuery, force: probe.force };
+  await refreshWindowsPath(environment, queryProbe);
+  const candidate = resolveCodexCliCommandPath(probe);
+  if (!candidate && !(probe.envPath ?? readAppEnv("CODEX_BIN")?.trim()))
+    await refreshWindowsAppCodexCandidates(environment, queryProbe);
+  return resolveCodexCommandPath(probe);
+}
+
+function resolveCodexCliCommandPath(probe: CodexCommandPathProbe): string | undefined {
   const platform = probe.platform ?? process.platform;
   const homeDir = probe.homeDir ?? homedir();
   const environment = probe.environment ?? process.env;
@@ -37,7 +65,7 @@ export function resolveCodexCommandPath(probe: CodexCommandPathProbe = {}): stri
 
   const inheritedCommand = resolveCommandPath("codex", commandPath);
   if (inheritedCommand && isRunnableCodexCommand(inheritedCommand, platform)) return inheritedCommand;
-  const refreshedEnvironment = refreshWindowsPath(
+  const refreshedEnvironment = readWindowsPath(
     { ...environment, PATH: commandPath.path ?? "" },
     { platform, query: probe.windowsQuery },
   );
@@ -64,10 +92,7 @@ export function resolveCodexCommandPath(probe: CodexCommandPathProbe = {}): stri
   const candidate = candidates.find((candidate): candidate is string =>
     Boolean(candidate && isRunnableCodexCommand(candidate, platform)),
   );
-  if (candidate || platform !== "win32") return candidate;
-  return windowsAppCodexCandidates(refreshedEnvironment, probe.windowsQuery).find((path) =>
-    isRunnableCodexCommand(path, platform),
-  );
+  return candidate;
 }
 
 function isRunnableCodexCommand(path: string, platform: NodeJS.Platform): boolean {

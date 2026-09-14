@@ -18,7 +18,11 @@ import type {
   ServerRequestHandler,
 } from "./types.js";
 import { MIN_CODEX_APP_SERVER_VERSION } from "./types.js";
-import { refreshWindowsPath, type WindowsEnvironmentProbe } from "../../environment/windows-discovery.js";
+import {
+  readWindowsPath,
+  refreshWindowsPath,
+  type WindowsEnvironmentProbe,
+} from "../../environment/windows-discovery.js";
 
 export const CODEX_APP_SERVER_OPT_OUT_NOTIFICATION_METHODS: string[] = [
   "command/exec/outputDelta",
@@ -85,13 +89,14 @@ export class CodexAppServerClient {
     });
   }
 
-  static start(options: {
+  static async start(options: {
     command: string;
     args: string[];
     env?: NodeJS.ProcessEnv;
     rpcCapture?: CodexRpcCaptureRecorder;
-  }): CodexAppServerClient {
+  }): Promise<CodexAppServerClient> {
     const invocation = resolveCommandInvocation(options.command, options.args, { wrapWindowsScript: false });
+    await refreshWindowsPath({ ...process.env, ...options.env });
     const detached = process.platform !== "win32";
     const child = crossSpawn(invocation.command, invocation.args, {
       env: buildCodexAppServerEnv(invocation.command, options.env),
@@ -364,7 +369,7 @@ export function buildCodexAppServerEnv(
   probe: WindowsEnvironmentProbe = {},
 ): NodeJS.ProcessEnv {
   const platform = probe.platform ?? process.platform;
-  const merged = refreshWindowsPath({ ...process.env, ...env }, probe);
+  const merged = readWindowsPath({ ...process.env, ...env }, probe);
   merged.PATH = augmentedCodexRuntimePath(command, merged.PATH, platform);
   return merged;
 }

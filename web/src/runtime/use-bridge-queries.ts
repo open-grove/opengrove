@@ -150,6 +150,7 @@ export function useBridgeQueries(input: {
   const settingsQuery = useQuery({
     queryKey: ["settings"],
     queryFn: () => fetchJson<BridgeSettingsResponse>("/settings", { headers: bridgeHeaders(false) }),
+    refetchInterval: (query) => (query.state.data?.kernelDiscoveryPending ? 1_000 : false),
     enabled: protectedQueriesEnabled,
     staleTime: 30_000,
     refetchOnWindowFocus: true,

@@ -3,11 +3,11 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
-import { queryWindowsCommand, refreshWindowsPath, refreshWindowsPathAsync } from "../environment/windows-discovery.js";
+import { queryWindowsCommand, readWindowsPath, refreshWindowsPath } from "../environment/windows-discovery.js";
 import { clearCommandVersionCache, commandProbe } from "../kernel/discovery.js";
 import { buildCodexAppServerEnv } from "../runtime/codex/app-server-client.js";
-import { windowsAppCodexCandidates } from "../runtime/codex/windows-app-discovery.js";
-import { resolveCodexCommandPath } from "../runtime/codex/command-path.js";
+import { refreshWindowsAppCodexCandidates } from "../runtime/codex/windows-app-discovery.js";
+import { refreshCodexCommandPath, resolveCodexCommandPath } from "../runtime/codex/command-path.js";
 
 test("discovers the official Windows CLI install without an inherited PATH entry", (t) => {
   const root = mkdtempSync(join(tmpdir(), "opengrove-windows-codex-"));
@@ -27,7 +27,7 @@ test("discovers the official Windows CLI install without an inherited PATH entry
   );
 });
 
-test("discovers a CLI added to the user registry PATH after launch", (t) => {
+test("discovers a CLI added to the user registry PATH after launch", async (t) => {
   const root = mkdtempSync(join(tmpdir(), "opengrove-windows-codex-"));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const directory = join(root, "custom install", "bin");
@@ -43,10 +43,11 @@ test("discovers a CLI added to the user registry PATH after launch", (t) => {
     windowsQuery: (_file: string, args: readonly string[]) =>
       args.at(-1)?.includes("GetEnvironmentVariable") ? JSON.stringify(["", directory]) : undefined,
   };
+  await refreshCodexCommandPath(probe);
   assert.equal(resolveCodexCommandPath(probe), executable);
 });
 
-test("discovers Codex inside the registered Store package on a custom volume", (t) => {
+test("discovers Codex inside the registered Store package on a custom volume", async (t) => {
   const root = mkdtempSync(join(tmpdir(), "opengrove-windows-codex-"));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const installLocation = join(root, "other volume", "WindowsApps", "OpenAI.Codex_1.2.3_arm64__2p2nqsd0c76g0");
@@ -70,6 +71,7 @@ test("discovers Codex inside the registered Store package on a custom volume", (
           })
         : undefined,
   };
+  await refreshCodexCommandPath(probe);
   assert.equal(resolveCodexCommandPath(probe), executable);
 });
 
@@ -120,7 +122,7 @@ for (const location of ["custom", "local-app-data", "winget"] as const) {
   });
 }
 
-test("observes registry PATH changes on the next scan and handles multiple Windows entries", (t) => {
+test("observes registry PATH changes on the next scan and handles multiple Windows entries", async (t) => {
   const root = mkdtempSync(join(tmpdir(), "opengrove-windows-codex-"));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const directory = join(root, "中文 用户", "bin");
@@ -137,14 +139,16 @@ test("observes registry PATH changes on the next scan and handles multiple Windo
     windowsQuery: (_file: string, args: readonly string[]) =>
       args.at(-1)?.includes("GetEnvironmentVariable") ? JSON.stringify(["", currentPath]) : undefined,
   };
+  await refreshCodexCommandPath(probe);
   assert.equal(resolveCodexCommandPath(probe), undefined);
   currentPath = `${join(root, "missing")};${directory}`;
+  await refreshCodexCommandPath({ ...probe, force: true });
   assert.equal(resolveCodexCommandPath(probe), executable);
 });
 
-test("merges registry PATH case-insensitively, expands variables and preserves Unicode", () => {
+test("merges registry PATH case-insensitively, expands variables and preserves Unicode", async () => {
   const environment = { Path: 'C:\\Existing;"C:\\Mixed Case"', LOCALAPPDATA: "D:\\中文 用户" };
-  const result = refreshWindowsPath(environment, {
+  const result = await refreshWindowsPath(environment, {
     platform: "win32",
     query: () => JSON.stringify(["c:\\existing;C:\\System", "%localappdata%\\工具;C:\\Mixed Case"]),
   });
@@ -153,60 +157,64 @@ test("merges registry PATH case-insensitively, expands variables and preserves U
   assert.equal(environment.Path, 'C:\\Existing;"C:\\Mixed Case"');
 });
 
-test("Codex app-server receives the same recovered PATH needed by its child tools", () => {
-  const result = buildCodexAppServerEnv(
-    "codex",
-    { PATH: "C:\\Existing" },
-    {
-      platform: "win32",
-      query: () => JSON.stringify(["C:\\Tools\\node", "D:\\中文\\bin"]),
+test("Codex app-server receives the recovered PATH without forwarding credentials to the query", async () => {
+  const environment = { ...process.env, PATH: "C:\\Existing", OPENAI_API_KEY: "private-test-key" };
+  const probe = {
+    platform: "win32" as const,
+    query: (_file: string, _args: readonly string[], env: NodeJS.ProcessEnv) => {
+      assert.equal(env.OPENAI_API_KEY, undefined);
+      return JSON.stringify(["C:\\Tools\\node", "D:\\中文\\bin"]);
     },
-  );
+  };
+  await refreshWindowsPath(environment, probe);
+  const result = buildCodexAppServerEnv("codex", environment, probe);
   assert.equal(result.PATH, "C:\\Existing;C:\\Tools\\node;D:\\中文\\bin");
+  assert.equal(result.OPENAI_API_KEY, "private-test-key", "the runtime still needs its selected Provider credential");
 });
 
-test("ignores malformed Windows discovery output and keeps the inherited PATH", (t) => {
+test("ignores malformed Windows discovery output and keeps the inherited PATH", async (t) => {
   const warnings = t.mock.method(console, "warn", () => {});
   for (const output of ["not json", "null", "{}", '["valid", 123]']) {
     assert.equal(
-      refreshWindowsPath({ PATH: "C:\\Existing" }, { platform: "win32", query: () => output }).PATH,
+      (await refreshWindowsPath({ PATH: "C:\\Existing" }, { platform: "win32", query: () => output })).PATH,
       "C:\\Existing",
     );
-    assert.deepEqual(
-      windowsAppCodexCandidates({}, () => output),
-      [],
-    );
+    assert.deepEqual(await refreshWindowsAppCodexCandidates({}, { query: () => output }), []);
   }
   assert.equal(warnings.mock.callCount(), 8);
 });
 
-test("rejects Store candidates outside the registered package and non-Codex executables", (t) => {
+test("rejects Store candidates outside the registered package and non-Codex executables", async (t) => {
   const root = mkdtempSync(join(tmpdir(), "opengrove-windows-codex-"));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const installLocation = join(root, "package");
   const expected = join(installLocation, "resources", "codex.exe");
   assert.deepEqual(
-    windowsAppCodexCandidates({}, () =>
-      JSON.stringify({
-        installLocation,
-        desktopExecutables: [],
-        executables: [
-          join(root, "outside", "codex.exe"),
-          "relative/codex.exe",
-          join(installLocation, "ChatGPT.exe"),
-          expected,
-        ],
-      }),
+    await refreshWindowsAppCodexCandidates(
+      {},
+      {
+        query: () =>
+          JSON.stringify({
+            installLocation,
+            desktopExecutables: [],
+            executables: [
+              join(root, "outside", "codex.exe"),
+              "relative/codex.exe",
+              join(installLocation, "ChatGPT.exe"),
+              expected,
+            ],
+          }),
+      },
     ),
     [expected],
   );
 });
 
-test("does not query Windows on macOS or Linux", () => {
+test("does not query Windows on macOS or Linux", async () => {
   const environment = { PATH: "/usr/bin" };
   for (const platform of ["darwin", "linux"] as const) {
     assert.equal(
-      refreshWindowsPath(environment, {
+      await refreshWindowsPath(environment, {
         platform,
         query: () => {
           throw new Error("unexpected Windows query");
@@ -221,7 +229,7 @@ test("system Windows PowerShell returns UTF-8 and the actual registry/package qu
   skip: process.platform !== "win32",
 }, async (t) => {
   const warnings = t.mock.method(console, "warn", () => {});
-  const output = queryWindowsCommand(
+  const output = await queryWindowsCommand(
     "powershell.exe",
     [
       "-NoLogo",
@@ -233,11 +241,10 @@ test("system Windows PowerShell returns UTF-8 and the actual registry/package qu
     process.env,
   );
   assert.equal(output?.trim(), "中文 用户");
-  const refreshed = refreshWindowsPath({ ...process.env, PATH: "" });
+  const refreshed = await refreshWindowsPath({ ...process.env, PATH: "" });
   assert.ok(refreshed.PATH?.toLowerCase().includes("system32"));
-  const asyncRefreshed = await refreshWindowsPathAsync({ ...process.env, PATH: "" });
-  assert.ok(asyncRefreshed.PATH?.toLowerCase().includes("system32"));
-  assert.ok(Array.isArray(windowsAppCodexCandidates(process.env)));
+  assert.equal(readWindowsPath({ ...process.env, PATH: "" }).PATH, refreshed.PATH);
+  assert.ok(Array.isArray(await refreshWindowsAppCodexCandidates(process.env)));
   assert.equal(warnings.mock.callCount(), 0);
 });
 

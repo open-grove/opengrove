@@ -53,11 +53,17 @@ then the current machine/user registry PATH, `CODEX_INSTALL_DIR`, the official
 `%LOCALAPPDATA%\Programs\OpenAI\Codex\bin` directory, and the WinGet `Links`
 entry. If those are absent, it queries the registered `OpenAI.Codex` desktop
 package for its bundled executable without pinning an installation volume or
-package version. Registry and package queries are bounded and repeated on later
-scans so installations made after desktop launch can be detected. Version
-probes, account login, and Codex app-server startup recover the current Windows
-PATH when needed. The existing macOS ChatGPT/Codex bundle discovery is retained.
-
+package version. Registry and package queries run asynchronously with a five-second
+limit, share concurrent requests, and use one-minute and five-minute caches
+respectively, including absent/failed results. Settings reads use the last
+snapshot while startup and Settings requests refresh it in the background; the
+Kernel panel updates after discovery finishes. Its Refresh button and completed
+installs bypass the caches. Windows version-check failures and timeouts are
+cached for one minute, keyed by the executable and normalized effective PATH;
+a formatting-only PATH change does not repeat the command. Account login and
+Codex app-server startup await PATH refresh without blocking the Host. Discovery
+helpers receive only system/user directory variables, never Provider credentials.
+The existing macOS ChatGPT/Codex bundle discovery is retained.
 
 ```bash
 OPENGROVE_KERNEL=codex

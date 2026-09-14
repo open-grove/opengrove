@@ -7,6 +7,8 @@ import styles from "./settings-kernel-panel.module.css";
 
 export function SettingsKernelPanel(props: {
   t: TranslationFn;
+  refreshing?: boolean;
+  onRefresh?(): void;
   kernels: KernelOption[];
   expandedKernelId: string;
   kernelPathOverrides: Record<string, KernelPathOverride>;
@@ -22,6 +24,18 @@ export function SettingsKernelPanel(props: {
 
   return (
     <div className="settings-page-stack">
+      {props.onRefresh ? (
+        <div className={styles.refreshRow}>
+          <button
+            className="ghost-button"
+            type="button"
+            disabled={props.refreshing || props.saving}
+            onClick={props.onRefresh}
+          >
+            {props.refreshing ? t("settings.refreshingKernels") : t("settings.refreshKernels")}
+          </button>
+        </div>
+      ) : null}
       <section className="settings-list-section">
         <div className={styles.list}>
           {props.kernels.map((option) => {

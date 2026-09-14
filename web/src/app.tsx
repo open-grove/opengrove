@@ -1131,6 +1131,17 @@ export function App() {
     }
   }
 
+  const refreshKernelsMutation = useMutation({
+    mutationFn: () => getJson<BridgeSettingsResponse>("/settings?refresh=1"),
+    onSuccess(result) {
+      queryClient.setQueryData(["settings"], result);
+      void queryClient.invalidateQueries({ queryKey: ["kernel-logins"] });
+    },
+    onError(error) {
+      toast({ kind: "error", title: systemDetail(error) });
+    },
+  });
+
   const installKernelMutation = useMutation({
     mutationFn: (payload: { kernelId: string; actionId: string }) =>
       postJson<KernelInstallResponse>("/settings/install-kernel", payload),
@@ -2413,6 +2424,8 @@ export function App() {
             kernelLogins={kernelLoginsQuery.data?.logins ?? []}
             kernelLoginsLoading={kernelLoginsQuery.isFetching}
             onRefreshKernelLogins={() => void kernelLoginsQuery.refetch()}
+            onRefreshKernels={() => refreshKernelsMutation.mutate()}
+            kernelsRefreshing={refreshKernelsMutation.isPending || settingsQuery.data?.kernelDiscoveryPending}
             kernelLoginSession={kernelLoginSessionQuery.data?.session}
             kernelLoginActionPending={kernelLoginMutation.isPending}
             error={

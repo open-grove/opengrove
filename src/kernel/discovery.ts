@@ -2,11 +2,7 @@ import crossSpawn from "cross-spawn";
 import { accessSync, constants, existsSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { extname, resolve } from "node:path";
-import {
-  hasAdditionalWindowsPath,
-  refreshWindowsPath,
-  windowsPathFingerprint,
-} from "../environment/windows-discovery.js";
+import { readWindowsPath, windowsPathFingerprint } from "../environment/windows-discovery.js";
 import type {
   KernelExecutableProbe,
   KernelExecutableProbeSource,
@@ -244,13 +240,14 @@ export function commandDiscoveryHealth(
 
 export function commandProbe(command: string | undefined, args: string[] = ["--version"]): CommandProbeResult {
   if (!command?.trim()) return { status: "failed" };
-  const resolvedCommand = resolveCommandPath(command) ?? command.trim();
-  const invocation = resolveCommandInvocation(resolvedCommand, args, { wrapWindowsScript: false });
+  const environment = readWindowsPath(process.env);
+  const resolvedCommand = resolveCommandPath(command, { path: environment.PATH }) ?? command.trim();
+  const invocation = resolveCommandInvocation(resolvedCommand, args, { environment, wrapWindowsScript: false });
   const cacheKey = JSON.stringify([
     invocation.command,
     invocation.args,
     commandFileFingerprint(resolvedCommand),
-    process.platform === "win32" ? windowsPathFingerprint(process.env.PATH) : process.env.PATH,
+    process.platform === "win32" ? windowsPathFingerprint(environment.PATH) : environment.PATH,
   ]);
   const cached = COMMAND_PROBE_CACHE.get(cacheKey);
   // Failed Windows installs can recover without a restart, but repeated reads
@@ -267,14 +264,9 @@ export function commandProbe(command: string | undefined, args: string[] = ["--v
       encoding: "utf8" as const,
       stdio: ["ignore", "pipe", "pipe"] as ["ignore", "pipe", "pipe"],
       timeout: 2_000,
+      env: environment,
     };
-    let result = crossSpawn.sync(invocation.command, invocation.args, options);
-    if (process.platform === "win32" && result.status !== 0) {
-      const environment = refreshWindowsPath(process.env);
-      if (hasAdditionalWindowsPath(process.env.PATH, environment.PATH)) {
-        result = crossSpawn.sync(invocation.command, invocation.args, { ...options, env: environment });
-      }
-    }
+    const result = crossSpawn.sync(invocation.command, invocation.args, options);
     const output = `${result.stdout || ""}${result.stderr || ""}`.trim();
     const version = output
       .split(/\r?\n/)

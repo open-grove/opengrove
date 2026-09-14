@@ -242,7 +242,7 @@ else {
         };
 
         let launchedCommand: Parameters<KernelLoginActionRuntime["launchTerminal"]>[0] | undefined;
-        const started = startKernelLoginAction(
+        const started = await startKernelLoginAction(
           state,
           "codex",
           "login",
@@ -312,7 +312,7 @@ else {
 
         let timeoutCleanupRoot = "";
         let timeoutLauncher: ReturnType<typeof spawn> | undefined;
-        const hanging = startKernelLoginAction(state, "codex", "login", {
+        const hanging = await startKernelLoginAction(state, "codex", "login", {
           launchTerminal() {
             timeoutCleanupRoot = mkdtempSync(join(root, "terminal-timeout-"));
             timeoutLauncher = spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)"], { stdio: "ignore" });

@@ -248,7 +248,7 @@
     "test:harness:built": "node scripts/run-built-harnesses.mjs full",
     "test:release": "npm run check && npm run check:typescript-runtime-compat && npm --prefix examples/mcp-app-basic run build && npm run build && npm run test:withdrawal:built && npm run check:web-app-store-publish-page && npm run check:web-workspace-download && npm run test:web-room-interaction-ui && npm run test:web-identity-editing-flow && npm run test:harness:built && npm run test:app-setup-shell:built",
     "test:storage": "npm run build:server && node dist/tests/storage-overview-harness.js && node dist/tests/storage-maintenance-gate-harness.js && node dist/tests/sqlite-state-store-harness.js && node dist/tests/rooms-store-harness.js",
-    "test:windows:codex-discovery": "npm run build:server && node --test dist/tests/codex-windows-discovery.test.js && node dist/tests/kernel-login-harness.js",
+    "test:windows:codex-discovery": "npm run build:server && node --test dist/tests/codex-windows-discovery.test.js dist/tests/windows-discovery-cache.test.js dist/tests/windows-command-probe.test.js dist/tests/windows-system-terminal.test.js && node dist/tests/kernel-login-harness.js",
     "test:windows:media-cleanup": "npm run build:server && node dist/tests/raw-file-range-harness.js",
     "test:windows:state-ownership": "npm run check:desktop-state-lock-recovery && npm run build:server && node scripts/test-process-started-at.mjs && node dist/tests/state-file-lock-harness.js && node dist/tests/sqlite-state-store-harness.js && node scripts/test-desktop-bridge.mjs",
     "test:windows:app-store-lifecycle": "npm run build:server && node dist/tests/app-store-harness.js && node dist/tests/app-version-activation-harness.js",
