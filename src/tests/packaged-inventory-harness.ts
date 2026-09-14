@@ -8,6 +8,7 @@ import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { appEnvName } from "../identity.js";
 import { startLocalBridgeServer } from "../server/local-bridge.js";
+import { refreshCodexCommandPath } from "../runtime/codex/command-path.js";
 
 interface InventoryResponse {
   ok?: boolean;
@@ -179,6 +180,8 @@ try {
       server?.close((error) => (error ? reject(error) : resolve()));
     });
   }
+  // Startup discovery may still have a PowerShell child holding this temporary cwd on Windows.
+  if (process.platform === "win32") await refreshCodexCommandPath();
   process.chdir(previousCwd);
   chmodSync(installRoot, 0o755);
   if (previousDataDir === undefined) {

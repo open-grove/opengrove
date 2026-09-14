@@ -164,11 +164,21 @@ export const harnessInventory = [
   }),
   task("app-release-coordinator", "dist/tests/app-release-coordinator-harness.js", "app-lifecycle", {
     suite: "critical",
+    platforms: ["darwin", "linux"],
   }),
   task("app-release-registry-migration", "dist/tests/app-release-registry-migration-harness.js", "app-lifecycle", {
     suite: "critical",
+    platforms: ["darwin", "linux"],
   }),
-  task("app-release-apply", "dist/tests/app-release-apply-harness.js", "app-lifecycle", { suite: "critical" }),
+  task("app-release-apply", "dist/tests/app-release-apply-harness.js", "app-lifecycle", {
+    suite: "critical",
+    platforms: ["darwin", "linux"],
+  }),
+  // Windows intentionally rejects recipes until native Job Object ownership is available.
+  task("app-release-windows-build-boundary", "dist/tests/app-release-local-build.test.js", "app-lifecycle", {
+    suite: "critical",
+    platforms: ["win32"],
+  }),
   task("release-cli", "dist/tests/release-cli-harness.js", "app-lifecycle", { suite: "critical" }),
   task("release-cli-real-bridge", "dist/tests/release-cli-real-bridge-harness.js", "app-lifecycle", {
     suite: "critical",
@@ -215,6 +225,10 @@ function task(id, path, owner, options = {}) {
   return { id, path, owner, ...options };
 }
 
+export function harnessTasksForPlatform(tasks, platform) {
+  return tasks.filter((task) => !task.platforms || task.platforms.includes(platform));
+}
+
 function validateInventory(inventory) {
   const ids = new Set();
   for (const entry of inventory) {
@@ -226,6 +240,12 @@ function validateInventory(inventory) {
     }
     if (entry.isolation && entry.isolation !== "clean-home") {
       throw new Error(`Unknown harness isolation for ${entry.id}: ${entry.isolation}`);
+    }
+    if (
+      entry.platforms &&
+      (!entry.platforms.length || entry.platforms.some((platform) => !["darwin", "linux", "win32"].includes(platform)))
+    ) {
+      throw new Error(`Invalid harness platforms for ${entry.id}`);
     }
   }
 }

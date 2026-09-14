@@ -3,7 +3,7 @@ import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { harnessGroups } from "./ci-harness-inventory.mjs";
+import { harnessGroups, harnessTasksForPlatform } from "./ci-harness-inventory.mjs";
 
 export { harnessGroups } from "./ci-harness-inventory.mjs";
 
@@ -18,7 +18,14 @@ function runGroup(groupName) {
     return;
   }
 
-  const missing = tasks.filter((task) => !existsSync(resolve(projectRoot, task.path)));
+  const selected = harnessTasksForPlatform(tasks, process.platform);
+  const skipped = tasks.filter((task) => !selected.includes(task));
+  for (const task of skipped) {
+    console.log(
+      `[harness] SKIP ${task.id} (runs on ${task.platforms.join(", ")}; current platform is ${process.platform})`,
+    );
+  }
+  const missing = selected.filter((task) => !existsSync(resolve(projectRoot, task.path)));
   if (missing.length) {
     console.error(`Harness group ${groupName} has missing built inputs:`);
     for (const task of missing) console.error(`- ${task.id}: ${task.path}`);
@@ -27,7 +34,7 @@ function runGroup(groupName) {
   }
 
   const failures = [];
-  for (const task of tasks) {
+  for (const task of selected) {
     const startedAt = Date.now();
     console.log(`[harness] START ${task.id}`);
     const cleanHomeRoot =
@@ -64,7 +71,9 @@ function runGroup(groupName) {
     }
     process.exitCode = 1;
   } else {
-    console.log(`[harness] ${groupName} passed (${tasks.length}/${tasks.length})`);
+    console.log(
+      `[harness] ${groupName} passed (${selected.length}/${selected.length}; ${skipped.length} platform-specific skipped)`,
+    );
   }
 }
 
