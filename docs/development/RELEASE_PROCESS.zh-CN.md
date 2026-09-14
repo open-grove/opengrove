@@ -139,6 +139,12 @@ gh workflow run desktop-release.yml --ref main \
 门禁。首个 GitHub Release 创建后，引导路径会被拒绝；后续候选会自动使用
 公开仓的上一个 GitHub Release。
 
+已知良好制品重放使用独立固定的 `v0.6.0` 基线。候选 workflow 从已通过连通性
+检查的正式发布根地址读取该历史安装包，再校验原有文件大小、SHA-256 和 dist
+inventory。它不要求公开仓补建历史 GitHub Release，也不会改变 N-1 更新所用的
+`v0.6.5` 引导制品。独立运行重放 workflow 时可传入 `public_root`；省略时仍使用
+GitHub Release 资产。
+
 只有以下门禁全部通过，workflow 才会组装不可变候选版本：
 
 - 版本号和成对版本说明；

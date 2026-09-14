@@ -489,7 +489,8 @@ function testDesktopReleaseWorkflow() {
   assert.match(deploymentReadiness, /secrets\.OPENGROVE_RELEASE_R2_ACCESS_KEY_ID/);
   assert.match(deploymentReadiness, /secrets\.OPENGROVE_RELEASE_UPLOAD_TOKEN/);
   const goldenReplayJob = workflow.slice(workflow.indexOf("  golden-replay:"), workflow.indexOf("  mac-release:"));
-  assert.match(goldenReplayJob, /needs: resolve-candidate/);
+  assert.match(goldenReplayJob, /needs: \[resolve-candidate, deployment-readiness\]/);
+  assert.match(goldenReplayJob, /public_root: \$\{\{ needs\.deployment-readiness\.outputs\.public_release_root \}\}/);
   assert.match(goldenReplayJob, /if: needs\.resolve-candidate\.outputs\.full_candidate == 'true'/);
   const releaseGates = workflow.slice(
     workflow.indexOf("  release-gates:"),
@@ -630,6 +631,8 @@ function testDesktopReleaseWorkflow() {
   assert.match(goldenReplay, /--legacy-process-only/);
   assert.match(goldenReplay, /desktop-release-golden-v0\.6\.0\.json/);
   assert.match(goldenReplay, /value\.tag/);
+  assert.match(goldenReplay, /PUBLIC_ROOT: \$\{\{ inputs\.public_root \}\}/);
+  assert.match(goldenReplay, /--public-root "\$PUBLIC_ROOT"/);
   assert.doesNotMatch(goldenReplay, /v0\.5\.18/);
   const goldenManifest = JSON.parse(
     readFileSync(join(projectRoot, "scripts", "fixtures", "desktop-release-golden-v0.6.0.json"), "utf8"),
