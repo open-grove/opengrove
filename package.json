@@ -149,7 +149,7 @@
     "check:web-loading-state-policy": "node scripts/test-web-loading-state-policy.mjs",
     "check:web-room-state": "node scripts/test-web-room-state.mjs",
     "check:web-theme": "node --experimental-strip-types scripts/test-web-theme.mjs",
-    "check:web-bridge-sync": "node --experimental-strip-types scripts/test-web-bridge-sync-policy.mjs && node scripts/test-web-provider-recovery.mjs",
+    "check:web-bridge-sync": "node --experimental-strip-types scripts/test-web-bridge-sync-policy.mjs && node scripts/test-web-provider-recovery.mjs && node scripts/test-web-session-expiry.mjs",
     "check:web-app-store-action": "node scripts/test-web-app-store-action.mjs",
     "check:web-storage-management": "node scripts/test-web-storage-management-ui.mjs",
     "check:host-version": "node scripts/test-host-version.mjs",
