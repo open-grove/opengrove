@@ -309,6 +309,8 @@ export const ZH_CN = {
   "composer.contextUsed": "已用",
   "composer.contextRemaining": "剩余",
   "composer.contextTotal": "共",
+  "settings.refreshKernels": "刷新",
+  "settings.refreshingKernels": "正在检查…",
   "settings.mode": "模式",
   "settings.kernels": "内核",
   "settings.opsCenter": "运行中心",

@@ -1,12 +1,14 @@
 import { refreshClaudeCodeLocalRouteProfile } from "../kernel/adapters/claude-code.js";
 import { randomUUID } from "node:crypto";
-import { spawn } from "node:child_process";
+import crossSpawn from "cross-spawn";
 import { existsSync, readFileSync, rmSync } from "node:fs";
+import { readWindowsPath, refreshWindowsPath } from "../environment/windows-discovery.js";
 import { applyKernelProxyEnv, resolveKernelProxySettings } from "../runtime/kernel-proxy.js";
 import { resolveCommandInvocation, resolveCommandPath } from "../kernel/discovery.js";
 import type { BridgeKernelId, BridgeProviderProfile, BridgeState } from "./bridge-types.js";
 import { BRIDGE_KERNEL_IDS, LOGIN_PROVIDER_BINDING_ID } from "./bridge-types.js";
 import { getBridgeKernelDescriptor, readKernelLocalRouteProfile } from "./kernel-registry.js";
+import { refreshWindowsKernelDiscovery } from "./windows-kernel-discovery.js";
 import { resolveKernelCommandPath } from "./kernel-selection.js";
 import { kernelBinaryPathOverride, kernelConfigHome, kernelPathEnv } from "./kernel-utils.js";
 import { resolveBridgeWorkspaceRoot } from "./workspace-root.js";
@@ -91,6 +93,7 @@ export function cleanupStaleKernelLoginSessions(options: { root?: string; now?: 
 }
 
 export async function describeKernelLogins(state: BridgeState): Promise<BridgeKernelLoginView[]> {
+  await refreshWindowsKernelDiscovery(state);
   const views = await Promise.all(
     BRIDGE_KERNEL_IDS.map(async (kernelId): Promise<BridgeKernelLoginView | undefined> => {
       const descriptor = getBridgeKernelDescriptor(kernelId);
@@ -176,12 +179,13 @@ export function kernelLoginRouteProfiles(state: BridgeState): BridgeProviderProf
   });
 }
 
-export function startKernelLoginAction(
+export async function startKernelLoginAction(
   state: BridgeState,
   kernelId: BridgeKernelId,
   action: "login" | "logout",
   runtime: KernelLoginActionRuntime = DEFAULT_LOGIN_RUNTIME,
-): BridgeKernelLoginSession {
+): Promise<BridgeKernelLoginSession> {
+  await refreshWindowsKernelDiscovery(state);
   const descriptor = getBridgeKernelDescriptor(kernelId);
   const commands = KERNEL_LOGIN_COMMANDS[kernelId];
   const args = commands?.[action];
@@ -203,7 +207,10 @@ export function startKernelLoginAction(
   if (action === "login") {
     try {
       const environment = kernelLoginTerminalEnvironment(state, kernelId);
-      const invocation = resolveCommandInvocation(command, args, { environment: process.env });
+      const invocation = resolveCommandInvocation(command, args, {
+        environment: process.env,
+        wrapWindowsScript: false,
+      });
       const terminal = runtime.launchTerminal({
         command: invocation.command,
         args: invocation.args,
@@ -235,10 +242,10 @@ export function startKernelLoginAction(
     return publicLoginSession(session);
   }
 
-  const invocation = resolveCommandInvocation(command, args, { environment: process.env });
-  const child = spawn(invocation.command, invocation.args, {
+  const invocation = resolveCommandInvocation(command, args, { environment: process.env, wrapWindowsScript: false });
+  const child = crossSpawn(invocation.command, invocation.args, {
     cwd: process.cwd(),
-    env: kernelLoginEnvironment(state, kernelId),
+    env: await refreshWindowsPath(kernelLoginEnvironment(state, kernelId)),
     stdio: ["ignore", "pipe", "pipe"],
     windowsHide: true,
   });
@@ -301,7 +308,8 @@ async function probeNativeLoginStatus(
   args: string[],
 ): Promise<BridgeKernelLoginStatus> {
   try {
-    const result = await runBoundedCommand(command, args, kernelLoginEnvironment(state, kernelId), STATUS_TIMEOUT_MS);
+    const environment = await refreshWindowsPath(kernelLoginEnvironment(state, kernelId));
+    const result = await runBoundedCommand(command, args, environment, STATUS_TIMEOUT_MS);
     if (kernelId === "codex") {
       const statusText = `${result.stdout}\n${result.stderr}`;
       return result.exitCode === 0 && /logged in/i.test(statusText) && !/api key/i.test(statusText)
@@ -324,10 +332,9 @@ function kernelLoginEnvironment(state: BridgeState, kernelId: BridgeKernelId): N
 }
 
 function kernelLoginTerminalEnvironment(state: BridgeState, kernelId: BridgeKernelId): NodeJS.ProcessEnv {
-  return applyKernelProxyEnv(
-    kernelPathEnv(state.settings, kernelId),
-    resolveKernelProxySettings(state.settings.kernelProxy, process.env),
-  );
+  const environment = kernelPathEnv(state.settings, kernelId);
+  if (process.platform === "win32") environment.PATH = readWindowsPath(process.env).PATH;
+  return applyKernelProxyEnv(environment, resolveKernelProxySettings(state.settings.kernelProxy, process.env));
 }
 
 function accountLoginExcludedCredentialKeys(kernelId: BridgeKernelId): string[] {
@@ -361,9 +368,9 @@ function runBoundedCommand(
   env: NodeJS.ProcessEnv,
   timeoutMs: number,
 ): Promise<{ exitCode: number; stdout: string; stderr: string }> {
-  const invocation = resolveCommandInvocation(command, args, { environment: env });
+  const invocation = resolveCommandInvocation(command, args, { environment: env, wrapWindowsScript: false });
   return new Promise((resolve, reject) => {
-    const child = spawn(invocation.command, invocation.args, {
+    const child = crossSpawn(invocation.command, invocation.args, {
       env,
       stdio: ["ignore", "pipe", "pipe"],
       windowsHide: true,

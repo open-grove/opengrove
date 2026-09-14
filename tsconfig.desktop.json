@@ -12,5 +12,5 @@
     "types": ["node", "electron"],
     "noEmit": true
   },
-  "include": ["desktop/**/*.ts"]
+  "include": ["desktop/**/*.ts", "src/types/cross-spawn.d.ts"]
 }

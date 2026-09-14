@@ -29,6 +29,7 @@ import { refreshOpenClawGatewayProviders } from "./openclaw-provider-discovery.j
 import { closeImportedNativeFolderWatchers } from "./knowledge-imported-folders.js";
 import { readClientReleaseNumber, readPackageVersion } from "./client-release.js";
 import { internalBridgeBaseUrl } from "./internal-bridge-url.js";
+import { refreshWindowsKernelDiscovery } from "./windows-kernel-discovery.js";
 import { cleanupStaleKernelLoginSessions } from "./kernel-login.js";
 import { writeBridgeDiscoveryFile } from "./bridge-discovery.js";
 
@@ -42,6 +43,7 @@ export function startOpenGroveServer(options: LocalBridgeServerOptions = {}) {
     throw new Error("web-single requires OPENGROVE_WW_BASE_URL to use WW session authentication.");
   }
   const state = createBridgeState(options, security.authMode);
+  void refreshWindowsKernelDiscovery(state);
   void refreshOpenClawGatewayProviders(state);
   void refreshProviderModelDiscovery({
     profiles: getAllBridgeProviderProfiles(state.settings.customProviders),

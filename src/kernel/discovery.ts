@@ -1,7 +1,8 @@
-import { spawnSync } from "node:child_process";
+import crossSpawn from "cross-spawn";
 import { accessSync, constants, existsSync, statSync } from "node:fs";
 import { homedir } from "node:os";
-import { delimiter, extname, resolve } from "node:path";
+import { extname, resolve } from "node:path";
+import { readWindowsPath, windowsPathFingerprint } from "../environment/windows-discovery.js";
 import type {
   KernelExecutableProbe,
   KernelExecutableProbeSource,
@@ -26,7 +27,8 @@ export interface CommandDiscoveryProbe {
   probe: CommandProbeResult;
 }
 
-const COMMAND_PROBE_CACHE = new Map<string, CommandProbeResult>();
+const COMMAND_PROBE_CACHE = new Map<string, { result: CommandProbeResult; checkedAt: number }>();
+const FAILED_WINDOWS_PROBE_TTL_MS = 60_000;
 
 export interface KernelSourceInput {
   id: string;
@@ -53,6 +55,8 @@ export interface CommandInvocationProbe {
   environment?: NodeJS.ProcessEnv;
   nodeScript?: boolean;
   nodePath?: string;
+  /** cross-spawn and PowerShell already handle Windows scripts and their quoting. */
+  wrapWindowsScript?: boolean;
 }
 
 export function directorySource(input: KernelSourceInput): KernelKnowledgeSource {
@@ -101,7 +105,11 @@ export function resolveCommandInvocation(
       args: [resolvedCommand, ...args],
     };
   }
-  if (platform === "win32" && WINDOWS_SHELL_EXTENSIONS.has(extname(resolvedCommand).toLowerCase())) {
+  if (
+    platform === "win32" &&
+    probe.wrapWindowsScript !== false &&
+    WINDOWS_SHELL_EXTENSIONS.has(extname(resolvedCommand).toLowerCase())
+  ) {
     // Windows command scripts require cmd.exe after Node's CVE-2024-27980
     // hardening. This selects the required executable but does not escape cmd
     // metacharacters; each caller owns the trust and escaping policy for argv.
@@ -231,18 +239,34 @@ export function commandDiscoveryHealth(
 }
 
 export function commandProbe(command: string | undefined, args: string[] = ["--version"]): CommandProbeResult {
-  const resolvedCommand = resolveCommandPath(command) ?? command?.trim();
-  if (!resolvedCommand) return { status: "failed" };
-  const invocation = resolveCommandInvocation(resolvedCommand, args);
-  const cacheKey = JSON.stringify([invocation.command, invocation.args, commandFileFingerprint(resolvedCommand)]);
+  if (!command?.trim()) return { status: "failed" };
+  const environment = readWindowsPath(process.env);
+  const resolvedCommand = resolveCommandPath(command, { path: environment.PATH }) ?? command.trim();
+  const invocation = resolveCommandInvocation(resolvedCommand, args, { environment, wrapWindowsScript: false });
+  const cacheKey = JSON.stringify([
+    invocation.command,
+    invocation.args,
+    commandFileFingerprint(resolvedCommand),
+    process.platform === "win32" ? windowsPathFingerprint(environment.PATH) : environment.PATH,
+  ]);
   const cached = COMMAND_PROBE_CACHE.get(cacheKey);
-  if (cached) return cached;
+  // Failed Windows installs can recover without a restart, but repeated reads
+  // within one minute must not keep launching a broken or hung executable.
+  if (
+    cached &&
+    (cached.result.status === "ok" ||
+      process.platform !== "win32" ||
+      Date.now() - cached.checkedAt < FAILED_WINDOWS_PROBE_TTL_MS)
+  )
+    return cached.result;
   try {
-    const result = spawnSync(invocation.command, invocation.args, {
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "pipe"],
+    const options = {
+      encoding: "utf8" as const,
+      stdio: ["ignore", "pipe", "pipe"] as ["ignore", "pipe", "pipe"],
       timeout: 2_000,
-    });
+      env: environment,
+    };
+    const result = crossSpawn.sync(invocation.command, invocation.args, options);
     const output = `${result.stdout || ""}${result.stderr || ""}`.trim();
     const version = output
       .split(/\r?\n/)
@@ -259,11 +283,11 @@ export function commandProbe(command: string | undefined, args: string[] = ["--v
             ...(typeof result.status === "number" ? { exitCode: result.status } : {}),
             ...(errorCode ? { errorCode } : {}),
           };
-    COMMAND_PROBE_CACHE.set(cacheKey, probe);
+    COMMAND_PROBE_CACHE.set(cacheKey, { result: probe, checkedAt: Date.now() });
     return probe;
   } catch {
     const probe: CommandProbeResult = { status: "failed" };
-    COMMAND_PROBE_CACHE.set(cacheKey, probe);
+    COMMAND_PROBE_CACHE.set(cacheKey, { result: probe, checkedAt: Date.now() });
     return probe;
   }
 }
@@ -345,7 +369,7 @@ function resolveCommandOnPath(
   path: string | undefined,
   platform: NodeJS.Platform,
 ): string | undefined {
-  const pathEntries = path?.split(delimiter).filter(Boolean) ?? [];
+  const pathEntries = path?.split(platform === "win32" ? ";" : ":").filter(Boolean) ?? [];
   for (const entry of pathEntries) {
     const baseCandidate = resolve(entry, command);
     const extension = extname(baseCandidate);

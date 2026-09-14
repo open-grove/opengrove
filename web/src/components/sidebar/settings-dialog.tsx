@@ -98,6 +98,8 @@ export function SettingsDialog(props: {
   onClose(): void;
   onInstallKernel?(kernelId: string, actionId: string): void;
   onRefreshKernelLogins?(): void;
+  onRefreshKernels?(): void;
+  kernelsRefreshing?: boolean;
   onKernelLoginAction?(kernelId: string, action: "login" | "logout"): void;
   onSave(payload: {
     developerMode?: boolean;
@@ -646,6 +648,8 @@ export function SettingsDialog(props: {
             <SettingsKernelPanel
               t={t}
               kernels={visibleKernels}
+              refreshing={props.kernelsRefreshing}
+              onRefresh={props.onRefreshKernels}
               expandedKernelId={expandedKernelId}
               kernelPathOverrides={kernelPathOverrides}
               loading={props.loading}

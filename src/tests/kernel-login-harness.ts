@@ -28,7 +28,7 @@ import {
 import { cleanupStaleSystemTerminalRoots, systemTerminalScript } from "../server/system-terminal.js";
 
 async function main(): Promise<void> {
-  const root = mkdtempSync(join(tmpdir(), "opengrove-kernel-login-"));
+  const root = mkdtempSync(join(tmpdir(), "opengrove-kernel-login-中文 用户-"));
   try {
     await withEnv(
       {
@@ -242,7 +242,7 @@ else {
         };
 
         let launchedCommand: Parameters<KernelLoginActionRuntime["launchTerminal"]>[0] | undefined;
-        const started = startKernelLoginAction(
+        const started = await startKernelLoginAction(
           state,
           "codex",
           "login",
@@ -260,14 +260,25 @@ else {
         assert.deepEqual(launchedCommand?.args, [codex, "login", "--device-auth"]);
         assert.equal(launchedCommand?.environment.HTTPS_PROXY, "http://127.0.0.1:17890");
         assert.equal(launchedCommand?.environment.CODEX_HOME, join(root, "codex-home"));
+        if (process.platform === "win32") {
+          assert.ok(launchedCommand?.environment.PATH, "Windows login terminals must receive the recovered PATH");
+        }
         assert.equal(finished.output, "", "interactive CLI output must stay in the system terminal");
 
-        const generatedScript = join(root, "generated-login.sh");
+        const scriptPlatform = process.platform === "win32" ? "win32" : "linux";
+        const generatedScript = join(root, process.platform === "win32" ? "generated-login.ps1" : "generated-login.sh");
         const generatedResult = join(root, "generated-exit-code");
-        writeFileSync(generatedScript, systemTerminalScript(launchedCommand, generatedResult, "linux"), {
+        writeFileSync(generatedScript, systemTerminalScript(launchedCommand, generatedResult, scriptPlatform), {
           mode: 0o700,
         });
-        const generatedRun = spawnSync("/bin/sh", [generatedScript], { encoding: "utf8" });
+        const generatedRun =
+          process.platform === "win32"
+            ? spawnSync(
+                "powershell.exe",
+                ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", generatedScript],
+                { encoding: "utf8", timeout: 10_000 },
+              )
+            : spawnSync("/bin/sh", [generatedScript], { encoding: "utf8" });
         assert.equal(generatedRun.status, 0, generatedRun.stderr);
         assert.equal(readFileSync(generatedResult, "utf8"), "0");
         for (const extension of ["cmd", "bat"]) {
@@ -301,7 +312,7 @@ else {
 
         let timeoutCleanupRoot = "";
         let timeoutLauncher: ReturnType<typeof spawn> | undefined;
-        const hanging = startKernelLoginAction(state, "codex", "login", {
+        const hanging = await startKernelLoginAction(state, "codex", "login", {
           launchTerminal() {
             timeoutCleanupRoot = mkdtempSync(join(root, "terminal-timeout-"));
             timeoutLauncher = spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)"], { stdio: "ignore" });

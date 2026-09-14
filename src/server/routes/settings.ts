@@ -46,6 +46,7 @@ import { resolveHostLanguageSettings } from "../language-preference.js";
 import { migrateMountedAppManifestV1 } from "../migrations/app-manifest-v1.js";
 import { mountedAppManifestIssue, readMountedAppManifest, resolveMountedAppWorkspaceRoot } from "../mounted-apps.js";
 import { legacyAppStoreRoot, storeAppLayoutV2ProgramRoots } from "../migrations/store-app-layout-v2.js";
+import { refreshWindowsKernelDiscovery, windowsKernelDiscoveryPending } from "../windows-kernel-discovery.js";
 import { refreshOpenClawGatewayProviders } from "../openclaw-provider-discovery.js";
 import { refreshProviderModelDiscovery } from "../provider-model-discovery.js";
 import { getAllBridgeProviderProfiles, getBridgeProviderModelCatalog } from "../provider-profiles.js";
@@ -71,6 +72,12 @@ export async function handleSettingsRoute(options: {
     // Settings must render from the last known catalog immediately. Discovery
     // also runs at startup and every six hours; this call only nudges a refresh.
     void refreshOpenClawGatewayProviders(state);
+    if (url.searchParams.get("refresh") === "1") {
+      await refreshWindowsKernelDiscovery(state, { force: true });
+      clearCommandVersionCache();
+    } else {
+      void refreshWindowsKernelDiscovery(state);
+    }
     sendJson(
       response,
       200,
@@ -103,7 +110,7 @@ export async function handleSettingsRoute(options: {
   const loginAction = kernelLoginActionFromPath(url.pathname);
   if (request.method === "POST" && loginAction) {
     try {
-      const session = startKernelLoginAction(state, loginAction.kernelId, loginAction.action);
+      const session = await startKernelLoginAction(state, loginAction.kernelId, loginAction.action);
       sendJson(response, 202, { ok: true, session });
     } catch (error) {
       sendJson(response, 400, {
@@ -336,6 +343,7 @@ export async function handleSettingsRoute(options: {
           resolveKernelProxySettings(state.settings.kernelProxy, process.env),
         ),
       });
+      await refreshWindowsKernelDiscovery(state, { force: true });
       clearCommandVersionCache();
       let runtimeRefreshError: string | undefined;
       try {
@@ -603,6 +611,7 @@ function bridgeSettingsPayload(state: BridgeState, payload: Record<string, unkno
   return {
     ...payload,
     settings: getBridgeSettingsSnapshot(state),
+    kernelDiscoveryPending: windowsKernelDiscoveryPending(state),
     runtimeControls: getBridgeRuntimeControls(state),
     runtimeControlsByKernel: getBridgeRuntimeControlsByKernel(state),
   };

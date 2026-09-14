@@ -668,6 +668,7 @@ export interface ModelProviderBinding {
 
 export interface BridgeSettingsResponse {
   ok: boolean;
+  kernelDiscoveryPending?: boolean;
   restarted?: boolean;
   settings: BridgeSettings;
   runtimeControls?: RuntimeControls;

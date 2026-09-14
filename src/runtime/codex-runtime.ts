@@ -884,7 +884,7 @@ export class CodexRuntime implements AgentRuntime {
     env: NodeJS.ProcessEnv,
     rpcCapture: ReturnType<typeof createCodexRpcCaptureRecorder>,
   ): Promise<CodexAppServerClient> {
-    const client = CodexAppServerClient.start({ command, args, env, rpcCapture });
+    const client = await CodexAppServerClient.start({ command, args, env, rpcCapture });
     try {
       await client.initialize();
       return client;
@@ -899,7 +899,7 @@ export class CodexRuntime implements AgentRuntime {
       rpcCapture?.recordLifecycle("app_server.feature_flag_fallback", {
         droppedFlags: rejectedFlags,
       });
-      const retried = CodexAppServerClient.start({ command, args: reducedArgs, env, rpcCapture });
+      const retried = await CodexAppServerClient.start({ command, args: reducedArgs, env, rpcCapture });
       try {
         await retried.initialize();
         return retried;
