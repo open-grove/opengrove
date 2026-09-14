@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
-import { windowsProbeEnvironment, windowsEnvironmentValue } from "../environment/windows-query.js";
+import { windowsProbeEnvironment } from "../environment/windows-query.js";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -303,47 +303,52 @@ test("Windows retries a failed version probe after an explicit refresh of its re
 async function diagnoseAppxQuery(args: string[]): Promise<void> {
   const minimal = windowsProbeEnvironment(process.env);
   const command = join(minimal.SystemRoot!, "System32", "WindowsPowerShell", "v1.0", "powershell.exe");
-  const profiles = [
-    {
-      name: "simple-full-env",
-      env: process.env,
-      args: [
-        "-NoLogo",
-        "-NoProfile",
-        "-NonInteractive",
-        "-Command",
-        "Get-AppxPackage -Name OpenAI.Codex | Select-Object Name,PackageFamilyName,InstallLocation | ConvertTo-Json -Compress",
-      ],
-    },
-    { name: "exact-full-env", env: process.env, args },
-    { name: "isolated-plus-path", env: { ...minimal, PATH: windowsEnvironmentValue(process.env, "PATH") }, args },
-    {
-      name: "isolated-plus-execution-policy",
-      env: { ...minimal, PSExecutionPolicyPreference: process.env.PSExecutionPolicyPreference },
-      args,
-    },
-    { name: "isolated-longer-control", env: minimal, args },
-  ];
-  for (const profile of profiles) {
+  const environmentWith = (keys: string[]) => {
+    const env = { ...minimal };
+    for (const key of keys) {
+      for (const existing of Object.keys(env)) if (existing.toLowerCase() === key.toLowerCase()) delete env[existing];
+      env[key] = process.env[key];
+    }
+    return env;
+  };
+  const passes = async (keys: string[]): Promise<boolean> => {
     const started = performance.now();
-    const result = await new Promise((resolve) => {
+    const result = await new Promise<boolean>((resolve) => {
       const child = execFile(
         command,
-        profile.args,
-        { env: profile.env, encoding: "utf8", timeout: 15_000, windowsHide: true },
-        (error, stdout, stderr) => {
-          resolve({
-            profile: profile.name,
-            elapsed: performance.now() - started,
-            code: error?.code,
-            killed: error?.killed,
-            stdout,
-            stderr,
-          });
-        },
+        args,
+        { env: environmentWith(keys), encoding: "utf8", timeout: 5_000, windowsHide: true },
+        (error) => resolve(!error),
       );
       child.stdin?.end();
     });
-    console.info("[DEBUG-windows-appx]", JSON.stringify(result));
+    console.info(
+      "[DEBUG-windows-appx]",
+      JSON.stringify({ keys, passed: result, elapsed: performance.now() - started }),
+    );
+    return result;
+  };
+  let keys = Object.keys(process.env)
+    .filter((key) => !(key in minimal) || minimal[key] !== process.env[key])
+    .sort();
+  if (!(await passes(keys))) throw new Error("appx_environment_control_failed");
+  let groups = 2;
+  while (keys.length >= 2) {
+    const chunkSize = Math.ceil(keys.length / groups);
+    let reduced = false;
+    for (let start = 0; start < keys.length; start += chunkSize) {
+      const remainder = [...keys.slice(0, start), ...keys.slice(start + chunkSize)];
+      if (await passes(remainder)) {
+        keys = remainder;
+        groups = Math.max(2, groups - 1);
+        reduced = true;
+        break;
+      }
+    }
+    if (!reduced) {
+      if (groups >= keys.length) break;
+      groups = Math.min(keys.length, groups * 2);
+    }
   }
+  console.info("[DEBUG-windows-appx] required extra keys", JSON.stringify(keys));
 }
