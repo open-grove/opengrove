@@ -1,7 +1,8 @@
 import { spawnSync } from "node:child_process";
 import { accessSync, constants, existsSync, statSync } from "node:fs";
 import { homedir } from "node:os";
-import { delimiter, extname, resolve } from "node:path";
+import { extname, resolve } from "node:path";
+import { refreshWindowsPath } from "../environment/windows-discovery.js";
 import type {
   KernelExecutableProbe,
   KernelExecutableProbeSource,
@@ -231,18 +232,30 @@ export function commandDiscoveryHealth(
 }
 
 export function commandProbe(command: string | undefined, args: string[] = ["--version"]): CommandProbeResult {
-  const resolvedCommand = resolveCommandPath(command) ?? command?.trim();
-  if (!resolvedCommand) return { status: "failed" };
+  if (!command?.trim()) return { status: "failed" };
+  const resolvedCommand = resolveCommandPath(command) ?? command.trim();
   const invocation = resolveCommandInvocation(resolvedCommand, args);
-  const cacheKey = JSON.stringify([invocation.command, invocation.args, commandFileFingerprint(resolvedCommand)]);
+  const cacheKey = JSON.stringify([
+    invocation.command,
+    invocation.args,
+    commandFileFingerprint(resolvedCommand),
+    process.env.PATH,
+  ]);
   const cached = COMMAND_PROBE_CACHE.get(cacheKey);
-  if (cached) return cached;
+  if (cached?.status === "ok") return cached;
   try {
-    const result = spawnSync(invocation.command, invocation.args, {
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "pipe"],
+    const options = {
+      encoding: "utf8" as const,
+      stdio: ["ignore", "pipe", "pipe"] as ["ignore", "pipe", "pipe"],
       timeout: 2_000,
-    });
+    };
+    let result = spawnSync(invocation.command, invocation.args, options);
+    if (process.platform === "win32" && result.status !== 0) {
+      const environment = refreshWindowsPath(process.env);
+      if (environment.PATH !== process.env.PATH) {
+        result = spawnSync(invocation.command, invocation.args, { ...options, env: environment });
+      }
+    }
     const output = `${result.stdout || ""}${result.stderr || ""}`.trim();
     const version = output
       .split(/\r?\n/)
@@ -345,7 +358,7 @@ function resolveCommandOnPath(
   path: string | undefined,
   platform: NodeJS.Platform,
 ): string | undefined {
-  const pathEntries = path?.split(delimiter).filter(Boolean) ?? [];
+  const pathEntries = path?.split(platform === "win32" ? ";" : ":").filter(Boolean) ?? [];
   for (const entry of pathEntries) {
     const baseCandidate = resolve(entry, command);
     const extension = extname(baseCandidate);

@@ -1,7 +1,7 @@
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { existsSync } from "node:fs";
 import { homedir } from "node:os";
-import { delimiter, dirname, resolve } from "node:path";
+import { dirname, resolve } from "node:path";
 import { createInterface, type Interface as ReadlineInterface } from "node:readline";
 import type { JsonValue } from "../../core.js";
 import { resolveCommandInvocation } from "../../kernel/discovery.js";
@@ -17,6 +17,7 @@ import type {
   ServerRequestHandler,
 } from "./types.js";
 import { MIN_CODEX_APP_SERVER_VERSION } from "./types.js";
+import { refreshWindowsPath, type WindowsEnvironmentProbe } from "../../environment/windows-discovery.js";
 
 export const CODEX_APP_SERVER_OPT_OUT_NOTIFICATION_METHODS: string[] = [
   "command/exec/outputDelta",
@@ -356,21 +357,29 @@ export class CodexAppServerClient {
   }
 }
 
-export function buildCodexAppServerEnv(command: string, env: NodeJS.ProcessEnv | undefined): NodeJS.ProcessEnv {
-  const merged = { ...process.env, ...env };
-  merged.PATH = augmentedCodexRuntimePath(command, merged.PATH);
+export function buildCodexAppServerEnv(
+  command: string,
+  env: NodeJS.ProcessEnv | undefined,
+  probe: WindowsEnvironmentProbe = {},
+): NodeJS.ProcessEnv {
+  const platform = probe.platform ?? process.platform;
+  const merged = refreshWindowsPath({ ...process.env, ...env }, probe);
+  merged.PATH = augmentedCodexRuntimePath(command, merged.PATH, platform);
   return merged;
 }
 
-function augmentedCodexRuntimePath(command: string, pathValue: string | undefined): string {
-  const existing = splitPath(pathValue);
-  const additions = defaultCodexRuntimePathAdditions(command);
-  return dedupePathEntries([...existing, ...additions]).join(delimiter);
+function augmentedCodexRuntimePath(command: string, pathValue: string | undefined, platform: NodeJS.Platform): string {
+  const pathDelimiter = platform === "win32" ? ";" : ":";
+  const existing = (pathValue || "").split(pathDelimiter).filter(Boolean);
+  const additions = defaultCodexRuntimePathAdditions(command, platform);
+  return dedupePathEntries([...existing, ...additions]).join(pathDelimiter);
 }
 
-function defaultCodexRuntimePathAdditions(command: string): string[] {
+function defaultCodexRuntimePathAdditions(command: string, platform: NodeJS.Platform): string[] {
+  const commandDirectory = command.includes("/") || command.includes("\\") ? dirname(command) : "";
+  if (platform === "win32") return commandDirectory && safeDirectoryExists(commandDirectory) ? [commandDirectory] : [];
   const additions = [
-    command.includes("/") || command.includes("\\") ? dirname(command) : "",
+    commandDirectory,
     "/opt/homebrew/bin",
     "/opt/homebrew/sbin",
     "/usr/local/bin",
@@ -380,10 +389,6 @@ function defaultCodexRuntimePathAdditions(command: string): string[] {
     resolve(homedir(), ".bun", "bin"),
   ];
   return additions.filter((path) => path && safeDirectoryExists(path));
-}
-
-function splitPath(pathValue: string | undefined): string[] {
-  return (pathValue || "").split(delimiter).filter(Boolean);
 }
 
 function dedupePathEntries(entries: string[]): string[] {

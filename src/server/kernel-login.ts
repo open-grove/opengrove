@@ -2,6 +2,7 @@ import { refreshClaudeCodeLocalRouteProfile } from "../kernel/adapters/claude-co
 import { randomUUID } from "node:crypto";
 import { spawn } from "node:child_process";
 import { existsSync, readFileSync, rmSync } from "node:fs";
+import { refreshWindowsPath } from "../environment/windows-discovery.js";
 import { applyKernelProxyEnv, resolveKernelProxySettings } from "../runtime/kernel-proxy.js";
 import { resolveCommandInvocation, resolveCommandPath } from "../kernel/discovery.js";
 import type { BridgeKernelId, BridgeProviderProfile, BridgeState } from "./bridge-types.js";
@@ -320,7 +321,10 @@ function kernelLoginEnvironment(state: BridgeState, kernelId: BridgeKernelId): N
     ...kernelPathEnv(state.settings, kernelId),
   };
   for (const key of accountLoginExcludedCredentialKeys(kernelId)) env[key] = undefined;
-  return applyKernelProxyEnv(env, resolveKernelProxySettings(state.settings.kernelProxy, process.env));
+  return applyKernelProxyEnv(
+    refreshWindowsPath(env),
+    resolveKernelProxySettings(state.settings.kernelProxy, process.env),
+  );
 }
 
 function kernelLoginTerminalEnvironment(state: BridgeState, kernelId: BridgeKernelId): NodeJS.ProcessEnv {

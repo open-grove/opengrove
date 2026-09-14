@@ -299,6 +299,8 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
+      - name: Verify Windows Codex discovery
+        run: npm run test:windows:codex-discovery
       - run: npm run test:windows:state-ownership
 
   media-streaming-windows:

@@ -47,6 +47,18 @@ OPENGROVE_KERNEL=opencode npm start
 
 ### Codex-specific Options
 
+Codex discovery honors an explicit command or `OPENGROVE_CODEX_BIN` first; an
+invalid override remains an error. On Windows it searches the inherited PATH,
+then the current machine/user registry PATH, `CODEX_INSTALL_DIR`, the official
+`%LOCALAPPDATA%\Programs\OpenAI\Codex\bin` directory, and the WinGet `Links`
+entry. If those are absent, it queries the registered `OpenAI.Codex` desktop
+package for its bundled executable without pinning an installation volume or
+package version. Registry and package queries are bounded and repeated on later
+scans so installations made after desktop launch can be detected. Version
+probes, account login, and Codex app-server startup recover the current Windows
+PATH when needed. The existing macOS ChatGPT/Codex bundle discovery is retained.
+
+
 ```bash
 OPENGROVE_KERNEL=codex
 OPENGROVE_CODEX_MODEL=gpt-5.4

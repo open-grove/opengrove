@@ -46,6 +46,16 @@ OPENGROVE_KERNEL=opencode npm start
 
 ### Codex 专属选项
 
+Codex 发现优先遵循显式命令或 `OPENGROVE_CODEX_BIN`，配置无效时仍报错。
+Windows 会依次检查进程 PATH、注册表中最新的系统和用户 PATH、
+`CODEX_INSTALL_DIR`、官方 `%LOCALAPPDATA%\Programs\OpenAI\Codex\bin`
+目录及 WinGet `Links` 入口；均不存在时，查询已注册的 `OpenAI.Codex`
+桌面应用包并定位内置程序，不写死安装磁盘和包版本。查询有超时限制，后续扫描
+会重新读取，支持识别桌面启动后新增的安装。版本探测、账号登录和 Codex
+app-server 启动按需恢复最新 Windows PATH。macOS 的 ChatGPT/Codex 应用包
+发现逻辑保持原有行为。
+
+
 ```bash
 OPENGROVE_KERNEL=codex
 OPENGROVE_CODEX_MODEL=gpt-5.4
