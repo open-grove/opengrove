@@ -145,6 +145,7 @@ export const CODEX_THREAD_CONFIG_OVERRIDES: JsonObject = {
   // matching `--disable` launch flag (handled adaptively above) already covers builds
   // that recognize the feature, and newer builds dropped it entirely.
   "features.image_generation": true,
+  "tools.update_plan.enabled": true,
   suppress_unstable_features_warning: true,
 };
 

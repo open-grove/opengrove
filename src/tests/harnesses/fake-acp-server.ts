@@ -14,6 +14,7 @@ export interface FakeAcpServerOptions {
   usageUsed?: number;
   usageSize?: number;
   compactUsageUsed?: number;
+  backgroundCompaction?: boolean;
   thoughtText?: string;
   sessionSetupRecordPath?: string;
   modelOptions?: Array<{ value: string; name: string }>;
@@ -252,6 +253,16 @@ export function fakeAcpServerSource(options: FakeAcpServerOptions = {}): string 
     ...(options.thoughtText
       ? [
           `    send({ jsonrpc: '2.0', method: 'session/update', params: { sessionId, update: { sessionUpdate: 'agent_thought_chunk', content: { type: 'text', text: ${JSON.stringify(options.thoughtText)} } } } });`,
+        ]
+      : []),
+    ...(options.backgroundCompaction
+      ? [
+          "    if (prompt === '/compact') {",
+          "      send({ jsonrpc: '2.0', method: 'session/update', params: { sessionId, update: { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: 'Context compaction started — it runs in the background and the compacted context applies once it finishes.' } } } });",
+          "      send({ jsonrpc: '2.0', id: msg.id, result: { stopReason: 'end_turn' } });",
+          "      setTimeout(() => send({ jsonrpc: '2.0', method: 'session/update', params: { sessionId, update: { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text } } } }), 25);",
+          "      continue;",
+          "    }",
         ]
       : []),
     "    send({ jsonrpc: '2.0', method: 'session/update', params: { sessionId, update: { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text } } } });",

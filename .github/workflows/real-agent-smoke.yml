@@ -105,7 +105,9 @@ jobs:
           claude_version="2.1.220"
           opencode_version="1.18.3"
 
-          if [[ "$EVENT" == "workflow_dispatch" ]]; then
+          # A called workflow inherits a manually dispatched Nightly's event name,
+          # but only a direct dispatch supplies the required kernel input.
+          if [[ "$EVENT" == "workflow_dispatch" && -n "$DISPATCH_KERNEL" ]]; then
             # A single kernel + runtime mode selected manually. claude-code splits
             # into sdk/cli; other kernels ignore runtime_mode.
             case_name="$DISPATCH_KERNEL"

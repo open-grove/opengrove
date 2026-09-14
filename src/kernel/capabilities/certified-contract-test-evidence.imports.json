@@ -3,28 +3,685 @@
   "source": "import-kernel-evidence-receipt",
   "batches": [
     {
+      "kernel": "claude-code",
+      "receiptSha256": "5a76ea77ee39578a79b662fece9fd79a33652976eb2c0e6b424ff9d908e14dd7",
+      "certifications": [
+        {
+          "kernel": "claude-code",
+          "capability": "message.streamText",
+          "testId": "claude-code.message.streamText",
+          "passed": true,
+          "checkedAt": "2026-09-14",
+          "hostVersion": "0.7.0",
+          "kernelVersion": "2.1.263 (Claude Code)",
+          "runtimeMode": "sdk",
+          "verification": "real_runtime"
+        },
+        {
+          "kernel": "claude-code",
+          "capability": "turn.lifecycle",
+          "testId": "claude-code.turn.lifecycle",
+          "passed": true,
+          "checkedAt": "2026-09-14",
+          "hostVersion": "0.7.0",
+          "kernelVersion": "2.1.263 (Claude Code)",
+          "runtimeMode": "sdk",
+          "verification": "real_runtime"
+        },
+        {
+          "kernel": "claude-code",
+          "capability": "session.lifecycle",
+          "testId": "claude-code.session.lifecycle",
+          "passed": true,
+          "checkedAt": "2026-09-14",
+          "hostVersion": "0.7.0",
+          "kernelVersion": "2.1.263 (Claude Code)",
+          "runtimeMode": "sdk",
+          "verification": "real_runtime"
+        },
+        {
+          "kernel": "claude-code",
+          "capability": "interaction.askUser",
+          "testId": "claude-code.interaction.askUser",
+          "passed": true,
+          "checkedAt": "2026-09-14",
+          "hostVersion": "0.7.0",
+          "kernelVersion": "2.1.263 (Claude Code)",
+          "runtimeMode": "sdk",
+          "verification": "real_runtime"
+        },
+        {
+          "kernel": "claude-code",
+          "capability": "tools.hostTool",
+          "testId": "claude-code.tools.hostTool",
+          "passed": true,
+          "checkedAt": "2026-09-14",
+          "hostVersion": "0.7.0",
+          "kernelVersion": "2.1.263 (Claude Code)",
+          "runtimeMode": "sdk",
+          "verification": "real_runtime"
+        },
+        {
+          "kernel": "claude-code",
+          "capability": "tools.nativeTool",
+          "testId": "claude-code.tools.nativeTool",
+          "passed": true,
+          "checkedAt": "2026-09-14",
+          "hostVersion": "0.7.0",
+          "kernelVersion": "2.1.263 (Claude Code)",
+          "runtimeMode": "sdk",
+          "verification": "real_runtime"
+        },
+        {
+          "kernel": "claude-code",
+          "capability": "tools.mcpServers",
+          "testId": "claude-code.tools.mcpServers",
+          "passed": true,
+          "checkedAt": "2026-09-14",
+          "hostVersion": "0.7.0",
+          "kernelVersion": "2.1.263 (Claude Code)",
+          "runtimeMode": "sdk",
+          "verification": "real_runtime"
+        },
+        {
+          "kernel": "claude-code",
+          "capability": "approval.request",
+          "testId": "claude-code.approval.request",
+          "passed": true,
+          "checkedAt": "2026-09-14",
+          "hostVersion": "0.7.0",
+          "kernelVersion": "2.1.263 (Claude Code)",
+          "runtimeMode": "sdk",
+          "verification": "real_runtime"
+        },
+        {
+          "kernel": "claude-code",
+          "capability": "control.stop",
+          "testId": "claude-code.control.stop",
+          "passed": true,
+          "checkedAt": "2026-09-14",
+          "hostVersion": "0.7.0",
+          "kernelVersion": "2.1.263 (Claude Code)",
+          "runtimeMode": "sdk",
+          "verification": "real_runtime"
+        },
+        {
+          "kernel": "claude-code",
+          "capability": "session.compact",
+          "testId": "claude-code.session.compact",
+          "passed": true,
+          "checkedAt": "2026-09-14",
+          "hostVersion": "0.7.0",
+          "kernelVersion": "2.1.263 (Claude Code)",
+          "runtimeMode": "sdk",
+          "verification": "real_runtime"
+        },
+        {
+          "kernel": "claude-code",
+          "capability": "sandbox.policy",
+          "testId": "claude-code.sandbox.policy",
+          "passed": true,
+          "checkedAt": "2026-09-14",
+          "hostVersion": "0.7.0",
+          "kernelVersion": "2.1.263 (Claude Code)",
+          "runtimeMode": "sdk",
+          "verification": "real_runtime"
+        },
+        {
+          "kernel": "claude-code",
+          "capability": "budget.limit",
+          "testId": "claude-code.budget.limit",
+          "passed": true,
+          "checkedAt": "2026-09-14",
+          "hostVersion": "0.7.0",
+          "kernelVersion": "2.1.263 (Claude Code)",
+          "runtimeMode": "sdk",
+          "provider": {
+            "kind": "anthropic-compatible",
+            "model": "deepseek-v4-flash"
+          },
+          "verification": "real_runtime"
+        },
+        {
+          "kernel": "claude-code",
+          "capability": "diagnostics.usage",
+          "testId": "claude-code.diagnostics.usage",
+          "passed": true,
+          "checkedAt": "2026-09-14",
+          "hostVersion": "0.7.0",
+          "kernelVersion": "2.1.263 (Claude Code)",
+          "runtimeMode": "sdk",
+          "provider": {
+            "kind": "anthropic-compatible",
+            "model": "deepseek-v4-flash"
+          },
+          "verification": "real_runtime"
+        },
+        {
+          "kernel": "claude-code",
+          "capability": "media.input",
+          "testId": "claude-code.media.input",
+          "passed": true,
+          "checkedAt": "2026-09-14",
+          "hostVersion": "0.7.0",
+          "kernelVersion": "2.1.263 (Claude Code)",
+          "runtimeMode": "sdk",
+          "provider": {
+            "kind": "anthropic-compatible",
+            "model": "deepseek-v4-flash"
+          },
+          "verification": "real_runtime"
+        },
+        {
+          "kernel": "claude-code",
+          "capability": "reasoning.nativeText",
+          "testId": "claude-code.reasoning.nativeText",
+          "passed": true,
+          "checkedAt": "2026-09-14",
+          "hostVersion": "0.7.0",
+          "kernelVersion": "2.1.263 (Claude Code)",
+          "runtimeMode": "sdk",
+          "provider": {
+            "kind": "anthropic-compatible",
+            "model": "deepseek-v4-flash"
+          },
+          "verification": "real_runtime"
+        }
+      ]
+    },
+    {
+      "kernel": "codex",
+      "receiptSha256": "0c1d96ba713bb84844ca4a0626ffe882e5f950e6f0c87cd30169a67d65a4ac2d",
+      "certifications": [
+        {
+          "kernel": "codex",
+          "capability": "planning.plan",
+          "testId": "codex.planning.plan",
+          "passed": true,
+          "checkedAt": "2026-09-14",
+          "hostVersion": "0.7.0",
+          "kernelVersion": "codex-cli 0.154.0-alpha.6.2",
+          "runtimeMode": "sdk",
+          "verification": "real_runtime"
+        }
+      ]
+    },
+    {
+      "kernel": "codex",
+      "receiptSha256": "e06c28a893a6c880f78e8c3d908aaba320fb2a79bbd046d3d29360900c44e716",
+      "certifications": [
+        {
+          "kernel": "codex",
+          "capability": "approval.request",
+          "testId": "codex.approval.request",
+          "passed": true,
+          "checkedAt": "2026-09-14",
+          "hostVersion": "0.7.0",
+          "kernelVersion": "codex-cli 0.154.0-alpha.6.2",
+          "runtimeMode": "sdk",
+          "verification": "real_runtime"
+        },
+        {
+          "kernel": "codex",
+          "capability": "session.compact",
+          "testId": "codex.session.compact",
+          "passed": true,
+          "checkedAt": "2026-09-14",
+          "hostVersion": "0.7.0",
+          "kernelVersion": "codex-cli 0.154.0-alpha.6.2",
+          "runtimeMode": "sdk",
+          "verification": "real_runtime"
+        }
+      ]
+    },
+    {
+      "kernel": "codex",
+      "receiptSha256": "e46a55625a4c9ae06338c3aedf7169b0f8f17bdd96e256a8514586d649b08c18",
+      "certifications": [
+        {
+          "kernel": "codex",
+          "capability": "message.streamText",
+          "testId": "codex.message.streamText",
+          "passed": true,
+          "checkedAt": "2026-09-14",
+          "hostVersion": "0.7.0",
+          "kernelVersion": "codex-cli 0.154.0-alpha.6.2",
+          "runtimeMode": "sdk",
+          "verification": "real_runtime"
+        },
+        {
+          "kernel": "codex",
+          "capability": "turn.lifecycle",
+          "testId": "codex.turn.lifecycle",
+          "passed": true,
+          "checkedAt": "2026-09-14",
+          "hostVersion": "0.7.0",
+          "kernelVersion": "codex-cli 0.154.0-alpha.6.2",
+          "runtimeMode": "sdk",
+          "verification": "real_runtime"
+        },
+        {
+          "kernel": "codex",
+          "capability": "session.lifecycle",
+          "testId": "codex.session.lifecycle",
+          "passed": true,
+          "checkedAt": "2026-09-14",
+          "hostVersion": "0.7.0",
+          "kernelVersion": "codex-cli 0.154.0-alpha.6.2",
+          "runtimeMode": "sdk",
+          "verification": "real_runtime"
+        },
+        {
+          "kernel": "codex",
+          "capability": "interaction.askUser",
+          "testId": "codex.interaction.askUser",
+          "passed": true,
+          "checkedAt": "2026-09-14",
+          "hostVersion": "0.7.0",
+          "kernelVersion": "codex-cli 0.154.0-alpha.6.2",
+          "runtimeMode": "sdk",
+          "verification": "real_runtime"
+        },
+        {
+          "kernel": "codex",
+          "capability": "tools.hostTool",
+          "testId": "codex.tools.hostTool",
+          "passed": true,
+          "checkedAt": "2026-09-14",
+          "hostVersion": "0.7.0",
+          "kernelVersion": "codex-cli 0.154.0-alpha.6.2",
+          "runtimeMode": "sdk",
+          "verification": "real_runtime"
+        },
+        {
+          "kernel": "codex",
+          "capability": "tools.nativeTool",
+          "testId": "codex.tools.nativeTool",
+          "passed": true,
+          "checkedAt": "2026-09-14",
+          "hostVersion": "0.7.0",
+          "kernelVersion": "codex-cli 0.154.0-alpha.6.2",
+          "runtimeMode": "sdk",
+          "verification": "real_runtime"
+        },
+        {
+          "kernel": "codex",
+          "capability": "control.stop",
+          "testId": "codex.control.stop",
+          "passed": true,
+          "checkedAt": "2026-09-14",
+          "hostVersion": "0.7.0",
+          "kernelVersion": "codex-cli 0.154.0-alpha.6.2",
+          "runtimeMode": "sdk",
+          "verification": "real_runtime"
+        },
+        {
+          "kernel": "codex",
+          "capability": "control.steer",
+          "testId": "codex.control.steer",
+          "passed": true,
+          "checkedAt": "2026-09-14",
+          "hostVersion": "0.7.0",
+          "kernelVersion": "codex-cli 0.154.0-alpha.6.2",
+          "runtimeMode": "sdk",
+          "verification": "real_runtime"
+        },
+        {
+          "kernel": "codex",
+          "capability": "session.goal",
+          "testId": "codex.session.goal",
+          "passed": true,
+          "checkedAt": "2026-09-14",
+          "hostVersion": "0.7.0",
+          "kernelVersion": "codex-cli 0.154.0-alpha.6.2",
+          "runtimeMode": "sdk",
+          "verification": "real_runtime"
+        },
+        {
+          "kernel": "codex",
+          "capability": "sandbox.policy",
+          "testId": "codex.sandbox.policy",
+          "passed": true,
+          "checkedAt": "2026-09-14",
+          "hostVersion": "0.7.0",
+          "kernelVersion": "codex-cli 0.154.0-alpha.6.2",
+          "runtimeMode": "sdk",
+          "verification": "real_runtime"
+        },
+        {
+          "kernel": "codex",
+          "capability": "diagnostics.usage",
+          "testId": "codex.diagnostics.usage",
+          "passed": true,
+          "checkedAt": "2026-09-14",
+          "hostVersion": "0.7.0",
+          "kernelVersion": "codex-cli 0.154.0-alpha.6.2",
+          "runtimeMode": "sdk",
+          "provider": {
+            "kind": "native"
+          },
+          "verification": "real_runtime"
+        },
+        {
+          "kernel": "codex",
+          "capability": "response.speed",
+          "testId": "codex.response.speed",
+          "passed": true,
+          "checkedAt": "2026-09-14",
+          "hostVersion": "0.7.0",
+          "kernelVersion": "codex-cli 0.154.0-alpha.6.2",
+          "runtimeMode": "sdk",
+          "provider": {
+            "kind": "native"
+          },
+          "verification": "real_runtime"
+        },
+        {
+          "kernel": "codex",
+          "capability": "media.input",
+          "testId": "codex.media.input",
+          "passed": true,
+          "checkedAt": "2026-09-14",
+          "hostVersion": "0.7.0",
+          "kernelVersion": "codex-cli 0.154.0-alpha.6.2",
+          "runtimeMode": "sdk",
+          "provider": {
+            "kind": "native"
+          },
+          "verification": "real_runtime"
+        },
+        {
+          "kernel": "codex",
+          "capability": "output.structured",
+          "testId": "codex.output.structured",
+          "passed": true,
+          "checkedAt": "2026-09-14",
+          "hostVersion": "0.7.0",
+          "kernelVersion": "codex-cli 0.154.0-alpha.6.2",
+          "runtimeMode": "sdk",
+          "provider": {
+            "kind": "native"
+          },
+          "verification": "real_runtime"
+        },
+        {
+          "kernel": "codex",
+          "capability": "output.artifacts",
+          "testId": "codex.output.artifacts",
+          "passed": true,
+          "checkedAt": "2026-09-14",
+          "hostVersion": "0.7.0",
+          "kernelVersion": "codex-cli 0.154.0-alpha.6.2",
+          "runtimeMode": "sdk",
+          "provider": {
+            "kind": "native"
+          },
+          "verification": "real_runtime"
+        },
+        {
+          "kernel": "codex",
+          "capability": "reasoning.summary",
+          "testId": "codex.reasoning.summary",
+          "passed": true,
+          "checkedAt": "2026-09-14",
+          "hostVersion": "0.7.0",
+          "kernelVersion": "codex-cli 0.154.0-alpha.6.2",
+          "runtimeMode": "sdk",
+          "provider": {
+            "kind": "native"
+          },
+          "verification": "real_runtime"
+        }
+      ]
+    },
+    {
+      "kernel": "hermes",
+      "receiptSha256": "5a76ea77ee39578a79b662fece9fd79a33652976eb2c0e6b424ff9d908e14dd7",
+      "certifications": [
+        {
+          "kernel": "hermes",
+          "capability": "message.streamText",
+          "testId": "hermes.message.streamText",
+          "passed": true,
+          "checkedAt": "2026-09-14",
+          "hostVersion": "0.7.0",
+          "kernelVersion": "Hermes Agent v0.21.1 (2026.9.7) · upstream 5eb99eb2 · local 2237be35 (+30500 carried commits)",
+          "runtimeMode": "acp",
+          "verification": "real_runtime"
+        },
+        {
+          "kernel": "hermes",
+          "capability": "turn.lifecycle",
+          "testId": "hermes.turn.lifecycle",
+          "passed": true,
+          "checkedAt": "2026-09-14",
+          "hostVersion": "0.7.0",
+          "kernelVersion": "Hermes Agent v0.21.1 (2026.9.7) · upstream 5eb99eb2 · local 2237be35 (+30500 carried commits)",
+          "runtimeMode": "acp",
+          "verification": "real_runtime"
+        },
+        {
+          "kernel": "hermes",
+          "capability": "session.lifecycle",
+          "testId": "hermes.session.lifecycle",
+          "passed": true,
+          "checkedAt": "2026-09-14",
+          "hostVersion": "0.7.0",
+          "kernelVersion": "Hermes Agent v0.21.1 (2026.9.7) · upstream 5eb99eb2 · local 2237be35 (+30500 carried commits)",
+          "runtimeMode": "acp",
+          "verification": "real_runtime"
+        },
+        {
+          "kernel": "hermes",
+          "capability": "interaction.askUser",
+          "testId": "hermes.interaction.askUser",
+          "passed": true,
+          "checkedAt": "2026-09-14",
+          "hostVersion": "0.7.0",
+          "kernelVersion": "Hermes Agent v0.21.1 (2026.9.7) · upstream 5eb99eb2 · local 2237be35 (+30500 carried commits)",
+          "runtimeMode": "acp",
+          "verification": "real_runtime"
+        },
+        {
+          "kernel": "hermes",
+          "capability": "tools.nativeTool",
+          "testId": "hermes.tools.nativeTool",
+          "passed": true,
+          "checkedAt": "2026-09-14",
+          "hostVersion": "0.7.0",
+          "kernelVersion": "Hermes Agent v0.21.1 (2026.9.7) · upstream 5eb99eb2 · local 2237be35 (+30500 carried commits)",
+          "runtimeMode": "acp",
+          "verification": "real_runtime"
+        },
+        {
+          "kernel": "hermes",
+          "capability": "approval.request",
+          "testId": "hermes.approval.request",
+          "passed": true,
+          "checkedAt": "2026-09-14",
+          "hostVersion": "0.7.0",
+          "kernelVersion": "Hermes Agent v0.21.1 (2026.9.7) · upstream 5eb99eb2 · local 2237be35 (+30500 carried commits)",
+          "runtimeMode": "acp",
+          "verification": "real_runtime"
+        },
+        {
+          "kernel": "hermes",
+          "capability": "control.stop",
+          "testId": "hermes.control.stop",
+          "passed": true,
+          "checkedAt": "2026-09-14",
+          "hostVersion": "0.7.0",
+          "kernelVersion": "Hermes Agent v0.21.1 (2026.9.7) · upstream 5eb99eb2 · local 2237be35 (+30500 carried commits)",
+          "runtimeMode": "acp",
+          "verification": "real_runtime"
+        },
+        {
+          "kernel": "hermes",
+          "capability": "session.compact",
+          "testId": "hermes.session.compact",
+          "passed": true,
+          "checkedAt": "2026-09-14",
+          "hostVersion": "0.7.0",
+          "kernelVersion": "Hermes Agent v0.21.1 (2026.9.7) · upstream 5eb99eb2 · local 2237be35 (+30500 carried commits)",
+          "runtimeMode": "acp",
+          "verification": "real_runtime"
+        },
+        {
+          "kernel": "hermes",
+          "capability": "diagnostics.usage",
+          "testId": "hermes.diagnostics.usage",
+          "passed": true,
+          "checkedAt": "2026-09-14",
+          "hostVersion": "0.7.0",
+          "kernelVersion": "Hermes Agent v0.21.1 (2026.9.7) · upstream 5eb99eb2 · local 2237be35 (+30500 carried commits)",
+          "runtimeMode": "acp",
+          "provider": {
+            "kind": "anthropic-compatible",
+            "model": "deepseek-v4-flash"
+          },
+          "verification": "real_runtime"
+        }
+      ]
+    },
+    {
+      "kernel": "hermes",
+      "receiptSha256": "d2619d1f82c5f6b596db84d9395d4fce6cb81c0f6a9db231352041884dcd3440",
+      "certifications": [
+        {
+          "kernel": "hermes",
+          "capability": "reasoning.nativeText",
+          "testId": "hermes.reasoning.nativeText",
+          "passed": true,
+          "checkedAt": "2026-09-14",
+          "hostVersion": "0.7.0",
+          "kernelVersion": "Hermes Agent v0.21.1 (2026.9.7) · upstream 5eb99eb2 · local 2237be35 (+30500 carried commits)",
+          "runtimeMode": "acp",
+          "provider": {
+            "kind": "anthropic-compatible",
+            "model": "deepseek-v4-flash"
+          },
+          "verification": "real_runtime"
+        }
+      ]
+    },
+    {
       "kernel": "kimi",
-      "receiptSha256": "8498be08dcae3a299ff78644e5a3a5aabf2007ac5a3deb8c93a32bf751766d3e",
+      "receiptSha256": "7a3b90525ace9dc0d7c49009a44f86e81b501b308bbe0bd00542fbcf849cc4b8",
       "certifications": [
         {
           "kernel": "kimi",
-          "capability": "control.stop",
-          "testId": "kimi.control.stop",
+          "capability": "session.compact",
+          "testId": "kimi.session.compact",
           "passed": true,
-          "checkedAt": "2026-08-31",
-          "hostVersion": "0.6.5",
-          "kernelVersion": "0.36.1",
+          "checkedAt": "2026-09-14",
+          "hostVersion": "0.7.0",
+          "kernelVersion": "0.41.0",
+          "runtimeMode": "acp",
+          "verification": "real_runtime"
+        }
+      ]
+    },
+    {
+      "kernel": "kimi",
+      "receiptSha256": "e46a55625a4c9ae06338c3aedf7169b0f8f17bdd96e256a8514586d649b08c18",
+      "certifications": [
+        {
+          "kernel": "kimi",
+          "capability": "session.lifecycle",
+          "testId": "kimi.session.lifecycle",
+          "passed": true,
+          "checkedAt": "2026-09-14",
+          "hostVersion": "0.7.0",
+          "kernelVersion": "0.41.0",
           "runtimeMode": "acp",
           "verification": "real_runtime"
         },
         {
           "kernel": "kimi",
+          "capability": "tools.nativeTool",
+          "testId": "kimi.tools.nativeTool",
+          "passed": true,
+          "checkedAt": "2026-09-14",
+          "hostVersion": "0.7.0",
+          "kernelVersion": "0.41.0",
+          "runtimeMode": "acp",
+          "verification": "real_runtime"
+        },
+        {
+          "kernel": "kimi",
+          "capability": "tools.mcpServers",
+          "testId": "kimi.tools.mcpServers",
+          "passed": true,
+          "checkedAt": "2026-09-14",
+          "hostVersion": "0.7.0",
+          "kernelVersion": "0.41.0",
+          "runtimeMode": "acp",
+          "verification": "real_runtime"
+        },
+        {
+          "kernel": "kimi",
+          "capability": "tool.progress",
+          "testId": "kimi.tool.progress",
+          "passed": true,
+          "checkedAt": "2026-09-14",
+          "hostVersion": "0.7.0",
+          "kernelVersion": "0.41.0",
+          "runtimeMode": "acp",
+          "verification": "real_runtime"
+        },
+        {
+          "kernel": "kimi",
+          "capability": "approval.request",
+          "testId": "kimi.approval.request",
+          "passed": true,
+          "checkedAt": "2026-09-14",
+          "hostVersion": "0.7.0",
+          "kernelVersion": "0.41.0",
+          "runtimeMode": "acp",
+          "verification": "real_runtime"
+        },
+        {
+          "kernel": "kimi",
+          "capability": "media.input",
+          "testId": "kimi.media.input",
+          "passed": true,
+          "checkedAt": "2026-09-14",
+          "hostVersion": "0.7.0",
+          "kernelVersion": "0.41.0",
+          "runtimeMode": "acp",
+          "provider": {
+            "kind": "native"
+          },
+          "verification": "real_runtime"
+        },
+        {
+          "kernel": "kimi",
+          "capability": "reasoning.nativeText",
+          "testId": "kimi.reasoning.nativeText",
+          "passed": true,
+          "checkedAt": "2026-09-14",
+          "hostVersion": "0.7.0",
+          "kernelVersion": "0.41.0",
+          "runtimeMode": "acp",
+          "provider": {
+            "kind": "native"
+          },
+          "verification": "real_runtime"
+        }
+      ]
+    },
+    {
+      "kernel": "kimi",
+      "receiptSha256": "e46a55625a4c9ae06338c3aedf7169b0f8f17bdd96e256a8514586d649b08c18",
+      "certifications": [
+        {
+          "kernel": "kimi",
           "capability": "message.streamText",
           "testId": "kimi.message.streamText",
           "passed": true,
-          "checkedAt": "2026-08-31",
-          "hostVersion": "0.6.5",
-          "kernelVersion": "0.36.1",
+          "checkedAt": "2026-09-14",
+          "hostVersion": "0.7.0",
+          "kernelVersion": "0.41.0",
           "runtimeMode": "acp",
           "verification": "real_runtime"
         },
@@ -33,9 +690,9 @@
           "capability": "turn.lifecycle",
           "testId": "kimi.turn.lifecycle",
           "passed": true,
-          "checkedAt": "2026-08-31",
-          "hostVersion": "0.6.5",
-          "kernelVersion": "0.36.1",
+          "checkedAt": "2026-09-14",
+          "hostVersion": "0.7.0",
+          "kernelVersion": "0.41.0",
           "runtimeMode": "acp",
           "verification": "real_runtime"
         },
@@ -44,25 +701,332 @@
           "capability": "tools.hostTool",
           "testId": "kimi.tools.hostTool",
           "passed": true,
-          "checkedAt": "2026-08-31",
-          "hostVersion": "0.6.5",
-          "kernelVersion": "0.36.1",
+          "checkedAt": "2026-09-14",
+          "hostVersion": "0.7.0",
+          "kernelVersion": "0.41.0",
+          "runtimeMode": "acp",
+          "verification": "real_runtime"
+        },
+        {
+          "kernel": "kimi",
+          "capability": "control.stop",
+          "testId": "kimi.control.stop",
+          "passed": true,
+          "checkedAt": "2026-09-14",
+          "hostVersion": "0.7.0",
+          "kernelVersion": "0.41.0",
           "runtimeMode": "acp",
           "verification": "real_runtime"
         }
       ]
     },
     {
+      "kernel": "openclaw",
+      "receiptSha256": "d5edc94efb7f7d99360dd39053397a6db300a660962af1c358fdd7f2be2d8b44",
+      "certifications": [
+        {
+          "kernel": "openclaw",
+          "capability": "message.streamText",
+          "testId": "openclaw.message.streamText",
+          "passed": true,
+          "checkedAt": "2026-09-14",
+          "hostVersion": "0.7.0",
+          "kernelVersion": "2026.9.2",
+          "runtimeMode": "gateway",
+          "verification": "real_runtime"
+        }
+      ]
+    },
+    {
+      "kernel": "openclaw",
+      "receiptSha256": "df45e0a72de18a9fff3b52b512ca008cc3f90266f02fa4ab93037737e1b43e2b",
+      "certifications": [
+        {
+          "kernel": "openclaw",
+          "capability": "control.stop",
+          "testId": "openclaw.control.stop",
+          "passed": true,
+          "checkedAt": "2026-09-14",
+          "hostVersion": "0.7.0",
+          "kernelVersion": "2026.9.2",
+          "runtimeMode": "gateway",
+          "verification": "real_runtime"
+        },
+        {
+          "kernel": "openclaw",
+          "capability": "turn.lifecycle",
+          "testId": "openclaw.turn.lifecycle",
+          "passed": true,
+          "checkedAt": "2026-09-14",
+          "hostVersion": "0.7.0",
+          "kernelVersion": "2026.9.2",
+          "runtimeMode": "gateway",
+          "verification": "real_runtime"
+        },
+        {
+          "kernel": "openclaw",
+          "capability": "session.lifecycle",
+          "testId": "openclaw.session.lifecycle",
+          "passed": true,
+          "checkedAt": "2026-09-14",
+          "hostVersion": "0.7.0",
+          "kernelVersion": "2026.9.2",
+          "runtimeMode": "gateway",
+          "verification": "real_runtime"
+        },
+        {
+          "kernel": "openclaw",
+          "capability": "session.compact",
+          "testId": "openclaw.session.compact",
+          "passed": true,
+          "checkedAt": "2026-09-14",
+          "hostVersion": "0.7.0",
+          "kernelVersion": "2026.9.2",
+          "runtimeMode": "gateway",
+          "verification": "real_runtime"
+        },
+        {
+          "kernel": "openclaw",
+          "capability": "diagnostics.usage",
+          "testId": "openclaw.diagnostics.usage",
+          "passed": true,
+          "checkedAt": "2026-09-14",
+          "hostVersion": "0.7.0",
+          "kernelVersion": "2026.9.2",
+          "runtimeMode": "gateway",
+          "provider": {
+            "kind": "native",
+            "model": "custom-ai-t8star-cn/claude-opus-4-6"
+          },
+          "verification": "real_runtime"
+        }
+      ]
+    },
+    {
+      "kernel": "opencode",
+      "receiptSha256": "0c1d96ba713bb84844ca4a0626ffe882e5f950e6f0c87cd30169a67d65a4ac2d",
+      "certifications": [
+        {
+          "kernel": "opencode",
+          "capability": "planning.plan",
+          "testId": "opencode.planning.plan",
+          "passed": true,
+          "checkedAt": "2026-09-14",
+          "hostVersion": "0.7.0",
+          "kernelVersion": "1.18.29",
+          "runtimeMode": "acp",
+          "verification": "real_runtime"
+        }
+      ]
+    },
+    {
+      "kernel": "opencode",
+      "receiptSha256": "e46a55625a4c9ae06338c3aedf7169b0f8f17bdd96e256a8514586d649b08c18",
+      "certifications": [
+        {
+          "kernel": "opencode",
+          "capability": "message.streamText",
+          "testId": "opencode.message.streamText",
+          "passed": true,
+          "checkedAt": "2026-09-14",
+          "hostVersion": "0.7.0",
+          "kernelVersion": "1.18.29",
+          "runtimeMode": "acp",
+          "verification": "real_runtime"
+        },
+        {
+          "kernel": "opencode",
+          "capability": "turn.lifecycle",
+          "testId": "opencode.turn.lifecycle",
+          "passed": true,
+          "checkedAt": "2026-09-14",
+          "hostVersion": "0.7.0",
+          "kernelVersion": "1.18.29",
+          "runtimeMode": "acp",
+          "verification": "real_runtime"
+        },
+        {
+          "kernel": "opencode",
+          "capability": "session.lifecycle",
+          "testId": "opencode.session.lifecycle",
+          "passed": true,
+          "checkedAt": "2026-09-14",
+          "hostVersion": "0.7.0",
+          "kernelVersion": "1.18.29",
+          "runtimeMode": "acp",
+          "verification": "real_runtime"
+        },
+        {
+          "kernel": "opencode",
+          "capability": "tools.nativeTool",
+          "testId": "opencode.tools.nativeTool",
+          "passed": true,
+          "checkedAt": "2026-09-14",
+          "hostVersion": "0.7.0",
+          "kernelVersion": "1.18.29",
+          "runtimeMode": "acp",
+          "verification": "real_runtime"
+        },
+        {
+          "kernel": "opencode",
+          "capability": "tool.progress",
+          "testId": "opencode.tool.progress",
+          "passed": true,
+          "checkedAt": "2026-09-14",
+          "hostVersion": "0.7.0",
+          "kernelVersion": "1.18.29",
+          "runtimeMode": "acp",
+          "verification": "real_runtime"
+        },
+        {
+          "kernel": "opencode",
+          "capability": "approval.request",
+          "testId": "opencode.approval.request",
+          "passed": true,
+          "checkedAt": "2026-09-14",
+          "hostVersion": "0.7.0",
+          "kernelVersion": "1.18.29",
+          "runtimeMode": "acp",
+          "verification": "real_runtime"
+        },
+        {
+          "kernel": "opencode",
+          "capability": "control.stop",
+          "testId": "opencode.control.stop",
+          "passed": true,
+          "checkedAt": "2026-09-14",
+          "hostVersion": "0.7.0",
+          "kernelVersion": "1.18.29",
+          "runtimeMode": "acp",
+          "verification": "real_runtime"
+        },
+        {
+          "kernel": "opencode",
+          "capability": "session.compact",
+          "testId": "opencode.session.compact",
+          "passed": true,
+          "checkedAt": "2026-09-14",
+          "hostVersion": "0.7.0",
+          "kernelVersion": "1.18.29",
+          "runtimeMode": "acp",
+          "verification": "real_runtime"
+        },
+        {
+          "kernel": "opencode",
+          "capability": "diagnostics.usage",
+          "testId": "opencode.diagnostics.usage",
+          "passed": true,
+          "checkedAt": "2026-09-14",
+          "hostVersion": "0.7.0",
+          "kernelVersion": "1.18.29",
+          "runtimeMode": "acp",
+          "provider": {
+            "kind": "native"
+          },
+          "verification": "real_runtime"
+        },
+        {
+          "kernel": "opencode",
+          "capability": "media.input",
+          "testId": "opencode.media.input",
+          "passed": true,
+          "checkedAt": "2026-09-14",
+          "hostVersion": "0.7.0",
+          "kernelVersion": "1.18.29",
+          "runtimeMode": "acp",
+          "provider": {
+            "kind": "native"
+          },
+          "verification": "real_runtime"
+        },
+        {
+          "kernel": "opencode",
+          "capability": "reasoning.nativeText",
+          "testId": "opencode.reasoning.nativeText",
+          "passed": true,
+          "checkedAt": "2026-09-14",
+          "hostVersion": "0.7.0",
+          "kernelVersion": "1.18.29",
+          "runtimeMode": "acp",
+          "provider": {
+            "kind": "native"
+          },
+          "verification": "real_runtime"
+        }
+      ]
+    },
+    {
       "kernel": "pi",
-      "receiptSha256": "51b8c9a79988c266e790780f090261bca73dcee696652de5001540f6c6567575",
+      "receiptSha256": "5a76ea77ee39578a79b662fece9fd79a33652976eb2c0e6b424ff9d908e14dd7",
+      "certifications": [
+        {
+          "kernel": "pi",
+          "capability": "turn.lifecycle",
+          "testId": "pi.turn.lifecycle",
+          "passed": true,
+          "checkedAt": "2026-09-14",
+          "hostVersion": "0.7.0",
+          "kernelVersion": "0.85.1",
+          "runtimeMode": "sdk",
+          "verification": "real_runtime"
+        },
+        {
+          "kernel": "pi",
+          "capability": "tools.hostTool",
+          "testId": "pi.tools.hostTool",
+          "passed": true,
+          "checkedAt": "2026-09-14",
+          "hostVersion": "0.7.0",
+          "kernelVersion": "0.85.1",
+          "runtimeMode": "sdk",
+          "verification": "real_runtime"
+        },
+        {
+          "kernel": "pi",
+          "capability": "approval.request",
+          "testId": "pi.approval.request",
+          "passed": true,
+          "checkedAt": "2026-09-14",
+          "hostVersion": "0.7.0",
+          "kernelVersion": "0.85.1",
+          "runtimeMode": "sdk",
+          "verification": "real_runtime"
+        },
+        {
+          "kernel": "pi",
+          "capability": "control.stop",
+          "testId": "pi.control.stop",
+          "passed": true,
+          "checkedAt": "2026-09-14",
+          "hostVersion": "0.7.0",
+          "kernelVersion": "0.85.1",
+          "runtimeMode": "sdk",
+          "verification": "real_runtime"
+        }
+      ]
+    },
+    {
+      "kernel": "pi",
+      "receiptSha256": "5a76ea77ee39578a79b662fece9fd79a33652976eb2c0e6b424ff9d908e14dd7",
       "certifications": [
         {
           "kernel": "pi",
           "capability": "tools.nativeTool",
           "testId": "pi.tools.nativeTool",
           "passed": true,
-          "checkedAt": "2026-09-08",
-          "hostVersion": "0.6.6",
+          "checkedAt": "2026-09-14",
+          "hostVersion": "0.7.0",
+          "kernelVersion": "0.85.1",
+          "runtimeMode": "sdk",
+          "verification": "real_runtime"
+        },
+        {
+          "kernel": "pi",
+          "capability": "tools.parallelCalls",
+          "testId": "pi.tools.parallelCalls",
+          "passed": true,
+          "checkedAt": "2026-09-14",
+          "hostVersion": "0.7.0",
           "kernelVersion": "0.85.1",
           "runtimeMode": "sdk",
           "verification": "real_runtime"
@@ -72,19 +1036,55 @@
           "capability": "tool.progress",
           "testId": "pi.tool.progress",
           "passed": true,
-          "checkedAt": "2026-09-08",
-          "hostVersion": "0.6.6",
+          "checkedAt": "2026-09-14",
+          "hostVersion": "0.7.0",
           "kernelVersion": "0.85.1",
           "runtimeMode": "sdk",
           "verification": "real_runtime"
         },
         {
           "kernel": "pi",
+          "capability": "media.input",
+          "testId": "pi.media.input",
+          "passed": true,
+          "checkedAt": "2026-09-14",
+          "hostVersion": "0.7.0",
+          "kernelVersion": "0.85.1",
+          "runtimeMode": "sdk",
+          "provider": {
+            "kind": "anthropic-compatible",
+            "model": "deepseek-v4-flash"
+          },
+          "verification": "real_runtime"
+        },
+        {
+          "kernel": "pi",
+          "capability": "reasoning.nativeText",
+          "testId": "pi.reasoning.nativeText",
+          "passed": true,
+          "checkedAt": "2026-09-14",
+          "hostVersion": "0.7.0",
+          "kernelVersion": "0.85.1",
+          "runtimeMode": "sdk",
+          "provider": {
+            "kind": "anthropic-compatible",
+            "model": "deepseek-v4-flash"
+          },
+          "verification": "real_runtime"
+        }
+      ]
+    },
+    {
+      "kernel": "pi",
+      "receiptSha256": "5a76ea77ee39578a79b662fece9fd79a33652976eb2c0e6b424ff9d908e14dd7",
+      "certifications": [
+        {
+          "kernel": "pi",
           "capability": "session.compact",
           "testId": "pi.session.compact",
           "passed": true,
-          "checkedAt": "2026-09-08",
-          "hostVersion": "0.6.6",
+          "checkedAt": "2026-09-14",
+          "hostVersion": "0.7.0",
           "kernelVersion": "0.85.1",
           "runtimeMode": "sdk",
           "verification": "real_runtime"
@@ -94,12 +1094,12 @@
           "capability": "diagnostics.usage",
           "testId": "pi.diagnostics.usage",
           "passed": true,
-          "checkedAt": "2026-09-08",
-          "hostVersion": "0.6.6",
+          "checkedAt": "2026-09-14",
+          "hostVersion": "0.7.0",
           "kernelVersion": "0.85.1",
           "runtimeMode": "sdk",
           "provider": {
-            "kind": "openai-compatible",
+            "kind": "anthropic-compatible",
             "model": "deepseek-v4-flash"
           },
           "verification": "real_runtime"

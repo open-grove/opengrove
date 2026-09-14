@@ -8,6 +8,7 @@ import type { Duplex } from "node:stream";
 import { ApprovalInbox, QuestionInbox, type AgentContext, type AgentEvent } from "../core.js";
 import {
   discoverOpenClawGatewayProviderProfiles,
+  discoverOpenClawGatewayVersion,
   OpenClawGatewayRuntime,
   resolveOpenClawGatewayConnection,
 } from "../runtime/openclaw-gateway-runtime.js";
@@ -17,6 +18,7 @@ const OPENCLAW_TEST_MODEL = "Custom-AI-T8Star-CN/Qwen/Qwen2.5-Coder";
 async function main() {
   testResolveOpenClawGatewayConnection();
   const gateway = await startFakeOpenClawGateway();
+  assert.equal(await discoverOpenClawGatewayVersion({ url: gateway.url }), "2026.8.2");
   const runtime = new OpenClawGatewayRuntime({
     url: gateway.url,
     requestTimeoutMs: 5_000,
@@ -550,7 +552,15 @@ function handleGatewayRequest(
   callOrder.push(frame.method);
   if (frame.method === "connect") {
     captureConnectParams(frame.params ?? {});
-    sendTextFrame(socket, JSON.stringify({ type: "res", id: frame.id, ok: true, payload: { protocol: 4 } }));
+    sendTextFrame(
+      socket,
+      JSON.stringify({
+        type: "res",
+        id: frame.id,
+        ok: true,
+        payload: { type: "hello-ok", protocol: 4, server: { version: "2026.8.2" } },
+      }),
+    );
     return;
   }
   if (frame.method === "chat.send") {

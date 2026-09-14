@@ -39,6 +39,8 @@ const previousUserData = process.env[appEnvName("USER_DATA_DIR")];
 const previousPath = process.env.PATH;
 const prepareTarMarker = join(root, "prepare-invoked-tar");
 
+const states: ReturnType<typeof createBridgeState>[] = [];
+
 try {
   process.env[appEnvName("USER_DATA_DIR")] = join(root, "user-data");
   if (process.platform !== "win32") {
@@ -79,6 +81,7 @@ try {
   writeFileSync(join(appRoot, "workspace", "keep.md"), "business data\n", "utf8");
 
   const state = createBridgeState({ statePath: join(root, "state.json") });
+  states.push(state);
   state.settings.mountedApps = [
     {
       id: "release-app-mount",
@@ -1331,6 +1334,7 @@ try {
 
   process.stdout.write("app release coordinator harness passed\n");
 } finally {
+  for (const state of states) await state.store.close?.();
   if (previousUserData === undefined) delete process.env[appEnvName("USER_DATA_DIR")];
   else process.env[appEnvName("USER_DATA_DIR")] = previousUserData;
   if (previousPath === undefined) delete process.env.PATH;

@@ -25,6 +25,44 @@ import { createRoomLedgerReadTool, withRoomLedgerAccessForRun } from "../tools/r
 import { createBridgeState } from "../server/bridge-state.js";
 
 async function main() {
+  const todoProjector = new AcpSessionProjector({ runId: "opencode-plan", kernelId: "opencode" });
+  todoProjector.project({
+    sessionUpdate: "tool_call",
+    toolCallId: "todo-1",
+    title: "todowrite",
+    rawInput: {},
+  });
+  const todoEvents = todoProjector.project({
+    sessionUpdate: "tool_call_update",
+    toolCallId: "todo-1",
+    title: "0 todos",
+    status: "completed",
+    rawOutput: { metadata: { todos: [{ content: "Prepare reply", status: "completed", priority: "high" }] } },
+  });
+  assert.deepEqual(
+    todoEvents.map((event) => event.type),
+    ["tool.finished", "planning.updated"],
+  );
+  const todoPlan = todoEvents.find((event) => event.type === "planning.updated");
+  assert.equal(todoPlan?.plan.text, "[completed/high] Prepare reply");
+  assert.equal(todoPlan?.plan.status, "completed");
+  assert.deepEqual(todoPlan?.plan.source, { type: "kernel.native", kernelId: "opencode" });
+  for (const [status, metadata] of [
+    ["failed", { todos: [{ content: "Not saved", status: "pending", priority: "high" }] }],
+    ["completed", { todos: [{ content: 123, status: "pending", priority: "high" }] }],
+  ] as const) {
+    todoProjector.project({ sessionUpdate: "tool_call", toolCallId: "invalid-todo", title: "todowrite" });
+    const events = todoProjector.project({
+      sessionUpdate: "tool_call_update",
+      toolCallId: "invalid-todo",
+      status,
+      rawOutput: { metadata },
+    });
+    assert.equal(
+      events.some((event) => event.type === "planning.updated"),
+      false,
+    );
+  }
   await assertAcpHostToolCredentialsAreScoped();
   const missingIdProjector = new AcpSessionProjector({
     runId: "run-acp-missing-tool-id",
@@ -307,6 +345,7 @@ async function main() {
   await assertAbortedAcpTurnCloses(cwd, "kimi");
   await assertAcpImageInput(cwd);
   await assertKimiNativeCompaction(cwd);
+  await assertKimiNativeCompaction(cwd, true);
   await assertKimiNativeCompactionForwardsCancellation(cwd);
   await assertKimiNativeSkillInvocation(cwd);
   await assertKimiUnconfirmedCompactionFailsOpen(cwd);
@@ -1205,15 +1244,17 @@ async function assertKimiNativeSkillInvocation(cwd: string): Promise<void> {
   runtime.close();
 }
 
-async function assertKimiNativeCompaction(cwd: string): Promise<void> {
-  const server = join(cwd, "fake-kimi-acp-server.mjs");
-  const cli = fakeAcpCommandPath(cwd, "fake-kimi-acp-cli");
+async function assertKimiNativeCompaction(cwd: string, backgroundCompaction = false): Promise<void> {
+  const suffix = backgroundCompaction ? "background" : "immediate";
+  const server = join(cwd, `fake-kimi-${suffix}-acp-server.mjs`);
+  const cli = fakeAcpCommandPath(cwd, `fake-kimi-${suffix}-acp-cli`);
   writeFakeAcpServer(server, {
     sessionId: "fake-kimi-acp-session",
     marker: "FAKE_KIMI_ACP_OK",
     usageUsed: 160_000,
     usageSize: 200_000,
     compactUsageUsed: 40_000,
+    backgroundCompaction,
   });
   writeFakeAcpCommand(cli, server, { commandName: "kimi", acpSubcommand: "acp" });
   const runtime = new AcpCliRuntime({ kernelId: "kimi", title: "Kimi", command: cli, cwd });

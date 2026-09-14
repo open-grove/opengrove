@@ -11,17 +11,19 @@ import {
 } from "./public-release-bootstrap.mjs";
 
 const reviewed = readPublicReleaseBootstrap();
-assert.equal(reviewed.firstPublicReleaseTag, "v0.6.6");
+assert.equal(reviewed.firstPublicReleaseTag, "v0.7.0");
 assert.equal(reviewed.previousReleaseTag, "v0.6.5");
 assert.equal(reviewed.assets["mac-arm64"].size, 226870743);
-assert.deepEqual(resolvePublicReleaseBootstrap("v0.6.6"), reviewed);
-assert.throws(() => resolvePublicReleaseBootstrap("v0.6.7"), /only valid for v0\.6\.6/);
+assert.deepEqual(resolvePublicReleaseBootstrap("v0.7.0"), reviewed);
+for (const tag of ["v0.6.6", "v0.6.7", "v0.7.1"]) {
+  assert.throws(() => resolvePublicReleaseBootstrap(tag), /only valid for v0\.7\.0/);
+}
 
 const bytes = Buffer.from("reviewed bootstrap installer fixture");
 const file = "OpenGrove-0.6.5-mac-arm64.dmg";
 const fixture = validatePublicReleaseBootstrap({
   schemaVersion: 1,
-  firstPublicReleaseTag: "v0.6.6",
+  firstPublicReleaseTag: "v0.7.0",
   previousReleaseTag: "v0.6.5",
   assets: {
     "mac-arm64": { file, size: bytes.length, sha256: createHash("sha256").update(bytes).digest("hex") },
@@ -42,7 +44,7 @@ const tempRoot = mkdtempSync(join(tmpdir(), "opengrove-public-release-bootstrap-
 try {
   let requestedUrl;
   const installer = await downloadPublicReleaseBootstrapInstaller({
-    expectedTag: "v0.6.6",
+    expectedTag: "v0.7.0",
     target: "mac-arm64",
     publicRoot: "https://releases.example.test/opengrove/releases",
     outputDir: tempRoot,
@@ -57,7 +59,7 @@ try {
 
   await assert.rejects(
     downloadPublicReleaseBootstrapInstaller({
-      expectedTag: "v0.6.6",
+      expectedTag: "v0.7.0",
       target: "mac-arm64",
       publicRoot: "http://releases.example.test/opengrove/releases",
       outputDir: tempRoot,

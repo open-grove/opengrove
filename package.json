@@ -1,8 +1,8 @@
 {
   "name": "opengrove",
-  "version": "0.6.6",
+  "version": "0.7.0",
   "packageManager": "npm@10.9.8",
-  "clientReleaseNumber": 10031,
+  "clientReleaseNumber": 10032,
   "type": "module",
   "private": true,
   "description": "Desktop workspace where people and agents talk, remember, and collaborate.",

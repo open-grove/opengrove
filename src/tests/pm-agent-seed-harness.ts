@@ -31,7 +31,7 @@ function createApp(
   employees: unknown[],
   manifestExtra: Record<string, unknown> = {},
 ): string {
-  const appRoot = join(tempRoot, appId);
+  const appRoot = mkdtempSync(join(tempRoot, "app-"));
   const workspaceRoot = join(appRoot, "workspace");
   mkdirSync(workspaceRoot, { recursive: true });
   writeFileSync(

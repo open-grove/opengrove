@@ -2,7 +2,13 @@ import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { harnessGroups, harnessInventory, harnessOwners, integrationSuites } from "./ci-harness-inventory.mjs";
+import {
+  harnessGroups,
+  harnessInventory,
+  harnessOwners,
+  harnessTasksForPlatform,
+  integrationSuites,
+} from "./ci-harness-inventory.mjs";
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const packageJson = JSON.parse(readFileSync(resolve(projectRoot, "package.json"), "utf8"));
@@ -67,7 +73,7 @@ const expectedFullGroupSizes = {
   "state-storage": 10,
   "rooms-routines": 23,
   "apps-knowledge": 16,
-  "app-lifecycle": 20,
+  "app-lifecycle": 21,
   "kernels-providers": 29,
   "web-desktop": 20,
   "release-contracts": 1,
@@ -97,7 +103,7 @@ for (const [groupName, expectedSize] of Object.entries(expectedFullGroupSizes)) 
   groupedLabels.push(...harnessGroups[groupName].map((task) => task.id));
 }
 
-assert.equal(harnessInventory.length, 119, "the canonical deterministic harness inventory must not shrink silently");
+assert.equal(harnessInventory.length, 120, "the canonical deterministic harness inventory must not shrink silently");
 assert.equal(
   harnessGroups.full,
   harnessInventory,
@@ -108,10 +114,10 @@ assert.equal(
   harnessInventory.length,
   "every harness id must be unique",
 );
-assert.equal(harnessGroups.integration.length, 41, "the affected-integration subset must not shrink silently");
+assert.equal(harnessGroups.integration.length, 42, "the affected-integration subset must not shrink silently");
 assert.equal(
   new Set(harnessGroups.integration.map((task) => task.id)).size,
-  41,
+  42,
   "the integration subset must not execute a canonical harness twice",
 );
 assert.equal(new Set(groupedLabels).size, groupedLabels.length, "a full harness must have exactly one owner group");
@@ -146,9 +152,25 @@ assert.deepEqual(
   "release workflow contracts must stay isolated from ordinary product tests",
 );
 
+const windowsTasks = harnessTasksForPlatform(harnessGroups.integration, "win32");
+assert.equal(windowsTasks.length, 39);
+assert.ok(windowsTasks.some((task) => task.id === "app-release-windows-build-boundary"));
+assert.deepEqual(
+  harnessGroups.integration.filter((task) => !windowsTasks.includes(task)).map((task) => task.id),
+  ["app-release-coordinator", "app-release-registry-migration", "app-release-apply"],
+);
+for (const platform of ["darwin", "linux"]) {
+  const selected = harnessTasksForPlatform(harnessGroups.integration, platform);
+  assert.equal(selected.length, 41);
+  assert.deepEqual(
+    harnessGroups.integration.filter((task) => !selected.includes(task)).map((task) => task.id),
+    ["app-release-windows-build-boundary"],
+  );
+}
+
 for (const task of harnessGroups.full) {
   assert.deepEqual(
-    Object.keys(task).filter((field) => !["id", "path", "owner", "suite", "isolation"].includes(field)),
+    Object.keys(task).filter((field) => !["id", "path", "owner", "suite", "isolation", "platforms"].includes(field)),
     [],
     `${task.id} should use only the reviewed, non-redundant inventory fields`,
   );

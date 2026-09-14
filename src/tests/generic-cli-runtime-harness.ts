@@ -12,8 +12,8 @@ writeFileSync(
   producer,
   [
     "import { writeFileSync } from 'node:fs';",
-    `writeFileSync(${JSON.stringify(readyMarker)}, 'ready');`,
-    "process.stdout.write('partial generic output');",
+    // Publish readiness only after stdout is flushed, so cancellation cannot race the first write.
+    `process.stdout.write('partial generic output', () => writeFileSync(${JSON.stringify(readyMarker)}, 'ready'));`,
     "setInterval(() => {}, 1_000);",
   ].join("\n"),
   "utf8",

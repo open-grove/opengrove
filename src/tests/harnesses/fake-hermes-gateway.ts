@@ -12,6 +12,8 @@ export interface FakeHermesGatewayOptions {
   thinkingStatusText?: string;
   reasoningText?: string;
   responseSuffix?: string;
+  responsePrefix?: string;
+  trimFinalText?: boolean;
   ambiguousSameNameTools?: boolean;
   promptDelayMs?: number;
 }
@@ -84,7 +86,9 @@ export function fakeHermesGatewaySource(options: FakeHermesGatewayOptions = {}):
         ? `  const body = [${JSON.stringify(marker)}, \`PROMPT:\${text}\`, \`APPROVAL:\${approval?.choice || ''}\`, \`ANSWER:\${answer?.answer || ''}\`, \`STEER:\${steering.join('|')}\`, \`HERMES_HOME:\${process.env.HERMES_HOME || ''}\`, 'CONFIG_BEGIN', configText(), 'CONFIG_END'].join('\\n');`
         : `  const body = [${JSON.stringify(marker)}, \`PROMPT:\${text}\`, \`APPROVAL:\${approval?.choice || ''}\`, \`ANSWER:\${answer?.answer || ''}\`, \`STEER:\${steering.join('|')}\`].join('\\n');`,
     `  const responseSuffix = ${JSON.stringify(options.responseSuffix ?? "")};`,
-    "  const responseText = body + responseSuffix;",
+    `  const responsePrefix = ${JSON.stringify(options.responsePrefix ?? "")};`,
+    `  const responseText = (responsePrefix + body + responseSuffix)${options.trimFinalText ? ".trim()" : ""};`,
+    "  if (responsePrefix) event('message.delta', sessionId, { text: responsePrefix });",
     "  event('message.delta', sessionId, { text: body });",
     "  if (responseSuffix) event('message.delta', sessionId, { text: responseSuffix });",
     holdUntilInterrupt

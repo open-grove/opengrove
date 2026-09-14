@@ -18,6 +18,8 @@ const tempRoot = mkdtempSync(join(tmpdir(), "opengrove-app-version-manager-"));
 const appRoot = join(tempRoot, "apps", "versioned-app");
 const previousUserData = process.env[appEnvName("USER_DATA_DIR")];
 
+const states: ReturnType<typeof createBridgeState>[] = [];
+
 try {
   process.env[appEnvName("USER_DATA_DIR")] = join(tempRoot, "user-data");
   mkdirSync(join(appRoot, "workspace"), { recursive: true });
@@ -90,6 +92,7 @@ try {
   );
 
   const state = createBridgeState({ statePath: join(tempRoot, "state.json") });
+  states.push(state);
   state.settings.mountedApps = [
     {
       id: "versioned-app",
@@ -204,6 +207,7 @@ try {
 
   process.stdout.write("app version manager harness passed\n");
 } finally {
+  for (const state of states) await state.store.close?.();
   if (previousUserData === undefined) delete process.env[appEnvName("USER_DATA_DIR")];
   else process.env[appEnvName("USER_DATA_DIR")] = previousUserData;
   rmSync(tempRoot, { recursive: true, force: true });

@@ -107,6 +107,18 @@ const OPENCLAW_OPERATOR_SCOPES = [
   "operator.pairing",
 ];
 
+export async function discoverOpenClawGatewayVersion(
+  connection: OpenClawGatewayConnection,
+): Promise<string | undefined> {
+  const client = new OpenClawGatewayClient({ ...connection, connectTimeoutMs: DISCOVERY_TIMEOUT_MS });
+  try {
+    await client.ensureConnected();
+    return client.serverVersion;
+  } finally {
+    client.close();
+  }
+}
+
 export async function discoverOpenClawGatewayProviderProfiles(
   connection: OpenClawGatewayConnection,
 ): Promise<OpenClawGatewayDiscoveredProviderProfile[]> {
@@ -788,6 +800,7 @@ function identifierDisplayName(value: string): string {
 }
 
 class OpenClawGatewayClient {
+  serverVersion?: string;
   private ws?: WebSocket;
   private connected = false;
   private connectPromise?: Promise<void>;
@@ -831,6 +844,7 @@ class OpenClawGatewayClient {
 
   close(): void {
     this.connected = false;
+    this.serverVersion = undefined;
     for (const pending of this.pending.values()) {
       pending.cleanup();
       pending.reject(new Error("openclaw gateway closed"));
@@ -868,8 +882,11 @@ class OpenClawGatewayClient {
         if (connectSent || ws.readyState !== WebSocket.OPEN) return;
         connectSent = true;
         void this.requestOnSocket(ws, "connect", this.connectParams(connectNonce), { timeoutMs: connectTimeoutMs })
-          .then(() => {
+          .then((hello) => {
             if (settled) return;
+            // Protocol 4 hello-ok identifies the running Gateway, which may be remote
+            // or differ from the locally installed CLI.
+            this.serverVersion = readString(asObject(asObject(hello).server), "version");
             settled = true;
             cleanupConnect();
             this.connected = true;

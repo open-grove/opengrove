@@ -32,6 +32,12 @@ import { inspectAgentTurnEvents } from "./harnesses/kernel-event-contract.js";
 
 const optOutMethods: readonly string[] = CODEX_APP_SERVER_OPT_OUT_NOTIFICATION_METHODS;
 
+assert.equal(
+  codexThreadConfig(undefined)["tools.update_plan.enabled"],
+  true,
+  "OpenGrove must enable the native planning tool it exposes on new and resumed Codex threads",
+);
+
 const canceledApprovalRoot = mkdtempSync(`${tmpdir()}/opengrove-codex-canceled-approval-`);
 const canceledApprovalApp = createOpenGrove({
   cwd: canceledApprovalRoot,

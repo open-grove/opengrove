@@ -91,7 +91,7 @@ export class AcpSessionProjector {
       if (toolCallId) {
         this.toolCalls.delete(toolCallId);
       }
-      return [
+      const events: AgentEvent[] = [
         {
           type: "tool.finished",
           runId: this.options.runId,
@@ -106,6 +106,32 @@ export class AcpSessionProjector {
           },
         },
       ];
+      // OpenCode 1.18 reports saved plans in todowrite completion metadata instead
+      // of ACP plan updates. Keep this native projection until upstream emits plan:
+      // https://github.com/anomalyco/opencode/blob/dev/packages/opencode/src/tool/todo.ts
+      if (ok && this.options.kernelId === "opencode" && toolId === "opencode.todowrite") {
+        const todos = asProjectorObject(asProjectorObject(output).metadata).todos;
+        if (
+          Array.isArray(todos) &&
+          todos.every((value) => {
+            const todo = asProjectorObject(value);
+            return (
+              readProjectorString(todo, "content") &&
+              ["pending", "in_progress", "completed", "cancelled"].includes(
+                readProjectorString(todo, "status") ?? "",
+              ) &&
+              ["low", "medium", "high"].includes(readProjectorString(todo, "priority") ?? "")
+            );
+          })
+        ) {
+          events.push({
+            type: "planning.updated",
+            runId: this.options.runId,
+            plan: acpPlanningUpdate({ entries: todos, status: "completed" }, this.options.kernelId),
+          });
+        }
+      }
+      return events;
     }
 
     if (sessionUpdate === "usage_update") {

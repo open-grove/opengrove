@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { execFileSync } from "node:child_process";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -192,6 +194,63 @@ assert.match(
   /if \[\[ "\$AUTO_RUN_ENABLED" != "true" \]\]; then/u,
   "public mirrors should skip credential-backed real-agent probes by default",
 );
+
+// A reusable workflow inherits its caller's event name, including a manual Nightly dispatch.
+const matrixScript = /        run: \|\n((?:          [^\n]*\n|\n)+)/u.exec(realAgentWorkflow)?.[1];
+assert.ok(matrixScript, "real-agent matrix planner must have an executable shell body");
+function planRealAgentMatrix(overrides) {
+  const root = mkdtempSync(join(tmpdir(), "opengrove-real-agent-plan-"));
+  const output = join(root, "output");
+  try {
+    execFileSync("bash", ["-c", matrixScript.replace(/^          /gmu, "")], {
+      env: {
+        ...process.env,
+        EVENT: "workflow_dispatch",
+        AUTO_RUN_ENABLED: "false",
+        DISPATCH_KERNEL: "",
+        DISPATCH_VERSION: "",
+        DISPATCH_MODE: "",
+        IS_FORK: "false",
+        PR_AUTHOR: "maintainer",
+        ...overrides,
+        GITHUB_OUTPUT: output,
+        GITHUB_STEP_SUMMARY: join(root, "summary"),
+      },
+      stdio: "pipe",
+    });
+    const values = Object.fromEntries(
+      readFileSync(output, "utf8")
+        .trim()
+        .split("\n")
+        .map((line) => [line.slice(0, line.indexOf("=")), line.slice(line.indexOf("=") + 1)]),
+    );
+    return { run: values.run, matrix: JSON.parse(values.matrix) };
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+}
+assert.deepEqual(planRealAgentMatrix({}), { run: "false", matrix: { include: [] } });
+assert.deepEqual(
+  planRealAgentMatrix({ AUTO_RUN_ENABLED: "true" }).matrix.include.map((entry) => entry.case),
+  ["claude-sdk", "claude-cli", "opencode"],
+  "manual Nightly should use the opted-in full matrix without dispatch-specific inputs",
+);
+const manualPlan = planRealAgentMatrix({
+  DISPATCH_KERNEL: "claude-code",
+  DISPATCH_VERSION: "2.1.220",
+  DISPATCH_MODE: "sdk",
+});
+assert.equal(manualPlan.run, "true");
+assert.deepEqual(manualPlan.matrix.include, [
+  {
+    case: "claude-sdk",
+    kernel: "claude-code",
+    image: "claude-code",
+    engine_version: "2.1.220",
+    runtime_mode: "sdk",
+    capabilities: "message.streamText,turn.lifecycle,session.lifecycle,diagnostics.usage,planning.plan",
+  },
+]);
 
 for (const [name, document] of [
   ["English", releaseProcess],

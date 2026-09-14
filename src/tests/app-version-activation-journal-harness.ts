@@ -64,7 +64,8 @@ try {
     },
   });
 
-  assert.equal(statSync(journal.path).mode & 0o777, 0o600);
+  // Windows permissions use ACLs; stat.mode does not expose POSIX privacy bits.
+  if (process.platform !== "win32") assert.equal(statSync(journal.path).mode & 0o777, 0o600);
   const legacyJournal = JSON.parse(readFileSync(journal.path, "utf8")) as {
     previousAgentState: { version: number };
   };
