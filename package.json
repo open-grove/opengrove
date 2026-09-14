@@ -237,7 +237,7 @@
     "test:packed-runtime": "npm run build:server && npm run test:packed-runtime:built",
     "test:packed-runtime:built": "node scripts/run-built-harnesses.mjs packed-runtime",
     "test:unit": "npm run test:node",
-    "test:ui": "npm run build:server && npm run build:web && playwright test && node scripts/test-web-session-expiry.mjs --browser",
+    "test:ui": "npm run build:server && npm run build:web && playwright test",
     "test:pm-routing-contract": "npm run build:server && npm run test:pm-routing-contract:built",
     "test:pm-routing-contract:built": "node scripts/run-built-harnesses.mjs pm-routing",
     "test:pm-routing-contract:clean-home": "npm run build:server && npm run test:pm-routing-contract:clean-home:built",

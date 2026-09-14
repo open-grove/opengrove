@@ -2,6 +2,9 @@ import { apiUrl } from "../api-base";
 import { BridgeRequestError } from "../bridge-client";
 import { readDesktopApi } from "../desktop-api";
 
+// Supports: OpenApp Portal 0.1.0 gateways returning 401 authentication_required from /instances/:id/api.
+// Remove when: OpenApp Portal 0.1.0 proxy deployments retire these routes or provide browser sign-in handoff.
+
 /** OpenApp rejects expired Portal sessions before a request reaches the Bridge. */
 export function isOpenAppSessionRequiredError(error: unknown): boolean {
   return error instanceof BridgeRequestError && error.status === 401 && error.message === "authentication_required";

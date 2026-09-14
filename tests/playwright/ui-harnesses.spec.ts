@@ -6,6 +6,11 @@ const execFileAsync = promisify(execFile);
 
 const harnesses = [
   {
+    name: "Expired Web sessions return to sign-in and resume Rooms synchronization",
+    script: "scripts/test-web-session-expiry-ui.mjs",
+    marker: "web-session-expiry browser ok",
+  },
+  {
     name: "Workspace draft backups coalesce input and restore large documents",
     script: "scripts/test-web-file-draft-backups.mjs",
     marker: "web-file-draft-backups passed",
