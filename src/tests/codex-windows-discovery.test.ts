@@ -293,7 +293,13 @@ test("Windows retries a failed version probe after an explicit refresh of its re
 async function diagnosePowerShellEnvironment(): Promise<void> {
   const minimal = windowsProbeEnvironment(process.env);
   const command = join(minimal.SystemRoot!, "System32", "WindowsPowerShell", "v1.0", "powershell.exe");
-  const args = ["-NoLogo", "-NoProfile", "-NonInteractive", "-Command", "Write-Output 'ready'"];
+  const args = [
+    "-NoLogo",
+    "-NoProfile",
+    "-NonInteractive",
+    "-Command",
+    "[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false); Write-Output '中文 用户'",
+  ];
   const groups = [
     ["ComSpec", "PATHEXT"],
     [
@@ -318,7 +324,12 @@ async function diagnosePowerShellEnvironment(): Promise<void> {
     ],
     ["PSModulePath"],
   ];
-  const profiles = [
+  const profiles: Array<{ name: string; env: NodeJS.ProcessEnv; args?: string[] }> = [
+    {
+      name: "minimal-ascii-control",
+      env: minimal,
+      args: ["-NoLogo", "-NoProfile", "-NonInteractive", "-Command", "Write-Output 'ready'"],
+    },
     { name: "minimal", env: minimal },
     ...groups.map((keys) => ({
       name: keys.join(","),
@@ -331,7 +342,7 @@ async function diagnosePowerShellEnvironment(): Promise<void> {
     const result = await new Promise((resolve) => {
       const child = execFile(
         command,
-        args,
+        profile.args ?? args,
         { env: profile.env, encoding: "utf8", timeout: 5_000, windowsHide: true },
         (error, stdout, stderr) => {
           resolve({
