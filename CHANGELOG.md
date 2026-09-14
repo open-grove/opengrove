@@ -6,8 +6,19 @@ to draft `docs/releases/vX.Y.Z.md`.
 
 ## Unreleased
 
+## v0.7.0 - 2026-09-14
+
+- Adapt mobile browsers and narrow windows with drawer navigation, retained panel state, and touch dragging; add desktop navigation resizing, icon mode, hiding, unread indicators, and localized App identity.
 - Preserve text drafts across file conflicts, navigation and refresh with delayed IndexedDB backups, manual comparison and an explicit discard action; viewing external Markdown updates no longer writes stale text back.
 - **Breaking for App developers:** overwriting workspace files through `workspace.write` or the raw file PUT API now requires `expectedRevision` from a preceding read. Missing preconditions return 428; stale versions return 409. Update installed Apps to read, review and conditionally write before upgrading. Creation remains supported without a revision, or with `"missing"`.
+- Clarify long-running task, approval, cancellation, and restart outcomes, including Routine approvals that need to be run again after a full process restart.
+- Improve Gemini and DeepSeek model discovery, native Pi tools and protocol selection, Claude sign-in, Kimi installation discovery, and Windows Codex desktop discovery. Existing pre-upgrade Pi session files are retained but their history is not imported into new sessions.
+- Preserve account configuration through temporary cloud failures, isolate credential recovery between runs, and return expired hosted Web sessions to sign-in.
+- Separate client update checks from installed App update scheduling, support signed-out client checks, and provide English and Simplified Chinese update notes.
+- Add categorized storage usage and coordinated cleanup, protect in-progress installers, migrate legacy App directories, and recover state ownership after abnormal exits while preserving workspaces.
+- Unify Host operation contracts, OpenAPI and Client CLI authentication, with App release preparation, publishing, status, recovery, and application commands.
+- Add trusted remote Agent contacts and text collaboration through direct messages, group mentions and explicit quotes, with per-run authorization, recovery, retry, and honest cancellation states.
+- Prepare the first public v0.7.0 release with client release number 10032, bilingual schema v3 receipts, pinned real v0.6.5 upgrade inputs, and corrected cross-platform Nightly fixtures and manual dispatch planning.
 
 ## v0.6.6 - 2026-08-31
 

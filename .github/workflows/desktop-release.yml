@@ -14,7 +14,7 @@ on:
         default: all
         type: string
       first_public_release:
-        description: "One-time v0.6.6 bootstrap when this public repository has no prior GitHub Release"
+        description: "One-time v0.7.0 bootstrap when this public repository has no prior GitHub Release"
         required: true
         default: false
         type: boolean
@@ -100,7 +100,7 @@ jobs:
           previous_release_source=github
           if [ -z "$previous_release_tag" ]; then
             if [ "$FIRST_PUBLIC_RELEASE" != true ]; then
-              echo "No prior public GitHub Release exists. Use first_public_release=true only for the reviewed v0.6.6 bootstrap." >&2
+              echo "No prior public GitHub Release exists. Use first_public_release=true only for the reviewed v0.7.0 bootstrap." >&2
               exit 1
             fi
             previous_release_tag="$(node scripts/public-release-bootstrap.mjs previous-tag --expected-tag "$expected_tag")"

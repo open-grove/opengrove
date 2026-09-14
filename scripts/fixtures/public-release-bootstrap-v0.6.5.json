@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "firstPublicReleaseTag": "v0.6.6",
+  "firstPublicReleaseTag": "v0.7.0",
   "previousReleaseTag": "v0.6.5",
   "assets": {
     "mac-arm64": {
