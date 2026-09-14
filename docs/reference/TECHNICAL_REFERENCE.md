@@ -51,7 +51,13 @@ Codex discovery honors an explicit command or `OPENGROVE_CODEX_BIN` first; an
 invalid override remains an error. On Windows it searches the inherited PATH,
 then the current machine/user registry PATH, `CODEX_INSTALL_DIR`, the official
 `%LOCALAPPDATA%\Programs\OpenAI\Codex\bin` directory, and the WinGet `Links`
-entry. If those are absent, it queries the registered `OpenAI.Codex` desktop
+entry. If those are absent, background discovery checks one directory level below
+`%LOCALAPPDATA%\OpenAI\Codex\bin` for desktop-managed `codex.exe` generations.
+Candidates are tried by file modification time, newest first, and must complete
+an asynchronous `--version` check within two seconds with a Codex version banner.
+Failed candidates are skipped; concurrent scans share work, and ordinary reads
+reuse the validated path. Refresh scans the directory again after app updates.
+If no usable desktop generation is found, it queries the registered `OpenAI.Codex`
 package for its bundled executable without pinning an installation volume or
 package version. Registry and package queries run asynchronously with a five-second
 limit, share concurrent requests, and use one-minute and five-minute caches
@@ -62,7 +68,7 @@ installs bypass the caches. Windows version-check failures and timeouts are
 cached for one minute, keyed by the executable and normalized effective PATH;
 a formatting-only PATH change does not repeat the command. Account login and
 Codex app-server startup await PATH refresh without blocking the Host. Discovery
-helpers receive only Windows runtime variables, never Provider credentials.
+PowerShell helpers receive only Windows runtime variables, never Provider credentials.
 The existing macOS ChatGPT/Codex bundle discovery is retained.
 
 ```bash

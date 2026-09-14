@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
@@ -8,6 +9,124 @@ import { clearCommandVersionCache, commandProbe } from "../kernel/discovery.js";
 import { buildCodexAppServerEnv } from "../runtime/codex/app-server-client.js";
 import { refreshWindowsAppCodexCandidates } from "../runtime/codex/windows-app-discovery.js";
 import { refreshCodexCommandPath, resolveCodexCommandPath } from "../runtime/codex/command-path.js";
+
+function desktopCliFixture(root: string): string {
+  const executable = join(root, "fixture.exe");
+  if (process.platform === "win32") {
+    const source = join(root, "fixture.cs");
+    writeFileSync(
+      source,
+      `
+using System;
+using System.IO;
+using System.Reflection;
+class Fixture {
+  static int Main(string[] args) {
+    string root = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
+    File.AppendAllText(Path.Combine(root, "calls.txt"), String.Join(" ", args) + "\\n");
+    if (args.Length != 1 || args[0] != "--version") return 2;
+    Console.WriteLine(File.ReadAllText(Path.Combine(root, "version.txt")));
+    return 0;
+  }
+}
+`,
+    );
+    execFileSync(
+      join(process.env.SystemRoot!, "System32", "WindowsPowerShell", "v1.0", "powershell.exe"),
+      [
+        "-NoProfile",
+        "-NonInteractive",
+        "-Command",
+        "Add-Type -Path $env.OPENGROVE_TEST_SOURCE -OutputAssembly $env.OPENGROVE_TEST_EXE -OutputType ConsoleApplication",
+      ],
+      { env: { ...process.env, OPENGROVE_TEST_SOURCE: source, OPENGROVE_TEST_EXE: executable }, timeout: 15_000 },
+    );
+  } else {
+    writeFileSync(
+      executable,
+      '#!/bin/sh\ndir="${0%/*}"\nprintf "%s\\n" "$*" >> "$dir/calls.txt"\n[ "$1" = "--version" ] || exit 2\n/bin/cat "$dir/version.txt"\n',
+      { mode: 0o700 },
+    );
+  }
+  return executable;
+}
+
+test("discovers a runnable desktop CLI one directory below LocalAppData/OpenAI/Codex/bin", async (t) => {
+  const root = mkdtempSync(join(tmpdir(), "opengrove desktop 中文 "));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const executable = join(root, "OpenAI", "Codex", "bin", "bffc5354119c8421", "codex.exe");
+  mkdirSync(dirname(executable), { recursive: true });
+  copyFileSync(desktopCliFixture(root), executable);
+  writeFileSync(join(dirname(executable), "version.txt"), "codex-cli 0.153.4");
+  let packageQueries = 0;
+  const probe = {
+    platform: "win32" as const,
+    homeDir: root,
+    envPath: "",
+    environment: { ...process.env, LOCALAPPDATA: root, PATH: "" },
+    commandPath: { path: "" },
+    windowsQuery: (_file: string, args: readonly string[]) => {
+      if (args.at(-1)?.includes("Get-AppxPackage")) packageQueries++;
+      return "";
+    },
+  };
+  assert.equal(resolveCodexCommandPath(probe), undefined);
+  const scans = await Promise.all([refreshCodexCommandPath(probe), refreshCodexCommandPath(probe)]);
+  assert.deepEqual(scans, [executable, executable]);
+  for (let index = 0; index < 10; index++) assert.equal(resolveCodexCommandPath(probe), executable);
+  assert.equal(readFileSync(join(dirname(executable), "calls.txt"), "utf8"), "--version\n");
+  assert.equal(packageQueries, 0, "a validated desktop CLI does not need a Store package scan");
+});
+
+test("desktop CLI discovery skips unusable candidates and follows updated generation directories", async (t) => {
+  const root = mkdtempSync(join(tmpdir(), "opengrove desktop refresh "));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const warnings = t.mock.method(console, "warn", () => {});
+  const fixture = desktopCliFixture(root);
+  const bin = join(root, "OpenAI", "Codex", "bin");
+  const working = join(bin, "older-working", "codex.exe");
+  const unrelated = join(bin, "newer-unrelated", "codex.exe");
+  const broken = join(bin, "newest-broken", "codex.exe");
+  const nested = join(bin, "other", "nested", "codex.exe");
+  for (const [index, command] of [working, unrelated, broken, nested].entries()) {
+    mkdirSync(dirname(command), { recursive: true });
+    copyFileSync(fixture, command);
+    writeFileSync(
+      join(dirname(command), "version.txt"),
+      command === unrelated ? "another-tool 1.0.0" : "codex-cli 0.153.4",
+    );
+    utimesSync(command, 1_700_000_000 + index, 1_700_000_000 + index);
+  }
+  writeFileSync(broken, "invalid executable", { mode: 0o700 });
+  const probe = {
+    platform: "win32" as const,
+    homeDir: root,
+    envPath: "",
+    environment: { ...process.env, LOCALAPPDATA: root, PATH: "" },
+    commandPath: { path: "" },
+    windowsQuery: () => "",
+  };
+  assert.equal(await refreshCodexCommandPath(probe), working);
+  assert.equal(warnings.mock.callCount(), 2);
+  assert.throws(() => readFileSync(join(dirname(nested), "calls.txt")), { code: "ENOENT" });
+
+  const updated = join(bin, "different-generation", "codex.exe");
+  mkdirSync(dirname(updated), { recursive: true });
+  copyFileSync(fixture, updated);
+  writeFileSync(join(dirname(updated), "version.txt"), "codex-cli 0.154.0");
+  rmSync(dirname(working), { recursive: true });
+  assert.equal(resolveCodexCommandPath(probe), undefined, "deleted cached paths must not remain available");
+  assert.equal(await refreshCodexCommandPath({ ...probe, force: true }), updated);
+  assert.equal(resolveCodexCommandPath(probe), updated);
+
+  assert.equal(await refreshCodexCommandPath({ ...probe, envPath: join(root, "missing.exe") }), undefined);
+  assert.equal(await refreshCodexCommandPath({ ...probe, commandPath: { path: dirname(unrelated) } }), unrelated);
+  assert.equal(
+    readFileSync(join(dirname(updated), "calls.txt"), "utf8"),
+    "--version\n",
+    "explicit/PATH commands retain precedence without probing desktop candidates again",
+  );
+});
 
 test("discovers the official Windows CLI install without an inherited PATH entry", (t) => {
   const root = mkdtempSync(join(tmpdir(), "opengrove-windows-codex-"));

@@ -10,6 +10,7 @@ import {
 } from "../../environment/windows-discovery.js";
 import { resolveCommandPath, type CommandPathProbe } from "../../kernel/discovery.js";
 import { refreshWindowsAppCodexCandidates, windowsAppCodexCandidates } from "./windows-app-discovery.js";
+import { refreshWindowsDesktopCodexCommand, windowsDesktopCodexCommand } from "./windows-desktop-discovery.js";
 
 export interface CodexCommandPathProbe {
   platform?: NodeJS.Platform;
@@ -30,6 +31,8 @@ export function resolveCodexCommandPath(probe: CodexCommandPathProbe = {}): stri
     (probe.envPath ?? readAppEnv("CODEX_BIN")?.trim())
   )
     return candidate;
+  const desktopCommand = windowsDesktopCodexCommand(probe.environment ?? process.env, probe.homeDir);
+  if (desktopCommand && isRunnableCodexCommand(desktopCommand, "win32")) return desktopCommand;
   return windowsAppCodexCandidates(probe.environment ?? process.env, probe.windowsQuery).find((path) =>
     isRunnableCodexCommand(path, "win32"),
   );
@@ -41,10 +44,12 @@ export async function refreshCodexCommandPath(probe: CodexCommandPathProbe = {})
   if (platform !== "win32") return resolveCodexCommandPath(probe);
   const environment = probe.environment ?? process.env;
   const queryProbe = { platform, query: probe.windowsQuery, force: probe.force };
-  await refreshWindowsPath(environment, queryProbe);
+  const refreshedEnvironment = await refreshWindowsPath(environment, queryProbe);
   const candidate = resolveCodexCliCommandPath(probe);
-  if (!candidate && !(probe.envPath ?? readAppEnv("CODEX_BIN")?.trim()))
-    await refreshWindowsAppCodexCandidates(environment, queryProbe);
+  if (!candidate && !(probe.envPath ?? readAppEnv("CODEX_BIN")?.trim())) {
+    const desktopCommand = await refreshWindowsDesktopCodexCommand(refreshedEnvironment, probe.homeDir);
+    if (!desktopCommand) await refreshWindowsAppCodexCandidates(environment, queryProbe);
+  }
   return resolveCodexCommandPath(probe);
 }
 

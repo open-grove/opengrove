@@ -49,14 +49,18 @@ OPENGROVE_KERNEL=opencode npm start
 Codex 发现优先遵循显式命令或 `OPENGROVE_CODEX_BIN`，配置无效时仍报错。
 Windows 会依次检查进程 PATH、注册表中最新的系统和用户 PATH、
 `CODEX_INSTALL_DIR`、官方 `%LOCALAPPDATA%\Programs\OpenAI\Codex\bin`
-目录及 WinGet `Links` 入口；均不存在时，查询已注册的 `OpenAI.Codex`
-桌面应用包并定位内置程序，不写死安装磁盘和包版本。注册表和应用包查询均异步
+目录及 WinGet `Links` 入口；均不存在时，后台检查
+`%LOCALAPPDATA%\OpenAI\Codex\bin` 下一层目录中的桌面版 `codex.exe`。
+按文件修改时间从新到旧尝试，每个候选必须在两秒内完成异步 `--version` 检查，
+且输出 Codex 版本标识；失败则尝试下一个。并发扫描共用结果，普通读取复用已验证
+的路径，刷新时重新扫描以发现更新后的目录。仍无可用候选时，查询已注册的
+`OpenAI.Codex` 桌面应用包并定位内置程序，不写死安装磁盘和包版本。注册表和应用包查询均异步
 执行，超时为五秒，并发请求共用一次查询，结果分别缓存一分钟和五分钟，未找到
 或查询失败也会缓存。设置页读取已有结果，启动时及设置页请求会触发后台刷新，
 完成后自动更新 Kernel 列表。Kernel 页的“刷新”按钮和安装完成会跳过缓存。
 Windows 版本检查失败或超时的结果缓存一分钟，以程序文件及归一化后的有效
 PATH 为缓存依据，PATH 仅有格式变化不会重复执行。账号登录和 Codex app-server
-启动异步等待 PATH 刷新，不阻塞 Host。安装探测子进程只接收 Windows 运行所需的系统
+启动异步等待 PATH 刷新，不阻塞 Host。PowerShell 探测子进程只接收 Windows 运行所需的系统
 变量，不接收 Provider 凭据。macOS 的 ChatGPT/Codex 应用包发现逻辑保持原有行为。
 
 ```bash
