@@ -349,6 +349,25 @@
   min-width: 0;
 }
 
+/* Keep the remote identity next to the editable name, including short names. */
+.contacts-employee-title[data-remote="true"] {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-1);
+  max-width: 100%;
+  font-size: var(--fs-xl);
+}
+
+.contacts-employee-title[data-remote="true"] input {
+  field-sizing: content;
+  flex: 0 1 auto;
+  width: auto;
+  min-width: 2ch;
+  max-width: min(360px, calc(100% - 1em - var(--sp-1)));
+  padding-inline: 0;
+}
+
 .contacts-employee-title h3 {
   margin: 0;
   color: var(--rooms-text);

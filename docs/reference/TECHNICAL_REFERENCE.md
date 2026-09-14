@@ -158,6 +158,12 @@ status, and the incremental event stream consumed by the UI.
 
 When a message targets local members, the bridge schedules one room agent run per runnable target, builds a per-member prompt with the current message and a recent ledger window, then writes final results back to the same ledger. Kernels that support native sessions still keep stable per-room-member native continuity behind that ledger-backed prompt. If an agent needs older channel context, it can call `room.ledger.read` with `roomId`, optional `query`, `limit`, `beforeSeq`, or `afterSeq`. The tool returns only room-visible messages by default and identifies the authoritative room with `sourceRoomId`. For a current membership check, callers must explicitly pass `includeMembers: true`; the added member summaries contain only ID, name, status, last activity, and the disabled flag, never the full role, Kernel, model, or App configuration. Ledger attachments never expose host-local paths, and inline text or data URLs larger than 16 KiB are omitted while attachment metadata remains available.
 
+### Remote Agent targets
+
+Remote members use the optional Agent Router integration instead of a local
+Kernel run. See [Remote Agent conversations](../product/REMOTE_AGENTS.md) for
+connection setup, context continuity, recovery, and supported boundaries.
+
 ## App Store
 
 The App Store is a configurable package registry. Listing, archive download,

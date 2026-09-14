@@ -18,7 +18,7 @@ interface ActiveRunHandle {
   leases: Set<symbol>;
   executionState?: BridgeState;
   adapter?: BridgeState["kernelAdapter"];
-  cancel?: () => void;
+  cancel?: (reason?: "host_shutdown") => void;
   cancelRequested: boolean;
   interactionIds: Set<string>;
 }
@@ -38,7 +38,7 @@ const BRIDGE_RUN_MAINTENANCE_IDLE_TTL_MS = 5 * 60_000;
 export function registerActiveBridgeRun(
   state: BridgeState,
   runId: string,
-  options: { cancel?: () => void; now?: number } = {},
+  options: { cancel?: (reason?: "host_shutdown") => void; now?: number } = {},
 ): () => void {
   const registry = registryForState(state);
   const now = options.now ?? Date.now();
@@ -152,7 +152,7 @@ export function cancelAllActiveBridgeRuns(state: BridgeState): string[] {
     if (!handle.cancel) continue;
     handle.cancelRequested = true;
     lifecycleChanged = markRunCancelPending(state, handle, "host_shutdown") || lifecycleChanged;
-    handle.cancel();
+    handle.cancel("host_shutdown");
     canceled.push(runId);
   }
   if (lifecycleChanged) {

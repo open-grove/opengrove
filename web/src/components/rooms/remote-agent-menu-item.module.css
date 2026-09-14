@@ -1,0 +1,13 @@
+.label {
+  display: grid;
+  gap: var(--sp-1);
+  padding-block: var(--sp-2);
+}
+
+.description {
+  max-width: 28ch;
+  color: var(--c-text-muted);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-normal);
+  white-space: normal;
+}

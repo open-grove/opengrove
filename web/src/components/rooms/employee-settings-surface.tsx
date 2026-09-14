@@ -30,6 +30,7 @@ import {
 import { EmployeeAvatarPicker } from "./employee-avatar-picker";
 import { EmployeeDialog, type EmployeeEditorTab } from "./employee-dialog";
 import { RoomMemberAvatar } from "./member-avatar";
+import { RemoteAgentIndicator, RoomMemberName } from "./member-name";
 import type { Room, RoomMember } from "./rooms-model";
 import { roomMemberDisplayName } from "./rooms-model";
 import { useEmployeeSettingsAutosave, type EmployeeSettingsPatchOptions } from "./use-employee-settings-autosave";
@@ -50,6 +51,7 @@ export type EmployeeSettingsSurfaceProps = {
   skills?: SkillRecord[];
   publishPending?: boolean;
   onMessage?(): void;
+  onNewConversation?(): void;
   onPublish?(): unknown | Promise<unknown>;
   onDelete?(): void;
   onRestoreAppDefaults?(): unknown | Promise<unknown>;
@@ -135,6 +137,7 @@ export function EmployeeSettingsSurface(props: EmployeeSettingsSurfaceProps) {
   }, [autosave.error, autosave.retry, t, toast]);
 
   const canEditRuntime = canEditEmployeeRuntime(member);
+  const isRemote = member.source === "remote";
   const appOverrideItems = appEmployeeOverrideItems(member);
   const appOverrideCount = appOverrideItems.length;
   const appOverrideLabels = appOverrideItems.map((item) => t(APP_EMPLOYEE_OVERRIDE_ITEM_LABEL_KEYS[item]));
@@ -364,10 +367,11 @@ export function EmployeeSettingsSurface(props: EmployeeSettingsSurfaceProps) {
                   ) : null}
                 </button>
               </Tooltip>
-              <div className="contacts-employee-title">
-                {canEditRuntime ? (
+              <div className="contacts-employee-title" data-remote={isRemote ? "true" : undefined}>
+                {canEditRuntime || isRemote ? (
                   <input
                     value={nameDraft}
+                    size={Math.max(2, Array.from(nameDraft).length)}
                     disabled={directSaving}
                     data-dialog-escape-stays-open="true"
                     aria-label={t("employee.nameLabel")}
@@ -392,8 +396,11 @@ export function EmployeeSettingsSurface(props: EmployeeSettingsSurfaceProps) {
                     }}
                   />
                 ) : (
-                  <h3>{memberDisplayName}</h3>
+                  <h3>
+                    <RoomMemberName member={member} />
+                  </h3>
                 )}
+                {isRemote ? <RemoteAgentIndicator /> : null}
               </div>
             </div>
             <div className="contacts-detail-actions contacts-summary-actions">
@@ -436,7 +443,21 @@ export function EmployeeSettingsSurface(props: EmployeeSettingsSurfaceProps) {
                   </button>
                 </Tooltip>
               ) : null}
-              {canEditRuntime && props.onDelete ? (
+              {props.onNewConversation ? (
+                <Tooltip content={t("remoteAgent.newConversation")}>
+                  <button
+                    className="contacts-message-button"
+                    type="button"
+                    onClick={props.onNewConversation}
+                    aria-label={t("remoteAgent.newConversation")}
+                  >
+                    <span className="contacts-summary-action-icon" aria-hidden="true">
+                      <ProductIcon name="add" size={17} />
+                    </span>
+                  </button>
+                </Tooltip>
+              ) : null}
+              {(canEditRuntime || isRemote) && props.onDelete ? (
                 <Tooltip content={t("common.delete")}>
                   <button
                     className="contacts-message-button danger"
@@ -505,23 +526,32 @@ export function EmployeeSettingsSurface(props: EmployeeSettingsSurfaceProps) {
                     </div>
                   </button>
                 </section>
-                <section className="contacts-employee-runtime-card" aria-label={t("employee.runtimeSettingsTitle")}>
-                  <div className="contacts-shared-employee-editor contacts-employee-overview-runtime-editor">
-                    {renderEmployeeEditor("runtime")}
-                  </div>
-                </section>
-                <div className="contacts-employee-overview-group">
-                  <EmployeeOverviewRow
-                    icon="extensions"
-                    label={t("contacts.tabCapabilities")}
-                    onClick={() => void openEmployeePage("capabilities")}
-                  />
-                  <EmployeeOverviewRow
-                    icon="rooms"
-                    label={t("employee.responsibilityTitle")}
-                    onClick={() => void openEmployeePage("collaboration")}
-                  />
-                </div>
+                {isRemote ? (
+                  <section className="contacts-activity-card" aria-label={t("remoteAgent.address")}>
+                    <strong>{t("remoteAgent.address")}</strong>
+                    <p>{member.remoteAgent?.address}</p>
+                  </section>
+                ) : (
+                  <>
+                    <section className="contacts-employee-runtime-card" aria-label={t("employee.runtimeSettingsTitle")}>
+                      <div className="contacts-shared-employee-editor contacts-employee-overview-runtime-editor">
+                        {renderEmployeeEditor("runtime")}
+                      </div>
+                    </section>
+                    <div className="contacts-employee-overview-group">
+                      <EmployeeOverviewRow
+                        icon="extensions"
+                        label={t("contacts.tabCapabilities")}
+                        onClick={() => void openEmployeePage("capabilities")}
+                      />
+                      <EmployeeOverviewRow
+                        icon="rooms"
+                        label={t("employee.responsibilityTitle")}
+                        onClick={() => void openEmployeePage("collaboration")}
+                      />
+                    </div>
+                  </>
+                )}
               </section>
             ) : null}
 

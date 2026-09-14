@@ -9,6 +9,7 @@ docs.local/
 web-dist/
 release/
 *.tgz
+!vendor/*.tgz
 .claude/
 .codex/
 .golutra/

@@ -1,10 +1,13 @@
 import { MessageCircleMore, Plus, Search, UserPlus, UsersRound, X } from "lucide-react";
+import { RemoteAgentMenuItem } from "./remote-agent-menu-item";
+import type { NetworkConfiguration } from "./use-network-configuration";
 import { useI18n } from "../../i18n";
 import { ThemedPixelIcon } from "../sidebar/app-navigation";
 import { MotionMenu, MotionMenuItem } from "../ui/motion/menu";
 import { Tooltip } from "../ui/tooltip";
 import { UnreadCount, UnreadCountAnchor } from "../ui/unread-count";
 import { RoomMemberAvatar } from "./member-avatar";
+import { RoomMemberName } from "./member-name";
 import { RoomGroupAvatar, isGroveRoomTitle } from "./room-group-avatar";
 import { findLastVisibleRoomMessage, formatRoomPreview, formatShortTime } from "./room-message-model";
 import {
@@ -17,6 +20,7 @@ import {
 } from "./rooms-model";
 
 type RoomSidebarProps = {
+  networkConfiguration: NetworkConfiguration;
   activeRoom: Room;
   rooms: Room[];
   members: RoomMember[];
@@ -25,6 +29,7 @@ type RoomSidebarProps = {
   onCreateMenuOpenChange(open: boolean): void;
   onCreateGroup(): void;
   onRecruitEmployee(): void;
+  onRecruitRemoteAgent(): void;
   onOpenContacts(): void;
   onRoomQueryChange(value: string): void;
   onOpenRoom(roomId: string): void;
@@ -51,7 +56,7 @@ export function RoomSidebar(props: RoomSidebarProps) {
     ? props.members.filter((member) => {
         if (member.disabled) return false;
         const text =
-          `${roomMemberDisplayName(member)} ${member.name} ${member.kernel} ${member.role} ${member.model}`.toLowerCase();
+          `${roomMemberDisplayName(member)} ${member.name} ${member.kernel} ${member.role} ${member.model} ${member.remoteAgent?.address ?? ""}`.toLowerCase();
         const sourceText = `${roomMemberSourceLabel(member)} ${roomMemberSourceDetail(member)}`.toLowerCase();
         return `${text} ${sourceText}`.includes(query);
       })
@@ -101,8 +106,9 @@ export function RoomSidebar(props: RoomSidebarProps) {
             </MotionMenuItem>
             <MotionMenuItem onClick={props.onRecruitEmployee}>
               <ThemedPixelIcon pixelIcon="user" professionalIcon={UserPlus} professionalSize={17} pixelSize={18} />
-              <span>{t("employee.addEmployee")}</span>
+              <span>{t("remoteAgent.addLocal")}</span>
             </MotionMenuItem>
+            <RemoteAgentMenuItem configuration={props.networkConfiguration} onSelect={props.onRecruitRemoteAgent} />
           </MotionMenu>
         </div>
       </header>
@@ -111,7 +117,7 @@ export function RoomSidebar(props: RoomSidebarProps) {
         <button type="button" data-active="true" data-room-view-target="rooms">
           {t("contacts.conversations")}
         </button>
-        <button type="button" data-room-view-target="contacts" onClick={props.onOpenContacts}>
+        <button type="button" data-room-view-target="contacts" onClick={() => props.onOpenContacts()}>
           {t("contacts.viewLabel")}
         </button>
       </nav>
@@ -153,7 +159,9 @@ export function RoomSidebar(props: RoomSidebarProps) {
                     >
                       <RoomMemberAvatar member={member} className="rooms-kernel-icon" />
                       <span className="rooms-list-copy">
-                        <span className="rooms-list-name">{roomMemberDisplayName(member)}</span>
+                        <span className="rooms-list-name">
+                          <RoomMemberName member={member} />
+                        </span>
                       </span>
                       <span className="rooms-room-badge">{t("contacts.directBadge")}</span>
                     </button>
@@ -203,7 +211,7 @@ export function RoomSidebar(props: RoomSidebarProps) {
                       />
                     )}
                   </UnreadCountAnchor>
-                  <span>{title}</span>
+                  <RoomMemberName member={directMember} name={title} />
                 </button>
               );
             })}
@@ -253,7 +261,9 @@ function RoomSearchResult(props: { room: Room; members: RoomMember[]; onOpenRoom
         />
       )}
       <span className="rooms-list-copy">
-        <span className="rooms-list-name">{title}</span>
+        <span className="rooms-list-name">
+          <RoomMemberName member={directMember} name={title} />
+        </span>
         <span className="rooms-list-preview">{formatRoomPreview(lastMessage)}</span>
       </span>
       {props.room.badge ? <span className="rooms-room-badge">{props.room.badge}</span> : null}
@@ -291,7 +301,9 @@ function RoomListItem(props: { room: Room; active: boolean; members: RoomMember[
         />
       )}
       <span className="rooms-list-copy">
-        <span className="rooms-list-name">{title}</span>
+        <span className="rooms-list-name">
+          <RoomMemberName member={directMember} name={title} />
+        </span>
         <span className="rooms-list-preview">{formatRoomPreview(lastMessage)}</span>
       </span>
       {props.room.unread > 0 ? (

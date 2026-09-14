@@ -39,6 +39,14 @@ import type {
   AuthSessionGetData,
   AuthSessionGetErrors,
   AuthSessionGetResponses,
+  NetworkAccountConnectData,
+  NetworkAccountConnectErrors,
+  NetworkAccountConnectResponses,
+  NetworkAccountInspectData,
+  NetworkAccountInspectResponses,
+  NetworkContactAddData,
+  NetworkContactAddErrors,
+  NetworkContactAddResponses,
   RoomMessageCreateData,
   RoomMessageCreateErrors,
   RoomMessageCreateResponses,
@@ -333,6 +341,76 @@ export class Room extends HeyApiClient {
   }
 }
 
+export class Account extends HeyApiClient {
+  /**
+   * Read whether this installation has an Agent Router configured
+   *
+   * Read local configuration only. Does not exchange credentials or create an account.
+   */
+  public inspect<ThrowOnError extends boolean = false>(
+    options?: Options<NetworkAccountInspectData, ThrowOnError>,
+  ): RequestResult<NetworkAccountInspectResponses, unknown, ThrowOnError> {
+    return (options?.client ?? this.client).get<NetworkAccountInspectResponses, unknown, ThrowOnError>({
+      url: "/network/account",
+      ...options,
+    });
+  }
+
+  /**
+   * Connect the signed-in admin's Agent network account
+   *
+   * Exchange the current OpenGrove login at the operator's trusted Agent Router node and return public sender identity. Requires admin; credentials remain in Host memory.
+   */
+  public connect<ThrowOnError extends boolean = false>(
+    options: Options<NetworkAccountConnectData, ThrowOnError>,
+  ): RequestResult<NetworkAccountConnectResponses, NetworkAccountConnectErrors, ThrowOnError> {
+    return (options.client ?? this.client).post<
+      NetworkAccountConnectResponses,
+      NetworkAccountConnectErrors,
+      ThrowOnError
+    >({
+      url: "/network/account",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+}
+
+export class Contact extends HeyApiClient {
+  /**
+   * Add a remote Agent to Contacts
+   *
+   * Resolve an Agent network address and save a bound remote member for Room conversations.
+   */
+  public add<ThrowOnError extends boolean = false>(
+    options: Options<NetworkContactAddData, ThrowOnError>,
+  ): RequestResult<NetworkContactAddResponses, NetworkContactAddErrors, ThrowOnError> {
+    return (options.client ?? this.client).post<NetworkContactAddResponses, NetworkContactAddErrors, ThrowOnError>({
+      url: "/network/contacts",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+}
+
+export class Network extends HeyApiClient {
+  private _account?: Account;
+  get account(): Account {
+    return (this._account ??= new Account({ client: this.client }));
+  }
+
+  private _contact?: Contact;
+  get contact(): Contact {
+    return (this._contact ??= new Contact({ client: this.client }));
+  }
+}
+
 export class OpenGroveApi extends HeyApiClient {
   public static readonly __registry: HeyApiRegistry<OpenGroveApi> = new HeyApiRegistry<OpenGroveApi>();
 
@@ -357,5 +435,10 @@ export class OpenGroveApi extends HeyApiClient {
   private _room?: Room;
   get room(): Room {
     return (this._room ??= new Room({ client: this.client }));
+  }
+
+  private _network?: Network;
+  get network(): Network {
+    return (this._network ??= new Network({ client: this.client }));
   }
 }
