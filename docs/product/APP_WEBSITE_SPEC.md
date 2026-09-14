@@ -19,6 +19,12 @@ adaptations remain in the App and are reused on subsequent builds.
 
 ## Publication workflow
 
+The Publish action appears immediately to the left of the App Builder button
+in the App title bar. Publish to App Store opens the existing store publication
+page for the current App. Publish as independent website opens a separate
+website panel, where the publisher selects its audience before preparation and
+review. Website audience and App Store visibility are independent.
+
 1. Prepare a browser target and report unresolved dependencies.
 2. Build a runnable preview and run deterministic checks.
 3. App Builder reviews the included functionality, API permissions and behavior.
@@ -81,7 +87,7 @@ local previews are never described as deployed websites.
 
 ## Tooling
 
-The Save and publish page contains the website panel. Local tooling uses `opengrove app web prepare|check|review|preview <app-root>`. Preparation checks existing browser output; App Builder reuses documented build commands before review. [The builder guide](../../src/skills/bundled/opengrove-app-builder/references/website.md) describes configuration and the browser SDK.
+Local tooling uses `opengrove app web prepare|check|review|preview <app-root>`. Preparation checks existing browser output; App Builder reuses documented build commands before review. [The builder guide](../../src/skills/bundled/opengrove-app-builder/references/website.md) describes configuration and the browser SDK.
 
 Host operations are also available as `opengrove app website get|prepare|configure|publish|activate --app-id <id>`. Use `--help` for typed arguments. High-risk CLI publication/activation requires `--yes`, with `--dry-run` available to inspect the request first. Publication takes the reviewed artifact digest and last observed published digest (empty for the first publication).
 

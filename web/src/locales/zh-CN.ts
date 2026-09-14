@@ -1,6 +1,10 @@
 export const ZH_CN = {
   "website.rollbackConfirmation": "恢复上一个网页版本及其当时的访问权限。这可能改变哪些用户可以访问。",
   "website.title": "发布为网页",
+  "appPublish.title": "发布 App",
+  "appPublish.store": "发布到 App Store",
+  "appPublish.website": "发布为独立网页",
+  "appPublish.adminRequired": "仅管理员可以发布独立网页",
   "website.description": "将选定的 App 功能发布为独立网页。先准备并交给 App 构建师检查，再发布检查通过的结果。",
   "website.loading": "正在检查网页准备情况…",
   "website.failed": "这一步未完成。",

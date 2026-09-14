@@ -2,6 +2,10 @@ export const EN = {
   "website.rollbackConfirmation":
     "Restore the previous website files and its original access policy. This can change who has access.",
   "website.title": "Publish as a website",
+  "appPublish.title": "Publish App",
+  "appPublish.store": "Publish to App Store",
+  "appPublish.website": "Publish as independent website",
+  "appPublish.adminRequired": "Only administrators can publish independent websites",
   "website.description":
     "Share selected App features in an independent browser page. Start with preparation and an App Builder review, then publish the checked result.",
   "website.loading": "Checking website preparation…",

@@ -1,20 +1,6 @@
-.panel {
-  border: 1px solid var(--c-line-12);
-  border-radius: var(--r-lg);
-  margin-block: var(--sp-4);
-  padding: var(--sp-4);
-}
-.panel > summary {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-2);
-  cursor: pointer;
-  font-weight: var(--fw-semibold);
-}
 .body {
   display: grid;
   gap: var(--sp-3);
-  padding-block-start: var(--sp-3);
 }
 .body p {
   margin: 0;

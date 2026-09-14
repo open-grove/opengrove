@@ -148,6 +148,8 @@ export function AppStoreView(props: {
   onOpenInstalledApp?(appId: string): void;
   versionManagementAppId?: string;
   onCloseVersionManagement?(): void;
+  publishAppId?: string;
+  onClosePublish?(): void;
   onPublishDirtyChange?(dirty: boolean): void;
 }) {
   const { t } = useI18n();
@@ -221,6 +223,9 @@ export function AppStoreView(props: {
     mountedAppCount: mountedApps.length,
     isAdmin: userIsAdmin,
   });
+  const publishPageApp = props.publishAppId
+    ? mountedApps.find((app) => app.id === props.publishAppId)
+    : mountedAppPublishPage;
   const versionManagementApp = props.versionManagementAppId
     ? mountedApps.find((app) => app.id === props.versionManagementAppId)
     : undefined;
@@ -493,7 +498,7 @@ export function AppStoreView(props: {
     );
   }
 
-  if (mountedAppPublishPage) {
+  if (publishPageApp) {
     return (
       <section
         className="view-panel tab-view app-store-view"
@@ -502,7 +507,7 @@ export function AppStoreView(props: {
       >
         <div className="app-store-page app-store-page--publish">
           <AppStorePublishPage
-            app={mountedAppPublishPage}
+            app={publishPageApp}
             activeKernel={props.settings?.activeKernel}
             activeModel={props.settings?.activeModel}
             kernelOptions={props.settings?.kernels}
@@ -513,7 +518,10 @@ export function AppStoreView(props: {
             skills={props.skills}
             canPublish={saveAndPublishPolicy.canFormalPublish}
             onDirtyChange={props.onPublishDirtyChange}
-            onBack={() => setMountedAppPublishPage(null)}
+            onBack={() => {
+              setMountedAppPublishPage(null);
+              props.onClosePublish?.();
+            }}
             onPublished={(result) => {
               void queryClient.invalidateQueries({ queryKey: appStoreQueryKeys.all });
               showInstallMessage(
@@ -523,6 +531,7 @@ export function AppStoreView(props: {
                 }),
               );
               setMountedAppPublishPage(null);
+              props.onClosePublish?.();
             }}
           />
         </div>

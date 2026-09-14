@@ -1,4 +1,5 @@
 import { Bot, Download, LoaderCircle, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import type { ReactNode } from "react";
 import type { ClientUpdateResponse } from "../../bridge";
 import type { OpenGroveDesktopClientUpdateState, OpenGroveDesktopSourceUpdateState } from "../../desktop-api";
 import { resolveTitlebarClientUpdate, resolveTitlebarClientUpdateAction } from "../../client-update-presentation";
@@ -26,6 +27,7 @@ export function AppTitlebar(props: {
   developerModeOpen: boolean;
   pendingDeveloperReplies: number;
   onToggleDeveloperMode(): void;
+  publishActions?: ReactNode;
 }) {
   const { t } = useI18n();
   return (
@@ -75,6 +77,7 @@ export function AppTitlebar(props: {
         onRetry={props.onAccountRetry}
       />
       <div className="app-titlebar-drag-space" aria-hidden="true" />
+      {props.publishActions}
       {props.developerModeVisible ? (
         <button
           className="app-titlebar-developer-button"
