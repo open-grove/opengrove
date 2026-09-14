@@ -164,6 +164,13 @@ file names, sizes, and SHA-256 identities before running the normal N-1 update
 gate. After the first GitHub Release exists, the bootstrap is rejected and
 later candidates automatically use the previous public GitHub Release.
 
+Known-good replay uses the independently pinned `v0.6.0` baseline. Candidate
+workflows read that historical installer from the public release root after its
+connectivity check, retaining the original size, SHA-256, and dist inventory
+checks. This does not require creating historical GitHub Releases in the public
+repository or changing the `v0.6.5` N-1 bootstrap artifacts. Standalone replay
+dispatches may supply `public_root`; omitting it retains GitHub Release downloads.
+
 The full workflow checks all of the following before it assembles the immutable
 candidate:
 

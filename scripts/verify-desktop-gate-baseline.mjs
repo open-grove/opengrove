@@ -1,7 +1,19 @@
 import { createHash } from "node:crypto";
-import { createReadStream, existsSync, readFileSync, statSync } from "node:fs";
+import {
+  createReadStream,
+  createWriteStream,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+  statSync,
+} from "node:fs";
 import { appendFile } from "node:fs/promises";
-import { basename, resolve } from "node:path";
+import { basename, join, resolve } from "node:path";
+import { Readable } from "node:stream";
+import { pipeline } from "node:stream/promises";
 import { pathToFileURL } from "node:url";
 
 export async function verifyDesktopGateBaseline({ manifestPath, targetId, installerPath }) {
@@ -32,6 +44,51 @@ export async function verifyDesktopGateBaseline({ manifestPath, targetId, instal
     distFileCount: manifest.distInventory.fileCount,
     distInventorySha256: manifest.distInventory.sha256,
   };
+}
+
+export async function downloadDesktopGateBaseline({
+  manifestPath,
+  targetId,
+  publicRoot,
+  outputDir,
+  fetchImpl = fetch,
+}) {
+  const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+  validateManifest(manifest);
+  const target = manifest.targets[targetId];
+  if (!target) throw new Error(`pinned desktop baseline has no target named ${targetId}`);
+  const root = new URL(publicRoot);
+  if (root.protocol !== "https:" || root.username || root.password || root.search || root.hash) {
+    throw new Error("desktop baseline root must be a credential-free HTTPS URL");
+  }
+  if (!root.pathname.endsWith("/")) root.pathname += "/";
+  const assetUrl = new URL(`${manifest.tag}/${encodeURIComponent(target.asset)}`, root);
+  mkdirSync(outputDir, { recursive: true });
+  const temporaryDir = mkdtempSync(join(outputDir, ".golden-download-"));
+  const temporaryInstaller = join(temporaryDir, target.asset);
+  try {
+    const response = await fetchImpl(assetUrl, {
+      headers: { "accept-encoding": "identity" },
+      redirect: "follow",
+      signal: AbortSignal.timeout(30 * 60 * 1_000),
+    });
+    if (response.status !== 200 || !response.body) {
+      await response.body?.cancel();
+      throw new Error(`pinned desktop baseline download failed with HTTP ${response.status}`);
+    }
+    const contentLength = response.headers.get("content-length");
+    if (contentLength && Number(contentLength) !== target.size) {
+      await response.body.cancel();
+      throw new Error(`pinned desktop baseline Content-Length does not match ${targetId}`);
+    }
+    await pipeline(Readable.fromWeb(response.body), createWriteStream(temporaryInstaller, { flags: "wx" }));
+    await verifyDesktopGateBaseline({ manifestPath, targetId, installerPath: temporaryInstaller });
+    const destination = join(outputDir, target.asset);
+    renameSync(temporaryInstaller, destination);
+    return destination;
+  } finally {
+    rmSync(temporaryDir, { recursive: true, force: true });
+  }
 }
 
 function validateManifest(manifest) {
@@ -71,10 +128,18 @@ async function sha256File(path) {
 
 async function main() {
   const args = parseArgs(process.argv.slice(2));
+  const installerPath = args.publicRoot
+    ? await downloadDesktopGateBaseline({
+        manifestPath: resolve(args.manifest),
+        targetId: args.target,
+        publicRoot: args.publicRoot,
+        outputDir: resolve(args.outputDir),
+      })
+    : resolve(args.installer);
   const result = await verifyDesktopGateBaseline({
     manifestPath: resolve(args.manifest),
     targetId: args.target,
-    installerPath: resolve(args.installer),
+    installerPath,
   });
   if (process.env.GITHUB_OUTPUT) {
     await appendFile(
@@ -102,10 +167,15 @@ function parseArgs(values) {
     else if (value.startsWith("--target=")) result.target = value.slice("--target=".length);
     else if (value === "--installer") result.installer = readRequired(values, ++index, value);
     else if (value.startsWith("--installer=")) result.installer = value.slice("--installer=".length);
+    else if (value === "--public-root") result.publicRoot = readRequired(values, ++index, value);
+    else if (value === "--output-dir") result.outputDir = readRequired(values, ++index, value);
     else throw new Error(`Unknown desktop gate baseline option: ${value}`);
   }
-  for (const required of ["manifest", "target", "installer"]) {
+  for (const required of ["manifest", "target"]) {
     if (!result[required]) throw new Error(`--${required} is required`);
+  }
+  if (result.publicRoot ? !result.outputDir || result.installer : !result.installer || result.outputDir) {
+    throw new Error("provide --installer, or --public-root with --output-dir");
   }
   return result;
 }
