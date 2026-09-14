@@ -1,0 +1,57 @@
+name: Desktop package source diagnostic
+
+on:
+  push:
+    branches: [fix/release-source-cleanliness]
+
+permissions:
+  contents: read
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  OPENGROVE_ALLOW_UNSIGNED_WINDOWS: "1"
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Check source after dependencies
+        run: git status --porcelain
+      - run: npm run build
+      - name: Check source after build
+        run: git status --porcelain
+      - name: Stage desktop inputs
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $true
+          npm run minify:dist
+          npm run check:desktop-package
+          node scripts/stage-desktop-runtime.mjs --target windows
+      - name: Check source after staging
+        run: git status --porcelain
+      - run: npx electron-builder --config electron-builder.release.cjs --win --x64 --publish never
+      - name: Check source after packaging
+        run: git status --porcelain
+      - run: node scripts/check-desktop-artifact.mjs --target win32-x64
+      - name: Check source after artifact verification
+        run: git status --porcelain
+      - run: node scripts/verify-desktop-release.mjs
+      - run: node scripts/smoke-desktop-installer.mjs --target windows-x64
+      - name: Check source after installed-app smoke
+        run: git status --porcelain
+      - run: node scripts/write-desktop-release-source.mjs --target windows-x64
+      - name: Source diagnostics
+        if: always()
+        run: |
+          Write-Output '[DEBUG-070-source] Source changes after Windows packaging'
+          git status --porcelain --untracked-files=all
+          git diff --stat
