@@ -245,7 +245,7 @@ test("system Windows PowerShell returns UTF-8 and the actual registry/package qu
   assert.ok(refreshed.PATH?.toLowerCase().includes("system32"));
   assert.equal(readWindowsPath({ ...process.env, PATH: "" }).PATH, refreshed.PATH);
   assert.ok(Array.isArray(await refreshWindowsAppCodexCandidates(process.env)));
-  assert.equal(warnings.mock.callCount(), 0);
+  assert.equal(warnings.mock.callCount(), 0, JSON.stringify(warnings.mock.calls.map((call) => call.arguments)));
 });
 
 test("Windows can validate a discovered CLI command with spaces and Unicode in its path", {

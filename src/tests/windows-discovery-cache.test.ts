@@ -106,6 +106,8 @@ test("failed or timed-out registry queries are throttled without erasing the las
 test("Windows helper environment allows system/user paths but excludes credentials and project PATH", async () => {
   const source = {
     SystemRoot: "C:\\Windows",
+    ProgramFiles: "C:\\Program Files",
+    PROCESSOR_ARCHITECTURE: "AMD64",
     TEMP: "D:\\中文 用户",
     USERPROFILE: "D:\\User",
     PATH: "project-bin",
@@ -116,7 +118,15 @@ test("Windows helper environment allows system/user paths but excludes credentia
     NODE_OPTIONS: "--require project.js",
   };
   const safe = windowsProbeEnvironment(source);
-  assert.deepEqual(Object.keys(safe).sort(), ["PATH", "PSModulePath", "SystemRoot", "TEMP", "USERPROFILE"]);
+  assert.deepEqual(Object.keys(safe).sort(), [
+    "PATH",
+    "PROCESSOR_ARCHITECTURE",
+    "PSModulePath",
+    "ProgramFiles",
+    "SystemRoot",
+    "TEMP",
+    "USERPROFILE",
+  ]);
   assert.equal(safe.TEMP, "D:\\中文 用户");
   assert.equal(safe.PSModulePath, source.PSModulePath, "preserve the configured Windows module search path");
   await refreshWindowsPath(source, {
