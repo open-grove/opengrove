@@ -268,7 +268,8 @@
   width: 100%;
   max-width: 100%;
   min-height: calc(100vh - 230px);
-  overflow-x: hidden;
+  /* The outer editor shell owns scrolling; hidden would create a second scrollport. */
+  overflow-x: clip;
   padding: 0;
   color: var(--og-text);
   font-family: var(--font-sans);

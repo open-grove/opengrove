@@ -263,6 +263,7 @@ export function MountedAppWorkbench(props: {
 
   useEffect(() => {
     if (props.selectedPath) {
+      // Selection/reveal owns file history; click handlers only update selection.
       fileDetail.showDetail(props.selectedPath);
       props.onPaneChange("workspace");
     }
@@ -285,11 +286,7 @@ export function MountedAppWorkbench(props: {
   const tabs = useMemo(() => resolveMountedAppTabs(props.app, t), [props.app?.metadata?.ui, props.app?.name, t]);
   const [activeTabIdx, setActiveTabIdx] = useState(0);
   const fileTabIndex = tabs.findIndex((tab) => tab.component === "file-tree" || tab.component === "flow-list");
-  useEffect(() => {
-    if (!fileDetail.detailId) return;
-    if (fileDetail.detailId !== props.selectedPath) props.onSelectedPathChange(fileDetail.detailId);
-    if (fileTabIndex >= 0) setActiveTabIdx(fileTabIndex);
-  }, [fileDetail.detailId, fileTabIndex]);
+
   const activeTabIndex = Math.min(activeTabIdx, Math.max(tabs.length - 1, 0));
   const activeTab = tabs[activeTabIndex] ?? { component: "file-tree" as const, label: t("mountedApp.files") };
   const [activatedViewIds, setActivatedViewIds] = useState<string[]>([]);
@@ -427,6 +424,29 @@ export function MountedAppWorkbench(props: {
     : undefined;
   const workspaceRoot = fileQuery.data?.app?.workspaceRoot ?? filesQuery.data?.app?.workspaceRoot;
   const activeDirtyState = fileDirtyState?.path === props.selectedPath ? fileDirtyState : null;
+  useEffect(() => {
+    if (!fileDetail.detailId) return;
+    let cancelled = false;
+    async function restoreFileDetail() {
+      if (fileDetail.detailId !== props.selectedPath) {
+        // History changes use the same durable-draft gate as file clicks. Keep
+        // the old editor mounted until its latest input has been captured.
+        const preserved = !activeDirtyState || (await activeDirtyState.preserve());
+        if (cancelled) return;
+        if (!preserved) {
+          toast({ kind: "error", title: t("filePreview.cannotLeaveDraft") });
+          fileDetail.showDetail(props.selectedPath, true);
+          return;
+        }
+        props.onSelectedPathChange(fileDetail.detailId);
+      }
+      if (fileTabIndex >= 0) setActiveTabIdx(fileTabIndex);
+    }
+    void restoreFileDetail();
+    return () => {
+      cancelled = true;
+    };
+  }, [appId, fileDetail.detailId, fileTabIndex]);
   const effectiveDirectoryCollapsed = directoryMode === "view" || directoryCollapsed;
   const workbenchChatOpen = Boolean(props.corePanel && props.chatOpen !== false);
   const workbenchLayoutConstraints = resolveMountedAppWorkbenchLayoutConstraints(
@@ -670,7 +690,6 @@ export function MountedAppWorkbench(props: {
       toast({ kind: "error", title: t("filePreview.cannotLeaveDraft") });
       return;
     }
-    fileDetail.showDetail(path);
     props.onPaneChange("workspace");
     props.onSelectedPathChange(path);
   }

@@ -6,10 +6,12 @@ import { supportedView, type ViewId } from "../bridge";
 // as a startup preference and still receives navigation from conversation actions.
 export function useAppNavigation(storedView: ViewId, storeView: (view: string) => void) {
   const [params, setParams] = useSearchParams();
+  const embedded = params.get("embedded") === "app";
   const activeView = params.has("view") ? supportedView(params.get("view")!) : storedView;
   const previousStoredView = useRef(storedView);
   const setView = useCallback(
     (view: string, appId?: string) => {
+      if (embedded) return;
       const next = new URLSearchParams(params);
       const destination = supportedView(view);
       next.set("view", destination);
@@ -20,9 +22,11 @@ export function useAppNavigation(storedView: ViewId, storeView: (view: string) =
       else if (appId) next.set("app", appId);
       if (next.toString() !== params.toString()) void setParams(next);
     },
-    [activeView, params, setParams],
+    [activeView, embedded, params, setParams],
   );
   useLayoutEffect(() => {
+    // Embedded App URLs belong to their containing host, not shell navigation.
+    if (embedded) return;
     if (!params.has("view")) {
       const next = new URLSearchParams(params);
       next.set("view", storedView);
@@ -33,6 +37,6 @@ export function useAppNavigation(storedView: ViewId, storeView: (view: string) =
       previousStoredView.current = storedView;
       if (storedView !== activeView) setView(storedView);
     } else if (storedView !== activeView) storeView(activeView);
-  }, [activeView, params, setParams, setView, storedView, storeView]);
+  }, [activeView, embedded, params, setParams, setView, storedView, storeView]);
   return { activeView, setView, requestedAppId: activeView === "app" ? (params.get("app") ?? "") : "" };
 }

@@ -692,12 +692,12 @@ export function App() {
   }
 
   useEffect(() => {
-    if (!settingsReady) return;
+    if (embeddedMountedAppMode || !settingsReady) return;
     if (activeView === "chat") {
       if (directKernelChatEnabled) return;
     } else if (developerMode || !developerOnlyView(activeView)) return;
     setView(mountedApps[0] ? "app" : "app-store");
-  }, [activeView, developerMode, directKernelChatEnabled, mountedApps, settingsReady, setView]);
+  }, [activeView, developerMode, directKernelChatEnabled, embeddedMountedAppMode, mountedApps, settingsReady, setView]);
 
   useEffect(() => {
     const desktop = readDesktopApi();

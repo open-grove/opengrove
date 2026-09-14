@@ -20,8 +20,6 @@
   box-sizing: border-box;
   min-width: 0;
   max-width: 100%;
-  max-height: calc(var(--opengrove-visual-height, 100dvh) - 48px);
-  overflow: auto;
   position: relative;
   display: grid;
   gap: var(--sp-3);
@@ -34,6 +32,11 @@
   pointer-events: auto;
   outline: 0;
   animation: scale-in var(--motion-normal) var(--motion-ease-out);
+}
+
+.modal-card[data-compact="true"] {
+  max-height: calc(var(--opengrove-visual-height, 100dvh) - 48px);
+  overflow: auto;
 }
 
 .modal-subpage-host {

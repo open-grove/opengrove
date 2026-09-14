@@ -135,7 +135,6 @@ export function AppChatButton(props: {
       data-compact={props.compact ? "true" : undefined}
       type="button"
       onClick={props.onClick}
-      aria-pressed={props.open}
       aria-label={label}
       title={label}
     >

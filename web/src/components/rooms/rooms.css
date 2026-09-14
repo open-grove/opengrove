@@ -778,5 +778,5 @@
 .compact-room-settings.modal-card {
   padding: var(--sp-2);
   overflow: hidden;
-  height: min(720px, calc(100dvh - 48px));
+  height: min(720px, calc(var(--opengrove-visual-height, 100dvh) - 48px));
 }

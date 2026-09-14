@@ -22,7 +22,7 @@ try {
     function Chat() {
       const visible = usePaneVisible();
       const id = useRef(crypto.randomUUID());
-      return <aside className="mounted-app-chat-pane" data-chat-instance={id.current} data-visible={String(visible)}><textarea aria-label="Message draft" defaultValue="" /></aside>;
+      return <aside className="mounted-app-chat-pane" data-chat-instance={id.current} data-visible={String(visible)}><textarea aria-label="Message draft" defaultValue="" /><div aria-label="Message history" style={{height: 120, overflow: "auto"}}><div style={{height: 1200}}>Earlier messages</div></div></aside>;
     }
     function App() {
       const [pane, setPane] = useState("workspace");
@@ -82,6 +82,10 @@ try {
   await expect(chat).toBeVisible();
   await expect(chat).toHaveAttribute("data-visible", "true");
   await page.getByRole("textbox", { name: "Message draft" }).fill("unfinished message");
+  const messageScroll = page.getByLabel("Message history");
+  await messageScroll.evaluate((node) => {
+    node.scrollTop = 240;
+  });
   await page.getByRole("button", { name: "Toggle chat", exact: true }).click();
   await expect(page.getByRole("textbox", { name: "File draft" })).toHaveValue("unsaved chapter");
   await page.getByRole("button", { name: "Files", exact: true }).click();
@@ -91,6 +95,7 @@ try {
   await expect(page.getByRole("textbox", { name: "File draft" })).toHaveValue("unsaved chapter");
   await page.getByRole("button", { name: "Toggle chat", exact: true }).focus();
   await page.keyboard.press("Space");
+  await expect.poll(() => messageScroll.evaluate((node) => node.scrollTop)).toBe(240);
   await expect(page.getByRole("textbox", { name: "Message draft" })).toHaveValue("unfinished message");
   await page.setViewportSize({ width: 1440, height: 1000 });
   await expect(page.getByRole("textbox", { name: "File draft" })).toBeVisible();

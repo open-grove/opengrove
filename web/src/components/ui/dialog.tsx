@@ -42,7 +42,8 @@ export function DialogContent({
   mobilePresentation?: "dialog" | "page";
   placement?: "center" | "left";
 }) {
-  const compactPage = useCompactLayout() && mobilePresentation === "page";
+  const compact = useCompactLayout();
+  const compactPage = compact && mobilePresentation === "page";
   const contentRef = useRef<HTMLDivElement>(null);
   const [subpageHost, setSubpageHost] = useState<HTMLDivElement | null>(null);
   const [activeSubpage, setActiveSubpage] = useState<{ id: symbol; onBack(): void } | null>(null);
@@ -95,6 +96,7 @@ export function DialogContent({
         <DialogPrimitive.Content
           ref={contentRef}
           className={clsx("modal-card", placement === "left" && styles.drawerContent, className)}
+          data-compact={compact || undefined}
           data-compact-page={compactPage || undefined}
           onEscapeKeyDown={(event) => {
             onEscapeKeyDown?.(event);

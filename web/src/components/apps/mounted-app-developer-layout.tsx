@@ -100,7 +100,7 @@ export function MountedAppDeveloperLayout(props: {
       style={{ "--mounted-app-developer-panel-width": `${panelWidth}px` } as CSSProperties}
       pane={props.pane}
       onCompactChange={props.onCompactChange}
-      primaryLabel={t("common.backToApp")}
+      primaryLabel={t("mountedApp.workspace")}
       secondaryLabel={t("mountedApp.developerChatLabel")}
       secondaryOpen={props.open}
       primary={<main className="mounted-app-developer-canvas">{props.canvas}</main>}
