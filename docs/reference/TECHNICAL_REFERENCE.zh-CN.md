@@ -56,7 +56,7 @@ Windows 会依次检查进程 PATH、注册表中最新的系统和用户 PATH�
 完成后自动更新 Kernel 列表。Kernel 页的“刷新”按钮和安装完成会跳过缓存。
 Windows 版本检查失败或超时的结果缓存一分钟，以程序文件及归一化后的有效
 PATH 为缓存依据，PATH 仅有格式变化不会重复执行。账号登录和 Codex app-server
-启动异步等待 PATH 刷新，不阻塞 Host。安装探测子进程只接收系统和用户目录
+启动异步等待 PATH 刷新，不阻塞 Host。安装探测子进程只接收 Windows 运行所需的系统
 变量，不接收 Provider 凭据。macOS 的 ChatGPT/Codex 应用包发现逻辑保持原有行为。
 
 ```bash

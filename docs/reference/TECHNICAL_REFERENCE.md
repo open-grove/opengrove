@@ -62,7 +62,7 @@ installs bypass the caches. Windows version-check failures and timeouts are
 cached for one minute, keyed by the executable and normalized effective PATH;
 a formatting-only PATH change does not repeat the command. Account login and
 Codex app-server startup await PATH refresh without blocking the Host. Discovery
-helpers receive only system/user directory variables, never Provider credentials.
+helpers receive only Windows runtime variables, never Provider credentials.
 The existing macOS ChatGPT/Codex bundle discovery is retained.
 
 ```bash

@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { execFile } from "node:child_process";
+import { windowsProbeEnvironment, windowsEnvironmentValue } from "../environment/windows-query.js";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -244,7 +246,18 @@ test("system Windows PowerShell returns UTF-8 and the actual registry/package qu
   const refreshed = await refreshWindowsPath({ ...process.env, PATH: "" });
   assert.ok(refreshed.PATH?.toLowerCase().includes("system32"));
   assert.equal(readWindowsPath({ ...process.env, PATH: "" }).PATH, refreshed.PATH);
-  assert.ok(Array.isArray(await refreshWindowsAppCodexCandidates(process.env)));
+  let packageArgs: string[] = [];
+  assert.ok(
+    Array.isArray(
+      await refreshWindowsAppCodexCandidates(process.env, {
+        query: (file, args, env) => {
+          packageArgs = [...args];
+          return queryWindowsCommand(file, args, env);
+        },
+      }),
+    ),
+  );
+  if (warnings.mock.callCount()) await diagnoseAppxQuery(packageArgs);
   assert.equal(warnings.mock.callCount(), 0, JSON.stringify(warnings.mock.calls.map((call) => call.arguments)));
 });
 
@@ -286,3 +299,51 @@ test("Windows retries a failed version probe after an explicit refresh of its re
   clearCommandVersionCache();
   assert.deepEqual(commandProbe(command), { status: "ok", version: "codex-cli 0.153.4" });
 });
+
+async function diagnoseAppxQuery(args: string[]): Promise<void> {
+  const minimal = windowsProbeEnvironment(process.env);
+  const command = join(minimal.SystemRoot!, "System32", "WindowsPowerShell", "v1.0", "powershell.exe");
+  const profiles = [
+    {
+      name: "simple-full-env",
+      env: process.env,
+      args: [
+        "-NoLogo",
+        "-NoProfile",
+        "-NonInteractive",
+        "-Command",
+        "Get-AppxPackage -Name OpenAI.Codex | Select-Object Name,PackageFamilyName,InstallLocation | ConvertTo-Json -Compress",
+      ],
+    },
+    { name: "exact-full-env", env: process.env, args },
+    { name: "isolated-plus-path", env: { ...minimal, PATH: windowsEnvironmentValue(process.env, "PATH") }, args },
+    {
+      name: "isolated-plus-execution-policy",
+      env: { ...minimal, PSExecutionPolicyPreference: process.env.PSExecutionPolicyPreference },
+      args,
+    },
+    { name: "isolated-longer-control", env: minimal, args },
+  ];
+  for (const profile of profiles) {
+    const started = performance.now();
+    const result = await new Promise((resolve) => {
+      const child = execFile(
+        command,
+        profile.args,
+        { env: profile.env, encoding: "utf8", timeout: 15_000, windowsHide: true },
+        (error, stdout, stderr) => {
+          resolve({
+            profile: profile.name,
+            elapsed: performance.now() - started,
+            code: error?.code,
+            killed: error?.killed,
+            stdout,
+            stderr,
+          });
+        },
+      );
+      child.stdin?.end();
+    });
+    console.info("[DEBUG-windows-appx]", JSON.stringify(result));
+  }
+}
