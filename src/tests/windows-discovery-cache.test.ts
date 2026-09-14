@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { readWindowsPath, refreshWindowsPath } from "../environment/windows-discovery.js";
-import { windowsProbeEnvironment } from "../environment/windows-query.js";
+import { queryWindowsCommand, windowsProbeEnvironment } from "../environment/windows-query.js";
 import { refreshCodexCommandPath, resolveCodexCommandPath } from "../runtime/codex/command-path.js";
 
 test("missing Codex reads never query Windows; concurrent refreshes share work and let the Host run", async (t) => {
@@ -152,4 +152,15 @@ test("manual refresh during an older query waits for a new query and shares that
   assert.equal((await afterInstall).PATH, "C:\\Existing;C:\\NewInstall");
   assert.equal((await overlap).PATH, "C:\\Existing;C:\\NewInstall");
   assert.equal(calls, 2);
+});
+
+test("non-interactive Windows queries close stdin instead of waiting for input until timeout", {
+  skip: process.platform === "win32",
+}, async (t) => {
+  const root = mkdtempSync(join(tmpdir(), "opengrove-query-stdin-"));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const command = join(root, "System32", "WindowsPowerShell", "v1.0", "powershell.exe");
+  mkdirSync(dirname(command), { recursive: true });
+  writeFileSync(command, "#!/bin/sh\n/bin/cat >/dev/null\nprintf 'query completed'\n", { mode: 0o700 });
+  assert.equal(await queryWindowsCommand("powershell.exe", [], { SystemRoot: root }), "query completed");
 });

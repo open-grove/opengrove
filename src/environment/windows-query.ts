@@ -111,7 +111,7 @@ export const queryWindowsCommand: WindowsCommandQuery = (executable, args, envir
   if (!systemRoot) return undefined;
   const command = join(systemRoot, "System32", "WindowsPowerShell", "v1.0", executable);
   return new Promise<string | undefined>((resolve) => {
-    execFile(
+    const child = execFile(
       command,
       [...args],
       { env: safeEnvironment, encoding: "utf8", timeout: 5_000, maxBuffer: 256 * 1024, windowsHide: true },
@@ -122,5 +122,8 @@ export const queryWindowsCommand: WindowsCommandQuery = (executable, args, envir
         } else resolve(stdout);
       },
     );
+    // PowerShell 5.1 can wait for redirected stdin even with -NonInteractive.
+    // These fixed queries accept no input, so send EOF immediately.
+    child.stdin?.end();
   });
 };
