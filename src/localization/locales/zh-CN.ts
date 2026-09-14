@@ -8,6 +8,7 @@ export const ZH_CN_HOST_MESSAGES = {
   "remote.reconnect_required": "请使用 OpenGrove 账号重新添加这位云端员工。原对话保留原有身份和聊天记录。",
   "remote.invalid_response": "远端服务返回了无效响应，请点击重试以恢复已保存的请求。",
   "remote.cancelled_before_send": "已取消，消息未发送。",
+  "remote.stopped_unconfirmed": "已停止重试，远端任务可能仍在运行。",
   "remote.connecting": "正在连接远端 Agent…",
   "remote.connection_paused": "已断开本机连接。点击重试可继续获取远端任务结果。",
   "remote.cancel_requested": "已向远端 Agent 请求取消。",

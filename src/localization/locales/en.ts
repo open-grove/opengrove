@@ -10,6 +10,7 @@ export const EN_HOST_MESSAGES = {
   "remote.invalid_response":
     "The remote service returned an invalid response. Select Retry to resume the saved request.",
   "remote.cancelled_before_send": "Canceled before sending.",
+  "remote.stopped_unconfirmed": "Stopped retrying. The remote task may still be running.",
   "remote.connecting": "Connecting to remote Agent…",
   "remote.connection_paused": "Disconnected from the remote Agent. Select Retry to continue following the task.",
   "remote.cancel_requested": "Cancellation requested from the remote Agent.",

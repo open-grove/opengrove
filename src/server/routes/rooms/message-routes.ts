@@ -3,6 +3,7 @@ import type { CreateRoomMessageOperation } from "#protocol";
 import type { PostRoomMessageResult, RoomChannelMember, RoomChannelMessage } from "../../../rooms/channel-store.js";
 import { normalizeRoomMessageDeliveryKind, normalizeRoomSelectedFile } from "../../../rooms/channel-normalize.js";
 import { readWwRuntimeAuth } from "../../bridge-security.js";
+import { stopRemoteRoomRun } from "../../remote-agents/cancellation.js";
 import {
   authorizeNetworkAccount,
   networkProblem,
@@ -383,20 +384,9 @@ async function handleMessageCancelRoute(context: RoomsRouteContext): Promise<boo
     sendJson(response, 409, { ok: false, error: "message_not_cancelable" });
     return true;
   }
-  if (message.remoteTask?.pending) {
-    const target = state.app.rooms.listMembers().find((member) => member.id === message.senderId);
-    let authorization: NetworkRunAuthorization;
-    try {
-      authorization = (await requireNetworkConnection(context, target?.remoteAgent)).authorization;
-    } catch (error) {
-      const problem = networkProblem(error);
-      sendJson(response, problem.status, { ok: false, error: problem.error });
-      return true;
-    }
-    state.app.rooms.updateMessage(roomId, message.id, { remoteTask: { ...message.remoteTask, cancelRequested: true } });
-    state.store.saveFrom(state.app);
-    if (message.runId) cancelRoomAssistantRun(state, message.runId);
-    await resumeRemoteRoomRuns(state, authorization, roomId);
+  const target = state.app.rooms.listMembers().find((member) => member.id === message.senderId);
+  if (message.remoteTask?.pending || (message.status === "running" && target?.source === "remote")) {
+    await stopRemoteRoomRun(context, message);
     sendJson(response, 200, {
       ok: true,
       cancelled: true,

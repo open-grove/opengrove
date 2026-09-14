@@ -46,6 +46,40 @@ test("cloud employees participate in group mentions, replies and isolated contex
   }
 });
 
+test("a rejected group message preserves the remote conversation after signing in again", async () => {
+  const host = await startRemoteRoomHost();
+  try {
+    await host.login("admin");
+    const { memberId } = await host.request<{ memberId: string }>("/network/contacts", {
+      address: host.fixture.address,
+    });
+    await host.request("/rooms", { id: "memory", title: "Memory group", memberIds: [memberId] });
+    const post = (id: string, text: string) =>
+      host.request("/rooms/memory/messages", { text, targetIds: [memberId], assistantMessageIds: [id] });
+    await post("remember-first", "remember:pineapple");
+    const first = await host.waitMessage("remember-first", (message) => message.status === "done");
+    assert.equal(first.remoteTask?.contextId, "context-remember-first");
+
+    await host.request("/auth/logout", {});
+    await post("rejected", "This message has no network authorization.");
+    const rejected = await host.waitMessage("rejected", (message) => message.status === "failed");
+    assert.equal(rejected.remoteTask?.pending, false);
+    assert.equal(host.sendCalls().length, 1);
+
+    await host.login("admin");
+    await post("recall-next", "recall");
+    const next = await host.waitMessage("recall-next", (message) => message.status === "done");
+    assert.equal(next.remoteTask?.contextId, "context-remember-first");
+    assert.equal(next.text, "pineapple");
+    assert.deepEqual(
+      host.sendCalls().map((call) => call.params.message?.messageId),
+      ["remember-first", "recall-next"],
+    );
+  } finally {
+    await host.dispose();
+  }
+});
+
 test("read-only Rooms requests neither reconnect nor replay pending remote work", async () => {
   const host = await startRemoteRoomHost();
   try {

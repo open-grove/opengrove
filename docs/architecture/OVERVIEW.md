@@ -31,6 +31,10 @@ and sender; it stores task IDs, context IDs, original request text, and an
 idempotency key before submission. The remote service allocates
 the first context; the Host adopts it for following turns. Restoring the login or explicitly reconnecting
 reattaches pending requests, including requests whose submission response was lost. Reading conversation history never initiates recovery.
+Rejected turns preserve the established conversation context. User Stop first ends
+local recovery and observation, then attempts separately authorized cancellation
+only for a known remote task. Unconfirmed remote cancellation remains visible and
+does not cause stopped work to resume after a later login.
 The remote owner controls execution permissions and models. This outbound path
 requires an authorization from the current verified product account for each run;
 cached Router credentials alone cannot authorize a caller. Routines and internal

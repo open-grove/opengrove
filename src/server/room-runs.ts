@@ -815,12 +815,18 @@ export async function resumeRemoteRoomRuns(
       if (problem.status === 503) console.warn("remote_resume_paused", problem.error);
       continue;
     }
-    if (message.runId && hasActiveRoomRunController(state, message.runId)) continue;
+    const current = state.app.rooms.getMessage(message.roomId, message.id);
+    if (
+      !current?.remoteTask?.pending ||
+      current.runId !== message.runId ||
+      (current.runId && hasActiveRoomRunController(state, current.runId))
+    )
+      continue;
     scheduleRoomAssistantRuns(state, {
       roomId: message.roomId,
       triggerMessageId: message.remoteTask.triggerMessageId,
       targets: [target],
-      assistantMessages: [message],
+      assistantMessages: [current],
       networkAuthorization: authorization,
     });
   }

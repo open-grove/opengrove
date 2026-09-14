@@ -77,7 +77,7 @@ test("direct turns retain context, deduplicate retries, start fresh contexts and
   assert.equal(host.sendCalls().length, before);
 });
 
-test("streamed progress stays in execution status and Stop waits for confirmed cancellation", async (t) => {
+test("streamed progress stays in execution status and Stop reports confirmed cancellation", async (t) => {
   const { host, send } = await connectedHost(t);
   await send("progress", "PROGRESS");
   const progress = await host.waitMessage("progress", (m) => Boolean(m.remoteTask?.taskId));
@@ -96,17 +96,10 @@ test("streamed progress stays in execution status and Stop waits for confirmed c
   assert.equal(done.remoteTask?.statusText, "Delivery complete.");
   await send("hold", "HOLD");
   await host.waitMessage("hold", (m) => Boolean(m.remoteTask?.taskId));
-  host.fixture.config.delayCancellation = true;
   await host.request("/rooms/conversation/messages/hold/cancel", {});
-  await host.waitMessage(
-    "hold",
-    (m) =>
-      m.remoteTask?.cancelRequested === true &&
-      m.remoteTask.pending &&
-      host.fixture.calls.some((call) => call.method === "CancelTask"),
-  );
-  host.fixture.tasks.hold!.status.state = "TASK_STATE_CANCELED";
-  await host.waitMessage("hold", (m) => m.status === "interrupted" && m.remoteTask?.pending === false);
+  const stopped = await host.waitMessage("hold", (m) => m.remoteTask?.statusText === "Canceled.");
+  assert.equal(stopped.status, "interrupted");
+  assert.equal(stopped.remoteTask?.pending, false);
   assert.ok(host.fixture.calls.some((c) => c.method === "SubscribeToTask" && c.params.id === "task-progress"));
   assert.ok(host.fixture.calls.some((c) => c.method === "CancelTask" && c.params.id === "task-hold"));
 });
@@ -172,6 +165,183 @@ test("logout and account switching preserve pending work without allowing anothe
   assert.equal(snapshot.includes("ars_"), false);
   assert.equal(snapshot.includes("product-admin-"), false);
   assert.equal(readFileSync(join(host.directory, "state.sqlite")).includes(Buffer.from("ars_")), false);
+});
+
+test("Stop abandons an unsent group message while offline and prevents later recovery", async (t) => {
+  const { host, memberId, send } = await connectedHost(t);
+  await host.request("/rooms", { id: "offline", title: "Offline group", memberIds: [memberId] });
+  host.fixture.config.routerUnavailable = true;
+  await host.restart();
+  await send("unsent", "Do not deliver after I stop.", {}, "offline");
+  const failed = await host.waitMessage("unsent", (message) => message.status === "failed");
+  assert.equal(failed.remoteTask?.pending, true);
+  assert.equal(failed.remoteTask?.sendStarted, undefined);
+  const stopped = await host.request<{ message: RoomChannelMessage }>("/rooms/offline/messages/unsent/cancel", {});
+  assert.equal(stopped.message.status, "interrupted");
+  assert.equal(stopped.message.remoteTask?.pending, false);
+  assert.equal(stopped.message.remoteTask?.statusText, "Canceled before sending.");
+
+  host.fixture.config.routerUnavailable = false;
+  await host.request("/auth/logout", {});
+  await host.login("admin");
+  await host.request("/network/account", {});
+  await send("after-stop", "The connection works.");
+  await host.waitMessage("after-stop", (message) => message.status === "done");
+  assert.deepEqual(
+    host.sendCalls().map((call) => call.params.message?.messageId),
+    ["after-stop"],
+  );
+});
+
+test("Stop works after logout without borrowing the old account's Router session", async (t) => {
+  const { host, send } = await connectedHost(t);
+  await send("logged-out", "HOLD");
+  await host.waitMessage("logged-out", (message) => Boolean(message.remoteTask?.taskId));
+  await host.request("/auth/logout", {});
+  const stopped = await host.request<{ message: RoomChannelMessage }>(
+    "/rooms/conversation/messages/logged-out/cancel",
+    {},
+  );
+  assert.equal(stopped.message.remoteTask?.pending, false);
+  assert.equal(stopped.message.remoteTask?.statusText, "Stopped retrying. The remote task may still be running.");
+  assert.equal(host.fixture.calls.filter((call) => call.method === "CancelTask").length, 0);
+  assert.equal(host.fixture.tasks["logged-out"]?.status.state, "TASK_STATE_WORKING");
+  await host.login("admin");
+  await host.request("/network/account", {});
+  await send("authorized-probe", "The connection works.");
+  await host.waitMessage("authorized-probe", (message) => message.status === "done");
+  const current = (
+    await host.request<{ messages: RoomChannelMessage[] }>("/rooms/conversation/messages")
+  ).messages.find((message) => message.id === "logged-out");
+  assert.equal(current?.remoteTask?.pending, false);
+  assert.equal(current?.status, "interrupted");
+});
+
+test("Stop never resends a submission whose receipt was lost", async (t) => {
+  const { host, send } = await connectedHost(t);
+  await send("lost-receipt", "RECOVER");
+  const failed = await host.waitMessage("lost-receipt", (message) => message.status === "failed");
+  assert.equal(failed.remoteTask?.taskId, undefined);
+  assert.equal(failed.remoteTask?.sendStarted, true);
+  assert.equal(host.fixture.tasks["lost-receipt"]?.status.state, "TASK_STATE_COMPLETED");
+  const stopped = await host.request<{ message: RoomChannelMessage }>(
+    "/rooms/conversation/messages/lost-receipt/cancel",
+    {},
+  );
+  assert.equal(stopped.message.remoteTask?.pending, false);
+  assert.equal(stopped.message.remoteTask?.statusText, "Stopped retrying. The remote task may still be running.");
+  await host.request("/network/account", {});
+  await send("receipt-probe", "Still connected.");
+  await host.waitMessage("receipt-probe", (message) => message.status === "done");
+  assert.equal(host.sendCalls().filter((call) => call.params.message?.messageId === "lost-receipt").length, 1);
+});
+
+test("Stop leaves an unconfirmed remote cancellation stopped locally", async (t) => {
+  const { host, send } = await connectedHost(t);
+  await send("slow-cancel", "HOLD");
+  await host.waitMessage("slow-cancel", (message) => Boolean(message.remoteTask?.taskId));
+  host.fixture.config.delayCancellation = true;
+  const stopped = await host.request<{ message: RoomChannelMessage }>(
+    "/rooms/conversation/messages/slow-cancel/cancel",
+    {},
+  );
+  assert.equal(stopped.message.status, "interrupted");
+  assert.equal(stopped.message.remoteTask?.pending, false);
+  assert.equal(stopped.message.remoteTask?.statusText, "Stopped retrying. The remote task may still be running.");
+  assert.equal(host.fixture.tasks["slow-cancel"]?.status.state, "TASK_STATE_WORKING");
+  assert.equal(host.fixture.calls.filter((call) => call.method === "CancelTask").length, 1);
+  await host.request("/network/account", {});
+  await send("cancel-probe", "Still connected.");
+  await host.waitMessage("cancel-probe", (message) => message.status === "done");
+  const current = (
+    await host.request<{ messages: RoomChannelMessage[] }>("/rooms/conversation/messages")
+  ).messages.find((message) => message.id === "slow-cancel");
+  assert.equal(current?.status, "interrupted");
+  assert.equal(current?.remoteTask?.pending, false);
+});
+
+test("Stop during connection prevents a late exchange from sending the queued message", async (t) => {
+  const { host, memberId, send } = await connectedHost(t);
+  await host.request("/rooms", { id: "connecting", title: "Connecting group", memberIds: [memberId] });
+  let release!: () => void;
+  host.fixture.config.exchangeGate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  try {
+    await host.restart();
+    const exchanges = host.fixture.exchanges.length;
+    await send("connecting-stop", "Must never be delivered.", {}, "connecting");
+    await host.waitMessage("connecting-stop", () => host.fixture.exchanges.length > exchanges);
+    const stopped = await host.request<{ message: RoomChannelMessage }>(
+      "/rooms/connecting/messages/connecting-stop/cancel",
+      {},
+    );
+    assert.equal(stopped.message.status, "interrupted");
+    release();
+    await send("connection-probe", "The connection finished.", {}, "connecting");
+    await host.waitMessage("connection-probe", (message) => message.status === "done");
+    assert.deepEqual(
+      host.sendCalls().map((call) => call.params.message?.messageId),
+      ["connection-probe"],
+    );
+  } finally {
+    release();
+  }
+});
+
+test("a recovery already waiting for a connection cannot restart stopped work", async (t) => {
+  const { host, send } = await connectedHost(t);
+  await send("recovering-stop", "HOLD");
+  const first = await host.waitMessage("recovering-stop", (message) => Boolean(message.remoteTask?.taskId));
+  await host.restart();
+  let release!: () => void;
+  host.fixture.config.exchangeGate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  try {
+    const exchanges = host.fixture.exchanges.length;
+    const getCalls = () =>
+      host.fixture.calls.filter((call) => call.method === "GetTask" && call.params.id === "task-recovering-stop")
+        .length;
+    const gets = getCalls();
+    await host.request("/auth/session");
+    await host.waitMessage("recovering-stop", () => host.fixture.exchanges.length > exchanges);
+    const stopping = host.request<{ message: RoomChannelMessage }>(
+      "/rooms/conversation/messages/recovering-stop/cancel",
+      {},
+    );
+    await host.waitMessage("recovering-stop", (message) => message.remoteTask?.pending === false);
+    release();
+    const stopped = await stopping;
+    assert.equal(stopped.message.runId, first.runId);
+    assert.equal(stopped.message.remoteTask?.pending, false);
+    await send("recovery-probe", "The connection works.");
+    await host.waitMessage("recovery-probe", (message) => message.status === "done");
+    assert.equal(getCalls(), gets);
+  } finally {
+    release();
+  }
+});
+
+test("stopping a queued turn preserves the Employee's other active work", async (t) => {
+  const { host, memberId, send } = await connectedHost(t);
+  await send("queue-head", "HOLD");
+  await host.waitMessage("queue-head", (message) => Boolean(message.remoteTask?.taskId));
+  await send("queued-stop", "Never deliver this queued turn.");
+  const stopped = await host.request<{ message: RoomChannelMessage }>(
+    "/rooms/conversation/messages/queued-stop/cancel",
+    {},
+  );
+  assert.equal(stopped.message.status, "interrupted");
+  const snapshot = await host.request<{ members: RoomChannelMember[] }>("/rooms");
+  assert.equal(snapshot.members.find((member) => member.id === memberId)?.status, "running");
+  await host.request("/rooms/conversation/messages/queue-head/cancel", {});
+  await send("queue-probe", "The queue is available.");
+  await host.waitMessage("queue-probe", (message) => message.status === "done");
+  assert.deepEqual(
+    host.sendCalls().map((call) => call.params.message?.messageId),
+    ["queue-head", "queue-probe"],
+  );
 });
 
 test("renewal, changed sender and malformed responses have explicit outcomes", async (t) => {

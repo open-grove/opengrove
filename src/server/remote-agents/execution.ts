@@ -12,19 +12,22 @@ export async function executeRemoteRoomRun(state: BridgeState, input: RoomRunExe
   const rooms = state.app.rooms;
   const binding = input.target.remoteAgent;
   if (!binding) throw new Error("remote_binding_missing");
-  const shutdown = new AbortController();
+  const lifetime = new AbortController();
   const locale = resolveHostLanguageSettings(state.settings);
   const trigger = rooms.getMessage(input.roomId, input.triggerMessageId);
   const assistant = rooms.getMessage(input.roomId, input.assistantMessageId);
-  const previous = rooms
+  if (!assistant || assistant.remoteTask?.pending === false) return;
+  const previousMessages = rooms
     .listMessages(input.roomId, { limit: 0 })
     .filter(
       (message) =>
         message.senderId === input.target.id && message.channelSeq < (assistant?.channelSeq ?? 0) && message.remoteTask,
-    )
-    .at(-1)?.remoteTask;
+    );
+  const previous = previousMessages.at(-1)?.remoteTask;
+  // A locally rejected turn has no remote context and must not replace the established conversation.
+  const contextId = previousMessages.filter((message) => message.remoteTask?.contextId).at(-1)?.remoteTask?.contextId;
   let network: RemoteRoomTask = rooms.getMessage(input.roomId, input.assistantMessageId)?.remoteTask ?? {
-    contextId: previous?.contextId,
+    contextId,
     messageId: input.assistantMessageId,
     triggerMessageId: input.triggerMessageId,
     pending: true,
@@ -35,7 +38,14 @@ export async function executeRemoteRoomRun(state: BridgeState, input: RoomRunExe
   let observation: AbortController | undefined;
   let updates: AsyncGenerator<Task> | undefined;
   let lastPersisted = "";
+  const isCurrentRun = () => {
+    const current = rooms.getMessage(input.roomId, input.assistantMessageId);
+    return Boolean(
+      current && (!current.runId || current.runId === input.runId) && current.remoteTask?.pending !== false,
+    );
+  };
   const persist = (statusText: string, status: "running" | "done" | "failed" | "interrupted") => {
+    if (!isCurrentRun()) return;
     network = { ...network, statusText };
     const digest = JSON.stringify([network, replyText, status]);
     if (digest === lastPersisted) return;
@@ -53,18 +63,14 @@ export async function executeRemoteRoomRun(state: BridgeState, input: RoomRunExe
     state.store.saveFrom(state.app);
   };
   const cancel = () => {
-    if (input.signal?.reason === "host_shutdown") {
-      shutdown.abort();
-      return;
-    }
-    observation?.abort("cancel_requested");
-    network = { ...network, cancelRequested: true };
-    persist(hostMessage(locale, "remote.cancel_requested"), "running");
+    lifetime.abort(input.signal?.reason);
+    observation?.abort();
   };
   input.signal?.addEventListener("abort", cancel, { once: true });
   try {
-    assertNetworkRunAuthorized(state, input.networkAuthorization, binding);
     if (input.signal?.aborted) cancel();
+    lifetime.signal.throwIfAborted();
+    assertNetworkRunAuthorized(state, input.networkAuthorization, binding);
     if (!trigger) throw new Error("remote_trigger_missing");
     if (trigger.attachments?.length || trigger.selectedFile) throw new Error("remote_text_only");
     if (trigger.text.length > 32000) throw new Error("remote_message_too_large");
@@ -73,9 +79,10 @@ export async function executeRemoteRoomRun(state: BridgeState, input: RoomRunExe
       requestText: network.requestText ?? buildRoomTextInput(state, input.roomId, input.target, trigger),
     };
     if (network.requestText!.length > 32000) throw new Error("remote_message_too_large");
-    const connection = await networkSessionsFor(state).connect(binding, shutdown.signal);
+    const connection = await networkSessionsFor(state).connect(binding, lifetime.signal);
     const resolvedTarget = { address: binding.address, matrixId: binding.matrixId };
-    shutdown.signal.throwIfAborted();
+    lifetime.signal.throwIfAborted();
+    if (!isCurrentRun()) return;
     if (network.cancelRequested && !network.sendStarted && !network.taskId) {
       network.pending = false;
       persist(hostMessage(locale, "remote.cancelled_before_send"), "interrupted");
@@ -102,7 +109,8 @@ export async function executeRemoteRoomRun(state: BridgeState, input: RoomRunExe
       throw new Error("remote_context_mismatch");
     network = { ...network, taskId: task.id, contextId: task.contextId };
     while (true) {
-      shutdown.signal.throwIfAborted();
+      lifetime.signal.throwIfAborted();
+      if (!isCurrentRun()) return;
       const terminal = [
         "TASK_STATE_COMPLETED",
         "TASK_STATE_FAILED",
@@ -174,9 +182,21 @@ export async function executeRemoteRoomRun(state: BridgeState, input: RoomRunExe
       }
     }
   } catch (error) {
-    if (shutdown.signal.aborted) {
-      network = { ...network, pending: true };
-      persist(hostMessage(locale, "remote.connection_paused"), "interrupted");
+    if (!isCurrentRun()) return;
+    if (lifetime.signal.aborted) {
+      const shuttingDown = input.signal?.reason === "host_shutdown";
+      network = { ...network, pending: shuttingDown, ...(!shuttingDown ? { cancelRequested: true } : {}) };
+      persist(
+        hostMessage(
+          locale,
+          shuttingDown
+            ? "remote.connection_paused"
+            : network.sendStarted || network.taskId
+              ? "remote.stopped_unconfirmed"
+              : "remote.cancelled_before_send",
+        ),
+        "interrupted",
+      );
       return;
     }
     const failure = error instanceof Error && error.cause instanceof AgentRouterError ? error.cause : error;

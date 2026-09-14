@@ -55,17 +55,20 @@ try {
       const [open, setOpen] = useState(true);
       const [scenario, setScenario] = useState("dialog");
       const [needsInput, setNeedsInput] = useState(false);
+      const [stoppable, setStoppable] = useState(false);
       window.__setOpen = setOpen;
       window.__showMenu = () => setScenario("menu");
       window.__showRemoteStatus = (value) => { setNeedsInput(value); setScenario("messages"); };
+      window.__showPendingFailure = () => { setStoppable(true); setNeedsInput(false); setScenario("messages"); };
       if (scenario === "menu") return <MenuFixture />;
       if (scenario === "messages") return <ConfirmProvider><RoomMessageStream
         roomId="remote-status" members={[]} runtimeEventsByRunId={new Map()}
         onResolveApproval={() => {}} onResolveQuestion={() => {}} onInsertPrompt={() => {}}
+        onCancelRun={(id) => { window.__stoppedMessage = id; setStoppable(false); }}
         messages={[{
           id: "remote-result", senderId: "remote-test", senderName: "Remote", senderType: "agent",
-          text: "Synthetic remote result", targetIds: [], status: "done", createdAt: "2026-09-11T00:00:00.000Z",
-          remoteTask: { pending: false, needsInput, messageId: "remote-result", triggerMessageId: "input",
+          text: "Synthetic remote result", targetIds: [], status: stoppable ? "failed" : "done", createdAt: "2026-09-11T00:00:00.000Z",
+          remoteTask: { pending: stoppable, needsInput, messageId: "remote-result", triggerMessageId: "input",
             statusText: needsInput ? "Please confirm the target." : "Completed." },
         }]}
       /></ConfirmProvider>;
@@ -187,6 +190,13 @@ try {
     await expect(page.getByText("Completed.", { exact: true })).toHaveCount(0);
     await page.evaluate(() => window.__showRemoteStatus(true));
     await expect(page.getByText("Please confirm the target.", { exact: true })).toBeVisible();
+    await page.evaluate(() => window.__showPendingFailure());
+    const stop = page.getByRole("button", { name: "停止", exact: true });
+    await expect(stop).toBeVisible();
+    await stop.focus();
+    await stop.press("Enter");
+    assert.equal(await page.evaluate(() => window.__stoppedMessage), "remote-result");
+    await expect(stop).toHaveCount(0);
     assert.deepEqual(errors, []);
   } finally {
     await browser.close();

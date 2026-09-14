@@ -363,15 +363,23 @@ export function RoomsView(props: {
   function cancelRoomRun(roomId: string, messageId: string, runId?: string) {
     const room = roomsRef.current.find((item) => item.id === roomId);
     const previous = room?.messages.find((message) => message.id === messageId);
-    if (!previous || previous.status !== "running") return;
+    if (!previous || (previous.status !== "running" && !previous.remoteTask?.pending)) return;
     if (runId && pendingCancelRunIds.has(runId)) return;
     const snapshot = structuredClone(previous);
     if (runId) {
       setPendingCancelRunIds((current) => new Set(current).add(runId));
     }
-    // 乐观：立即把该气泡标为已中断、成员回到空闲。
-    updateRoomMessage(roomId, messageId, interruptRoomMessage);
-    updateMemberStatus([previous.senderId], "idle");
+    // 乐观：立即停止该气泡；同一成员还有其他运行时保留忙碌状态。
+    updateRoomMessage(roomId, messageId, (message) => ({
+      ...interruptRoomMessage(message),
+      ...(message.remoteTask ? { remoteTask: { ...message.remoteTask, pending: false, statusText: undefined } } : {}),
+    }));
+    const hasOtherWork = roomsRef.current.some((candidateRoom) =>
+      candidateRoom.messages.some(
+        (message) => message.id !== messageId && message.senderId === previous.senderId && message.status === "running",
+      ),
+    );
+    if (!hasOtherWork) updateMemberStatus([previous.senderId], "idle");
     void cancelServerRoomRun(roomId, messageId)
       .then((result) => {
         // 后端对"已取消"和"早已结束"都返回 200 + 权威 message，对齐回真实终态。
@@ -383,7 +391,7 @@ export function RoomsView(props: {
       .catch(() => {
         // 真失败(网络/5xx)：run 很可能还在跑，回滚到 cancel 前快照，避免留下假"已中断"。
         updateRoomMessage(roomId, messageId, () => snapshot);
-        updateMemberStatus([previous.senderId], "running");
+        if (previous.status === "running") updateMemberStatus([previous.senderId], "running");
         toast?.({ title: t("rooms.cancelFailed"), kind: "error" });
       })
       .finally(() => {

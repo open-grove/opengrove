@@ -88,7 +88,9 @@ task never silently changes recipient.
 
 The local Room ledger is authoritative for the UI. Each turn persists its message
 ID and original text before sending. The first response supplies the remote
-context ID; following turns for the same Employee in the same Room use that context. Different Rooms and Employees have separate contexts. Restoring the login after startup or choosing **Retry** after a connection failure recovers the same request. Reading Rooms or message history never reconnects or replays work. An uncertain submission replays its original message
+context ID; following turns for the same Employee in the same Room use that context.
+A locally rejected message does not replace the last established remote context.
+Different Rooms and Employees have separate contexts. Restoring the login after startup or choosing **Retry** after a connection failure recovers the same request. Reading Rooms or message history never reconnects or replays work. An uncertain submission replays its original message
 ID and identical input; a known task is queried by task ID. A request for more
 input continues with both the pending task ID and the context ID.
 
@@ -98,10 +100,17 @@ contains only remote task content. A malformed response is a visible failure,
 never a fabricated answer. Closing OpenGrove stops local observation without
 canceling remote work; reopening recovers its latest result under the same account.
 
-Stop requests remote cancellation and follows the returned task state. An
-acknowledgment alone is not treated as confirmed cancellation. Completed, failed,
-rejected, canceled, input-required, and auth-required task states stop observation.
-Remote side effects already performed cannot be undone by stopping observation.
+**Stop** is available for both running and failed pending messages. It immediately
+stops local recovery, including while signed out or while the Router is unavailable.
+The message cannot be replayed by a later login, reconnect, or delayed connection.
+If the task ID is known, the Host separately verifies the current account and
+attempts remote cancellation. A confirmed terminal response is shown; otherwise
+the status says that local retrying has stopped and remote work may still be running.
+No further observation or automatic cancellation retry is scheduled by this action.
+A missing task ID can mean the submission receipt was lost, so Stop never resends
+that message just to discover its task ID. Remote side effects already performed
+cannot be undone by stopping observation. Completed, failed, rejected, canceled,
+input-required, and auth-required task states also stop ordinary observation.
 
 ## Boundaries
 

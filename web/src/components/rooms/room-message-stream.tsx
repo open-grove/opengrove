@@ -523,7 +523,7 @@ const RoomMessageItem = memo(function RoomMessageItem(props: {
             }
             duration={doneDuration}
             cancel={
-              message.status === "running" && props.onCancelRun
+              (message.status === "running" || message.remoteTask?.pending) && props.onCancelRun
                 ? {
                     pending: Boolean(message.runId && props.pendingCancelRunIds?.has(message.runId)),
                     onCancel: () => props.onCancelRun?.(message.id, message.runId),
@@ -1124,7 +1124,9 @@ function RoomAgentMessageBody(props: {
           </div>
         </div>
       ) : null}
-      {props.status !== "running" && props.statusText && !visibleProcessGroups.length ? (
+      {props.status !== "running" &&
+      (props.statusText || props.retry || props.cancel) &&
+      !visibleProcessGroups.length ? (
         <div className="room-chat-status-row">
           <div className="room-chat-status" data-status={props.status}>
             {props.status === "done" ? <Check size={12} className="room-chat-status-check" aria-hidden="true" /> : null}
@@ -1138,6 +1140,16 @@ function RoomAgentMessageBody(props: {
               onClick={() => void props.retry?.onRetry()}
             >
               {props.retry.pending ? t("remoteAgent.connecting") : t("common.retry")}
+            </button>
+          ) : null}
+          {props.cancel ? (
+            <button
+              type="button"
+              className="ghost-button"
+              disabled={props.cancel.pending}
+              onClick={props.cancel.onCancel}
+            >
+              {t("rooms.stopRun")}
             </button>
           ) : null}
         </div>
@@ -1264,7 +1276,11 @@ function RoomRunDetailsBlock(props: {
       variant="room-run"
       active={live}
       defaultOpen={shouldOpenByDefault}
-      leading={live ? <RoomRunLeadingControl presentation={props.agentPresentation} cancel={props.cancel} /> : null}
+      leading={
+        live || props.cancel ? (
+          <RoomRunLeadingControl presentation={props.agentPresentation} cancel={props.cancel} />
+        ) : null
+      }
       summary={
         <TextTransition identity={summaryText}>
           {live ? <TextShimmer>{summaryText}</TextShimmer> : renderActivitySummary(summaryText)}

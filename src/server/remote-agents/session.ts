@@ -106,7 +106,7 @@ export function networkSessionGeneration(state: BridgeState): number {
   return generations.get(state) ?? 0;
 }
 
-interface NetworkRouteContext {
+export interface NetworkRouteContext {
   state: BridgeState;
   security?: BridgeSecurity;
   request: IncomingMessage;
