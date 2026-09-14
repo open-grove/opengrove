@@ -69,6 +69,16 @@ jobs:
       - run: npm ci
       - name: Install Chromium
         run: npx playwright install chromium
+      - name: Verify storage cleanup on the real filesystem
+        env:
+          OPENGROVE_STORAGE_ACCEPTANCE_RECEIPT: ${{ runner.temp }}/storage-cleanup-receipt.json
+        run: npm run check:desktop-rebuildable-cleanup
+      - name: Upload storage cleanup acceptance
+        uses: actions/upload-artifact@v4
+        with:
+          name: storage-cleanup-${{ matrix.platform }}-${{ github.run_id }}
+          path: ${{ runner.temp }}/storage-cleanup-receipt.json
+          if-no-files-found: error
       - run: npm run test:integration
 
   browser-ui:

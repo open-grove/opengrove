@@ -182,10 +182,12 @@ candidate:
 A platform-only run such as `platforms=windows-x64` is useful for diagnosis but
 intentionally produces no registrable candidate or gate receipt.
 
-### Real-device acceptance for storage changes
+### Real-filesystem acceptance for storage changes
 
-Changes to recursive cleanup or local cache policy require real-device
-acceptance on every affected platform in addition to automated gates. Use
+Changes to recursive cleanup or local cache policy require real-filesystem
+acceptance on every affected platform in addition to automated gates. A local
+machine or a GitHub-hosted Windows/macOS runner may perform this check, but it
+must run the production cleanup code against native filesystem links. Use
 temporary test data and verify before and after the operation that
 works, conversations, settings, account state, Knowledge, the current App, and
 current diagnostic logs remain intact.
@@ -200,9 +202,13 @@ current diagnostic logs remain intact.
   not follow the link or remove the external files.
 
 Record the candidate SHA, client and operating-system versions, filesystem,
-test paths, before-and-after checksums, and the result. If an item
-was not run, say so in the release record; automated coverage is not evidence
-that a real-device check passed.
+test paths, before-and-after checksums, and the result, identifying whether the
+execution used a local machine or a GitHub runner. Nightly's cross-platform jobs
+run `npm run check:desktop-rebuildable-cleanup` and upload
+`storage-cleanup-<platform>-<run-id>` receipts; Windows verifies NTFS and Junction
+types. This evidence covers filesystem cleanup behavior, not installation or UI
+acceptance on a physical device. If an item was not run, say so in the release
+record; mocks, static checks, or unrelated passing tests are not substitutes.
 
 If evidence shows a transient infrastructure failure and candidate code is
 unchanged, rerun only the failed jobs:
