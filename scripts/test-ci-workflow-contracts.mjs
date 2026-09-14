@@ -147,6 +147,18 @@ assert.match(nightlyWorkflow, /^  workflow_dispatch:$/mu);
 assert.match(nightlyWorkflow, /^  real-agent:\n    name: Real Agent matrix$/mu);
 assert.match(nightlyWorkflow, /uses: \.\/\.github\/workflows\/real-agent-smoke\.yml/u);
 assert.match(nightlyWorkflow, /platform: \[macos-latest, windows-latest\]/u);
+const platformIntegration = nightlyWorkflow.slice(
+  nightlyWorkflow.indexOf("  cross-platform-integration:\n"),
+  nightlyWorkflow.indexOf("  browser-ui:\n"),
+);
+const windowsOwnership = prWorkflow.slice(
+  prWorkflow.indexOf("  state-ownership-windows:\n"),
+  prWorkflow.indexOf("  media-streaming-windows:\n"),
+);
+assert.match(windowsOwnership, /run: npm run check:desktop-rebuildable-cleanup/u);
+assert.match(platformIntegration, /run: npm run check:desktop-rebuildable-cleanup/u);
+assert.match(platformIntegration, /OPENGROVE_STORAGE_ACCEPTANCE_RECEIPT:/u);
+assert.match(platformIntegration, /name: storage-cleanup-\$\{\{ matrix.platform \}\}-\$\{\{ github.run_id \}\}/u);
 assert.doesNotMatch(
   nightlyWorkflow,
   /platform: \[ubuntu-latest, macos-latest, windows-latest\]/u,
