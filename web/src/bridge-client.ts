@@ -211,6 +211,7 @@ function isBridgeRecordLike(value: unknown): value is Record<string, unknown> {
 }
 
 export class BridgeRequestError extends Error {
+  status?: number;
   code?: string;
   requestId?: string;
   incidentId?: string;
@@ -226,7 +227,6 @@ export type BridgeDownloadErrorKind = "auth" | "network" | "timeout" | "server";
 
 export class BridgeDownloadError extends BridgeRequestError {
   readonly kind: BridgeDownloadErrorKind;
-  status?: number;
 
   constructor(kind: BridgeDownloadErrorKind, message: string) {
     super(message);
@@ -240,6 +240,7 @@ export async function fetchJson<T>(path: string, init?: RequestInit): Promise<T>
   if (!response.ok) {
     const details = await readBridgeErrorDetails(response);
     const error = new BridgeRequestError(details.error);
+    error.status = response.status;
     error.code = details.code;
     error.requestId = details.requestId;
     error.incidentId = details.incidentId;

@@ -22,7 +22,11 @@ export type RoomsSharedActions = {
   markRoomRead(roomId: string): Promise<void>;
 };
 
-export function useRoomsSharedState(input: { enabled?: boolean; onSessionRequired?(): void; sessionKey: string }): {
+export function useRoomsSharedState(input: {
+  enabled?: boolean;
+  onSessionRequired?(error: unknown): void;
+  sessionKey: string;
+}): {
   snapshot: RoomsSharedSnapshot;
   actions: RoomsSharedActions;
 } {
@@ -49,7 +53,7 @@ export function useRoomsSharedState(input: { enabled?: boolean; onSessionRequire
         await markServerRoomRead(roomId, observedEventSeq);
       },
       onFailure: (receipt, error) => {
-        if (isRoomsSessionRequiredError(error)) onSessionRequiredRef.current?.();
+        if (isRoomsSessionRequiredError(error)) onSessionRequiredRef.current?.(error);
         const restoredRooms = roomsRef.current.map((room) =>
           room.id === receipt.roomId ? { ...room, unread: Math.max(room.unread, receipt.unread) } : room,
         );
@@ -107,7 +111,7 @@ export function useRoomsSharedState(input: { enabled?: boolean; onSessionRequire
         }));
       })
       .catch((error) => {
-        if (!cancelled && isRoomsSessionRequiredError(error)) input.onSessionRequired?.();
+        if (!cancelled && isRoomsSessionRequiredError(error)) input.onSessionRequired?.(error);
       });
     return () => {
       cancelled = true;

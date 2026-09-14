@@ -16,6 +16,7 @@ import { detectSystemLanguage, translate } from "./i18n";
 import { markAuthSessionAuthenticated, markAuthSessionLoggedOut } from "./app-auth-model";
 import { readDesktopApi } from "./desktop-api";
 import { resolveBridgeAuthPolicy } from "./app-auth-policy";
+import { openAppSignInUrl } from "./compat/openapp-session";
 import type { LanguagePreference } from "./i18n-types";
 
 type LoginFormPayload = Omit<Parameters<typeof loginBridgeAuth>[0], "languagePreference" | "systemLanguage">;
@@ -184,9 +185,17 @@ export function useBridgeAuthGate(input: {
     retry: false,
   });
 
-  const requestAuthSessionRevalidation = useCallback(() => {
-    void queryClient.invalidateQueries({ queryKey: ["auth-session"] });
-  }, [queryClient]);
+  const requestAuthSessionRevalidation = useCallback(
+    (error?: unknown) => {
+      const signInUrl = openAppSignInUrl(error);
+      if (signInUrl) {
+        window.location.replace(signInUrl);
+        return;
+      }
+      void queryClient.invalidateQueries({ queryKey: ["auth-session"] });
+    },
+    [queryClient],
+  );
   const resetSendCodeState = useCallback(() => {
     setSendCodeRequiresInvite(false);
     setSendCodeRequiresCountry(false);
