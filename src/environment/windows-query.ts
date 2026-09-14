@@ -33,25 +33,7 @@ export function windowsProbeEnvironment(environment: NodeJS.ProcessEnv): NodeJS.
   const result: NodeJS.ProcessEnv = {};
   for (const key of [
     "SystemRoot",
-    "SystemDrive",
     "WINDIR",
-    "ComSpec",
-    "PATHEXT",
-    "OS",
-    "PROCESSOR_ARCHITECTURE",
-    "NUMBER_OF_PROCESSORS",
-    "ProgramFiles",
-    "ProgramFiles(x86)",
-    "ProgramW6432",
-    "CommonProgramFiles",
-    "CommonProgramFiles(x86)",
-    "CommonProgramW6432",
-    "ALLUSERSPROFILE",
-    "COMPUTERNAME",
-    "USERNAME",
-    "USERDOMAIN",
-    "HOMEDRIVE",
-    "HOMEPATH",
     "USERPROFILE",
     "LOCALAPPDATA",
     "APPDATA",
@@ -59,6 +41,7 @@ export function windowsProbeEnvironment(environment: NodeJS.ProcessEnv): NodeJS.
     "TEMP",
     "TMP",
     "PSModulePath",
+    "PSModuleAnalysisCachePath",
   ]) {
     const value = windowsEnvironmentValue(environment, key);
     if (value !== undefined) result[key] = value;
@@ -66,8 +49,8 @@ export function windowsProbeEnvironment(environment: NodeJS.ProcessEnv): NodeJS.
   const systemRoot = result.SystemRoot || result.WINDIR;
   if (systemRoot) {
     result.PATH = join(systemRoot, "System32");
-    // Windows PowerShell 5.1 needs the configured module search path in this
-    // isolated environment; retaining only PSHOME can stall startup as well.
+    // Preserve configured module lookup and analysis-cache paths: dropping
+    // either can stall PowerShell 5.1 startup or Appx command discovery.
     result.PSModulePath ??= join(systemRoot, "System32", "WindowsPowerShell", "v1.0", "Modules");
   }
   return result;
@@ -150,7 +133,9 @@ export const queryWindowsCommand: WindowsCommandQuery = (executable, args, envir
       { env: safeEnvironment, encoding: "utf8", timeout: 5_000, maxBuffer: 256 * 1024, windowsHide: true },
       (error, stdout) => {
         if (error) {
-          console.warn(`[windows-discovery] powershell.exe probe failed: ${error.message}`);
+          console.warn(
+            `[windows-discovery] powershell.exe probe failed (code=${error.code ?? "unknown"}, killed=${error.killed ?? false}): ${error.message}`,
+          );
           resolve(undefined);
         } else resolve(stdout);
       },
