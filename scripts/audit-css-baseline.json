@@ -5,9 +5,6 @@
     "app-chat-frame.css": {
       "spacingLiteral": 8
     },
-    "app-mobile-nav.css": {
-      "spacingLiteral": 4
-    },
     "app-shell.css": {
       "spacingLiteral": 12
     },
@@ -22,7 +19,7 @@
       "spacingLiteral": 1
     },
     "components/apps/mounted-app-workbench.css": {
-      "spacingLiteral": 93,
+      "spacingLiteral": 92,
       "shadowLiteral": 4
     },
     "components/chat/chat-composer.module.css": {
@@ -51,7 +48,7 @@
       "spacingLiteral": 2
     },
     "components/chat/thread.css": {
-      "spacingLiteral": 93,
+      "spacingLiteral": 92,
       "motionLiteral": 2,
       "shadowLiteral": 2
     },
@@ -173,8 +170,6 @@
     }
   },
   "duplicateSelectors": {
-    ".app-shell": ["app-mobile-nav.css", "app-shell.css"],
-    ".app-shell[data-view=\"rooms\"]": ["app-workspace.css", "components/rooms/rooms.css"],
     ".rooms-view": ["components/rooms/room-members.css", "components/rooms/rooms.css"],
     ".rooms-view[data-members-open=\"true\"]": ["components/rooms/room-members.css", "components/rooms/rooms.css"],
     "body": ["app-shell.css", "styles/base/document.css"],

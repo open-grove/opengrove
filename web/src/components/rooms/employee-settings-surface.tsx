@@ -69,7 +69,11 @@ export function EmployeeSettingsDialog(props: EmployeeSettingsDialogProps) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="employee-settings-dialog" aria-label={t("employee.profileSettingsTitle")}>
+      <DialogContent
+        mobilePresentation="page"
+        className="employee-settings-dialog"
+        aria-label={t("employee.profileSettingsTitle")}
+      >
         <DialogTitle className="employee-settings-dialog-title">{t("employee.profileSettingsTitle")}</DialogTitle>
         <Tooltip content={t("mountedApp.close")} side="left">
           <button

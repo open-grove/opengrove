@@ -1,3 +1,5 @@
+import controlStyles from "./mounted-app-workbench-controls.module.css";
+import { usePageDetail } from "../../runtime/use-page-detail";
 import { FileSaveConflict } from "../shared/file-draft";
 import {
   Component,
@@ -82,6 +84,8 @@ import {
   type FilePreviewDirtyState,
   type FileTextSelectionAttachment,
 } from "../shared/file-preview-panel";
+import { Dialog, DialogContent, DialogTitle } from "../ui/dialog";
+import type { WorkspacePane } from "../shared/adaptive-split-layout";
 import { WorkspaceWorkbenchLayout } from "../shared/workspace-workbench-layout";
 import "./mounted-app-workbench.css";
 import {
@@ -234,9 +238,13 @@ export function MountedAppWorkbench(props: {
   app: ExtensionItemRecord | undefined;
   layoutMode?: MountedAppWorkbenchLayoutMode;
   runtimeRevision?: string;
+  revealRequest?: number;
   selectedPath: string;
   corePanel?: ReactNode;
   chatOpen?: boolean;
+  pane: WorkspacePane;
+  onPaneChange(pane: WorkspacePane): void;
+  onCompactChange?(compact: boolean): void;
   onAddSelectionAttachment?(attachment: AttachmentPayload): void;
   onSelectedPathChange(path: string): void;
 }) {
@@ -250,6 +258,16 @@ export function MountedAppWorkbench(props: {
   );
   const queryClient = useQueryClient();
   const workbenchRef = useRef<HTMLDivElement | null>(null);
+  const fileDetail = usePageDetail("file");
+  const compactDetailOpen = Boolean(fileDetail.detailId);
+
+  useEffect(() => {
+    if (props.selectedPath) {
+      // Selection/reveal owns file history; click handlers only update selection.
+      fileDetail.showDetail(props.selectedPath);
+      props.onPaneChange("workspace");
+    }
+  }, [props.selectedPath, props.revealRequest]);
   const dashboardRefreshSpinnerTimeoutRef = useRef<number | null>(null);
   const resizeCleanupRef = useRef<(() => void) | null>(null);
   const resizeRef = useRef<{
@@ -267,6 +285,8 @@ export function MountedAppWorkbench(props: {
   const [editingPath, setEditingPath] = useState("");
   const tabs = useMemo(() => resolveMountedAppTabs(props.app, t), [props.app?.metadata?.ui, props.app?.name, t]);
   const [activeTabIdx, setActiveTabIdx] = useState(0);
+  const fileTabIndex = tabs.findIndex((tab) => tab.component === "file-tree" || tab.component === "flow-list");
+
   const activeTabIndex = Math.min(activeTabIdx, Math.max(tabs.length - 1, 0));
   const activeTab = tabs[activeTabIndex] ?? { component: "file-tree" as const, label: t("mountedApp.files") };
   const [activatedViewIds, setActivatedViewIds] = useState<string[]>([]);
@@ -404,6 +424,29 @@ export function MountedAppWorkbench(props: {
     : undefined;
   const workspaceRoot = fileQuery.data?.app?.workspaceRoot ?? filesQuery.data?.app?.workspaceRoot;
   const activeDirtyState = fileDirtyState?.path === props.selectedPath ? fileDirtyState : null;
+  useEffect(() => {
+    if (!fileDetail.detailId) return;
+    let cancelled = false;
+    async function restoreFileDetail() {
+      if (fileDetail.detailId !== props.selectedPath) {
+        // History changes use the same durable-draft gate as file clicks. Keep
+        // the old editor mounted until its latest input has been captured.
+        const preserved = !activeDirtyState || (await activeDirtyState.preserve());
+        if (cancelled) return;
+        if (!preserved) {
+          toast({ kind: "error", title: t("filePreview.cannotLeaveDraft") });
+          fileDetail.showDetail(props.selectedPath, true);
+          return;
+        }
+        props.onSelectedPathChange(fileDetail.detailId);
+      }
+      if (fileTabIndex >= 0) setActiveTabIdx(fileTabIndex);
+    }
+    void restoreFileDetail();
+    return () => {
+      cancelled = true;
+    };
+  }, [appId, fileDetail.detailId, fileTabIndex]);
   const effectiveDirectoryCollapsed = directoryMode === "view" || directoryCollapsed;
   const workbenchChatOpen = Boolean(props.corePanel && props.chatOpen !== false);
   const workbenchLayoutConstraints = resolveMountedAppWorkbenchLayoutConstraints(
@@ -481,6 +524,7 @@ export function MountedAppWorkbench(props: {
       mergeFileSystemResult(result);
       if (props.selectedPath === payload.sourcePath || props.selectedPath.startsWith(`${payload.sourcePath}/`)) {
         props.onSelectedPathChange("");
+        fileDetail.clearDetail();
       }
     },
   });
@@ -545,7 +589,7 @@ export function MountedAppWorkbench(props: {
   });
 
   useEffect(() => {
-    props.onSelectedPathChange("");
+    props.onSelectedPathChange(fileDetail.detailId);
     setActiveTabIdx(0);
     setSelectedDashboardItemId("");
   }, [appId]);
@@ -637,11 +681,16 @@ export function MountedAppWorkbench(props: {
   }
 
   async function requestSelectedPathChange(path: string) {
-    if (path === props.selectedPath) return;
+    if (path === props.selectedPath) {
+      fileDetail.showDetail(path);
+      props.onPaneChange("workspace");
+      return;
+    }
     if (activeDirtyState && !(await activeDirtyState.preserve())) {
       toast({ kind: "error", title: t("filePreview.cannotLeaveDraft") });
       return;
     }
+    props.onPaneChange("workspace");
     props.onSelectedPathChange(path);
   }
 
@@ -790,6 +839,7 @@ export function MountedAppWorkbench(props: {
         return;
       }
       props.onSelectedPathChange("");
+      fileDetail.clearDetail();
     }
     setActiveTabIdx(index);
   }
@@ -872,6 +922,10 @@ export function MountedAppWorkbench(props: {
     <>
       <WorkspaceWorkbenchLayout
         className="mounted-app-workbench"
+        pane={props.pane}
+        onCompactChange={props.onCompactChange}
+        detailOpen={compactDetailOpen}
+        onOpenDirectory={fileDetail.showList}
         directoryCollapsed={directoryMode === "view" || directoryCollapsed}
         chatOpen={props.chatOpen}
         ref={workbenchRef}
@@ -905,7 +959,9 @@ export function MountedAppWorkbench(props: {
                         void selectDirectoryTab(index);
                       }}
                     >
-                      {tab.label}
+                      <span className={controlStyles.tabLabel} title={tab.label}>
+                        {tab.label}
+                      </span>
                       {tab.component === "flow-list" && flowGroups.length ? (
                         <span className="mounted-app-directory-tabs-count">{flowGroups.length}</span>
                       ) : null}
@@ -1120,6 +1176,7 @@ export function MountedAppWorkbench(props: {
                       onAttachSelection={(selection) => {
                         if (props.app) {
                           props.onAddSelectionAttachment?.(selectionToComposerAttachment(props.app, selection, t));
+                          props.onPaneChange("chat");
                         }
                       }}
                       onDirtyStateChange={setFileDirtyState}
@@ -1234,6 +1291,8 @@ function FileTree(props: {
   const { t } = useI18n();
   const [menuState, setMenuState] = useState<DirectoryTreeMenuState | null>(null);
   const [dragSourcePath, setDragSourcePath] = useState("");
+  const [moveSource, setMoveSource] = useState("");
+  const [moveTarget, setMoveTarget] = useState("");
   const [dropTargetPath, setDropTargetPath] = useState("");
   const nodes = useMemo(() => mountedAppEntriesToNodes(props.entries), [props.entries]);
 
@@ -1279,6 +1338,7 @@ function FileTree(props: {
           newFile: t("mountedApp.newMarkdown"),
           newFolder: t("mountedApp.newFolder"),
           rename: t("mountedApp.rename"),
+          move: t("compact.moveFile"),
           delete: t("mountedApp.delete"),
         }}
         openPaths={props.openPaths}
@@ -1296,6 +1356,11 @@ function FileTree(props: {
         onDeleteEntry={(node) => {
           if (node.data) props.onDeleteEntry(node.data);
         }}
+        onRequestMove={(node) => {
+          setMenuState(null);
+          setMoveSource(node.path);
+          setMoveTarget("");
+        }}
         onDrop={(sourcePath, target) => moveEntry(sourcePath, target.path)}
         onOpenMenu={openMenu}
         onRenameEntry={(sourcePath, name) => props.onRenameEntry(sourcePath, name)}
@@ -1305,7 +1370,61 @@ function FileTree(props: {
         onStartRename={(sourcePath) => props.onStartRename(sourcePath)}
         onToggleFolder={(path, currentlyOpen) => toggleFolder(path, currentlyOpen)}
       />
+      <Dialog
+        open={Boolean(moveSource)}
+        onOpenChange={(open) => {
+          if (!open) setMoveSource("");
+        }}
+      >
+        <DialogContent aria-label={t("compact.moveFile")}>
+          <DialogTitle>{t("compact.moveFile")}</DialogTitle>
+          <label className="mounted-app-move-field">
+            <span>{t("compact.moveDestination")}</span>
+            <select value={moveTarget} onChange={(event) => setMoveTarget(event.target.value)}>
+              {canMoveMountedAppEntry(moveSource, "") ? (
+                <option value="">{t("compact.workspace")}</option>
+              ) : (
+                <option value="" disabled>
+                  {t("compact.moveDestination")}
+                </option>
+              )}
+              {mountedAppMoveTargets(nodes, moveSource).map((path) => (
+                <option key={path} value={path}>
+                  {path}
+                </option>
+              ))}
+            </select>
+          </label>
+          <div className="modal-actions">
+            <button type="button" className="ghost-button" onClick={() => setMoveSource("")}>
+              {t("common.cancel")}
+            </button>
+            <button
+              type="button"
+              className="primary-button"
+              disabled={!canMoveMountedAppEntry(moveSource, moveTarget)}
+              onClick={() => {
+                moveEntry(moveSource, moveTarget);
+                setMoveSource("");
+              }}
+            >
+              {t("compact.moveFile")}
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
+  );
+}
+
+function mountedAppMoveTargets(nodes: DirectoryTreeNode<MountedAppFileEntry>[], source: string): string[] {
+  return nodes.flatMap((node) =>
+    node.kind === "folder"
+      ? [
+          ...(canMoveMountedAppEntry(source, node.path) ? [node.path] : []),
+          ...mountedAppMoveTargets(node.children ?? [], source),
+        ]
+      : [],
   );
 }
 

@@ -95,6 +95,7 @@ export const MarkdownRichEditor = forwardRef<MarkdownRichEditorHandle, MarkdownR
       const root = hostRef.current;
       if (!root) return;
       let cancelled = false;
+      const hasBlockGutter = () => Number.parseFloat(getComputedStyle(root).paddingInlineStart) > 0;
       const crepe = new Crepe({
         root,
         defaultValue: props.value,
@@ -108,8 +109,8 @@ export const MarkdownRichEditor = forwardRef<MarkdownRichEditorHandle, MarkdownR
         featureConfigs: {
           [CrepeFeature.BlockEdit]: {
             blockHandle: {
-              getOffset: () => 32,
-              getPlacement: () => "left-start",
+              getOffset: () => (hasBlockGutter() ? 32 : 8),
+              getPlacement: () => (hasBlockGutter() ? "left-start" : "top-end"),
             },
           },
           [CrepeFeature.Placeholder]: {

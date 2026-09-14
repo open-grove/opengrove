@@ -1,3 +1,5 @@
+import type { WorkspacePane } from "../shared/adaptive-split-layout";
+import { useSearchParams } from "react-router";
 import type { Dispatch, ReactNode, RefObject, SetStateAction } from "react";
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -147,6 +149,9 @@ export function MountedAppWorkspaceView(props: {
   runtimeControlsByKernel?: Record<string, RuntimeControls>;
   skills?: SkillRecord[];
   developerModeOpen?: boolean;
+  pane: WorkspacePane;
+  onPaneChange(pane: WorkspacePane): void;
+  onCompactChange?(compact: boolean): void;
   onMarkRoomRead?(roomId: string): Promise<void> | void;
   onPendingCountChange?(count: number): void;
   onResolveApproval?(
@@ -161,7 +166,9 @@ export function MountedAppWorkspaceView(props: {
   ): Promise<unknown> | void;
   onRetryInventory?(): void;
 }) {
-  const [selectedPath, setSelectedPath] = useState("");
+  const [routeParams] = useSearchParams();
+  const [selectedPath, setSelectedPath] = useState(() => routeParams.get("file") ?? "");
+  const [workspaceRevealRequest, setWorkspaceRevealRequest] = useState(0);
   const [queuedAttachment, setQueuedAttachment] = useState<AttachmentPayload | null>(null);
   const fallbackRuntime = mountedAppUiRuntime(props.app);
   const appId = props.app?.name || "";
@@ -211,7 +218,7 @@ export function MountedAppWorkspaceView(props: {
   });
 
   useEffect(() => {
-    setSelectedPath("");
+    setSelectedPath(routeParams.get("file") ?? "");
     setQueuedAttachment(null);
   }, [appId]);
 
@@ -229,6 +236,8 @@ export function MountedAppWorkspaceView(props: {
         <MountedAppDeveloperLayout
           appId=""
           open={false}
+          pane={props.pane}
+          onCompactChange={props.onCompactChange}
           canvas={
             props.hostState === "resolving" ? (
               <MountedAppResolvingSurface />
@@ -269,7 +278,10 @@ export function MountedAppWorkspaceView(props: {
       onResolveApproval={props.onResolveApproval}
       onResolveQuestion={props.onResolveQuestion}
       queuedAttachment={queuedAttachment}
-      onOpenWorkspacePath={setSelectedPath}
+      onOpenWorkspacePath={(path) => {
+        setSelectedPath(path);
+        setWorkspaceRevealRequest((request) => request + 1);
+      }}
       onPendingCountChange={props.onPendingCountChange}
     />
   ) : null;
@@ -282,8 +294,12 @@ export function MountedAppWorkspaceView(props: {
           layoutMode={props.embedded ? "embedded" : "standard"}
           runtimeRevision={runtimeQuery.data?.revision}
           selectedPath={selectedPath}
+          revealRequest={workspaceRevealRequest}
           corePanel={chatPanel}
           chatOpen={developerModeOpen}
+          pane={props.pane}
+          onPaneChange={props.onPaneChange}
+          onCompactChange={props.onCompactChange}
           onAddSelectionAttachment={setQueuedAttachment}
           onSelectedPathChange={setSelectedPath}
         />
@@ -296,6 +312,8 @@ export function MountedAppWorkspaceView(props: {
       <MountedAppDeveloperLayout
         appId={appId}
         open={developerModeOpen}
+        pane={props.pane}
+        onCompactChange={props.onCompactChange}
         canvas={
           surface === "setup" ? (
             <MountedAppSetupSurface

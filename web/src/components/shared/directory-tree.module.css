@@ -159,3 +159,15 @@
 .chevron[data-open="true"] {
   transform: rotate(90deg);
 }
+
+@media (hover: none), (pointer: coarse) {
+  .more {
+    opacity: 1;
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .row {
+    min-height: 44px;
+  }
+}

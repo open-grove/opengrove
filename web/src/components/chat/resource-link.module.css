@@ -1,0 +1,18 @@
+.more {
+  display: none;
+}
+
+@media (hover: none), (pointer: coarse) {
+  .more {
+    display: inline-grid;
+    place-items: center;
+    min-width: 44px;
+    min-height: 44px;
+    vertical-align: middle;
+    border: 0;
+    border-radius: var(--r-md);
+    background: transparent;
+    color: var(--c-muted);
+    cursor: pointer;
+  }
+}

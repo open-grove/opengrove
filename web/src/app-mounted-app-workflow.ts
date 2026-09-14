@@ -15,11 +15,12 @@ import type { ConfirmFn } from "./components/ui/confirm-dialog";
 
 export function useMountedAppWorkflow(input: {
   activeView: string;
+  requestedAppId?: string;
   confirm: ConfirmFn;
   inventoryItems: ExtensionItemRecord[];
   queryClient: QueryClient;
   settings: BridgeSettings | undefined;
-  setView(view: string): void;
+  setView(view: string, appId?: string): void;
   showErrorToast(message: string): void;
 }) {
   const { activeView, confirm, inventoryItems, queryClient, settings, setView, showErrorToast } = input;
@@ -73,23 +74,32 @@ export function useMountedAppWorkflow(input: {
 
   useEffect(() => {
     if (!pendingMountedAppOpenId) return;
+    if (activeView !== "app") {
+      setPendingMountedAppOpenId("");
+      return;
+    }
     const mounted = mountedApps.find((app) => mountedAppMatchesId(app, pendingMountedAppOpenId));
     if (!mounted) return;
     storeActiveMountedAppId(mounted.name);
     setPendingMountedAppOpenId("");
-    setView("app");
-  }, [mountedApps, pendingMountedAppOpenId, setView, storeActiveMountedAppId]);
+    setView("app", mounted.name);
+  }, [activeView, mountedApps, pendingMountedAppOpenId, setView, storeActiveMountedAppId]);
+
+  useEffect(() => {
+    if (input.requestedAppId) selectMountedApp(input.requestedAppId);
+  }, [input.requestedAppId]);
 
   function selectMountedApp(appId: string) {
     const mounted = mountedApps.find((app) => mountedAppMatchesId(app, appId));
     if (!mounted) {
+      setView("app", appId);
       setPendingMountedAppOpenId(appId);
       void queryClient.invalidateQueries({ queryKey: ["inventory"] });
       return;
     }
     setPendingMountedAppOpenId("");
     storeActiveMountedAppId(mounted.name);
-    setView("app");
+    setView("app", mounted.name);
   }
 
   async function deleteMountedAppTab(appId: string) {

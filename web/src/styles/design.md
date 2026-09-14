@@ -619,6 +619,13 @@ are fluid — an operational workspace fills the space it is given (tables, tree
 run detail), so there is no global max-width. Rules:
 
 - Do not bury main objects inside nested cards.
+- Content insets have one owner: a document container supplies the reading
+  inset; its editor must not add another page margin. Below 760 CSS px of actual
+  file-content width, text previews and editors use `{spacing.4}` on every side
+  with no reserved block gutter. Block controls float above the active block.
+  Wider documents retain a bounded reading measure and side controls. Tables,
+  trees and operational dashboards fill their available width instead of
+  inheriting the document reading measure.
 - Use rows for dense operational settings; cards only for repeated items,
   modals, dialogs, and genuinely framed tools.
 - Sidebar popovers must render above clipped scroll containers.
@@ -701,6 +708,11 @@ When motion does clarify something:
   repeating indicator, not a state transition.
 - Keep every transition duration ≤ `{motion.duration.slow}`. Honor `prefers-reduced-motion`
   — when set, drop to instant.
+
+The chat-entry robot has one longer acknowledgement: a 700ms double blink when
+chat opens. The panel opens immediately; the eyes settle open after the two
+blinks and close in 180ms when chat closes. This sequence never loops or starts
+on mount or hover, and becomes an instant state change under reduced motion.
 
 ## Shapes
 

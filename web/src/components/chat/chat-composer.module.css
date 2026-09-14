@@ -890,3 +890,54 @@
   color: var(--composer-model-fg);
   font-size: var(--fs-sm);
 }
+
+.composer {
+  container-type: inline-size;
+  container-name: composer;
+}
+
+@container composer (max-width: 480px) {
+  .footer {
+    flex-wrap: wrap;
+    gap: var(--sp-1);
+  }
+
+  .footerLeft,
+  .footerRight {
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+
+  .footerRight {
+    justify-content: flex-end;
+  }
+
+  .controls {
+    flex-wrap: wrap;
+  }
+
+  .footerRight .modelPicker {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .modelButton {
+    max-width: 100%;
+    min-height: 44px;
+    white-space: nowrap;
+  }
+
+  .modelLabel {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .plusButton,
+  .micButton,
+  .sendButton {
+    min-width: 44px;
+    min-height: 44px;
+    flex-shrink: 0;
+  }
+}

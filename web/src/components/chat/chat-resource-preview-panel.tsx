@@ -1,43 +1,40 @@
-import { useEffect, useRef } from "react";
-import { createPortal } from "react-dom";
+import { useRef } from "react";
 import { X } from "lucide-react";
 import { rawDiagnosticText, useI18n } from "../../i18n";
 import { FilePreviewPanel } from "../shared/file-preview-panel";
+import { Dialog, DialogContent, DialogTitle } from "../ui/dialog";
 import type { ChatResourcePreviewState } from "./use-chat-resource-actions";
 
 export function ChatResourcePreviewPanel(props: { preview: ChatResourcePreviewState; onClose(): void }) {
   const { t } = useI18n();
-  const closeButtonRef = useRef<HTMLButtonElement | null>(null);
-
-  useEffect(() => {
-    blurActiveElement();
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        props.onClose();
-      }
-    };
-    window.addEventListener("keydown", onKeyDown);
-    requestAnimationFrame(() => closeButtonRef.current?.focus());
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [props.onClose]);
-
-  const panel = (
-    <div
-      className="thread-resource-preview-backdrop"
-      role="dialog"
-      aria-modal="true"
-      aria-label={t("chat.resourcePreviewDialog")}
-      onClick={props.onClose}
+  const opener = useRef(document.activeElement instanceof HTMLElement ? document.activeElement : null);
+  return (
+    <Dialog
+      open
+      onOpenChange={(open) => {
+        if (!open) props.onClose();
+      }}
     >
-      <section className="thread-resource-preview-panel" onClick={(event) => event.stopPropagation()}>
+      <DialogContent
+        className="thread-resource-preview-panel"
+        mobilePresentation="page"
+        aria-label={t("chat.resourcePreviewDialog")}
+        aria-describedby={undefined}
+        onCloseAutoFocus={(event) => {
+          if (opener.current?.isConnected) {
+            event.preventDefault();
+            opener.current.focus({ preventScroll: true });
+          }
+        }}
+      >
         <header className="thread-resource-preview-header">
           <div>
-            <strong>{props.preview.resource.title}</strong>
+            <DialogTitle asChild>
+              <strong>{props.preview.resource.title}</strong>
+            </DialogTitle>
             <span>{props.preview.selectedPath}</span>
           </div>
           <button
-            ref={closeButtonRef}
             type="button"
             className="thread-image-icon-button"
             onClick={props.onClose}
@@ -57,19 +54,7 @@ export function ChatResourcePreviewPanel(props: { preview: ChatResourcePreviewSt
             selectedPath={props.preview.selectedPath}
           />
         )}
-      </section>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
-  if (typeof document === "undefined") {
-    return panel;
-  }
-  return createPortal(panel, document.body);
-}
-
-function blurActiveElement(): void {
-  if (typeof document === "undefined") return;
-  const active = document.activeElement;
-  if (active instanceof HTMLElement) {
-    active.blur();
-  }
 }
