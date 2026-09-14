@@ -35,6 +35,8 @@ Rejected turns preserve the established conversation context. User Stop first en
 local recovery and observation, then attempts separately authorized cancellation
 only for a known remote task. Unconfirmed remote cancellation remains visible and
 does not cause stopped work to resume after a later login.
+Group requests include Room metadata and explicit reply context without
+automatically appending recent Room messages.
 The remote owner controls execution permissions and models. This outbound path
 requires an authorization from the current verified product account for each run;
 cached Router credentials alone cannot authorize a caller. Routines and internal

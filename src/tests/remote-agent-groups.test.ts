@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { startRemoteRoomHost } from "./fixtures/remote-room-host.js";
 import type { RoomChannelMessage } from "../rooms/channel-store.js";
 
-test("cloud employees participate in group mentions, replies and isolated contexts", async () => {
+test("cloud employees receive explicit group replies without unrelated history and keep isolated contexts", async () => {
   const host = await startRemoteRoomHost();
   try {
     await host.login("admin");
@@ -13,6 +13,16 @@ test("cloud employees participate in group mentions, replies and isolated contex
     });
     await host.request("/rooms", { id: "group-one", title: "Project group", memberIds: [memberId] });
     await host.request("/rooms", { id: "group-two", title: "Another group", memberIds: [memberId] });
+    await host.request("/rooms/members/pm", { disabled: true }, "PATCH");
+    const background = await host.request<{ assistantMessages: RoomChannelMessage[] }>("/rooms/group-one/messages", {
+      text: "Unrelated local discussion: the meeting room has changed.",
+      targetIds: [],
+      userMessageId: "group-background",
+    });
+    assert.equal(
+      background.assistantMessages.some((message) => message.senderId === memberId),
+      false,
+    );
     await host.request("/rooms/group-one/messages", {
       text: "remember:orange",
       targetIds: [memberId],
@@ -24,6 +34,7 @@ test("cloud employees participate in group mentions, replies and isolated contex
     const payload = host.sendCalls()[0]!.params.message!.parts[0]!.text;
     assert.match(payload, /Project group/);
     assert.match(payload, /Cloud coder/);
+    assert.doesNotMatch(payload, /the meeting room has changed/);
     await host.request("/rooms/group-one/messages", {
       text: "recall",
       inReplyToMessageId: "group-reply",
@@ -33,8 +44,9 @@ test("cloud employees participate in group mentions, replies and isolated contex
     const followup = await host.waitMessage("group-followup", (message) => message.status === "done");
     assert.equal(followup.text, "orange");
     assert.equal(followup.remoteTask?.contextId, first.remoteTask?.contextId);
-    assert.match(host.sendCalls().at(-1)!.params.message!.parts[0]!.text, /remember:orange/);
-    await host.request("/rooms/members/pm", { disabled: true }, "PATCH");
+    const followupPayload = host.sendCalls().at(-1)!.params.message!.parts[0]!.text;
+    assert.match(followupPayload, /reply:remember:orange/);
+    assert.doesNotMatch(followupPayload, /the meeting room has changed/);
     const posted = await host.request<{ assistantMessages: RoomChannelMessage[] }>("/rooms/group-two/messages", {
       text: "@all recall",
     });
@@ -71,6 +83,8 @@ test("a rejected group message preserves the remote conversation after signing i
     const next = await host.waitMessage("recall-next", (message) => message.status === "done");
     assert.equal(next.remoteTask?.contextId, "context-remember-first");
     assert.equal(next.text, "pineapple");
+    const recallPayload = host.sendCalls().at(-1)!.params.message!.parts[0]!.text;
+    assert.doesNotMatch(recallPayload, /remember:pineapple|This message has no network authorization/);
     assert.deepEqual(
       host.sendCalls().map((call) => call.params.message?.messageId),
       ["remember-first", "recall-next"],

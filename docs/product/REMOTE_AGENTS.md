@@ -125,7 +125,13 @@ input-required, and auth-required task states also stop ordinary observation.
   when the caller supplies a valid product login. Use the authorized Rooms operations
   to interact with remote Employees.
 - Local workspace files, attachments, Employee system prompts, and local tools are not forwarded. Attached files are rejected visibly. The transmitted text, including Room context, is limited to 32,000 characters.
-- Group delivery reuses normal Rooms targeting and scheduling. It includes the current message, reply/delegation relation, member names and a bounded excerpt of visible group history. Internal messages are excluded. A remote connection failure affects that Employee's reply while other selected Employees can continue.
+- Group delivery reuses normal Rooms targeting and scheduling. It includes the
+  current message, explicitly referenced reply/thread context, Room identity,
+  member roster, and collaboration guidance. Recent Room history is not appended
+  automatically. Following turns still reuse the remote conversation context;
+  users can explicitly reply to a message or include needed background in their
+  request. A remote connection failure affects that Employee's reply while other
+  selected Employees can continue.
 - A remote executor does not gain this Host's tools merely by joining a group. Tool access is a separate capability and authorization boundary.
 - Incoming exposure of local Employees, worker deployment,
   account registration UI, and reply-policy editing are outside this version.
