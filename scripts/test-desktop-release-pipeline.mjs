@@ -2,10 +2,20 @@ import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { createServer, request as createHttpRequest } from "node:http";
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  unlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
-import { join, resolve, win32 } from "node:path";
+import { dirname, join, resolve, win32 } from "node:path";
 import { macArchitectureBuildPlan } from "./desktop-release-build-plan.mjs";
 import {
   macDmgRequiresSigning,
@@ -15,7 +25,11 @@ import {
   windowsSigningConfigPresent,
   windowsSigningProblems,
 } from "./desktop-release-credentials.mjs";
-import { desktopReleaseTargets, desktopReleaseWebBuildId } from "./desktop-release-targets.mjs";
+import {
+  desktopReleaseTargets,
+  desktopReleaseWebBuildId,
+  readDesktopReleaseCandidateSource,
+} from "./desktop-release-targets.mjs";
 import { waitForNotarizationPipelines } from "./desktop-notarization-pipeline.mjs";
 import { runCommand, runParallelTasks } from "./parallel-release-tasks.mjs";
 import { ensureImmutableR2Object, verifyR2ReleaseAccess } from "./r2-release-upload.mjs";
@@ -73,6 +87,7 @@ const gitCommit = "a".repeat(40);
 const specs = desktopReleaseTargets(packageJson.version);
 
 try {
+  testGeneratedClientCheckout();
   testCredentialParsing();
   testReleaseUploadTokenResolution();
   testR2ReleaseCredentialResolution();
@@ -209,6 +224,60 @@ try {
   console.log("desktop-release-pipeline ok");
 } finally {
   rmSync(tempRoot, { recursive: true, force: true });
+}
+
+function testGeneratedClientCheckout() {
+  const repository = join(tempRoot, "generated-client-checkout");
+  mkdirSync(repository);
+  const git = (...args) => {
+    const result = spawnSync("git", args, { cwd: repository, encoding: "utf8" });
+    assert.equal(result.status, 0, result.stderr);
+    return result.stdout;
+  };
+  git("init", "-q");
+  git("config", "core.autocrlf", "true");
+  const files = [
+    "packages/protocol/openapi.json",
+    "packages/client/src/generated/client.ts",
+    "packages/sdk/src/generated/sdk.gen.ts",
+    "packages/sdk/src/generated/client/client.gen.ts",
+  ];
+  const source = "generated fixture\nsecond line\n";
+  for (const file of files) {
+    mkdirSync(dirname(join(repository, file)), { recursive: true });
+    writeFileSync(join(repository, file), source);
+  }
+  const attributesPath = join(projectRoot, ".gitattributes");
+  if (existsSync(attributesPath)) {
+    writeFileSync(join(repository, ".gitattributes"), readFileSync(attributesPath));
+    git("add", ".gitattributes");
+  }
+  git("add", ...files);
+  git(
+    "-c",
+    "user.name=Fixture",
+    "-c",
+    "user.email=fixture@example.invalid",
+    "-c",
+    "commit.gpgsign=false",
+    "commit",
+    "-qm",
+    "fixture",
+  );
+  for (const file of files) unlinkSync(join(repository, file));
+  git("checkout-index", "--all");
+  for (const file of files) {
+    assert.equal(
+      readFileSync(join(repository, file), "utf8"),
+      source,
+      `${file} must retain LF under core.autocrlf=true`,
+    );
+    writeFileSync(join(repository, file), source);
+  }
+  assert.equal(git("status", "--porcelain"), "", "regenerating canonical bytes must leave the checkout clean");
+  readDesktopReleaseCandidateSource(repository, packageJson.version);
+  writeFileSync(join(repository, files[0]), "real content change\n");
+  assert.throws(() => readDesktopReleaseCandidateSource(repository, packageJson.version), /clean Git working tree/);
 }
 
 function testCredentialParsing() {
