@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { execFile, spawn } from "node:child_process";
+import { windowsProbeEnvironment, windowsEnvironmentValue } from "../environment/windows-query.js";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -240,7 +242,8 @@ test("system Windows PowerShell returns UTF-8 and the actual registry/package qu
     ],
     process.env,
   );
-  assert.equal(output?.trim(), "中文 用户");
+  if (output === undefined) await diagnosePowerShellEnvironment();
+  assert.equal(output?.trim(), "中文 用户", JSON.stringify(warnings.mock.calls.map((call) => call.arguments)));
   const refreshed = await refreshWindowsPath({ ...process.env, PATH: "" });
   assert.ok(refreshed.PATH?.toLowerCase().includes("system32"));
   assert.equal(readWindowsPath({ ...process.env, PATH: "" }).PATH, refreshed.PATH);
@@ -286,3 +289,84 @@ test("Windows retries a failed version probe after an explicit refresh of its re
   clearCommandVersionCache();
   assert.deepEqual(commandProbe(command), { status: "ok", version: "codex-cli 0.153.4" });
 });
+
+async function diagnosePowerShellEnvironment(): Promise<void> {
+  const minimal = windowsProbeEnvironment(process.env);
+  const command = join(minimal.SystemRoot!, "System32", "WindowsPowerShell", "v1.0", "powershell.exe");
+  const args = ["-NoLogo", "-NoProfile", "-NonInteractive", "-Command", "Write-Output 'ready'"];
+  const groups = [
+    ["ComSpec", "PATHEXT"],
+    [
+      "ProgramFiles",
+      "ProgramFiles(x86)",
+      "ProgramW6432",
+      "CommonProgramFiles",
+      "CommonProgramFiles(x86)",
+      "CommonProgramW6432",
+      "ALLUSERSPROFILE",
+      "SystemDrive",
+    ],
+    [
+      "USERNAME",
+      "USERDOMAIN",
+      "COMPUTERNAME",
+      "HOMEDRIVE",
+      "HOMEPATH",
+      "OS",
+      "PROCESSOR_ARCHITECTURE",
+      "NUMBER_OF_PROCESSORS",
+    ],
+    ["PSModulePath"],
+  ];
+  const profiles = [
+    { name: "minimal", env: minimal },
+    ...groups.map((keys) => ({
+      name: keys.join(","),
+      env: { ...minimal, ...Object.fromEntries(keys.map((key) => [key, windowsEnvironmentValue(process.env, key)])) },
+    })),
+    { name: "inherited-control", env: process.env },
+  ];
+  for (const profile of profiles) {
+    const started = performance.now();
+    const result = await new Promise((resolve) => {
+      const child = execFile(
+        command,
+        args,
+        { env: profile.env, encoding: "utf8", timeout: 5_000, windowsHide: true },
+        (error, stdout, stderr) => {
+          resolve({
+            profile: profile.name,
+            elapsed: performance.now() - started,
+            code: error?.code,
+            killed: error?.killed,
+            stdout,
+            stderr,
+          });
+        },
+      );
+      child.stdin?.end();
+    });
+    console.info("[DEBUG-windows-query]", JSON.stringify(result));
+  }
+  const started = performance.now();
+  const result = await new Promise((resolve) => {
+    const child = spawn(command, args, {
+      env: minimal,
+      stdio: ["ignore", "pipe", "pipe"],
+      timeout: 5_000,
+      windowsHide: true,
+    });
+    let output = "";
+    child.stdout.on("data", (chunk) => {
+      output += String(chunk);
+    });
+    child.stderr.on("data", (chunk) => {
+      output += String(chunk);
+    });
+    child.once("close", (code, signal) =>
+      resolve({ profile: "minimal-stdin-ignore", elapsed: performance.now() - started, code, signal, output }),
+    );
+    child.once("error", (error) => resolve({ profile: "minimal-stdin-ignore", error: error.message }));
+  });
+  console.info("[DEBUG-windows-query]", JSON.stringify(result));
+}
