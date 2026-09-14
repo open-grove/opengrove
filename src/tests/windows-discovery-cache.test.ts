@@ -115,8 +115,10 @@ test("Windows helper environment allows system/user paths but excludes credentia
     NODE_OPTIONS: "--require project.js",
   };
   const safe = windowsProbeEnvironment(source);
-  assert.deepEqual(Object.keys(safe).sort(), ["PATH", "SystemRoot", "TEMP", "USERPROFILE"]);
+  assert.deepEqual(Object.keys(safe).sort(), ["PATH", "PSModulePath", "SystemRoot", "TEMP", "USERPROFILE"]);
   assert.equal(safe.TEMP, "D:\\中文 用户");
+  assert.notEqual(safe.PSModulePath, source.PSModulePath, "query helpers must not import project modules");
+  assert.match(safe.PSModulePath!, /WindowsPowerShell[\\/]v1\.0[\\/]Modules$/);
   await refreshWindowsPath(source, {
     platform: "win32",
     query: (_file, _args, environment) => {

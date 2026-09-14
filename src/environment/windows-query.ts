@@ -36,7 +36,12 @@ export function windowsProbeEnvironment(environment: NodeJS.ProcessEnv): NodeJS.
     if (value !== undefined) result[key] = value;
   }
   const systemRoot = result.SystemRoot || result.WINDIR;
-  if (systemRoot) result.PATH = join(systemRoot, "System32");
+  if (systemRoot) {
+    result.PATH = join(systemRoot, "System32");
+    // PowerShell 5.1 can stall while rebuilding an absent PSModulePath. Its
+    // built-in modules suffice for registry/Appx queries; exclude user modules.
+    result.PSModulePath = join(systemRoot, "System32", "WindowsPowerShell", "v1.0", "Modules");
+  }
   return result;
 }
 
@@ -122,8 +127,8 @@ export const queryWindowsCommand: WindowsCommandQuery = (executable, args, envir
         } else resolve(stdout);
       },
     );
-    // PowerShell 5.1 can wait for redirected stdin even with -NonInteractive.
-    // These fixed queries accept no input, so send EOF immediately.
+    // These fixed queries accept no input; close the pipe so a helper cannot
+    // wait for stdin until the query timeout.
     child.stdin?.end();
   });
 };
