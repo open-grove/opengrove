@@ -31,16 +31,26 @@ export function windowsEnvironmentValue(environment: NodeJS.ProcessEnv, name: st
 /** Discovery helpers need Windows identity/system paths, never Provider credentials. */
 export function windowsProbeEnvironment(environment: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   const result: NodeJS.ProcessEnv = {};
-  for (const key of ["SystemRoot", "WINDIR", "USERPROFILE", "LOCALAPPDATA", "APPDATA", "ProgramData", "TEMP", "TMP"]) {
+  for (const key of [
+    "SystemRoot",
+    "WINDIR",
+    "USERPROFILE",
+    "LOCALAPPDATA",
+    "APPDATA",
+    "ProgramData",
+    "TEMP",
+    "TMP",
+    "PSModulePath",
+  ]) {
     const value = windowsEnvironmentValue(environment, key);
     if (value !== undefined) result[key] = value;
   }
   const systemRoot = result.SystemRoot || result.WINDIR;
   if (systemRoot) {
     result.PATH = join(systemRoot, "System32");
-    // PowerShell 5.1 can stall while rebuilding an absent PSModulePath. Its
-    // built-in modules suffice for registry/Appx queries; exclude user modules.
-    result.PSModulePath = join(systemRoot, "System32", "WindowsPowerShell", "v1.0", "Modules");
+    // Windows PowerShell 5.1 needs the configured module search path in this
+    // isolated environment; retaining only PSHOME can stall startup as well.
+    result.PSModulePath ??= join(systemRoot, "System32", "WindowsPowerShell", "v1.0", "Modules");
   }
   return result;
 }
