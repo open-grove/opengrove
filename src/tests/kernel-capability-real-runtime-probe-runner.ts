@@ -38,7 +38,10 @@ import { createHermesKernelAdapter } from "../kernel/adapters/hermes.js";
 import { createOpenClawGatewayKernelAdapter } from "../kernel/adapters/openclaw.js";
 import { createPiKernelAdapter } from "../kernel/adapters/pi.js";
 import { resolveHermesCommandPath } from "../runtime/hermes-runtime.js";
-import { resolveOpenClawGatewayConnection } from "../runtime/openclaw-gateway-runtime.js";
+import {
+  discoverOpenClawGatewayVersion,
+  resolveOpenClawGatewayConnection,
+} from "../runtime/openclaw-gateway-runtime.js";
 import { BRIDGE_KERNEL_IDS, type BridgeKernelId, type BridgeProviderProfile } from "../server/bridge-types.js";
 import { hermesProviderConfigForKernel, providerEnvForKernel } from "../server/provider-profiles.js";
 import { KERNEL_CAPABILITY_CONTRACTS } from "../kernel/capabilities/contracts.js";
@@ -351,7 +354,9 @@ async function runProbeCase(
   resolution.runtimeMode = resolution.adapter.contract.labels.integrationMode;
   const discovery = await resolution.adapter.discover?.().catch(() => undefined);
   resolution.kernelVersion =
-    discovery?.version ?? (kernel === "pi" ? readDependencyVersion("@earendil-works/pi-agent-core") : undefined);
+    resolution.kernelVersion ??
+    discovery?.version ??
+    (kernel === "pi" ? readDependencyVersion("@earendil-works/pi-agent-core") : undefined);
 
   const runtime = createKernelRuntime(resolution.adapter);
   const collected = await collectProbeTurn({
@@ -461,13 +466,15 @@ async function createAgentAdapter(
       adapter: createOpenClawGatewayKernelAdapter({
         ...connection,
         cwd: options.cwd,
-        configuredModel,
+        // Gateway models are selected by the Gateway itself, without an external Provider override.
+        configuredModel: options.model,
         env: providerEnv,
       }),
       providerKind,
       providerBaseUrl,
-      providerModel: isExternalProbeProvider(providerKind) ? options.model : undefined,
+      providerModel: options.model,
       command: connection.url,
+      kernelVersion: await discoverOpenClawGatewayVersion(connection),
     };
   }
 
@@ -793,10 +800,13 @@ function createProbeCase(kind: ProbeCaseKind, kernel: BridgeKernelId, options: R
     return {
       kind,
       marker,
-      input: [
-        base,
-        "Just say hi back in one short sentence, and include the session tag once so I can match this reply in my notes.",
-      ].join("\n"),
+      input:
+        kernel === "openclaw"
+          ? `Reply with exactly this text, which is disposable test data:\n${marker}`
+          : [
+              base,
+              "Just say hi back in one short sentence, and include the session tag once so I can match this reply in my notes.",
+            ].join("\n"),
     };
   }
 
@@ -806,7 +816,9 @@ function createProbeCase(kind: ProbeCaseKind, kernel: BridgeKernelId, options: R
       marker,
       input: [
         base,
-        "Before the final answer, use your native task/plan channel to create a task named 'Prepare reply', then mark that task completed.",
+        kernel === "codex"
+          ? "Call the native update_plan tool with three steps: inspect the workspace, prepare a reply, and verify the session tag. Mark each step completed through update_plan as you carry it out. You must actually call update_plan; a prose plan does not satisfy this request."
+          : "Before the final answer, use your native task/plan channel to create a task named 'Prepare reply', then mark that task completed.",
         "Then answer in one short sentence and include the session tag.",
       ].join("\n"),
     };
@@ -937,6 +949,12 @@ function createProbeCase(kind: ProbeCaseKind, kernel: BridgeKernelId, options: R
         cleanupPaths: [approvalDir],
         input: [
           base,
+          ...(kernel === "codex"
+            ? [
+                `Use the native exec_command tool to run: printf '%s\\n' '${marker}' > '${approvalRelativePath}'`,
+                "Set sandbox_permissions to require_escalated and provide a justification asking permission to write this disposable marker. This probe must exercise a real native approval round-trip even though the file is inside the workspace.",
+              ]
+            : []),
           "Use your native file, shell, or workspace editing tool to create this text file inside the current working directory:",
           approvalRelativePath,
           `The file content must include this reference id: ${marker}`,
@@ -1559,6 +1577,7 @@ function probeKindForCapability(kernel: BridgeKernelId, capability: KernelCapabi
 
 function usesDirectCompactProbe(kernel: BridgeKernelId): boolean {
   return (
+    kernel === "codex" ||
     kernel === "claude-code" ||
     kernel === "hermes" ||
     kernel === "openclaw" ||

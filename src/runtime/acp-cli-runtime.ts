@@ -179,6 +179,12 @@ export class AcpCliRuntime implements AgentRuntime {
       this.contextUsageBySession.get(nativeSessionId)?.used ?? this.estimatedTokensBySession.get(nativeSessionId);
     let observedUsage: { used?: number; size?: number } | undefined;
     let commandText = "";
+    let resolveCompletion: () => void = () => {};
+    const completion = new Promise<void>((resolve) => {
+      resolveCompletion = resolve;
+    });
+    let completionTimer: ReturnType<typeof setTimeout> | undefined;
+    const startedAt = Date.now();
     const cleanupNotifications = client.addNotificationHandler((notification) => {
       if (notification.method !== "session/update" && notification.method !== "session/notification") return;
       const params = asObject(notification.params);
@@ -191,8 +197,18 @@ export class AcpCliRuntime implements AgentRuntime {
       if (readString(update, "sessionUpdate") === "agent_message_chunk") {
         commandText += readString(asObject(update.content), "text") ?? "";
       }
+      if (
+        readKimiCompactionResult(commandText) ||
+        /Compaction cancelled|Compaction is blocked|\/compact failed:/i.test(commandText) ||
+        (beforeUsed !== undefined && observedUsage?.used !== undefined && observedUsage.used < beforeUsed)
+      ) {
+        resolveCompletion();
+      }
     });
-    const cancelCompact = () => client.notify("session/cancel", { sessionId: nativeSessionId });
+    const cancelCompact = () => {
+      client.notify("session/cancel", { sessionId: nativeSessionId });
+      resolveCompletion();
+    };
     if (signal?.aborted) cancelCompact();
     signal?.addEventListener("abort", cancelCompact, { once: true });
     try {
@@ -204,6 +220,15 @@ export class AcpCliRuntime implements AgentRuntime {
         },
         { timeoutMs: this.options.requestTimeoutMs ?? 120_000, signal },
       );
+      // Kimi Code 0.41 ACP acknowledges /compact before its background task finishes:
+      // https://github.com/MoonshotAI/kimi-code/blob/main/packages/acp-server/src/builtin-commands.ts
+      // Keep listening for the native completion receipt; an acknowledgement is not success.
+      if (/Context compaction started|A context compaction is already running/i.test(commandText)) {
+        const remainingMs = Math.max(0, (this.options.requestTimeoutMs ?? 120_000) - (Date.now() - startedAt));
+        completionTimer = setTimeout(resolveCompletion, remainingMs);
+        await completion;
+        if (signal?.aborted) throw new Error("kimi_compaction_aborted");
+      }
       const commandResult = readKimiCompactionResult(commandText);
       if (commandResult && commandResult.tokensAfter < commandResult.tokensBefore) {
         const previousUsage = this.contextUsageBySession.get(nativeSessionId);
@@ -235,6 +260,7 @@ export class AcpCliRuntime implements AgentRuntime {
         ...(signal?.aborted ? { outcomeUnknown: true } : {}),
       };
     } finally {
+      if (completionTimer) clearTimeout(completionTimer);
       signal?.removeEventListener("abort", cancelCompact);
       cleanupNotifications();
     }

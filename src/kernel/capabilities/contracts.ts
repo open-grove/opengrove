@@ -137,9 +137,16 @@ function acpMappings(
           ),
       map("response.speed", "not-wired", "ACP does not define a standard response-speed or service-tier control."),
       planning
-        ? map("planning.plan", "mapped", "ACP plan_update", "planning.updated", `${kernel}.planning.plan`, [
-            "This only marks the OpenGrove projector path wired; product exposure still requires a passing real-runtime probe from the kernel.",
-          ])
+        ? map(
+            "planning.plan",
+            "mapped",
+            kernel === "opencode" ? "ACP plan_update or native todowrite completion metadata" : "ACP plan_update",
+            "planning.updated",
+            `${kernel}.planning.plan`,
+            [
+              "This only marks the OpenGrove projector path wired; product exposure still requires a passing real-runtime probe from the kernel.",
+            ],
+          )
         : map("planning.plan", "not-wired", "ACP plan_update", undefined, undefined, [
             "The current OpenGrove ACP bridge only exposes planning when a real kernel emits ACP plan_update or OpenGrove implements a kernel-specific plan projection.",
           ]),

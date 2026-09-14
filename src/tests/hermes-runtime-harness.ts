@@ -35,6 +35,8 @@ async function main() {
     thinkingStatusText: "( ͡° ͜ʖ ͡°) deliberating...",
     reasoningText: "HERMES_NATIVE_REASONING_PROCESS_TEXT",
     responseSuffix: "\n",
+    responsePrefix: "\n\n",
+    trimFinalText: true,
     ambiguousSameNameTools: true,
   });
   writeFakeAcpCommand(fakeHermes, fakeGateway, {

@@ -262,7 +262,11 @@ export class HermesRuntime implements AgentRuntime {
         timeoutMs: this.options.requestTimeoutMs,
         signal: request.signal,
       });
-      const finalText = cleanHermesAssistantText(turnState.finalText || turnState.assistantText);
+      const completedText = cleanHermesAssistantText(turnState.finalText || turnState.assistantText);
+      const streamedText = cleanHermesAssistantText(turnState.assistantText);
+      // Hermes may trim surrounding whitespace in message.complete after sending it
+      // in message.delta. Preserve the text already shown when the content agrees.
+      const finalText = streamedText && streamedText.trim() === completedText.trim() ? streamedText : completedText;
       if (turnState.status === "error") {
         queue.push({
           type: "error",
