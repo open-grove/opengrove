@@ -1,4 +1,4 @@
-import { basename, isAbsolute, relative, sep } from "node:path";
+import { basename, isAbsolute, relative, resolve, sep } from "node:path";
 import { queryWindowsCommand, type WindowsCommandQuery } from "../../environment/windows-discovery.js";
 
 // Windows package discovery boundary for desktop installs without a CLI entry.
@@ -13,9 +13,13 @@ $package = Get-AppxPackage -Name OpenAI.Codex |
   Where-Object { $_.PackageFamilyName -eq 'OpenAI.Codex_2p2nqsd0c76g0' } |
   Sort-Object Version -Descending | Select-Object -First 1
 if ($null -eq $package) { exit 0 }
+$manifest = Get-AppxPackageManifest -Package $package.PackageFullName
+$desktopExecutables = @($manifest.Package.Applications.Application | ForEach-Object {
+  if ($_.Executable) { Join-Path $package.InstallLocation $_.Executable }
+})
 $executables = @(Get-ChildItem -LiteralPath $package.InstallLocation -Filter codex.exe -File -Recurse |
   Sort-Object { $_.FullName.Length }, FullName | Select-Object -ExpandProperty FullName)
-@{ installLocation = $package.InstallLocation; executables = $executables } | ConvertTo-Json -Compress
+@{ installLocation = $package.InstallLocation; executables = $executables; desktopExecutables = $desktopExecutables } | ConvertTo-Json -Compress
 `;
 
 export function windowsAppCodexCandidates(
@@ -40,20 +44,29 @@ export function windowsAppCodexCandidates(
     typeof value !== "object" ||
     !("installLocation" in value) ||
     !("executables" in value) ||
+    !("desktopExecutables" in value) ||
     typeof value.installLocation !== "string" ||
     !isAbsolute(value.installLocation) ||
-    !Array.isArray(value.executables)
+    !Array.isArray(value.executables) ||
+    !Array.isArray(value.desktopExecutables) ||
+    !value.desktopExecutables.every((candidate) => typeof candidate === "string")
   ) {
     console.warn("[windows-discovery] Codex app query returned invalid package metadata");
     return [];
   }
   const root = value.installLocation;
+  // The desktop launcher may also be named Codex.exe. Its package manifest
+  // identifies it without depending on the current app branding or layout.
+  const desktopExecutables = new Set(
+    value.desktopExecutables.map((candidate: string) => resolve(candidate).toLowerCase()),
+  );
   return value.executables.filter((candidate): candidate is string => {
     if (
       typeof candidate !== "string" ||
       candidate.includes("\0") ||
       !isAbsolute(candidate) ||
-      basename(candidate).toLowerCase() !== "codex.exe"
+      basename(candidate).toLowerCase() !== "codex.exe" ||
+      desktopExecutables.has(resolve(candidate).toLowerCase())
     )
       return false;
     const subpath = relative(root, candidate);

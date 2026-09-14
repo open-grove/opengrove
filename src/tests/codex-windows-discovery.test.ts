@@ -51,8 +51,10 @@ test("discovers Codex inside the registered Store package on a custom volume", (
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const installLocation = join(root, "other volume", "WindowsApps", "OpenAI.Codex_1.2.3_arm64__2p2nqsd0c76g0");
   const executable = join(installLocation, "app", "resources", "codex.exe");
+  const desktopExecutable = join(installLocation, "app", "Codex.exe");
   mkdirSync(dirname(executable), { recursive: true });
   writeFileSync(executable, "fixture");
+  writeFileSync(desktopExecutable, "desktop app, not the CLI");
   const probe = {
     platform: "win32" as const,
     homeDir: root,
@@ -61,7 +63,11 @@ test("discovers Codex inside the registered Store package on a custom volume", (
     commandPath: { path: "" },
     windowsQuery: (_file: string, args: readonly string[]) =>
       args.at(-1)?.includes("Get-AppxPackage")
-        ? JSON.stringify({ installLocation, executables: [executable] })
+        ? JSON.stringify({
+            installLocation,
+            executables: [desktopExecutable, executable],
+            desktopExecutables: [desktopExecutable],
+          })
         : undefined,
   };
   assert.equal(resolveCodexCommandPath(probe), executable);
@@ -183,6 +189,7 @@ test("rejects Store candidates outside the registered package and non-Codex exec
     windowsAppCodexCandidates({}, () =>
       JSON.stringify({
         installLocation,
+        desktopExecutables: [],
         executables: [
           join(root, "outside", "codex.exe"),
           "relative/codex.exe",
