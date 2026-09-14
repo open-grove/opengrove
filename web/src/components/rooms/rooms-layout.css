@@ -16,12 +16,6 @@
   padding: 14px 10px 16px;
 }
 
-@media (max-width: 900px) {
-  .rooms-list-panel {
-    display: none;
-  }
-}
-
 .rooms-section-label {
   color: var(--rooms-muted);
   font-size: var(--fs-sm);

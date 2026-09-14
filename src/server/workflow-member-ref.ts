@@ -51,6 +51,7 @@ export function validateWorkflowMemberRef(
   const requestedMemberId = memberId.trim();
   const member = rooms.listMembers().find((candidate) => candidate.id === requestedMemberId);
   if (!member) return `member_not_found:${requestedMemberId}`;
+  if (member.source === "remote") return "remote_authorization_required";
   if (!scope.appId && member.appId) return `app_scope_required:${requestedMemberId}`;
   if (scope.appId && member.appId !== scope.appId) return `member_out_of_scope:${requestedMemberId}`;
   if (isRunnableRoomAssistantTarget(member)) return undefined;
@@ -61,6 +62,7 @@ export function validateWorkflowMemberRef(
 export function validateImportWorkflowMemberRef(rooms: WorkflowMemberRoomStore, memberId: string): string | undefined {
   const requestedMemberId = memberId.trim();
   const member = rooms.listMembers().find((candidate) => candidate.id === requestedMemberId);
+  if (member?.source === "remote") return "remote_authorization_required";
   if (member && isRunnableRoomAssistantTarget(member)) return undefined;
   return `member_not_runnable:${requestedMemberId}`;
 }

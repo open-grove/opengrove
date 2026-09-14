@@ -11,6 +11,16 @@ const harnesses = [
     marker: "web-session-expiry browser ok",
   },
   {
+    name: "Compact navigation remains reachable without changing desktop preferences",
+    script: "scripts/test-web-compact-layout.mjs",
+    marker: "web-compact-layout passed",
+  },
+  {
+    name: "Adaptive workspaces preserve drafts and sessions across layout transitions",
+    script: "scripts/test-web-adaptive-workbench.mjs",
+    marker: "web-adaptive-workbench passed",
+  },
+  {
     name: "Workspace draft backups coalesce input and restore large documents",
     script: "scripts/test-web-file-draft-backups.mjs",
     marker: "web-file-draft-backups passed",

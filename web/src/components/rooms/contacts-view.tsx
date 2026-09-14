@@ -1,9 +1,15 @@
+import { useNetworkConfiguration } from "./use-network-configuration";
+import { RemoteAgentMenuItem } from "./remote-agent-menu-item";
+import { RemoteAgentDialog } from "./remote-agent-panel";
+import { UserPlus } from "lucide-react";
+import { MotionMenu, MotionMenuItem } from "../ui/motion/menu";
 import { useEffect, useMemo, useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import "./rooms.css";
 import "./rooms-layout.css";
 import "./rooms-menus.css";
 import "./contacts-view.css";
+import { CompactBackButton, useCompactDetail } from "../shared/compact-list-detail";
 import { publishEmployeeToAppStore } from "../../bridge";
 import type {
   ExtensionItemCollection,
@@ -24,8 +30,11 @@ import { Tooltip } from "../ui/tooltip";
 import { EmployeeDialog } from "./employee-dialog";
 import { EmployeeSettingsSurface } from "./employee-settings-surface";
 import { RoomMemberAvatar } from "./member-avatar";
+import { RoomMemberName } from "./member-name";
 import { visibleEmployeeDefinitions } from "./contacts-model";
 import {
+  fetchRoomsInit,
+  roomsFromServerSnapshot,
   openServerDirectRoom,
   patchServerRoomMember,
   restoreServerRoomMemberAppDefaults,
@@ -63,20 +72,39 @@ export function ContactsView(props: {
   roomsState: RoomsState;
   setRoomsState: Dispatch<SetStateAction<RoomsState>>;
   onOpenMessages(roomId?: string): void;
+  openRemoteAgentDialog?: boolean;
+  focusMemberId?: string;
+  onNavigationConsumed(): void;
 }) {
   const { t } = useI18n();
   const systemDetail = (error: unknown) =>
     rawDiagnosticText(error instanceof Error ? error.message : String(error ?? ""));
   const confirm = useConfirm();
+  const compactDetail = useCompactDetail("member");
   const { toast } = useToast();
   const state = props.roomsState;
   const setState = props.setRoomsState;
   const [query, setQuery] = useState("");
+  const networkConfiguration = useNetworkConfiguration();
+  const [remoteDialogOpen, setRemoteDialogOpen] = useState(false);
+  const [createMenuOpen, setCreateMenuOpen] = useState(false);
   const [activeSection, setActiveSection] = useState<"employees" | "groups">("employees");
-  const [selectedMemberId, setSelectedMemberId] = useState(state.members[0]?.id || "");
+  const [selectedMemberId, setSelectedMemberId] = useState(props.focusMemberId || state.members[0]?.id || "");
   const [employeeDialogOpen, setEmployeeDialogOpen] = useState(false);
   const [publishingEmployee, setPublishingEmployee] = useState(false);
   const [employeeDeleteTargetId, setEmployeeDeleteTargetId] = useState("");
+  useEffect(() => {
+    if (compactDetail.detailId) {
+      setSelectedMemberId(compactDetail.detailId);
+      setActiveSection("employees");
+    }
+  }, [compactDetail.detailId]);
+  useEffect(() => {
+    if (!props.openRemoteAgentDialog && !props.focusMemberId) return;
+    if (props.openRemoteAgentDialog) setRemoteDialogOpen(true);
+    if (props.focusMemberId) selectMember(props.focusMemberId);
+    props.onNavigationConsumed();
+  }, [props.openRemoteAgentDialog, props.focusMemberId, props.onNavigationConsumed]);
 
   const contactMembers = useMemo(() => {
     const deletedMembers = new Set(state.deletedMemberIds ?? []);
@@ -104,6 +132,7 @@ export function ContactsView(props: {
         member.role.toLowerCase().includes(value) ||
         member.kernel.toLowerCase().includes(value) ||
         member.model.toLowerCase().includes(value) ||
+        member.remoteAgent?.address.toLowerCase().includes(value) ||
         roomMemberSourceLabel(member).toLowerCase().includes(value) ||
         roomMemberSourceDetail(member).toLowerCase().includes(value),
     );
@@ -241,6 +270,7 @@ export function ContactsView(props: {
   }
 
   function selectMember(memberId: string) {
+    compactDetail.showDetail(memberId);
     setSelectedMemberId(memberId);
     setActiveSection("employees");
   }
@@ -389,22 +419,94 @@ export function ContactsView(props: {
     }
   }
 
+  async function openRemoteConversation(member: RoomMember) {
+    try {
+      const result = await openServerDirectRoom(
+        member.id,
+        `${roomMemberDisplayName(member)} · ${new Date().toLocaleString()}`,
+        {
+          roomId: `remote-chat-${crypto.randomUUID()}`,
+        },
+      );
+      const snapshot = await fetchRoomsInit();
+      setState((current) => ({ ...current, rooms: roomsFromServerSnapshot(snapshot), activeRoomId: result.room.id }));
+      props.onOpenMessages(result.room.id);
+    } catch (error) {
+      toast({ title: t("remoteAgent.addError"), description: systemDetail(error), kind: "error" });
+    }
+  }
+
   return (
-    <section className="contacts-view" aria-label={t("contacts.viewLabel")}>
-      <aside className="contacts-nav-panel">
+    <section
+      className={`contacts-view ${compactDetail.className}`}
+      aria-label={t("contacts.viewLabel")}
+      data-list-detail={compactDetail.compact ? "compact" : "wide"}
+      data-detail-open={String(compactDetail.detailOpen)}
+    >
+      <RemoteAgentDialog
+        open={remoteDialogOpen}
+        onOpenChange={setRemoteDialogOpen}
+        onAdded={async (memberId) => {
+          try {
+            const snapshot = await fetchRoomsInit();
+            setState((current) => ({
+              ...current,
+              members: snapshot.members,
+              rooms: roomsFromServerSnapshot(snapshot),
+              deletedMemberIds: snapshot.deletedMemberIds ?? [],
+            }));
+            selectMember(memberId);
+          } catch (error) {
+            toast({ title: t("remoteAgent.refreshError"), description: systemDetail(error), kind: "error" });
+          }
+        }}
+      />
+      <aside
+        ref={compactDetail.listRef}
+        onClickCapture={compactDetail.rememberListTarget}
+        onFocusCapture={compactDetail.rememberListTarget}
+        className="contacts-nav-panel"
+        data-list-panel
+        inert={compactDetail.compact && compactDetail.detailOpen}
+      >
         <header className="contacts-nav-header">
           <h1>{t("contacts.messages")}</h1>
-          <Tooltip content={t("employee.addEmployee")} side="bottom">
-            <button
-              className="rooms-icon-button"
-              type="button"
+          <MotionMenu
+            open={createMenuOpen}
+            onOpenChange={setCreateMenuOpen}
+            ariaLabel={t("rooms.createNew")}
+            align="end"
+            tooltipContent={t("rooms.createNew")}
+            tooltipSide="bottom"
+            trigger={
+              <button
+                className="rooms-icon-button"
+                type="button"
+                data-room-action="contacts-create-menu"
+                aria-label={t("rooms.createNew")}
+              >
+                <ProductIcon name="add" size={16} />
+              </button>
+            }
+          >
+            <MotionMenuItem
               data-room-action="add-employee"
-              onClick={openCreateEmployeeDialog}
-              aria-label={t("employee.addEmployee")}
+              onClick={() => {
+                setCreateMenuOpen(false);
+                openCreateEmployeeDialog();
+              }}
             >
-              <ProductIcon name="add" size={16} />
-            </button>
-          </Tooltip>
+              <UserPlus size={17} />
+              <span>{t("remoteAgent.addLocal")}</span>
+            </MotionMenuItem>
+            <RemoteAgentMenuItem
+              configuration={networkConfiguration}
+              onSelect={() => {
+                setCreateMenuOpen(false);
+                setRemoteDialogOpen(true);
+              }}
+            />
+          </MotionMenu>
         </header>
         <nav className="collaboration-switch" aria-label={t("contacts.messageViews")}>
           <button type="button" data-room-view-target="rooms" onClick={() => props.onOpenMessages()}>
@@ -452,7 +554,9 @@ export function ContactsView(props: {
               >
                 <RoomMemberAvatar member={member} />
                 <span>
-                  <strong>{roomMemberDisplayName(member)}</strong>
+                  <strong>
+                    <RoomMemberName member={member} />
+                  </strong>
                 </span>
               </button>
             ))}
@@ -463,7 +567,15 @@ export function ContactsView(props: {
         </section>
       </aside>
 
-      <main className="contacts-main-panel">
+      <main
+        className="contacts-main-panel"
+        ref={compactDetail.detailRef}
+        data-detail-panel
+        inert={compactDetail.compact && !compactDetail.detailOpen}
+      >
+        {compactDetail.compact ? (
+          <CompactBackButton label={t("compact.employees")} onClick={compactDetail.showList} />
+        ) : null}
         {activeSection === "employees" ? (
           <div className="contacts-detail-layout">
             <section
@@ -486,6 +598,9 @@ export function ContactsView(props: {
                   skills={props.skills}
                   publishPending={publishingEmployee}
                   onMessage={() => void openDirectMember(selectedMember)}
+                  onNewConversation={
+                    selectedMember.source === "remote" ? () => void openRemoteConversation(selectedMember) : undefined
+                  }
                   onPublish={() => publishSelectedEmployee()}
                   onDelete={() => setEmployeeDeleteTargetId(selectedMember.id)}
                   onRestoreAppDefaults={restoreSelectedEmployeeAppDefaults}

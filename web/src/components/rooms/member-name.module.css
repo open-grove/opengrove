@@ -1,0 +1,29 @@
+.name {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  min-width: 0;
+  max-width: 100%;
+  vertical-align: bottom;
+}
+
+.text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.remote {
+  display: inline-flex;
+  flex: 0 0 auto;
+  width: 1em;
+  height: 1em;
+  color: var(--og-text-muted);
+  vertical-align: middle;
+}
+
+.remote svg {
+  width: 100%;
+  height: 100%;
+}

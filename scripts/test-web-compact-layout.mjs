@@ -1,0 +1,378 @@
+import assert from "node:assert/strict";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { chromium, webkit, expect } from "@playwright/test";
+import { startOpenGroveServer } from "../dist/server/create-server.js";
+
+const root = await mkdtemp(join(tmpdir(), "opengrove-compact-layout-"));
+const overrides = {
+  OPENGROVE_BRIDGE_SETTINGS_PATH: join(root, "settings.json"),
+  OPENGROVE_ENABLE_BROWSER_UI: "1",
+  OPENGROVE_USER_DATA_DIR: root,
+  OPENGROVE_WEB_AUTH_MODE: "bridge-token",
+  OPENGROVE_WORKSPACES_DIR: join(root, "workspaces"),
+};
+const previous = Object.fromEntries(Object.keys(overrides).map((key) => [key, process.env[key]]));
+let browser;
+let server;
+try {
+  await writeFile(overrides.OPENGROVE_BRIDGE_SETTINGS_PATH, JSON.stringify({ mountedApps: [] }));
+  Object.assign(process.env, overrides);
+  server = startOpenGroveServer({
+    host: "127.0.0.1",
+    port: 0,
+    bridgeToken: "",
+    profile: "test",
+    runtimeEnvironment: "test",
+    statePath: join(root, "state.json"),
+  });
+  if (!server.listening)
+    await new Promise((resolve, reject) => {
+      server.once("listening", resolve);
+      server.once("error", reject);
+    });
+  const address = server.address();
+  assert.ok(address && typeof address === "object");
+  browser = await (process.env.OPENGROVE_UI_TEST_BROWSER === "webkit" ? webkit : chromium).launch({ headless: true });
+  const page = await browser.newPage({ viewport: { width: 390, height: 664 }, locale: "zh-CN", hasTouch: true });
+  page.setDefaultTimeout(5000);
+  const errors = [];
+  // WebKit's console protocol can report a cancelled long poll during reload as
+  // a pageerror. Observe browser error/rejection events directly in every frame;
+  // this still fails on uncaught product exceptions without treating that network
+  // diagnostic as a JavaScript exception.
+  await page.exposeBinding("reportHarnessJavaScriptError", (_, message) => errors.push(message));
+  await page.addInitScript(() => {
+    window.addEventListener("error", (event) => window.reportHarnessJavaScriptError(event.message));
+    window.addEventListener("unhandledrejection", (event) => window.reportHarnessJavaScriptError(String(event.reason)));
+  });
+  const origin = `http://127.0.0.1:${address.port}`;
+  const appResponse = await page.request.post(`${origin}/api/apps/create`, { data: { title: "Compact files" } });
+  assert.ok(appResponse.ok(), await appResponse.text());
+  const { appId, appRoot } = await appResponse.json();
+  const setup = await page.request.post(`${origin}/api/apps/${appId}/setup`, { data: { choice: "file-workbench" } });
+  assert.ok(setup.ok(), await setup.text());
+  // Embedded Apps must open with untouched default settings, including while
+  // inventory is still loading. Developer/direct-chat overrides hid this case.
+  const embeddedUrl = `${origin}/ui/?embedded=app&app=${encodeURIComponent(appId)}`;
+  await page.goto(embeddedUrl);
+  await expect(page.locator(".mounted-app-workbench")).toBeVisible({ timeout: 30_000 });
+  assert.equal(page.url(), embeddedUrl, "Embedded navigation must preserve its host-owned URL");
+  await page.reload();
+  await expect(page.locator(".mounted-app-workbench")).toBeVisible();
+  assert.equal(page.url(), embeddedUrl);
+  const settings = await page.request.patch(`${origin}/api/settings`, {
+    data: { developerMode: true, directKernelChatEnabled: true },
+  });
+  assert.ok(settings.ok(), await settings.text());
+  const employeeId = "compact-layout-employee";
+  const member = await page.request.post(`${origin}/api/rooms/members`, {
+    data: {
+      id: employeeId,
+      name: "Compact employee",
+      kernel: "codex",
+      model: "default",
+      role: "agent",
+      status: "idle",
+      source: "local",
+    },
+  });
+  assert.ok(member.ok(), await member.text());
+  const created = await page.request.post(`${origin}/api/rooms`, {
+    data: { title: "Compact group", memberIds: [employeeId] },
+  });
+  assert.ok(created.ok(), await created.text());
+  const { room } = await created.json();
+  const postMessage = await page.request.post(`${origin}/api/rooms/${room.id}/agent-messages`, {
+    data: { senderId: employeeId, text: "Unread while the list is visible" },
+  });
+  assert.ok(postMessage.ok(), await postMessage.text());
+  await page.goto(`${origin}/ui/?view=settings`);
+  await expect(page.locator(".settings-screen")).toBeVisible();
+  await page.reload();
+  await expect(page.locator(".settings-screen")).toBeVisible();
+  await expect(page.locator(".app-shell")).toBeVisible({ timeout: 30_000 });
+  const toggle = page.locator("#app-navigation-toggle");
+  await expect(toggle).toBeVisible({ timeout: 1500 });
+  await toggle.click();
+  const nav = page.getByRole("dialog", { name: "导航", exact: true });
+  await expect(nav).toBeVisible();
+  await expect.poll(async () => Math.round((await nav.boundingBox()).x)).toBe(0);
+  const drawer = await nav.boundingBox();
+  assert.equal(drawer.y, 0, "Navigation must slide from the left edge, without a floating margin");
+  assert.equal(drawer.height, 664, "Navigation must fill the available height");
+  assert.ok(drawer.width <= 346, "Leave the underlying page visible beside the drawer");
+  await expect(page.locator(".mobile-nav")).toHaveCount(0);
+  await page.mouse.click(375, 300);
+  await expect(nav).toBeHidden();
+  await expect(toggle).toBeFocused();
+  await toggle.click();
+  await nav.getByRole("button", { name: "设置", exact: true }).click();
+  await expect(nav).toBeHidden();
+  await expect(page.locator(".settings-screen")).toBeVisible();
+  for (const width of [320, 360, 390, 430, 768]) {
+    await page.setViewportSize({ width, height: 664 });
+    const bounds = await page.locator(".workspace").boundingBox();
+    assert.ok(bounds.x <= 12 && bounds.width >= width - 24, "Compact content must use the full window width");
+    assert.ok(bounds.x + bounds.width <= width, "The workspace must fit inside the viewport");
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  }
+  await page.setViewportSize({ width: 390, height: 664 });
+  await toggle.click();
+  await nav.getByRole("button", { name: /^员工/ }).click();
+  await expect(page.locator(".rooms-list-panel")).toBeVisible();
+  await expect(page.locator(".room-main-panel")).toBeHidden();
+  await page.goBack();
+  await expect(page.locator(".settings-screen")).toBeVisible();
+  await page.goForward();
+  await expect(page.locator(".rooms-list-panel")).toBeVisible();
+  const groupButton = page.locator(".rooms-list-panel").getByRole("button", { name: /Compact group/ });
+  await expect(groupButton).toHaveAttribute("aria-label", /1.*未读/);
+  await groupButton.click();
+  await expect(page.locator(".room-main-panel")).toBeVisible();
+  const draft = page.locator(".room-main-panel textarea");
+  await draft.fill("保留未发送草稿");
+  await page.goBack();
+  await expect(page.locator(".rooms-list-panel")).toBeVisible();
+  await expect(page.locator(".room-main-panel")).toBeHidden();
+  await page.goForward();
+  await expect(draft).toHaveValue("保留未发送草稿");
+  await page.getByRole("button", { name: "消息列表", exact: true }).click();
+  await expect(page.locator(".rooms-list-panel")).toBeVisible();
+  await expect(groupButton).toBeFocused();
+  await expect(groupButton).not.toHaveAttribute("aria-label", /未读/);
+  await page
+    .locator(".rooms-list-panel")
+    .getByRole("button", { name: /Compact group/ })
+    .click();
+  await expect(draft).toHaveValue("保留未发送草稿");
+  await page.getByRole("button", { name: "消息列表", exact: true }).click();
+  await page.locator(".rooms-list-panel").getByRole("button", { name: "通讯录", exact: true }).click();
+  await expect(page.locator(".contacts-nav-panel")).toBeVisible();
+  const employeeButton = page.locator(".contacts-nav-panel").getByRole("button", { name: /Compact employee/ });
+  await employeeButton.click();
+  await expect(page.getByRole("button", { name: "员工列表", exact: true })).toBeVisible();
+  await expect(page.locator(".contacts-nav-panel")).toBeHidden();
+  assert.ok(
+    await page.locator(".contacts-main-panel").evaluate((node) => node.scrollWidth <= node.clientWidth),
+    "Employee details must fit a phone without horizontal scrolling",
+  );
+  await page.getByRole("button", { name: "员工列表", exact: true }).click();
+  await expect(page.locator(".contacts-nav-panel")).toBeVisible();
+  await expect(employeeButton).toBeFocused();
+  await toggle.click();
+  await nav.getByRole("button", { name: "新建应用", exact: true }).click();
+  const createDialog = page.getByRole("dialog", { name: "新建应用", exact: true });
+  await expect(createDialog).toBeVisible();
+  const modal = await createDialog.boundingBox();
+  assert.ok(modal.x >= 0 && modal.x + modal.width <= 390 && modal.y + modal.height <= 664);
+  await page.keyboard.press("Escape");
+  await expect(createDialog).toBeHidden();
+  const manifestPath = join(appRoot, "opengrove.app.json");
+  const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
+  manifest.ui.tabs = [
+    { component: "file-tree", label: "Creative Workspace" },
+    { component: "file-tree", label: "Project Management" },
+  ];
+  await writeFile(manifestPath, JSON.stringify(manifest));
+  for (const data of [
+    {
+      kind: "file",
+      parentPath: "",
+      name: "chapter.md",
+      content: "# Chapter\n\n" + "A paragraph in the workspace.\n\n".repeat(40),
+    },
+    { kind: "file", parentPath: "", name: "next.md", content: "# Next\n" },
+    { kind: "folder", parentPath: "", name: "Drafts" },
+  ]) {
+    const response = await page.request.post(`${origin}/api/apps/${appId}/file-system`, { data });
+    assert.ok(response.ok(), await response.text());
+  }
+  await page.goto(`${origin}/ui/?view=app&app=${encodeURIComponent(appId)}&file=chapter.md`);
+  await expect(page.getByRole("tab", { name: "工作区", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("tab", { name: "聊天", exact: true })).toHaveCount(0);
+  const robot = page.locator(".app-titlebar-developer-button");
+  await expect(robot).toHaveAccessibleName(/^打开聊天/);
+  await expect(robot).not.toHaveAttribute("aria-pressed");
+  await toggle.click();
+  await expect(nav.getByRole("button", { name: /^Compact files(?:，|$)/ })).toHaveAttribute("data-active", "true");
+  await nav.getByRole("button", { name: /^Compact files(?:，|$)/ }).click();
+  await expect(nav).toBeHidden();
+  const chatPanel = page.locator(".adaptive-secondary-pane");
+  await expect(chatPanel).toBeHidden();
+  await expect(robot).toHaveAccessibleName(/未读/);
+  await robot.click();
+  await expect(robot).toHaveAccessibleName(/^返回工作区/);
+  await expect(chatPanel).toBeVisible();
+  await expect(robot).not.toHaveAccessibleName(/未读/);
+  const appDraft = chatPanel.locator("textarea");
+  await appDraft.fill("保留 App 聊天草稿");
+  await robot.click();
+  await expect(chatPanel).toBeHidden();
+  await expect(page.locator(".workspace-preview-slot")).toBeVisible();
+  await assertReadableEditor(page);
+  const editorScroll = page.locator('.file-preview-editor-shell[data-preview-kind="markdown"]');
+  await editorScroll.evaluate((node) => {
+    node.scrollTop = 240;
+  });
+  await expect.poll(() => editorScroll.evaluate((node) => node.scrollTop)).toBe(240);
+  await robot.click();
+  await expect(editorScroll).toBeHidden();
+  await robot.click();
+  await expect(editorScroll).toBeVisible();
+  await expect.poll(() => editorScroll.evaluate((node) => node.scrollTop)).toBe(240);
+  await editorScroll.evaluate((node) => {
+    node.scrollTop = 0;
+  });
+  // The workbench can be compact even while the outer shell has its desktop rail.
+  await page.setViewportSize({ width: 901, height: 664 });
+  await expect(page.locator(".app-shell")).toHaveAttribute("data-compact", "false");
+  await expect(page.locator(".adaptive-split-layout")).toHaveAttribute("data-compact", "true");
+  await robot.click();
+  await expect(appDraft).toHaveValue("保留 App 聊天草稿");
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await expect(chatPanel).toBeVisible();
+  await expect(page.locator(".workspace-preview-slot")).toBeVisible();
+  await assertReadableEditor(page);
+  await robot.click();
+  await expect(chatPanel).toBeHidden();
+  await page.setViewportSize({ width: 390, height: 664 });
+  await expect(appDraft).toBeVisible();
+  await expect(appDraft).toHaveValue("保留 App 聊天草稿");
+  await robot.click();
+  await expect(chatPanel).toBeHidden();
+  await robot.click();
+  await expect(appDraft).toBeVisible();
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await expect(chatPanel).toBeHidden();
+  await expect(robot).not.toHaveAttribute("aria-pressed");
+  await page.setViewportSize({ width: 390, height: 664 });
+  await robot.click();
+  const filesBack = page.getByRole("button", { name: "文件", exact: true });
+  await expect(filesBack).toBeVisible();
+  for (const name of ["Creative Workspace", "Project Management"]) {
+    const tab = page.getByRole("tab", { name, exact: true });
+    assert.ok(
+      await tab.evaluate((node) => node.scrollWidth <= node.clientWidth),
+      "Long App view labels must not paint over adjacent tabs",
+    );
+  }
+  await expect(page.locator(".workspace-preview-slot")).toBeVisible();
+  await filesBack.click();
+  await expect(page.locator(".workspace-directory-slot")).toBeVisible();
+  const chapter = page.locator('[data-mounted-app-path="chapter.md"]');
+  await chapter.click();
+  await expect(filesBack).toBeVisible();
+  await page.goBack();
+  await expect(chapter).toBeVisible();
+  await page.goForward();
+  await expect(filesBack).toBeVisible();
+  await filesBack.click();
+  await checkFileHistory(page);
+  await page.getByRole("button", { name: "chapter.md 更多", exact: true }).click();
+  await page.getByRole("menuitem", { name: "移动到…", exact: true }).click();
+  await page.getByRole("combobox", { name: "目标文件夹", exact: true }).selectOption("Drafts");
+  await page.getByRole("button", { name: "移动到…", exact: true }).click();
+  await expect.poll(() => new URL(page.url()).searchParams.get("file")).toBe("Drafts/chapter.md");
+  await page.reload();
+  await expect(filesBack).toBeVisible();
+  await filesBack.click();
+  await expect(page.locator('[data-mounted-app-path="Drafts/chapter.md"]')).toBeVisible();
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  const handle = page.getByRole("separator", { name: "调整主导航宽度", exact: true });
+  await expect(handle).toBeVisible();
+  assert.equal(
+    await handle.getAttribute("aria-valuenow"),
+    "126",
+    "Compact navigation must not overwrite desktop width",
+  );
+  assert.deepEqual(errors, []);
+  console.log("web-compact-layout passed");
+} finally {
+  await browser?.close();
+  if (server) {
+    server.closeAllConnections?.();
+    await new Promise((resolve) => server.close(resolve));
+  }
+  for (const [key, value] of Object.entries(previous)) {
+    if (value === undefined) delete process.env[key];
+    else process.env[key] = value;
+  }
+  await rm(root, { recursive: true, force: true });
+}
+
+async function assertReadableEditor(page) {
+  const editor = page.locator(".markdown-rich-editor .ProseMirror");
+  await expect(editor).toBeVisible();
+  // ResizeObserver and editor layout settle after the viewport resize. Read all
+  // bounds in one frame rather than mixing positions from different frames.
+  await expect
+    .poll(
+      () =>
+        editor.evaluate((node) => {
+          const bounds = node.getBoundingClientRect();
+          const content = node.closest(".file-preview-content").getBoundingClientRect();
+          if (content.width >= 760) return bounds.width <= 821;
+          return (
+            bounds.width >= content.width - 34 &&
+            bounds.x >= content.x &&
+            bounds.right <= content.right + 1 &&
+            node.querySelector("h1").getBoundingClientRect().y <= content.y + 17
+          );
+        }),
+      { message: "Editor retains its bounded reading measure and single narrow inset" },
+    )
+    .toBe(true);
+}
+
+async function checkFileHistory(page) {
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  const editor = page.locator(".markdown-rich-editor .ProseMirror");
+  const chapter = page.locator('[data-mounted-app-path="chapter.md"]');
+  const next = page.locator('[data-mounted-app-path="next.md"]');
+  await chapter.click();
+  await expect(editor).toContainText("Chapter");
+  const historyIndex = await page.evaluate(() => history.state.idx);
+  await next.click();
+  await expect(editor).toContainText("Next");
+  assert.equal(await page.evaluate(() => history.state.idx), historyIndex + 1);
+  await editor.press("ControlOrMeta+End");
+  await page.keyboard.insertText(" Last input before Back.");
+  await page.goBack();
+  await expect(editor).toContainText("Chapter");
+  await page.goForward();
+  await expect(editor).toContainText("Last input before Back.");
+
+  // A rejected durable backup must keep the current editor and explain why.
+  // Fail storage at its browser boundary, not by stubbing product state.
+  await page.route("**/api/apps/**/raw?**", async (route) => {
+    if (route.request().method() === "PUT") await route.fulfill({ status: 503, body: "File writes unavailable" });
+    else await route.continue();
+  });
+  await page.evaluate(() => {
+    const put = IDBObjectStore.prototype.put;
+    window.restoreDraftStorage = () => {
+      IDBObjectStore.prototype.put = put;
+    };
+    IDBObjectStore.prototype.put = function (...args) {
+      if (this.name === "drafts") throw new DOMException("Storage full", "QuotaExceededError");
+      return put.apply(this, args);
+    };
+  });
+  await editor.press("ControlOrMeta+End");
+  await page.keyboard.insertText(" Keep this uncommitted input.");
+  await page.goBack();
+  await expect(page.getByText("最新修改未能备份。请留在此处重试，或先下载草稿。", { exact: true })).toBeVisible();
+  await expect(editor).toContainText("Keep this uncommitted input.");
+  assert.equal(new URL(page.url()).searchParams.get("file"), "next.md");
+  await page.evaluate(() => window.restoreDraftStorage());
+  await page.unroute("**/api/apps/**/raw?**");
+  await chapter.click();
+  await expect(editor).toContainText("Chapter");
+  await next.click();
+  await expect(editor).toContainText("Keep this uncommitted input.");
+  await chapter.click();
+  await page.setViewportSize({ width: 390, height: 664 });
+  await page.getByRole("button", { name: "文件", exact: true }).click();
+}

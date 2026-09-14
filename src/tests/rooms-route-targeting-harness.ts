@@ -1261,6 +1261,50 @@ async function runForgotMentionPmDispatchHarness(): Promise<void> {
       "legacy-client appContextText must be ignored by the server across consecutive turns and must not enter the A/B/C Envelope",
     );
 
+    // A remote authorization failure must not block a local employee selected in the same group.
+    const unavailableRemote = state.app.rooms.upsertMember({
+      role: "",
+      status: "idle",
+      color: "#334455",
+      lastActive: "idle",
+      id: "mixed-remote",
+      name: "Unavailable cloud employee",
+      source: "remote",
+      kernel: "remote",
+      model: "remote",
+      remoteAgent: {
+        accountIssuer: "https://identity.example",
+        accountUserId: "test",
+        serviceUrl: "https://agents.example/_agent-router/v1",
+        matrixId: "@worker:agents.example",
+        provider: "test",
+        senderAgentId: "sender",
+        owner: "@owner:agents.example",
+        address: "owner/worker@agents.example",
+      },
+    });
+    state.app.rooms.ensureGroupRoom({
+      id: "mixed-group",
+      title: "Mixed group",
+      badge: "",
+      memberIds: [worker.id, unavailableRemote.id],
+    });
+    const mixed = await postRoomMessageRoute<{
+      assistantMessages: Array<{ id: string; senderId: string; status: string }>;
+    }>(state, "mixed-group", {
+      text: "世界观设定师在吗",
+      targetIds: [worker.id, unavailableRemote.id],
+    });
+    const remoteFailure = mixed.assistantMessages.find((message) => message.senderId === unavailableRemote.id)!;
+    assert.equal(remoteFailure.status, "failed");
+    await waitFor(
+      () =>
+        state.app.rooms
+          .listMessages("mixed-group", { limit: 20 })
+          .some((message) => message.senderId === worker.id && message.text === "在，我是世界观设定师。"),
+      "local reply despite a remote connection failure",
+    );
+
     const nonAdminRoomId = "room-route-pm-not-admin";
     state.app.rooms.ensureGroupRoom({
       id: nonAdminRoomId,

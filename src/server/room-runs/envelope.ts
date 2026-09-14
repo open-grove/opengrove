@@ -108,6 +108,33 @@ export function buildRoomRunEnvelope(
   };
 }
 
+/** Room content for an executor without Host tools. Uses the same reply/delegation envelope as local runs. */
+export function buildRoomTextInput(
+  state: BridgeState,
+  roomId: string,
+  target: RoomChannelMember,
+  trigger: RoomChannelMessage,
+): string {
+  const room = state.app.rooms.getRoom(roomId);
+  if (!room) throw new Error("room_not_found");
+  const language = resolveHostLanguageSettings(state.settings);
+  const copy = ROOM_RUN_INSTRUCTION_COPY[language];
+  const routedAuthor = resolvePmRoutedAuthorMessage(state, roomId, trigger);
+  const current = buildMessageUserInput(state, roomId, trigger, routedAuthor, false, language);
+  if (room.kind === "direct") return current;
+  const members = state.app.rooms.listMembers().filter((member) => room.memberIds.includes(member.id));
+  return [
+    copy.room(room.title, room.id),
+    copy.employeeIdentity(memberPromptName(target), target.id),
+    copy.collaborationWithoutTools,
+    copy.memberHeading,
+    ...members.map((member) =>
+      copy.member(memberPromptName(member), member.id, member.disabled || member.status === "offline"),
+    ),
+    current,
+  ].join("\n\n");
+}
+
 function buildSessionInstructions(
   target: RoomChannelMember,
   hostTools: boolean,
@@ -158,7 +185,10 @@ function buildTurnInstructions(
     .filter((memberId) => {
       if (!input.isPmAutoRoute) return true;
       const member = membersById.get(memberId);
-      return memberId !== input.target.id && Boolean(member && isRunnableRoomAssistantTarget(member));
+      return (
+        memberId !== input.target.id &&
+        Boolean(member && member.source !== "remote" && isRunnableRoomAssistantTarget(member))
+      );
     })
     .map((memberId) => {
       const member = membersById.get(memberId);

@@ -49,6 +49,7 @@ const SHARED_EMPLOYEE_DEFINITION_RUNTIME_FIELDS = new Set([
 function withPreservedServerOwnedMeta(state: RoomsRouteContext["state"], member: RoomChannelMember): RoomChannelMember {
   const existing = state.app.rooms.listMembers().find((candidate) => candidate.id === member.id);
   if (!existing) return member;
+  if (existing.source === "remote") return { ...existing, name: member.name, disabled: member.disabled };
   return { ...member, userOverrides: existing.userOverrides, manifestDefaults: existing.manifestDefaults };
 }
 
@@ -126,6 +127,15 @@ async function handleMemberPatchRoute(context: RoomsRouteContext): Promise<boole
   const rawBody = record(await readJsonBody(request));
   const existing = state.app.rooms.listMembers().find((candidate) => candidate.id === memberId);
   const patch = normalizeMemberPatch(rawBody, existing?.kernel);
+  if (existing?.source === "remote") {
+    const member = state.app.rooms.patchMember(memberId, {
+      ...(patch.name !== undefined ? { name: patch.name } : {}),
+      ...(patch.disabled !== undefined ? { disabled: patch.disabled } : {}),
+    });
+    state.store.saveFrom(state.app);
+    sendJson(response, 200, { ok: true, member, currentEventSeq: state.app.rooms.snapshot().currentEventSeq });
+    return true;
+  }
   const touched = USER_OVERRIDABLE_FIELDS.filter((field) => Object.prototype.hasOwnProperty.call(rawBody, field));
   // For seed-managed employees, non-null fields become user overrides. Clearing
   // reasoning or model means "follow App/Kernel defaults", so remove that marker

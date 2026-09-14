@@ -159,7 +159,7 @@ function renderTreeChildren(node, indentation) {
 function renderOperation(entry, indentation) {
   const operationId = JSON.stringify(entry.operation.id);
   const operationType = `(typeof hostOperationById)[${operationId}]`;
-  const hasInput = Object.values(entry.sections).some((fields) => fields !== undefined);
+  const hasInput = Object.values(entry.sections).some((fields) => fields?.length > 0);
   const parameters = [];
   if (hasInput) {
     parameters.push(`input: HostOperationInput<${operationType}>${entry.inputOptional ? " = {}" : ""},`);
