@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { queryWindowsCommand, refreshWindowsPath, refreshWindowsPathAsync } from "../environment/windows-discovery.js";
-import { commandProbe } from "../kernel/discovery.js";
+import { clearCommandVersionCache, commandProbe } from "../kernel/discovery.js";
 import { buildCodexAppServerEnv } from "../runtime/codex/app-server-client.js";
 import { windowsAppCodexCandidates } from "../runtime/codex/windows-app-discovery.js";
 import { resolveCodexCommandPath } from "../runtime/codex/command-path.js";
@@ -258,7 +258,7 @@ test("Windows can validate a discovered CLI command with spaces and Unicode in i
   assert.deepEqual(commandProbe(discovered), { status: "ok", version: "codex-cli 0.153.4" });
 });
 
-test("Windows retries a failed version probe after its environment is repaired", {
+test("Windows retries a failed version probe after an explicit refresh of its repaired environment", {
   skip: process.platform !== "win32",
 }, (t) => {
   const root = mkdtempSync(join(tmpdir(), "opengrove-windows-probe-"));
@@ -276,5 +276,6 @@ test("Windows retries a failed version probe after its environment is repaired",
   delete process.env.OPENGROVE_TEST_CODEX_READY;
   assert.equal(commandProbe(command).status, "failed");
   process.env.OPENGROVE_TEST_CODEX_READY = "yes";
+  clearCommandVersionCache();
   assert.deepEqual(commandProbe(command), { status: "ok", version: "codex-cli 0.153.4" });
 });

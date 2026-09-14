@@ -2,7 +2,11 @@ import crossSpawn from "cross-spawn";
 import { accessSync, constants, existsSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { extname, resolve } from "node:path";
-import { refreshWindowsPath } from "../environment/windows-discovery.js";
+import {
+  hasAdditionalWindowsPath,
+  refreshWindowsPath,
+  windowsPathFingerprint,
+} from "../environment/windows-discovery.js";
 import type {
   KernelExecutableProbe,
   KernelExecutableProbeSource,
@@ -27,7 +31,8 @@ export interface CommandDiscoveryProbe {
   probe: CommandProbeResult;
 }
 
-const COMMAND_PROBE_CACHE = new Map<string, CommandProbeResult>();
+const COMMAND_PROBE_CACHE = new Map<string, { result: CommandProbeResult; checkedAt: number }>();
+const FAILED_WINDOWS_PROBE_TTL_MS = 60_000;
 
 export interface KernelSourceInput {
   id: string;
@@ -245,12 +250,18 @@ export function commandProbe(command: string | undefined, args: string[] = ["--v
     invocation.command,
     invocation.args,
     commandFileFingerprint(resolvedCommand),
-    process.env.PATH,
+    process.platform === "win32" ? windowsPathFingerprint(process.env.PATH) : process.env.PATH,
   ]);
   const cached = COMMAND_PROBE_CACHE.get(cacheKey);
-  // Windows PATH can change without modifying the launcher file. Failed probes
-  // must be retried after installing its dependencies; POSIX caching is unchanged.
-  if (cached && (cached.status === "ok" || process.platform !== "win32")) return cached;
+  // Failed Windows installs can recover without a restart, but repeated reads
+  // within one minute must not keep launching a broken or hung executable.
+  if (
+    cached &&
+    (cached.result.status === "ok" ||
+      process.platform !== "win32" ||
+      Date.now() - cached.checkedAt < FAILED_WINDOWS_PROBE_TTL_MS)
+  )
+    return cached.result;
   try {
     const options = {
       encoding: "utf8" as const,
@@ -260,7 +271,7 @@ export function commandProbe(command: string | undefined, args: string[] = ["--v
     let result = crossSpawn.sync(invocation.command, invocation.args, options);
     if (process.platform === "win32" && result.status !== 0) {
       const environment = refreshWindowsPath(process.env);
-      if (environment.PATH !== process.env.PATH) {
+      if (hasAdditionalWindowsPath(process.env.PATH, environment.PATH)) {
         result = crossSpawn.sync(invocation.command, invocation.args, { ...options, env: environment });
       }
     }
@@ -280,11 +291,11 @@ export function commandProbe(command: string | undefined, args: string[] = ["--v
             ...(typeof result.status === "number" ? { exitCode: result.status } : {}),
             ...(errorCode ? { errorCode } : {}),
           };
-    COMMAND_PROBE_CACHE.set(cacheKey, probe);
+    COMMAND_PROBE_CACHE.set(cacheKey, { result: probe, checkedAt: Date.now() });
     return probe;
   } catch {
     const probe: CommandProbeResult = { status: "failed" };
-    COMMAND_PROBE_CACHE.set(cacheKey, probe);
+    COMMAND_PROBE_CACHE.set(cacheKey, { result: probe, checkedAt: Date.now() });
     return probe;
   }
 }

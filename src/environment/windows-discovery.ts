@@ -1,5 +1,5 @@
 import { execFile, spawnSync } from "node:child_process";
-import { join } from "node:path";
+import { join, win32 } from "node:path";
 
 export type WindowsCommandQuery = (
   executable: "powershell.exe",
@@ -81,16 +81,35 @@ function mergeWindowsPath(environment: NodeJS.ProcessEnv, output: string | undef
       console.warn("[windows-discovery] Registry PATH query returned invalid JSON");
     }
   }
-  const unique = new Map<string, string>();
-  for (const entry of paths.flatMap((value) => value.split(";"))) {
-    const directory = entry.trim().replace(/^"(.*)"$/, "$1");
-    if (directory && !unique.has(directory.toLowerCase())) unique.set(directory.toLowerCase(), directory);
-  }
   // Node passes only one case-insensitive PATH key to Windows children.
   const merged = { ...environment };
   for (const key of Object.keys(merged)) if (key.toLowerCase() === "path") delete merged[key];
-  merged.PATH = [...unique.values()].join(";");
+  merged.PATH = windowsPathEntries(paths.join(";")).join(";");
   return merged;
+}
+
+export function windowsPathEntries(path: string | undefined): string[] {
+  const unique = new Map<string, string>();
+  for (const entry of (path ?? "").split(";")) {
+    const directory = entry.trim().replace(/^"(.*)"$/, "$1");
+    if (!directory) continue;
+    const key = win32.normalize(directory).toLowerCase();
+    if (!unique.has(key)) unique.set(key, directory);
+  }
+  return [...unique.values()];
+}
+
+export function windowsPathFingerprint(path: string | undefined): string {
+  return windowsPathEntries(path)
+    .map((directory) => win32.normalize(directory).toLowerCase())
+    .join(";");
+}
+
+export function hasAdditionalWindowsPath(before: string | undefined, after: string | undefined): boolean {
+  const previous = new Set(windowsPathFingerprint(before).split(";"));
+  return windowsPathFingerprint(after)
+    .split(";")
+    .some((directory) => directory && !previous.has(directory));
 }
 
 export function windowsEnvironmentValue(environment: NodeJS.ProcessEnv, name: string): string | undefined {
