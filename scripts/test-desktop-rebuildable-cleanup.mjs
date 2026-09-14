@@ -292,8 +292,9 @@ async function inspectFilesystemLinks(linkPaths) {
     $ErrorActionPreference = 'Stop'
     $drive = [System.IO.Path]::GetPathRoot($env:OPENGROVE_STORAGE_TEST_ROOT).Substring(0, 1)
     $volume = Get-Volume -DriveLetter $drive
-    $links = @($env:OPENGROVE_STORAGE_TEST_LINKS | ConvertFrom-Json | ForEach-Object {
-      $item = Get-Item -LiteralPath $_ -Force
+    $paths = ConvertFrom-Json -InputObject $env:OPENGROVE_STORAGE_TEST_LINKS
+    $links = @(foreach ($linkPath in $paths) {
+      $item = Get-Item -LiteralPath $linkPath -Force
       @{ path = $item.FullName; linkType = $item.LinkType; target = @($item.Target) }
     })
     @{ name = [string]$volume.FileSystemType; links = $links } | ConvertTo-Json -Depth 5 -Compress
