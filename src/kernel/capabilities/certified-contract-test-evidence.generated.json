@@ -4,8 +4,10 @@
     "capability": "approval.request",
     "testId": "claude-code.approval.request",
     "passed": true,
-    "checkedAt": "2026-07-20",
-    "legacyHostVersion": "0.6.5",
+    "checkedAt": "2026-09-14",
+    "hostVersion": "0.7.0",
+    "kernelVersion": "2.1.263 (Claude Code)",
+    "runtimeMode": "sdk",
     "verification": "real_runtime"
   },
   {
@@ -13,8 +15,14 @@
     "capability": "budget.limit",
     "testId": "claude-code.budget.limit",
     "passed": true,
-    "checkedAt": "2026-06-09",
-    "legacyHostVersion": "0.6.5",
+    "checkedAt": "2026-09-14",
+    "hostVersion": "0.7.0",
+    "kernelVersion": "2.1.263 (Claude Code)",
+    "runtimeMode": "sdk",
+    "provider": {
+      "kind": "anthropic-compatible",
+      "model": "deepseek-v4-flash"
+    },
     "verification": "real_runtime"
   },
   {
@@ -22,8 +30,10 @@
     "capability": "control.stop",
     "testId": "claude-code.control.stop",
     "passed": true,
-    "checkedAt": "2026-07-20",
-    "legacyHostVersion": "0.6.5",
+    "checkedAt": "2026-09-14",
+    "hostVersion": "0.7.0",
+    "kernelVersion": "2.1.263 (Claude Code)",
+    "runtimeMode": "sdk",
     "verification": "real_runtime"
   },
   {
@@ -31,8 +41,14 @@
     "capability": "diagnostics.usage",
     "testId": "claude-code.diagnostics.usage",
     "passed": true,
-    "checkedAt": "2026-08-06",
-    "legacyHostVersion": "0.6.5",
+    "checkedAt": "2026-09-14",
+    "hostVersion": "0.7.0",
+    "kernelVersion": "2.1.263 (Claude Code)",
+    "runtimeMode": "sdk",
+    "provider": {
+      "kind": "anthropic-compatible",
+      "model": "deepseek-v4-flash"
+    },
     "verification": "real_runtime"
   },
   {
@@ -40,8 +56,10 @@
     "capability": "interaction.askUser",
     "testId": "claude-code.interaction.askUser",
     "passed": true,
-    "checkedAt": "2026-06-08",
-    "legacyHostVersion": "0.6.5",
+    "checkedAt": "2026-09-14",
+    "hostVersion": "0.7.0",
+    "kernelVersion": "2.1.263 (Claude Code)",
+    "runtimeMode": "sdk",
     "verification": "real_runtime"
   },
   {
@@ -49,8 +67,10 @@
     "capability": "message.streamText",
     "testId": "claude-code.message.streamText",
     "passed": true,
-    "checkedAt": "2026-08-06",
-    "legacyHostVersion": "0.6.5",
+    "checkedAt": "2026-09-14",
+    "hostVersion": "0.7.0",
+    "kernelVersion": "2.1.263 (Claude Code)",
+    "runtimeMode": "sdk",
     "verification": "real_runtime"
   },
   {
@@ -58,8 +78,10 @@
     "capability": "sandbox.policy",
     "testId": "claude-code.sandbox.policy",
     "passed": true,
-    "checkedAt": "2026-06-08",
-    "legacyHostVersion": "0.6.5",
+    "checkedAt": "2026-09-14",
+    "hostVersion": "0.7.0",
+    "kernelVersion": "2.1.263 (Claude Code)",
+    "runtimeMode": "sdk",
     "verification": "real_runtime"
   },
   {
@@ -67,8 +89,10 @@
     "capability": "session.lifecycle",
     "testId": "claude-code.session.lifecycle",
     "passed": true,
-    "checkedAt": "2026-07-20",
-    "legacyHostVersion": "0.6.5",
+    "checkedAt": "2026-09-14",
+    "hostVersion": "0.7.0",
+    "kernelVersion": "2.1.263 (Claude Code)",
+    "runtimeMode": "sdk",
     "verification": "real_runtime"
   },
   {
@@ -76,8 +100,10 @@
     "capability": "tools.hostTool",
     "testId": "claude-code.tools.hostTool",
     "passed": true,
-    "checkedAt": "2026-06-08",
-    "legacyHostVersion": "0.6.5",
+    "checkedAt": "2026-09-14",
+    "hostVersion": "0.7.0",
+    "kernelVersion": "2.1.263 (Claude Code)",
+    "runtimeMode": "sdk",
     "verification": "real_runtime"
   },
   {
@@ -85,8 +111,10 @@
     "capability": "tools.mcpServers",
     "testId": "claude-code.tools.mcpServers",
     "passed": true,
-    "checkedAt": "2026-06-08",
-    "legacyHostVersion": "0.6.5",
+    "checkedAt": "2026-09-14",
+    "hostVersion": "0.7.0",
+    "kernelVersion": "2.1.263 (Claude Code)",
+    "runtimeMode": "sdk",
     "verification": "real_runtime"
   },
   {
@@ -94,8 +122,10 @@
     "capability": "tools.nativeTool",
     "testId": "claude-code.tools.nativeTool",
     "passed": true,
-    "checkedAt": "2026-07-20",
-    "legacyHostVersion": "0.6.5",
+    "checkedAt": "2026-09-14",
+    "hostVersion": "0.7.0",
+    "kernelVersion": "2.1.263 (Claude Code)",
+    "runtimeMode": "sdk",
     "verification": "real_runtime"
   },
   {
@@ -103,8 +133,10 @@
     "capability": "turn.lifecycle",
     "testId": "claude-code.turn.lifecycle",
     "passed": true,
-    "checkedAt": "2026-08-06",
-    "legacyHostVersion": "0.6.5",
+    "checkedAt": "2026-09-14",
+    "hostVersion": "0.7.0",
+    "kernelVersion": "2.1.263 (Claude Code)",
+    "runtimeMode": "sdk",
     "verification": "real_runtime"
   },
   {
@@ -112,8 +144,10 @@
     "capability": "approval.request",
     "testId": "codex.approval.request",
     "passed": true,
-    "checkedAt": "2026-06-08",
-    "legacyHostVersion": "0.6.5",
+    "checkedAt": "2026-09-14",
+    "hostVersion": "0.7.0",
+    "kernelVersion": "codex-cli 0.154.0-alpha.6.2",
+    "runtimeMode": "sdk",
     "verification": "real_runtime"
   },
   {
@@ -121,8 +155,10 @@
     "capability": "control.stop",
     "testId": "codex.control.stop",
     "passed": true,
-    "checkedAt": "2026-06-08",
-    "legacyHostVersion": "0.6.5",
+    "checkedAt": "2026-09-14",
+    "hostVersion": "0.7.0",
+    "kernelVersion": "codex-cli 0.154.0-alpha.6.2",
+    "runtimeMode": "sdk",
     "verification": "real_runtime"
   },
   {
@@ -130,8 +166,13 @@
     "capability": "diagnostics.usage",
     "testId": "codex.diagnostics.usage",
     "passed": true,
-    "checkedAt": "2026-07-20",
-    "legacyHostVersion": "0.6.5",
+    "checkedAt": "2026-09-14",
+    "hostVersion": "0.7.0",
+    "kernelVersion": "codex-cli 0.154.0-alpha.6.2",
+    "runtimeMode": "sdk",
+    "provider": {
+      "kind": "native"
+    },
     "verification": "real_runtime"
   },
   {
@@ -139,8 +180,10 @@
     "capability": "interaction.askUser",
     "testId": "codex.interaction.askUser",
     "passed": true,
-    "checkedAt": "2026-06-08",
-    "legacyHostVersion": "0.6.5",
+    "checkedAt": "2026-09-14",
+    "hostVersion": "0.7.0",
+    "kernelVersion": "codex-cli 0.154.0-alpha.6.2",
+    "runtimeMode": "sdk",
     "verification": "real_runtime"
   },
   {
@@ -148,8 +191,10 @@
     "capability": "message.streamText",
     "testId": "codex.message.streamText",
     "passed": true,
-    "checkedAt": "2026-07-20",
-    "legacyHostVersion": "0.6.5",
+    "checkedAt": "2026-09-14",
+    "hostVersion": "0.7.0",
+    "kernelVersion": "codex-cli 0.154.0-alpha.6.2",
+    "runtimeMode": "sdk",
     "verification": "real_runtime"
   },
   {
@@ -157,8 +202,13 @@
     "capability": "output.artifacts",
     "testId": "codex.output.artifacts",
     "passed": true,
-    "checkedAt": "2026-06-08",
-    "legacyHostVersion": "0.6.5",
+    "checkedAt": "2026-09-14",
+    "hostVersion": "0.7.0",
+    "kernelVersion": "codex-cli 0.154.0-alpha.6.2",
+    "runtimeMode": "sdk",
+    "provider": {
+      "kind": "native"
+    },
     "verification": "real_runtime"
   },
   {
@@ -166,8 +216,10 @@
     "capability": "planning.plan",
     "testId": "codex.planning.plan",
     "passed": true,
-    "checkedAt": "2026-06-08",
-    "legacyHostVersion": "0.6.5",
+    "checkedAt": "2026-09-14",
+    "hostVersion": "0.7.0",
+    "kernelVersion": "codex-cli 0.154.0-alpha.6.2",
+    "runtimeMode": "sdk",
     "verification": "real_runtime"
   },
   {
@@ -175,8 +227,10 @@
     "capability": "sandbox.policy",
     "testId": "codex.sandbox.policy",
     "passed": true,
-    "checkedAt": "2026-06-08",
-    "legacyHostVersion": "0.6.5",
+    "checkedAt": "2026-09-14",
+    "hostVersion": "0.7.0",
+    "kernelVersion": "codex-cli 0.154.0-alpha.6.2",
+    "runtimeMode": "sdk",
     "verification": "real_runtime"
   },
   {
@@ -184,8 +238,10 @@
     "capability": "session.lifecycle",
     "testId": "codex.session.lifecycle",
     "passed": true,
-    "checkedAt": "2026-07-20",
-    "legacyHostVersion": "0.6.5",
+    "checkedAt": "2026-09-14",
+    "hostVersion": "0.7.0",
+    "kernelVersion": "codex-cli 0.154.0-alpha.6.2",
+    "runtimeMode": "sdk",
     "verification": "real_runtime"
   },
   {
@@ -193,8 +249,10 @@
     "capability": "tools.hostTool",
     "testId": "codex.tools.hostTool",
     "passed": true,
-    "checkedAt": "2026-06-08",
-    "legacyHostVersion": "0.6.5",
+    "checkedAt": "2026-09-14",
+    "hostVersion": "0.7.0",
+    "kernelVersion": "codex-cli 0.154.0-alpha.6.2",
+    "runtimeMode": "sdk",
     "verification": "real_runtime"
   },
   {
@@ -202,8 +260,10 @@
     "capability": "tools.nativeTool",
     "testId": "codex.tools.nativeTool",
     "passed": true,
-    "checkedAt": "2026-06-08",
-    "legacyHostVersion": "0.6.5",
+    "checkedAt": "2026-09-14",
+    "hostVersion": "0.7.0",
+    "kernelVersion": "codex-cli 0.154.0-alpha.6.2",
+    "runtimeMode": "sdk",
     "verification": "real_runtime"
   },
   {
@@ -211,8 +271,10 @@
     "capability": "turn.lifecycle",
     "testId": "codex.turn.lifecycle",
     "passed": true,
-    "checkedAt": "2026-07-20",
-    "legacyHostVersion": "0.6.5",
+    "checkedAt": "2026-09-14",
+    "hostVersion": "0.7.0",
+    "kernelVersion": "codex-cli 0.154.0-alpha.6.2",
+    "runtimeMode": "sdk",
     "verification": "real_runtime"
   },
   {
@@ -220,8 +282,10 @@
     "capability": "tools.nativeTool",
     "testId": "hermes.tools.nativeTool",
     "passed": true,
-    "checkedAt": "2026-08-06",
-    "legacyHostVersion": "0.6.5",
+    "checkedAt": "2026-09-14",
+    "hostVersion": "0.7.0",
+    "kernelVersion": "Hermes Agent v0.21.1 (2026.9.7) · upstream 5eb99eb2 · local 2237be35 (+30500 carried commits)",
+    "runtimeMode": "acp",
     "verification": "real_runtime"
   },
   {
@@ -229,8 +293,10 @@
     "capability": "approval.request",
     "testId": "kimi.approval.request",
     "passed": true,
-    "checkedAt": "2026-07-20",
-    "legacyHostVersion": "0.6.5",
+    "checkedAt": "2026-09-14",
+    "hostVersion": "0.7.0",
+    "kernelVersion": "0.41.0",
+    "runtimeMode": "acp",
     "verification": "real_runtime"
   },
   {
@@ -238,9 +304,9 @@
     "capability": "control.stop",
     "testId": "kimi.control.stop",
     "passed": true,
-    "checkedAt": "2026-08-31",
-    "hostVersion": "0.6.5",
-    "kernelVersion": "0.36.1",
+    "checkedAt": "2026-09-14",
+    "hostVersion": "0.7.0",
+    "kernelVersion": "0.41.0",
     "runtimeMode": "acp",
     "verification": "real_runtime"
   },
@@ -249,9 +315,9 @@
     "capability": "message.streamText",
     "testId": "kimi.message.streamText",
     "passed": true,
-    "checkedAt": "2026-08-31",
-    "hostVersion": "0.6.5",
-    "kernelVersion": "0.36.1",
+    "checkedAt": "2026-09-14",
+    "hostVersion": "0.7.0",
+    "kernelVersion": "0.41.0",
     "runtimeMode": "acp",
     "verification": "real_runtime"
   },
@@ -260,8 +326,10 @@
     "capability": "session.lifecycle",
     "testId": "kimi.session.lifecycle",
     "passed": true,
-    "checkedAt": "2026-07-20",
-    "legacyHostVersion": "0.6.5",
+    "checkedAt": "2026-09-14",
+    "hostVersion": "0.7.0",
+    "kernelVersion": "0.41.0",
+    "runtimeMode": "acp",
     "verification": "real_runtime"
   },
   {
@@ -269,8 +337,10 @@
     "capability": "tool.progress",
     "testId": "kimi.tool.progress",
     "passed": true,
-    "checkedAt": "2026-06-08",
-    "legacyHostVersion": "0.6.5",
+    "checkedAt": "2026-09-14",
+    "hostVersion": "0.7.0",
+    "kernelVersion": "0.41.0",
+    "runtimeMode": "acp",
     "verification": "real_runtime"
   },
   {
@@ -278,8 +348,10 @@
     "capability": "tools.nativeTool",
     "testId": "kimi.tools.nativeTool",
     "passed": true,
-    "checkedAt": "2026-07-20",
-    "legacyHostVersion": "0.6.5",
+    "checkedAt": "2026-09-14",
+    "hostVersion": "0.7.0",
+    "kernelVersion": "0.41.0",
+    "runtimeMode": "acp",
     "verification": "real_runtime"
   },
   {
@@ -287,9 +359,9 @@
     "capability": "turn.lifecycle",
     "testId": "kimi.turn.lifecycle",
     "passed": true,
-    "checkedAt": "2026-08-31",
-    "hostVersion": "0.6.5",
-    "kernelVersion": "0.36.1",
+    "checkedAt": "2026-09-14",
+    "hostVersion": "0.7.0",
+    "kernelVersion": "0.41.0",
     "runtimeMode": "acp",
     "verification": "real_runtime"
   },
@@ -298,8 +370,10 @@
     "capability": "control.stop",
     "testId": "openclaw.control.stop",
     "passed": true,
-    "checkedAt": "2026-07-20",
-    "legacyHostVersion": "0.6.5",
+    "checkedAt": "2026-09-14",
+    "hostVersion": "0.7.0",
+    "kernelVersion": "2026.9.2",
+    "runtimeMode": "gateway",
     "verification": "real_runtime"
   },
   {
@@ -307,8 +381,10 @@
     "capability": "message.streamText",
     "testId": "openclaw.message.streamText",
     "passed": true,
-    "checkedAt": "2026-07-20",
-    "legacyHostVersion": "0.6.5",
+    "checkedAt": "2026-09-14",
+    "hostVersion": "0.7.0",
+    "kernelVersion": "2026.9.2",
+    "runtimeMode": "gateway",
     "verification": "real_runtime"
   },
   {
@@ -316,8 +392,10 @@
     "capability": "session.lifecycle",
     "testId": "openclaw.session.lifecycle",
     "passed": true,
-    "checkedAt": "2026-07-20",
-    "legacyHostVersion": "0.6.5",
+    "checkedAt": "2026-09-14",
+    "hostVersion": "0.7.0",
+    "kernelVersion": "2026.9.2",
+    "runtimeMode": "gateway",
     "verification": "real_runtime"
   },
   {
@@ -325,8 +403,10 @@
     "capability": "turn.lifecycle",
     "testId": "openclaw.turn.lifecycle",
     "passed": true,
-    "checkedAt": "2026-07-20",
-    "legacyHostVersion": "0.6.5",
+    "checkedAt": "2026-09-14",
+    "hostVersion": "0.7.0",
+    "kernelVersion": "2026.9.2",
+    "runtimeMode": "gateway",
     "verification": "real_runtime"
   },
   {
@@ -334,8 +414,10 @@
     "capability": "approval.request",
     "testId": "opencode.approval.request",
     "passed": true,
-    "checkedAt": "2026-07-20",
-    "legacyHostVersion": "0.6.5",
+    "checkedAt": "2026-09-14",
+    "hostVersion": "0.7.0",
+    "kernelVersion": "1.18.29",
+    "runtimeMode": "acp",
     "verification": "real_runtime"
   },
   {
@@ -343,8 +425,10 @@
     "capability": "control.stop",
     "testId": "opencode.control.stop",
     "passed": true,
-    "checkedAt": "2026-07-20",
-    "legacyHostVersion": "0.6.5",
+    "checkedAt": "2026-09-14",
+    "hostVersion": "0.7.0",
+    "kernelVersion": "1.18.29",
+    "runtimeMode": "acp",
     "verification": "real_runtime"
   },
   {
@@ -352,8 +436,10 @@
     "capability": "session.lifecycle",
     "testId": "opencode.session.lifecycle",
     "passed": true,
-    "checkedAt": "2026-07-20",
-    "legacyHostVersion": "0.6.5",
+    "checkedAt": "2026-09-14",
+    "hostVersion": "0.7.0",
+    "kernelVersion": "1.18.29",
+    "runtimeMode": "acp",
     "verification": "real_runtime"
   },
   {
@@ -361,8 +447,10 @@
     "capability": "tool.progress",
     "testId": "opencode.tool.progress",
     "passed": true,
-    "checkedAt": "2026-06-08",
-    "legacyHostVersion": "0.6.5",
+    "checkedAt": "2026-09-14",
+    "hostVersion": "0.7.0",
+    "kernelVersion": "1.18.29",
+    "runtimeMode": "acp",
     "verification": "real_runtime"
   },
   {
@@ -370,8 +458,10 @@
     "capability": "turn.lifecycle",
     "testId": "opencode.turn.lifecycle",
     "passed": true,
-    "checkedAt": "2026-07-20",
-    "legacyHostVersion": "0.6.5",
+    "checkedAt": "2026-09-14",
+    "hostVersion": "0.7.0",
+    "kernelVersion": "1.18.29",
+    "runtimeMode": "acp",
     "verification": "real_runtime"
   },
   {
@@ -379,8 +469,10 @@
     "capability": "tools.hostTool",
     "testId": "pi.tools.hostTool",
     "passed": true,
-    "checkedAt": "2026-06-08",
-    "legacyHostVersion": "0.6.5",
+    "checkedAt": "2026-09-14",
+    "hostVersion": "0.7.0",
+    "kernelVersion": "0.85.1",
+    "runtimeMode": "sdk",
     "verification": "real_runtime"
   },
   {
@@ -388,8 +480,10 @@
     "capability": "session.compact",
     "testId": "codex.session.compact",
     "passed": true,
-    "checkedAt": "2026-06-09",
-    "legacyHostVersion": "0.6.5",
+    "checkedAt": "2026-09-14",
+    "hostVersion": "0.7.0",
+    "kernelVersion": "codex-cli 0.154.0-alpha.6.2",
+    "runtimeMode": "sdk",
     "verification": "real_runtime"
   },
   {
@@ -397,8 +491,10 @@
     "capability": "session.compact",
     "testId": "opencode.session.compact",
     "passed": true,
-    "checkedAt": "2026-07-20",
-    "legacyHostVersion": "0.6.5",
+    "checkedAt": "2026-09-14",
+    "hostVersion": "0.7.0",
+    "kernelVersion": "1.18.29",
+    "runtimeMode": "acp",
     "verification": "real_runtime"
   },
   {
@@ -406,8 +502,10 @@
     "capability": "message.streamText",
     "testId": "opencode.message.streamText",
     "passed": true,
-    "checkedAt": "2026-07-20",
-    "legacyHostVersion": "0.6.5",
+    "checkedAt": "2026-09-14",
+    "hostVersion": "0.7.0",
+    "kernelVersion": "1.18.29",
+    "runtimeMode": "acp",
     "verification": "real_runtime"
   },
   {
@@ -415,8 +513,13 @@
     "capability": "diagnostics.usage",
     "testId": "opencode.diagnostics.usage",
     "passed": true,
-    "checkedAt": "2026-07-20",
-    "legacyHostVersion": "0.6.5",
+    "checkedAt": "2026-09-14",
+    "hostVersion": "0.7.0",
+    "kernelVersion": "1.18.29",
+    "runtimeMode": "acp",
+    "provider": {
+      "kind": "native"
+    },
     "verification": "real_runtime"
   },
   {
@@ -424,8 +527,10 @@
     "capability": "tools.nativeTool",
     "testId": "opencode.tools.nativeTool",
     "passed": true,
-    "checkedAt": "2026-07-20",
-    "legacyHostVersion": "0.6.5",
+    "checkedAt": "2026-09-14",
+    "hostVersion": "0.7.0",
+    "kernelVersion": "1.18.29",
+    "runtimeMode": "acp",
     "verification": "real_runtime"
   },
   {
@@ -433,8 +538,10 @@
     "capability": "planning.plan",
     "testId": "opencode.planning.plan",
     "passed": true,
-    "checkedAt": "2026-06-09",
-    "legacyHostVersion": "0.6.5",
+    "checkedAt": "2026-09-14",
+    "hostVersion": "0.7.0",
+    "kernelVersion": "1.18.29",
+    "runtimeMode": "acp",
     "verification": "real_runtime"
   },
   {
@@ -442,8 +549,13 @@
     "capability": "media.input",
     "testId": "codex.media.input",
     "passed": true,
-    "checkedAt": "2026-06-09",
-    "legacyHostVersion": "0.6.5",
+    "checkedAt": "2026-09-14",
+    "hostVersion": "0.7.0",
+    "kernelVersion": "codex-cli 0.154.0-alpha.6.2",
+    "runtimeMode": "sdk",
+    "provider": {
+      "kind": "native"
+    },
     "verification": "real_runtime"
   },
   {
@@ -451,8 +563,13 @@
     "capability": "output.structured",
     "testId": "codex.output.structured",
     "passed": true,
-    "checkedAt": "2026-06-09",
-    "legacyHostVersion": "0.6.5",
+    "checkedAt": "2026-09-14",
+    "hostVersion": "0.7.0",
+    "kernelVersion": "codex-cli 0.154.0-alpha.6.2",
+    "runtimeMode": "sdk",
+    "provider": {
+      "kind": "native"
+    },
     "verification": "real_runtime"
   },
   {
@@ -460,8 +577,10 @@
     "capability": "approval.request",
     "testId": "hermes.approval.request",
     "passed": true,
-    "checkedAt": "2026-08-06",
-    "legacyHostVersion": "0.6.5",
+    "checkedAt": "2026-09-14",
+    "hostVersion": "0.7.0",
+    "kernelVersion": "Hermes Agent v0.21.1 (2026.9.7) · upstream 5eb99eb2 · local 2237be35 (+30500 carried commits)",
+    "runtimeMode": "acp",
     "verification": "real_runtime"
   },
   {
@@ -469,8 +588,10 @@
     "capability": "interaction.askUser",
     "testId": "hermes.interaction.askUser",
     "passed": true,
-    "checkedAt": "2026-08-06",
-    "legacyHostVersion": "0.6.5",
+    "checkedAt": "2026-09-14",
+    "hostVersion": "0.7.0",
+    "kernelVersion": "Hermes Agent v0.21.1 (2026.9.7) · upstream 5eb99eb2 · local 2237be35 (+30500 carried commits)",
+    "runtimeMode": "acp",
     "verification": "real_runtime"
   },
   {
@@ -478,8 +599,10 @@
     "capability": "session.lifecycle",
     "testId": "hermes.session.lifecycle",
     "passed": true,
-    "checkedAt": "2026-08-06",
-    "legacyHostVersion": "0.6.5",
+    "checkedAt": "2026-09-14",
+    "hostVersion": "0.7.0",
+    "kernelVersion": "Hermes Agent v0.21.1 (2026.9.7) · upstream 5eb99eb2 · local 2237be35 (+30500 carried commits)",
+    "runtimeMode": "acp",
     "verification": "real_runtime"
   },
   {
@@ -487,8 +610,10 @@
     "capability": "session.compact",
     "testId": "hermes.session.compact",
     "passed": true,
-    "checkedAt": "2026-08-06",
-    "legacyHostVersion": "0.6.5",
+    "checkedAt": "2026-09-14",
+    "hostVersion": "0.7.0",
+    "kernelVersion": "Hermes Agent v0.21.1 (2026.9.7) · upstream 5eb99eb2 · local 2237be35 (+30500 carried commits)",
+    "runtimeMode": "acp",
     "verification": "real_runtime"
   },
   {
@@ -496,8 +621,10 @@
     "capability": "control.stop",
     "testId": "hermes.control.stop",
     "passed": true,
-    "checkedAt": "2026-06-09",
-    "legacyHostVersion": "0.6.5",
+    "checkedAt": "2026-09-14",
+    "hostVersion": "0.7.0",
+    "kernelVersion": "Hermes Agent v0.21.1 (2026.9.7) · upstream 5eb99eb2 · local 2237be35 (+30500 carried commits)",
+    "runtimeMode": "acp",
     "verification": "real_runtime"
   },
   {
@@ -505,8 +632,10 @@
     "capability": "approval.request",
     "testId": "pi.approval.request",
     "passed": true,
-    "checkedAt": "2026-06-09",
-    "legacyHostVersion": "0.6.5",
+    "checkedAt": "2026-09-14",
+    "hostVersion": "0.7.0",
+    "kernelVersion": "0.85.1",
+    "runtimeMode": "sdk",
     "verification": "real_runtime"
   },
   {
@@ -514,8 +643,10 @@
     "capability": "control.stop",
     "testId": "pi.control.stop",
     "passed": true,
-    "checkedAt": "2026-08-06",
-    "legacyHostVersion": "0.6.5",
+    "checkedAt": "2026-09-14",
+    "hostVersion": "0.7.0",
+    "kernelVersion": "0.85.1",
+    "runtimeMode": "sdk",
     "verification": "real_runtime"
   },
   {
@@ -523,8 +654,10 @@
     "capability": "tools.parallelCalls",
     "testId": "pi.tools.parallelCalls",
     "passed": true,
-    "checkedAt": "2026-06-09",
-    "legacyHostVersion": "0.6.5",
+    "checkedAt": "2026-09-14",
+    "hostVersion": "0.7.0",
+    "kernelVersion": "0.85.1",
+    "runtimeMode": "sdk",
     "verification": "real_runtime"
   },
   {
@@ -532,8 +665,13 @@
     "capability": "response.speed",
     "testId": "codex.response.speed",
     "passed": true,
-    "checkedAt": "2026-06-09",
-    "legacyHostVersion": "0.6.5",
+    "checkedAt": "2026-09-14",
+    "hostVersion": "0.7.0",
+    "kernelVersion": "codex-cli 0.154.0-alpha.6.2",
+    "runtimeMode": "sdk",
+    "provider": {
+      "kind": "native"
+    },
     "verification": "real_runtime"
   },
   {
@@ -541,8 +679,10 @@
     "capability": "control.steer",
     "testId": "codex.control.steer",
     "passed": true,
-    "checkedAt": "2026-06-09",
-    "legacyHostVersion": "0.6.5",
+    "checkedAt": "2026-09-14",
+    "hostVersion": "0.7.0",
+    "kernelVersion": "codex-cli 0.154.0-alpha.6.2",
+    "runtimeMode": "sdk",
     "verification": "real_runtime"
   },
   {
@@ -550,8 +690,10 @@
     "capability": "session.goal",
     "testId": "codex.session.goal",
     "passed": true,
-    "checkedAt": "2026-06-09",
-    "legacyHostVersion": "0.6.5",
+    "checkedAt": "2026-09-14",
+    "hostVersion": "0.7.0",
+    "kernelVersion": "codex-cli 0.154.0-alpha.6.2",
+    "runtimeMode": "sdk",
     "verification": "real_runtime"
   },
   {
@@ -559,8 +701,14 @@
     "capability": "media.input",
     "testId": "claude-code.media.input",
     "passed": true,
-    "checkedAt": "2026-07-20",
-    "legacyHostVersion": "0.6.5",
+    "checkedAt": "2026-09-14",
+    "hostVersion": "0.7.0",
+    "kernelVersion": "2.1.263 (Claude Code)",
+    "runtimeMode": "sdk",
+    "provider": {
+      "kind": "anthropic-compatible",
+      "model": "deepseek-v4-flash"
+    },
     "verification": "real_runtime"
   },
   {
@@ -568,8 +716,13 @@
     "capability": "media.input",
     "testId": "opencode.media.input",
     "passed": true,
-    "checkedAt": "2026-07-20",
-    "legacyHostVersion": "0.6.5",
+    "checkedAt": "2026-09-14",
+    "hostVersion": "0.7.0",
+    "kernelVersion": "1.18.29",
+    "runtimeMode": "acp",
+    "provider": {
+      "kind": "native"
+    },
     "verification": "real_runtime"
   },
   {
@@ -577,8 +730,13 @@
     "capability": "media.input",
     "testId": "kimi.media.input",
     "passed": true,
-    "checkedAt": "2026-07-20",
-    "legacyHostVersion": "0.6.5",
+    "checkedAt": "2026-09-14",
+    "hostVersion": "0.7.0",
+    "kernelVersion": "0.41.0",
+    "runtimeMode": "acp",
+    "provider": {
+      "kind": "native"
+    },
     "verification": "real_runtime"
   },
   {
@@ -586,8 +744,10 @@
     "capability": "session.compact",
     "testId": "openclaw.session.compact",
     "passed": true,
-    "checkedAt": "2026-07-20",
-    "legacyHostVersion": "0.6.5",
+    "checkedAt": "2026-09-14",
+    "hostVersion": "0.7.0",
+    "kernelVersion": "2026.9.2",
+    "runtimeMode": "gateway",
     "verification": "real_runtime"
   },
   {
@@ -595,8 +755,10 @@
     "capability": "session.compact",
     "testId": "kimi.session.compact",
     "passed": true,
-    "checkedAt": "2026-07-20",
-    "legacyHostVersion": "0.6.5",
+    "checkedAt": "2026-09-14",
+    "hostVersion": "0.7.0",
+    "kernelVersion": "0.41.0",
+    "runtimeMode": "acp",
     "verification": "real_runtime"
   },
   {
@@ -604,8 +766,10 @@
     "capability": "message.streamText",
     "testId": "hermes.message.streamText",
     "passed": true,
-    "checkedAt": "2026-08-06",
-    "legacyHostVersion": "0.6.5",
+    "checkedAt": "2026-09-14",
+    "hostVersion": "0.7.0",
+    "kernelVersion": "Hermes Agent v0.21.1 (2026.9.7) · upstream 5eb99eb2 · local 2237be35 (+30500 carried commits)",
+    "runtimeMode": "acp",
     "verification": "real_runtime"
   },
   {
@@ -613,8 +777,10 @@
     "capability": "turn.lifecycle",
     "testId": "hermes.turn.lifecycle",
     "passed": true,
-    "checkedAt": "2026-08-06",
-    "legacyHostVersion": "0.6.5",
+    "checkedAt": "2026-09-14",
+    "hostVersion": "0.7.0",
+    "kernelVersion": "Hermes Agent v0.21.1 (2026.9.7) · upstream 5eb99eb2 · local 2237be35 (+30500 carried commits)",
+    "runtimeMode": "acp",
     "verification": "real_runtime"
   },
   {
@@ -622,8 +788,14 @@
     "capability": "diagnostics.usage",
     "testId": "hermes.diagnostics.usage",
     "passed": true,
-    "checkedAt": "2026-08-06",
-    "legacyHostVersion": "0.6.5",
+    "checkedAt": "2026-09-14",
+    "hostVersion": "0.7.0",
+    "kernelVersion": "Hermes Agent v0.21.1 (2026.9.7) · upstream 5eb99eb2 · local 2237be35 (+30500 carried commits)",
+    "runtimeMode": "acp",
+    "provider": {
+      "kind": "anthropic-compatible",
+      "model": "deepseek-v4-flash"
+    },
     "verification": "real_runtime"
   },
   {
@@ -631,8 +803,10 @@
     "capability": "turn.lifecycle",
     "testId": "pi.turn.lifecycle",
     "passed": true,
-    "checkedAt": "2026-08-06",
-    "legacyHostVersion": "0.6.5",
+    "checkedAt": "2026-09-14",
+    "hostVersion": "0.7.0",
+    "kernelVersion": "0.85.1",
+    "runtimeMode": "sdk",
     "verification": "real_runtime"
   },
   {
@@ -640,8 +814,14 @@
     "capability": "media.input",
     "testId": "pi.media.input",
     "passed": true,
-    "checkedAt": "2026-07-20",
-    "legacyHostVersion": "0.6.5",
+    "checkedAt": "2026-09-14",
+    "hostVersion": "0.7.0",
+    "kernelVersion": "0.85.1",
+    "runtimeMode": "sdk",
+    "provider": {
+      "kind": "anthropic-compatible",
+      "model": "deepseek-v4-flash"
+    },
     "verification": "real_runtime"
   },
   {
@@ -649,8 +829,8 @@
     "capability": "session.compact",
     "testId": "pi.session.compact",
     "passed": true,
-    "checkedAt": "2026-09-08",
-    "hostVersion": "0.6.6",
+    "checkedAt": "2026-09-14",
+    "hostVersion": "0.7.0",
     "kernelVersion": "0.85.1",
     "runtimeMode": "sdk",
     "verification": "real_runtime"
@@ -660,8 +840,10 @@
     "capability": "session.compact",
     "testId": "claude-code.session.compact",
     "passed": true,
-    "checkedAt": "2026-07-20",
-    "legacyHostVersion": "0.6.5",
+    "checkedAt": "2026-09-14",
+    "hostVersion": "0.7.0",
+    "kernelVersion": "2.1.263 (Claude Code)",
+    "runtimeMode": "sdk",
     "verification": "real_runtime"
   },
   {
@@ -669,8 +851,14 @@
     "capability": "diagnostics.usage",
     "testId": "openclaw.diagnostics.usage",
     "passed": true,
-    "checkedAt": "2026-07-20",
-    "legacyHostVersion": "0.6.5",
+    "checkedAt": "2026-09-14",
+    "hostVersion": "0.7.0",
+    "kernelVersion": "2026.9.2",
+    "runtimeMode": "gateway",
+    "provider": {
+      "kind": "native",
+      "model": "custom-ai-t8star-cn/claude-opus-4-6"
+    },
     "verification": "real_runtime"
   },
   {
@@ -678,8 +866,13 @@
     "capability": "reasoning.summary",
     "testId": "codex.reasoning.summary",
     "passed": true,
-    "checkedAt": "2026-07-20",
-    "legacyHostVersion": "0.6.5",
+    "checkedAt": "2026-09-14",
+    "hostVersion": "0.7.0",
+    "kernelVersion": "codex-cli 0.154.0-alpha.6.2",
+    "runtimeMode": "sdk",
+    "provider": {
+      "kind": "native"
+    },
     "verification": "real_runtime"
   },
   {
@@ -687,8 +880,13 @@
     "capability": "reasoning.nativeText",
     "testId": "kimi.reasoning.nativeText",
     "passed": true,
-    "checkedAt": "2026-08-05",
-    "legacyHostVersion": "0.6.5",
+    "checkedAt": "2026-09-14",
+    "hostVersion": "0.7.0",
+    "kernelVersion": "0.41.0",
+    "runtimeMode": "acp",
+    "provider": {
+      "kind": "native"
+    },
     "verification": "real_runtime"
   },
   {
@@ -696,8 +894,13 @@
     "capability": "reasoning.nativeText",
     "testId": "opencode.reasoning.nativeText",
     "passed": true,
-    "checkedAt": "2026-08-05",
-    "legacyHostVersion": "0.6.5",
+    "checkedAt": "2026-09-14",
+    "hostVersion": "0.7.0",
+    "kernelVersion": "1.18.29",
+    "runtimeMode": "acp",
+    "provider": {
+      "kind": "native"
+    },
     "verification": "real_runtime"
   },
   {
@@ -705,12 +908,12 @@
     "capability": "diagnostics.usage",
     "testId": "pi.diagnostics.usage",
     "passed": true,
-    "checkedAt": "2026-09-08",
-    "hostVersion": "0.6.6",
+    "checkedAt": "2026-09-14",
+    "hostVersion": "0.7.0",
     "kernelVersion": "0.85.1",
     "runtimeMode": "sdk",
     "provider": {
-      "kind": "openai-compatible",
+      "kind": "anthropic-compatible",
       "model": "deepseek-v4-flash"
     },
     "verification": "real_runtime"
@@ -720,8 +923,14 @@
     "capability": "reasoning.nativeText",
     "testId": "pi.reasoning.nativeText",
     "passed": true,
-    "checkedAt": "2026-08-06",
-    "legacyHostVersion": "0.6.5",
+    "checkedAt": "2026-09-14",
+    "hostVersion": "0.7.0",
+    "kernelVersion": "0.85.1",
+    "runtimeMode": "sdk",
+    "provider": {
+      "kind": "anthropic-compatible",
+      "model": "deepseek-v4-flash"
+    },
     "verification": "real_runtime"
   },
   {
@@ -729,8 +938,14 @@
     "capability": "reasoning.nativeText",
     "testId": "claude-code.reasoning.nativeText",
     "passed": true,
-    "checkedAt": "2026-08-06",
-    "legacyHostVersion": "0.6.5",
+    "checkedAt": "2026-09-14",
+    "hostVersion": "0.7.0",
+    "kernelVersion": "2.1.263 (Claude Code)",
+    "runtimeMode": "sdk",
+    "provider": {
+      "kind": "anthropic-compatible",
+      "model": "deepseek-v4-flash"
+    },
     "verification": "real_runtime"
   },
   {
@@ -738,8 +953,14 @@
     "capability": "reasoning.nativeText",
     "testId": "hermes.reasoning.nativeText",
     "passed": true,
-    "checkedAt": "2026-08-06",
-    "legacyHostVersion": "0.6.5",
+    "checkedAt": "2026-09-14",
+    "hostVersion": "0.7.0",
+    "kernelVersion": "Hermes Agent v0.21.1 (2026.9.7) · upstream 5eb99eb2 · local 2237be35 (+30500 carried commits)",
+    "runtimeMode": "acp",
+    "provider": {
+      "kind": "anthropic-compatible",
+      "model": "deepseek-v4-flash"
+    },
     "verification": "real_runtime"
   },
   {
@@ -747,9 +968,9 @@
     "capability": "tools.hostTool",
     "testId": "kimi.tools.hostTool",
     "passed": true,
-    "checkedAt": "2026-08-31",
-    "hostVersion": "0.6.5",
-    "kernelVersion": "0.36.1",
+    "checkedAt": "2026-09-14",
+    "hostVersion": "0.7.0",
+    "kernelVersion": "0.41.0",
     "runtimeMode": "acp",
     "verification": "real_runtime"
   },
@@ -758,8 +979,10 @@
     "capability": "tools.mcpServers",
     "testId": "kimi.tools.mcpServers",
     "passed": true,
-    "checkedAt": "2026-08-14",
-    "legacyHostVersion": "0.6.5",
+    "checkedAt": "2026-09-14",
+    "hostVersion": "0.7.0",
+    "kernelVersion": "0.41.0",
+    "runtimeMode": "acp",
     "verification": "real_runtime"
   },
   {
@@ -767,8 +990,8 @@
     "capability": "tool.progress",
     "testId": "pi.tool.progress",
     "passed": true,
-    "checkedAt": "2026-09-08",
-    "hostVersion": "0.6.6",
+    "checkedAt": "2026-09-14",
+    "hostVersion": "0.7.0",
     "kernelVersion": "0.85.1",
     "runtimeMode": "sdk",
     "verification": "real_runtime"
@@ -778,8 +1001,8 @@
     "capability": "tools.nativeTool",
     "testId": "pi.tools.nativeTool",
     "passed": true,
-    "checkedAt": "2026-09-08",
-    "hostVersion": "0.6.6",
+    "checkedAt": "2026-09-14",
+    "hostVersion": "0.7.0",
     "kernelVersion": "0.85.1",
     "runtimeMode": "sdk",
     "verification": "real_runtime"
