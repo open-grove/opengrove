@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
-import { queryWindowsCommand, refreshWindowsPath } from "../environment/windows-discovery.js";
+import { queryWindowsCommand, refreshWindowsPath, refreshWindowsPathAsync } from "../environment/windows-discovery.js";
 import { commandProbe } from "../kernel/discovery.js";
 import { buildCodexAppServerEnv } from "../runtime/codex/app-server-client.js";
 import { windowsAppCodexCandidates } from "../runtime/codex/windows-app-discovery.js";
@@ -212,7 +212,7 @@ test("does not query Windows on macOS or Linux", () => {
 
 test("system Windows PowerShell returns UTF-8 and the actual registry/package queries execute", {
   skip: process.platform !== "win32",
-}, (t) => {
+}, async (t) => {
   const warnings = t.mock.method(console, "warn", () => {});
   const output = queryWindowsCommand(
     "powershell.exe",
@@ -228,6 +228,8 @@ test("system Windows PowerShell returns UTF-8 and the actual registry/package qu
   assert.equal(output?.trim(), "中文 用户");
   const refreshed = refreshWindowsPath({ ...process.env, PATH: "" });
   assert.ok(refreshed.PATH?.toLowerCase().includes("system32"));
+  const asyncRefreshed = await refreshWindowsPathAsync({ ...process.env, PATH: "" });
+  assert.ok(asyncRefreshed.PATH?.toLowerCase().includes("system32"));
   assert.ok(Array.isArray(windowsAppCodexCandidates(process.env)));
   assert.equal(warnings.mock.callCount(), 0);
 });

@@ -2,7 +2,7 @@ import { refreshClaudeCodeLocalRouteProfile } from "../kernel/adapters/claude-co
 import { randomUUID } from "node:crypto";
 import crossSpawn from "cross-spawn";
 import { existsSync, readFileSync, rmSync } from "node:fs";
-import { refreshWindowsPath } from "../environment/windows-discovery.js";
+import { refreshWindowsPath, refreshWindowsPathAsync } from "../environment/windows-discovery.js";
 import { applyKernelProxyEnv, resolveKernelProxySettings } from "../runtime/kernel-proxy.js";
 import { resolveCommandInvocation, resolveCommandPath } from "../kernel/discovery.js";
 import type { BridgeKernelId, BridgeProviderProfile, BridgeState } from "./bridge-types.js";
@@ -242,7 +242,7 @@ export function startKernelLoginAction(
   const invocation = resolveCommandInvocation(command, args, { environment: process.env, wrapWindowsScript: false });
   const child = crossSpawn(invocation.command, invocation.args, {
     cwd: process.cwd(),
-    env: kernelLoginEnvironment(state, kernelId),
+    env: refreshWindowsPath(kernelLoginEnvironment(state, kernelId)),
     stdio: ["ignore", "pipe", "pipe"],
     windowsHide: true,
   });
@@ -305,7 +305,8 @@ async function probeNativeLoginStatus(
   args: string[],
 ): Promise<BridgeKernelLoginStatus> {
   try {
-    const result = await runBoundedCommand(command, args, kernelLoginEnvironment(state, kernelId), STATUS_TIMEOUT_MS);
+    const environment = await refreshWindowsPathAsync(kernelLoginEnvironment(state, kernelId));
+    const result = await runBoundedCommand(command, args, environment, STATUS_TIMEOUT_MS);
     if (kernelId === "codex") {
       const statusText = `${result.stdout}\n${result.stderr}`;
       return result.exitCode === 0 && /logged in/i.test(statusText) && !/api key/i.test(statusText)
@@ -324,10 +325,7 @@ function kernelLoginEnvironment(state: BridgeState, kernelId: BridgeKernelId): N
     ...kernelPathEnv(state.settings, kernelId),
   };
   for (const key of accountLoginExcludedCredentialKeys(kernelId)) env[key] = undefined;
-  return applyKernelProxyEnv(
-    refreshWindowsPath(env),
-    resolveKernelProxySettings(state.settings.kernelProxy, process.env),
-  );
+  return applyKernelProxyEnv(env, resolveKernelProxySettings(state.settings.kernelProxy, process.env));
 }
 
 function kernelLoginTerminalEnvironment(state: BridgeState, kernelId: BridgeKernelId): NodeJS.ProcessEnv {

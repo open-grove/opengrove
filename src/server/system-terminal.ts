@@ -48,7 +48,7 @@ export function launchSystemTerminalCommand(
         "-FilePath",
         powershellQuote("powershell.exe"),
         "-ArgumentList",
-        `@(${["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", scriptPath].map(powershellQuote).join(",")})`,
+        `@(${["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", `"${scriptPath}"`].map(powershellQuote).join(",")})`,
       ].join(" ");
       const encoded = Buffer.from(startCommand, "utf16le").toString("base64");
       return {
@@ -83,7 +83,11 @@ export function systemTerminalScript(
   resultPath: string,
   platform: NodeJS.Platform = process.platform,
 ): string {
-  return platform === "win32" ? powershellTerminalScript(input, resultPath) : posixTerminalScript(input, resultPath);
+  // Windows PowerShell 5.1 otherwise decodes UTF-8 scripts using the legacy
+  // system code page, corrupting non-ASCII executable and user-directory paths.
+  return platform === "win32"
+    ? `\uFEFF${powershellTerminalScript(input, resultPath)}`
+    : posixTerminalScript(input, resultPath);
 }
 
 export function cleanupStaleSystemTerminalRoots(options: { root?: string; now?: number; maxAgeMs: number }): void {

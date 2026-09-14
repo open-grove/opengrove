@@ -1,4 +1,4 @@
-import { spawnSync } from "node:child_process";
+import { execFile, spawnSync } from "node:child_process";
 import { join } from "node:path";
 
 export type WindowsCommandQuery = (
@@ -31,12 +31,39 @@ export function refreshWindowsPath(
 ): NodeJS.ProcessEnv {
   if ((probe.platform ?? process.platform) !== "win32") return environment;
   const query = probe.query ?? queryWindowsCommand;
-  const paths = [windowsEnvironmentValue(environment, "PATH") ?? ""];
   const output = query(
     "powershell.exe",
     ["-NoLogo", "-NoProfile", "-NonInteractive", "-Command", REGISTRY_PATH_QUERY],
     environment,
   );
+  return mergeWindowsPath(environment, output);
+}
+
+/** Login status probes must not block the Host while Windows reads its registry. */
+export async function refreshWindowsPathAsync(environment: NodeJS.ProcessEnv): Promise<NodeJS.ProcessEnv> {
+  if (process.platform !== "win32") return environment;
+  const command = windowsPowerShellCommand(environment);
+  if (!command) return mergeWindowsPath(environment, undefined);
+  const output = await new Promise<string | undefined>((resolve) => {
+    execFile(
+      command,
+      ["-NoLogo", "-NoProfile", "-NonInteractive", "-Command", REGISTRY_PATH_QUERY],
+      { env: environment, encoding: "utf8", timeout: 5_000, maxBuffer: 256 * 1024, windowsHide: true },
+      (error, stdout) => {
+        if (error) {
+          console.warn(`[windows-discovery] powershell.exe probe failed: ${error.message}`);
+          resolve(undefined);
+        } else {
+          resolve(stdout);
+        }
+      },
+    );
+  });
+  return mergeWindowsPath(environment, output);
+}
+
+function mergeWindowsPath(environment: NodeJS.ProcessEnv, output: string | undefined): NodeJS.ProcessEnv {
+  const paths = [windowsEnvironmentValue(environment, "PATH") ?? ""];
   if (output?.trim()) {
     try {
       const values: unknown = JSON.parse(output.replace(/^\uFEFF/, ""));
@@ -74,10 +101,8 @@ export function windowsEnvironmentValue(environment: NodeJS.ProcessEnv, name: st
 
 /** Fixed system executables and bounded probes; never resolve helpers from a project PATH. */
 export const queryWindowsCommand: WindowsCommandQuery = (executable, args, environment) => {
-  const systemRoot =
-    windowsEnvironmentValue(environment, "SystemRoot") || windowsEnvironmentValue(environment, "WINDIR");
-  if (!systemRoot) return undefined;
-  const command = join(systemRoot, "System32", "WindowsPowerShell", "v1.0", executable);
+  const command = windowsPowerShellCommand(environment);
+  if (!command) return undefined;
   const result = spawnSync(command, args, {
     env: environment,
     encoding: "utf8",
@@ -96,3 +121,9 @@ export const queryWindowsCommand: WindowsCommandQuery = (executable, args, envir
   }
   return result.stdout;
 };
+
+function windowsPowerShellCommand(environment: NodeJS.ProcessEnv): string | undefined {
+  const systemRoot =
+    windowsEnvironmentValue(environment, "SystemRoot") || windowsEnvironmentValue(environment, "WINDIR");
+  return systemRoot ? join(systemRoot, "System32", "WindowsPowerShell", "v1.0", "powershell.exe") : undefined;
+}

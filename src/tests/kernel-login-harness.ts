@@ -28,7 +28,7 @@ import {
 import { cleanupStaleSystemTerminalRoots, systemTerminalScript } from "../server/system-terminal.js";
 
 async function main(): Promise<void> {
-  const root = mkdtempSync(join(tmpdir(), "opengrove-kernel-login-"));
+  const root = mkdtempSync(join(tmpdir(), "opengrove-kernel-login-中文 用户-"));
   try {
     await withEnv(
       {
