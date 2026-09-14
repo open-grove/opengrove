@@ -2475,6 +2475,880 @@
         }
       }
     },
+    "/apps/{appId}/website": {
+      "get": {
+        "operationId": "app.website.get",
+        "summary": "Inspect an App website",
+        "description": "Inspect browser output, review freshness, and the currently published website.",
+        "tags": ["app"],
+        "x-opengrove-group": "app",
+        "x-opengrove-resource": "website",
+        "x-opengrove-risk": "read",
+        "parameters": [
+          {
+            "name": "appId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppWebsiteStateResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The website operation could not be completed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppWebsiteError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The website operation could not be completed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppWebsiteError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The website operation could not be completed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppWebsiteError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The website operation could not be completed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppWebsiteError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The website operation could not be completed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppWebsiteError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "The website operation could not be completed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppWebsiteError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The website operation could not be completed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppWebsiteError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The website operation could not be completed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppWebsiteError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The website operation could not be completed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppWebsiteError"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "The website operation could not be completed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppWebsiteError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The website operation could not be completed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppWebsiteError"
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "The website operation could not be completed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppWebsiteError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/apps/{appId}/website/prepare": {
+      "post": {
+        "operationId": "app.website.prepare",
+        "summary": "Prepare an App website",
+        "description": "Create a browser publication configuration when possible and run deterministic checks. Existing configuration is preserved.",
+        "tags": ["app"],
+        "x-opengrove-group": "app",
+        "x-opengrove-resource": "website",
+        "x-opengrove-risk": "write",
+        "parameters": [
+          {
+            "name": "appId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppWebsiteStateResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The website operation could not be completed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppWebsiteError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The website operation could not be completed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppWebsiteError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The website operation could not be completed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppWebsiteError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The website operation could not be completed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppWebsiteError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The website operation could not be completed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppWebsiteError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "The website operation could not be completed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppWebsiteError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The website operation could not be completed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppWebsiteError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The website operation could not be completed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppWebsiteError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The website operation could not be completed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppWebsiteError"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "The website operation could not be completed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppWebsiteError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The website operation could not be completed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppWebsiteError"
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "The website operation could not be completed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppWebsiteError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/apps/{appId}/website/audience": {
+      "put": {
+        "operationId": "app.website.configure",
+        "summary": "Set website audience",
+        "description": "Set the website audience independently of App Store visibility. Changing it requires a fresh review.",
+        "tags": ["app"],
+        "x-opengrove-group": "app",
+        "x-opengrove-resource": "website",
+        "x-opengrove-risk": "write",
+        "parameters": [
+          {
+            "name": "appId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "object",
+                "properties": {
+                  "audience": {
+                    "oneOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "mode": {
+                            "type": "string",
+                            "const": "public"
+                          }
+                        },
+                        "required": ["mode"],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "mode": {
+                            "type": "string",
+                            "const": "authenticated"
+                          }
+                        },
+                        "required": ["mode"],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "mode": {
+                            "type": "string",
+                            "const": "roles"
+                          },
+                          "roles": {
+                            "minItems": 1,
+                            "maxItems": 32,
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "pattern": "^[a-z][a-z0-9_.:-]{0,63}$"
+                            }
+                          }
+                        },
+                        "required": ["mode", "roles"],
+                        "additionalProperties": false
+                      }
+                    ]
+                  }
+                },
+                "required": ["audience"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppWebsiteStateResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The website operation could not be completed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppWebsiteError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The website operation could not be completed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppWebsiteError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The website operation could not be completed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppWebsiteError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The website operation could not be completed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppWebsiteError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The website operation could not be completed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppWebsiteError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "The website operation could not be completed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppWebsiteError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The website operation could not be completed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppWebsiteError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The website operation could not be completed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppWebsiteError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The website operation could not be completed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppWebsiteError"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "The website operation could not be completed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppWebsiteError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The website operation could not be completed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppWebsiteError"
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "The website operation could not be completed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppWebsiteError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/apps/{appId}/website/publish": {
+      "post": {
+        "operationId": "app.website.publish",
+        "summary": "Publish an App website",
+        "description": "Publish the exact reviewed browser artifact and atomically replace the expected current version.",
+        "tags": ["app"],
+        "x-opengrove-group": "app",
+        "x-opengrove-resource": "website",
+        "x-opengrove-risk": "high-risk-write",
+        "parameters": [
+          {
+            "name": "appId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "object",
+                "properties": {
+                  "artifactSha256": {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  "expectedSha256": {
+                    "type": "string",
+                    "pattern": "^(?:[a-f0-9]{64})?$"
+                  }
+                },
+                "required": ["artifactSha256", "expectedSha256"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppWebsitePublishResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The website operation could not be completed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppWebsiteError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The website operation could not be completed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppWebsiteError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The website operation could not be completed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppWebsiteError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The website operation could not be completed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppWebsiteError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The website operation could not be completed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppWebsiteError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "The website operation could not be completed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppWebsiteError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The website operation could not be completed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppWebsiteError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The website operation could not be completed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppWebsiteError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The website operation could not be completed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppWebsiteError"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "The website operation could not be completed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppWebsiteError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The website operation could not be completed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppWebsiteError"
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "The website operation could not be completed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppWebsiteError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/apps/{appId}/website/activate": {
+      "post": {
+        "operationId": "app.website.activate",
+        "summary": "Restore a published website version",
+        "description": "Atomically activate a previously accepted immutable website version, including its audience and permissions.",
+        "tags": ["app"],
+        "x-opengrove-group": "app",
+        "x-opengrove-resource": "website",
+        "x-opengrove-risk": "high-risk-write",
+        "parameters": [
+          {
+            "name": "appId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "object",
+                "properties": {
+                  "sha256": {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  "expectedSha256": {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{64}$"
+                  }
+                },
+                "required": ["sha256", "expectedSha256"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppWebsitePublishResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The website operation could not be completed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppWebsiteError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The website operation could not be completed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppWebsiteError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The website operation could not be completed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppWebsiteError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The website operation could not be completed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppWebsiteError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The website operation could not be completed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppWebsiteError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "The website operation could not be completed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppWebsiteError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The website operation could not be completed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppWebsiteError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The website operation could not be completed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppWebsiteError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The website operation could not be completed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppWebsiteError"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "The website operation could not be completed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppWebsiteError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The website operation could not be completed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppWebsiteError"
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "The website operation could not be completed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppWebsiteError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/rooms/{roomId}/messages": {
       "post": {
         "operationId": "room.message.create",
@@ -3707,6 +4581,324 @@
           }
         },
         "required": ["ok", "progress"],
+        "additionalProperties": false
+      },
+      "AppWebsiteStateResponse": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "const": true
+          },
+          "website": {
+            "type": "object",
+            "properties": {
+              "inspection": {
+                "type": "object",
+                "properties": {
+                  "ready": {
+                    "type": "boolean"
+                  },
+                  "config": {
+                    "type": "object",
+                    "properties": {
+                      "schemaVersion": {
+                        "type": "number",
+                        "const": 1
+                      },
+                      "appId": {
+                        "type": "string",
+                        "pattern": "^[a-z0-9][a-z0-9._:-]{0,127}$"
+                      },
+                      "title": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 160
+                      },
+                      "mode": {
+                        "type": "string",
+                        "enum": ["static", "http"]
+                      },
+                      "output": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 240
+                      },
+                      "entry": {
+                        "default": "index.html",
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 240
+                      },
+                      "audience": {
+                        "oneOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "mode": {
+                                "type": "string",
+                                "const": "public"
+                              }
+                            },
+                            "required": ["mode"],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "mode": {
+                                "type": "string",
+                                "const": "authenticated"
+                              }
+                            },
+                            "required": ["mode"],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "mode": {
+                                "type": "string",
+                                "const": "roles"
+                              },
+                              "roles": {
+                                "minItems": 1,
+                                "maxItems": 32,
+                                "type": "array",
+                                "items": {
+                                  "type": "string",
+                                  "pattern": "^[a-z][a-z0-9_.:-]{0,63}$"
+                                }
+                              }
+                            },
+                            "required": ["mode", "roles"],
+                            "additionalProperties": false
+                          }
+                        ]
+                      },
+                      "permissions": {
+                        "maxItems": 10,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "enum": [
+                            "story-seed.read",
+                            "story-seed.write",
+                            "editorial.read",
+                            "editorial.write",
+                            "data.read",
+                            "data.write",
+                            "agreement.read",
+                            "agreement.write",
+                            "production.read",
+                            "production.write"
+                          ]
+                        }
+                      },
+                      "includedFeatures": {
+                        "minItems": 1,
+                        "maxItems": 64,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 240
+                        }
+                      },
+                      "desktopOnlyFeatures": {
+                        "maxItems": 64,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 240
+                        }
+                      }
+                    },
+                    "required": [
+                      "schemaVersion",
+                      "appId",
+                      "title",
+                      "mode",
+                      "output",
+                      "entry",
+                      "audience",
+                      "permissions",
+                      "includedFeatures",
+                      "desktopOnlyFeatures"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "findings": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "path": {
+                          "type": "string"
+                        }
+                      },
+                      "required": ["code"],
+                      "additionalProperties": false
+                    }
+                  },
+                  "fileCount": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "totalBytes": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": ["ready", "findings", "fileCount", "totalBytes"],
+                "additionalProperties": false
+              },
+              "artifactSha256": {
+                "type": "string"
+              },
+              "review": {
+                "type": "object",
+                "properties": {
+                  "artifactSha256": {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  "summary": {
+                    "type": "string",
+                    "minLength": 12,
+                    "maxLength": 4000
+                  },
+                  "checks": {
+                    "minItems": 1,
+                    "maxItems": 32,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 500
+                    }
+                  },
+                  "schemaVersion": {
+                    "type": "number",
+                    "const": 1
+                  },
+                  "reviewedAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                  }
+                },
+                "required": ["artifactSha256", "summary", "checks", "schemaVersion", "reviewedAt"],
+                "additionalProperties": false
+              },
+              "reviewStatus": {
+                "type": "string",
+                "enum": ["required", "stale", "current", "blocked"]
+              },
+              "site": {
+                "type": "object",
+                "properties": {
+                  "appId": {
+                    "type": "string"
+                  },
+                  "host": {
+                    "type": "string"
+                  },
+                  "url": {
+                    "type": "string",
+                    "format": "uri"
+                  },
+                  "sha256": {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  "updatedAt": {
+                    "type": "string"
+                  }
+                },
+                "required": ["appId", "host", "url", "sha256", "updatedAt"],
+                "additionalProperties": false
+              },
+              "remoteError": {
+                "type": "string"
+              },
+              "reviewTarget": {
+                "type": "object",
+                "properties": {
+                  "roomId": {
+                    "type": "string"
+                  },
+                  "memberId": {
+                    "type": "string"
+                  }
+                },
+                "required": ["roomId", "memberId"],
+                "additionalProperties": false
+              }
+            },
+            "required": ["inspection", "reviewStatus"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["ok", "website"],
+        "additionalProperties": false
+      },
+      "AppWebsiteError": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "const": false
+          },
+          "error": {
+            "type": "string"
+          }
+        },
+        "required": ["ok", "error"],
+        "additionalProperties": false
+      },
+      "AppWebsitePublishResponse": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "const": true
+          },
+          "site": {
+            "type": "object",
+            "properties": {
+              "appId": {
+                "type": "string"
+              },
+              "host": {
+                "type": "string"
+              },
+              "url": {
+                "type": "string",
+                "format": "uri"
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "updatedAt": {
+                "type": "string"
+              }
+            },
+            "required": ["appId", "host", "url", "sha256", "updatedAt"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["ok", "site"],
         "additionalProperties": false
       }
     }

@@ -1,3 +1,4 @@
+import { AppWebsitePublishPanel } from "./app-website-publish-panel";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { appReleaseAutomaticRecoveryBudget, appReleaseNeedsAutomaticRecovery } from "#protocol";
@@ -544,6 +545,7 @@ export function AppStorePublishPage(props: {
   };
   return (
     <>
+      {props.canPublish === true ? <AppWebsitePublishPanel key={props.app.id} appId={props.app.id} /> : null}
       <AppStorePublishReleaseEditor
         release={release}
         publishBaseVersion={publishBaseVersion}

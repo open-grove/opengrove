@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { appWebsiteOperationResource } from "./app-websites.js";
 import { appUpdateOperationResource } from "./app-updates.js";
 import { defineHostOperation, defineHostOperationGroup, defineHostOperationResource } from "./operation.js";
 
@@ -349,7 +350,7 @@ export const appOperationGroup = defineHostOperationGroup({
   id: "app",
   title: "Apps",
   description: "Mounted OpenGrove App operations.",
-  resources: [appReleaseOperationResource, appUpdateOperationResource] as const,
+  resources: [appReleaseOperationResource, appUpdateOperationResource, appWebsiteOperationResource] as const,
 });
 
 export type PrepareAppReleaseOperation = typeof prepareAppReleaseOperation;

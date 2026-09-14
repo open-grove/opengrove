@@ -1,0 +1,11 @@
+{
+  "artifact": "eyJzY2hlbWFWZXJzaW9uIjoxLCJjb25maWciOnsic2NoZW1hVmVyc2lvbiI6MSwiYXBwSWQiOiJleGFtcGxlIiwidGl0bGUiOiJFeGFtcGxlIiwibW9kZSI6InN0YXRpYyIsImVudHJ5IjoiaW5kZXguaHRtbCIsImF1ZGllbmNlIjp7Im1vZGUiOiJwdWJsaWMifSwicGVybWlzc2lvbnMiOltdLCJpbmNsdWRlZEZlYXR1cmVzIjpbIkN1cnJlbnQgYnJvd3NlciBwYWdlIl0sImRlc2t0b3BPbmx5RmVhdHVyZXMiOltdfSwiZmlsZXMiOlt7InBhdGgiOiJpbmRleC5odG1sIiwiY29udGVudCI6IlBHZ3hQa2hsYkd4dlBDOW9NVDQ9In1dfQ==",
+  "artifactSha256": "7d69e30ba7a6076c40a44fc5587655aeaad41b16d5afde9749f84a9d75627471",
+  "review": {
+    "schemaVersion": 1,
+    "artifactSha256": "7d69e30ba7a6076c40a44fc5587655aeaad41b16d5afde9749f84a9d75627471",
+    "summary": "Synthetic static fixture checked for transport conformance.",
+    "checks": ["Synthetic fixture; not a production review"],
+    "reviewedAt": "2026-09-14T00:00:00Z"
+  }
+}

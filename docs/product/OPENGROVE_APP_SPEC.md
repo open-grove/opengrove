@@ -975,3 +975,7 @@ When an App import or creation task is complete, the agent must report:
 
 If validation cannot run because a key, model, or external service is missing,
 the missing configuration and reproducible command must be stated explicitly.
+
+## Independent website publication
+
+Apps can publish selected browser functionality as independent websites, with an audience policy separate from Store visibility. Supported functionality, App Builder review, artifact validation, login and rollback are specified in [App websites](APP_WEBSITE_SPEC.md).
