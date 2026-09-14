@@ -37,7 +37,7 @@ class Fixture {
         "-NoProfile",
         "-NonInteractive",
         "-Command",
-        "Add-Type -Path $env.OPENGROVE_TEST_SOURCE -OutputAssembly $env.OPENGROVE_TEST_EXE -OutputType ConsoleApplication",
+        "Add-Type -Path $env:OPENGROVE_TEST_SOURCE -OutputAssembly $env:OPENGROVE_TEST_EXE -OutputType ConsoleApplication",
       ],
       { env: { ...process.env, OPENGROVE_TEST_SOURCE: source, OPENGROVE_TEST_EXE: executable }, timeout: 15_000 },
     );
