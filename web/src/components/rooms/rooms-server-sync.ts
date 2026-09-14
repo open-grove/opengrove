@@ -31,13 +31,13 @@ export function useRoomsServerSync(
     setRooms: Dispatch<SetStateAction<Room[]>>;
     setRoomsHydrated: Dispatch<SetStateAction<boolean>>;
     enabled?: boolean;
-    onSessionRequired?(): void;
+    onSessionRequired?(error: unknown): void;
   },
   sessionKey: string,
 ) {
   function reportSessionRequired(error: unknown): boolean {
     if (!isRoomsSessionRequiredError(error)) return false;
-    input.onSessionRequired?.();
+    input.onSessionRequired?.(error);
     return true;
   }
 

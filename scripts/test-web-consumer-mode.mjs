@@ -13,7 +13,6 @@ const policyPath = join(projectRoot, "web/src/components/sidebar/settings-mode-p
 const desktopPanelPath = join(projectRoot, "web/src/components/sidebar/settings-desktop-panel.tsx");
 const updatePanelPath = join(projectRoot, "web/src/components/sidebar/settings-update-panel.tsx");
 const confirmDialogPath = join(projectRoot, "web/src/components/ui/confirm-dialog.tsx");
-const appNavigationPath = join(projectRoot, "web/src/components/sidebar/app-navigation.tsx");
 const navigationModePolicyPath = join(projectRoot, "web/src/components/sidebar/navigation-mode-policy.ts");
 const settingsSectionsPath = join(projectRoot, "web/src/components/sidebar/settings-sections.ts");
 const require = createRequire(import.meta.url);
@@ -29,7 +28,6 @@ try {
     import { SettingsDesktopPanel } from ${JSON.stringify(desktopPanelPath)};
     import { SettingsUpdatePanel } from ${JSON.stringify(updatePanelPath)};
     import { ConfirmProvider } from ${JSON.stringify(confirmDialogPath)};
-    import { MobileNav } from ${JSON.stringify(appNavigationPath)};
     import { developerOnlyRailSection, developerOnlyView, nativeRailSectionVisible } from ${JSON.stringify(navigationModePolicyPath)};
     import { SETTINGS_SECTIONS } from ${JSON.stringify(settingsSectionsPath)};
 
@@ -112,30 +110,6 @@ try {
     assert.equal(nativeRailSectionVisible("chat", false), false, "consumer mode must keep the kernel console hidden");
     assert.equal(nativeRailSectionVisible("chat", false, true), true, "the direct kernel chat toggle must reveal the kernel conversation independently");
     assert.equal(nativeRailSectionVisible("extensions", false), false, "consumer mode must keep extension management hidden");
-
-    const mobileNavMarkup = renderToStaticMarkup(
-      <MobileNav
-        activeView="app"
-        activeMountedAppId="review-desk"
-        mountedApps={[{
-          id: "app-review-desk",
-          name: "review-desk",
-          title: "评审台",
-          kind: "app",
-          source: {},
-          deployments: [],
-          metadata: { icon: "library" },
-        }]}
-        onSelect={() => {}}
-        onSelectMountedApp={() => {}}
-      />,
-    );
-    assert.match(mobileNavMarkup, /评审台/, "mobile navigation must expose installed Apps");
-    assert.match(
-      mobileNavMarkup,
-      /class="mobile-nav-item active"/,
-      "the selected installed App must be active in mobile navigation",
-    );
 
     export function run() {}
   `,

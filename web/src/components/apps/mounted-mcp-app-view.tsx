@@ -1,3 +1,4 @@
+import { usePaneVisible } from "../shared/adaptive-split-layout";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AppBridge,
@@ -84,7 +85,8 @@ export function MountedMcpAppView(props: {
   active?: boolean;
 }) {
   const { language, t } = useI18n();
-  const active = props.active !== false;
+  const paneVisible = usePaneVisible();
+  const active = props.active !== false && paneVisible;
   const activeRef = useRef(active);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [contract, setContract] = useState<McpAppContract>();

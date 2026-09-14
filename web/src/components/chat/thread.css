@@ -393,22 +393,14 @@
   background: var(--c-surface-hover);
 }
 
-.thread-resource-preview-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: calc(var(--z-modal) + 700);
-  display: grid;
-  place-items: center;
-  padding: 28px;
-  background: var(--c-overlay-scrim);
-}
-
 .thread-resource-preview-panel {
   display: grid;
+  padding: 0;
+  gap: 0;
   grid-template-rows: auto minmax(0, 1fr);
   width: min(980px, 100%);
   height: min(760px, 100%);
-  min-height: 360px;
+  min-height: 0;
   overflow: hidden;
   border: 1px solid var(--c-border);
   border-radius: var(--r-sm);

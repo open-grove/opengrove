@@ -5,6 +5,7 @@ import { ProductIcon } from "../ui/product-icon";
 import { Switch } from "../ui/switch";
 import { Tooltip } from "../ui/tooltip";
 import { RoomMemberAvatar } from "./member-avatar";
+import { RoomMemberName } from "./member-name";
 import { RoomGroupAvatar, isGroveRoomTitle } from "./room-group-avatar";
 import { ROOM_OWNER_MEMBER, memberModelLabel, roomMemberDisplayName, type Room, type RoomMember } from "./rooms-model";
 import "./room-members.css";
@@ -143,12 +144,19 @@ export function RoomSettingsPanel(props: RoomSettingsPanelProps) {
                     </button>
                   </Tooltip>
                 ) : (
-                  <strong>{props.activeRoom.title}</strong>
+                  <strong>
+                    <RoomMemberName
+                      member={props.activeDirectMember ?? undefined}
+                      name={props.activeDirectMember ? undefined : props.activeRoom.title}
+                    />
+                  </strong>
                 )}
                 {props.activeRoom.kind !== "group" ? (
                   <span>
                     {props.activeDirectMember
-                      ? `${props.activeDirectMember.kernel} / ${memberModelLabel(props.activeDirectMember)}`
+                      ? props.activeDirectMember.source === "remote"
+                        ? t("remoteAgent.remoteExecution")
+                        : `${props.activeDirectMember.kernel} / ${memberModelLabel(props.activeDirectMember)}`
                       : t("contacts.directBadge")}
                   </span>
                 ) : null}
@@ -301,7 +309,9 @@ function MemberRows(props: {
             <div key={member.id} className="rooms-member-row" data-administrator={administrator ? "true" : "false"}>
               <RoomMemberAvatar member={member} className="rooms-member-mini-avatar" />
               <div className="rooms-member-row-title">
-                <strong>{displayName}</strong>
+                <strong>
+                  <RoomMemberName member={member} />
+                </strong>
                 {owner ? <span>{t("rooms.groupOwner")}</span> : null}
                 {administrator ? <span>{t("rooms.groupAdministrator")}</span> : null}
               </div>
@@ -393,9 +403,13 @@ function MemberPicker(props: {
             >
               <RoomMemberAvatar member={member} />
               <span>
-                <strong>{roomMemberDisplayName(member)}</strong>
+                <strong>
+                  <RoomMemberName member={member} />
+                </strong>
                 <small>
-                  {member.kernel} / {memberModelLabel(member)}
+                  {member.source === "remote"
+                    ? t("remoteAgent.remoteExecution")
+                    : `${member.kernel} / ${memberModelLabel(member)}`}
                 </small>
               </span>
             </button>

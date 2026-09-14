@@ -32,7 +32,6 @@ import { QRCodeSVG } from "@rc-component/qrcode";
 import { useIconStylePreference } from "../../appearance";
 import type { ExtensionItemRecord, ViewId } from "../../bridge";
 import {
-  MOBILE_APPS,
   RAIL_APPS,
   railSectionForView as catalogRailSectionForView,
   type AppIconName,
@@ -2851,63 +2850,6 @@ function RailSection(props: { title: string; compactTitle?: string; children: Re
       </h2>
       <div className={clsx("app-rail-section-items", styles.sectionItems)}>{props.children}</div>
     </section>
-  );
-}
-
-export function MobileNav(props: {
-  activeView: ViewId;
-  developerMode?: boolean;
-  directKernelChatEnabled?: boolean;
-  activeMountedAppId?: string;
-  mountedApps?: ExtensionItemRecord[];
-  onSelect(view: ViewId): void;
-  onSelectMountedApp?(appId: string): void;
-}) {
-  const { t } = useI18n();
-  const { preference: iconStyle } = useIconStylePreference();
-  const mountedApps = [...(props.mountedApps ?? [])].sort((a, b) => compareLocalizedText(a.title, b.title));
-  return (
-    <nav className="mobile-nav" aria-label={t("app.mobileNav")}>
-      {MOBILE_APPS.filter((item) =>
-        item.view === "chat"
-          ? props.directKernelChatEnabled === true
-          : item.view !== "extensions" || props.developerMode === true,
-      ).map((item) => {
-        return (
-          <button
-            className={clsx("mobile-nav-item", props.activeView === item.view && "active")}
-            key={item.id}
-            type="button"
-            onClick={() => props.onSelect(item.view)}
-          >
-            <RailIcon iconStyle={iconStyle} pixelIcon={item.icon} professionalIcon={PROFESSIONAL_ICONS[item.icon]} />
-            <span>{appNavLabel(item.view, t)}</span>
-          </button>
-        );
-      })}
-      {mountedApps.map((app) => {
-        const icon = mountedAppIcon(app);
-        return (
-          <button
-            className={clsx(
-              "mobile-nav-item",
-              props.activeView === "app" && props.activeMountedAppId === app.name && "active",
-            )}
-            key={`mounted-app-${app.id}`}
-            type="button"
-            onClick={() => props.onSelectMountedApp?.(app.name)}
-          >
-            <AppIdentityIcon
-              icon={icon}
-              input={{ id: app.id, appId: app.name, title: app.title }}
-              size={20}
-              aria-hidden="true"
-            />
-            <span>{app.title}</span>
-          </button>
-        );
-      })}
-    </nav>
   );
 }
 

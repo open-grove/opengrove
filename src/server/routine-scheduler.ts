@@ -138,6 +138,7 @@ export function createRoutineMemberExecutor(state: BridgeState) {
       return Promise.resolve({ ok: false, error: `room_not_found_for_member:${request.memberId}` });
     }
     const member = target.member;
+    if (member.source === "remote") return Promise.resolve({ ok: false, error: "remote_authorization_required" });
     const roomId = target.room.id;
 
     const posted = state.app.rooms.postSystemTargetedMessage({

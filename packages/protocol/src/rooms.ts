@@ -137,6 +137,12 @@ export const createRoomMessageOperation = defineHostOperation({
       description: "The reply parent message does not exist.",
     },
     {
+      status: 409,
+      body: bridgeErrorSchema,
+      description:
+        "The message ID conflicts with an earlier message, or the remote conversation belongs to another account or sender.",
+    },
+    {
       status: 503,
       body: bridgeErrorSchema,
       description: "The authenticated session is temporarily unavailable.",

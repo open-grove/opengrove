@@ -6,6 +6,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { stateIdFor } from "../storage/state-identity.js";
 import { type BridgeState, type LocalBridgeServerOptions } from "./bridge-types.js";
 import { createBridgeState } from "./bridge-state.js";
+import { clearNetworkSession } from "./remote-agents/session.js";
 import { isPublicBridgeRoute, normalizeBridgeApiUrl } from "./api-paths.js";
 import { serveProtectedStaticRoute, servePublicStaticRoute } from "./routes/static.js";
 import { startRoutineScheduler } from "./routine-scheduler.js";
@@ -245,6 +246,7 @@ function attachStoreLifecycle(server: ReturnType<typeof createServer>, state: Br
         await import("./active-runs.js");
       const { disposeBridgeKernelWorkers } = await import("./kernel-lifecycle.js");
       cancelAllActiveBridgeRuns(state);
+      await clearNetworkSession(state, "host_shutdown");
       const remaining = await waitForActiveBridgeRuns(state, shutdownGraceMs());
       if (remaining.size > 0) {
         console.warn("bridge_shutdown_runs_outcome_unknown", { runIds: [...remaining] });

@@ -2295,11 +2295,6 @@ button.withdrawalRecordStat:focus-visible .withdrawalRecordLink {
   .withdrawalQrArea {
     justify-self: center;
   }
-
-  .rail {
-    display: none;
-    padding-top: 0;
-  }
 }
 
 @keyframes railLabelIn {

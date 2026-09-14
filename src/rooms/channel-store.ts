@@ -1,3 +1,4 @@
+import type { RemoteAgentBinding, RemoteRoomTask } from "./remote-agent.js";
 import type { AgentAttachmentContext, JsonObject } from "../core.js";
 import type { KernelCapabilityId } from "../kernel/capabilities/types.js";
 import type { RoomMemberSource, RoomMessageDeliveryKind, RoomMessageSenderType } from "./channel-types.js";
@@ -75,6 +76,7 @@ export interface RoomChannelMember {
   avatarSeed?: string;
   avatarDataUrl?: string;
   source?: RoomMemberSource;
+  remoteAgent?: RemoteAgentBinding;
   sourceLabel?: string;
   visibility?: RoomMemberVisibility;
   publicDescription?: string;
@@ -164,6 +166,7 @@ export interface RoomChannelMessage {
   attachments?: AgentAttachmentContext[];
   duration?: string;
   runId?: string;
+  remoteTask?: RemoteRoomTask;
   parts?: JsonObject[];
   startedAt?: string;
   finishedAt?: string;
@@ -253,9 +256,14 @@ export function isBridgeKernelId(value: string | undefined): value is (typeof BR
   return Boolean(value && (BRIDGE_KERNEL_IDS as readonly string[]).includes(value));
 }
 
-// 一个成员可被编排为 routine/room 执行目标 ⟺ 未禁用、本地来源、内核在 bridge 白名单。
+// Remote members use the network executor; only local members require a native Kernel.
 export function isRunnableRoomAssistantTarget(target: RoomChannelMember): boolean {
-  return !target.disabled && (target.source ?? "local") === "local" && isBridgeKernelId(target.kernel);
+  return (
+    !target.disabled &&
+    (target.source === "remote"
+      ? Boolean(target.remoteAgent)
+      : (target.source ?? "local") === "local" && isBridgeKernelId(target.kernel))
+  );
 }
 
 export function isGroveGuideMember(member: Pick<RoomChannelMember, "id" | "name"> | undefined): boolean {
@@ -620,6 +628,17 @@ export class RoomChannelStore {
   getRoom(roomId: string): RoomChannelRoom | undefined {
     const room = this.rooms.get(roomId);
     return room ? cloneRoom(room) : undefined;
+  }
+
+  /** Copy only pending delivery records, without copying unrelated history or events. */
+  listPendingRemoteMessages(roomId?: string): RoomChannelMessage[] {
+    const buckets = roomId ? [this.messagesByRoom.get(roomId) ?? []] : this.messagesByRoom.values();
+    const pending: RoomChannelMessage[] = [];
+    for (const messages of buckets)
+      for (const message of messages) {
+        if (message.remoteTask?.pending) pending.push(cloneMessage(message));
+      }
+    return pending;
   }
 
   listMessages(

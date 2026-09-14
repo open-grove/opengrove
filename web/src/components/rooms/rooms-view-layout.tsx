@@ -5,6 +5,7 @@ import "./rooms-layout.css";
 import "./rooms-menus.css";
 import "./room-workspace.css";
 import "./room-members.css";
+import { CompactBackButton, type useCompactDetail } from "../shared/compact-list-detail";
 import { useI18n } from "../../i18n";
 import { Dialog, DialogContent, DialogTitle } from "../ui/dialog";
 import { EmptyState } from "../ui/empty-state";
@@ -16,6 +17,7 @@ import { RoomChatSurface } from "./room-chat-surface";
 import { RoomGroupAvatar } from "./room-group-avatar";
 import { RoomHeaderActions } from "./room-header-actions";
 import { RoomMemberAvatar } from "./member-avatar";
+import { RoomMemberName } from "./member-name";
 import { RoomSettingsPanel } from "./room-settings-panel";
 import { RoomSidebar } from "./room-sidebar";
 import { roomMemberDisplayName, type Room, type RoomMember } from "./rooms-model";
@@ -60,6 +62,7 @@ export function RoomsLoadingState() {
 }
 
 export function RoomsActiveLayout(props: {
+  compactDetail: ReturnType<typeof useCompactDetail>;
   activeRoom: Room;
   activeRoomMembers: RoomMember[];
   activeDirectMember?: RoomMember;
@@ -82,14 +85,30 @@ export function RoomsActiveLayout(props: {
 
   return (
     <section
-      className="rooms-view"
-      data-members-open={memberPanelOpen ? "true" : "false"}
+      className={`rooms-view ${props.compactDetail.className}`}
+      data-list-detail={props.compactDetail.compact ? "compact" : "wide"}
+      data-detail-open={String(props.compactDetail.detailOpen)}
+      data-members-open={memberPanelOpen && !props.compactDetail.compact ? "true" : "false"}
       aria-label={t("contacts.messages")}
     >
-      <RoomSidebar {...props.sidebarProps} />
+      <RoomSidebar
+        {...props.sidebarProps}
+        listRef={props.compactDetail.listRef}
+        onClickCapture={props.compactDetail.rememberListTarget}
+        onFocusCapture={props.compactDetail.rememberListTarget}
+        inert={props.compactDetail.compact && props.compactDetail.detailOpen}
+      />
 
-      <section className="room-main-panel">
+      <section
+        className="room-main-panel"
+        ref={props.compactDetail.detailRef}
+        data-detail-panel
+        inert={props.compactDetail.compact && !props.compactDetail.detailOpen}
+      >
         <header className="room-header">
+          {props.compactDetail.compact ? (
+            <CompactBackButton label={t("compact.messages")} onClick={props.compactDetail.showList} />
+          ) : null}
           <div className="room-header-main">
             {activeDirectMember ? (
               <Tooltip content={t("employee.profileSettingsTitle")} side="bottom">
@@ -121,7 +140,12 @@ export function RoomsActiveLayout(props: {
             )}
             <div className="room-header-copy">
               <div className="room-title-row">
-                <h2>{activeDirectMember ? roomMemberDisplayName(activeDirectMember) : activeRoom.title}</h2>
+                <h2>
+                  <RoomMemberName
+                    member={activeDirectMember ?? undefined}
+                    name={activeDirectMember ? undefined : activeRoom.title}
+                  />
+                </h2>
                 {runningRoomMembers.length ? (
                   <span className="room-running-pill">
                     {t("rooms.membersRunning", { names: runningRoomMembers.map(roomMemberDisplayName).join("、") })}
@@ -146,7 +170,20 @@ export function RoomsActiveLayout(props: {
         <RoomChatSurface {...props.chatSurfaceProps} />
       </section>
 
-      <RoomSettingsPanel {...props.settingsPanelProps} />
+      {props.compactDetail.compact ? (
+        <Dialog
+          open={memberPanelOpen}
+          onOpenChange={(open) => {
+            if (!open) props.settingsPanelProps.onClose();
+          }}
+        >
+          <DialogContent className="compact-room-settings" aria-label={t("rooms.groupSettings")}>
+            <RoomSettingsPanel {...props.settingsPanelProps} />
+          </DialogContent>
+        </Dialog>
+      ) : (
+        <RoomSettingsPanel {...props.settingsPanelProps} />
+      )}
       <CreateGroupDialog {...props.createGroupDialogProps} />
       <EmployeeDialog {...props.employeeDialogProps} />
       {props.employeeSettingsDialogProps ? <EmployeeSettingsDialog {...props.employeeSettingsDialogProps} /> : null}
@@ -215,7 +252,9 @@ export function CreateGroupForm(props: CreateGroupDialogProps) {
                 />
                 <RoomMemberAvatar member={member} />
                 <span className="rooms-create-group-member-name">
-                  <strong>{roomMemberDisplayName(member)}</strong>
+                  <strong>
+                    <RoomMemberName member={member} />
+                  </strong>
                 </span>
                 <ProductIcon name="success" size={18} />
               </label>

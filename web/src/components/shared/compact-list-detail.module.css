@@ -1,0 +1,14 @@
+.root[data-list-detail="compact"] {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.root[data-list-detail="compact"] > [data-list-panel],
+.root[data-list-detail="compact"] > [data-detail-panel] {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+.root[data-list-detail="compact"][data-detail-open="true"] > [data-list-panel],
+.root[data-list-detail="compact"][data-detail-open="false"] > [data-detail-panel] {
+  display: none;
+}
