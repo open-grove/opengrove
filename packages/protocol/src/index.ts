@@ -20,3 +20,6 @@ export * from "./host-errors.js";
 export * from "./run-records.js";
 export * from "./interactions.js";
 export * from "./interaction-records.js";
+export * from "./workspace-records.js";
+export * from "./agent-event-records.js";
+export * from "./routine-records.js";

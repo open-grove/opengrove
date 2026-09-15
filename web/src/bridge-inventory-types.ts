@@ -1,10 +1,12 @@
+import type { z } from "zod";
+import type { agentRequestSourceSchema } from "@opengrove/protocol";
 export interface WorkingStateRecord {
-  sessionId: string;
-  taskSummary: string;
-  activeGoal: string;
-  selectedModel: string;
-  activePackId: string;
-  activeSkillId: string;
+  sessionId?: string;
+  taskSummary?: string;
+  activeGoal?: string;
+  selectedModel?: string;
+  activePackId?: string;
+  activeSkillId?: string;
   pinnedArtifactIds: string[];
   workingArtifactIds: string[];
   pendingApprovalIds: string[];
@@ -133,7 +135,7 @@ export interface QuestionRecord {
   status?: string;
   input?: unknown;
   response?: unknown;
-  source?: string;
+  source?: z.infer<typeof agentRequestSourceSchema>;
   [key: string]: unknown;
 }
 

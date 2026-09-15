@@ -81,6 +81,68 @@ test("CLI lists pending approvals and questions with their structured input", as
     assert.equal(question.id, "question-cli");
     assert.deepEqual(question.input, { choices: ["JSON", "Text"] });
     assert.deepEqual(question.source, { type: "host" });
+    liveApp.approvals.restore(
+      ["approve", "reject", "cancel"].map((action) => ({
+        id: `approval-${action}`,
+        kind: "command",
+        title: "Review action",
+        reason: "Fixture",
+        status: "pending",
+        createdAt: at,
+        updatedAt: at,
+      })),
+    );
+    const blocked = await runHostOperationCommand(
+      ["interaction", "approval", "approve", "--approval-id", "approval-approve"],
+      { env },
+    );
+    assert.equal(blocked.exitCode, 10);
+    for (const [action, status] of [
+      ["approve", "approved"],
+      ["reject", "rejected"],
+      ["cancel", "canceled"],
+    ]) {
+      const decision = await runHostOperationCommand(
+        ["interaction", "approval", action!, "--approval-id", `approval-${action}`, "--yes"],
+        { env },
+      );
+      assert.equal(decision.handled, true);
+      assert.equal(decision.exitCode, 0, decision.stderr);
+      const decided = JSON.parse(decision.stdout ?? "null").data;
+      assert.equal(decided.approval.status, status);
+      assert.ok(Array.isArray(decided.runs));
+    }
+    liveApp.questions.restore(
+      ["answer", "decline", "cancel"].map((action) => ({
+        id: `question-${action}`,
+        title: "Choose format",
+        prompt: "Which format?",
+        status: "pending",
+        createdAt: at,
+        updatedAt: at,
+      })),
+    );
+    for (const [action, status] of [
+      ["answer", "answered"],
+      ["decline", "declined"],
+      ["cancel", "canceled"],
+    ]) {
+      const decision = await runHostOperationCommand(
+        ["interaction", "question", action!, "--question-id", `question-${action}`, "--response", '{"choice":"JSON"}'],
+        { env },
+      );
+      assert.equal(decision.handled, true);
+      assert.equal(decision.exitCode, 0, decision.stderr);
+      const decided = JSON.parse(decision.stdout ?? "null").data;
+      assert.equal(decided.question.status, status);
+      assert.deepEqual(decided.question.response, { choice: "JSON" });
+    }
+    const repeated = await runHostOperationCommand(
+      ["interaction", "question", "answer", "--question-id", "question-answer"],
+      { env },
+    );
+    assert.equal(repeated.exitCode, 0, repeated.stderr);
+    assert.equal(JSON.parse(repeated.stdout ?? "null").data.alreadyResolved, true);
   } finally {
     await new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
     await rm(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });

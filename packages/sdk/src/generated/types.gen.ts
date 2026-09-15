@@ -134,6 +134,1353 @@ export type InteractionApprovalListResponse200DefinitionSchema1 =
       [key: string]: InteractionApprovalListResponse200DefinitionSchema1;
     };
 
+export type ApprovalResolution = {
+  ok: true;
+  alreadyResolved?: boolean;
+  questions: Array<{
+    id: string;
+    title: string;
+    createdAt: string;
+    updatedAt: string;
+    input?: ApprovalResolutionDefinitionSchema0;
+    response?: ApprovalResolutionDefinitionSchema1;
+    resume?:
+      | {
+          type: "tool";
+          runId?: string;
+        }
+      | {
+          type: "routine.step";
+          routineId: string;
+          stepId: string;
+          runId: string;
+          stepOutputs?: {
+            [key: string]: ApprovalResolutionDefinitionSchema2;
+          };
+        }
+      | {
+          type: "kernel.native";
+          kernelId: string;
+          runId: string;
+          continuation: "same-loop";
+        };
+    nativeRequestId?: string;
+    deadlineAt?: string;
+    isBlocking?: boolean;
+    autoResolutionMs?: number;
+    prompt: string;
+    status: "pending" | "answered" | "declined" | "canceled";
+    source?:
+      | {
+          type: "kernel.native";
+          kernelId: string;
+        }
+      | {
+          type: "host";
+        }
+      | {
+          type: "unknown";
+        };
+  }>;
+  artifacts: Array<{
+    id: string;
+    type: string;
+    title?: string;
+    status?: string;
+    version?: number;
+    tags: Array<string>;
+    data: {
+      [key: string]: ApprovalResolutionDefinitionSchema2;
+    };
+    assets?: Array<{
+      kind: "image" | "audio" | "video" | "file" | "url" | "text";
+      uri?: string;
+      path?: string;
+      title?: string;
+      mimeType?: string;
+      metadata?: {
+        [key: string]: ApprovalResolutionDefinitionSchema2;
+      };
+    }>;
+    preview?: {
+      title?: string;
+      text?: string;
+      imageUri?: string;
+      mimeType?: string;
+      status?: string;
+    };
+    createdAt: string;
+    updatedAt: string;
+    sourceRefs?: Array<{
+      title?: string;
+      url?: string;
+      locator?: string;
+      quote?: string;
+    }>;
+    parentId?: string;
+    variantOf?: string;
+    derivedFrom?: Array<string>;
+    lineage?: Array<string>;
+    provenance?: {
+      [key: string]: ApprovalResolutionDefinitionSchema2;
+    };
+  }>;
+  workingState: {
+    sessionId?: string;
+    taskSummary?: string;
+    activeGoal?: string;
+    selectedModel?: string;
+    activePackId?: string;
+    activeSkillId?: string;
+    pinnedArtifactIds: Array<string>;
+    workingArtifactIds: Array<string>;
+    pendingApprovalIds: Array<string>;
+    pendingQuestionIds: Array<string>;
+    activeToolCallIds: Array<string>;
+    discoveredSkillIds: Array<string>;
+    discoveredSkillNames: Array<string>;
+    expandedSkillIds: Array<string>;
+    invokedSkills: Array<{
+      skillId: string;
+      skillName: string;
+      title: string;
+      content: string;
+      contentPreview: string;
+      sourcePath: string;
+      source: "bundled" | "project" | "user" | "pack";
+      trust: "trusted" | "untrusted";
+      context: "inline" | "fork";
+      args?: string;
+      allowedTools: Array<string>;
+      model?: string;
+      effort?: string;
+      packId?: string;
+      capabilityId?: string;
+      invokedAt: string;
+      origin: "user" | "model";
+    }>;
+    loadedNestedMemoryPaths: Array<string>;
+    toolSchemaCache: {
+      [key: string]: string;
+    };
+    updatedAt: string;
+  };
+  sessions: Array<{
+    id: string;
+    title?: string;
+    activity?: "browser" | "chat" | "local" | "api" | "computer";
+    status: "active" | "idle" | "archived";
+    createdAt: string;
+    updatedAt: string;
+    activeRunId?: string;
+    latestRunId?: string;
+    runIds: Array<string>;
+    lastUserInput?: string;
+    metadata?: {
+      [key: string]: ApprovalResolutionDefinitionSchema2;
+    };
+  }>;
+  runs: Array<{
+    id: string;
+    sessionId: string;
+    activity: "browser" | "chat" | "local" | "api" | "computer";
+    lifecycle: {
+      taskState:
+        | "TASK_STATE_UNSPECIFIED"
+        | "TASK_STATE_SUBMITTED"
+        | "TASK_STATE_WORKING"
+        | "TASK_STATE_COMPLETED"
+        | "TASK_STATE_FAILED"
+        | "TASK_STATE_CANCELED"
+        | "TASK_STATE_INPUT_REQUIRED"
+        | "TASK_STATE_REJECTED"
+        | "TASK_STATE_AUTH_REQUIRED";
+      activity?: "running" | "reconnecting" | "cancel_pending" | "waiting_on_child";
+      reasonCode?: string;
+      retryable?: boolean;
+      outcomeUnknown?: boolean;
+      childRunId?: string;
+    };
+    input: string;
+    createdAt: string;
+    updatedAt: string;
+    startedAt: string;
+    endedAt?: string;
+    modelId?: string;
+    summary?: string;
+    error?: string;
+    problem?: {
+      incidentId: string;
+      code: string;
+    };
+    pausedAt?: string;
+    resumedAt?: string;
+    pauseReason?: string;
+    lastApprovalId?: string;
+    lastQuestionId?: string;
+    resumeCount: number;
+    approvalIds: Array<string>;
+    questionIds: Array<string>;
+    toolIds: Array<string>;
+    eventCount: number;
+  }>;
+  executions: Array<{
+    id: string;
+    runId: string;
+    sessionId?: string;
+    kind:
+      | "loop"
+      | "model"
+      | "reasoning"
+      | "tool_call"
+      | "approval"
+      | "question"
+      | "planning"
+      | "artifact"
+      | "memory"
+      | "error";
+    /**
+     * The recorded Agent event type.
+     */
+    eventType: string;
+    title: string;
+    at: string;
+    status?: string;
+    toolId?: string;
+    approvalId?: string;
+    questionId?: string;
+    artifactId?: string;
+    data?: {
+      [key: string]: ApprovalResolutionDefinitionSchema2;
+    };
+  }>;
+  approval: {
+    id: string;
+    title: string;
+    createdAt: string;
+    updatedAt: string;
+    input?: ApprovalResolutionDefinitionSchema0;
+    response?: ApprovalResolutionDefinitionSchema1;
+    resume?:
+      | {
+          type: "tool";
+          runId?: string;
+        }
+      | {
+          type: "routine.step";
+          routineId: string;
+          stepId: string;
+          runId: string;
+          stepOutputs?: {
+            [key: string]: ApprovalResolutionDefinitionSchema2;
+          };
+        }
+      | {
+          type: "kernel.native";
+          kernelId: string;
+          runId: string;
+          continuation: "same-loop";
+        };
+    nativeRequestId?: string;
+    deadlineAt?: string;
+    isBlocking?: boolean;
+    autoResolutionMs?: number;
+    kind:
+      | "tool"
+      | "command"
+      | "file_change"
+      | "permission_scope"
+      | "routine_step"
+      | "memory_write"
+      | "browser_action"
+      | "computer_action";
+    reason: string;
+    status: "pending" | "approved" | "rejected" | "canceled";
+    toolId?: string;
+    capabilityId?: string;
+    skillId?: string;
+  };
+  approvals: Array<{
+    id: string;
+    title: string;
+    createdAt: string;
+    updatedAt: string;
+    input?: ApprovalResolutionDefinitionSchema0;
+    response?: ApprovalResolutionDefinitionSchema1;
+    resume?:
+      | {
+          type: "tool";
+          runId?: string;
+        }
+      | {
+          type: "routine.step";
+          routineId: string;
+          stepId: string;
+          runId: string;
+          stepOutputs?: {
+            [key: string]: ApprovalResolutionDefinitionSchema2;
+          };
+        }
+      | {
+          type: "kernel.native";
+          kernelId: string;
+          runId: string;
+          continuation: "same-loop";
+        };
+    nativeRequestId?: string;
+    deadlineAt?: string;
+    isBlocking?: boolean;
+    autoResolutionMs?: number;
+    kind:
+      | "tool"
+      | "command"
+      | "file_change"
+      | "permission_scope"
+      | "routine_step"
+      | "memory_write"
+      | "browser_action"
+      | "computer_action";
+    reason: string;
+    status: "pending" | "approved" | "rejected" | "canceled";
+    toolId?: string;
+    capabilityId?: string;
+    skillId?: string;
+  }>;
+  toolResult?: {
+    ok: boolean;
+    value?: ApprovalResolutionDefinitionSchema3;
+    error?: string;
+    problem?: {
+      incidentId: string;
+      code: string;
+    };
+    sources?: Array<{
+      title?: string;
+      url?: string;
+      locator?: string;
+      quote?: string;
+    }>;
+  };
+  routineResult?: {
+    summary: {
+      id: string;
+      routineId: string;
+      status: "running" | "succeeded" | "failed" | "paused_for_approval";
+      startedAt: string;
+      endedAt?: string;
+      eventCount: number;
+      error?: string;
+      problem?: {
+        incidentId: string;
+        code: string;
+      };
+    };
+    events: Array<
+      | {
+          type: "turn.started";
+          runId: string;
+          at: string;
+        }
+      | {
+          type: "context.assembled";
+          runId: string;
+          context: {
+            id: string;
+            createdAt: string;
+            summary: string;
+            promptBlock: string;
+            items: Array<{
+              id: string;
+              kind:
+                | "page"
+                | "selection"
+                | "attachment"
+                | "computer"
+                | "artifact"
+                | "session"
+                | "execution"
+                | "task"
+                | "knowledge"
+                | "memory"
+                | "routine"
+                | "permission"
+                | "skill";
+              title: string;
+              text: string;
+              source?: {
+                title?: string;
+                url?: string;
+                locator?: string;
+                quote?: string;
+              };
+              score?: number;
+              data?: {
+                [key: string]: ApprovalResolutionDefinitionSchema2;
+              };
+            }>;
+            budget: {
+              maxItems: number;
+              usedItems: number;
+              maxCharacters: number;
+              usedCharacters: number;
+              truncated: boolean;
+            };
+          };
+        }
+      | {
+          type: "compaction.started";
+          runId: string;
+          at: string;
+          reason?: string;
+          item?: ApprovalResolutionDefinitionSchema4;
+        }
+      | {
+          type: "compaction.finished";
+          runId: string;
+          at: string;
+          summary?: string;
+          item?: ApprovalResolutionDefinitionSchema5;
+        }
+      | {
+          type: "model.requested";
+          runId: string;
+          request: {
+            systemPrompt: string;
+            userInput: string;
+            modelId?: string;
+            session?: {
+              provider: string;
+              sessionId: string;
+              persistent: boolean;
+              priorMessageCount: number;
+              priorMessages: Array<{
+                role: "system" | "user" | "assistant" | "tool";
+                content: string;
+                name?: string;
+              }>;
+              nativeSessionId?: string;
+            };
+            messages?: Array<{
+              role: "system" | "user" | "assistant" | "tool";
+              content: string;
+              name?: string;
+            }>;
+            context?: {
+              id: string;
+              createdAt: string;
+              summary: string;
+              promptBlock: string;
+              items: Array<{
+                id: string;
+                kind:
+                  | "page"
+                  | "selection"
+                  | "attachment"
+                  | "computer"
+                  | "artifact"
+                  | "session"
+                  | "execution"
+                  | "task"
+                  | "knowledge"
+                  | "memory"
+                  | "routine"
+                  | "permission"
+                  | "skill";
+                title: string;
+                text: string;
+                source?: {
+                  title?: string;
+                  url?: string;
+                  locator?: string;
+                  quote?: string;
+                };
+                score?: number;
+                data?: {
+                  [key: string]: ApprovalResolutionDefinitionSchema2;
+                };
+              }>;
+              budget: {
+                maxItems: number;
+                usedItems: number;
+                maxCharacters: number;
+                usedCharacters: number;
+                truncated: boolean;
+              };
+            };
+            tools: Array<{
+              id: string;
+              title: string;
+              description: string;
+              activity: "browser" | "chat" | "local" | "api" | "computer";
+              risk: "read" | "write" | "send" | "spend" | "delete";
+              input: {
+                type: "json-schema";
+                schema: {
+                  [key: string]: ApprovalResolutionDefinitionSchema2;
+                };
+              };
+              output?: {
+                type: "json-schema";
+                schema: {
+                  [key: string]: ApprovalResolutionDefinitionSchema2;
+                };
+              };
+              permission: {
+                mode: "allow" | "ask" | "deny";
+                reason: string;
+              };
+              liveness?: {
+                cancellation: "run-signal" | "none";
+                deadlineSource: "kernel-native" | "upstream-service" | "business-rule" | "none";
+                abandonOutcome: "outcome-unknown";
+                terminalConfirmation: "tool-result";
+                cancellationGraceMs?: number;
+              };
+            }>;
+            skills: Array<{
+              id: string;
+              name: string;
+              aliases?: Array<string>;
+              title: string;
+              description: string;
+              whenToUse?: string;
+              format: "markdown-v1" | "markdown-v2";
+              entry: string;
+              skillRoot: string;
+              activities: Array<"browser" | "chat" | "local" | "api" | "computer">;
+              toolIds: Array<string>;
+              memoryHooks: Array<{
+                kind: string;
+                mode: "direct" | "propose" | "ask";
+                reason: string;
+              }>;
+              allowedTools: Array<string>;
+              argumentHint?: string;
+              arguments?: Array<string>;
+              userInvocable: boolean;
+              disableModelInvocation: boolean;
+              model?: string;
+              effort?: string;
+              context: "inline" | "fork";
+              shell?: Array<string>;
+              paths?: Array<string>;
+              hooks?: {
+                [key: string]: ApprovalResolutionDefinitionSchema2;
+              };
+              source: "bundled" | "project" | "user" | "pack";
+              trust: "trusted" | "untrusted";
+              packId?: string;
+              capabilityId?: string;
+              contentLength?: number;
+              tags?: Array<string>;
+            }>;
+            packs: Array<{
+              id: string;
+              title: string;
+              description: string;
+              source: "bundled" | "project" | "user" | "pack";
+              trust: "trusted" | "untrusted";
+              rootDir: string;
+              skillIds: Array<string>;
+              toolIds: Array<string>;
+              capabilityIds: Array<string>;
+              artifactTypes: Array<string>;
+              referenceAssetDirs?: Array<string>;
+              tags?: Array<string>;
+            }>;
+            capabilities: Array<{
+              id: string;
+              title: string;
+              version: string;
+              description: string;
+              source?: {
+                kind: "native" | "wrapped-open-source" | "mcp" | "external-api" | "user-routine";
+                project?: string;
+                url?: string;
+                license?: string;
+              };
+              activities: Array<"browser" | "chat" | "local" | "api" | "computer">;
+              triggers?: Array<{
+                [key: string]: ApprovalResolutionDefinitionSchema2;
+              }>;
+              tools: Array<{
+                id: string;
+                title: string;
+                description: string;
+                activity: "browser" | "chat" | "local" | "api" | "computer";
+                risk: "read" | "write" | "send" | "spend" | "delete";
+                input: {
+                  type: "json-schema";
+                  schema: {
+                    [key: string]: ApprovalResolutionDefinitionSchema2;
+                  };
+                };
+                output?: {
+                  type: "json-schema";
+                  schema: {
+                    [key: string]: ApprovalResolutionDefinitionSchema2;
+                  };
+                };
+                permission: {
+                  mode: "allow" | "ask" | "deny";
+                  reason: string;
+                };
+                liveness?: {
+                  cancellation: "run-signal" | "none";
+                  deadlineSource: "kernel-native" | "upstream-service" | "business-rule" | "none";
+                  abandonOutcome: "outcome-unknown";
+                  terminalConfirmation: "tool-result";
+                  cancellationGraceMs?: number;
+                };
+              }>;
+              skills: Array<{
+                id: string;
+                name: string;
+                aliases?: Array<string>;
+                title: string;
+                description: string;
+                whenToUse?: string;
+                format: "markdown-v1" | "markdown-v2";
+                entry: string;
+                skillRoot: string;
+                activities: Array<"browser" | "chat" | "local" | "api" | "computer">;
+                toolIds: Array<string>;
+                memoryHooks: Array<{
+                  kind: string;
+                  mode: "direct" | "propose" | "ask";
+                  reason: string;
+                }>;
+                allowedTools: Array<string>;
+                argumentHint?: string;
+                arguments?: Array<string>;
+                userInvocable: boolean;
+                disableModelInvocation: boolean;
+                model?: string;
+                effort?: string;
+                context: "inline" | "fork";
+                shell?: Array<string>;
+                paths?: Array<string>;
+                hooks?: {
+                  [key: string]: ApprovalResolutionDefinitionSchema2;
+                };
+                source: "bundled" | "project" | "user" | "pack";
+                trust: "trusted" | "untrusted";
+                packId?: string;
+                capabilityId?: string;
+                contentLength?: number;
+                tags?: Array<string>;
+              }>;
+              memoryHooks: Array<{
+                kind: string;
+                mode: "direct" | "propose" | "ask";
+                reason: string;
+              }>;
+              policy: Array<{
+                mode: "allow" | "ask" | "deny";
+                reason: string;
+                id?: string;
+                toolId?: string;
+                capabilityId?: string;
+                risk?: "read" | "write" | "send" | "spend" | "delete";
+              }>;
+              sandbox?: "read-only" | "workspace-write" | "danger-full-access";
+              evals?: Array<{
+                id: string;
+                description: string;
+                input: string;
+                expectedBehavior: string;
+              }>;
+            }>;
+          };
+        }
+      | {
+          type: "model.response";
+          runId: string;
+          response: {
+            text: string;
+            usage?: {
+              inputTokens?: number;
+              outputTokens?: number;
+              totalTokens?: number;
+              costUsd?: number;
+              latencyMs?: number;
+              contextWindowSize?: number;
+              contextUsedTokens?: number;
+              contextBreakdown?: Array<{
+                category: string;
+                tokens: number;
+              }>;
+            };
+          };
+        }
+      | {
+          type: "runtime.diagnostic";
+          runId: string;
+          at: string;
+          name: string;
+          data: {
+            [key: string]: ApprovalResolutionDefinitionSchema2;
+          };
+        }
+      | {
+          type: "reasoning.started";
+          runId: string;
+          reasoning: {
+            id: string;
+            kind: "native" | "summary";
+            kernelId: string;
+          };
+        }
+      | {
+          type: "reasoning.completed";
+          runId: string;
+          reasoning: {
+            id: string;
+            kind: "native" | "summary";
+            kernelId: string;
+            text: string;
+            redacted?: boolean;
+            elapsedMs?: number;
+          };
+        }
+      | {
+          type: "assistant.delta";
+          runId: string;
+          text: string;
+        }
+      | {
+          type: "assistant.final";
+          runId: string;
+          text: string;
+          at: string;
+          source?: "runtime" | "adapter" | "fallback";
+        }
+      | {
+          type: "assistant.status";
+          runId: string;
+          text: string;
+          at: string;
+          data?: {
+            [key: string]: ApprovalResolutionDefinitionSchema2;
+          };
+        }
+      | {
+          type: "skill.discovered";
+          runId: string;
+          skills: Array<{
+            id: string;
+            name: string;
+            aliases?: Array<string>;
+            title: string;
+            description: string;
+            whenToUse?: string;
+            format: "markdown-v1" | "markdown-v2";
+            entry: string;
+            skillRoot: string;
+            activities: Array<"browser" | "chat" | "local" | "api" | "computer">;
+            toolIds: Array<string>;
+            memoryHooks: Array<{
+              kind: string;
+              mode: "direct" | "propose" | "ask";
+              reason: string;
+            }>;
+            allowedTools: Array<string>;
+            argumentHint?: string;
+            arguments?: Array<string>;
+            userInvocable: boolean;
+            disableModelInvocation: boolean;
+            model?: string;
+            effort?: string;
+            context: "inline" | "fork";
+            shell?: Array<string>;
+            paths?: Array<string>;
+            hooks?: {
+              [key: string]: ApprovalResolutionDefinitionSchema2;
+            };
+            source: "bundled" | "project" | "user" | "pack";
+            trust: "trusted" | "untrusted";
+            packId?: string;
+            capabilityId?: string;
+            contentLength?: number;
+            tags?: Array<string>;
+          }>;
+        }
+      | {
+          type: "skill.invoked";
+          runId: string;
+          skill: {
+            id: string;
+            name: string;
+            aliases?: Array<string>;
+            title: string;
+            description: string;
+            whenToUse?: string;
+            format: "markdown-v1" | "markdown-v2";
+            entry: string;
+            skillRoot: string;
+            activities: Array<"browser" | "chat" | "local" | "api" | "computer">;
+            toolIds: Array<string>;
+            memoryHooks: Array<{
+              kind: string;
+              mode: "direct" | "propose" | "ask";
+              reason: string;
+            }>;
+            allowedTools: Array<string>;
+            argumentHint?: string;
+            arguments?: Array<string>;
+            userInvocable: boolean;
+            disableModelInvocation: boolean;
+            model?: string;
+            effort?: string;
+            context: "inline" | "fork";
+            shell?: Array<string>;
+            paths?: Array<string>;
+            hooks?: {
+              [key: string]: ApprovalResolutionDefinitionSchema2;
+            };
+            source: "bundled" | "project" | "user" | "pack";
+            trust: "trusted" | "untrusted";
+            packId?: string;
+            capabilityId?: string;
+            contentLength?: number;
+            tags?: Array<string>;
+          };
+          invocation: {
+            skillId: string;
+            skillName: string;
+            title: string;
+            content: string;
+            contentPreview: string;
+            sourcePath: string;
+            source: "bundled" | "project" | "user" | "pack";
+            trust: "trusted" | "untrusted";
+            context: "inline" | "fork";
+            args?: string;
+            allowedTools: Array<string>;
+            model?: string;
+            effort?: string;
+            packId?: string;
+            capabilityId?: string;
+            invokedAt: string;
+            origin: "user" | "model";
+          };
+        }
+      | {
+          type: "skill.loaded";
+          runId: string;
+          skillId: string;
+          contentPreview: string;
+          allowedTools: Array<string>;
+          model?: string;
+          effort?: string;
+          context: "inline" | "fork";
+        }
+      | {
+          type: "skill.forked";
+          runId: string;
+          skillId: string;
+          forkSessionId: string;
+          status: "started" | "finished";
+          result?: string;
+        }
+      | {
+          type: "skill.cleared";
+          runId: string;
+          skillId?: string;
+          reason: string;
+        }
+      | {
+          type: "tool.started";
+          runId: string;
+          toolId: string;
+          callId?: string;
+          input: ApprovalResolutionDefinitionSchema6;
+        }
+      | {
+          type: "tool.progress";
+          runId: string;
+          toolId: string;
+          callId?: string;
+          update: ApprovalResolutionDefinitionSchema7;
+        }
+      | {
+          type: "tool.finished";
+          runId: string;
+          toolId: string;
+          callId?: string;
+          result: {
+            ok: boolean;
+            value?: ApprovalResolutionDefinitionSchema3;
+            error?: string;
+            problem?: {
+              incidentId: string;
+              code: string;
+            };
+            sources?: Array<{
+              title?: string;
+              url?: string;
+              locator?: string;
+              quote?: string;
+            }>;
+          };
+        }
+      | {
+          type: "approval.requested";
+          runId: string;
+          request: {
+            id: string;
+            title: string;
+            createdAt: string;
+            updatedAt: string;
+            input?: ApprovalResolutionDefinitionSchema0;
+            response?: ApprovalResolutionDefinitionSchema1;
+            resume?:
+              | {
+                  type: "tool";
+                  runId?: string;
+                }
+              | {
+                  type: "routine.step";
+                  routineId: string;
+                  stepId: string;
+                  runId: string;
+                  stepOutputs?: {
+                    [key: string]: ApprovalResolutionDefinitionSchema2;
+                  };
+                }
+              | {
+                  type: "kernel.native";
+                  kernelId: string;
+                  runId: string;
+                  continuation: "same-loop";
+                };
+            nativeRequestId?: string;
+            deadlineAt?: string;
+            isBlocking?: boolean;
+            autoResolutionMs?: number;
+            kind:
+              | "tool"
+              | "command"
+              | "file_change"
+              | "permission_scope"
+              | "routine_step"
+              | "memory_write"
+              | "browser_action"
+              | "computer_action";
+            reason: string;
+            status: "pending" | "approved" | "rejected" | "canceled";
+            toolId?: string;
+            capabilityId?: string;
+            skillId?: string;
+          };
+        }
+      | {
+          type: "approval.resolved";
+          runId: string;
+          request: {
+            id: string;
+            title: string;
+            createdAt: string;
+            updatedAt: string;
+            input?: ApprovalResolutionDefinitionSchema0;
+            response?: ApprovalResolutionDefinitionSchema1;
+            resume?:
+              | {
+                  type: "tool";
+                  runId?: string;
+                }
+              | {
+                  type: "routine.step";
+                  routineId: string;
+                  stepId: string;
+                  runId: string;
+                  stepOutputs?: {
+                    [key: string]: ApprovalResolutionDefinitionSchema2;
+                  };
+                }
+              | {
+                  type: "kernel.native";
+                  kernelId: string;
+                  runId: string;
+                  continuation: "same-loop";
+                };
+            nativeRequestId?: string;
+            deadlineAt?: string;
+            isBlocking?: boolean;
+            autoResolutionMs?: number;
+            kind:
+              | "tool"
+              | "command"
+              | "file_change"
+              | "permission_scope"
+              | "routine_step"
+              | "memory_write"
+              | "browser_action"
+              | "computer_action";
+            reason: string;
+            status: "pending" | "approved" | "rejected" | "canceled";
+            toolId?: string;
+            capabilityId?: string;
+            skillId?: string;
+          };
+        }
+      | {
+          type: "question.requested";
+          runId: string;
+          question: {
+            id: string;
+            title: string;
+            createdAt: string;
+            updatedAt: string;
+            input?: ApprovalResolutionDefinitionSchema0;
+            response?: ApprovalResolutionDefinitionSchema1;
+            resume?:
+              | {
+                  type: "tool";
+                  runId?: string;
+                }
+              | {
+                  type: "routine.step";
+                  routineId: string;
+                  stepId: string;
+                  runId: string;
+                  stepOutputs?: {
+                    [key: string]: ApprovalResolutionDefinitionSchema2;
+                  };
+                }
+              | {
+                  type: "kernel.native";
+                  kernelId: string;
+                  runId: string;
+                  continuation: "same-loop";
+                };
+            nativeRequestId?: string;
+            deadlineAt?: string;
+            isBlocking?: boolean;
+            autoResolutionMs?: number;
+            prompt: string;
+            status: "pending" | "answered" | "declined" | "canceled";
+            source?:
+              | {
+                  type: "kernel.native";
+                  kernelId: string;
+                }
+              | {
+                  type: "host";
+                }
+              | {
+                  type: "unknown";
+                };
+          };
+        }
+      | {
+          type: "question.answered";
+          runId: string;
+          question: {
+            id: string;
+            title: string;
+            createdAt: string;
+            updatedAt: string;
+            input?: ApprovalResolutionDefinitionSchema0;
+            response?: ApprovalResolutionDefinitionSchema1;
+            resume?:
+              | {
+                  type: "tool";
+                  runId?: string;
+                }
+              | {
+                  type: "routine.step";
+                  routineId: string;
+                  stepId: string;
+                  runId: string;
+                  stepOutputs?: {
+                    [key: string]: ApprovalResolutionDefinitionSchema2;
+                  };
+                }
+              | {
+                  type: "kernel.native";
+                  kernelId: string;
+                  runId: string;
+                  continuation: "same-loop";
+                };
+            nativeRequestId?: string;
+            deadlineAt?: string;
+            isBlocking?: boolean;
+            autoResolutionMs?: number;
+            prompt: string;
+            status: "pending" | "answered" | "declined" | "canceled";
+            source?:
+              | {
+                  type: "kernel.native";
+                  kernelId: string;
+                }
+              | {
+                  type: "host";
+                }
+              | {
+                  type: "unknown";
+                };
+          };
+        }
+      | {
+          type: "planning.updated";
+          runId: string;
+          plan: {
+            id: string;
+            title?: string;
+            text: string;
+            status?: string;
+            raw?: {
+              [key: string]: ApprovalResolutionDefinitionSchema2;
+            };
+            updatedAt: string;
+            source?:
+              | {
+                  type: "kernel.native";
+                  kernelId: string;
+                }
+              | {
+                  type: "host";
+                }
+              | {
+                  type: "unknown";
+                };
+          };
+        }
+      | {
+          type: "run.cancel_requested";
+          runId: string;
+          at: string;
+          reason?: string;
+        }
+      | {
+          type: "run.paused";
+          runId: string;
+          at: string;
+          reason: string;
+          approvalId?: string;
+        }
+      | {
+          type: "run.resumed";
+          runId: string;
+          at: string;
+          reason?: string;
+          approvalId?: string;
+        }
+      | {
+          type: "memory.written";
+          runId: string;
+          record: {
+            id: string;
+            scope: "user" | "workspace" | "page" | "session";
+            kind: string;
+            text: string;
+            confidence: "asserted" | "observed" | "inferred";
+            source: {
+              kind: "user" | "agent" | "tool" | "skill";
+              ref?: {
+                title?: string;
+                url?: string;
+                locator?: string;
+                quote?: string;
+              };
+            };
+            tags: Array<string>;
+            data?: {
+              [key: string]: ApprovalResolutionDefinitionSchema2;
+            };
+            createdAt: string;
+            updatedAt: string;
+            expiresAt?: string;
+          };
+        }
+      | {
+          type: "turn.finished";
+          runId: string;
+          at: string;
+          outcome: {
+            taskState:
+              | "TASK_STATE_UNSPECIFIED"
+              | "TASK_STATE_SUBMITTED"
+              | "TASK_STATE_WORKING"
+              | "TASK_STATE_COMPLETED"
+              | "TASK_STATE_FAILED"
+              | "TASK_STATE_CANCELED"
+              | "TASK_STATE_INPUT_REQUIRED"
+              | "TASK_STATE_REJECTED"
+              | "TASK_STATE_AUTH_REQUIRED";
+            activity?: "running" | "reconnecting" | "cancel_pending" | "waiting_on_child";
+            reasonCode?: string;
+            retryable?: boolean;
+            outcomeUnknown?: boolean;
+            childRunId?: string;
+          };
+          synthetic?: boolean;
+        }
+      | {
+          type: "error";
+          runId: string;
+          message: string;
+          problem?: {
+            incidentId: string;
+            code: string;
+          };
+          diagnostics?: {
+            runtimeModelId?: string;
+            runtimeVersion?: string;
+            upstreamRequestId?: string;
+          };
+        }
+    >;
+    toolResults: Array<{
+      ok: boolean;
+      value?: ApprovalResolutionDefinitionSchema3;
+      error?: string;
+      problem?: {
+        incidentId: string;
+        code: string;
+      };
+      sources?: Array<{
+        title?: string;
+        url?: string;
+        locator?: string;
+        quote?: string;
+      }>;
+    }>;
+  };
+};
+
+export type ApprovalResolutionDefinitionSchema0 =
+  | string
+  | number
+  | boolean
+  | null
+  | Array<ApprovalResolutionDefinitionSchema0>
+  | {
+      [key: string]: ApprovalResolutionDefinitionSchema0;
+    };
+
+export type ApprovalResolutionDefinitionSchema1 =
+  | string
+  | number
+  | boolean
+  | null
+  | Array<ApprovalResolutionDefinitionSchema1>
+  | {
+      [key: string]: ApprovalResolutionDefinitionSchema1;
+    };
+
+export type ApprovalResolutionDefinitionSchema2 =
+  | string
+  | number
+  | boolean
+  | null
+  | Array<ApprovalResolutionDefinitionSchema2>
+  | {
+      [key: string]: ApprovalResolutionDefinitionSchema2;
+    };
+
+export type ApprovalResolutionDefinitionSchema3 =
+  | string
+  | number
+  | boolean
+  | null
+  | Array<ApprovalResolutionDefinitionSchema3>
+  | {
+      [key: string]: ApprovalResolutionDefinitionSchema3;
+    };
+
+export type ApprovalResolutionDefinitionSchema4 =
+  | string
+  | number
+  | boolean
+  | null
+  | Array<ApprovalResolutionDefinitionSchema4>
+  | {
+      [key: string]: ApprovalResolutionDefinitionSchema4;
+    };
+
+export type ApprovalResolutionDefinitionSchema5 =
+  | string
+  | number
+  | boolean
+  | null
+  | Array<ApprovalResolutionDefinitionSchema5>
+  | {
+      [key: string]: ApprovalResolutionDefinitionSchema5;
+    };
+
+export type ApprovalResolutionDefinitionSchema6 =
+  | string
+  | number
+  | boolean
+  | null
+  | Array<ApprovalResolutionDefinitionSchema6>
+  | {
+      [key: string]: ApprovalResolutionDefinitionSchema6;
+    };
+
+export type ApprovalResolutionDefinitionSchema7 =
+  | string
+  | number
+  | boolean
+  | null
+  | Array<ApprovalResolutionDefinitionSchema7>
+  | {
+      [key: string]: ApprovalResolutionDefinitionSchema7;
+    };
+
+export type InteractionApprovalApproveBody = {
+  /**
+   * Structured decision response or answer.
+   */
+  response?: InteractionApprovalApproveBodyDefinitionSchema0;
+};
+
+export type InteractionApprovalApproveBodyDefinitionSchema0 =
+  | string
+  | number
+  | boolean
+  | null
+  | Array<InteractionApprovalApproveBodyDefinitionSchema0>
+  | {
+      [key: string]: InteractionApprovalApproveBodyDefinitionSchema0;
+    };
+
+export type InteractionApprovalRejectBody = {
+  /**
+   * Structured decision response or answer.
+   */
+  response?: InteractionApprovalRejectBodyDefinitionSchema0;
+};
+
+export type InteractionApprovalRejectBodyDefinitionSchema0 =
+  | string
+  | number
+  | boolean
+  | null
+  | Array<InteractionApprovalRejectBodyDefinitionSchema0>
+  | {
+      [key: string]: InteractionApprovalRejectBodyDefinitionSchema0;
+    };
+
+export type InteractionApprovalCancelBody = {
+  /**
+   * Structured decision response or answer.
+   */
+  response?: InteractionApprovalCancelBodyDefinitionSchema0;
+};
+
+export type InteractionApprovalCancelBodyDefinitionSchema0 =
+  | string
+  | number
+  | boolean
+  | null
+  | Array<InteractionApprovalCancelBodyDefinitionSchema0>
+  | {
+      [key: string]: InteractionApprovalCancelBodyDefinitionSchema0;
+    };
+
 export type InteractionQuestionListResponse200 = {
   ok: true;
   questions: Array<{
@@ -181,6 +1528,354 @@ export type InteractionQuestionListResponse200DefinitionSchema1 =
   | Array<InteractionQuestionListResponse200DefinitionSchema1>
   | {
       [key: string]: InteractionQuestionListResponse200DefinitionSchema1;
+    };
+
+export type QuestionResolution = {
+  ok: true;
+  alreadyResolved?: boolean;
+  questions: Array<{
+    id: string;
+    title: string;
+    createdAt: string;
+    updatedAt: string;
+    input?: QuestionResolutionDefinitionSchema0;
+    response?: QuestionResolutionDefinitionSchema1;
+    resume?:
+      | {
+          type: "tool";
+          runId?: string;
+        }
+      | {
+          type: "routine.step";
+          routineId: string;
+          stepId: string;
+          runId: string;
+          stepOutputs?: {
+            [key: string]: QuestionResolutionDefinitionSchema2;
+          };
+        }
+      | {
+          type: "kernel.native";
+          kernelId: string;
+          runId: string;
+          continuation: "same-loop";
+        };
+    nativeRequestId?: string;
+    deadlineAt?: string;
+    isBlocking?: boolean;
+    autoResolutionMs?: number;
+    prompt: string;
+    status: "pending" | "answered" | "declined" | "canceled";
+    source?:
+      | {
+          type: "kernel.native";
+          kernelId: string;
+        }
+      | {
+          type: "host";
+        }
+      | {
+          type: "unknown";
+        };
+  }>;
+  artifacts: Array<{
+    id: string;
+    type: string;
+    title?: string;
+    status?: string;
+    version?: number;
+    tags: Array<string>;
+    data: {
+      [key: string]: QuestionResolutionDefinitionSchema2;
+    };
+    assets?: Array<{
+      kind: "image" | "audio" | "video" | "file" | "url" | "text";
+      uri?: string;
+      path?: string;
+      title?: string;
+      mimeType?: string;
+      metadata?: {
+        [key: string]: QuestionResolutionDefinitionSchema2;
+      };
+    }>;
+    preview?: {
+      title?: string;
+      text?: string;
+      imageUri?: string;
+      mimeType?: string;
+      status?: string;
+    };
+    createdAt: string;
+    updatedAt: string;
+    sourceRefs?: Array<{
+      title?: string;
+      url?: string;
+      locator?: string;
+      quote?: string;
+    }>;
+    parentId?: string;
+    variantOf?: string;
+    derivedFrom?: Array<string>;
+    lineage?: Array<string>;
+    provenance?: {
+      [key: string]: QuestionResolutionDefinitionSchema2;
+    };
+  }>;
+  workingState: {
+    sessionId?: string;
+    taskSummary?: string;
+    activeGoal?: string;
+    selectedModel?: string;
+    activePackId?: string;
+    activeSkillId?: string;
+    pinnedArtifactIds: Array<string>;
+    workingArtifactIds: Array<string>;
+    pendingApprovalIds: Array<string>;
+    pendingQuestionIds: Array<string>;
+    activeToolCallIds: Array<string>;
+    discoveredSkillIds: Array<string>;
+    discoveredSkillNames: Array<string>;
+    expandedSkillIds: Array<string>;
+    invokedSkills: Array<{
+      skillId: string;
+      skillName: string;
+      title: string;
+      content: string;
+      contentPreview: string;
+      sourcePath: string;
+      source: "bundled" | "project" | "user" | "pack";
+      trust: "trusted" | "untrusted";
+      context: "inline" | "fork";
+      args?: string;
+      allowedTools: Array<string>;
+      model?: string;
+      effort?: string;
+      packId?: string;
+      capabilityId?: string;
+      invokedAt: string;
+      origin: "user" | "model";
+    }>;
+    loadedNestedMemoryPaths: Array<string>;
+    toolSchemaCache: {
+      [key: string]: string;
+    };
+    updatedAt: string;
+  };
+  sessions: Array<{
+    id: string;
+    title?: string;
+    activity?: "browser" | "chat" | "local" | "api" | "computer";
+    status: "active" | "idle" | "archived";
+    createdAt: string;
+    updatedAt: string;
+    activeRunId?: string;
+    latestRunId?: string;
+    runIds: Array<string>;
+    lastUserInput?: string;
+    metadata?: {
+      [key: string]: QuestionResolutionDefinitionSchema2;
+    };
+  }>;
+  runs: Array<{
+    id: string;
+    sessionId: string;
+    activity: "browser" | "chat" | "local" | "api" | "computer";
+    lifecycle: {
+      taskState:
+        | "TASK_STATE_UNSPECIFIED"
+        | "TASK_STATE_SUBMITTED"
+        | "TASK_STATE_WORKING"
+        | "TASK_STATE_COMPLETED"
+        | "TASK_STATE_FAILED"
+        | "TASK_STATE_CANCELED"
+        | "TASK_STATE_INPUT_REQUIRED"
+        | "TASK_STATE_REJECTED"
+        | "TASK_STATE_AUTH_REQUIRED";
+      activity?: "running" | "reconnecting" | "cancel_pending" | "waiting_on_child";
+      reasonCode?: string;
+      retryable?: boolean;
+      outcomeUnknown?: boolean;
+      childRunId?: string;
+    };
+    input: string;
+    createdAt: string;
+    updatedAt: string;
+    startedAt: string;
+    endedAt?: string;
+    modelId?: string;
+    summary?: string;
+    error?: string;
+    problem?: {
+      incidentId: string;
+      code: string;
+    };
+    pausedAt?: string;
+    resumedAt?: string;
+    pauseReason?: string;
+    lastApprovalId?: string;
+    lastQuestionId?: string;
+    resumeCount: number;
+    approvalIds: Array<string>;
+    questionIds: Array<string>;
+    toolIds: Array<string>;
+    eventCount: number;
+  }>;
+  executions: Array<{
+    id: string;
+    runId: string;
+    sessionId?: string;
+    kind:
+      | "loop"
+      | "model"
+      | "reasoning"
+      | "tool_call"
+      | "approval"
+      | "question"
+      | "planning"
+      | "artifact"
+      | "memory"
+      | "error";
+    /**
+     * The recorded Agent event type.
+     */
+    eventType: string;
+    title: string;
+    at: string;
+    status?: string;
+    toolId?: string;
+    approvalId?: string;
+    questionId?: string;
+    artifactId?: string;
+    data?: {
+      [key: string]: QuestionResolutionDefinitionSchema2;
+    };
+  }>;
+  question: {
+    id: string;
+    title: string;
+    createdAt: string;
+    updatedAt: string;
+    input?: QuestionResolutionDefinitionSchema0;
+    response?: QuestionResolutionDefinitionSchema1;
+    resume?:
+      | {
+          type: "tool";
+          runId?: string;
+        }
+      | {
+          type: "routine.step";
+          routineId: string;
+          stepId: string;
+          runId: string;
+          stepOutputs?: {
+            [key: string]: QuestionResolutionDefinitionSchema2;
+          };
+        }
+      | {
+          type: "kernel.native";
+          kernelId: string;
+          runId: string;
+          continuation: "same-loop";
+        };
+    nativeRequestId?: string;
+    deadlineAt?: string;
+    isBlocking?: boolean;
+    autoResolutionMs?: number;
+    prompt: string;
+    status: "pending" | "answered" | "declined" | "canceled";
+    source?:
+      | {
+          type: "kernel.native";
+          kernelId: string;
+        }
+      | {
+          type: "host";
+        }
+      | {
+          type: "unknown";
+        };
+  };
+};
+
+export type QuestionResolutionDefinitionSchema0 =
+  | string
+  | number
+  | boolean
+  | null
+  | Array<QuestionResolutionDefinitionSchema0>
+  | {
+      [key: string]: QuestionResolutionDefinitionSchema0;
+    };
+
+export type QuestionResolutionDefinitionSchema1 =
+  | string
+  | number
+  | boolean
+  | null
+  | Array<QuestionResolutionDefinitionSchema1>
+  | {
+      [key: string]: QuestionResolutionDefinitionSchema1;
+    };
+
+export type QuestionResolutionDefinitionSchema2 =
+  | string
+  | number
+  | boolean
+  | null
+  | Array<QuestionResolutionDefinitionSchema2>
+  | {
+      [key: string]: QuestionResolutionDefinitionSchema2;
+    };
+
+export type InteractionQuestionAnswerBody = {
+  /**
+   * Structured decision response or answer.
+   */
+  response?: InteractionQuestionAnswerBodyDefinitionSchema0;
+};
+
+export type InteractionQuestionAnswerBodyDefinitionSchema0 =
+  | string
+  | number
+  | boolean
+  | null
+  | Array<InteractionQuestionAnswerBodyDefinitionSchema0>
+  | {
+      [key: string]: InteractionQuestionAnswerBodyDefinitionSchema0;
+    };
+
+export type InteractionQuestionDeclineBody = {
+  /**
+   * Structured decision response or answer.
+   */
+  response?: InteractionQuestionDeclineBodyDefinitionSchema0;
+};
+
+export type InteractionQuestionDeclineBodyDefinitionSchema0 =
+  | string
+  | number
+  | boolean
+  | null
+  | Array<InteractionQuestionDeclineBodyDefinitionSchema0>
+  | {
+      [key: string]: InteractionQuestionDeclineBodyDefinitionSchema0;
+    };
+
+export type InteractionQuestionCancelBody = {
+  /**
+   * Structured decision response or answer.
+   */
+  response?: InteractionQuestionCancelBodyDefinitionSchema0;
+};
+
+export type InteractionQuestionCancelBodyDefinitionSchema0 =
+  | string
+  | number
+  | boolean
+  | null
+  | Array<InteractionQuestionCancelBodyDefinitionSchema0>
+  | {
+      [key: string]: InteractionQuestionCancelBodyDefinitionSchema0;
     };
 
 export type AuthError = {
@@ -1360,6 +3055,318 @@ export type InteractionApprovalListResponses = {
 
 export type InteractionApprovalListResponse = InteractionApprovalListResponses[keyof InteractionApprovalListResponses];
 
+export type InteractionApprovalApproveData = {
+  body: InteractionApprovalApproveBody;
+  path: {
+    approvalId: string;
+  };
+  query?: never;
+  url: "/approvals/{approvalId}/approve";
+};
+
+export type InteractionApprovalApproveErrors = {
+  /**
+   * The input is invalid.
+   */
+  400: {
+    ok?: false;
+    error: string;
+    code?: string;
+    message?: string;
+    contractId?: string;
+    traceId?: string;
+    incidentId?: string;
+    issues?: Array<{
+      path: string;
+      code: string;
+    }>;
+  };
+  /**
+   * A valid Host session or token is required.
+   */
+  401: {
+    ok?: false;
+    error: string;
+    code?: string;
+    message?: string;
+    contractId?: string;
+    traceId?: string;
+    incidentId?: string;
+    issues?: Array<{
+      path: string;
+      code: string;
+    }>;
+  };
+  /**
+   * The request is not authorized.
+   */
+  403: {
+    ok?: false;
+    error: string;
+    code?: string;
+    message?: string;
+    contractId?: string;
+    traceId?: string;
+    incidentId?: string;
+    issues?: Array<{
+      path: string;
+      code: string;
+    }>;
+  };
+  /**
+   * The Host could not complete the operation.
+   */
+  500: {
+    ok?: false;
+    error: string;
+    code?: string;
+    message?: string;
+    contractId?: string;
+    traceId?: string;
+    incidentId?: string;
+    issues?: Array<{
+      path: string;
+      code: string;
+    }>;
+  };
+  /**
+   * The Host or authenticated session is temporarily unavailable.
+   */
+  503: {
+    ok?: false;
+    error: string;
+    code?: string;
+    message?: string;
+    contractId?: string;
+    traceId?: string;
+    incidentId?: string;
+    issues?: Array<{
+      path: string;
+      code: string;
+    }>;
+  };
+};
+
+export type InteractionApprovalApproveError = InteractionApprovalApproveErrors[keyof InteractionApprovalApproveErrors];
+
+export type InteractionApprovalApproveResponses = {
+  /**
+   * Successful response.
+   */
+  200: ApprovalResolution;
+};
+
+export type InteractionApprovalApproveResponse =
+  InteractionApprovalApproveResponses[keyof InteractionApprovalApproveResponses];
+
+export type InteractionApprovalRejectData = {
+  body: InteractionApprovalRejectBody;
+  path: {
+    approvalId: string;
+  };
+  query?: never;
+  url: "/approvals/{approvalId}/reject";
+};
+
+export type InteractionApprovalRejectErrors = {
+  /**
+   * The input is invalid.
+   */
+  400: {
+    ok?: false;
+    error: string;
+    code?: string;
+    message?: string;
+    contractId?: string;
+    traceId?: string;
+    incidentId?: string;
+    issues?: Array<{
+      path: string;
+      code: string;
+    }>;
+  };
+  /**
+   * A valid Host session or token is required.
+   */
+  401: {
+    ok?: false;
+    error: string;
+    code?: string;
+    message?: string;
+    contractId?: string;
+    traceId?: string;
+    incidentId?: string;
+    issues?: Array<{
+      path: string;
+      code: string;
+    }>;
+  };
+  /**
+   * The request is not authorized.
+   */
+  403: {
+    ok?: false;
+    error: string;
+    code?: string;
+    message?: string;
+    contractId?: string;
+    traceId?: string;
+    incidentId?: string;
+    issues?: Array<{
+      path: string;
+      code: string;
+    }>;
+  };
+  /**
+   * The Host could not complete the operation.
+   */
+  500: {
+    ok?: false;
+    error: string;
+    code?: string;
+    message?: string;
+    contractId?: string;
+    traceId?: string;
+    incidentId?: string;
+    issues?: Array<{
+      path: string;
+      code: string;
+    }>;
+  };
+  /**
+   * The Host or authenticated session is temporarily unavailable.
+   */
+  503: {
+    ok?: false;
+    error: string;
+    code?: string;
+    message?: string;
+    contractId?: string;
+    traceId?: string;
+    incidentId?: string;
+    issues?: Array<{
+      path: string;
+      code: string;
+    }>;
+  };
+};
+
+export type InteractionApprovalRejectError = InteractionApprovalRejectErrors[keyof InteractionApprovalRejectErrors];
+
+export type InteractionApprovalRejectResponses = {
+  /**
+   * Successful response.
+   */
+  200: ApprovalResolution;
+};
+
+export type InteractionApprovalRejectResponse =
+  InteractionApprovalRejectResponses[keyof InteractionApprovalRejectResponses];
+
+export type InteractionApprovalCancelData = {
+  body: InteractionApprovalCancelBody;
+  path: {
+    approvalId: string;
+  };
+  query?: never;
+  url: "/approvals/{approvalId}/cancel";
+};
+
+export type InteractionApprovalCancelErrors = {
+  /**
+   * The input is invalid.
+   */
+  400: {
+    ok?: false;
+    error: string;
+    code?: string;
+    message?: string;
+    contractId?: string;
+    traceId?: string;
+    incidentId?: string;
+    issues?: Array<{
+      path: string;
+      code: string;
+    }>;
+  };
+  /**
+   * A valid Host session or token is required.
+   */
+  401: {
+    ok?: false;
+    error: string;
+    code?: string;
+    message?: string;
+    contractId?: string;
+    traceId?: string;
+    incidentId?: string;
+    issues?: Array<{
+      path: string;
+      code: string;
+    }>;
+  };
+  /**
+   * The request is not authorized.
+   */
+  403: {
+    ok?: false;
+    error: string;
+    code?: string;
+    message?: string;
+    contractId?: string;
+    traceId?: string;
+    incidentId?: string;
+    issues?: Array<{
+      path: string;
+      code: string;
+    }>;
+  };
+  /**
+   * The Host could not complete the operation.
+   */
+  500: {
+    ok?: false;
+    error: string;
+    code?: string;
+    message?: string;
+    contractId?: string;
+    traceId?: string;
+    incidentId?: string;
+    issues?: Array<{
+      path: string;
+      code: string;
+    }>;
+  };
+  /**
+   * The Host or authenticated session is temporarily unavailable.
+   */
+  503: {
+    ok?: false;
+    error: string;
+    code?: string;
+    message?: string;
+    contractId?: string;
+    traceId?: string;
+    incidentId?: string;
+    issues?: Array<{
+      path: string;
+      code: string;
+    }>;
+  };
+};
+
+export type InteractionApprovalCancelError = InteractionApprovalCancelErrors[keyof InteractionApprovalCancelErrors];
+
+export type InteractionApprovalCancelResponses = {
+  /**
+   * Successful response.
+   */
+  200: ApprovalResolution;
+};
+
+export type InteractionApprovalCancelResponse =
+  InteractionApprovalCancelResponses[keyof InteractionApprovalCancelResponses];
+
 export type InteractionQuestionListData = {
   body?: never;
   path?: never;
@@ -1463,6 +3470,318 @@ export type InteractionQuestionListResponses = {
 };
 
 export type InteractionQuestionListResponse = InteractionQuestionListResponses[keyof InteractionQuestionListResponses];
+
+export type InteractionQuestionAnswerData = {
+  body: InteractionQuestionAnswerBody;
+  path: {
+    questionId: string;
+  };
+  query?: never;
+  url: "/questions/{questionId}/answer";
+};
+
+export type InteractionQuestionAnswerErrors = {
+  /**
+   * The input is invalid.
+   */
+  400: {
+    ok?: false;
+    error: string;
+    code?: string;
+    message?: string;
+    contractId?: string;
+    traceId?: string;
+    incidentId?: string;
+    issues?: Array<{
+      path: string;
+      code: string;
+    }>;
+  };
+  /**
+   * A valid Host session or token is required.
+   */
+  401: {
+    ok?: false;
+    error: string;
+    code?: string;
+    message?: string;
+    contractId?: string;
+    traceId?: string;
+    incidentId?: string;
+    issues?: Array<{
+      path: string;
+      code: string;
+    }>;
+  };
+  /**
+   * The request is not authorized.
+   */
+  403: {
+    ok?: false;
+    error: string;
+    code?: string;
+    message?: string;
+    contractId?: string;
+    traceId?: string;
+    incidentId?: string;
+    issues?: Array<{
+      path: string;
+      code: string;
+    }>;
+  };
+  /**
+   * The Host could not complete the operation.
+   */
+  500: {
+    ok?: false;
+    error: string;
+    code?: string;
+    message?: string;
+    contractId?: string;
+    traceId?: string;
+    incidentId?: string;
+    issues?: Array<{
+      path: string;
+      code: string;
+    }>;
+  };
+  /**
+   * The Host or authenticated session is temporarily unavailable.
+   */
+  503: {
+    ok?: false;
+    error: string;
+    code?: string;
+    message?: string;
+    contractId?: string;
+    traceId?: string;
+    incidentId?: string;
+    issues?: Array<{
+      path: string;
+      code: string;
+    }>;
+  };
+};
+
+export type InteractionQuestionAnswerError = InteractionQuestionAnswerErrors[keyof InteractionQuestionAnswerErrors];
+
+export type InteractionQuestionAnswerResponses = {
+  /**
+   * Successful response.
+   */
+  200: QuestionResolution;
+};
+
+export type InteractionQuestionAnswerResponse =
+  InteractionQuestionAnswerResponses[keyof InteractionQuestionAnswerResponses];
+
+export type InteractionQuestionDeclineData = {
+  body: InteractionQuestionDeclineBody;
+  path: {
+    questionId: string;
+  };
+  query?: never;
+  url: "/questions/{questionId}/decline";
+};
+
+export type InteractionQuestionDeclineErrors = {
+  /**
+   * The input is invalid.
+   */
+  400: {
+    ok?: false;
+    error: string;
+    code?: string;
+    message?: string;
+    contractId?: string;
+    traceId?: string;
+    incidentId?: string;
+    issues?: Array<{
+      path: string;
+      code: string;
+    }>;
+  };
+  /**
+   * A valid Host session or token is required.
+   */
+  401: {
+    ok?: false;
+    error: string;
+    code?: string;
+    message?: string;
+    contractId?: string;
+    traceId?: string;
+    incidentId?: string;
+    issues?: Array<{
+      path: string;
+      code: string;
+    }>;
+  };
+  /**
+   * The request is not authorized.
+   */
+  403: {
+    ok?: false;
+    error: string;
+    code?: string;
+    message?: string;
+    contractId?: string;
+    traceId?: string;
+    incidentId?: string;
+    issues?: Array<{
+      path: string;
+      code: string;
+    }>;
+  };
+  /**
+   * The Host could not complete the operation.
+   */
+  500: {
+    ok?: false;
+    error: string;
+    code?: string;
+    message?: string;
+    contractId?: string;
+    traceId?: string;
+    incidentId?: string;
+    issues?: Array<{
+      path: string;
+      code: string;
+    }>;
+  };
+  /**
+   * The Host or authenticated session is temporarily unavailable.
+   */
+  503: {
+    ok?: false;
+    error: string;
+    code?: string;
+    message?: string;
+    contractId?: string;
+    traceId?: string;
+    incidentId?: string;
+    issues?: Array<{
+      path: string;
+      code: string;
+    }>;
+  };
+};
+
+export type InteractionQuestionDeclineError = InteractionQuestionDeclineErrors[keyof InteractionQuestionDeclineErrors];
+
+export type InteractionQuestionDeclineResponses = {
+  /**
+   * Successful response.
+   */
+  200: QuestionResolution;
+};
+
+export type InteractionQuestionDeclineResponse =
+  InteractionQuestionDeclineResponses[keyof InteractionQuestionDeclineResponses];
+
+export type InteractionQuestionCancelData = {
+  body: InteractionQuestionCancelBody;
+  path: {
+    questionId: string;
+  };
+  query?: never;
+  url: "/questions/{questionId}/cancel";
+};
+
+export type InteractionQuestionCancelErrors = {
+  /**
+   * The input is invalid.
+   */
+  400: {
+    ok?: false;
+    error: string;
+    code?: string;
+    message?: string;
+    contractId?: string;
+    traceId?: string;
+    incidentId?: string;
+    issues?: Array<{
+      path: string;
+      code: string;
+    }>;
+  };
+  /**
+   * A valid Host session or token is required.
+   */
+  401: {
+    ok?: false;
+    error: string;
+    code?: string;
+    message?: string;
+    contractId?: string;
+    traceId?: string;
+    incidentId?: string;
+    issues?: Array<{
+      path: string;
+      code: string;
+    }>;
+  };
+  /**
+   * The request is not authorized.
+   */
+  403: {
+    ok?: false;
+    error: string;
+    code?: string;
+    message?: string;
+    contractId?: string;
+    traceId?: string;
+    incidentId?: string;
+    issues?: Array<{
+      path: string;
+      code: string;
+    }>;
+  };
+  /**
+   * The Host could not complete the operation.
+   */
+  500: {
+    ok?: false;
+    error: string;
+    code?: string;
+    message?: string;
+    contractId?: string;
+    traceId?: string;
+    incidentId?: string;
+    issues?: Array<{
+      path: string;
+      code: string;
+    }>;
+  };
+  /**
+   * The Host or authenticated session is temporarily unavailable.
+   */
+  503: {
+    ok?: false;
+    error: string;
+    code?: string;
+    message?: string;
+    contractId?: string;
+    traceId?: string;
+    incidentId?: string;
+    issues?: Array<{
+      path: string;
+      code: string;
+    }>;
+  };
+};
+
+export type InteractionQuestionCancelError = InteractionQuestionCancelErrors[keyof InteractionQuestionCancelErrors];
+
+export type InteractionQuestionCancelResponses = {
+  /**
+   * Successful response.
+   */
+  200: QuestionResolution;
+};
+
+export type InteractionQuestionCancelResponse =
+  InteractionQuestionCancelResponses[keyof InteractionQuestionCancelResponses];
 
 export type AuthEmailCodeCreateData = {
   body: {

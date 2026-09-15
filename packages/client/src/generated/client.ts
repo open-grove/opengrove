@@ -11,7 +11,13 @@ export const openGroveClientOperationIds = [
   "run.direct.guide",
   "run.direct.compact",
   "interaction.approval.list",
+  "interaction.approval.approve",
+  "interaction.approval.reject",
+  "interaction.approval.cancel",
   "interaction.question.list",
+  "interaction.question.answer",
+  "interaction.question.decline",
+  "interaction.question.cancel",
   "auth.email-code.create",
   "auth.session.create",
   "auth.session.get",
@@ -155,6 +161,45 @@ export function bindOpenGroveClient(request: HostOperationRequest) {
             },
             signal: options?.signal,
           }),
+        approve: (
+          input: HostOperationInput<(typeof hostOperationById)["interaction.approval.approve"]>,
+          options?: OpenGroveRequestOptions,
+        ): Promise<HostOperationOutput<(typeof hostOperationById)["interaction.approval.approve"]>> =>
+          request(hostOperationById["interaction.approval.approve"], {
+            params: {
+              approvalId: input.approvalId,
+            },
+            body: {
+              response: input.response,
+            },
+            signal: options?.signal,
+          }),
+        reject: (
+          input: HostOperationInput<(typeof hostOperationById)["interaction.approval.reject"]>,
+          options?: OpenGroveRequestOptions,
+        ): Promise<HostOperationOutput<(typeof hostOperationById)["interaction.approval.reject"]>> =>
+          request(hostOperationById["interaction.approval.reject"], {
+            params: {
+              approvalId: input.approvalId,
+            },
+            body: {
+              response: input.response,
+            },
+            signal: options?.signal,
+          }),
+        cancel: (
+          input: HostOperationInput<(typeof hostOperationById)["interaction.approval.cancel"]>,
+          options?: OpenGroveRequestOptions,
+        ): Promise<HostOperationOutput<(typeof hostOperationById)["interaction.approval.cancel"]>> =>
+          request(hostOperationById["interaction.approval.cancel"], {
+            params: {
+              approvalId: input.approvalId,
+            },
+            body: {
+              response: input.response,
+            },
+            signal: options?.signal,
+          }),
       },
       questions: {
         list: (
@@ -165,6 +210,45 @@ export function bindOpenGroveClient(request: HostOperationRequest) {
             query: {
               limit: input.limit,
               status: input.status,
+            },
+            signal: options?.signal,
+          }),
+        answer: (
+          input: HostOperationInput<(typeof hostOperationById)["interaction.question.answer"]>,
+          options?: OpenGroveRequestOptions,
+        ): Promise<HostOperationOutput<(typeof hostOperationById)["interaction.question.answer"]>> =>
+          request(hostOperationById["interaction.question.answer"], {
+            params: {
+              questionId: input.questionId,
+            },
+            body: {
+              response: input.response,
+            },
+            signal: options?.signal,
+          }),
+        decline: (
+          input: HostOperationInput<(typeof hostOperationById)["interaction.question.decline"]>,
+          options?: OpenGroveRequestOptions,
+        ): Promise<HostOperationOutput<(typeof hostOperationById)["interaction.question.decline"]>> =>
+          request(hostOperationById["interaction.question.decline"], {
+            params: {
+              questionId: input.questionId,
+            },
+            body: {
+              response: input.response,
+            },
+            signal: options?.signal,
+          }),
+        cancel: (
+          input: HostOperationInput<(typeof hostOperationById)["interaction.question.cancel"]>,
+          options?: OpenGroveRequestOptions,
+        ): Promise<HostOperationOutput<(typeof hostOperationById)["interaction.question.cancel"]>> =>
+          request(hostOperationById["interaction.question.cancel"], {
+            params: {
+              questionId: input.questionId,
+            },
+            body: {
+              response: input.response,
             },
             signal: options?.signal,
           }),

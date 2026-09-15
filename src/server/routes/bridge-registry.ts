@@ -26,11 +26,7 @@ import { createHealthRoutes, createInventoryRoutes } from "./core.js";
 import { handleExtensionsRoute } from "./extensions.js";
 import { handleKnowledgeRoute } from "./knowledge.js";
 import { handleLocalResourceRoute } from "./local-resources.js";
-import {
-  handlePendingActionsRoute,
-  handleListApprovalsOperation,
-  handleListQuestionsOperation,
-} from "./pending-actions.js";
+import { createPendingActionRoutes } from "./pending-actions.js";
 import { moduleRoute, operationRoute } from "./registry-utils.js";
 import { handleRoomLedgerCapabilityRoute } from "./room-ledger.js";
 import {
@@ -88,9 +84,7 @@ export function createBridgeRoutes(): BridgeRoute[] {
       handleWorkspaceResourceRoute(context),
     ),
     moduleRoute("local-resources", /^\/local-resource(?:\/|$)/, (context) => handleLocalResourceRoute(context)),
-    operationRoute(hostContractById["interaction.approval.list"], handleListApprovalsOperation),
-    operationRoute(hostContractById["interaction.question.list"], handleListQuestionsOperation),
-    moduleRoute("pending-actions", isPendingActionRoute, (context) => handlePendingActionsRoute(context)),
+    ...createPendingActionRoutes(),
     ...createStateRoutes(),
     moduleRoute("knowledge", /^\/knowledge(?:\/|$)/, (context) => handleKnowledgeRoute(context)),
     moduleRoute("extensions", /^\/extensions(?:\/|$)/, (context) => handleExtensionsRoute(context)),
@@ -134,14 +128,5 @@ function isWithdrawalRoute(context: BridgeRouteContext): boolean {
     context.url.pathname === "/v1/payout-orders" ||
     /^\/v1\/payout-orders\/[^/]+$/.test(context.url.pathname) ||
     /^\/v1\/payout-orders\/[^/]+\/sync$/.test(context.url.pathname)
-  );
-}
-
-function isPendingActionRoute(context: BridgeRouteContext): boolean {
-  return (
-    context.url.pathname === "/approvals" ||
-    context.url.pathname === "/questions" ||
-    /^\/approvals\/[^/]+\/(approve|reject|cancel)$/.test(context.url.pathname) ||
-    /^\/questions\/[^/]+\/(answer|decline|cancel)$/.test(context.url.pathname)
   );
 }

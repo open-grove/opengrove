@@ -1,55 +1,66 @@
-import type { ListApprovalsOperation, ListQuestionsOperation } from "#protocol";
-import type { HostOperationRouteContext } from "../router.js";
-import type { IncomingMessage, ServerResponse } from "node:http";
-import type { JsonValue } from "../../core.js";
-import type { BridgeState } from "../bridge-types.js";
-import { record } from "../http-utils.js";
+import type {
+  ListApprovalsOperation,
+  ListQuestionsOperation,
+  ApprovalDecisionOperation,
+  QuestionDecisionOperation,
+} from "#protocol";
+import { hostContractById } from "#protocol/compiled";
+import type { HostOperationRouteContext, BridgeRoute } from "../router.js";
+import { operationRoute } from "./registry-utils.js";
 import { resolveApproval } from "../approval-actions.js";
 import { resolveQuestion } from "../question-actions.js";
 import { presentApprovalSummaries, presentQuestionSummaries } from "../state-presentation.js";
 
-type SendJson = (response: ServerResponse, status: number, data: unknown) => void;
-type ReadJsonBody = (request: IncomingMessage) => Promise<unknown>;
+export function createPendingActionRoutes(): BridgeRoute[] {
+  return [
+    operationRoute(hostContractById["interaction.approval.list"], handleListApprovalsOperation),
+    operationRoute(hostContractById["interaction.question.list"], handleListQuestionsOperation),
+    operationRoute(hostContractById["interaction.approval.approve"], (context) =>
+      handleApprovalDecision(context, "approved"),
+    ),
+    operationRoute(hostContractById["interaction.approval.reject"], (context) =>
+      handleApprovalDecision(context, "rejected"),
+    ),
+    operationRoute(hostContractById["interaction.approval.cancel"], (context) =>
+      handleApprovalDecision(context, "canceled"),
+    ),
+    operationRoute(hostContractById["interaction.question.answer"], (context) =>
+      handleQuestionDecision(context, "answered"),
+    ),
+    operationRoute(hostContractById["interaction.question.decline"], (context) =>
+      handleQuestionDecision(context, "declined"),
+    ),
+    operationRoute(hostContractById["interaction.question.cancel"], (context) =>
+      handleQuestionDecision(context, "canceled"),
+    ),
+  ];
+}
 
-export async function handlePendingActionsRoute(options: {
-  request: IncomingMessage;
-  response: ServerResponse;
-  url: URL;
-  state: BridgeState;
-  sendJson: SendJson;
-  readJsonBody: ReadJsonBody;
-}): Promise<boolean> {
-  const { request, response, url, state, sendJson, readJsonBody } = options;
-
-  const approvalAction = url.pathname.match(/^\/approvals\/([^/]+)\/(approve|reject|cancel)$/);
-  if (request.method === "POST" && approvalAction) {
-    const [, approvalId, action] = approvalAction;
-    const body = record(await readJsonBody(request));
-    const result = await resolveApproval(
-      state,
-      decodeURIComponent(approvalId!),
-      action === "approve" ? "approved" : action === "reject" ? "rejected" : "canceled",
-      body.response as JsonValue | undefined,
-    );
-    sendJson(response, 200, result);
-    return true;
-  }
-
-  const questionAction = url.pathname.match(/^\/questions\/([^/]+)\/(answer|decline|cancel)$/);
-  if (request.method === "POST" && questionAction) {
-    const [, questionId, action] = questionAction;
-    const body = record(await readJsonBody(request));
-    const result = await resolveQuestion(
-      state,
-      decodeURIComponent(questionId!),
-      action === "answer" ? "answered" : action === "decline" ? "declined" : "canceled",
-      body.response as JsonValue | undefined,
-    );
-    sendJson(response, 200, result);
-    return true;
-  }
-
-  return false;
+async function handleApprovalDecision(
+  context: HostOperationRouteContext<ApprovalDecisionOperation>,
+  status: "approved" | "rejected" | "canceled",
+): Promise<true> {
+  const result = await resolveApproval(
+    context.state,
+    context.input.params.approvalId,
+    status,
+    context.input.body.response,
+  );
+  context.sendJson(context.response, 200, result);
+  return true;
+}
+async function handleQuestionDecision(
+  context: HostOperationRouteContext<QuestionDecisionOperation>,
+  status: "answered" | "declined" | "canceled",
+): Promise<true> {
+  const result = await resolveQuestion(
+    context.state,
+    context.input.params.questionId,
+    status,
+    context.input.body.response,
+  );
+  context.sendJson(context.response, 200, result);
+  return true;
 }
 
 export function handleListApprovalsOperation(context: HostOperationRouteContext<ListApprovalsOperation>): true {

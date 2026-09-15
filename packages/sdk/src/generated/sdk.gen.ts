@@ -51,9 +51,27 @@ import type {
   HostHostBootstrapData,
   HostHostBootstrapErrors,
   HostHostBootstrapResponses,
+  InteractionApprovalApproveData,
+  InteractionApprovalApproveErrors,
+  InteractionApprovalApproveResponses,
+  InteractionApprovalCancelData,
+  InteractionApprovalCancelErrors,
+  InteractionApprovalCancelResponses,
   InteractionApprovalListData,
   InteractionApprovalListErrors,
   InteractionApprovalListResponses,
+  InteractionApprovalRejectData,
+  InteractionApprovalRejectErrors,
+  InteractionApprovalRejectResponses,
+  InteractionQuestionAnswerData,
+  InteractionQuestionAnswerErrors,
+  InteractionQuestionAnswerResponses,
+  InteractionQuestionCancelData,
+  InteractionQuestionCancelErrors,
+  InteractionQuestionCancelResponses,
+  InteractionQuestionDeclineData,
+  InteractionQuestionDeclineErrors,
+  InteractionQuestionDeclineResponses,
   InteractionQuestionListData,
   InteractionQuestionListErrors,
   InteractionQuestionListResponses,
@@ -337,6 +355,72 @@ export class Approval extends HeyApiClient {
       ThrowOnError
     >({ url: "/approvals", ...options });
   }
+
+  /**
+   * Approve a requested action
+   *
+   * Resolve an approval through its original Host execution. Matching repeated decisions are idempotent. Native requests require their producer to remain live.
+   */
+  public approve<ThrowOnError extends boolean = false>(
+    options: Options<InteractionApprovalApproveData, ThrowOnError>,
+  ): RequestResult<InteractionApprovalApproveResponses, InteractionApprovalApproveErrors, ThrowOnError> {
+    return (options.client ?? this.client).post<
+      InteractionApprovalApproveResponses,
+      InteractionApprovalApproveErrors,
+      ThrowOnError
+    >({
+      url: "/approvals/{approvalId}/approve",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Reject a requested action
+   *
+   * Resolve an approval through its original Host execution. Matching repeated decisions are idempotent. Native requests require their producer to remain live.
+   */
+  public reject<ThrowOnError extends boolean = false>(
+    options: Options<InteractionApprovalRejectData, ThrowOnError>,
+  ): RequestResult<InteractionApprovalRejectResponses, InteractionApprovalRejectErrors, ThrowOnError> {
+    return (options.client ?? this.client).post<
+      InteractionApprovalRejectResponses,
+      InteractionApprovalRejectErrors,
+      ThrowOnError
+    >({
+      url: "/approvals/{approvalId}/reject",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Cancel an approval request
+   *
+   * Resolve an approval through its original Host execution. Matching repeated decisions are idempotent. Native requests require their producer to remain live.
+   */
+  public cancel<ThrowOnError extends boolean = false>(
+    options: Options<InteractionApprovalCancelData, ThrowOnError>,
+  ): RequestResult<InteractionApprovalCancelResponses, InteractionApprovalCancelErrors, ThrowOnError> {
+    return (options.client ?? this.client).post<
+      InteractionApprovalCancelResponses,
+      InteractionApprovalCancelErrors,
+      ThrowOnError
+    >({
+      url: "/approvals/{approvalId}/cancel",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
 }
 
 export class Question extends HeyApiClient {
@@ -353,6 +437,72 @@ export class Question extends HeyApiClient {
       InteractionQuestionListErrors,
       ThrowOnError
     >({ url: "/questions", ...options });
+  }
+
+  /**
+   * Answer a question
+   *
+   * Resolve a question through its original Host execution. Matching repeated decisions are idempotent. Native requests require their producer to remain live.
+   */
+  public answer<ThrowOnError extends boolean = false>(
+    options: Options<InteractionQuestionAnswerData, ThrowOnError>,
+  ): RequestResult<InteractionQuestionAnswerResponses, InteractionQuestionAnswerErrors, ThrowOnError> {
+    return (options.client ?? this.client).post<
+      InteractionQuestionAnswerResponses,
+      InteractionQuestionAnswerErrors,
+      ThrowOnError
+    >({
+      url: "/questions/{questionId}/answer",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Decline a question
+   *
+   * Resolve a question through its original Host execution. Matching repeated decisions are idempotent. Native requests require their producer to remain live.
+   */
+  public decline<ThrowOnError extends boolean = false>(
+    options: Options<InteractionQuestionDeclineData, ThrowOnError>,
+  ): RequestResult<InteractionQuestionDeclineResponses, InteractionQuestionDeclineErrors, ThrowOnError> {
+    return (options.client ?? this.client).post<
+      InteractionQuestionDeclineResponses,
+      InteractionQuestionDeclineErrors,
+      ThrowOnError
+    >({
+      url: "/questions/{questionId}/decline",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Cancel a question
+   *
+   * Resolve a question through its original Host execution. Matching repeated decisions are idempotent. Native requests require their producer to remain live.
+   */
+  public cancel<ThrowOnError extends boolean = false>(
+    options: Options<InteractionQuestionCancelData, ThrowOnError>,
+  ): RequestResult<InteractionQuestionCancelResponses, InteractionQuestionCancelErrors, ThrowOnError> {
+    return (options.client ?? this.client).post<
+      InteractionQuestionCancelResponses,
+      InteractionQuestionCancelErrors,
+      ThrowOnError
+    >({
+      url: "/questions/{questionId}/cancel",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
   }
 }
 
