@@ -48,10 +48,13 @@ The one-time migration from `<userData>/apps` and
 directory:
 
 1. Attribute the old program, package marker, manifest, Workspace binding, and
-   roots to the same Store App. Unknown or manual mounts are skipped.
+   roots to the same Store App. Unknown or manual mounts are skipped. Inspect
+   both trees for link mappings, supported entry types, and generated Python
+   environment paths before copying either tree.
 2. Copy the Workspace into a uniquely named sibling `.migrating-*` directory,
    hash every file and compare the complete tree, then rename the sibling to its
-   final name.
+   final name. Link targets and recognized environment paths are relocated
+   in the staging copy and validated against the corresponding transformed source.
 3. Copy the immutable program without following its Workspace link, compare the
    complete program tree, bind it to the new Workspace, then rename that sibling
    generation to its final name.
@@ -70,9 +73,36 @@ authoritative. If the recreated candidate App is not healthy, startup restores
 the old in-memory paths and recreates the legacy App.
 Legacy retirement and cleanup failures are logged and retried but never abort
 Bridge startup. A later startup can reuse final copies only when their content
-validates exactly against the source. Absolute symlinks and relative symlinks
-that leave the migrated tree are deferred because retaining them would make the
-later legacy-directory rename break user data.
+validates against the source with the same deterministic path transformations.
+Conflicting existing copies are retained, not overwritten or merged.
+
+### Link and environment relocation
+
+Links are copied as links; migration does not copy, hash, or modify the contents
+of external targets. External absolute links (such as a system Python interpreter)
+retain their original target. Links into the migrating Program or Workspace map
+to the final destination, including links between those two trees. Relative links
+are recalculated from their final parent so they retain the intended destination.
+Dangling links and cycles remain links and are never traversed recursively.
+A link into another legacy App with no destination mapping is deferred during
+preflight, before the large Workspace copy; its target might be retired later.
+This follows the link-preservation approach in Cherry Studio's userDataRelocation,
+adapted for OpenGrove's separately located Program and Workspace trees.
+
+For a recognized Python virtual environment, migration updates `pyvenv.cfg` and
+UTF-8 text launchers/activation scripts directly under `bin` or `Scripts` in the
+copy. POSIX Python entry-point shebangs use a shell/Python launcher that supports
+spaces and long paths. Paths refer to the final location, never staging. Installed
+packages, binary files, other program text, and Workspace documents remain intact;
+no Python or package installer is executed during migration. This is same-machine
+repair of known generated paths, not general venv portability or binary-launcher
+relocation. Targets with unsupported shell quoting are rejected before copying.
+See [Python's venv guidance](https://docs.python.org/3.13/library/venv.html#how-venvs-work)
+and [migration issue #102](https://github.com/open-grove/opengrove/issues/102).
+
+Preflight does not replace complete copy validation or the final activation check.
+Later copy, write, or rename errors can still retain an unused final Workspace
+copy; it is reused only after validation and is not treated as a retired backup.
 
 ## Compatibility and diagnostics boundary
 
