@@ -140,7 +140,7 @@ export async function prepareHostOperationCommand(
   }
 
   try {
-    const parsed = parseHostOperationOptions(operation, operationArgs, options.env ?? process.env);
+    const parsed = await parseHostOperationOptions(operation, operationArgs, options.env ?? process.env);
     const call = decodeHostOperationCall(operation.operation, operation, parsed.flatInput);
     if (parsed.dryRun) {
       return {
@@ -287,7 +287,7 @@ function renderOperationHelp(operation: CompiledHostOperation): string {
     ...(fieldLines.length > 0 ? fieldLines : ["  (none)"]),
     "",
     "Common options:",
-    "  --input <json>     Provide all operation fields as one JSON object; explicit field flags override it.",
+    "  --input <json|@file|->  JSON fields, a UTF-8 JSON file, or piped stdin (16 MiB maximum). Field flags override it.",
     `  --base-url <url>   Bridge API base URL. Default: OPENGROVE_BRIDGE_URL or ${DEFAULT_HOST_OPERATION_BRIDGE_API_URL}.`,
     "  --token <token>    Bridge token. Overrides the saved account session. Default: OPENGROVE_BRIDGE_TOKEN.",
     "  --format <format>  Output format. Currently: json (default).",

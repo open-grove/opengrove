@@ -1,3 +1,4 @@
+import { createReadStream } from "node:fs";
 import { bridgeContractIssues, type BridgeContractIssue, type HostOperation } from "#protocol";
 import type { CompiledHostInputSection, CompiledHostOperation } from "#protocol/compiler";
 
@@ -64,11 +65,11 @@ export function hostOperationFields(operation: CompiledHostOperation): HostOpera
   return fields;
 }
 
-export function parseHostOperationOptions(
+export async function parseHostOperationOptions(
   operation: CompiledHostOperation,
   args: readonly string[],
   env: Readonly<Record<string, string | undefined>>,
-): HostOperationParsedOptions {
+): Promise<HostOperationParsedOptions> {
   const fields = hostOperationFields(operation);
   const fieldsByFlag = new Map(fields.map((field) => [field.flag, field]));
   const assignedFields = new Map<string, unknown[]>();
@@ -102,7 +103,7 @@ export function parseHostOperationOptions(
       if (inputSeen) throw new HostOperationCliUsageError("duplicate_option", "--input may only be provided once.");
       const value = readOptionValue(args, index, flag, inlineValue);
       index += inlineValue === undefined ? 1 : 0;
-      input = parseJsonObject(value, flag);
+      input = parseJsonObject(await readInputSource(value), flag);
       inputSeen = true;
       continue;
     }
@@ -389,4 +390,40 @@ function kebabCase(value: string): string {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+const MAX_JSON_INPUT_BYTES = 16 * 1024 * 1024;
+
+async function readInputSource(value: string): Promise<string> {
+  const fromStdin = value === "-";
+  if (!fromStdin && !value.startsWith("@")) return value;
+  if (fromStdin && process.stdin.isTTY) {
+    throw new HostOperationCliUsageError("stdin_required", "Pipe JSON into --input -, or use --input @file.json.");
+  }
+  const path = value.slice(1);
+  if (!fromStdin && !path) {
+    throw new HostOperationCliUsageError("input_file_required", "Provide a file path after @.");
+  }
+  const stream = fromStdin ? process.stdin : createReadStream(path);
+  const chunks: Buffer[] = [];
+  let bytes = 0;
+  try {
+    for await (const chunk of stream) {
+      const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+      bytes += buffer.length;
+      if (bytes > MAX_JSON_INPUT_BYTES) {
+        throw new HostOperationCliUsageError("input_too_large", "JSON input exceeds 16 MiB.");
+      }
+      chunks.push(buffer);
+    }
+    return Buffer.concat(chunks)
+      .toString("utf8")
+      .replace(/^\uFEFF/u, "");
+  } catch (error) {
+    if (error instanceof HostOperationCliUsageError) throw error;
+    throw new HostOperationCliUsageError(
+      fromStdin ? "stdin_unreadable" : "input_file_unreadable",
+      fromStdin ? "Could not read JSON from standard input." : `Could not read JSON input file: ${path}`,
+    );
+  }
 }
