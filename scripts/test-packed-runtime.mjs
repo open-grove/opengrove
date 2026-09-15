@@ -1,10 +1,12 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
-import { mkdir, mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { promisify } from "node:util";
 import { fileURLToPath, pathToFileURL } from "node:url";
+
+import { summarizeNpmDiagnostics } from "./npm-install-diagnostics.mjs";
 
 const execFileAsync = promisify(execFile);
 const scriptDir = dirname(fileURLToPath(import.meta.url));
@@ -16,6 +18,7 @@ const npmArgsPrefix =
     : [];
 const tempRoot = await mkdtemp(join(tmpdir(), "opengrove-packed-runtime-"));
 const installRoot = join(tempRoot, "runtime");
+const logsRoot = join(tempRoot, "npm-logs");
 const startedAt = Date.now();
 let phase = "pack";
 let outcome = "failed";
@@ -43,6 +46,10 @@ try {
       "--no-audit",
       "--no-fund",
       "--prefer-offline",
+      "--timing",
+      "--loglevel=verbose",
+      "--logs-dir",
+      logsRoot,
       "--prefix",
       installRoot,
       join(tempRoot, archives[0]),
@@ -95,6 +102,20 @@ try {
   );
   throw new Error(`packed-runtime ${phase} failed; inspect the owning Nightly network job`, { cause: undefined });
 } finally {
+  let npmDiagnostics;
+  try {
+    const names = await readdir(logsRoot);
+    const logs = await Promise.all(
+      names.filter((name) => name.endsWith(".log")).map((name) => readFile(join(logsRoot, name), "utf8")),
+    );
+    const timings = await Promise.all(
+      names.filter((name) => name.endsWith("-timing.json")).map((name) => readFile(join(logsRoot, name), "utf8")),
+    );
+    npmDiagnostics = summarizeNpmDiagnostics(logs, timings);
+  } catch (error) {
+    npmDiagnostics = { unavailable: error.code ?? "diagnostic_read_failed" };
+    console.warn(`npm diagnostic metrics unavailable: ${npmDiagnostics.unavailable}`);
+  }
   const diagnostics = {
     phase,
     outcome,
@@ -102,6 +123,7 @@ try {
     platform: process.platform,
     node: process.version,
     failure,
+    npm: npmDiagnostics,
   };
   console.log(JSON.stringify(diagnostics));
   if (process.env.OPENGROVE_NETWORK_DIAGNOSTICS) {

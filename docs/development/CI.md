@@ -38,7 +38,8 @@ Nightly no longer repeats Main's Linux harness, complete UI or web-package jobs.
 The temporary production `npm install` probe is a network integration check,
 separate from lockfile-based `npm ci`. Its 300-second deadline is unchanged. Its
 artifact identifies pack/install/import phase, platform, exit category and elapsed
-time; raw npm configuration and credentials are not uploaded. A timeout is an
+time, plus selected npm fetch/lifecycle/timer metrics; raw npm configuration,
+log files and credentials are not uploaded. A timeout is an
 installation failure, not evidence that a product assertion failed. Investigate
 before rerunning; CI does not blindly retry the test.
 
