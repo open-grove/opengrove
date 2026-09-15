@@ -184,8 +184,12 @@ with Ask for approval. OpenClaw remains Gateway-managed; remote permissions belo
 
 Explicit user choices survive ordinary seed synchronization and take priority over App defaults;
 compatible App declarations take priority over product defaults. App version activation and the
-explicit restore-App-defaults action can reapply the App's configuration. A one-time v3 migration only
-fills missing employee modes and repairs unsupported combinations, backing up changed state. It does
+explicit restore-App-defaults action can reapply the App's configuration. Ordinary synchronization
+also preserves saved permissions for non-PM product Employees and App Employees whose App declares
+no permission mode. A refreshed or missing Claude cache changes availability and defaults for new
+Employees, without rewriting these saved selections. Unsupported kernel combinations are still repaired.
+A one-time v3 migration only fills missing employee modes and repairs unsupported combinations,
+backing up changed state. It does
 not blanket-reset compatible choices. PM's new default follows the existing product seed mechanism
 and preserves explicit user permission overrides. Stored chat choices are read without being rewritten;
 an unset chat choice resolves against the selected kernel and model.

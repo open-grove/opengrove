@@ -597,6 +597,104 @@ for (const previousVersion of [0, 1, 2]) {
   });
 }
 
+for (const initialSupport of [false, true]) {
+  test(`saved Employee permissions survive Claude cache refresh and loss (initial support: ${initialSupport})`, async () => {
+    const cwd = mkdtempSync(join(tmpdir(), "opengrove-permission-cache-drift-"));
+    const configHome = join(cwd, "claude");
+    const statePath = join(cwd, "state.sqlite");
+    const appRoot = join(cwd, "app");
+    const writeSupport = (supportsAutoMode: boolean) =>
+      writeClaudeModelsCache(
+        ["deepseek-v4-flash", "claude-opus-4-8"].map((value) => ({ value, supportsAutoMode })),
+        { configHome, now: "2026-09-15T00:00:00Z" },
+      );
+    writeSupport(initialSupport);
+    mkdirSync(join(appRoot, "workspace"), { recursive: true });
+    const manifest = {
+      id: "cache-drift",
+      title: "Cache drift",
+      workspace: { path: "workspace" },
+      employees: [
+        { id: "writer", kernel: "claude-code", model: "claude-opus-4-8" },
+        { id: "store", kernel: "claude-code", model: "claude-opus-4-8" },
+        { id: "declared", kernel: "claude-code", model: "claude-opus-4-8", accessMode: "full-access" },
+      ],
+      store: {
+        employeeDefaults: [
+          {
+            memberId: "member-app-cache-drift-store",
+            name: "Store",
+            kernel: "claude-code",
+            model: "claude-opus-4-8",
+          },
+        ],
+      },
+    };
+    writeFileSync(join(appRoot, "opengrove.app.json"), JSON.stringify(manifest));
+    let state = createBridgeState({ statePath });
+    const restart = async () => {
+      saveBridgeSettings(state);
+      state.store.saveFrom(state.app);
+      await state.store.close?.();
+      state = createBridgeState({ statePath });
+    };
+    try {
+      state.settings.kernelPathOverrides["claude-code"] = { configHome };
+      state.settings.mountedApps = [{ id: "cache-drift", path: appRoot, enabled: true, appBuilderEnabled: true }];
+      state.settings.nativeApprovalPresetsVersion = 0;
+      for (const id of ["grove-guide", "app-builder"]) state.app.rooms.patchMember(id, { accessMode: undefined });
+      await restart();
+      const expected = initialSupport ? "auto-review" : "default";
+      const assertSavedPermissions = (declared: "default" | "full-access" = "full-access") => {
+        const members = state.app.rooms.listMembers();
+        const stable = members.filter(
+          (member) =>
+            ["grove-guide", "app-builder", "member-app-cache-drift-writer", "member-app-cache-drift-store"].includes(
+              member.id,
+            ) ||
+            (member.appId === "cache-drift" && member.employeeDefinitionId === "app-builder"),
+        );
+        assert.equal(stable.length, 5);
+        for (const member of stable) {
+          assert.equal(member.accessMode, expected, member.id);
+          assert.equal(
+            member.userOverrides?.includes("accessMode") ?? false,
+            false,
+            "a saved default remains distinct from a user override",
+          );
+        }
+        assert.equal(members.find((member) => member.id === "member-app-cache-drift-declared")?.accessMode, declared);
+        assert.equal(members.find((member) => member.id === "pm")?.accessMode, "full-access");
+      };
+      assertSavedPermissions();
+      for (const support of [!initialSupport, initialSupport, undefined]) {
+        if (support === undefined) rmSync(join(configHome, "opengrove-models-cache.json"));
+        else writeSupport(support);
+        await restart();
+        assert.equal(
+          buildClaudeCodeRuntimeControls(configHome, undefined).autoReviewModelIds?.includes("claude-opus-4-8"),
+          support === true,
+        );
+        assertSavedPermissions();
+      }
+      writeSupport(!initialSupport);
+      manifest.employees.find((employee) => employee.id === "declared")!.accessMode = "default";
+      manifest.employees.push({ id: "fresh", kernel: "claude-code", model: "claude-opus-4-8" });
+      writeFileSync(join(appRoot, "opengrove.app.json"), JSON.stringify(manifest));
+      await restart();
+      assertSavedPermissions("default");
+      assert.equal(
+        state.app.rooms.listMembers().find((member) => member.id === "member-app-cache-drift-fresh")?.accessMode,
+        initialSupport ? "default" : "auto-review",
+        "new Employees still use the current capability result",
+      );
+    } finally {
+      await state.store.close?.();
+      rmSync(cwd, { recursive: true, force: true });
+    }
+  });
+}
+
 for (const configuredSupport of [true, false]) {
   test(`Claude employee lifecycle uses the configured cache (${configuredSupport}) instead of the ambient cache`, async () => {
     const cwd = mkdtempSync(join(tmpdir(), "opengrove-configured-claude-permissions-"));
@@ -616,6 +714,7 @@ for (const configuredSupport of [true, false]) {
     try {
       state.settings.kernelPathOverrides["claude-code"] = { configHome: configuredHome };
       state.settings.nativeApprovalPresetsVersion = 0;
+      for (const id of ["grove-guide", "app-builder"]) state.app.rooms.patchMember(id, { accessMode: undefined });
       state.app.rooms.upsertMember({
         ...state.app.rooms.listMembers().find((member) => member.id === "app-builder")!,
         id: "configuration-migration",

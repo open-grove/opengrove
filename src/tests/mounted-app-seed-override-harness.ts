@@ -48,13 +48,14 @@ function seedMember(overrides: Partial<RoomChannelMember> = {}): RoomChannelMemb
     avatarDataUrl: "data:image/png;base64,logical-employee-avatar",
     kernel: "codex",
     model: "gpt-5.6",
+    accessMode: "default",
     userOverrides: ["avatarDataUrl", "kernel", "model"],
   };
   const merged = syncProductDefaultSeedMembers(new Map([[storedAppBuilder.id, storedAppBuilder]]), seed);
   const appBuilder = merged.find((member) => member.id === "app-builder");
   assert.equal(appBuilder?.kernel, "codex", "saved App Builder kernel survives product re-seeding");
   assert.equal(appBuilder?.model, "gpt-5.6", "saved App Builder model survives product re-seeding");
-  assert.equal(appBuilder?.accessMode, "auto-review", "implicit permission defaults follow the user's selected kernel");
+  assert.equal(appBuilder?.accessMode, "default", "a saved permission default survives product re-seeding");
   for (const accessMode of ["default", "full-access"] as const) {
     const explicit = {
       ...storedAppBuilder,
@@ -64,6 +65,19 @@ function seedMember(overrides: Partial<RoomChannelMember> = {}): RoomChannelMemb
     const saved = syncProductDefaultSeedMembers(new Map([[explicit.id, explicit]]), seed);
     assert.equal(saved.find((member) => member.id === explicit.id)?.accessMode, accessMode);
   }
+  const pmSeed = seed.find((member) => member.id === OPENGROVE_PM_MEMBER_ID)!;
+  const updatedPmSeed = { ...pmSeed, accessMode: "default" as const };
+  assert.equal(
+    syncProductDefaultSeedMembers(new Map([[pmSeed.id, pmSeed]]), [updatedPmSeed])[0]?.accessMode,
+    "default",
+    "PM still follows an explicit product default change",
+  );
+  const customizedPm = { ...pmSeed, userOverrides: ["accessMode"] };
+  assert.equal(
+    syncProductDefaultSeedMembers(new Map([[pmSeed.id, customizedPm]]), [updatedPmSeed])[0]?.accessMode,
+    "full-access",
+    "PM product updates preserve user permission choices",
+  );
 
   const scopedSeed: RoomChannelMember = {
     ...appBuilderSeed,

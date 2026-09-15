@@ -59,7 +59,10 @@ export interface MountedAppEmployeeSummary {
   displayOutputSpec?: string;
 }
 
-export function mountedAppDefaultEmployees(settings: BridgeSettings): RoomChannelMember[] {
+export function mountedAppDefaultEmployees(
+  settings: BridgeSettings,
+  existingMembers?: ReadonlyMap<string, RoomChannelMember>,
+): RoomChannelMember[] {
   const members: RoomChannelMember[] = [];
   for (const mountedApp of settings.mountedApps ?? []) {
     if (mountedApp.enabled === false || !mountedApp.path?.trim()) continue;
@@ -82,6 +85,7 @@ export function mountedAppDefaultEmployees(settings: BridgeSettings): RoomChanne
         presentation,
         manifest,
         mountedApp.appBuilderEnabled === true,
+        existingMembers,
       ),
     );
   }
@@ -130,6 +134,7 @@ function manifestDefaultEmployees(
   presentation: AppManifestPresentation,
   manifest: JsonObject,
   appBuilderEnabled: boolean,
+  existingMembers?: ReadonlyMap<string, RoomChannelMember>,
 ): RoomChannelMember[] {
   const appAgentContext = collectMountedAppAgentContext(appRoot, workspaceRoot, appId, manifest);
   const claudeConfigHome = kernelConfigHomeForRegistry(settings, "claude-code");
@@ -162,7 +167,6 @@ function manifestDefaultEmployees(
         appDisplayTitle: presentation.title || appTitle,
         workspaceRoot: appRoot,
         language: presentation.locale,
-        claudeConfigHome,
       }),
     );
   }
@@ -187,7 +191,13 @@ function manifestDefaultEmployees(
       ? member
       : {
           ...member,
-          accessMode: normalizeEmployeeAccessMode(member.kernel, member.accessMode, member.model, claudeConfigHome),
+          // Resolve an omitted App default once; a refreshed cache must not reset existing Employees.
+          accessMode: normalizeEmployeeAccessMode(
+            member.kernel,
+            member.accessMode ?? existingMembers?.get(member.id)?.accessMode,
+            member.model,
+            claudeConfigHome,
+          ),
         },
   );
 }
@@ -210,12 +220,16 @@ function applyStoreEmployeeDefaults(
     const reasoningEffort = normalizeReasoningEffort(override.reasoningEffort);
     const contextTokenBudget = positiveInteger(override.contextTokenBudget);
     const configuredKernel = stringOrUndefined(override.kernel) ?? member.kernel;
-    const accessMode = normalizeEmployeeAccessMode(
-      configuredKernel,
-      override.accessMode ?? member.accessMode,
-      stringOrUndefined(override.model) ?? member.model,
-      claudeConfigHome,
-    );
+    const requestedAccessMode = override.accessMode ?? member.accessMode;
+    const accessMode =
+      requestedAccessMode === undefined
+        ? undefined
+        : normalizeEmployeeAccessMode(
+            configuredKernel,
+            requestedAccessMode,
+            stringOrUndefined(override.model) ?? member.model,
+            claudeConfigHome,
+          );
     const configuredModel = stringOrUndefined(override.model);
     const configured: RoomChannelMember = {
       ...member,
@@ -474,7 +488,6 @@ function createAppBuilderMember(input: {
   appDisplayTitle: string;
   workspaceRoot: string;
   language: SupportedLocale;
-  claudeConfigHome: string;
 }): RoomChannelMember {
   const skillIds = [OPENGROVE_APP_BUILDER_SKILL_NAME, OPENGROVE_APP_WORKSPACE_GUARD_SKILL_NAME];
   const runtime = PRODUCT_EMPLOYEE_RUNTIME_DEFAULTS[OPENGROVE_APP_BUILDER_MEMBER_ID];
@@ -499,7 +512,6 @@ function createAppBuilderMember(input: {
     defaultSkillIds: skillIds,
     appId: input.appId,
     workspaceRoot: input.workspaceRoot,
-    accessMode: normalizeEmployeeAccessMode(runtime.kernel, undefined, runtime.model, input.claudeConfigHome),
     reasoningEffort: defaultEmployeeReasoningEffort(),
     source: "local",
     sourceLabel: `${input.appDisplayTitle} App`,

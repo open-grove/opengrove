@@ -854,7 +854,7 @@ export function recreateBridgeApp(state: BridgeState, options: RecreateBridgeApp
     claudeConfigHome,
   );
   const appSeedMembers = applyEmployeeDefinitionRuntimeToScopedSeeds(
-    mountedAppDefaultEmployees({ ...state.settings, mountedApps }),
+    mountedAppDefaultEmployees({ ...state.settings, mountedApps }, existingMembers),
     productSeedMembers,
   );
   const appSeedMemberIds = new Set(appSeedMembers.map((member) => member.id));
@@ -1341,8 +1341,14 @@ export function syncProductDefaultSeedMembers(
     const existing = existingMembers.get(seed.id);
     if (existing) {
       const merged = syncMountedAppSeedMember(existing, seed, claudeConfigHome);
-      if (seed.id !== OPENGROVE_PM_MEMBER_ID && !merged.userOverrides?.includes("accessMode")) {
-        merged.accessMode = normalizeEmployeeAccessMode(merged.kernel, undefined, merged.model, claudeConfigHome);
+      if (seed.id !== OPENGROVE_PM_MEMBER_ID) {
+        // Capability discovery can change available presets, not a saved selection.
+        merged.accessMode = normalizeEmployeeAccessMode(
+          merged.kernel,
+          existing.accessMode,
+          merged.model,
+          claudeConfigHome,
+        );
       }
       return merged;
     }
