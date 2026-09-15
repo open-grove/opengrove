@@ -1,4 +1,4 @@
-import { spawnSync } from "node:child_process";
+import { spawnSync, type SpawnSyncReturns } from "node:child_process";
 import { copyFileSync, existsSync, lstatSync, mkdirSync, readdirSync, statSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { tarCommand } from "../archive/tar-command.js";
@@ -20,16 +20,17 @@ export function unpackAppStoreArchive(
   if (entries.entries.some((entry) => !isSafeAppStoreArchiveEntry(entry))) {
     return { ok: false, error: "app_store_archive_path_invalid" };
   }
-  if (isTarArchive(archivePath) && !tarEntryTypesSafe(archivePath)) {
-    return { ok: false, error: "app_store_archive_entry_type_invalid" };
+  if (isTarArchive(archivePath)) {
+    const entryTypes = validateTarEntryTypes(archivePath);
+    if (!entryTypes.ok) return entryTypes;
   }
   const lower = archivePath.toLowerCase();
   const command = lower.endsWith(".zip")
     ? { bin: "unzip", args: ["-q", archivePath, "-d", target] }
     : { bin: tarCommand(), args: ["-xf", archivePath, "-C", target] };
-  const result = spawnSync(command.bin, command.args, { encoding: "utf8" });
-  if (result.status === 0) return { ok: true };
-  return { ok: false, error: `${command.bin} failed: ${(result.stderr || result.stdout || "").trim()}` };
+  const result = spawnSync(command.bin, command.args, { encoding: "utf8", windowsHide: true });
+  if (!result.error && result.status === 0) return { ok: true };
+  return { ok: false, error: archiveCommandFailure(command.bin, command.args, result) };
 }
 
 export function isSafeAppStoreArchiveEntry(entry: string): boolean {
@@ -111,9 +112,9 @@ function listArchiveEntries(archivePath: string): { ok: true; entries: string[] 
   const command = lower.endsWith(".zip")
     ? { bin: "unzip", args: ["-Z1", archivePath] }
     : { bin: tarCommand(), args: ["-tf", archivePath] };
-  const result = spawnSync(command.bin, command.args, { encoding: "utf8" });
-  if (result.status !== 0) {
-    return { ok: false, error: `${command.bin} failed: ${(result.stderr || result.stdout || "").trim()}` };
+  const result = spawnSync(command.bin, command.args, { encoding: "utf8", windowsHide: true });
+  if (result.error || result.status !== 0) {
+    return { ok: false, error: archiveCommandFailure(command.bin, command.args, result) };
   }
   return {
     ok: true,
@@ -124,16 +125,35 @@ function listArchiveEntries(archivePath: string): { ok: true; entries: string[] 
   };
 }
 
-function tarEntryTypesSafe(archivePath: string): boolean {
-  const result = spawnSync(tarCommand(), ["-tvf", archivePath], { encoding: "utf8" });
-  if (result.status !== 0) return false;
-  return result.stdout
+function archiveCommandFailure(bin: string, args: string[], result: SpawnSyncReturns<string>): string {
+  const error = result.error as NodeJS.ErrnoException | undefined;
+  const details = [
+    error?.code,
+    error?.errno !== undefined ? `errno ${error.errno}` : undefined,
+    error?.message,
+    result.status !== null ? `exit code ${result.status}` : undefined,
+    result.signal ? `signal ${result.signal}` : undefined,
+    result.stderr?.trim(),
+    result.stdout?.trim(),
+  ].filter(Boolean);
+  return `${bin} ${args[0]} failed: ${details.join("; ") || "process ended without an exit code or error output"}`;
+}
+
+function validateTarEntryTypes(archivePath: string): { ok: true } | { ok: false; error: string } {
+  const bin = tarCommand();
+  const args = ["-tvf", archivePath];
+  const result = spawnSync(bin, args, { encoding: "utf8", windowsHide: true });
+  if (result.error || result.status !== 0) {
+    return { ok: false, error: archiveCommandFailure(bin, args, result) };
+  }
+  const safe = result.stdout
     .split(/\r?\n/g)
     .filter(Boolean)
     .every((line) => {
       const type = line[0] ?? "";
       return type === "-" || type === "d";
     });
+  return safe ? { ok: true } : { ok: false, error: "app_store_archive_entry_type_invalid" };
 }
 
 function isTarArchive(archivePath: string): boolean {
