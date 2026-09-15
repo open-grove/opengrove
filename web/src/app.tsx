@@ -116,6 +116,7 @@ import {
 } from "./components/app-shell/app-gates";
 import type { WorkspacePane } from "./components/shared/adaptive-split-layout";
 import { AppTitlebar, AppChatButton } from "./components/app-shell/app-titlebar";
+import { AppPublishMenu } from "./components/apps/app-publish-menu";
 import { ChatWorkspaceView, MountedAppWorkspaceView } from "./components/app-shell/app-main-views";
 import { useBridgeAuthGate } from "./app-auth-gate";
 import { devFixtureAccountSwitcherAvailable } from "./dev-fixture-accounts";
@@ -197,6 +198,7 @@ export function App() {
   const [mountedAppPendingCrewCount, setMountedAppPendingCrewCount] = useState(0);
   const [mountedAppSettingsId, setMountedAppSettingsId] = useState("");
   const [mountedAppVersionManagementId, setMountedAppVersionManagementId] = useState("");
+  const [mountedAppStorePublishId, setMountedAppStorePublishId] = useState("");
   const [appStorePublishDirty, setAppStorePublishDirty] = useState(false);
   const [authToastMessage, setAuthToastMessage] = useState("");
   const threadScrollRef = useRef<HTMLElement | null>(null);
@@ -1716,6 +1718,7 @@ export function App() {
 
   function applyRailSection(section: RailSectionId) {
     setMountedAppVersionManagementId("");
+    setMountedAppStorePublishId("");
     setProjectMenuOpenId("");
     setConversationSortMenuOpen(false);
     if (settingsReady && section === "chat" && !directKernelChatEnabled) {
@@ -2026,6 +2029,24 @@ export function App() {
         unreadChatCount={mountedAppUnreadBadges[activeMountedAppId]?.count}
         pendingDeveloperReplies={mountedAppPendingCrewCount}
         onToggleDeveloperMode={toggleMountedAppDeveloperMode}
+        publishActions={
+          activeView === "app" && activeMountedApp ? (
+            <AppPublishMenu
+              key={`${roomsSessionKey}:${activeMountedApp.name}`}
+              appId={activeMountedApp.name}
+              appTitle={activeMountedApp.title || activeMountedApp.name}
+              canPublishWebsite={
+                sessionQuery.data?.user?.role === "admin" || sessionQuery.data?.user?.roles?.includes("admin") === true
+              }
+              onPublishToStore={() => {
+                requestAppStorePublishLeave(() => {
+                  applyRailSection("network");
+                  setMountedAppStorePublishId(activeMountedApp.name);
+                });
+              }}
+            />
+          ) : null
+        }
       />
       <AppNavigationPanel
         layout={railLayout}
@@ -2328,6 +2349,8 @@ export function App() {
             authUser={sessionQuery.data?.user}
             onOpenInstalledApp={selectMountedApp}
             versionManagementAppId={mountedAppVersionManagementId}
+            publishAppId={mountedAppStorePublishId}
+            onClosePublish={() => setMountedAppStorePublishId("")}
             onCloseVersionManagement={() => setMountedAppVersionManagementId("")}
             onPublishDirtyChange={setAppStorePublishDirty}
           />

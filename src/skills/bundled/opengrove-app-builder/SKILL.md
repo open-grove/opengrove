@@ -91,3 +91,7 @@ OpenGrove.
 - Make empty-state UI honest. Distinguish “no snapshot yet” from “refresh failed
   and an older snapshot remains,” and never render raw stacks, local usernames,
   or absolute filesystem paths to users.
+
+## Independent websites
+
+For requests to publish an App as an independent webpage, read [the website workflow](references/website.md). Start with deterministic preparation, adapt supported browser/HTTP functionality, then review the exact built output.

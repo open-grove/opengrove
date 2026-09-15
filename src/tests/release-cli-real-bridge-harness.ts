@@ -7,6 +7,7 @@ import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { createAppWebsiteArtifact, recordAppWebsiteReview } from "../app-builder/website.js";
 import { startOpenGroveServer } from "../server/create-server.js";
 
 // Exercises `opengrove auth ...` and `opengrove app release ...` end to end
@@ -132,8 +133,37 @@ const fakeWw = createServer((request, response) => {
   sendJson(response, 404, { error: { code: 404, message: "not found" } });
 });
 
+let publishedWebsite: { appId: string; host: string; url: string; sha256: string; updatedAt: string } | undefined;
+let websiteUploads = 0;
 const fakeReleaseControl = createServer((request, response) => {
   const url = new URL(request.url ?? "/", "http://127.0.0.1");
+  if (url.pathname === "/v1/app-websites/" + APP_ID && request.method === "GET") {
+    sendJson(
+      response,
+      publishedWebsite ? 200 : 404,
+      publishedWebsite ? { site: publishedWebsite } : { error: "website_not_found" },
+    );
+    return;
+  }
+  if (url.pathname === "/v1/app-websites/publish" && request.method === "POST") {
+    void readJsonBody(request)
+      .then((body) => {
+        websiteUploads++;
+        assert.equal(request.headers.authorization, "Bearer access-admin-1");
+        assert.equal(typeof body.artifact, "string");
+        assert.equal(field(body.review, "artifactSha256"), body.artifactSha256);
+        publishedWebsite = {
+          appId: APP_ID,
+          host: "example.apps.test",
+          url: "https://example.apps.test",
+          sha256: String(body.artifactSha256),
+          updatedAt: "2026-09-14T00:00:00Z",
+        };
+        sendJson(response, 200, { site: publishedWebsite });
+      })
+      .catch(() => sendJson(response, 500, { error: "website_test_failed" }));
+    return;
+  }
   if (request.method === "GET" && /^\/v1\/app-store\/packages\/[^/]+\/versions$/.test(url.pathname)) {
     sendJson(response, 200, { versions: [] });
     return;
@@ -192,8 +222,14 @@ try {
       description: "Fixture app for the release CLI real-bridge harness.",
       disablePmAgent: true,
       employees: [],
+      ui: { surface: "view", view: { protocol: "mcp-app", entry: "ui/index.html", tools: [] } },
     })}\n`,
     "utf8",
+  );
+  mkdirSync(join(appRoot, "ui"));
+  writeFileSync(
+    join(appRoot, "ui/index.html"),
+    "<!doctype html><title>Website fixture</title><h1>Independent browser</h1>",
   );
   const dataDir = join(dir, "data");
   mkdirSync(dataDir, { recursive: true });
@@ -279,6 +315,10 @@ try {
     assert.equal(field(userPrepare.json, "error", "message"), "admin_required");
     assert.equal(userPrepare.json.status, 403);
 
+    const userWebsite = await runCli(["app", "website", "prepare", "--app-id", APP_ID, "--base-url", apiUrl]);
+    assert.equal(userWebsite.json.status, 403);
+    assert.equal(field(userWebsite.json, "error", "message"), "admin_required");
+
     // --- Logout revokes remotely and removes the local pairing.
     const logout = await runCli(["auth", "logout", "--base-url", apiUrl]);
     assert.equal(logout.code, 0, logout.stdout + logout.stderr);
@@ -307,6 +347,45 @@ try {
     assert.ok(baseline !== null && typeof baseline === "object", `prepare must return a baseline release draft`);
     assert.equal(field(baseline, "app", "title"), "Release Fixture App");
     assert.equal(typeof field(baseline, "version"), "string");
+
+    // Website commands share the real Host protocol, session gate and CLI transport.
+    const websitePrepared = await runCli(["app", "website", "prepare", "--app-id", APP_ID, "--base-url", apiUrl]);
+    assert.equal(websitePrepared.code, 0, websitePrepared.stdout + websitePrepared.stderr);
+    assert.equal(field(websitePrepared.json, "data", "website", "reviewStatus"), "required");
+    const websiteArtifact = createAppWebsiteArtifact(appRoot);
+    const websitePublishArgs = [
+      "app",
+      "website",
+      "publish",
+      "--app-id",
+      APP_ID,
+      "--artifact-sha256",
+      websiteArtifact.sha256,
+      "--expected-sha256",
+      "",
+      "--base-url",
+      apiUrl,
+      "--yes",
+    ];
+    const unreviewed = await runCli(websitePublishArgs);
+    assert.equal(field(unreviewed.json, "error", "message"), "website_review_required");
+    assert.equal(websiteUploads, 0);
+    recordAppWebsiteReview(appRoot, {
+      artifactSha256: websiteArtifact.sha256,
+      summary: "Test fixture browser output checked; no external data.",
+      checks: ["Fixture inspected"],
+    });
+    const websitePublished = await runCli(websitePublishArgs);
+    assert.equal(websitePublished.code, 0, websitePublished.stdout + websitePublished.stderr);
+    assert.equal(field(websitePublished.json, "data", "site", "sha256"), websiteArtifact.sha256);
+    assertNoSecretLeak(websitePublished);
+    const repeated = await runCli(websitePublishArgs);
+    assert.equal(repeated.code, 0, repeated.stdout + repeated.stderr);
+    assert.equal(websiteUploads, 2);
+    writeFileSync(join(appRoot, "ui/index.html"), "<h1>Changed after review</h1>");
+    const staleWebsite = await runCli(websitePublishArgs);
+    assert.equal(field(staleWebsite.json, "error", "message"), "website_review_stale");
+    assert.equal(websiteUploads, 2);
 
     // --- An expired access token is refreshed by the Bridge exactly once and
     //     the rotated pair is persisted back to the jar (losing it would break

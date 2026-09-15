@@ -27,6 +27,21 @@ import type {
   AppUpdateScheduleData,
   AppUpdateScheduleErrors,
   AppUpdateScheduleResponses,
+  AppWebsiteActivateData,
+  AppWebsiteActivateErrors,
+  AppWebsiteActivateResponses,
+  AppWebsiteConfigureData,
+  AppWebsiteConfigureErrors,
+  AppWebsiteConfigureResponses,
+  AppWebsiteGetData,
+  AppWebsiteGetErrors,
+  AppWebsiteGetResponses,
+  AppWebsitePrepareData,
+  AppWebsitePrepareErrors,
+  AppWebsitePrepareResponses,
+  AppWebsitePublishData,
+  AppWebsitePublishErrors,
+  AppWebsitePublishResponses,
   AuthEmailCodeCreateData,
   AuthEmailCodeCreateErrors,
   AuthEmailCodeCreateResponses,
@@ -302,6 +317,90 @@ export class Update extends HeyApiClient {
   }
 }
 
+export class Website extends HeyApiClient {
+  /**
+   * Inspect an App website
+   *
+   * Inspect browser output, review freshness, and the currently published website.
+   */
+  public get<ThrowOnError extends boolean = false>(
+    options: Options<AppWebsiteGetData, ThrowOnError>,
+  ): RequestResult<AppWebsiteGetResponses, AppWebsiteGetErrors, ThrowOnError> {
+    return (options.client ?? this.client).get<AppWebsiteGetResponses, AppWebsiteGetErrors, ThrowOnError>({
+      url: "/apps/{appId}/website",
+      ...options,
+    });
+  }
+
+  /**
+   * Prepare an App website
+   *
+   * Create a browser publication configuration when possible and run deterministic checks. Existing configuration is preserved.
+   */
+  public prepare<ThrowOnError extends boolean = false>(
+    options: Options<AppWebsitePrepareData, ThrowOnError>,
+  ): RequestResult<AppWebsitePrepareResponses, AppWebsitePrepareErrors, ThrowOnError> {
+    return (options.client ?? this.client).post<AppWebsitePrepareResponses, AppWebsitePrepareErrors, ThrowOnError>({
+      url: "/apps/{appId}/website/prepare",
+      ...options,
+    });
+  }
+
+  /**
+   * Set website audience
+   *
+   * Set the website audience independently of App Store visibility. Changing it requires a fresh review.
+   */
+  public configure<ThrowOnError extends boolean = false>(
+    options: Options<AppWebsiteConfigureData, ThrowOnError>,
+  ): RequestResult<AppWebsiteConfigureResponses, AppWebsiteConfigureErrors, ThrowOnError> {
+    return (options.client ?? this.client).put<AppWebsiteConfigureResponses, AppWebsiteConfigureErrors, ThrowOnError>({
+      url: "/apps/{appId}/website/audience",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Publish an App website
+   *
+   * Publish the exact reviewed browser artifact and atomically replace the expected current version.
+   */
+  public publish<ThrowOnError extends boolean = false>(
+    options: Options<AppWebsitePublishData, ThrowOnError>,
+  ): RequestResult<AppWebsitePublishResponses, AppWebsitePublishErrors, ThrowOnError> {
+    return (options.client ?? this.client).post<AppWebsitePublishResponses, AppWebsitePublishErrors, ThrowOnError>({
+      url: "/apps/{appId}/website/publish",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Restore a published website version
+   *
+   * Atomically activate a previously accepted immutable website version, including its audience and permissions.
+   */
+  public activate<ThrowOnError extends boolean = false>(
+    options: Options<AppWebsiteActivateData, ThrowOnError>,
+  ): RequestResult<AppWebsiteActivateResponses, AppWebsiteActivateErrors, ThrowOnError> {
+    return (options.client ?? this.client).post<AppWebsiteActivateResponses, AppWebsiteActivateErrors, ThrowOnError>({
+      url: "/apps/{appId}/website/activate",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+}
+
 export class App extends HeyApiClient {
   private _release?: Release;
   get release(): Release {
@@ -311,6 +410,11 @@ export class App extends HeyApiClient {
   private _update?: Update;
   get update(): Update {
     return (this._update ??= new Update({ client: this.client }));
+  }
+
+  private _website?: Website;
+  get website(): Website {
+    return (this._website ??= new Website({ client: this.client }));
   }
 }
 

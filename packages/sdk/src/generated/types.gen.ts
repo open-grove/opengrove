@@ -242,6 +242,91 @@ export type AppReleaseProgressResponse = {
   };
 };
 
+export type AppWebsiteStateResponse = {
+  ok: true;
+  website: {
+    inspection: {
+      ready: boolean;
+      config?: {
+        schemaVersion: 1;
+        appId: string;
+        title: string;
+        mode: "static" | "http";
+        output: string;
+        entry: string;
+        audience:
+          | {
+              mode: "public";
+            }
+          | {
+              mode: "authenticated";
+            }
+          | {
+              mode: "roles";
+              roles: Array<string>;
+            };
+        permissions: Array<
+          | "story-seed.read"
+          | "story-seed.write"
+          | "editorial.read"
+          | "editorial.write"
+          | "data.read"
+          | "data.write"
+          | "agreement.read"
+          | "agreement.write"
+          | "production.read"
+          | "production.write"
+        >;
+        includedFeatures: Array<string>;
+        desktopOnlyFeatures: Array<string>;
+      };
+      findings: Array<{
+        code: string;
+        path?: string;
+      }>;
+      fileCount: number;
+      totalBytes: number;
+    };
+    artifactSha256?: string;
+    review?: {
+      artifactSha256: string;
+      summary: string;
+      checks: Array<string>;
+      schemaVersion: 1;
+      reviewedAt: string;
+    };
+    reviewStatus: "required" | "stale" | "current" | "blocked";
+    site?: {
+      appId: string;
+      host: string;
+      url: string;
+      sha256: string;
+      updatedAt: string;
+    };
+    remoteError?: string;
+    reviewTarget?: {
+      roomId: string;
+      memberId: string;
+    };
+  };
+};
+
+export type AppWebsiteError = {
+  ok: false;
+  error: string;
+};
+
+export type AppWebsitePublishResponse = {
+  ok: true;
+  site: {
+    appId: string;
+    host: string;
+    url: string;
+    sha256: string;
+    updatedAt: string;
+  };
+};
+
 export type AuthEmailCodeCreateData = {
   body: {
     /**
@@ -1319,6 +1404,379 @@ export type AppUpdateScheduleResponses = {
 };
 
 export type AppUpdateScheduleResponse = AppUpdateScheduleResponses[keyof AppUpdateScheduleResponses];
+
+export type AppWebsiteGetData = {
+  body?: never;
+  path: {
+    appId: string;
+  };
+  query?: never;
+  url: "/apps/{appId}/website";
+};
+
+export type AppWebsiteGetErrors = {
+  /**
+   * The website operation could not be completed.
+   */
+  400: AppWebsiteError;
+  /**
+   * The website operation could not be completed.
+   */
+  401: AppWebsiteError;
+  /**
+   * The website operation could not be completed.
+   */
+  403: AppWebsiteError;
+  /**
+   * The website operation could not be completed.
+   */
+  404: AppWebsiteError;
+  /**
+   * The website operation could not be completed.
+   */
+  409: AppWebsiteError;
+  /**
+   * The website operation could not be completed.
+   */
+  413: AppWebsiteError;
+  /**
+   * The website operation could not be completed.
+   */
+  422: AppWebsiteError;
+  /**
+   * The website operation could not be completed.
+   */
+  429: AppWebsiteError;
+  /**
+   * The website operation could not be completed.
+   */
+  500: AppWebsiteError;
+  /**
+   * The website operation could not be completed.
+   */
+  502: AppWebsiteError;
+  /**
+   * The website operation could not be completed.
+   */
+  503: AppWebsiteError;
+  /**
+   * The website operation could not be completed.
+   */
+  504: AppWebsiteError;
+};
+
+export type AppWebsiteGetError = AppWebsiteGetErrors[keyof AppWebsiteGetErrors];
+
+export type AppWebsiteGetResponses = {
+  /**
+   * Successful response.
+   */
+  200: AppWebsiteStateResponse;
+};
+
+export type AppWebsiteGetResponse = AppWebsiteGetResponses[keyof AppWebsiteGetResponses];
+
+export type AppWebsitePrepareData = {
+  body?: never;
+  path: {
+    appId: string;
+  };
+  query?: never;
+  url: "/apps/{appId}/website/prepare";
+};
+
+export type AppWebsitePrepareErrors = {
+  /**
+   * The website operation could not be completed.
+   */
+  400: AppWebsiteError;
+  /**
+   * The website operation could not be completed.
+   */
+  401: AppWebsiteError;
+  /**
+   * The website operation could not be completed.
+   */
+  403: AppWebsiteError;
+  /**
+   * The website operation could not be completed.
+   */
+  404: AppWebsiteError;
+  /**
+   * The website operation could not be completed.
+   */
+  409: AppWebsiteError;
+  /**
+   * The website operation could not be completed.
+   */
+  413: AppWebsiteError;
+  /**
+   * The website operation could not be completed.
+   */
+  422: AppWebsiteError;
+  /**
+   * The website operation could not be completed.
+   */
+  429: AppWebsiteError;
+  /**
+   * The website operation could not be completed.
+   */
+  500: AppWebsiteError;
+  /**
+   * The website operation could not be completed.
+   */
+  502: AppWebsiteError;
+  /**
+   * The website operation could not be completed.
+   */
+  503: AppWebsiteError;
+  /**
+   * The website operation could not be completed.
+   */
+  504: AppWebsiteError;
+};
+
+export type AppWebsitePrepareError = AppWebsitePrepareErrors[keyof AppWebsitePrepareErrors];
+
+export type AppWebsitePrepareResponses = {
+  /**
+   * Successful response.
+   */
+  200: AppWebsiteStateResponse;
+};
+
+export type AppWebsitePrepareResponse = AppWebsitePrepareResponses[keyof AppWebsitePrepareResponses];
+
+export type AppWebsiteConfigureData = {
+  body: {
+    audience:
+      | {
+          mode: "public";
+        }
+      | {
+          mode: "authenticated";
+        }
+      | {
+          mode: "roles";
+          roles: Array<string>;
+        };
+  };
+  path: {
+    appId: string;
+  };
+  query?: never;
+  url: "/apps/{appId}/website/audience";
+};
+
+export type AppWebsiteConfigureErrors = {
+  /**
+   * The website operation could not be completed.
+   */
+  400: AppWebsiteError;
+  /**
+   * The website operation could not be completed.
+   */
+  401: AppWebsiteError;
+  /**
+   * The website operation could not be completed.
+   */
+  403: AppWebsiteError;
+  /**
+   * The website operation could not be completed.
+   */
+  404: AppWebsiteError;
+  /**
+   * The website operation could not be completed.
+   */
+  409: AppWebsiteError;
+  /**
+   * The website operation could not be completed.
+   */
+  413: AppWebsiteError;
+  /**
+   * The website operation could not be completed.
+   */
+  422: AppWebsiteError;
+  /**
+   * The website operation could not be completed.
+   */
+  429: AppWebsiteError;
+  /**
+   * The website operation could not be completed.
+   */
+  500: AppWebsiteError;
+  /**
+   * The website operation could not be completed.
+   */
+  502: AppWebsiteError;
+  /**
+   * The website operation could not be completed.
+   */
+  503: AppWebsiteError;
+  /**
+   * The website operation could not be completed.
+   */
+  504: AppWebsiteError;
+};
+
+export type AppWebsiteConfigureError = AppWebsiteConfigureErrors[keyof AppWebsiteConfigureErrors];
+
+export type AppWebsiteConfigureResponses = {
+  /**
+   * Successful response.
+   */
+  200: AppWebsiteStateResponse;
+};
+
+export type AppWebsiteConfigureResponse = AppWebsiteConfigureResponses[keyof AppWebsiteConfigureResponses];
+
+export type AppWebsitePublishData = {
+  body: {
+    artifactSha256: string;
+    expectedSha256: string;
+  };
+  path: {
+    appId: string;
+  };
+  query?: never;
+  url: "/apps/{appId}/website/publish";
+};
+
+export type AppWebsitePublishErrors = {
+  /**
+   * The website operation could not be completed.
+   */
+  400: AppWebsiteError;
+  /**
+   * The website operation could not be completed.
+   */
+  401: AppWebsiteError;
+  /**
+   * The website operation could not be completed.
+   */
+  403: AppWebsiteError;
+  /**
+   * The website operation could not be completed.
+   */
+  404: AppWebsiteError;
+  /**
+   * The website operation could not be completed.
+   */
+  409: AppWebsiteError;
+  /**
+   * The website operation could not be completed.
+   */
+  413: AppWebsiteError;
+  /**
+   * The website operation could not be completed.
+   */
+  422: AppWebsiteError;
+  /**
+   * The website operation could not be completed.
+   */
+  429: AppWebsiteError;
+  /**
+   * The website operation could not be completed.
+   */
+  500: AppWebsiteError;
+  /**
+   * The website operation could not be completed.
+   */
+  502: AppWebsiteError;
+  /**
+   * The website operation could not be completed.
+   */
+  503: AppWebsiteError;
+  /**
+   * The website operation could not be completed.
+   */
+  504: AppWebsiteError;
+};
+
+export type AppWebsitePublishError = AppWebsitePublishErrors[keyof AppWebsitePublishErrors];
+
+export type AppWebsitePublishResponses = {
+  /**
+   * Successful response.
+   */
+  200: AppWebsitePublishResponse;
+};
+
+export type AppWebsitePublishResponse2 = AppWebsitePublishResponses[keyof AppWebsitePublishResponses];
+
+export type AppWebsiteActivateData = {
+  body: {
+    sha256: string;
+    expectedSha256: string;
+  };
+  path: {
+    appId: string;
+  };
+  query?: never;
+  url: "/apps/{appId}/website/activate";
+};
+
+export type AppWebsiteActivateErrors = {
+  /**
+   * The website operation could not be completed.
+   */
+  400: AppWebsiteError;
+  /**
+   * The website operation could not be completed.
+   */
+  401: AppWebsiteError;
+  /**
+   * The website operation could not be completed.
+   */
+  403: AppWebsiteError;
+  /**
+   * The website operation could not be completed.
+   */
+  404: AppWebsiteError;
+  /**
+   * The website operation could not be completed.
+   */
+  409: AppWebsiteError;
+  /**
+   * The website operation could not be completed.
+   */
+  413: AppWebsiteError;
+  /**
+   * The website operation could not be completed.
+   */
+  422: AppWebsiteError;
+  /**
+   * The website operation could not be completed.
+   */
+  429: AppWebsiteError;
+  /**
+   * The website operation could not be completed.
+   */
+  500: AppWebsiteError;
+  /**
+   * The website operation could not be completed.
+   */
+  502: AppWebsiteError;
+  /**
+   * The website operation could not be completed.
+   */
+  503: AppWebsiteError;
+  /**
+   * The website operation could not be completed.
+   */
+  504: AppWebsiteError;
+};
+
+export type AppWebsiteActivateError = AppWebsiteActivateErrors[keyof AppWebsiteActivateErrors];
+
+export type AppWebsiteActivateResponses = {
+  /**
+   * Successful response.
+   */
+  200: AppWebsitePublishResponse;
+};
+
+export type AppWebsiteActivateResponse = AppWebsiteActivateResponses[keyof AppWebsiteActivateResponses];
 
 export type RoomMessageCreateData = {
   body: {

@@ -15,6 +15,11 @@ export const openGroveClientOperationIds = [
   "app.release.abandon",
   "app.release.keep-local",
   "app.update.schedule",
+  "app.website.get",
+  "app.website.prepare",
+  "app.website.configure",
+  "app.website.publish",
+  "app.website.activate",
   "room.message.create",
   "network.account.inspect",
   "network.account.connect",
@@ -158,6 +163,69 @@ export function bindOpenGroveClient(request: HostOperationRequest) {
           options?: OpenGroveRequestOptions,
         ): Promise<HostOperationOutput<(typeof hostOperationById)["app.update.schedule"]>> =>
           request(hostOperationById["app.update.schedule"], {
+            signal: options?.signal,
+          }),
+      },
+      website: {
+        get: (
+          input: HostOperationInput<(typeof hostOperationById)["app.website.get"]>,
+          options?: OpenGroveRequestOptions,
+        ): Promise<HostOperationOutput<(typeof hostOperationById)["app.website.get"]>> =>
+          request(hostOperationById["app.website.get"], {
+            params: {
+              appId: input.appId,
+            },
+            signal: options?.signal,
+          }),
+        prepare: (
+          input: HostOperationInput<(typeof hostOperationById)["app.website.prepare"]>,
+          options?: OpenGroveRequestOptions,
+        ): Promise<HostOperationOutput<(typeof hostOperationById)["app.website.prepare"]>> =>
+          request(hostOperationById["app.website.prepare"], {
+            params: {
+              appId: input.appId,
+            },
+            signal: options?.signal,
+          }),
+        configure: (
+          input: HostOperationInput<(typeof hostOperationById)["app.website.configure"]>,
+          options?: OpenGroveRequestOptions,
+        ): Promise<HostOperationOutput<(typeof hostOperationById)["app.website.configure"]>> =>
+          request(hostOperationById["app.website.configure"], {
+            params: {
+              appId: input.appId,
+            },
+            body: {
+              audience: input.audience,
+            },
+            signal: options?.signal,
+          }),
+        publish: (
+          input: HostOperationInput<(typeof hostOperationById)["app.website.publish"]>,
+          options?: OpenGroveRequestOptions,
+        ): Promise<HostOperationOutput<(typeof hostOperationById)["app.website.publish"]>> =>
+          request(hostOperationById["app.website.publish"], {
+            params: {
+              appId: input.appId,
+            },
+            body: {
+              artifactSha256: input.artifactSha256,
+              expectedSha256: input.expectedSha256,
+            },
+            signal: options?.signal,
+          }),
+        activate: (
+          input: HostOperationInput<(typeof hostOperationById)["app.website.activate"]>,
+          options?: OpenGroveRequestOptions,
+        ): Promise<HostOperationOutput<(typeof hostOperationById)["app.website.activate"]>> =>
+          request(hostOperationById["app.website.activate"], {
+            params: {
+              appId: input.appId,
+            },
+            body: {
+              expectedSha256: input.expectedSha256,
+              sha256: input.sha256,
+            },
             signal: options?.signal,
           }),
       },

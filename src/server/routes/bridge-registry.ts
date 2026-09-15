@@ -13,6 +13,13 @@ import {
   handlePublishAppReleaseOperation,
   handleReconcileAppReleaseOperation,
 } from "./app-release.js";
+import {
+  handleGetAppWebsite,
+  handlePrepareAppWebsite,
+  handleConfigureAppWebsite,
+  handlePublishAppWebsite,
+  handleActivateAppWebsite,
+} from "./app-websites.js";
 import { handleAppsRoute } from "./apps.js";
 import { createAskRoutes } from "./ask.js";
 import {
@@ -73,6 +80,11 @@ export function createBridgeRoutes(): BridgeRoute[] {
     operationRoute(hostContractById["app.release.reconcile"], handleReconcileAppReleaseOperation),
     operationRoute(hostContractById["app.release.abandon"], handleAbandonAppReleaseOperation),
     operationRoute(hostContractById["app.release.keep-local"], handleKeepLocalAppReleaseOperation),
+    operationRoute(hostContractById["app.website.get"], handleGetAppWebsite),
+    operationRoute(hostContractById["app.website.prepare"], handlePrepareAppWebsite),
+    operationRoute(hostContractById["app.website.configure"], handleConfigureAppWebsite),
+    operationRoute(hostContractById["app.website.publish"], handlePublishAppWebsite),
+    operationRoute(hostContractById["app.website.activate"], handleActivateAppWebsite),
     moduleRoute("apps", /^\/apps\//, (context) => handleAppsRoute(context)),
     ...createInventoryRoutes(),
     operationRoute(hostContractById["room.message.create"], handleCreateRoomMessageOperation),

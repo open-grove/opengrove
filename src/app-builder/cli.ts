@@ -1,3 +1,4 @@
+import { runAppWebsiteCli } from "./website-cli.js";
 import { createHash } from "node:crypto";
 import {
   chmodSync,
@@ -77,6 +78,10 @@ const LOCAL_BUILD_PATH_PATTERN =
 
 export async function runAppBuilderCli(args: string[]): Promise<void> {
   const command = args[0];
+  if (command === "web") {
+    await runAppWebsiteCli(args.slice(1));
+    return;
+  }
   if (!command || command === "help" || args.includes("--help") || args.includes("-h")) {
     console.log(USAGE.trimEnd());
     return;

@@ -1,0 +1,26 @@
+.body {
+  display: grid;
+  gap: var(--sp-3);
+}
+.body p {
+  margin: 0;
+}
+.policy {
+  display: grid;
+  gap: var(--sp-1-5);
+  max-width: 480px;
+}
+.policy select,
+.policy input {
+  font: inherit;
+  color: inherit;
+  background: var(--c-surface-grouped);
+  border: 1px solid var(--c-line-12);
+  border-radius: var(--r-md);
+  padding: var(--sp-2) var(--sp-3);
+}
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}

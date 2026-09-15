@@ -687,3 +687,7 @@ OPENGROVE_APP_DIRS="/path/to/app-a:/path/to/app-b"
 - 已执行的验证：manifest 解析、前端/服务端 typecheck 或 build、文件工作台写操作、CLI doctor/smoke 或真实 dry run。
 
 如果某项验证因缺少密钥、模型或外部服务无法执行，必须明确写出缺的配置和可复现命令。
+
+## 独立网页发布
+
+App 可将选定的浏览器功能发布为独立网页，访问范围独立于商店可见性。支持边界、构建师检查、产物校验、登录和回滚契约见 [App websites](APP_WEBSITE_SPEC.md)。

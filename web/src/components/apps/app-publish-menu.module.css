@@ -1,0 +1,15 @@
+.dialog {
+  max-height: calc(100dvh - var(--sp-12));
+  overflow-y: auto;
+}
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sp-3);
+}
+.appTitle {
+  margin: var(--sp-1) 0 0;
+  color: var(--c-text-2);
+  overflow-wrap: anywhere;
+}
