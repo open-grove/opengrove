@@ -114,6 +114,7 @@ jobs:
           KERNEL: ${{ matrix.kernel }}
           RUNTIME_MODE: ${{ matrix.runtime_mode }}
           CASE: ${{ matrix.case }}
+          CI_DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
           CI_CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CI_CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
           CI_CLOUDFLARE_GATEWAY_ID: ${{ vars.CLOUDFLARE_GATEWAY_ID }}
@@ -124,6 +125,9 @@ jobs:
           CI_PROVIDER_MODEL: ${{ vars.REAL_RUNTIME_MODEL }}
         run: |
           set -euo pipefail
+          # DeepSeek configuration is created inside the probe's disposable runtime.
+          # It does not require the legacy Cloudflare credentials below.
+          if [[ -n "$CI_DEEPSEEK_API_KEY" ]]; then exit 0; fi
           if [[ "$KERNEL" == "claude-code" || "$KERNEL" == "opencode" ]]; then
             test -n "$CI_CLOUDFLARE_API_TOKEN" || { echo "CLOUDFLARE_API_TOKEN secret is missing" >&2; exit 1; }
             test -n "$CI_CLOUDFLARE_ACCOUNT_ID" || { echo "CLOUDFLARE_ACCOUNT_ID var is missing" >&2; exit 1; }
@@ -187,6 +191,8 @@ jobs:
           CI_CAPABILITIES: ${{ matrix.capabilities }}
           CI_AGENT_IMAGE: ${{ matrix.image }}
           CI_RUNTIME_ENVIRONMENTS: ${{ secrets.REAL_AGENT_RUNTIME_ENVIRONMENTS }}
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          DEEPSEEK_MODEL: ${{ vars.DEEPSEEK_MODEL || 'deepseek-flash' }}
         run: node scripts/run-real-agent-ci-case.mjs
       - name: Upload verified sanitized evidence
         if: always()

@@ -117,7 +117,7 @@
     "release:notes:context": "node scripts/release-notes-context.mjs",
     "compose:release-notes": "node scripts/compose-release-notes.mjs",
     "check:doc-refs": "node scripts/check-doc-refs.mjs",
-    "check:ci-contracts": "node scripts/test-npm-install-diagnostics.mjs && node scripts/test-release-orchestration.mjs && node scripts/test-real-agent-ci.mjs && node scripts/test-release-baselines.mjs && node scripts/test-ci-check-plan.mjs && node scripts/test-ci-change-scope.mjs && node scripts/test-ci-suite-groups.mjs && node scripts/test-check-ci-results.mjs && node scripts/test-ci-workflow-contracts.mjs && node scripts/test-release-ci-eligibility.mjs",
+    "check:ci-contracts": "node scripts/test-deepseek-ci.mjs && node scripts/test-npm-install-diagnostics.mjs && node scripts/test-release-orchestration.mjs && node scripts/test-real-agent-ci.mjs && node scripts/test-release-baselines.mjs && node scripts/test-ci-check-plan.mjs && node scripts/test-ci-change-scope.mjs && node scripts/test-ci-suite-groups.mjs && node scripts/test-check-ci-results.mjs && node scripts/test-ci-workflow-contracts.mjs && node scripts/test-release-ci-eligibility.mjs",
     "check:repository-hygiene": "node scripts/test-repository-hygiene.mjs && node scripts/check-repository-hygiene.mjs",
     "check:agent-code-quality": "node scripts/test-agent-code-quality.mjs && node scripts/check-agent-code-quality.mjs",
     "check:desktop-security": "node scripts/test-desktop-security-policy.mjs && node scripts/test-desktop-bridge-proxy.mjs && node scripts/test-desktop-downstream-cancellation.mjs",

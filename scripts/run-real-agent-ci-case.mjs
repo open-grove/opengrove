@@ -1,6 +1,7 @@
-import { execFileSync } from "node:child_process";
+import { spawn } from "node:child_process";
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { prepareDeepSeekRuntime, startDeepSeekGateway } from "./deepseek-ci.mjs";
 
 const kernel = process.env.CI_KERNEL;
 const mode = process.env.CI_RUNTIME_MODE;
@@ -21,56 +22,83 @@ for (const [name, value] of Object.entries(extraEnv)) {
   )
     throw new Error(`Invalid runtime environment entry for ${kernel}: ${name}`);
   // Mask each value before the runtime sees it. Never persist credentials in artifacts.
-  console.log(`::add-mask::${value.replaceAll("%", "%25")}`);
+  if (process.env.GITHUB_ACTIONS === "true") console.log(`::add-mask::${value.replaceAll("%", "%25")}`);
 }
-const runtimeEnv = { ...process.env, ...extraEnv };
+const deepseekEnv = process.env.DEEPSEEK_API_KEY
+  ? prepareDeepSeekRuntime(kernel, {
+      root: directory,
+      apiKey: process.env.DEEPSEEK_API_KEY,
+      model: process.env.DEEPSEEK_MODEL || "deepseek-flash",
+    })
+  : {};
+const runtimeEnv = { ...process.env, ...deepseekEnv, ...extraEnv };
 delete runtimeEnv.CI_RUNTIME_ENVIRONMENTS;
 const startedAt = new Date().toISOString();
 const { version: hostVersion } = JSON.parse(readFileSync("package.json", "utf8"));
-execFileSync(
-  process.execPath,
-  [
-    "dist/tests/kernel-capability-real-runtime-probe-runner.js",
-    "--kernels",
-    kernel,
-    "--capabilities",
-    capabilities,
-    "--cwd",
-    join(directory, "workspace"),
-    "--out",
-    rawFile,
-    "--timeout-ms",
-    "180000",
-  ],
-  { stdio: "inherit", env: runtimeEnv },
-);
-execFileSync(
-  process.execPath,
-  [
-    "scripts/check-real-runtime-evidence.mjs",
-    "--file",
-    rawFile,
-    "--kernel",
-    kernel,
-    "--require",
-    capabilities,
-    "--fail-on-failed",
-    "--max-age-days",
-    "1",
-    "--not-before",
-    startedAt,
-    "--host-version",
-    hostVersion,
-    "--kernel-version",
-    version,
-    "--runtime-mode",
-    mode,
-  ],
-  { stdio: "inherit" },
-);
-// Only evidence that passed schema, identity, coverage and leak checks is publishable.
-writeFileSync(join(publicDir, "evidence.json"), readFileSync(rawFile));
-writeFileSync(
-  join(publicDir, "case-receipt.json"),
-  `${JSON.stringify({ kernel, runtimeMode: mode, kernelVersion: version, image: process.env.CI_AGENT_IMAGE, capabilities: capabilities.split(","), passed: true, generatedAt: startedAt, headSha: process.env.GITHUB_SHA, runId: process.env.GITHUB_RUN_ID, runAttempt: process.env.GITHUB_RUN_ATTEMPT }, null, 2)}\n`,
-);
+let gateway;
+try {
+  if (kernel === "openclaw" && process.env.DEEPSEEK_API_KEY) {
+    gateway = await startDeepSeekGateway(runtimeEnv);
+    Object.assign(runtimeEnv, gateway.env);
+  }
+  await run(
+    process.execPath,
+    [
+      "dist/tests/kernel-capability-real-runtime-probe-runner.js",
+      "--kernels",
+      kernel,
+      "--capabilities",
+      capabilities,
+      "--cwd",
+      join(directory, "workspace"),
+      "--out",
+      rawFile,
+      "--timeout-ms",
+      "180000",
+    ],
+    { stdio: "inherit", env: runtimeEnv },
+  );
+  await run(
+    process.execPath,
+    [
+      "scripts/check-real-runtime-evidence.mjs",
+      "--file",
+      rawFile,
+      "--kernel",
+      kernel,
+      "--require",
+      capabilities,
+      "--fail-on-failed",
+      "--max-age-days",
+      "1",
+      "--not-before",
+      startedAt,
+      "--host-version",
+      hostVersion,
+      "--kernel-version",
+      version,
+      "--runtime-mode",
+      mode,
+    ],
+    { stdio: "inherit" },
+  );
+  // Only evidence that passed schema, identity, coverage and leak checks is publishable.
+  writeFileSync(join(publicDir, "evidence.json"), readFileSync(rawFile));
+  writeFileSync(
+    join(publicDir, "case-receipt.json"),
+    `${JSON.stringify({ kernel, runtimeMode: mode, kernelVersion: version, image: process.env.CI_AGENT_IMAGE, capabilities: capabilities.split(","), passed: true, generatedAt: startedAt, headSha: process.env.GITHUB_SHA, runId: process.env.GITHUB_RUN_ID, runAttempt: process.env.GITHUB_RUN_ATTEMPT }, null, 2)}\n`,
+  );
+} finally {
+  await gateway?.stop();
+  rmSync(join(directory, "deepseek"), { recursive: true, force: true });
+}
+
+function run(command, args, options) {
+  return new Promise((resolveRun, reject) => {
+    const child = spawn(command, args, options);
+    child.once("error", reject);
+    child.once("exit", (code, signal) =>
+      code === 0 ? resolveRun() : reject(new Error(`Real Agent command failed: ${args[0]} (${signal || code})`)),
+    );
+  });
+}

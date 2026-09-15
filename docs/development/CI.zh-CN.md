@@ -50,12 +50,24 @@ Nightly 不再重复 Main 的 Linux harness、完整 UI 和 Web 包测试。临�
 
 凭据放在 `opengrove-real-agent-test` environment：
 
-- Claude/OpenCode 继续使用既有 Cloudflare 网关变量与 token。
+- `DEEPSEEK_API_KEY` 为各 Kernel 启用独立的 DeepSeek 测试配置；GitHub environment
+  变量 `DEEPSEEK_MODEL` 可选，默认 `deepseek-flash`。Claude 走 Anthropic 接口，
+  Codex 走 Responses，OpenCode、Pi、Kimi、Hermes 使用各自的 OpenAI 兼容接入。
+  OpenClaw 启动独立的本机回环 Gateway，镜像内包含同版本 DeepSeek 插件。
+  测试配置不复制用户的原生账号。
+- 未配置 DeepSeek Secret 时，Claude/OpenCode 继续使用既有 Cloudflare 网关变量与 token。
 - Pi 可使用 `REAL_RUNTIME_OPENAI_BASE_URL`、`REAL_RUNTIME_OPENAI_API_KEY`
   和 `REAL_RUNTIME_MODEL`。
 - 可选 JSON secret `REAL_AGENT_RUNTIME_ENVIRONMENTS` 按 Kernel ID 提供受支持的
   厂商／OpenGrove 环境变量，仅传入探针子进程。Codex 测试配置、OpenClaw Gateway
   按各自真实鉴权协议配置；镜像不得包含凭据，定制 Hermes 构建需要独立固定镜像。
+  镜像流程支持 Claude、Codex、Pi、OpenCode、Kimi、OpenClaw 的精确 npm 版本；
+  `publish: false` 只构建和验证，不需要仓库发布权限；发布前先验证实际镜像。
+  Hermes 必须匹配被测源码提交，不能用官方版本替代定制版本的验证。
+
+DeepSeek 调用成功仅验证所选模型接入路径，不等于原生账号能力全部通过。例如
+Codex ChatGPT `auth.refresh` 仍需要原生账号；依赖模型的必需能力必须实际通过，
+不能因为 Key 有效就豁免不支持的能力或版本不匹配。
 
 该入口负责接入已有环境，不会自动开通账号。缺镜像、凭据、服务、探针跳过或覆盖
 不完整，都保持“未验证”。单 Kernel 手动诊断通过时流程可绿，但制品仍为

@@ -67,7 +67,14 @@ Claude SDK uses the platform Engine installed by the repository lockfile.
 
 Provider credentials belong to the `opengrove-real-agent-test` environment:
 
-- Claude/OpenCode retain the existing Cloudflare gateway variables and token.
+- `DEEPSEEK_API_KEY` enables a disposable DeepSeek profile for each Kernel.
+  `DEEPSEEK_MODEL` is an optional environment variable in GitHub (default
+  `deepseek-flash`). Claude uses the Anthropic API; Codex uses Responses;
+  OpenCode, Pi, Kimi and Hermes use their OpenAI-compatible routes. OpenClaw
+  starts an owned loopback Gateway with the same-version DeepSeek provider
+  baked into its image. No native account is copied into these profiles.
+- Without the DeepSeek secret, Claude/OpenCode retain the existing Cloudflare
+  gateway variables and token.
 - Pi may use `REAL_RUNTIME_OPENAI_BASE_URL`, `REAL_RUNTIME_OPENAI_API_KEY` and
   `REAL_RUNTIME_MODEL`.
 - `REAL_AGENT_RUNTIME_ENVIRONMENTS` is an optional JSON secret mapping Kernel IDs
@@ -75,6 +82,15 @@ Provider credentials belong to the `opengrove-real-agent-test` environment:
   probe subprocess. Configure a disposable Codex profile or an accessible
   OpenClaw Gateway using that Kernel's actual authentication contract. Images
   must not contain credentials; a custom Hermes build needs its own pinned image.
+  The image workflow builds Claude, Codex, Pi, OpenCode, Kimi and OpenClaw with
+  exact npm versions. Run it with `publish: false` for build/version validation
+  without registry credentials; publication runs only after image verification. Hermes must be built from the exact source revision being
+  tested; substituting an official release does not verify a customized build.
+
+A successful DeepSeek call verifies that selected provider route, not every native
+account feature. Codex ChatGPT `auth.refresh`, for example, still requires its
+native account. Required model-dependent capabilities must actually pass;
+unsupported features and version mismatches are not waived by a working API key.
 
 The environment profile is an integration seam, not automatic account provisioning.
 Missing images, credentials, services, skipped probes or incomplete coverage leave

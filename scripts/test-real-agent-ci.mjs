@@ -141,6 +141,7 @@ try {
     CI_CAPABILITIES: "turn.lifecycle",
     CI_AGENT_IMAGE: image,
     CI_RUNTIME_ENVIRONMENTS: "{}",
+    DEEPSEEK_API_KEY: "test-only-deepseek-key",
     GITHUB_SHA: context.headSha,
     GITHUB_RUN_ID: "123",
     GITHUB_RUN_ATTEMPT: "2",
@@ -153,12 +154,15 @@ try {
     });
   const success = invokeCase();
   assert.equal(success.status, 0, success.stderr);
+  assert.equal(existsSync(join(caseRoot, "real-agent-case/deepseek")), false);
+  assert.equal(`${success.stdout}${success.stderr}`.includes(env.DEEPSEEK_API_KEY), false);
   const receiptPath = join(caseRoot, "real-agent-case/sanitized/case-receipt.json");
   const receipt = JSON.parse(readFileSync(receiptPath, "utf8"));
   assert.equal(selectRealAgentCases([receipt], { ...context, now: new Date() })[0].capabilities[0], "turn.lifecycle");
   writeFileSync(stub, probeProgram("failed"));
   assert.notEqual(invokeCase().status, 0);
   assert.equal(existsSync(receiptPath), false, "a failed probe must never publish a previous successful case receipt");
+  assert.equal(existsSync(join(caseRoot, "real-agent-case/deepseek")), false);
 } finally {
   rmSync(caseRoot, { recursive: true, force: true });
 }

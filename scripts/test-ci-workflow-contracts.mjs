@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { readFileSync, readdirSync } from "node:fs";
 import { resolve } from "node:path";
 import { load } from "js-yaml";
@@ -68,6 +69,17 @@ assert.equal(
 );
 assert.ok(!nightly.jobs.harness && !nightly.jobs["browser-ui"] && !nightly.jobs["web-package"]);
 const live = workflow("real-agent-smoke.yml");
+const providerSetup = live.jobs.smoke.steps.find((step) => step.env?.CI_DEEPSEEK_API_KEY);
+assert.ok(providerSetup);
+assert.equal(live.jobs.smoke.environment, "opengrove-real-agent-test");
+for (const kernel of ["claude-code", "opencode", "pi", "codex", "kimi", "hermes", "openclaw"]) {
+  const bootstrap = spawnSync("bash", ["-c", providerSetup.run], {
+    env: { PATH: process.env.PATH, KERNEL: kernel, CI_DEEPSEEK_API_KEY: "test-only-deepseek-key" },
+    encoding: "utf8",
+  });
+  assert.equal(bootstrap.status, 0, `${kernel}: DeepSeek must not require Cloudflare credentials`);
+  assert.equal(`${bootstrap.stdout}${bootstrap.stderr}`.includes("test-only-deepseek-key"), false);
+}
 assert.ok(live.jobs.coverage.steps.some((step) => step.run?.includes("real-agent-ci.mjs summarize")));
 assert.ok(
   !live.on.push && !live.on.pull_request,
@@ -82,3 +94,12 @@ assert.deepEqual(pipeline.on.workflow_dispatch.inputs.stop_after.options, [
   "register",
   "promote",
 ]);
+
+const imageBuild = workflow("build-agent-images.yml");
+const imageSteps = imageBuild.jobs.build.steps;
+const publishIndex = imageSteps.findIndex((step) => step.id === "publish");
+const verifyIndex = imageSteps.findIndex((step) => step.run?.includes("verify-agent-image-version.sh"));
+assert.ok(verifyIndex >= 0 && publishIndex > verifyIndex, "verify the actual image before publishing it");
+assert.equal(imageSteps[publishIndex].if, "inputs.publish");
+assert.equal(imageSteps.find((step) => step.id === "build").with.push, false);
+assert.equal(imageSteps.find((step) => step.id === "build").with.load, true);
