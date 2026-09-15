@@ -14,7 +14,7 @@ import {
   mountedBackupReferences,
   readPersistedBackupMounts,
   STORE_APP_LAYOUT_BACKUP_RECEIPT,
-  verifyHistoricalStoreAppBackup,
+  verifyStoreAppBackupActivation,
   type StoreAppBackupContext,
 } from "./migrations/store-app-layout-v2-backups.js";
 
@@ -117,7 +117,7 @@ export async function prepareUpgradeBackupDeletion(
   const failedVerification = new Set<string>();
   for (const item of historical) {
     if (item.backup.state !== "unverified") continue;
-    if (!(await verifyHistoricalStoreAppBackup(item, () => getInput().context))) failedVerification.add(item.backup.id);
+    if (!verifyStoreAppBackupActivation(item, getInput().context)) failedVerification.add(item.backup.id);
   }
   const items = await inspectUpgradeBackups(getInput(), true);
   if (authority !== activationAuthority(getInput())) throw new Error("storage_backup_plan_stale");

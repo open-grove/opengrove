@@ -719,7 +719,7 @@ export const EN = {
     "Clear only caches and temporary files that OpenGrove can recreate. Works, Apps, conversations, Knowledge, account, and settings are kept.",
   "confirm.clearMigrationBackupsTitle": "Delete update backups?",
   "confirm.clearMigrationBackupsBody":
-    "Open the affected Apps first and confirm your works and files are intact and usable. Once deleted, these backups cannot restore the old data.",
+    "Confirm the affected Apps work normally in their new Workspaces and you no longer need these older versions. Once deleted, these backups cannot restore old files.",
   "confirm.publishEmployeeTitle": "Publish this employee pack?",
   "confirm.publishEmployeeBody":
     "Publishing creates a hireable employee pack. The persona and responsibilities ship with the pack; the public summary, capabilities, inputs and outputs appear in the catalog and A2A card. The pack contains no API keys or local secrets — hires configure dependencies on their own machines.",
@@ -1288,25 +1288,24 @@ export const EN = {
   "settings.storageMigrationBackupsDeleted": "Deleted about {size} of update backups.",
   "confirm.clearVerifiedBackupsSummary": "Delete {count} checked update backups, totaling {size}.",
   "confirm.clearVerifiedBackupsAction": "Confirm working and delete",
-  "settings.storageBackupChecking":
-    "Checking Workspaces and update backups. Comparing older backups may take some time.",
-  "settings.storageBackupVerified": "Workspace activation verified; checked again before deletion.",
-  "settings.storageBackupUnverified": "Pending verification: no completed Workspace migration record.",
+  "settings.storageBackupChecking": "Checking current Workspaces, references to old directories, and backup sizes.",
+  "settings.storageBackupVerified": "The App uses the new Workspace; checked again before deletion.",
+  "settings.storageBackupUnverified": "Pending check: confirm the App uses the new Workspace.",
   "settings.storageBackupProtected": "Protected: {reason}",
   "settings.storageBackupWorkspace": "Current Workspace for {app}: {path}",
   "settings.storageBackupSystemData": "Update backups of conversations and system data",
   "settings.storageBackupProtectedCount": "Another {count} backups did not pass the checks and will be kept.",
   "settings.storageBackupNoneVerified":
-    "No update backups can be deleted. Review the reasons below and check that the Apps open and their Workspace files are intact.",
+    "No update backups can be deleted. Review the reasons below and check that the Apps use their new Workspaces.",
   "settings.storageBackupPlanStale":
-    "The backups or Workspace state changed, or confirmation expired. Check and confirm again.",
+    "The backups or Workspace bindings changed, or confirmation expired. Check and confirm again.",
   "settings.storageBackupPartialFailure": "Could not fully delete {count} backups. Remaining contents have been kept.",
   "settings.storageBackupActivationUnconfirmed": "The new Workspace has not been confirmed active and saved.",
   "settings.storageBackupWorkspaceUnavailable":
     "The current Workspace is unavailable, replaced, or has an inconsistent binding.",
   "settings.storageBackupActiveReference": "An App or link still refers to the old directory.",
   "settings.storageBackupVerificationFailed":
-    "The old Workspace contents could not be verified as fully migrated. Some files may exist only in the backup.",
+    "The backup ownership or current Workspace activation could not be verified.",
   "settings.storageBackupUnsafePath": "The backup directory or migration record could not be safely verified.",
   "settings.storageBackupNone": "No backups of this type.",
   "settings.storageCategoryWorksAndFiles": "My works and files",

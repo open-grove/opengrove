@@ -89,20 +89,28 @@ program's Workspace link must resolve to the expected existing Workspace; the
 recorded Workspace and backup directory identities must still match. Mounted
 paths and links are checked for references to the old directories.
 
-Older backups without completion evidence require a one-time exact content
-comparison of the old and current Workspace, including file hashes and link
-values without following links. If their contents differ or cannot be inspected,
-they remain protected. This deliberately also protects older backups whose
-current Workspace has changed normally since migration. Uninstalled or disabled
-Apps, unavailable Workspaces, unknown attribution, and invalid records never
-authorize deletion.
+Older backups without a receipt are checked for ownership, the active new
+Workspace binding, and references to the retired location. Successful checks
+record current activation evidence, distinguished from migration-time copy
+validation. Deleting a backup does not compare old and current Workspace contents:
+normal additions, edits, and intentional deletions must not prevent removing an
+older version. Full content validation belongs to the migration transaction,
+before switching the authoritative pointer.
+
+App file operations resolve the currently mounted Workspace. After a successful
+switch, the old Workspace is a retained snapshot, not the App's file-operation
+root. It still exists on disk and may be referenced manually, so reference checks
+remain necessary. Unavailable Workspaces, unconfirmed activation, unknown backup
+ownership, and invalid records never authorize deletion.
 
 Deletion first prepares a ten-minute confirmation containing the exact eligible
 backup set and size, protected items, and current Workspace locations. The user
-must confirm that the affected Apps and files work normally. The server then
+must confirm that the affected Apps work normally in their new Workspaces and
+that the older versions are no longer needed. The server then
 rechecks that set, directory identities, file metadata, activation evidence, and
-references under a Run maintenance lease. A changed or expired confirmation
-requires another preview. The confirmation is single-use and accepts no client
+references under a Run maintenance lease. Changed backup contents, changed
+Workspace bindings, or an expired confirmation require another preview. Normal edits to the current Workspace do not invalidate
+the confirmation. The confirmation is single-use and accepts no client
 filesystem paths. Recursive removal does not follow symbolic links; incomplete
 removal is reported, with remaining contents retained at their original location.
 

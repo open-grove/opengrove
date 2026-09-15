@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { createReadStream, lstatSync, readdirSync, readFileSync, readlinkSync, realpathSync } from "node:fs";
+import { lstatSync, readdirSync, readFileSync, readlinkSync, realpathSync } from "node:fs";
 import { lstat, readdir, readlink } from "node:fs/promises";
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { writePrivateJsonAtomically } from "../../storage/private-file.js";
@@ -12,7 +12,7 @@ import { inspectLegacyStoreProgramMetadata, type StoreAppLayoutRoots } from "./s
 /**
  * Supports: retained layout-v2 backups created by OpenGrove >=0.6.6, including pre-receipt backups.
  * Remove when: backups produced by OpenGrove >=0.6.6 no longer need management; no scheduled release.
- * Authority and historical verification: https://github.com/open-grove/opengrove/issues/95
+ * Activation and backup ownership: https://github.com/open-grove/opengrove/issues/95
  */
 export const STORE_APP_LAYOUT_BACKUP_RECEIPT = ".opengrove-layout-backup.json";
 const SUFFIX = ".legacy-v2";
@@ -28,8 +28,6 @@ export interface StoreAppBackupContext {
 export interface StoreAppLayoutBackupCandidate {
   path: string;
   sourcePath: string;
-  workspaceRelativePath: string;
-  historicalWorkspacePath: string;
   attributed: boolean;
   backup: OpenGroveAppLayoutBackup;
 }
@@ -37,6 +35,7 @@ export interface StoreAppLayoutBackupCandidate {
 interface BackupReceipt {
   schemaVersion: 1;
   kind: "store-app-layout-v2-backup";
+  verification: "migration" | "activation";
   appId: string;
   sourcePath: string;
   workspacePath: string;
@@ -78,7 +77,7 @@ export function readPersistedBackupMounts(path: string): BridgeMountedAppSetting
 
 export function discoverStoreAppLayoutBackups(context: StoreAppBackupContext): StoreAppLayoutBackupCandidate[] {
   const result: StoreAppLayoutBackupCandidate[] = [];
-  const programEvidence = new Map<string, string>();
+  const programEvidence = new Set<string>();
   for (const bucket of directories(context.roots.legacyProgramsRoot)) {
     if (!/^[a-f0-9]{64}$/.test(basename(bucket))) continue;
     for (const path of directories(bucket).filter((path) => path.endsWith(SUFFIX))) {
@@ -90,15 +89,15 @@ export function discoverStoreAppLayoutBackups(context: StoreAppBackupContext): S
       const metadata = backupProgramMetadata(appId, appRoot);
       if (!metadata) {
         // A partial deletion may leave only its receipt. Keep it visible and inspectable.
-        result.push(candidate(path, appId, "workspace", Boolean(receipt), context));
+        result.push(candidate(path, appId, Boolean(receipt), context));
         continue;
       }
       const oldWorkspace = join(context.roots.legacyWorkspacesRoot, appId, metadata.workspaceRelativePath);
       const link = join(appRoot, metadata.workspaceRelativePath);
       if (entry(link)?.isSymbolicLink() && sameLocation(resolve(dirname(link), readlinkSync(link)), oldWorkspace)) {
-        programEvidence.set(appId, metadata.workspaceRelativePath);
+        programEvidence.add(appId);
       }
-      result.push(candidate(path, appId, metadata.workspaceRelativePath, true, context));
+      result.push(candidate(path, appId, true, context));
     }
   }
   for (const path of directories(context.roots.legacyWorkspacesRoot).filter((path) => path.endsWith(SUFFIX))) {
@@ -106,22 +105,7 @@ export function discoverStoreAppLayoutBackups(context: StoreAppBackupContext): S
     if (!isValidAppStoreAppId(appId)) continue;
     const metadata = backupProgramMetadata(appId, path);
     const receipt = readReceipt(path);
-    const active = context.mountedApps.find((mount) => mount.id === appId);
-    const activeMetadata = active ? backupProgramMetadata(appId, active.path) : undefined;
-    const workspaceRelativePath =
-      metadata?.workspaceRelativePath ??
-      programEvidence.get(appId) ??
-      activeMetadata?.workspaceRelativePath ??
-      "workspace";
-    result.push(
-      candidate(
-        path,
-        appId,
-        workspaceRelativePath,
-        Boolean(metadata || programEvidence.has(appId) || receipt),
-        context,
-      ),
-    );
+    result.push(candidate(path, appId, Boolean(metadata || programEvidence.has(appId) || receipt), context));
   }
   return result;
 }
@@ -138,7 +122,6 @@ function backupProgramMetadata(appId: string, path: string) {
 function candidate(
   path: string,
   appId: string,
-  workspaceRelativePath: string,
   attributed: boolean,
   context: StoreAppBackupContext,
 ): StoreAppLayoutBackupCandidate {
@@ -155,10 +138,8 @@ function candidate(
   const item = {
     path: resolve(path),
     sourcePath,
-    workspaceRelativePath,
     attributed,
     backup,
-    historicalWorkspacePath: join(context.roots.legacyWorkspacesRoot, `${appId}${SUFFIX}`, workspaceRelativePath),
   };
   const issue = backupActivationIssue(item, context);
   if (issue) {
@@ -259,51 +240,40 @@ export function recordStoreAppLayoutBackups(
   const retired = new Set(paths.map((path) => resolve(path)));
   for (const item of discoverStoreAppLayoutBackups(context)) {
     if (retired.has(item.path) && validatedAppIds.includes(item.backup.appId) && !backupActivationIssue(item, context))
-      writeReceipt(item, context);
+      writeReceipt(item, context, "migration");
   }
 }
 
-/** Older releases have no receipt. Require an exact, content-based Workspace comparison once. */
-export async function verifyHistoricalStoreAppBackup(
+/** Verify current activation, not content equality with a historical snapshot. */
+export function verifyStoreAppBackupActivation(
   item: StoreAppLayoutBackupCandidate,
-  getContext: () => StoreAppBackupContext,
-): Promise<boolean> {
-  const context = getContext();
+  context: StoreAppBackupContext,
+): boolean {
   if (!item.attributed || backupActivationIssue(item, context)) return false;
-  const workspacePath = context.mountedApps.find((mount) => mount.id === item.backup.appId)!.workspacePath!;
   try {
-    const workspaceIdentity = directoryIdentity(workspacePath);
-    const backupIdentity = directoryIdentity(item.path);
-    if (!ordinaryDirectory(item.historicalWorkspacePath)) return false;
-    const sourceBefore = await inspectBackupTree(item.historicalWorkspacePath);
-    const targetBefore = await inspectBackupTree(workspacePath);
-    if ((await treeDigest(item.historicalWorkspacePath)) !== (await treeDigest(workspacePath))) return false;
-    if (
-      sourceBefore.fingerprint !== (await inspectBackupTree(item.historicalWorkspacePath)).fingerprint ||
-      targetBefore.fingerprint !== (await inspectBackupTree(workspacePath)).fingerprint
-    )
-      return false;
-    const current = getContext();
-    if (
-      backupActivationIssue(item, current) ||
-      workspaceIdentity !== directoryIdentity(workspacePath) ||
-      backupIdentity !== directoryIdentity(item.path) ||
-      !sameLocation(current.mountedApps.find((mount) => mount.id === item.backup.appId)!.workspacePath!, workspacePath)
-    )
-      return false;
-    writeReceipt(item, current);
+    // Older versions did not record migration completion. Record only what we can verify now.
+    // Normal edits, new files, and intentional deletions in the current Workspace are allowed.
+    writeReceipt(item, context, "activation");
     return true;
   } catch (error) {
-    console.warn("store_app_layout_backup_verification_failed", { appId: item.backup.appId, error: String(error) });
+    console.warn("store_app_layout_backup_activation_verification_failed", {
+      appId: item.backup.appId,
+      error: String(error),
+    });
     return false;
   }
 }
 
-function writeReceipt(item: StoreAppLayoutBackupCandidate, context: StoreAppBackupContext): void {
+function writeReceipt(
+  item: StoreAppLayoutBackupCandidate,
+  context: StoreAppBackupContext,
+  verification: BackupReceipt["verification"],
+): void {
   const workspacePath = context.mountedApps.find((mount) => mount.id === item.backup.appId)!.workspacePath!;
   const receipt: BackupReceipt = {
     schemaVersion: 1,
     kind: "store-app-layout-v2-backup",
+    verification,
     appId: item.backup.appId,
     sourcePath: resolve(item.sourcePath),
     workspacePath: resolve(workspacePath),
@@ -324,6 +294,7 @@ function readReceipt(path: string): BackupReceipt | undefined {
       !isRecord(value) ||
       value.schemaVersion !== 1 ||
       value.kind !== "store-app-layout-v2-backup" ||
+      (value.verification !== "migration" && value.verification !== "activation") ||
       typeof value.appId !== "string" ||
       typeof value.sourcePath !== "string" ||
       !isAbsolute(value.sourcePath) ||
@@ -374,30 +345,6 @@ export async function inspectBackupTree(root: string): Promise<{ bytes: number; 
   };
   await visit(root);
   return { bytes, fingerprint: digest.digest("hex") };
-}
-
-async function treeDigest(root: string): Promise<string> {
-  const digest = createHash("sha256");
-  const visit = async (path: string): Promise<void> => {
-    const stat = await lstat(path);
-    digest.update(
-      JSON.stringify([relative(root, path), stat.isDirectory() ? "dir" : stat.isSymbolicLink() ? "link" : "file"]),
-    );
-    if (stat.isSymbolicLink()) {
-      digest.update(JSON.stringify(await readlink(path)));
-      return;
-    }
-    if (stat.isFile()) {
-      const contents = createHash("sha256");
-      for await (const chunk of createReadStream(path)) contents.update(chunk);
-      digest.update(contents.digest("hex"));
-      return;
-    }
-    if (!stat.isDirectory()) throw new Error("storage_backup_unsafe_entry");
-    for (const name of (await readdir(path)).sort()) await visit(join(path, name));
-  };
-  await visit(root);
-  return digest.digest("hex");
 }
 
 export async function mountedBackupReferences(context: StoreAppBackupContext): Promise<string[]> {

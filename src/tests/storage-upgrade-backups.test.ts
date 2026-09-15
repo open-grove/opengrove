@@ -132,30 +132,45 @@ test("verified App backups share Update backups accounting and confirmed deletio
   }
 });
 
-test("pre-receipt backups require a successful historical content check", async () => {
+test("pre-receipt backups verify current activation without certifying historical content", async () => {
   const f = fixture(false);
   try {
     assert.equal(discoverStoreAppLayoutBackups(f.context())[0]?.backup.state, "unverified");
     const preview = await prepareUpgradeBackupDeletion(f.owner, f.input);
     assert.equal(preview.backups.length, 2);
-    assert.equal(existsSync(join(f.backup, STORE_APP_LAYOUT_BACKUP_RECEIPT)), true);
+    assert.equal(
+      JSON.parse(readFileSync(join(f.backup, STORE_APP_LAYOUT_BACKUP_RECEIPT), "utf8")).verification,
+      "activation",
+    );
   } finally {
     f.close();
   }
 });
 
-test("unique old Workspace content cannot be certified from a suffix and a new mount alone", async () => {
-  const f = fixture(false);
-  try {
-    writeFileSync(join(f.backup, "workspace", "only-old.md"), "never copied");
-    const preview = await prepareUpgradeBackupDeletion(f.owner, f.input);
-    assert.equal(preview.backups.length, 1);
-    assert.equal(preview.protectedBackups[0]?.reason, "verification_failed");
-    assert.equal(existsSync(join(f.backup, STORE_APP_LAYOUT_BACKUP_RECEIPT)), false);
-  } finally {
-    f.close();
-  }
-});
+for (const change of ["add", "edit", "delete"] as const) {
+  test(`normal Workspace ${change} does not prevent confirmed deletion of an older backup`, async () => {
+    const f = fixture(false);
+    try {
+      if (change === "add") writeFileSync(join(f.workspace, "new.md"), "new work");
+      if (change === "edit") writeFileSync(join(f.workspace, "story.md"), "my revised story");
+      if (change === "delete") rmSync(join(f.workspace, "story.md"));
+      const preview = await prepareUpgradeBackupDeletion(f.owner, f.input);
+      assert.equal(preview.backups.length, 2, "only activation and retirement determine backup eligibility");
+      assert.deepEqual(preview.protectedBackups, []);
+      assert.equal(existsSync(f.backup), true, "the old version remains available until the user confirms");
+      writeFileSync(join(f.workspace, "after-preview.md"), "work continued after preview");
+      const removed = await deleteConfirmedUpgradeBackups(f.owner, preview.token, f.input);
+      assert.equal(removed.removedFiles, 2);
+      assert.equal(existsSync(f.backup), false);
+      assert.equal(readFileSync(join(f.workspace, "after-preview.md"), "utf8"), "work continued after preview");
+      if (change === "add") assert.equal(readFileSync(join(f.workspace, "new.md"), "utf8"), "new work");
+      if (change === "edit") assert.equal(readFileSync(join(f.workspace, "story.md"), "utf8"), "my revised story");
+      if (change === "delete") assert.equal(existsSync(join(f.workspace, "story.md")), false);
+    } finally {
+      f.close();
+    }
+  });
+}
 
 for (const scenario of [
   "unsaved-switch",
