@@ -24,6 +24,7 @@ import {
   hostOperationCliError,
   hostOperationCliFailure,
   hostOperationCliSuccess,
+  hostOperationCliResponse,
   type HostOperationCliResult,
 } from "./host-operation-output.js";
 
@@ -208,7 +209,7 @@ export async function runHostOperationCommand(
   const { operation, call, client } = prepared;
   try {
     const data = await requestHostOperation(client, operation.operation, call);
-    return hostOperationCliSuccess({ ok: true, operation: operation.id, data });
+    return hostOperationCliResponse(operation.id, data);
   } catch (error) {
     return hostOperationCliFailure(operation.id, error);
   }

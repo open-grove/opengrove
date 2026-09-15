@@ -363,3 +363,41 @@ function readRecord(value: unknown): Record<string, unknown> {
   assert.ok(value && typeof value === "object" && !Array.isArray(value));
   return value as Record<string, unknown>;
 }
+
+test("Host CLI reports declared business failures even when HTTP succeeds", async () => {
+  const operation = defineHostOperation({
+    id: "run.direct.guide",
+    summary: "Guide a run",
+    description: "Business result fixture.",
+    method: "POST",
+    path: "/ask/guide",
+    risk: "write",
+    success: { status: 200, body: z.object({ ok: z.boolean(), guided: z.boolean(), error: z.string().optional() }) },
+  });
+  const catalog = compileHostProtocol([
+    defineHostOperationGroup({
+      id: "run",
+      title: "Runs",
+      description: "Run controls.",
+      resources: [
+        defineHostOperationResource({
+          id: "direct",
+          title: "Direct runs",
+          description: "Direct controls.",
+          operations: [operation] as const,
+        }),
+      ] as const,
+    }),
+  ] as const);
+  const result = await runHostOperationCommand(["run", "direct", "guide"], {
+    catalog,
+    fetch: async () => new Response(JSON.stringify({ ok: false, guided: false, error: "Run not found" })),
+  });
+  assert.equal(result.exitCode, 1);
+  assert.equal(result.stdout, undefined);
+  const payload = readError(result);
+  assert.equal(payload.operation, "run.direct.guide");
+  assert.equal(readRecord(payload.error).subtype, "operation_failed");
+  assert.equal(readRecord(payload.error).message, "Run not found");
+  assert.deepEqual(payload.data, { ok: false, guided: false, error: "Run not found" });
+});
