@@ -11,10 +11,12 @@ export type RoomInlineSelectOption = {
   description?: string;
   icon?: ReactNode;
   tone?: "danger";
+  disabled?: boolean;
 };
 
 export function RoomInlineSelect(props: {
   value: string;
+  valueLabel?: string;
   options: RoomInlineSelectOption[];
   onChange(value: string): void;
   className?: string;
@@ -46,7 +48,7 @@ export function RoomInlineSelect(props: {
           >
             <span className={styles.value}>
               {selected.icon ? <span className={styles.icon}>{selected.icon}</span> : null}
-              <span>{selected.label}</span>
+              <span>{props.valueLabel ?? selected.label}</span>
             </span>
             <ChevronsUpDown size={14} />
           </button>
@@ -58,6 +60,7 @@ export function RoomInlineSelect(props: {
             key={option.id}
             type="button"
             role="option"
+            disabled={option.disabled}
             aria-selected={option.id === props.value}
             data-tone={option.tone}
             onClick={() => {

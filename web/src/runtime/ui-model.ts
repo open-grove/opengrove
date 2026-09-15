@@ -907,9 +907,9 @@ export function formatKernelLabel(value: string | undefined, t: TranslationFn = 
   return productName ? t("workspace.namedKernel", { name: productName }) : "";
 }
 
-export function readStoredAccessMode(): RuntimeAccessMode {
+export function readStoredAccessMode(): RuntimeAccessMode | undefined {
   const value = typeof window === "undefined" ? "" : window.localStorage.getItem(APP_STORAGE_KEYS.accessMode);
-  return value === "default" || value === "auto-review" || value === "full-access" ? value : "default";
+  return value === "default" || value === "auto-review" || value === "full-access" ? value : undefined;
 }
 
 export interface ContextUsage {

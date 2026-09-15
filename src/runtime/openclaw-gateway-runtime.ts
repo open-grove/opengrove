@@ -1,3 +1,4 @@
+import { assertRuntimeAccessMode } from "../runtime-access.js";
 import { createHash, randomUUID } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
@@ -215,6 +216,7 @@ export class OpenClawGatewayRuntime implements AgentRuntime {
   }
 
   async *runTurn(request: AgentTurnRequest): AsyncIterable<AgentEvent> {
+    assertRuntimeAccessMode("openclaw", request.accessMode);
     const queue = new AsyncEventQueue<AgentEvent>();
     const runId = resolveRuntimeRunId(request.runId);
     let turnStarted = false;

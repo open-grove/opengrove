@@ -202,3 +202,8 @@
   width: 100%;
   justify-content: space-between;
 }
+
+.option:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

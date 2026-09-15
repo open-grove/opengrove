@@ -2,6 +2,7 @@ import { chmodSync, writeFileSync } from "node:fs";
 
 export interface FakeHermesGatewayOptions {
   marker?: string;
+  serverRequests?: boolean;
   sessionId?: string;
   includeConfigEcho?: boolean;
   holdUntilInterrupt?: boolean;
@@ -57,9 +58,13 @@ export function fakeHermesGatewaySource(options: FakeHermesGatewayOptions = {}):
       : skipBlockingPrompts
         ? ["  const approval = { choice: '' };", "  const answer = { answer: '' };"].join("\n")
         : [
-            "  event('approval.request', sessionId, { name: 'terminal', command: 'printf gateway' });",
+            options.serverRequests
+              ? "  send({ jsonrpc: '2.0', id: 'approval-1', method: 'approval', params: { session_id: sessionId, name: 'terminal', command: 'printf gateway' } });"
+              : "  event('approval.request', sessionId, { name: 'terminal', command: 'printf gateway' });",
             "  const approval = await waitFor('approval');",
-            "  event('clarify.request', sessionId, { request_id: 'clarify-1', question: 'Which marker?', choices: ['alpha', 'beta'] });",
+            options.serverRequests
+              ? "  send({ jsonrpc: '2.0', id: 'clarify-1', method: 'clarify', params: { session_id: sessionId, question: 'Which marker?', choices: ['alpha', 'beta'] } });"
+              : "  event('clarify.request', sessionId, { request_id: 'clarify-1', question: 'Which marker?', choices: ['alpha', 'beta'] });",
             "  const answer = await waitFor('clarify');",
           ].join("\n"),
     ...(options.ambiguousSameNameTools
@@ -99,6 +104,8 @@ export function fakeHermesGatewaySource(options: FakeHermesGatewayOptions = {}):
     "for await (const line of rl) {",
     "  if (!line.trim()) continue;",
     "  const msg = JSON.parse(line);",
+    "  if (msg.id === 'approval-1' && msg.result) { resolvePending('approval', msg.result); continue; }",
+    "  if (msg.id === 'clarify-1' && msg.result) { resolvePending('clarify', msg.result); continue; }",
     "  if (msg.method === 'session.create') {",
     `    send({ jsonrpc: '2.0', id: msg.id, result: { session_id: ${JSON.stringify(sessionId)}, info: { model: 'fake-hermes', tools: {}, skills: {}, cwd: process.cwd(), lazy: true } } });`,
     "  } else if (msg.method === 'prompt.submit') {",

@@ -1,3 +1,5 @@
+import { normalizeEmployeeAccessMode } from "./employee-access-mode.js";
+import { kernelConfigHomeForRegistry } from "./kernel-registry.js";
 import { existsSync, readFileSync, readdirSync, realpathSync, statSync } from "node:fs";
 import { basename, join, relative, resolve, sep } from "node:path";
 import type { JsonObject } from "../core.js";
@@ -57,7 +59,10 @@ export interface MountedAppEmployeeSummary {
   displayOutputSpec?: string;
 }
 
-export function mountedAppDefaultEmployees(settings: BridgeSettings): RoomChannelMember[] {
+export function mountedAppDefaultEmployees(
+  settings: BridgeSettings,
+  existingMembers?: ReadonlyMap<string, RoomChannelMember>,
+): RoomChannelMember[] {
   const members: RoomChannelMember[] = [];
   for (const mountedApp of settings.mountedApps ?? []) {
     if (mountedApp.enabled === false || !mountedApp.path?.trim()) continue;
@@ -80,6 +85,7 @@ export function mountedAppDefaultEmployees(settings: BridgeSettings): RoomChanne
         presentation,
         manifest,
         mountedApp.appBuilderEnabled === true,
+        existingMembers,
       ),
     );
   }
@@ -128,8 +134,10 @@ function manifestDefaultEmployees(
   presentation: AppManifestPresentation,
   manifest: JsonObject,
   appBuilderEnabled: boolean,
+  existingMembers?: ReadonlyMap<string, RoomChannelMember>,
 ): RoomChannelMember[] {
   const appAgentContext = collectMountedAppAgentContext(appRoot, workspaceRoot, appId, manifest);
+  const claudeConfigHome = kernelConfigHomeForRegistry(settings, "claude-code");
   const employeeInputs = manifestEmployeeInputs(manifest);
   const appBuilderId = appBuilderMemberId(appId);
   const pmId = pmAgentMemberId(appId);
@@ -144,6 +152,7 @@ function manifestDefaultEmployees(
         appTitle,
         presentation,
         appAgentContext,
+        claudeConfigHome,
       ),
     )
     .filter((member): member is RoomChannelMember =>
@@ -177,10 +186,27 @@ function manifestDefaultEmployees(
       }),
     );
   }
-  return applyStoreEmployeeDefaults(appEmployees, manifest);
+  return applyStoreEmployeeDefaults(appEmployees, manifest, claudeConfigHome).map((member) =>
+    member.employeeDefinitionId === OPENGROVE_PM_MEMBER_ID
+      ? member
+      : {
+          ...member,
+          // Resolve an omitted App default once; a refreshed cache must not reset existing Employees.
+          accessMode: normalizeEmployeeAccessMode(
+            member.kernel,
+            member.accessMode ?? existingMembers?.get(member.id)?.accessMode,
+            member.model,
+            claudeConfigHome,
+          ),
+        },
+  );
 }
 
-function applyStoreEmployeeDefaults(members: RoomChannelMember[], manifest: JsonObject): RoomChannelMember[] {
+function applyStoreEmployeeDefaults(
+  members: RoomChannelMember[],
+  manifest: JsonObject,
+  claudeConfigHome: string,
+): RoomChannelMember[] {
   const defaults = recordArray(record(record(manifest).store).employeeDefaults);
   if (!defaults.length) return members;
   const byMemberId = new Map(defaults.map((item) => [stringOrUndefined(item.memberId), item]));
@@ -193,8 +219,17 @@ function applyStoreEmployeeDefaults(members: RoomChannelMember[], manifest: Json
     const roleLead = typeof override.role === "string" ? override.role.trim() : undefined;
     const reasoningEffort = normalizeReasoningEffort(override.reasoningEffort);
     const contextTokenBudget = positiveInteger(override.contextTokenBudget);
-    const accessMode = normalizeAccessMode(override.accessMode);
     const configuredKernel = stringOrUndefined(override.kernel) ?? member.kernel;
+    const requestedAccessMode = override.accessMode ?? member.accessMode;
+    const accessMode =
+      requestedAccessMode === undefined
+        ? undefined
+        : normalizeEmployeeAccessMode(
+            configuredKernel,
+            requestedAccessMode,
+            stringOrUndefined(override.model) ?? member.model,
+            claudeConfigHome,
+          );
     const configuredModel = stringOrUndefined(override.model);
     const configured: RoomChannelMember = {
       ...member,
@@ -265,6 +300,7 @@ export function providerOnlyUserOverrides(member: RoomChannelMember): RoomChanne
 export function employeeManifestDefaultsPatch(
   member: RoomChannelMember,
   defaults: NonNullable<RoomChannelMember["manifestDefaults"]>,
+  claudeConfigHome?: string,
 ): Partial<RoomChannelMember> {
   return {
     name: defaults.name ?? member.name,
@@ -280,7 +316,12 @@ export function employeeManifestDefaultsPatch(
     requiredKernelCapabilities: defaults.requiredKernelCapabilities,
     reasoningEffort: defaults.reasoningEffort,
     contextTokenBudget: defaults.contextTokenBudget,
-    accessMode: defaults.accessMode,
+    accessMode: normalizeEmployeeAccessMode(
+      defaults.kernel ?? member.kernel,
+      defaults.accessMode,
+      defaults.model ?? member.model,
+      claudeConfigHome,
+    ),
     visibility: defaults.visibility ?? member.visibility,
     publicDescription: defaults.publicDescription,
     publicSkills: defaults.publicSkills,
@@ -313,6 +354,7 @@ function normalizeManifestEmployee(
   appTitle: string,
   presentation: AppManifestPresentation,
   appAgentContext: MountedAppAgentContext,
+  claudeConfigHome: string,
 ): RoomChannelMember | undefined {
   const employeeId = stringOrUndefined(input.id) ?? stringOrUndefined(input.name) ?? `employee-${index + 1}`;
   const kernel = normalizeEmployeeKernel(input.kernel);
@@ -378,7 +420,15 @@ function normalizeManifestEmployee(
     requiredKernelCapabilities: normalizeRequiredKernelCapabilities(input.requiredKernelCapabilities),
     appId,
     workspaceRoot: employeeWorkspaceRoot,
-    accessMode: normalizeAccessMode(input.accessMode),
+    accessMode:
+      input.accessMode === undefined
+        ? undefined
+        : normalizeEmployeeAccessMode(
+            kernel,
+            input.accessMode,
+            declaredEmployeeModel(input.model, kernel),
+            claudeConfigHome,
+          ),
     reasoningEffort: normalizeReasoningEffort(input.reasoningEffort) ?? defaultEmployeeReasoningEffort(),
     contextTokenBudget: positiveInteger(input.contextTokenBudget),
     source: "local",
@@ -462,7 +512,6 @@ function createAppBuilderMember(input: {
     defaultSkillIds: skillIds,
     appId: input.appId,
     workspaceRoot: input.workspaceRoot,
-    accessMode: "default",
     reasoningEffort: defaultEmployeeReasoningEffort(),
     source: "local",
     sourceLabel: `${input.appDisplayTitle} App`,
@@ -843,10 +892,6 @@ function stringOrUndefined(value: unknown): string | undefined {
 
 function normalizeVisibility(value: unknown): "private" | "public" | undefined {
   return value === "public" || value === "private" ? value : undefined;
-}
-
-function normalizeAccessMode(value: unknown): RoomChannelMember["accessMode"] {
-  return value === "default" || value === "auto-review" || value === "full-access" ? value : undefined;
 }
 
 function normalizeReasoningEffort(value: unknown): RoomChannelMember["reasoningEffort"] {

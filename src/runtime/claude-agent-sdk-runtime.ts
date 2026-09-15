@@ -327,10 +327,14 @@ export class ClaudeAgentSdkRuntime implements AgentRuntime {
     let contextUsageRequested = false;
     try {
       await runWithNativeSessionLock("claude-code", nativeSession.sessionId, async () => {
+        // Submit user input after Claude acknowledges the requested permission mode.
+        const approvalPrompt = permissionMode === "auto" ? new AsyncEventQueue<SDKUserMessage>() : undefined;
         const query = (this.options.query ?? claudeQuery)({
-          prompt: imageBlocks.length
-            ? claudeUserMessageStream(request.input, imageBlocks, nativeSession.sessionId)
-            : request.input,
+          prompt:
+            approvalPrompt ??
+            (imageBlocks.length
+              ? claudeUserMessageStream(request.input, imageBlocks, nativeSession.sessionId)
+              : request.input),
           options: this.createQueryOptions({
             request,
             cwd,
@@ -348,15 +352,24 @@ export class ClaudeAgentSdkRuntime implements AgentRuntime {
           }),
         });
 
-        this.refreshClaudeModelsCache(query, runtimeEnv);
-
         try {
+          if (approvalPrompt) {
+            await query.setPermissionMode("auto");
+            for await (const message of claudeUserMessageStream(request.input, imageBlocks, nativeSession.sessionId)) {
+              approvalPrompt.push(message);
+            }
+            approvalPrompt.close();
+          }
+          this.refreshClaudeModelsCache(query, runtimeEnv);
           for await (const message of query) {
             for (const event of mapClaudeSdkMessage(message, {
               runId,
               state: messageState,
               hostBridge,
               onInit: (init) => {
+                if (permissionMode === "auto" && init.permissionMode !== "auto") {
+                  throw new Error("runtime_access_mode_unavailable: Claude did not activate native auto review");
+                }
                 rememberClaudeNativeSession(request, init.session_id, runtimeBindingFingerprint);
                 this.rememberSessionBinding(request.context.sessionId, {
                   nativeSessionId: init.session_id,
@@ -379,6 +392,7 @@ export class ClaudeAgentSdkRuntime implements AgentRuntime {
             currentContextUsage = await readClaudeCurrentContextUsage(query);
           }
         } finally {
+          approvalPrompt?.close();
           query.close();
         }
       });
@@ -1671,7 +1685,7 @@ function resolveClaudePermissionMode(
     case "default":
       return "default";
     case "auto-review":
-      return "acceptEdits";
+      return "auto";
     case "full-access":
       return "bypassPermissions";
     default:

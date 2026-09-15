@@ -1,6 +1,12 @@
-import { copyFileSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
+import * as yaml from "js-yaml";
+import type { RuntimeAccessMode } from "../../core.js";
+import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { resolve } from "node:path";
+
+export function hermesApprovalMode(accessMode: RuntimeAccessMode | undefined): "manual" | "smart" | "off" {
+  return accessMode === "auto-review" ? "smart" : accessMode === "full-access" ? "off" : "manual";
+}
 
 export type HermesProviderApiMode = "chat_completions" | "codex_responses" | "anthropic_messages";
 
@@ -19,30 +25,36 @@ export function writeHermesHomeConfig(
   homeDir: string,
   nativeSkillDir: string | undefined,
   providerConfig: HermesProviderRuntimeConfig | undefined,
+  accessMode?: RuntimeAccessMode,
+  sourceHome = resolve(homedir(), ".hermes"),
 ): void {
   mkdirSync(homeDir, { recursive: true });
-  const sourceEnv = resolve(homedir(), ".hermes", ".env");
-  if (existsSync(sourceEnv)) {
-    try {
-      copyFileSync(sourceEnv, resolve(homeDir, ".env"));
-    } catch {
-      // Ignore copy failures; Hermes can still use process env credentials.
-    }
+  for (const name of [".env", "auth.json"]) {
+    const source = resolve(sourceHome, name);
+    if (existsSync(source)) copyFileSync(source, resolve(homeDir, name));
   }
-  writeFileSync(resolve(homeDir, "config.yaml"), buildHermesConfigYaml(nativeSkillDir, providerConfig), "utf8");
+  const sourceConfig = resolve(sourceHome, "config.yaml");
+  const base = existsSync(sourceConfig) ? yaml.load(readFileSync(sourceConfig, "utf8")) : {};
+  const generated = yaml.load(buildHermesConfigYaml(nativeSkillDir, providerConfig, accessMode));
+  const merged = { ...configObject(base), ...configObject(generated) };
+  merged.approvals = { ...configObject(configObject(base).approvals), mode: hermesApprovalMode(accessMode) };
+  writeFileSync(resolve(homeDir, "config.yaml"), yaml.dump(merged), { encoding: "utf8", mode: 0o600 });
+}
+
+function configObject(value: unknown): Record<string, unknown> {
+  if (value === undefined || value === null) return {};
+  if (typeof value !== "object" || Array.isArray(value)) throw new Error("hermes_config_must_be_mapping");
+  return value as Record<string, unknown>;
 }
 
 export function buildHermesConfigYaml(
   nativeSkillDir: string | undefined,
   providerConfig: HermesProviderRuntimeConfig | undefined,
+  accessMode?: RuntimeAccessMode,
 ): string {
   const lines: string[] = [];
-  // The isolated home does not inherit ~/.hermes/config.yaml. Pin manual mode
-  // so OpenGrove's accessMode + approval broker remains the policy authority;
-  // Hermes' default smart mode may otherwise approve a dangerous command
-  // without ever surfacing approval.request to the host.
   lines.push("approvals:");
-  lines.push("  mode: manual");
+  lines.push(`  mode: ${hermesApprovalMode(accessMode)}`);
   lines.push("");
   if (providerConfig) {
     const modelProvider = hermesCustomProviderKey(providerConfig.providerKey);

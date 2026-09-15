@@ -156,13 +156,13 @@ async function main() {
   assert.match(response.response.text, /APPROVAL:allow/);
   assert.match(response.response.text, /ANSWER:alpha/);
   assert.match(response.response.text, /STEER:HARNESS_STEER_INSTRUCTION/);
-  assert.match(response.response.text, /provider: "custom:opengrove-test-provider"/);
-  assert.match(response.response.text, /base_url: "https:\/\/example\.test\/anthropic"/);
-  assert.match(response.response.text, /api_mode: "anthropic_messages"/);
+  assert.match(response.response.text, /provider: ['"]?custom:opengrove-test-provider/);
+  assert.match(response.response.text, /base_url: ['"]?https:\/\/example\.test\/anthropic/);
+  assert.match(response.response.text, /api_mode: ['"]?anthropic_messages/);
   assert.match(response.response.text, /approvals:\s+mode: manual/);
-  assert.match(response.response.text, new RegExp(`key_env: "${escapeRegExp(appEnvName("TEST_API_KEY"))}"`));
+  assert.match(response.response.text, new RegExp(`key_env: ['"]?${escapeRegExp(appEnvName("TEST_API_KEY"))}`));
   assert.match(response.response.text, /providers:/);
-  assert.match(response.response.text, /"test-model": \{\}/);
+  assert.match(response.response.text, /['"]?test-model['"]?: \{\}/);
   assert.match(response.response.text, /external_dirs/);
   assert.match(
     response.response.text.replaceAll("\\\\", "/"),

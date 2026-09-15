@@ -1,3 +1,4 @@
+import { assertRuntimeAccessMode } from "../runtime-access.js";
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { resolve } from "node:path";
 import { resolveCommandInvocation } from "../kernel/discovery.js";
@@ -267,6 +268,7 @@ export class AcpCliRuntime implements AgentRuntime {
   }
 
   async *runTurn(request: AgentTurnRequest): AsyncIterable<AgentEvent> {
+    assertRuntimeAccessMode(this.options.kernelId, request.accessMode);
     const runId = resolveRuntimeRunId(request.runId);
     if (request.signal?.aborted) {
       yield { type: "turn.started", runId, at: new Date().toISOString() };

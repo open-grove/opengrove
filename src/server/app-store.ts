@@ -1,3 +1,5 @@
+import { normalizeEmployeeAccessMode } from "./employee-access-mode.js";
+import { kernelConfigHomeForRegistry } from "./kernel-registry.js";
 import { createHash, randomUUID } from "node:crypto";
 import {
   cpSync,
@@ -1801,6 +1803,7 @@ function syncPublishedEmployeeDefaultsToLocalState(input: {
   employeeOverridePatches?: AppStorePublishRecoveryRecord["employeeOverridePatches"];
 }): void {
   const employeeDefaults = recordArray(recordValue(recordValue(input.releaseManifest).store).employeeDefaults);
+  const claudeConfigHome = kernelConfigHomeForRegistry(input.state.settings, "claude-code");
   const currentMembers = new Map(input.state.app.rooms.listMembers().map((member) => [member.id, member]));
   const overridesByMemberId = new Map(
     input.employeeOverridePatches?.map((patch) => [patch.memberId, patch.userOverrides]) ?? [],
@@ -1827,7 +1830,12 @@ function syncPublishedEmployeeDefaultsToLocalState(input: {
       requiredKernelCapabilities: normalizeRequiredKernelCapabilities(item.requiredKernelCapabilities),
       reasoningEffort: normalizeReasoningEffort(item.reasoningEffort),
       contextTokenBudget: positiveInteger(item.contextTokenBudget),
-      accessMode: normalizeEmployeeAccessMode(item.accessMode),
+      accessMode: normalizeEmployeeAccessMode(
+        stringOrUndefined(item.kernel) ?? member.kernel,
+        item.accessMode,
+        stringOrUndefined(item.model) ?? member.model,
+        claudeConfigHome,
+      ),
       visibility: normalizeVisibility(item.visibility),
       publicDescription: stringOrUndefined(item.publicDescription),
       publicSkills: stringArray(item.publicSkills),
@@ -1837,7 +1845,7 @@ function syncPublishedEmployeeDefaultsToLocalState(input: {
     input.state.app.rooms.patchMember(
       member.id,
       input.applyValues
-        ? employeeManifestDefaultsPatch(member, defaults)
+        ? employeeManifestDefaultsPatch(member, defaults, claudeConfigHome)
         : {
             manifestDefaults: { ...defaults },
             ...(overridesByMemberId.has(member.id)
@@ -3376,10 +3384,6 @@ function normalizeReasoningEffort(value: unknown): RoomChannelMember["reasoningE
   return value === "low" || value === "medium" || value === "high" || value === "xhigh" || value === "max"
     ? value
     : undefined;
-}
-
-function normalizeEmployeeAccessMode(value: unknown): RoomChannelMember["accessMode"] {
-  return value === "default" || value === "auto-review" || value === "full-access" ? value : undefined;
 }
 
 function positiveInteger(value: unknown): number | undefined {

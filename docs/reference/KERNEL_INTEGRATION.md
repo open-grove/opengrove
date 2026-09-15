@@ -140,6 +140,76 @@ Support is adapter-specific:
 - Rejection, timeout, cancellation, and process exit must all terminate without
   leaving a pending run or approval.
 
+## Three permission presets
+
+Employees (including the global PM and App-scoped PM bindings) and chat share exactly three
+choices: **Ask for approval** (`default`), **Help me approve** (`auto-review`), and **Full access**
+(`full-access`). Presets do not change App scope, Workspace, tool visibility, or administrator
+identity. Kernels approve native tools; Host tools continue to enforce App policy.
+
+| Kernel | Ask for approval | Help me approve | Full access |
+| --- | --- | --- | --- |
+| Codex | `workspace-write` + `on-request` + reviewer `user` | Same sandbox and policy; reviewer `auto_review` | `danger-full-access` + `never` |
+| Claude Agent SDK | `default` | `auto`; await native `setPermissionMode` before sending user input | `bypassPermissions` + `allowDangerouslySkipPermissions` |
+| Hermes | `approvals.mode: manual` | `approvals.mode: smart` | `approvals.mode: off` |
+| OpenCode | Allow reads, ask for other operations, retain explicit deny rules | Unavailable | Allow ordinary operations, retaining explicit denials in supplied configuration |
+| Kimi | Human ACP approval | Unavailable | Select `allow_once` for ordinary ACP permission requests; questions still need an answer |
+| Pi | Host policy and native tool hooks | Unavailable | Allow ordinary tools, retaining explicit denials |
+| OpenClaw | Gateway-managed | Unavailable | Unavailable until per-employee control is connected |
+
+Both restricted Codex presets disable sandbox network access. Outside-Workspace writes and
+network escalation use native approval. Calls that omit `accessMode` retain the existing configured
+approval/sandbox policy, with `danger-full-access` / `never` as the unconfigured fallback. For omitted
+presets, network access remains owned by native configuration: neither thread config nor turn config
+overrides it. Claude calls without a preset retain the configured mode, falling back to
+`bypassPermissions`. These API fallbacks are separate from the product's explicit default selections.
+Neither `on-failure` nor Claude `acceptEdits` is auto review.
+Claude Opus 5 and Opus 4.8 are declared to support auto review, matching the
+[native model requirements](https://code.claude.com/docs/en/permission-modes#eliminate-permission-prompts-with-auto-mode).
+They remain selectable with an empty or stale SDK cache. Other models and aliases use SDK model
+records; the native default uses the `default` record, including its resolved model. Unknown support
+disables the picker option. Execution directly activates the requested native mode without waiting
+for a model-catalog lookup. Activation failures are reported, and an effective mode other than
+`auto` is rejected. Model metadata refresh remains best-effort for the picker. Auto review requires
+the SDK; the legacy CLI path does not implement native activation acknowledgement.
+Employee creation, seed synchronization, permission migration, App imports and restoring App defaults
+read this cache from the same configured Claude directory as the permission picker. A custom
+`kernelPathOverrides["claude-code"].configHome` therefore applies to both availability and defaults.
+
+Hermes isolates processes and configuration copies by environment and preset, preserving user
+denials and auxiliary reviewer settings without editing a shared `HERMES_HOME`. Native startup
+checks the effective mode and fails if it cannot apply it. Approval and question bridges support
+both desktop contract v7 server requests and earlier notification-based requests.
+
+The global PM and its App-scoped bindings default to **Full access**. Other new Employees and chats
+prefer **Help me approve** when supported: Codex and Hermes use auto review; Claude Opus 5 and
+Opus 4.8 use the declared support above, while other Claude models require cached support.
+Without either, a new Employee starts with Ask for approval. Pi, Kimi and OpenCode start
+with Ask for approval. OpenClaw remains Gateway-managed; remote permissions belong to the remote owner.
+
+Explicit user choices survive ordinary seed synchronization and take priority over App defaults;
+compatible App declarations take priority over product defaults. App version activation and the
+explicit restore-App-defaults action can reapply the App's configuration. Ordinary synchronization
+also preserves saved permissions for non-PM product Employees and App Employees whose App declares
+no permission mode. A refreshed or missing Claude cache can change availability and defaults for
+models without declared support, without rewriting these saved selections. Unsupported kernel combinations are still repaired.
+A one-time v3 migration only fills missing employee modes and repairs unsupported combinations,
+backing up changed state. It does
+not blanket-reset compatible choices. PM's new default follows the existing product seed mechanism
+and preserves explicit user permission overrides. Stored chat choices are read without being rewritten;
+an unset chat choice resolves against the selected kernel and model.
+
+Unsupported presets are disabled in the picker and rejected at execution. Switching to Pi, Kimi or
+OpenCode while auto review is selected changes the selection to ask for approval and displays a notice.
+Employee creation, updates, App imports and seed synchronization apply the same compatibility rule.
+Publishing rejects unsupported combinations. Claude's locally unverified model support is distinct
+from a Kernel that cannot support auto review and does not invalidate a portable App declaration.
+
+Parameter contract tests: [`runtime-access-modes.test.ts`](../../src/tests/runtime-access-modes.test.ts).
+Protocol references: [Codex desktop presets](https://learn.chatgpt.com/docs/sandboxing),
+[Claude SDK permissions](https://code.claude.com/docs/en/agent-sdk/permissions),
+[Hermes approval implementation](https://github.com/NousResearch/hermes-agent/blob/main/tools/approval.py).
+
 ## Diagnostics and privacy
 
 Useful diagnostics include the runtime version, safe executable source, native

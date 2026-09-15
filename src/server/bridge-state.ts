@@ -1,3 +1,9 @@
+import {
+  migrateNativeApprovalPresetsV3,
+  NATIVE_APPROVAL_PRESETS_VERSION,
+} from "./migrations/native-approval-presets-v3.js";
+import { normalizeEmployeeAccessMode } from "./employee-access-mode.js";
+import { kernelConfigHomeForRegistry } from "./kernel-registry.js";
 import { existsSync, readdirSync, renameSync, statSync, writeFileSync } from "node:fs";
 import { basename, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -624,6 +630,7 @@ export interface RecreateBridgeAppOptions {
 
 export function recreateBridgeApp(state: BridgeState, options: RecreateBridgeAppOptions = {}): void {
   state.initializedMountedApps = undefined;
+  const claudeConfigHome = kernelConfigHomeForRegistry(state.settings, "claude-code");
   const rootState = rootBridgeState(state);
   const previousApp = state.appInitialized ? state.app : undefined;
   const hotRebuild = previousApp !== undefined;
@@ -801,6 +808,16 @@ export function recreateBridgeApp(state: BridgeState, options: RecreateBridgeApp
     loadedState,
     mountedAppDefaultEmployees({ ...state.settings, mountedApps }),
   );
+  const needsApprovalMigration = state.settings.nativeApprovalPresetsVersion < NATIVE_APPROVAL_PRESETS_VERSION;
+  const approvalMigrationChanged = needsApprovalMigration
+    ? migrateNativeApprovalPresetsV3(
+        state.app.rooms,
+        loadedState
+          ? () => backupLocalStateBeforeMigration(state.store.path, loadedState, "native-approval-presets-v3")
+          : undefined,
+        claudeConfigHome,
+      )
+    : false;
   const needsEmployeeModelMigration =
     state.settings.employeeModelMigrationVersion < CURRENT_EMPLOYEE_MODEL_MIGRATION_VERSION;
   const legacyNativeEmployeeModelChanged = needsEmployeeModelMigration
@@ -833,10 +850,11 @@ export function recreateBridgeApp(state: BridgeState, options: RecreateBridgeApp
   const deletedMemberIds = new Set(state.app.rooms.listDeletedMemberIds());
   const productSeedMembers = syncProductDefaultSeedMembers(
     existingMembers,
-    productDefaultEmployees(resolveHostLanguageSettings(state.settings)),
+    productDefaultEmployees(resolveHostLanguageSettings(state.settings), claudeConfigHome),
+    claudeConfigHome,
   );
   const appSeedMembers = applyEmployeeDefinitionRuntimeToScopedSeeds(
-    mountedAppDefaultEmployees({ ...state.settings, mountedApps }),
+    mountedAppDefaultEmployees({ ...state.settings, mountedApps }, existingMembers),
     productSeedMembers,
   );
   const appSeedMemberIds = new Set(appSeedMembers.map((member) => member.id));
@@ -860,7 +878,7 @@ export function recreateBridgeApp(state: BridgeState, options: RecreateBridgeApp
           userOverrides: providerOnlyUserOverrides(existing),
         }
       : existing;
-    const merged = syncMountedAppSeedMember(authoritativeExisting, member);
+    const merged = syncMountedAppSeedMember(authoritativeExisting, member, claudeConfigHome);
     if (JSON.stringify(merged) !== JSON.stringify(existing)) {
       state.app.rooms.upsertMember(merged, { emitEvent: true });
       appSeedSyncChanged = true;
@@ -928,15 +946,21 @@ export function recreateBridgeApp(state: BridgeState, options: RecreateBridgeApp
       appGroupConsistencyChanged ||
       numberedGroupPresentationChanged ||
       runtimeModelRepairChanged ||
+      approvalMigrationChanged ||
       legacyNativeEmployeeModelChanged ||
       legacyEmployeeProviderRouteChanged)
   ) {
     state.store.saveFrom(state.app);
   }
-  if (!options.deferPersistedStateSave && rootState === state && needsEmployeeModelMigration) {
+  if (
+    !options.deferPersistedStateSave &&
+    rootState === state &&
+    (needsEmployeeModelMigration || needsApprovalMigration)
+  ) {
     state.settings = {
       ...state.settings,
       employeeModelMigrationVersion: CURRENT_EMPLOYEE_MODEL_MIGRATION_VERSION,
+      nativeApprovalPresetsVersion: NATIVE_APPROVAL_PRESETS_VERSION,
     };
     saveBridgeSettings(state);
   }
@@ -1063,7 +1087,8 @@ function backupLocalStateBeforeMigration(
     | "app-member-identities-v1"
     | "kernel-native-resume-v1"
     | "routine-app-command-id-v1"
-    | "native-employee-model-v1",
+    | "native-employee-model-v1"
+    | "native-approval-presets-v3",
 ): void {
   if (!statePath) return;
   const backupPath = `${statePath}.before-${step}.json`;
@@ -1186,7 +1211,11 @@ export function validateWorkflowFlowApprovalForBridgeState(
     : `flow_approval_not_found:${flowApproval.flowId}/${flowApproval.stepId}`;
 }
 
-export function syncMountedAppSeedMember(existing: RoomChannelMember, seed: RoomChannelMember): RoomChannelMember {
+export function syncMountedAppSeedMember(
+  existing: RoomChannelMember,
+  seed: RoomChannelMember,
+  claudeConfigHome?: string,
+): RoomChannelMember {
   // User-edited fields survive ordinary manifest re-seeding; the App Store update
   // boundary removes App-owned markers but retains the local Provider route before
   // calling this merge. A role override replaces only the public lead while fresh
@@ -1218,7 +1247,7 @@ export function syncMountedAppSeedMember(existing: RoomChannelMember, seed: Room
     color: keep("color"),
     availableSkillIds: keep("availableSkillIds"),
     defaultSkillIds: keep("defaultSkillIds"),
-    accessMode: keep("accessMode"),
+    accessMode: normalizeEmployeeAccessMode(keep("kernel"), keep("accessMode"), keep("model"), claudeConfigHome),
     reasoningEffort: keep("reasoningEffort"),
     contextTokenBudget: keep("contextTokenBudget"),
     visibility: keep("visibility"),
@@ -1260,7 +1289,10 @@ export function syncMountedAppSeedMember(existing: RoomChannelMember, seed: Room
 
 export function syncMountedAppMemberPresentations(state: BridgeState): boolean {
   const seedMembers = [
-    ...productDefaultEmployees(resolveHostLanguageSettings(state.settings)),
+    ...productDefaultEmployees(
+      resolveHostLanguageSettings(state.settings),
+      kernelConfigHomeForRegistry(state.settings, "claude-code"),
+    ),
     ...mountedAppDefaultEmployees({
       ...state.settings,
       mountedApps: effectiveMountedApps(state),
@@ -1303,10 +1335,23 @@ export function syncMountedAppMemberPresentations(state: BridgeState): boolean {
 export function syncProductDefaultSeedMembers(
   existingMembers: ReadonlyMap<string, RoomChannelMember>,
   seedMembers: RoomChannelMember[],
+  claudeConfigHome?: string,
 ): RoomChannelMember[] {
   return seedMembers.map((seed) => {
     const existing = existingMembers.get(seed.id);
-    if (existing) return syncMountedAppSeedMember(existing, seed);
+    if (existing) {
+      const merged = syncMountedAppSeedMember(existing, seed, claudeConfigHome);
+      if (seed.id !== OPENGROVE_PM_MEMBER_ID) {
+        // Capability discovery can change available presets, not a saved selection.
+        merged.accessMode = normalizeEmployeeAccessMode(
+          merged.kernel,
+          existing.accessMode,
+          merged.model,
+          claudeConfigHome,
+        );
+      }
+      return merged;
+    }
     if (seed.id !== OPENGROVE_PM_MEMBER_ID) return seed;
     return migrateLegacyScopedPmRuntime(existingMembers, seed);
   });

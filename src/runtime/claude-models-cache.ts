@@ -13,6 +13,8 @@ export type ClaudeEffortLevel = (typeof CLAUDE_EFFORT_LEVELS)[number];
 
 export interface ClaudeModelEffortInfo {
   id: string;
+  resolvedModel?: string;
+  supportsAutoMode?: boolean;
   label?: string;
   supportsEffort: boolean;
   supportedEffortLevels: ClaudeEffortLevel[];
@@ -67,6 +69,8 @@ export function writeClaudeModelsCache(
     displayName?: unknown;
     description?: unknown;
     supportsEffort?: unknown;
+    supportsAutoMode?: unknown;
+    resolvedModel?: unknown;
     supportedEffortLevels?: unknown;
   }>,
   options: { configHome?: string; now: string },
@@ -86,6 +90,8 @@ export function writeClaudeModelsCache(
       const legacy = isLegacyDescription(model.description);
       normalized.push({
         id,
+        ...(typeof model.resolvedModel === "string" ? { resolvedModel: model.resolvedModel } : {}),
+        supportsAutoMode: model.supportsAutoMode === true,
         label: typeof model.displayName === "string" && model.displayName.trim() ? model.displayName.trim() : undefined,
         supportsEffort: model.supportsEffort === true || supportedEffortLevels.length > 0,
         supportedEffortLevels,
@@ -120,6 +126,8 @@ export function readClaudeModelsCache(configHome?: string): ClaudeModelEffortInf
       const supportedEffortLevels = normalizeEffortLevels(record.supportedEffortLevels);
       result.push({
         id,
+        ...(typeof record.resolvedModel === "string" ? { resolvedModel: record.resolvedModel } : {}),
+        supportsAutoMode: record.supportsAutoMode === true,
         label: typeof record.label === "string" && record.label.trim() ? record.label.trim() : undefined,
         supportsEffort: record.supportsEffort === true || supportedEffortLevels.length > 0,
         supportedEffortLevels,
@@ -147,4 +155,27 @@ export function resolveClaudeEffortLevels(
     return anySupported.supportedEffortLevels;
   }
   return [];
+}
+
+// Product-supported models meet Claude's documented auto-mode model requirement.
+// Source: https://code.claude.com/docs/en/permission-modes#eliminate-permission-prompts-with-auto-mode
+// Checked 2026-09-15 with @anthropic-ai/claude-agent-sdk 0.3.263. Native activation
+// remains authoritative for account/provider errors; cached metadata cannot hide these models.
+const KNOWN_CLAUDE_AUTO_REVIEW_MODEL_IDS: readonly string[] = ["claude-opus-5", "claude-opus-4-8"];
+
+/** Picker ids and creation defaults share product declarations and discovered model aliases. */
+export function claudeAutoReviewModelIds(cache: ClaudeModelEffortInfo[]): string[] {
+  const discovered = cache
+    .filter(
+      (model) =>
+        model.supportsAutoMode === true ||
+        KNOWN_CLAUDE_AUTO_REVIEW_MODEL_IDS.includes(model.id) ||
+        (model.resolvedModel !== undefined && KNOWN_CLAUDE_AUTO_REVIEW_MODEL_IDS.includes(model.resolvedModel)),
+    )
+    .flatMap((model) => [
+      model.id,
+      ...(model.resolvedModel ? [model.resolvedModel] : []),
+      ...(model.id === "default" ? ["claude-code-default"] : []),
+    ]);
+  return [...new Set([...KNOWN_CLAUDE_AUTO_REVIEW_MODEL_IDS, ...discovered])];
 }

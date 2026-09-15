@@ -99,6 +99,9 @@ export class ClaudeCodeRuntime implements AgentRuntime {
     );
     const systemPrompt = buildClaudeSystemPrompt(request);
     const permissionMode = resolveClaudePermissionMode(request.accessMode, this.options.permissionMode);
+    if (permissionMode === "auto") {
+      throw new Error("runtime_access_mode_unavailable: Claude auto review requires the Agent SDK preflight");
+    }
     const capture = createClaudeCodeStreamCaptureRecorder(this.options.streamCapture);
     const runtimeEnv = mergeRuntimeEnv(this.options.env, request.runtimeEnv);
     const cwd = this.options.cwd ?? process.cwd();
@@ -955,7 +958,7 @@ function resolveClaudePermissionMode(
     case "default":
       return "default";
     case "auto-review":
-      return "acceptEdits";
+      return "auto";
     case "full-access":
       return "bypassPermissions";
     default:

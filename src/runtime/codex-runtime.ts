@@ -54,6 +54,7 @@ import {
   resolveReasoningEffort,
   resolveCodexSandboxMode,
   resolveCodexServiceTier,
+  toCodexSandboxPolicy,
 } from "./codex/policy.js";
 import { contextBudgetDiagnostic, resolveContextTokenBudget } from "./context-token-budget.js";
 import {
@@ -223,7 +224,7 @@ export class CodexRuntime implements AgentRuntime {
     const modelProvider = this.options.configuredModelProvider?.trim() || undefined;
     const sandbox = resolveCodexSandboxMode(request, this.options.sandbox);
     const approvalPolicy = resolveCodexApprovalPolicy(request.accessMode, this.options.approvalPolicy);
-    const approvalsReviewer = resolveCodexApprovalsReviewer(this.options.approvalsReviewer);
+    const approvalsReviewer = resolveCodexApprovalsReviewer(request.accessMode, this.options.approvalsReviewer);
     const reasoningEffort = resolveReasoningEffort(request.requestedEffort);
     const serviceTier =
       this.options.allowServiceTier === false
@@ -242,6 +243,9 @@ export class CodexRuntime implements AgentRuntime {
       serviceTier,
       contextTokenBudget: contextBudget.budgetSource === "configured" ? contextBudget.effectiveBudget : undefined,
     });
+    if (request.accessMode && sandbox === "workspace-write") {
+      threadConfig["sandbox_workspace_write.network_access"] = false;
+    }
     const staticDeveloperInstructions = buildCodexDeveloperInstructions();
     const developerInstructions = buildCodexDeveloperInstructions(request);
     const turnInput = buildCodexTurnInput(request);
@@ -572,6 +576,9 @@ export class CodexRuntime implements AgentRuntime {
             {
               threadId: thread.threadId,
               input: turnInputItems as unknown as JsonValue,
+              approvalPolicy,
+              approvalsReviewer,
+              ...(request.accessMode ? { sandboxPolicy: toCodexSandboxPolicy(sandbox) } : {}),
               ...(request.structuredOutputSchema ? { outputSchema: request.structuredOutputSchema } : {}),
             },
             { timeoutMs: this.options.requestTimeoutMs ?? 60_000 },

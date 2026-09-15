@@ -414,6 +414,8 @@ export interface ModelOption {
 }
 
 export interface RuntimeControls {
+  /** Model IDs explicitly reported by the native SDK as supporting auto mode. */
+  autoReviewModelIds?: string[];
   kernel: string;
   source: string;
   models: ModelOption[];

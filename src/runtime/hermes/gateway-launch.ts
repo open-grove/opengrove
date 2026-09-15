@@ -48,7 +48,20 @@ export function resolveHermesTuiGatewayLaunch(options: HermesGatewayLaunchOption
 function hermesPythonGatewayLaunch(python: string): HermesGatewayLaunch {
   return {
     command: python,
-    args: ["-u", "-m", "tui_gateway.entry"],
+    args: [
+      "-u",
+      "-c",
+      [
+        "import os, runpy",
+        "import hermes_bootstrap",
+        "hermes_bootstrap.harden_import_path()",
+        "from tools.approval_context import _get_approval_mode",
+        "expected = os.environ['OPENGROVE_HERMES_APPROVAL_MODE']",
+        "actual = _get_approval_mode()",
+        "if actual != expected: raise RuntimeError('runtime_access_mode_unavailable: Hermes expected ' + expected + ', got ' + actual)",
+        "runpy.run_module('tui_gateway.entry', run_name='__main__')",
+      ].join("\n"),
+    ],
     pythonSourceRoot: inferHermesPythonSourceRoot(python),
   };
 }
