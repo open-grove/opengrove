@@ -10,10 +10,13 @@ import { runOperationGroup } from "./runs.js";
 
 import { interactionOperationGroup } from "./interactions.js";
 
+import { artifactOperationGroup } from "./artifacts.js";
+
 export const hostOperationGroups = [
   hostOperationGroup,
   runOperationGroup,
   interactionOperationGroup,
+  artifactOperationGroup,
   authOperationGroup,
   appOperationGroup,
   roomOperationGroup,

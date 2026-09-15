@@ -27,6 +27,12 @@ import type {
   AppUpdateScheduleData,
   AppUpdateScheduleErrors,
   AppUpdateScheduleResponses,
+  ArtifactArtifactCreateData,
+  ArtifactArtifactCreateErrors,
+  ArtifactArtifactCreateResponses,
+  ArtifactArtifactGetData,
+  ArtifactArtifactGetErrors,
+  ArtifactArtifactGetResponses,
   AuthEmailCodeCreateData,
   AuthEmailCodeCreateErrors,
   AuthEmailCodeCreateResponses,
@@ -539,6 +545,51 @@ export class Interaction extends HeyApiClient {
   private _question?: Question;
   get question(): Question {
     return (this._question ??= new Question({ client: this.client }));
+  }
+}
+
+export class Artifact extends HeyApiClient {
+  /**
+   * Create an artifact
+   *
+   * Save a typed artifact with structured data, sources, and media metadata. An explicit existing ID replaces that artifact. The response contains bounded summaries; use artifact get for the full data.
+   */
+  public create<ThrowOnError extends boolean = false>(
+    options: Options<ArtifactArtifactCreateData, ThrowOnError>,
+  ): RequestResult<ArtifactArtifactCreateResponses, ArtifactArtifactCreateErrors, ThrowOnError> {
+    return (options.client ?? this.client).post<
+      ArtifactArtifactCreateResponses,
+      ArtifactArtifactCreateErrors,
+      ThrowOnError
+    >({
+      url: "/artifacts",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Read an artifact
+   *
+   * Read the complete artifact record, including structured data, media references, provenance, and lineage.
+   */
+  public get<ThrowOnError extends boolean = false>(
+    options: Options<ArtifactArtifactGetData, ThrowOnError>,
+  ): RequestResult<ArtifactArtifactGetResponses, ArtifactArtifactGetErrors, ThrowOnError> {
+    return (options.client ?? this.client).get<ArtifactArtifactGetResponses, ArtifactArtifactGetErrors, ThrowOnError>({
+      url: "/artifacts/{artifactId}",
+      ...options,
+    });
+  }
+}
+
+export class Artifact2 extends HeyApiClient {
+  private _artifact?: Artifact;
+  get artifact(): Artifact {
+    return (this._artifact ??= new Artifact({ client: this.client }));
   }
 }
 
@@ -1185,6 +1236,11 @@ export class OpenGroveApi extends HeyApiClient {
   private _interaction?: Interaction;
   get interaction(): Interaction {
     return (this._interaction ??= new Interaction({ client: this.client }));
+  }
+
+  private _artifact?: Artifact2;
+  get artifact(): Artifact2 {
+    return (this._artifact ??= new Artifact2({ client: this.client }));
   }
 
   private _auth?: Auth;

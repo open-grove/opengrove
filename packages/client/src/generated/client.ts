@@ -19,6 +19,8 @@ export const openGroveClientOperationIds = [
   "interaction.question.answer",
   "interaction.question.decline",
   "interaction.question.cancel",
+  "artifact.artifact.create",
+  "artifact.artifact.get",
   "auth.email-code.create",
   "auth.session.create",
   "auth.session.get",
@@ -266,6 +268,44 @@ export function bindOpenGroveClient(request: HostOperationRequest) {
             },
             body: {
               response: input.response,
+            },
+            signal: options?.signal,
+          }),
+      },
+    },
+    artifacts: {
+      collection: {
+        create: (
+          input: HostOperationInput<(typeof hostOperationById)["artifact.artifact.create"]> = {},
+          options?: OpenGroveRequestOptions,
+        ): Promise<HostOperationOutput<(typeof hostOperationById)["artifact.artifact.create"]>> =>
+          request(hostOperationById["artifact.artifact.create"], {
+            body: {
+              assets: input.assets,
+              data: input.data,
+              derivedFrom: input.derivedFrom,
+              id: input.id,
+              lineage: input.lineage,
+              parentId: input.parentId,
+              preview: input.preview,
+              provenance: input.provenance,
+              sourceRefs: input.sourceRefs,
+              status: input.status,
+              tags: input.tags,
+              title: input.title,
+              type: input.type,
+              variantOf: input.variantOf,
+              version: input.version,
+            },
+            signal: options?.signal,
+          }),
+        get: (
+          input: HostOperationInput<(typeof hostOperationById)["artifact.artifact.get"]>,
+          options?: OpenGroveRequestOptions,
+        ): Promise<HostOperationOutput<(typeof hostOperationById)["artifact.artifact.get"]>> =>
+          request(hostOperationById["artifact.artifact.get"], {
+            params: {
+              artifactId: input.artifactId,
             },
             signal: options?.signal,
           }),

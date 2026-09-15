@@ -4,6 +4,8 @@ import type {
   ListRunsOperation,
   ListExecutionsOperation,
   ListRunEventsOperation,
+  CreateArtifactOperation,
+  GetArtifactOperation,
 } from "#protocol";
 import { hostContractById } from "#protocol/compiled";
 import { createAnnotationArtifact, createComputerSnapshotArtifact } from "../artifact-actions.js";
@@ -11,7 +13,6 @@ import { syncBridgeWorkingState } from "../bridge-working-state.js";
 import {
   isMemoryScope,
   normalizeArtifactAnnotationPayload,
-  normalizeArtifactCreatePayload,
   normalizeArtifactPatchPayload,
   normalizeComputerStatePatchPayload,
   normalizeMemoryPatchPayload,
@@ -35,7 +36,7 @@ export function createStateRoutes(): BridgeRoute[] {
     route("memory-list", "GET", "/memory", handleMemoryListRoute),
     route("artifacts-list", "GET", "/artifacts", handleArtifactsListRoute),
     route("artifact-item-content", "GET", /^\/artifacts\/([^/]+)\/content$/, handleArtifactItemContentRoute),
-    route("artifact-item-read", "GET", /^\/artifacts\/([^/]+)$/, handleArtifactItemReadRoute),
+    operationRoute(hostContractById["artifact.artifact.get"], handleArtifactItemReadRoute),
     route("working-state-read", "GET", "/working-state", handleWorkingStateReadRoute),
     route("computer-state-read", "GET", "/computer-state", handleComputerStateReadRoute),
     operationRoute(hostContractById["run.session.list"], handleSessionsListRoute),
@@ -43,7 +44,7 @@ export function createStateRoutes(): BridgeRoute[] {
     operationRoute(hostContractById["run.execution.list"], handleExecutionsListRoute),
     route("memory-item-delete", "DELETE", /^\/memory\/([^/]+)$/, handleMemoryItemRoute),
     route("memory-item-patch", "PATCH", /^\/memory\/([^/]+)$/, handleMemoryItemRoute),
-    route("artifacts-create", "POST", "/artifacts", handleArtifactsCreateRoute),
+    operationRoute(hostContractById["artifact.artifact.create"], handleArtifactsCreateRoute),
     route("artifact-item-patch", "PATCH", /^\/artifacts\/([^/]+)$/, handleArtifactItemRoute),
     route("artifact-item-delete", "DELETE", /^\/artifacts\/([^/]+)$/, handleArtifactItemRoute),
     route("artifact-annotation", "POST", /^\/artifacts\/([^/]+)\/annotation$/, handleArtifactAnnotationRoute),
@@ -85,10 +86,8 @@ function handleArtifactsListRoute(context: BridgeRouteContext): boolean {
   return true;
 }
 
-function handleArtifactItemReadRoute(context: BridgeRouteContext): boolean {
-  const match = context.url.pathname.match(/^\/artifacts\/([^/]+)$/);
-  if (!match) return false;
-  const artifact = context.state.app.artifacts.get(decodeURIComponent(match[1]!));
+function handleArtifactItemReadRoute(context: HostOperationRouteContext<GetArtifactOperation>): true {
+  const artifact = context.state.app.artifacts.get(context.input.params.artifactId);
   if (!artifact) {
     context.sendJson(context.response, 404, { ok: false, error: "artifact_not_found" });
     return true;
@@ -211,10 +210,8 @@ async function handleMemoryItemRoute(context: BridgeRouteContext): Promise<boole
   return false;
 }
 
-async function handleArtifactsCreateRoute(context: BridgeRouteContext): Promise<boolean> {
-  const artifact = context.state.app.artifacts.create(
-    normalizeArtifactCreatePayload(await context.readJsonBody(context.request)),
-  );
+function handleArtifactsCreateRoute(context: HostOperationRouteContext<CreateArtifactOperation>): true {
+  const artifact = context.state.app.artifacts.create(context.input.body);
   context.state.store.saveFrom(context.state.app);
   context.sendJson(context.response, 200, {
     ok: true,

@@ -2827,6 +2827,215 @@ export type InteractionQuestionCancelBodyDefinitionSchema0 =
       [key: string]: InteractionQuestionCancelBodyDefinitionSchema0;
     };
 
+export type ArtifactMutation = {
+  ok: true;
+  artifact: {
+    id: string;
+    type: string;
+    title?: string;
+    status?: string;
+    version?: number;
+    tags: Array<string>;
+    data: {
+      [key: string]: ArtifactMutationDefinitionSchema0;
+    };
+    assets?: Array<{
+      kind: "image" | "audio" | "video" | "file" | "url" | "text";
+      uri?: string;
+      path?: string;
+      title?: string;
+      mimeType?: string;
+      metadata?: {
+        [key: string]: ArtifactMutationDefinitionSchema0;
+      };
+    }>;
+    preview?: {
+      title?: string;
+      text?: string;
+      imageUri?: string;
+      mimeType?: string;
+      status?: string;
+    };
+    createdAt: string;
+    updatedAt: string;
+    sourceRefs?: Array<{
+      title?: string;
+      url?: string;
+      locator?: string;
+      quote?: string;
+    }>;
+    parentId?: string;
+    variantOf?: string;
+    derivedFrom?: Array<string>;
+    lineage?: Array<string>;
+    provenance?: {
+      [key: string]: ArtifactMutationDefinitionSchema0;
+    };
+  };
+  artifacts: Array<{
+    id: string;
+    type: string;
+    title?: string;
+    status?: string;
+    version?: number;
+    tags: Array<string>;
+    data: {
+      [key: string]: ArtifactMutationDefinitionSchema0;
+    };
+    assets?: Array<{
+      kind: "image" | "audio" | "video" | "file" | "url" | "text";
+      uri?: string;
+      path?: string;
+      title?: string;
+      mimeType?: string;
+      metadata?: {
+        [key: string]: ArtifactMutationDefinitionSchema0;
+      };
+    }>;
+    preview?: {
+      title?: string;
+      text?: string;
+      imageUri?: string;
+      mimeType?: string;
+      status?: string;
+    };
+    createdAt: string;
+    updatedAt: string;
+    sourceRefs?: Array<{
+      title?: string;
+      url?: string;
+      locator?: string;
+      quote?: string;
+    }>;
+    parentId?: string;
+    variantOf?: string;
+    derivedFrom?: Array<string>;
+    lineage?: Array<string>;
+    provenance?: {
+      [key: string]: ArtifactMutationDefinitionSchema0;
+    };
+  }>;
+};
+
+export type ArtifactMutationDefinitionSchema0 =
+  | string
+  | number
+  | boolean
+  | null
+  | Array<ArtifactMutationDefinitionSchema0>
+  | {
+      [key: string]: ArtifactMutationDefinitionSchema0;
+    };
+
+export type ArtifactArtifactCreateBody = {
+  id?: string;
+  type?: string;
+  title?: string;
+  status?: string;
+  version?: number;
+  tags?: Array<string>;
+  data?: {
+    [key: string]: ArtifactArtifactCreateBodyDefinitionSchema0;
+  };
+  assets?: Array<{
+    kind: "image" | "audio" | "video" | "file" | "url" | "text";
+    uri?: string;
+    path?: string;
+    title?: string;
+    mimeType?: string;
+    metadata?: {
+      [key: string]: ArtifactArtifactCreateBodyDefinitionSchema0;
+    };
+  }>;
+  preview?: {
+    title?: string;
+    text?: string;
+    imageUri?: string;
+    mimeType?: string;
+    status?: string;
+  };
+  sourceRefs?: Array<{
+    title?: string;
+    url?: string;
+    locator?: string;
+    quote?: string;
+  }>;
+  parentId?: string;
+  variantOf?: string;
+  derivedFrom?: Array<string>;
+  lineage?: Array<string>;
+  provenance?: {
+    [key: string]: ArtifactArtifactCreateBodyDefinitionSchema0;
+  };
+};
+
+export type ArtifactArtifactCreateBodyDefinitionSchema0 =
+  | string
+  | number
+  | boolean
+  | null
+  | Array<ArtifactArtifactCreateBodyDefinitionSchema0>
+  | {
+      [key: string]: ArtifactArtifactCreateBodyDefinitionSchema0;
+    };
+
+export type ArtifactArtifactGetResponse200 = {
+  ok: true;
+  artifact: {
+    id: string;
+    type: string;
+    title?: string;
+    status?: string;
+    version?: number;
+    tags: Array<string>;
+    data: {
+      [key: string]: ArtifactArtifactGetResponse200DefinitionSchema0;
+    };
+    assets?: Array<{
+      kind: "image" | "audio" | "video" | "file" | "url" | "text";
+      uri?: string;
+      path?: string;
+      title?: string;
+      mimeType?: string;
+      metadata?: {
+        [key: string]: ArtifactArtifactGetResponse200DefinitionSchema0;
+      };
+    }>;
+    preview?: {
+      title?: string;
+      text?: string;
+      imageUri?: string;
+      mimeType?: string;
+      status?: string;
+    };
+    createdAt: string;
+    updatedAt: string;
+    sourceRefs?: Array<{
+      title?: string;
+      url?: string;
+      locator?: string;
+      quote?: string;
+    }>;
+    parentId?: string;
+    variantOf?: string;
+    derivedFrom?: Array<string>;
+    lineage?: Array<string>;
+    provenance?: {
+      [key: string]: ArtifactArtifactGetResponse200DefinitionSchema0;
+    };
+  };
+};
+
+export type ArtifactArtifactGetResponse200DefinitionSchema0 =
+  | string
+  | number
+  | boolean
+  | null
+  | Array<ArtifactArtifactGetResponse200DefinitionSchema0>
+  | {
+      [key: string]: ArtifactArtifactGetResponse200DefinitionSchema0;
+    };
+
 export type AuthError = {
   ok?: false;
   error: string;
@@ -4838,6 +5047,226 @@ export type InteractionQuestionCancelResponses = {
 
 export type InteractionQuestionCancelResponse =
   InteractionQuestionCancelResponses[keyof InteractionQuestionCancelResponses];
+
+export type ArtifactArtifactCreateData = {
+  body: ArtifactArtifactCreateBody;
+  path?: never;
+  query?: never;
+  url: "/artifacts";
+};
+
+export type ArtifactArtifactCreateErrors = {
+  /**
+   * The input is invalid.
+   */
+  400: {
+    ok?: false;
+    error: string;
+    code?: string;
+    message?: string;
+    contractId?: string;
+    traceId?: string;
+    incidentId?: string;
+    issues?: Array<{
+      path: string;
+      code: string;
+    }>;
+  };
+  /**
+   * A valid Host session or token is required.
+   */
+  401: {
+    ok?: false;
+    error: string;
+    code?: string;
+    message?: string;
+    contractId?: string;
+    traceId?: string;
+    incidentId?: string;
+    issues?: Array<{
+      path: string;
+      code: string;
+    }>;
+  };
+  /**
+   * The request is not authorized.
+   */
+  403: {
+    ok?: false;
+    error: string;
+    code?: string;
+    message?: string;
+    contractId?: string;
+    traceId?: string;
+    incidentId?: string;
+    issues?: Array<{
+      path: string;
+      code: string;
+    }>;
+  };
+  /**
+   * The Host could not complete the operation.
+   */
+  500: {
+    ok?: false;
+    error: string;
+    code?: string;
+    message?: string;
+    contractId?: string;
+    traceId?: string;
+    incidentId?: string;
+    issues?: Array<{
+      path: string;
+      code: string;
+    }>;
+  };
+  /**
+   * The Host or authenticated session is temporarily unavailable.
+   */
+  503: {
+    ok?: false;
+    error: string;
+    code?: string;
+    message?: string;
+    contractId?: string;
+    traceId?: string;
+    incidentId?: string;
+    issues?: Array<{
+      path: string;
+      code: string;
+    }>;
+  };
+};
+
+export type ArtifactArtifactCreateError = ArtifactArtifactCreateErrors[keyof ArtifactArtifactCreateErrors];
+
+export type ArtifactArtifactCreateResponses = {
+  /**
+   * Successful response.
+   */
+  200: ArtifactMutation;
+};
+
+export type ArtifactArtifactCreateResponse = ArtifactArtifactCreateResponses[keyof ArtifactArtifactCreateResponses];
+
+export type ArtifactArtifactGetData = {
+  body?: never;
+  path: {
+    artifactId: string;
+  };
+  query?: never;
+  url: "/artifacts/{artifactId}";
+};
+
+export type ArtifactArtifactGetErrors = {
+  /**
+   * The input is invalid.
+   */
+  400: {
+    ok?: false;
+    error: string;
+    code?: string;
+    message?: string;
+    contractId?: string;
+    traceId?: string;
+    incidentId?: string;
+    issues?: Array<{
+      path: string;
+      code: string;
+    }>;
+  };
+  /**
+   * A valid Host session or token is required.
+   */
+  401: {
+    ok?: false;
+    error: string;
+    code?: string;
+    message?: string;
+    contractId?: string;
+    traceId?: string;
+    incidentId?: string;
+    issues?: Array<{
+      path: string;
+      code: string;
+    }>;
+  };
+  /**
+   * The request is not authorized.
+   */
+  403: {
+    ok?: false;
+    error: string;
+    code?: string;
+    message?: string;
+    contractId?: string;
+    traceId?: string;
+    incidentId?: string;
+    issues?: Array<{
+      path: string;
+      code: string;
+    }>;
+  };
+  /**
+   * The artifact does not exist.
+   */
+  404: {
+    ok?: false;
+    error: string;
+    code?: string;
+    message?: string;
+    contractId?: string;
+    traceId?: string;
+    incidentId?: string;
+    issues?: Array<{
+      path: string;
+      code: string;
+    }>;
+  };
+  /**
+   * The Host could not complete the operation.
+   */
+  500: {
+    ok?: false;
+    error: string;
+    code?: string;
+    message?: string;
+    contractId?: string;
+    traceId?: string;
+    incidentId?: string;
+    issues?: Array<{
+      path: string;
+      code: string;
+    }>;
+  };
+  /**
+   * The Host or authenticated session is temporarily unavailable.
+   */
+  503: {
+    ok?: false;
+    error: string;
+    code?: string;
+    message?: string;
+    contractId?: string;
+    traceId?: string;
+    incidentId?: string;
+    issues?: Array<{
+      path: string;
+      code: string;
+    }>;
+  };
+};
+
+export type ArtifactArtifactGetError = ArtifactArtifactGetErrors[keyof ArtifactArtifactGetErrors];
+
+export type ArtifactArtifactGetResponses = {
+  /**
+   * Successful response.
+   */
+  200: ArtifactArtifactGetResponse200;
+};
+
+export type ArtifactArtifactGetResponse = ArtifactArtifactGetResponses[keyof ArtifactArtifactGetResponses];
 
 export type AuthEmailCodeCreateData = {
   body: {

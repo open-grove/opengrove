@@ -5,7 +5,8 @@
     "room": "rooms",
     "employee": "employees",
     "run": "runs",
-    "interaction": "interactions"
+    "interaction": "interactions",
+    "artifact": "artifacts"
   },
   "resources": {
     "app.release": "releases",
@@ -23,7 +24,8 @@
     "run.execution": "executions",
     "interaction.approval": "approvals",
     "interaction.question": "questions",
-    "run.event": "events"
+    "run.event": "events",
+    "artifact.artifact": "collection"
   },
   "operations": {
     "app.release.keep-local": "keepLocal",

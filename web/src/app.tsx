@@ -1,4 +1,4 @@
-import { interactionDecisionBodySchema } from "@opengrove/protocol";
+import { interactionDecisionBodySchema, createArtifactOperation } from "@opengrove/protocol";
 import { openGroveClient } from "./opengrove-client";
 import { useBlocker } from "react-router";
 import { useAppNavigation } from "./runtime/use-app-navigation";
@@ -1259,7 +1259,8 @@ export function App() {
   });
 
   const createArtifactMutation = useMutation({
-    mutationFn: (payload: Record<string, unknown>) => postJson<any>("/artifacts", payload),
+    mutationFn: (payload: Record<string, unknown>) =>
+      openGroveClient.artifacts.collection.create(createArtifactOperation.body.parse(payload)),
     onSuccess() {
       queryClient.invalidateQueries({ queryKey: ["inventory"] });
       queryClient.invalidateQueries({ queryKey: ["events"] });
