@@ -1,3 +1,4 @@
+import { assertRuntimeAccessMode } from "../runtime-access.js";
 import { createHash } from "node:crypto";
 import { existsSync, readdirSync } from "node:fs";
 import { homedir } from "node:os";
@@ -327,10 +328,14 @@ export class ClaudeAgentSdkRuntime implements AgentRuntime {
     let contextUsageRequested = false;
     try {
       await runWithNativeSessionLock("claude-code", nativeSession.sessionId, async () => {
+        // Keep user input out of the native loop until its model and account accept auto mode.
+        const approvalPrompt = permissionMode === "auto" ? new AsyncEventQueue<SDKUserMessage>() : undefined;
         const query = (this.options.query ?? claudeQuery)({
-          prompt: imageBlocks.length
-            ? claudeUserMessageStream(request.input, imageBlocks, nativeSession.sessionId)
-            : request.input,
+          prompt:
+            approvalPrompt ??
+            (imageBlocks.length
+              ? claudeUserMessageStream(request.input, imageBlocks, nativeSession.sessionId)
+              : request.input),
           options: this.createQueryOptions({
             request,
             cwd,
@@ -348,15 +353,36 @@ export class ClaudeAgentSdkRuntime implements AgentRuntime {
           }),
         });
 
-        this.refreshClaudeModelsCache(query, runtimeEnv);
-
         try {
+          if (approvalPrompt) {
+            const models = await query.supportedModels();
+            writeClaudeModelsCache(models, {
+              configHome: preparedEnv.CLAUDE_CONFIG_DIR,
+              now: new Date().toISOString(),
+            });
+            const supported = models.some(
+              (model) =>
+                model.supportsAutoMode === true &&
+                (model.value === requestedModel || model.resolvedModel === requestedModel),
+            );
+            assertRuntimeAccessMode("claude-code", "auto-review", supported);
+            await query.setPermissionMode("auto");
+            for await (const message of claudeUserMessageStream(request.input, imageBlocks, nativeSession.sessionId)) {
+              approvalPrompt.push(message);
+            }
+            approvalPrompt.close();
+          } else {
+            this.refreshClaudeModelsCache(query, runtimeEnv);
+          }
           for await (const message of query) {
             for (const event of mapClaudeSdkMessage(message, {
               runId,
               state: messageState,
               hostBridge,
               onInit: (init) => {
+                if (permissionMode === "auto" && init.permissionMode !== "auto") {
+                  throw new Error("runtime_access_mode_unavailable: Claude did not activate native auto review");
+                }
                 rememberClaudeNativeSession(request, init.session_id, runtimeBindingFingerprint);
                 this.rememberSessionBinding(request.context.sessionId, {
                   nativeSessionId: init.session_id,
@@ -379,6 +405,7 @@ export class ClaudeAgentSdkRuntime implements AgentRuntime {
             currentContextUsage = await readClaudeCurrentContextUsage(query);
           }
         } finally {
+          approvalPrompt?.close();
           query.close();
         }
       });
@@ -1671,11 +1698,11 @@ function resolveClaudePermissionMode(
     case "default":
       return "default";
     case "auto-review":
-      return "acceptEdits";
+      return "auto";
     case "full-access":
       return "bypassPermissions";
     default:
-      return configured ?? "bypassPermissions";
+      return configured ?? "default";
   }
 }
 

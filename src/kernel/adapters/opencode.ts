@@ -1,3 +1,4 @@
+import { assertRuntimeAccessMode } from "../../runtime-access.js";
 import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { resolve } from "node:path";
@@ -404,18 +405,36 @@ export function openCodeConfigContentForAccessMode(
   configContent: string | undefined,
   accessMode: RuntimeAccessMode | undefined,
 ): string {
+  assertRuntimeAccessMode("opencode", accessMode);
   const config = parseJsonObject(configContent);
   return JSON.stringify({
     $schema: readNonEmptyString(config.$schema) ?? OPENCODE_CONFIG_SCHEMA,
     model: OPENCODE_NATIVE_DEFAULT_MODEL,
     small_model: OPENCODE_NATIVE_DEFAULT_MODEL,
     ...config,
-    permission: openCodePermissionForAccessMode(accessMode),
+    permission: openCodePermissionForAccessMode(accessMode, config.permission),
   });
 }
 
-function openCodePermissionForAccessMode(accessMode: RuntimeAccessMode | undefined): "allow" | { "*": "ask" } {
-  return accessMode === "full-access" ? "allow" : { "*": "ask" };
+function openCodePermissionForAccessMode(accessMode: RuntimeAccessMode | undefined, configured: unknown): unknown {
+  // Preserve explicit deny rules, including resource-level denials, in both presets.
+  if (configured === "deny" || asRecord(configured)["*"] === "deny") return "deny";
+  const permission: Record<string, unknown> =
+    accessMode === "full-access"
+      ? { "*": "allow" }
+      : { "*": "ask", read: "allow", glob: "allow", grep: "allow", list: "allow" };
+  for (const [tool, rule] of Object.entries(asRecord(configured))) {
+    if (rule === "deny") permission[tool] = "deny";
+    else if (rule && typeof rule === "object" && !Array.isArray(rule)) {
+      const denials = Object.entries(rule).filter(([, value]) => value === "deny");
+      if (denials.length)
+        permission[tool] = {
+          "*": typeof permission[tool] === "string" ? permission[tool] : permission["*"],
+          ...Object.fromEntries(denials),
+        };
+    }
+  }
+  return permission;
 }
 
 function parseJsonObject(input: string | undefined): Record<string, unknown> {

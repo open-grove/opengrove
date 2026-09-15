@@ -117,7 +117,7 @@ export function createClaudeCodeKernelAdapterFromOptions(
     configuredModel: options.provider ? options.model : undefined,
     runtimeBindingFingerprint: options.runtimeBindingFingerprint,
     modelAliases,
-    permissionMode: "bypassPermissions",
+    permissionMode: "default",
     env: options.env,
   });
 }
@@ -762,6 +762,9 @@ export function buildClaudeCodeRuntimeControls(
   }));
   return {
     kernel: "claude-code",
+    autoReviewModelIds: effortCache
+      .filter((model) => model.supportsAutoMode === true)
+      .flatMap((model) => (model.resolvedModel ? [model.id, model.resolvedModel] : [model.id])),
     source: localRouteProfile?.source ?? "claude-code-defaults",
     models,
     defaultModel,

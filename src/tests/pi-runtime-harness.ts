@@ -300,11 +300,11 @@ async function assertPiWorkspaceBoundaryGate(): Promise<void> {
       skills: [],
       packs: [],
       capabilities: [],
-      accessMode: "auto-review",
+      accessMode: "default",
     })) {
       // Drain the Run so the session can exercise both native tool decisions.
     }
-    assert.equal(decisions[0]?.mode, "allow", "auto-review should keep normal in-workspace Pi writes available");
+    assert.equal(decisions[0]?.mode, "ask", "Request approval must ask before Pi writes files");
     assert.equal(decisions[1]?.mode, "ask", "Pi file access outside the OpenGrove workspace must require approval");
   } finally {
     rmSync(workspaceRoot, { recursive: true, force: true });

@@ -941,3 +941,8 @@
     flex-shrink: 0;
   }
 }
+
+.option:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

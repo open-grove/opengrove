@@ -1,3 +1,4 @@
+import { NATIVE_APPROVAL_PRESETS_VERSION } from "./migrations/native-approval-presets-v1.js";
 import { randomUUID } from "node:crypto";
 import { copyFileSync, existsSync, readFileSync, renameSync } from "node:fs";
 import { basename, delimiter, resolve } from "node:path";
@@ -145,6 +146,7 @@ export function normalizeBridgeSettingsPatch(input: unknown, base: BridgeSetting
     providerSetupVersion: numberOrUndefined(source.providerSetupVersion) ?? base.providerSetupVersion,
     providerRouteMigrationVersion: base.providerRouteMigrationVersion,
     employeeModelMigrationVersion: base.employeeModelMigrationVersion,
+    nativeApprovalPresetsVersion: base.nativeApprovalPresetsVersion,
     mountedApps,
     uninstalledStoreAppIds,
     defaultAppSync: normalizeDefaultAppSyncSettings(source.defaultAppSync, base.defaultAppSync),
@@ -397,6 +399,7 @@ export function loadBridgeSettings(state: BridgeState): BridgeSettings {
     providerSetupVersion: numberOrUndefined(parsed.providerSetupVersion) ?? defaults.providerSetupVersion,
     providerRouteMigrationVersion: numberOrUndefined(parsed.providerRouteMigrationVersion) ?? 0,
     employeeModelMigrationVersion: numberOrUndefined(parsed.employeeModelMigrationVersion) ?? 0,
+    nativeApprovalPresetsVersion: numberOrUndefined(parsed.nativeApprovalPresetsVersion) ?? 0,
     mountedApps,
     uninstalledStoreAppIds,
     defaultAppSync: normalizeDefaultAppSyncSettings(parsed.defaultAppSync, defaults.defaultAppSync),
@@ -461,6 +464,7 @@ export function defaultBridgeSettings(): BridgeSettings {
     providerSetupVersion: 0,
     providerRouteMigrationVersion: CURRENT_PROVIDER_ROUTE_MIGRATION_VERSION,
     employeeModelMigrationVersion: CURRENT_EMPLOYEE_MODEL_MIGRATION_VERSION,
+    nativeApprovalPresetsVersion: NATIVE_APPROVAL_PRESETS_VERSION,
     mountedApps: defaultMountedApps(),
     uninstalledStoreAppIds: [],
     defaultAppSync: { managedPackageKeys: [] },

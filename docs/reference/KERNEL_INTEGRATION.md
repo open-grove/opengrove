@@ -140,6 +140,44 @@ Support is adapter-specific:
 - Rejection, timeout, cancellation, and process exit must all terminate without
   leaving a pending run or approval.
 
+## Three permission presets
+
+Employees (including the global PM and App-scoped PM bindings) and chat share exactly three
+choices: **Ask for approval** (`default`), **Help me approve** (`auto-review`), and **Full access**
+(`full-access`). Presets do not change App scope, Workspace, tool visibility, or administrator
+identity. Kernels approve native tools; Host tools continue to enforce App policy.
+
+| Kernel | Ask for approval | Help me approve | Full access |
+| --- | --- | --- | --- |
+| Codex | `workspace-write` + `on-request` + reviewer `user` | Same sandbox and policy; reviewer `auto_review` | `danger-full-access` + `never` |
+| Claude Agent SDK | `default` | `auto`; check fresh `supportsAutoMode` and await `setPermissionMode` before sending user input | `bypassPermissions` + `allowDangerouslySkipPermissions` |
+| Hermes | `approvals.mode: manual` | `approvals.mode: smart` | `approvals.mode: off` |
+| OpenCode | Allow reads, ask for other operations, retain explicit deny rules | Unavailable | Allow ordinary operations, retaining explicit denials in supplied configuration |
+| Kimi | Human ACP approval | Unavailable | Select `allow_once` for ordinary ACP permission requests; questions still need an answer |
+| Pi | Host policy and native tool hooks | Unavailable | Allow ordinary tools, retaining explicit denials |
+| OpenClaw | Gateway-managed | Unavailable | Unavailable until per-employee control is connected |
+
+Both restricted Codex presets disable sandbox network access. Outside-Workspace writes and
+network escalation use native approval. Neither `on-failure` nor Claude `acceptEdits` is auto review.
+Claude model availability comes from the SDK model cache and is revalidated for the current
+model/account before each auto-review run. Unknown support disables the picker option; a rejected
+mode never silently falls back. The legacy CLI path lacks this preflight and must use the SDK for auto review.
+
+Hermes isolates processes and configuration copies by environment and preset, preserving user
+denials and auxiliary reviewer settings without editing a shared `HERMES_HOME`. Native startup
+checks the effective mode and fails if it cannot apply it. Approval and question bridges support
+both desktop contract v7 server requests and earlier notification-based requests.
+
+Unsupported presets are disabled in the picker and rejected at execution. A one-time migration
+resets legacy employee and chat `auto-review` selections to `default`, backing up employee state
+and recording overrides until the user selects again. Old edit acceptance must not silently
+become new automatic authorization.
+
+Parameter contract tests: [`runtime-access-modes.test.ts`](../../src/tests/runtime-access-modes.test.ts).
+Protocol references: [Codex desktop presets](https://learn.chatgpt.com/docs/sandboxing),
+[Claude SDK permissions](https://code.claude.com/docs/en/agent-sdk/permissions),
+[Hermes approval implementation](https://github.com/NousResearch/hermes-agent/blob/main/tools/approval.py).
+
 ## Diagnostics and privacy
 
 Useful diagnostics include the runtime version, safe executable source, native

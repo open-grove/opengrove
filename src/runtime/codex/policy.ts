@@ -38,17 +38,21 @@ export function resolveCodexSandboxMode(
   if (capabilitySandbox) {
     return capabilitySandbox;
   }
-  return configured ?? "danger-full-access";
+  return configured ?? "workspace-write";
 }
 
 export function resolveCodexApprovalPolicy(
   requested: RuntimeAccessMode | undefined,
   configured: CodexApprovalPolicy | undefined,
 ): CodexApprovalPolicy {
-  return codexPolicyForAccessMode(requested)?.approvalPolicy ?? configured ?? "never";
+  return codexPolicyForAccessMode(requested)?.approvalPolicy ?? configured ?? "on-request";
 }
 
-export function resolveCodexApprovalsReviewer(configured: CodexApprovalsReviewer | undefined): CodexApprovalsReviewer {
+export function resolveCodexApprovalsReviewer(
+  requested: RuntimeAccessMode | undefined,
+  configured: CodexApprovalsReviewer | undefined,
+): CodexApprovalsReviewer {
+  if (requested) return requested === "auto-review" ? "auto_review" : "user";
   return configured === "auto_review" || configured === "guardian_subagent" || configured === "user"
     ? configured
     : "user";
@@ -62,7 +66,7 @@ export function toCodexSandboxPolicy(mode: CodexSandboxMode): JsonObject {
       return {
         type: "workspaceWrite",
         writableRoots: [],
-        networkAccess: true,
+        networkAccess: false,
         excludeTmpdirEnvVar: false,
         excludeSlashTmp: false,
       };
@@ -102,7 +106,7 @@ function codexPolicyForAccessMode(value: RuntimeAccessMode | undefined):
     case "default":
       return { sandbox: "workspace-write", approvalPolicy: "on-request" };
     case "auto-review":
-      return { sandbox: "workspace-write", approvalPolicy: "on-failure" };
+      return { sandbox: "workspace-write", approvalPolicy: "on-request" };
     case "full-access":
       return { sandbox: "danger-full-access", approvalPolicy: "never" };
     default:

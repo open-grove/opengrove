@@ -153,14 +153,14 @@ function readCodexApprovalPolicy() {
   const value = readAppEnv("CODEX_APPROVAL_POLICY");
   return value === "never" || value === "on-request" || value === "on-failure" || value === "untrusted"
     ? value
-    : "never";
+    : "on-request";
 }
 
 function readCodexSandbox() {
   const value = readAppEnv("CODEX_SANDBOX");
   return value === "read-only" || value === "workspace-write" || value === "danger-full-access"
     ? value
-    : "danger-full-access";
+    : "workspace-write";
 }
 
 export function discoverCodexKernel(

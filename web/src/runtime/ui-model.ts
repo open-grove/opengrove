@@ -1,3 +1,4 @@
+import { migrateStoredAccessModeV1 } from "./compat/access-mode-v1";
 import { File as FileIcon, FileText, Image as ImageIcon } from "lucide-react";
 import type { QueryClient } from "@tanstack/react-query";
 import type {
@@ -908,6 +909,7 @@ export function formatKernelLabel(value: string | undefined, t: TranslationFn = 
 }
 
 export function readStoredAccessMode(): RuntimeAccessMode {
+  if (typeof window !== "undefined") migrateStoredAccessModeV1(window.localStorage, APP_STORAGE_KEYS.accessMode);
   const value = typeof window === "undefined" ? "" : window.localStorage.getItem(APP_STORAGE_KEYS.accessMode);
   return value === "default" || value === "auto-review" || value === "full-access" ? value : "default";
 }

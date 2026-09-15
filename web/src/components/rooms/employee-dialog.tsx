@@ -1,3 +1,4 @@
+import { accessModeUnavailableKey } from "../../runtime/access-modes";
 import {
   useCallback,
   useEffect,
@@ -624,13 +625,23 @@ export function EmployeeDialog(props: EmployeeDialogProps) {
                 <span>{t("contacts.accessTitle")}</span>
                 <RoomInlineSelect
                   value={draft.accessMode}
+                  valueLabel={draft.kernel === "openclaw" ? t("composer.accessGatewayManaged") : undefined}
                   menuSize="wide"
-                  options={MEMBER_ACCESS_PRESETS.map((preset) => ({
-                    id: preset.id,
-                    label: preset.label,
-                    description: preset.description,
-                    tone: preset.danger ? ("danger" as const) : undefined,
-                  }))}
+                  options={MEMBER_ACCESS_PRESETS.map((preset) => {
+                    const unavailable = accessModeUnavailableKey(
+                      draft.kernel,
+                      preset.id,
+                      draft.model,
+                      selectedRuntimeControls,
+                    );
+                    return {
+                      id: preset.id,
+                      label: preset.label,
+                      description: unavailable ? t(unavailable) : preset.description,
+                      disabled: Boolean(unavailable),
+                      tone: preset.danger ? ("danger" as const) : undefined,
+                    };
+                  })}
                   onChange={(accessMode) =>
                     updateDraft(
                       (current) => ({
@@ -642,6 +653,12 @@ export function EmployeeDialog(props: EmployeeDialogProps) {
                   }
                 />
               </div>
+              {draft.kernel !== "openclaw" &&
+              accessModeUnavailableKey(draft.kernel, draft.accessMode, draft.model, selectedRuntimeControls) ? (
+                <div className="employee-dialog-warning" role="status">
+                  {t("composer.selectedAccessUnavailable")}
+                </div>
+              ) : null}
               {!selectedKernelReady && selectedKernel ? (
                 <div className="employee-dialog-warning">
                   {kernelUnavailableDescription(selectedKernel, t) || t("employee.kernelNotInstalledWarning")}

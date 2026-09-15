@@ -162,6 +162,8 @@ export interface BridgeRuntimeControlOption {
 }
 
 export interface BridgeRuntimeControls {
+  /** Model IDs explicitly reported by the native SDK as supporting auto mode. */
+  autoReviewModelIds?: string[];
   kernel: BridgeKernelId;
   source: string;
   models: BridgeRuntimeControlOption[];
@@ -302,6 +304,7 @@ export interface BridgeSettings {
   providerRouteMigrationVersion: number;
   /** One-time compatibility boundary for blank/native Employee models persisted by OpenGrove <=0.6.4. */
   employeeModelMigrationVersion: number;
+  nativeApprovalPresetsVersion: number;
   mountedApps: BridgeMountedAppSettings[];
   uninstalledStoreAppIds: string[];
   defaultAppSync: BridgeDefaultAppSyncSettings;

@@ -70,7 +70,7 @@ function main() {
   );
   assert.equal(normalizeOpenCodeModelId("gpt-5.4", JSON.stringify(opencodeDefaultPermission)), "opencode/big-pickle");
   const opencodeFullAccessPermission = JSON.parse(openCodeConfigContentForAccessMode(undefined, "full-access")) as any;
-  assert.equal(opencodeFullAccessPermission.permission, "allow");
+  assert.deepEqual(opencodeFullAccessPermission.permission, { "*": "allow" });
   const opencodeMergedConfig = JSON.parse(
     openCodeConfigContentForAccessMode(
       JSON.stringify({

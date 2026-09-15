@@ -121,6 +121,40 @@ Fingerprint 变化时不得静默复用不兼容的 native transcript。
 - 协议有结构化 elicitation 时才声明 question 支持，不得把文本 fallback 冒充原生能力。
 - 拒绝、超时、取消和进程退出都必须正常收尾，不得留下 pending run/approval。
 
+## 三档权限
+
+员工（包括全局 PM 和 App 内绑定的 PM）与聊天共用三个选择：**请求批准**（`default`）、
+**帮我批准**（`auto-review`）、**完全访问权限**（`full-access`）。档位选择不改变员工的
+App、Workspace、工具可见范围或管理员身份。原生工具由内核审批；Host 工具仍执行 App 的策略。
+
+| Kernel | 请求批准 | 帮我批准 | 完全访问权限 |
+| --- | --- | --- | --- |
+| Codex | `workspace-write` + `on-request` + reviewer `user` | 同样的沙箱与策略，reviewer `auto_review` | `danger-full-access` + `never` |
+| Claude Agent SDK | `default` | `auto`，发送任务前检查 SDK 的 `supportsAutoMode` 并等待 `setPermissionMode` 成功 | `bypassPermissions` + `allowDangerouslySkipPermissions` |
+| Hermes | `approvals.mode: manual` | `approvals.mode: smart` | `approvals.mode: off` |
+| OpenCode | 读取允许，其余默认询问；保留显式 deny | 不可用 | 普通操作允许；保留传入配置中的显式 deny |
+| Kimi | ACP 请求交给用户决定 | 不可用 | 对普通 ACP 权限请求选择 `allow_once`；问题仍交给用户 |
+| Pi | Host 工具策略与原生工具 hook 询问 | 不可用 | 允许普通工具操作；明确拒绝规则继续生效 |
+| OpenClaw | 由 Gateway 管理 | 不可用 | 不可用，尚未接通员工级权限控制 |
+
+Codex 前两档都关闭沙箱内网络访问，写入 Workspace 之外或联网需要走原生审批。
+`on-failure` 和 Claude `acceptEdits` 都不代表“帮我批准”。
+Claude 的可选模型来自 SDK 实际返回的模型缓存；未知时置灰，运行时重新验证当前模型与账号，
+拒绝静默回退。旧 CLI 路径缺少这项预检，自动审查必须使用 Agent SDK。
+
+Hermes 按环境与档位隔离进程及配置副本，保留用户的 deny 与辅助审查模型配置，不改共享的
+`HERMES_HOME`。原生启动时核对有效模式，无法应用就报错。阻塞审批和用户问题分别接入，
+兼容 desktop contract v7 的 server request 与此前的通知协议。
+
+所有不支持的档位既在选择器中禁用，也在运行入口拒绝。升级自旧版本时，历史 `auto-review`
+员工记录和聊天本地设置一次性迁移为 `default`，员工记录先备份并保留 override，等待用户重新选择。
+这不会把旧的自动接受编辑行为变成新的自动授权。
+
+参数契约回归：[`runtime-access-modes.test.ts`](../../src/tests/runtime-access-modes.test.ts)。
+协议依据：[Codex desktop 预设](https://learn.chatgpt.com/docs/sandboxing)、
+[Claude SDK 权限](https://code.claude.com/docs/en/agent-sdk/permissions)、
+[Hermes 审批实现](https://github.com/NousResearch/hermes-agent/blob/main/tools/approval.py)。
+
 ## 诊断与隐私
 
 有用的诊断包括 runtime version、安全的 executable source、native session id、

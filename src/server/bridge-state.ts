@@ -1,3 +1,7 @@
+import {
+  migrateNativeApprovalPresetsV1,
+  NATIVE_APPROVAL_PRESETS_VERSION,
+} from "./migrations/native-approval-presets-v1.js";
 import { existsSync, readdirSync, renameSync, statSync, writeFileSync } from "node:fs";
 import { basename, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -787,6 +791,15 @@ export function recreateBridgeApp(state: BridgeState, options: RecreateBridgeApp
     loadedState,
     mountedAppDefaultEmployees({ ...state.settings, mountedApps }),
   );
+  const needsApprovalMigration = state.settings.nativeApprovalPresetsVersion < NATIVE_APPROVAL_PRESETS_VERSION;
+  const approvalMigrationChanged = needsApprovalMigration
+    ? migrateNativeApprovalPresetsV1(
+        state.app.rooms,
+        loadedState
+          ? () => backupLocalStateBeforeMigration(state.store.path, loadedState, "native-approval-presets-v1")
+          : undefined,
+      )
+    : false;
   const needsEmployeeModelMigration =
     state.settings.employeeModelMigrationVersion < CURRENT_EMPLOYEE_MODEL_MIGRATION_VERSION;
   const legacyNativeEmployeeModelChanged = needsEmployeeModelMigration
@@ -914,15 +927,21 @@ export function recreateBridgeApp(state: BridgeState, options: RecreateBridgeApp
       appGroupConsistencyChanged ||
       numberedGroupPresentationChanged ||
       runtimeModelRepairChanged ||
+      approvalMigrationChanged ||
       legacyNativeEmployeeModelChanged ||
       legacyEmployeeProviderRouteChanged)
   ) {
     state.store.saveFrom(state.app);
   }
-  if (!options.deferPersistedStateSave && rootState === state && needsEmployeeModelMigration) {
+  if (
+    !options.deferPersistedStateSave &&
+    rootState === state &&
+    (needsEmployeeModelMigration || needsApprovalMigration)
+  ) {
     state.settings = {
       ...state.settings,
       employeeModelMigrationVersion: CURRENT_EMPLOYEE_MODEL_MIGRATION_VERSION,
+      nativeApprovalPresetsVersion: NATIVE_APPROVAL_PRESETS_VERSION,
     };
     saveBridgeSettings(state);
   }
@@ -1048,7 +1067,8 @@ function backupLocalStateBeforeMigration(
     | "app-member-identities-v1"
     | "kernel-native-resume-v1"
     | "routine-app-command-id-v1"
-    | "native-employee-model-v1",
+    | "native-employee-model-v1"
+    | "native-approval-presets-v1",
 ): void {
   if (!statePath) return;
   const backupPath = `${statePath}.before-${step}.json`;
