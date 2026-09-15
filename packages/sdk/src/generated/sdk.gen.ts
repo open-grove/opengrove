@@ -48,6 +48,9 @@ import type {
   EmployeeEmployeeUpsertData,
   EmployeeEmployeeUpsertErrors,
   EmployeeEmployeeUpsertResponses,
+  HostHostBootstrapData,
+  HostHostBootstrapErrors,
+  HostHostBootstrapResponses,
   NetworkAccountConnectData,
   NetworkAccountConnectErrors,
   NetworkAccountConnectResponses,
@@ -98,6 +101,15 @@ import type {
   RoomRoomUpdateData,
   RoomRoomUpdateErrors,
   RoomRoomUpdateResponses,
+  RunDirectCancelData,
+  RunDirectCancelErrors,
+  RunDirectCancelResponses,
+  RunDirectCompactData,
+  RunDirectCompactErrors,
+  RunDirectCompactResponses,
+  RunDirectGuideData,
+  RunDirectGuideErrors,
+  RunDirectGuideResponses,
 } from "./types.gen.js";
 
 export type Options<
@@ -143,6 +155,92 @@ class HeyApiRegistry<T> {
 
   set(value: T, key?: string): void {
     this.instances.set(key ?? this.defaultKey, value);
+  }
+}
+
+export class Host extends HeyApiClient {
+  /**
+   * Read Host startup configuration
+   *
+   * Discover the Host identity, runtime environment, authentication requirements, and MCP App sandbox origin.
+   */
+  public bootstrap<ThrowOnError extends boolean = false>(
+    options?: Options<HostHostBootstrapData, ThrowOnError>,
+  ): RequestResult<HostHostBootstrapResponses, HostHostBootstrapErrors, ThrowOnError> {
+    return (options?.client ?? this.client).get<HostHostBootstrapResponses, HostHostBootstrapErrors, ThrowOnError>({
+      url: "/bootstrap",
+      ...options,
+    });
+  }
+}
+
+export class Host2 extends HeyApiClient {
+  private _host?: Host;
+  get host(): Host {
+    return (this._host ??= new Host({ client: this.client }));
+  }
+}
+
+export class Direct extends HeyApiClient {
+  /**
+   * Cancel a direct run
+   *
+   * Cancel an active direct streaming run by run ID or thread ID. A missing or completed run returns cancelled=false. Room message runs use room message cancel.
+   */
+  public cancel<ThrowOnError extends boolean = false>(
+    options: Options<RunDirectCancelData, ThrowOnError>,
+  ): RequestResult<RunDirectCancelResponses, RunDirectCancelErrors, ThrowOnError> {
+    return (options.client ?? this.client).post<RunDirectCancelResponses, RunDirectCancelErrors, ThrowOnError>({
+      url: "/ask/cancel",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Guide an active direct run
+   *
+   * Send an instruction to an active direct streaming run. The selected Kernel determines whether steering is supported.
+   */
+  public guide<ThrowOnError extends boolean = false>(
+    options: Options<RunDirectGuideData, ThrowOnError>,
+  ): RequestResult<RunDirectGuideResponses, RunDirectGuideErrors, ThrowOnError> {
+    return (options.client ?? this.client).post<RunDirectGuideResponses, RunDirectGuideErrors, ThrowOnError>({
+      url: "/ask/guide",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Compact a direct session
+   *
+   * Ask the session's Kernel to compact its context. Kernel support and its confirmed result remain authoritative.
+   */
+  public compact<ThrowOnError extends boolean = false>(
+    options: Options<RunDirectCompactData, ThrowOnError>,
+  ): RequestResult<RunDirectCompactResponses, RunDirectCompactErrors, ThrowOnError> {
+    return (options.client ?? this.client).post<RunDirectCompactResponses, RunDirectCompactErrors, ThrowOnError>({
+      url: "/ask/compact",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+}
+
+export class Run extends HeyApiClient {
+  private _direct?: Direct;
+  get direct(): Direct {
+    return (this._direct ??= new Direct({ client: this.client }));
   }
 }
 
@@ -546,7 +644,7 @@ export class Event_ extends HeyApiClient {
   }
 }
 
-export class Direct extends HeyApiClient {
+export class Direct2 extends HeyApiClient {
   /**
    * Open an Employee conversation
    *
@@ -616,9 +714,9 @@ export class Room2 extends HeyApiClient {
     return (this._event ??= new Event_({ client: this.client }));
   }
 
-  private _direct?: Direct;
-  get direct(): Direct {
-    return (this._direct ??= new Direct({ client: this.client }));
+  private _direct?: Direct2;
+  get direct(): Direct2 {
+    return (this._direct ??= new Direct2({ client: this.client }));
   }
 
   private _member?: Member;
@@ -774,6 +872,16 @@ export class OpenGroveApi extends HeyApiClient {
   }) {
     super(args);
     OpenGroveApi.__registry.set(this, args?.key);
+  }
+
+  private _host?: Host2;
+  get host(): Host2 {
+    return (this._host ??= new Host2({ client: this.client }));
+  }
+
+  private _run?: Run;
+  get run(): Run {
+    return (this._run ??= new Run({ client: this.client }));
   }
 
   private _auth?: Auth;

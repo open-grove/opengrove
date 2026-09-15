@@ -14,3 +14,6 @@ export * from "./client-bootstrap.js";
 export * from "./ask-controls.js";
 export * from "./task-state.js";
 export * from "./run-lifecycle.js";
+export * from "./host.js";
+export * from "./runs.js";
+export * from "./host-errors.js";

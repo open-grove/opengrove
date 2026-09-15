@@ -242,6 +242,431 @@ export type AppReleaseProgressResponse = {
   };
 };
 
+export type HostHostBootstrapData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: "/bootstrap";
+};
+
+export type HostHostBootstrapErrors = {
+  /**
+   * The input is invalid.
+   */
+  400: {
+    ok?: false;
+    error: string;
+    code?: string;
+    message?: string;
+    traceId?: string;
+    incidentId?: string;
+    issues?: Array<{
+      path: string;
+      code: string;
+    }>;
+  };
+  /**
+   * A valid Host session or token is required.
+   */
+  401: {
+    ok?: false;
+    error: string;
+    code?: string;
+    message?: string;
+    traceId?: string;
+    incidentId?: string;
+    issues?: Array<{
+      path: string;
+      code: string;
+    }>;
+  };
+  /**
+   * The request is not authorized.
+   */
+  403: {
+    ok?: false;
+    error: string;
+    code?: string;
+    message?: string;
+    traceId?: string;
+    incidentId?: string;
+    issues?: Array<{
+      path: string;
+      code: string;
+    }>;
+  };
+  /**
+   * The Host could not complete the operation.
+   */
+  500: {
+    ok?: false;
+    error: string;
+    code?: string;
+    message?: string;
+    traceId?: string;
+    incidentId?: string;
+    issues?: Array<{
+      path: string;
+      code: string;
+    }>;
+  };
+  /**
+   * The Host or authenticated session is temporarily unavailable.
+   */
+  503: {
+    ok?: false;
+    error: string;
+    code?: string;
+    message?: string;
+    traceId?: string;
+    incidentId?: string;
+    issues?: Array<{
+      path: string;
+      code: string;
+    }>;
+  };
+};
+
+export type HostHostBootstrapError = HostHostBootstrapErrors[keyof HostHostBootstrapErrors];
+
+export type HostHostBootstrapResponses = {
+  /**
+   * Successful response.
+   */
+  200: {
+    environment: {
+      preset: "local-single" | "web-single" | "test";
+      profile: "local" | "test";
+      tenancy: "single-principal";
+      execution: "local-process" | "fake";
+      workspace: "host-local" | "memory";
+      stateStore: "json" | "sqlite" | "memory";
+      blobStore: "filesystem" | "memory";
+      auth: "bridge-token" | "session";
+    };
+    auth: {
+      mode: "bridge-token" | "session";
+      tokenRequired: boolean;
+    };
+    hostId: string;
+    mcpApps: {
+      sandboxOrigin?: string;
+    };
+  };
+};
+
+export type HostHostBootstrapResponse = HostHostBootstrapResponses[keyof HostHostBootstrapResponses];
+
+export type RunDirectCancelData = {
+  body: {
+    runId?: string;
+    threadId?: string;
+  };
+  path?: never;
+  query?: never;
+  url: "/ask/cancel";
+};
+
+export type RunDirectCancelErrors = {
+  /**
+   * The input is invalid.
+   */
+  400: {
+    ok?: false;
+    error: string;
+    code?: string;
+    message?: string;
+    traceId?: string;
+    incidentId?: string;
+    issues?: Array<{
+      path: string;
+      code: string;
+    }>;
+  };
+  /**
+   * A valid Host session or token is required.
+   */
+  401: {
+    ok?: false;
+    error: string;
+    code?: string;
+    message?: string;
+    traceId?: string;
+    incidentId?: string;
+    issues?: Array<{
+      path: string;
+      code: string;
+    }>;
+  };
+  /**
+   * The request is not authorized.
+   */
+  403: {
+    ok?: false;
+    error: string;
+    code?: string;
+    message?: string;
+    traceId?: string;
+    incidentId?: string;
+    issues?: Array<{
+      path: string;
+      code: string;
+    }>;
+  };
+  /**
+   * The Host could not complete the operation.
+   */
+  500: {
+    ok?: false;
+    error: string;
+    code?: string;
+    message?: string;
+    traceId?: string;
+    incidentId?: string;
+    issues?: Array<{
+      path: string;
+      code: string;
+    }>;
+  };
+  /**
+   * The Host or authenticated session is temporarily unavailable.
+   */
+  503: {
+    ok?: false;
+    error: string;
+    code?: string;
+    message?: string;
+    traceId?: string;
+    incidentId?: string;
+    issues?: Array<{
+      path: string;
+      code: string;
+    }>;
+  };
+};
+
+export type RunDirectCancelError = RunDirectCancelErrors[keyof RunDirectCancelErrors];
+
+export type RunDirectCancelResponses = {
+  /**
+   * Successful response.
+   */
+  200: {
+    ok: boolean;
+    cancelled: boolean;
+  };
+};
+
+export type RunDirectCancelResponse = RunDirectCancelResponses[keyof RunDirectCancelResponses];
+
+export type RunDirectGuideData = {
+  body: {
+    runId?: string;
+    threadId?: string;
+    instruction: string;
+  };
+  path?: never;
+  query?: never;
+  url: "/ask/guide";
+};
+
+export type RunDirectGuideErrors = {
+  /**
+   * The input is invalid.
+   */
+  400: {
+    ok?: false;
+    error: string;
+    code?: string;
+    message?: string;
+    traceId?: string;
+    incidentId?: string;
+    issues?: Array<{
+      path: string;
+      code: string;
+    }>;
+  };
+  /**
+   * A valid Host session or token is required.
+   */
+  401: {
+    ok?: false;
+    error: string;
+    code?: string;
+    message?: string;
+    traceId?: string;
+    incidentId?: string;
+    issues?: Array<{
+      path: string;
+      code: string;
+    }>;
+  };
+  /**
+   * The request is not authorized.
+   */
+  403: {
+    ok?: false;
+    error: string;
+    code?: string;
+    message?: string;
+    traceId?: string;
+    incidentId?: string;
+    issues?: Array<{
+      path: string;
+      code: string;
+    }>;
+  };
+  /**
+   * The Host could not complete the operation.
+   */
+  500: {
+    ok?: false;
+    error: string;
+    code?: string;
+    message?: string;
+    traceId?: string;
+    incidentId?: string;
+    issues?: Array<{
+      path: string;
+      code: string;
+    }>;
+  };
+  /**
+   * The Host or authenticated session is temporarily unavailable.
+   */
+  503: {
+    ok?: false;
+    error: string;
+    code?: string;
+    message?: string;
+    traceId?: string;
+    incidentId?: string;
+    issues?: Array<{
+      path: string;
+      code: string;
+    }>;
+  };
+};
+
+export type RunDirectGuideError = RunDirectGuideErrors[keyof RunDirectGuideErrors];
+
+export type RunDirectGuideResponses = {
+  /**
+   * Successful response.
+   */
+  200: {
+    ok: boolean;
+    guided: boolean;
+    error?: string;
+  };
+};
+
+export type RunDirectGuideResponse = RunDirectGuideResponses[keyof RunDirectGuideResponses];
+
+export type RunDirectCompactData = {
+  body: {
+    threadId: string;
+    reason?: string;
+  };
+  path?: never;
+  query?: never;
+  url: "/ask/compact";
+};
+
+export type RunDirectCompactErrors = {
+  /**
+   * The input is invalid.
+   */
+  400: {
+    ok?: false;
+    error: string;
+    code?: string;
+    message?: string;
+    traceId?: string;
+    incidentId?: string;
+    issues?: Array<{
+      path: string;
+      code: string;
+    }>;
+  };
+  /**
+   * A valid Host session or token is required.
+   */
+  401: {
+    ok?: false;
+    error: string;
+    code?: string;
+    message?: string;
+    traceId?: string;
+    incidentId?: string;
+    issues?: Array<{
+      path: string;
+      code: string;
+    }>;
+  };
+  /**
+   * The request is not authorized.
+   */
+  403: {
+    ok?: false;
+    error: string;
+    code?: string;
+    message?: string;
+    traceId?: string;
+    incidentId?: string;
+    issues?: Array<{
+      path: string;
+      code: string;
+    }>;
+  };
+  /**
+   * The Host could not complete the operation.
+   */
+  500: {
+    ok?: false;
+    error: string;
+    code?: string;
+    message?: string;
+    traceId?: string;
+    incidentId?: string;
+    issues?: Array<{
+      path: string;
+      code: string;
+    }>;
+  };
+  /**
+   * The Host or authenticated session is temporarily unavailable.
+   */
+  503: {
+    ok?: false;
+    error: string;
+    code?: string;
+    message?: string;
+    traceId?: string;
+    incidentId?: string;
+    issues?: Array<{
+      path: string;
+      code: string;
+    }>;
+  };
+};
+
+export type RunDirectCompactError = RunDirectCompactErrors[keyof RunDirectCompactErrors];
+
+export type RunDirectCompactResponses = {
+  /**
+   * Successful response.
+   */
+  200: {
+    ok: boolean;
+    compacted: boolean;
+    outcomeUnknown?: boolean;
+    error?: string;
+  };
+};
+
+export type RunDirectCompactResponse = RunDirectCompactResponses[keyof RunDirectCompactResponses];
+
 export type AuthEmailCodeCreateData = {
   body: {
     /**

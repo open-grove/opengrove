@@ -13,6 +13,14 @@
   ],
   "tags": [
     {
+      "name": "host",
+      "description": "Discover and diagnose the running Host."
+    },
+    {
+      "name": "run",
+      "description": "Run records, direct execution, and session controls."
+    },
+    {
       "name": "auth",
       "description": "OpenGrove account authentication and session operations."
     },
@@ -34,6 +42,1283 @@
     }
   ],
   "paths": {
+    "/bootstrap": {
+      "get": {
+        "operationId": "host.host.bootstrap",
+        "summary": "Read Host startup configuration",
+        "description": "Discover the Host identity, runtime environment, authentication requirements, and MCP App sandbox origin.",
+        "tags": ["host"],
+        "x-opengrove-group": "host",
+        "x-opengrove-resource": "host",
+        "x-opengrove-risk": "read",
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "environment": {
+                      "type": "object",
+                      "properties": {
+                        "preset": {
+                          "type": "string",
+                          "enum": ["local-single", "web-single", "test"]
+                        },
+                        "profile": {
+                          "type": "string",
+                          "enum": ["local", "test"]
+                        },
+                        "tenancy": {
+                          "type": "string",
+                          "const": "single-principal"
+                        },
+                        "execution": {
+                          "type": "string",
+                          "enum": ["local-process", "fake"]
+                        },
+                        "workspace": {
+                          "type": "string",
+                          "enum": ["host-local", "memory"]
+                        },
+                        "stateStore": {
+                          "type": "string",
+                          "enum": ["json", "sqlite", "memory"]
+                        },
+                        "blobStore": {
+                          "type": "string",
+                          "enum": ["filesystem", "memory"]
+                        },
+                        "auth": {
+                          "type": "string",
+                          "enum": ["bridge-token", "session"]
+                        }
+                      },
+                      "required": [
+                        "preset",
+                        "profile",
+                        "tenancy",
+                        "execution",
+                        "workspace",
+                        "stateStore",
+                        "blobStore",
+                        "auth"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "auth": {
+                      "type": "object",
+                      "properties": {
+                        "mode": {
+                          "type": "string",
+                          "enum": ["bridge-token", "session"]
+                        },
+                        "tokenRequired": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": ["mode", "tokenRequired"],
+                      "additionalProperties": false
+                    },
+                    "hostId": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{16}$"
+                    },
+                    "mcpApps": {
+                      "type": "object",
+                      "properties": {
+                        "sandboxOrigin": {
+                          "type": "string",
+                          "format": "uri"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": ["environment", "auth", "hostId", "mcpApps"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The input is invalid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "const": false
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "traceId": {
+                      "type": "string"
+                    },
+                    "incidentId": {
+                      "type": "string"
+                    },
+                    "issues": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "path": {
+                            "type": "string"
+                          },
+                          "code": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["path", "code"],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": ["error"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "A valid Host session or token is required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "const": false
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "traceId": {
+                      "type": "string"
+                    },
+                    "incidentId": {
+                      "type": "string"
+                    },
+                    "issues": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "path": {
+                            "type": "string"
+                          },
+                          "code": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["path", "code"],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": ["error"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The request is not authorized.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "const": false
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "traceId": {
+                      "type": "string"
+                    },
+                    "incidentId": {
+                      "type": "string"
+                    },
+                    "issues": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "path": {
+                            "type": "string"
+                          },
+                          "code": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["path", "code"],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": ["error"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The Host could not complete the operation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "const": false
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "traceId": {
+                      "type": "string"
+                    },
+                    "incidentId": {
+                      "type": "string"
+                    },
+                    "issues": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "path": {
+                            "type": "string"
+                          },
+                          "code": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["path", "code"],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": ["error"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The Host or authenticated session is temporarily unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "const": false
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "traceId": {
+                      "type": "string"
+                    },
+                    "incidentId": {
+                      "type": "string"
+                    },
+                    "issues": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "path": {
+                            "type": "string"
+                          },
+                          "code": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["path", "code"],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": ["error"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/ask/cancel": {
+      "post": {
+        "operationId": "run.direct.cancel",
+        "summary": "Cancel a direct run",
+        "description": "Cancel an active direct streaming run by run ID or thread ID. A missing or completed run returns cancelled=false. Room message runs use room message cancel.",
+        "tags": ["run"],
+        "x-opengrove-group": "run",
+        "x-opengrove-resource": "direct",
+        "x-opengrove-risk": "write",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "object",
+                "properties": {
+                  "runId": {
+                    "type": "string"
+                  },
+                  "threadId": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean"
+                    },
+                    "cancelled": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": ["ok", "cancelled"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The input is invalid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "const": false
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "traceId": {
+                      "type": "string"
+                    },
+                    "incidentId": {
+                      "type": "string"
+                    },
+                    "issues": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "path": {
+                            "type": "string"
+                          },
+                          "code": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["path", "code"],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": ["error"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "A valid Host session or token is required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "const": false
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "traceId": {
+                      "type": "string"
+                    },
+                    "incidentId": {
+                      "type": "string"
+                    },
+                    "issues": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "path": {
+                            "type": "string"
+                          },
+                          "code": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["path", "code"],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": ["error"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The request is not authorized.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "const": false
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "traceId": {
+                      "type": "string"
+                    },
+                    "incidentId": {
+                      "type": "string"
+                    },
+                    "issues": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "path": {
+                            "type": "string"
+                          },
+                          "code": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["path", "code"],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": ["error"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The Host could not complete the operation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "const": false
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "traceId": {
+                      "type": "string"
+                    },
+                    "incidentId": {
+                      "type": "string"
+                    },
+                    "issues": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "path": {
+                            "type": "string"
+                          },
+                          "code": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["path", "code"],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": ["error"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The Host or authenticated session is temporarily unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "const": false
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "traceId": {
+                      "type": "string"
+                    },
+                    "incidentId": {
+                      "type": "string"
+                    },
+                    "issues": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "path": {
+                            "type": "string"
+                          },
+                          "code": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["path", "code"],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": ["error"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/ask/guide": {
+      "post": {
+        "operationId": "run.direct.guide",
+        "summary": "Guide an active direct run",
+        "description": "Send an instruction to an active direct streaming run. The selected Kernel determines whether steering is supported.",
+        "tags": ["run"],
+        "x-opengrove-group": "run",
+        "x-opengrove-resource": "direct",
+        "x-opengrove-risk": "write",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "object",
+                "properties": {
+                  "runId": {
+                    "type": "string"
+                  },
+                  "threadId": {
+                    "type": "string"
+                  },
+                  "instruction": {
+                    "type": "string"
+                  }
+                },
+                "required": ["instruction"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean"
+                    },
+                    "guided": {
+                      "type": "boolean"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["ok", "guided"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The input is invalid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "const": false
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "traceId": {
+                      "type": "string"
+                    },
+                    "incidentId": {
+                      "type": "string"
+                    },
+                    "issues": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "path": {
+                            "type": "string"
+                          },
+                          "code": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["path", "code"],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": ["error"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "A valid Host session or token is required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "const": false
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "traceId": {
+                      "type": "string"
+                    },
+                    "incidentId": {
+                      "type": "string"
+                    },
+                    "issues": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "path": {
+                            "type": "string"
+                          },
+                          "code": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["path", "code"],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": ["error"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The request is not authorized.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "const": false
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "traceId": {
+                      "type": "string"
+                    },
+                    "incidentId": {
+                      "type": "string"
+                    },
+                    "issues": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "path": {
+                            "type": "string"
+                          },
+                          "code": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["path", "code"],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": ["error"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The Host could not complete the operation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "const": false
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "traceId": {
+                      "type": "string"
+                    },
+                    "incidentId": {
+                      "type": "string"
+                    },
+                    "issues": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "path": {
+                            "type": "string"
+                          },
+                          "code": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["path", "code"],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": ["error"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The Host or authenticated session is temporarily unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "const": false
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "traceId": {
+                      "type": "string"
+                    },
+                    "incidentId": {
+                      "type": "string"
+                    },
+                    "issues": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "path": {
+                            "type": "string"
+                          },
+                          "code": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["path", "code"],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": ["error"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/ask/compact": {
+      "post": {
+        "operationId": "run.direct.compact",
+        "summary": "Compact a direct session",
+        "description": "Ask the session's Kernel to compact its context. Kernel support and its confirmed result remain authoritative.",
+        "tags": ["run"],
+        "x-opengrove-group": "run",
+        "x-opengrove-resource": "direct",
+        "x-opengrove-risk": "write",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "object",
+                "properties": {
+                  "threadId": {
+                    "type": "string"
+                  },
+                  "reason": {
+                    "type": "string"
+                  }
+                },
+                "required": ["threadId"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean"
+                    },
+                    "compacted": {
+                      "type": "boolean"
+                    },
+                    "outcomeUnknown": {
+                      "type": "boolean"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["ok", "compacted"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The input is invalid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "const": false
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "traceId": {
+                      "type": "string"
+                    },
+                    "incidentId": {
+                      "type": "string"
+                    },
+                    "issues": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "path": {
+                            "type": "string"
+                          },
+                          "code": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["path", "code"],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": ["error"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "A valid Host session or token is required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "const": false
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "traceId": {
+                      "type": "string"
+                    },
+                    "incidentId": {
+                      "type": "string"
+                    },
+                    "issues": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "path": {
+                            "type": "string"
+                          },
+                          "code": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["path", "code"],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": ["error"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The request is not authorized.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "const": false
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "traceId": {
+                      "type": "string"
+                    },
+                    "incidentId": {
+                      "type": "string"
+                    },
+                    "issues": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "path": {
+                            "type": "string"
+                          },
+                          "code": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["path", "code"],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": ["error"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The Host could not complete the operation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "const": false
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "traceId": {
+                      "type": "string"
+                    },
+                    "incidentId": {
+                      "type": "string"
+                    },
+                    "issues": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "path": {
+                            "type": "string"
+                          },
+                          "code": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["path", "code"],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": ["error"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The Host or authenticated session is temporarily unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "const": false
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "traceId": {
+                      "type": "string"
+                    },
+                    "incidentId": {
+                      "type": "string"
+                    },
+                    "issues": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "path": {
+                            "type": "string"
+                          },
+                          "code": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["path", "code"],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": ["error"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/auth/email-codes": {
       "post": {
         "operationId": "auth.email-code.create",

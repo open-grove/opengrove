@@ -5,7 +5,12 @@ import { networkOperationGroup } from "./network.js";
 import { employeeOperationGroup } from "./employees.js";
 import { roomOperationGroup } from "./rooms.js";
 
+import { hostOperationGroup } from "./host.js";
+import { runOperationGroup } from "./runs.js";
+
 export const hostOperationGroups = [
+  hostOperationGroup,
+  runOperationGroup,
   authOperationGroup,
   appOperationGroup,
   roomOperationGroup,

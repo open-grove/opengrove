@@ -37,6 +37,7 @@ export const askCompactContract = defineBridgeJsonContract({
   response: z.object({
     ok: z.boolean(),
     compacted: z.boolean(),
+    outcomeUnknown: z.boolean().optional(),
     error: z.string().optional(),
   }),
 });

@@ -3,6 +3,10 @@ import { hostOperationById, type HostOperationInput, type HostOperationOutput } 
 import type { HostOperationRequest, OpenGroveRequestOptions } from "../transport.js";
 
 export const openGroveClientOperationIds = [
+  "host.host.bootstrap",
+  "run.direct.cancel",
+  "run.direct.guide",
+  "run.direct.compact",
   "auth.email-code.create",
   "auth.session.create",
   "auth.session.get",
@@ -40,6 +44,54 @@ export const openGroveClientOperationIds = [
 export function bindOpenGroveClient(request: HostOperationRequest) {
   return {
     request,
+    host: {
+      discovery: {
+        bootstrap: (
+          options?: OpenGroveRequestOptions,
+        ): Promise<HostOperationOutput<(typeof hostOperationById)["host.host.bootstrap"]>> =>
+          request(hostOperationById["host.host.bootstrap"], {
+            signal: options?.signal,
+          }),
+      },
+    },
+    runs: {
+      direct: {
+        cancel: (
+          input: HostOperationInput<(typeof hostOperationById)["run.direct.cancel"]> = {},
+          options?: OpenGroveRequestOptions,
+        ): Promise<HostOperationOutput<(typeof hostOperationById)["run.direct.cancel"]>> =>
+          request(hostOperationById["run.direct.cancel"], {
+            body: {
+              runId: input.runId,
+              threadId: input.threadId,
+            },
+            signal: options?.signal,
+          }),
+        guide: (
+          input: HostOperationInput<(typeof hostOperationById)["run.direct.guide"]>,
+          options?: OpenGroveRequestOptions,
+        ): Promise<HostOperationOutput<(typeof hostOperationById)["run.direct.guide"]>> =>
+          request(hostOperationById["run.direct.guide"], {
+            body: {
+              instruction: input.instruction,
+              runId: input.runId,
+              threadId: input.threadId,
+            },
+            signal: options?.signal,
+          }),
+        compact: (
+          input: HostOperationInput<(typeof hostOperationById)["run.direct.compact"]>,
+          options?: OpenGroveRequestOptions,
+        ): Promise<HostOperationOutput<(typeof hostOperationById)["run.direct.compact"]>> =>
+          request(hostOperationById["run.direct.compact"], {
+            body: {
+              reason: input.reason,
+              threadId: input.threadId,
+            },
+            signal: options?.signal,
+          }),
+      },
+    },
     auth: {
       emailCodes: {
         create: (

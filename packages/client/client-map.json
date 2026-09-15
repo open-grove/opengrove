@@ -3,7 +3,8 @@
     "app": "apps",
     "auth": "auth",
     "room": "rooms",
-    "employee": "employees"
+    "employee": "employees",
+    "run": "runs"
   },
   "resources": {
     "app.release": "releases",
@@ -14,7 +15,8 @@
     "room.room": "collection",
     "room.event": "events",
     "employee.employee": "collection",
-    "room.member": "members"
+    "room.member": "members",
+    "host.host": "discovery"
   },
   "operations": {
     "app.release.keep-local": "keepLocal",
