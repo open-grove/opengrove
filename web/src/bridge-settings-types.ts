@@ -213,6 +213,8 @@ export interface BridgeSettings {
   kernelPathOverrides?: Record<string, KernelPathOverride>;
   kernelProxy: KernelProxySettings;
   appStore?: AppStoreSettings;
+  agentRouterUrl?: string;
+  agentRouterManaged?: boolean;
   appUpdates?: AppUpdateSettings;
   voice?: VoiceSettings;
   settingsPath?: string;

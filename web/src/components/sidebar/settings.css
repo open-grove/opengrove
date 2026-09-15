@@ -243,6 +243,14 @@ label.settings-list-row {
   font-size: var(--fs-base);
 }
 
+.settings-router-url {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.settings-router-url input {
+  width: 100%;
+}
+
 .settings-list-row-field input:focus {
   border-color: var(--settings-focus-border);
   outline: 0;

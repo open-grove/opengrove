@@ -53,6 +53,8 @@ import { getAllBridgeProviderProfiles, getBridgeProviderModelCatalog } from "../
 import { bridgeDataPath, bridgeUserDataDirectory } from "../storage-paths.js";
 import { applyProviderSetupMigration } from "../system-provider-discovery.js";
 import { inspectOpenGroveStorage } from "../storage-overview.js";
+import { agentRouterConfiguration, normalizeAgentRouterUrl } from "../remote-agents/configuration.js";
+import { resetNetworkConfiguration } from "../remote-agents/session.js";
 
 type SendJson = (response: ServerResponse, status: number, data: unknown) => void;
 type ReadJsonBody = (request: IncomingMessage) => Promise<unknown>;
@@ -394,6 +396,18 @@ export async function handleSettingsRoute(options: {
   const patchRecord = record(patchPayload);
   const nestedSettings = record(patchRecord.settings);
   const patchSource = Object.keys(nestedSettings).length > 0 ? nestedSettings : patchRecord;
+  if (Object.prototype.hasOwnProperty.call(patchSource, "agentRouterUrl")) {
+    const url = normalizeAgentRouterUrl(patchSource.agentRouterUrl);
+    const current = agentRouterConfiguration(previousSettings);
+    if (url === undefined) {
+      sendJson(response, 400, { ok: false, error: "invalid_agent_router_url" });
+      return true;
+    }
+    if (current.managed && url !== normalizeAgentRouterUrl(current.url)) {
+      sendJson(response, 409, { ok: false, error: "agent_router_managed_by_environment" });
+      return true;
+    }
+  }
   let nextSettings = applyProviderSetupMigration(normalizeBridgeSettingsPatch(patchPayload, previousSettings));
   if (previousSettings.appUpdates.automatic === false && nextSettings.appUpdates.automatic === true) {
     // The renderer schedules App updates after this save. Dropping the cursor
@@ -439,6 +453,7 @@ export async function handleSettingsRoute(options: {
   const providerConfigChanged =
     JSON.stringify(nextSettings.modelProviderBindings) !== JSON.stringify(previousSettings.modelProviderBindings) ||
     JSON.stringify(nextSettings.customProviders) !== JSON.stringify(previousSettings.customProviders);
+  const routerChanged = agentRouterConfiguration(previousSettings).url !== agentRouterConfiguration(nextSettings).url;
   const presentationLanguageChanged =
     resolveHostLanguageSettings(nextSettings) !== resolveHostLanguageSettings(previousSettings);
   const restartRequired =
@@ -469,7 +484,13 @@ export async function handleSettingsRoute(options: {
         state.store.saveFrom(state.app);
       }
     }
-    saveBridgeSettings(state);
+    try {
+      saveBridgeSettings(state);
+    } catch (error) {
+      state.settings = previousSettings;
+      throw error;
+    }
+    if (routerChanged) resetNetworkConfiguration(state);
     sendJson(
       response,
       200,
@@ -516,6 +537,7 @@ export async function handleSettingsRoute(options: {
     return true;
   }
 
+  if (routerChanged) resetNetworkConfiguration(state);
   sendJson(
     response,
     200,

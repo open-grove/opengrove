@@ -15,7 +15,7 @@ export const EN = {
   "remoteAgent.addHint": "Use your OpenGrove administrator account to add an Agent address and chat here.",
   "remoteAgent.loginRequired": "Sign in to OpenGrove with an administrator account, then try again.",
   "remoteAgent.adminRequired": "Only OpenGrove administrators can add and chat with remote Agents.",
-  "remoteAgent.notConfigured": "Remote Agents are not configured for this installation. Contact your administrator.",
+  "remoteAgent.notConfigured": "Configure a trusted service address in Settings → Network to add remote Agents.",
   "remoteAgent.configurationLoading": "Checking availability…",
   "remoteAgent.configurationError": "Could not check availability. Select this item to retry.",
   "rooms.cancelFailed": "Could not confirm stopping this task. It may still be running. Please try again.",
@@ -328,7 +328,7 @@ export const EN = {
   "settings.mountedApps": "Apps",
   "settings.extensions": "Extensions",
   "settings.voice": "Voice",
-  "settings.network": "Proxy",
+  "settings.network": "Network",
   "settings.desktop": "Desktop",
   "settings.updates": "Software Update",
   "settings.appearance": "Appearance",
@@ -458,7 +458,20 @@ export const EN = {
   "settings.extensionSourcePath": "Source path",
   "settings.voiceDescription":
     "Choose the speech-to-text provider. The main UI only shows the microphone; provider choice lives here.",
-  "settings.networkDescription": "Configure the HTTP/HTTPS proxy used by kernels and install commands.",
+  "settings.networkDescription":
+    "Configure the remote Agent service and the proxy used by kernels and install commands.",
+  "settings.remoteAgents": "Remote Agents",
+  "settings.agentRouterUrl": "Service address (Router)",
+  "settings.agentRouterPlaceholder": "https://agents.example/_agent-router/v1",
+  "settings.agentRouterHint":
+    "Only use a trusted service: connecting shares your OpenGrove login credential with it. Leave empty to disable remote Agents.",
+  "settings.agentRouterManaged":
+    "This address is managed by the startup environment. Change it there and restart OpenGrove.",
+  "settings.agentRouterSaveHint":
+    "Saved on this device. Changes take effect immediately and disconnect the previous service.",
+  "settings.saveRouterAddress": "Save address",
+  "settings.invalidRouterAddress":
+    "Enter a valid HTTPS service URL without credentials, query parameters or a fragment.",
   "settings.notConfigured": "Not configured",
   "settings.providerList": "Provider list",
   "settings.reusableProviders": "Providers",

@@ -984,6 +984,7 @@ export function App() {
       mountedApps?: BridgeSettings["mountedApps"];
       kernelProxy?: BridgeSettings["kernelProxy"];
       appStore?: BridgeSettings["appStore"];
+      agentRouterUrl?: string;
       appUpdates?: BridgeSettings["appUpdates"];
       voice?: BridgeSettings["voice"];
       kernelPathOverrides?: BridgeSettings["kernelPathOverrides"];
@@ -1007,6 +1008,9 @@ export function App() {
     },
     onSuccess(result, payload) {
       queryClient.setQueryData(["settings"], result);
+      if (payload.agentRouterUrl !== undefined) {
+        queryClient.invalidateQueries({ queryKey: ["network", "configuration"] });
+      }
       if (payload.appUpdates?.automatic === true) {
         scheduleAppUpdates();
       }
@@ -1027,7 +1031,13 @@ export function App() {
       if (context?.previousLanguagePreference) {
         setLanguagePreference(context.previousLanguagePreference);
       }
-      const message = systemDetail(error);
+      const code = error instanceof Error ? error.message : "";
+      const message =
+        code === "invalid_agent_router_url"
+          ? t("settings.invalidRouterAddress")
+          : code === "agent_router_managed_by_environment"
+            ? t("settings.agentRouterManaged")
+            : systemDetail(error);
       toast({ kind: "error", title: t("system.saveSettingsFailed", { message }) });
     },
   });

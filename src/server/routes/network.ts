@@ -1,4 +1,4 @@
-import { readAppEnv } from "../../identity.js";
+import { agentRouterConfiguration } from "../remote-agents/configuration.js";
 import { resumeRemoteRoomRuns } from "../room-runs.js";
 import { createHash } from "node:crypto";
 import type {
@@ -12,7 +12,10 @@ import type { HostOperationRouteContext } from "../router.js";
 export async function handleInspectNetworkAccount(
   context: HostOperationRouteContext<InspectNetworkAccountOperation>,
 ): Promise<true> {
-  context.sendJson(context.response, 200, { ok: true, configured: Boolean(readAppEnv("AGENT_ROUTER_URL")?.trim()) });
+  context.sendJson(context.response, 200, {
+    ok: true,
+    configured: Boolean(agentRouterConfiguration(context.state.settings).url),
+  });
   return true;
 }
 

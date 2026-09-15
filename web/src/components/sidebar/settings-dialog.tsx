@@ -109,6 +109,7 @@ export function SettingsDialog(props: {
     kernelProxy?: KernelProxySettings;
     appStore?: BridgeSettings["appStore"];
     appUpdates?: BridgeSettings["appUpdates"];
+    agentRouterUrl?: string;
     voice?: NonNullable<BridgeSettings["voice"]>;
     kernelPathOverrides?: Record<string, KernelPathOverride>;
     modelProviderBindings?: ModelProviderBinding[];
@@ -128,6 +129,7 @@ export function SettingsDialog(props: {
   );
   const [mountedApps, setMountedApps] = useState<MountedAppSettings[]>([]);
   const [automaticAppUpdates, setAutomaticAppUpdates] = useState(true);
+  const [agentRouterUrl, setAgentRouterUrl] = useState(props.settings?.agentRouterUrl ?? "");
   const [kernelProxy, setKernelProxy] = useState<KernelProxySettings>(emptyKernelProxySettings());
   const [voiceSettings, setVoiceSettings] = useState<NonNullable<BridgeSettings["voice"]>>(emptyVoiceSettings());
   const [kernelPathOverrides, setKernelPathOverrides] = useState<Record<string, KernelPathOverride>>({});
@@ -172,6 +174,7 @@ export function SettingsDialog(props: {
     setMountedApps(props.settings.mountedApps ?? []);
     setAutomaticAppUpdates(props.settings.appUpdates?.automatic !== false);
     setKernelProxy(normalizeKernelProxySettings(props.settings.kernelProxy));
+    setAgentRouterUrl(props.settings.agentRouterUrl ?? "");
     setVoiceSettings(normalizeVoiceSettings(props.settings.voice));
     setKernelPathOverrides(props.settings.kernelPathOverrides ?? {});
     setModelProviderBindings(props.settings.modelProviderBindings ?? []);
@@ -240,6 +243,7 @@ export function SettingsDialog(props: {
     languagePreference?: LanguagePreference;
     mountedApps?: MountedAppSettings[];
     appUpdates?: BridgeSettings["appUpdates"];
+    agentRouterUrl?: string;
     kernelProxy?: KernelProxySettings;
     voice?: NonNullable<BridgeSettings["voice"]>;
     kernelPathOverrides?: Record<string, KernelPathOverride>;
@@ -739,6 +743,11 @@ export function SettingsDialog(props: {
             <SettingsNetworkPanel
               t={t}
               kernelProxy={kernelProxy}
+              agentRouterUrl={agentRouterUrl}
+              savedAgentRouterUrl={props.settings?.agentRouterUrl ?? ""}
+              agentRouterManaged={props.settings?.agentRouterManaged === true}
+              onSetAgentRouterUrl={setAgentRouterUrl}
+              onSaveAgentRouterUrl={() => saveSettings({ agentRouterUrl: agentRouterUrl.trim() })}
               loading={props.loading}
               saving={props.saving}
               onSetKernelProxyDraft={setKernelProxyDraft}
