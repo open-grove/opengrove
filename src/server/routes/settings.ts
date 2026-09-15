@@ -53,6 +53,12 @@ import { getAllBridgeProviderProfiles, getBridgeProviderModelCatalog } from "../
 import { bridgeDataPath, bridgeUserDataDirectory } from "../storage-paths.js";
 import { applyProviderSetupMigration } from "../system-provider-discovery.js";
 import { inspectOpenGroveStorage } from "../storage-overview.js";
+import {
+  deleteConfirmedUpgradeBackups,
+  inspectUpgradeBackups,
+  prepareUpgradeBackupDeletion,
+  upgradeBackupInput,
+} from "../storage-upgrade-backups.js";
 
 type SendJson = (response: ServerResponse, status: number, data: unknown) => void;
 type ReadJsonBody = (request: IncomingMessage) => Promise<unknown>;
@@ -146,6 +152,7 @@ export async function handleSettingsRoute(options: {
       state.store.kind === "sqlite"
         ? listStateMigrationBackupPaths(migrationStatePaths.databasePath, migrationStatePaths.legacyPath)
         : [];
+    const upgradeBackups = await inspectUpgradeBackups(upgradeBackupInput(state));
     const overview = await inspectOpenGroveStorage({
       roots: {
         userDataDir: bridgeUserDataDirectory(state),
@@ -161,6 +168,9 @@ export async function handleSettingsRoute(options: {
       },
       orphanBlobBytes: stats.orphanBlobBytes,
       stateBackupPaths: migrationPaths,
+      appLayoutBackups: upgradeBackups.flatMap((item) =>
+        item.backup.kind === "app-layout" ? [{ path: item.path, backup: item.backup }] : [],
+      ),
       rebuildableFilePaths: [bridgeDataPath(state, "provider-models-cache.json")],
     });
     const programCleanup = inspectUnreferencedAppStoreProgramGenerations(appStoreDataRoot(state), state.settings);
@@ -178,7 +188,7 @@ export async function handleSettingsRoute(options: {
           programCleanup.reclaimableBytes +
           archiveCleanup.reclaimableBytes +
           overview.cleanupCandidates.rebuildableBytes,
-        migrationBackupBytes: stats.migrationBackupBytes,
+        migrationBackupBytes: overview.backups.reduce((total, backup) => total + backup.bytes, 0),
       },
     });
     return true;
@@ -306,14 +316,44 @@ export async function handleSettingsRoute(options: {
       return true;
     }
     if (scope === "migration-backups") {
-      const cleanup = state.store.clearMigrationBackups?.() ?? { removedFiles: 0, reclaimedBytes: 0 };
-      sendJson(response, 200, {
-        ok: true,
-        scope,
-        removed: cleanup.removedFiles,
-        cleanup,
-        stats: state.store.storageStats?.(),
-      });
+      const admission = beginBridgeRunMaintenance(state);
+      if (!admission.ok) {
+        sendJson(response, 409, {
+          ok: false,
+          error:
+            admission.error === "storage_maintenance_active_runs"
+              ? `desktop_storage_maintenance_active_runs:${admission.activeRuns}`
+              : "desktop_storage_maintenance_in_progress",
+        });
+        return true;
+      }
+      const renew = setInterval(() => renewBridgeRunMaintenanceLease(state, admission.leaseId), 10_000);
+      try {
+        if (payload.preview === true) {
+          const preview = await prepareUpgradeBackupDeletion(state, () => upgradeBackupInput(state));
+          sendJson(response, 200, { ok: true, scope, preview });
+        } else {
+          const cleanup = await deleteConfirmedUpgradeBackups(state, stringValue(payload.confirmationToken), () =>
+            upgradeBackupInput(state),
+          );
+          sendJson(response, 200, {
+            ok: true,
+            scope,
+            removed: cleanup.removedFiles,
+            cleanup,
+            stats: state.store.storageStats?.(),
+          });
+        }
+      } catch (error) {
+        console.warn("storage_upgrade_backup_action_failed", { error: String(error) });
+        sendJson(response, 409, {
+          ok: false,
+          error: error instanceof Error ? error.message : "storage_backup_action_failed",
+        });
+      } finally {
+        clearInterval(renew);
+        endBridgeRunMaintenance(state, admission.leaseId);
+      }
       return true;
     }
     sendJson(response, 400, { ok: false, error: "unknown_history_clear_scope" });

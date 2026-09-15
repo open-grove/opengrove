@@ -669,7 +669,7 @@ function normalizeRegistryBaseUrl(value: string): string {
   }
 }
 
-function bridgeSettingsPath(state: BridgeState): string {
+export function bridgeSettingsPath(state: BridgeState): string {
   const explicit = readAppEnv("BRIDGE_SETTINGS_PATH");
   if (explicit) return resolve(explicit);
   return bridgeDataPath(state, "bridge-settings.json");

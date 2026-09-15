@@ -74,6 +74,42 @@ validates exactly against the source. Absolute symlinks and relative symlinks
 that leave the migrated tree are deferred because retaining them would make the
 later legacy-directory rename break user data.
 
+## Upgrade backup management
+
+Storage settings include retained ".legacy-v2" App directories in **Update
+backups**, alongside state migration backups. These directories do not count as
+live works or disposable runtime files. Safe cache cleanup and later retirement
+passes leave them in place; no release number or elapsed time triggers deletion.
+
+After a newly migrated App passes the complete copy validation, App recreation,
+and persisted pointer switch, OpenGrove records the completed activation beside
+the retained data. Before offering deletion, it checks the current settings,
+persisted settings, and bindings used by the successfully recreated App. The
+program's Workspace link must resolve to the expected existing Workspace; the
+recorded Workspace and backup directory identities must still match. Mounted
+paths and links are checked for references to the old directories.
+
+Older backups without completion evidence require a one-time exact content
+comparison of the old and current Workspace, including file hashes and link
+values without following links. If their contents differ or cannot be inspected,
+they remain protected. This deliberately also protects older backups whose
+current Workspace has changed normally since migration. Uninstalled or disabled
+Apps, unavailable Workspaces, unknown attribution, and invalid records never
+authorize deletion.
+
+Deletion first prepares a ten-minute confirmation containing the exact eligible
+backup set and size, protected items, and current Workspace locations. The user
+must confirm that the affected Apps and files work normally. The server then
+rechecks that set, directory identities, file metadata, activation evidence, and
+references under a Run maintenance lease. A changed or expired confirmation
+requires another preview. The confirmation is single-use and accepts no client
+filesystem paths. Recursive removal does not follow symbolic links; incomplete
+removal is reported, with remaining contents retained at their original location.
+
+This backup compatibility reader remains supported while layout-v2 retained
+backups need management, independently of the retirement of older migration
+source formats.
+
 ## Compatibility and diagnostics boundary
 
 Layout v2 is introduced in OpenGrove 0.6.6 and accepts legacy layouts written

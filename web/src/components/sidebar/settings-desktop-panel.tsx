@@ -8,6 +8,7 @@ import { useConfirm } from "../ui/confirm-dialog";
 import { ProductIcon } from "../ui/product-icon";
 import {
   parseSettingsStorageCleanupResponse,
+  parseSettingsStorageBackupPreviewResponse,
   parseSettingsStorageHistoryResponse,
   parseSettingsStorageMaintenanceEndResponse,
   parseSettingsStorageMaintenanceStartResponse,
@@ -112,27 +113,72 @@ export function SettingsDesktopPanel() {
   }
 
   async function clearStorageHistory(scope: "migration-backups") {
-    if (
-      (await confirm({
-        title: t("confirm.clearMigrationBackupsTitle"),
-        body: t("confirm.clearMigrationBackupsBody"),
-        confirmLabel: t("common.confirm"),
-        danger: true,
-      })) !== "primary"
-    )
-      return;
     setStorageBusy(true);
     setStorageError("");
     setStorageNotice("");
     try {
+      setStorageNotice(t("settings.storageBackupChecking"));
+      const preview = parseSettingsStorageBackupPreviewResponse(
+        await postJson<unknown>("/settings/storage/clear-history", { scope, preview: true }),
+      );
+      setStorageNotice("");
+      setStorageOverview((previous) =>
+        previous
+          ? {
+              ...previous,
+              backups: [...preview.backups, ...preview.protectedBackups].sort((left, right) =>
+                right.createdAt.localeCompare(left.createdAt),
+              ),
+            }
+          : previous,
+      );
+      if (!preview.backups.length) {
+        setStorageError(t("settings.storageBackupNoneVerified"));
+        return;
+      }
+      const details = preview.backups.map((backup) =>
+        backup.kind === "app-layout"
+          ? t("settings.storageBackupWorkspace", { app: backup.appId, path: backup.workspacePath ?? "" })
+          : t("settings.storageBackupSystemData"),
+      );
+      if (
+        (await confirm({
+          title: t("confirm.clearMigrationBackupsTitle"),
+          body: [
+            t("confirm.clearVerifiedBackupsSummary", {
+              count: preview.backups.length,
+              size: formatBytes(preview.bytes),
+            }),
+            ...new Set(details),
+            ...(preview.protectedBackups.length
+              ? [t("settings.storageBackupProtectedCount", { count: preview.protectedBackups.length })]
+              : []),
+            t("confirm.clearMigrationBackupsBody"),
+          ].join("\n\n"),
+          confirmLabel: t("confirm.clearVerifiedBackupsAction"),
+          danger: true,
+        })) !== "primary"
+      )
+        return;
       const response = parseSettingsStorageHistoryResponse(
-        await postJson<unknown>("/settings/storage/clear-history", { scope }),
+        await postJson<unknown>("/settings/storage/clear-history", { scope, confirmationToken: preview.token }),
       );
       setStorageNotice(t("settings.storageMigrationBackupsDeleted", { size: formatBytes(response.reclaimedBytes) }));
       await refreshStorage();
-    } catch {
-      // non-critical-fallback: the backup remains intact and the user can retry without losing the storage snapshot.
-      setStorageError(t("settings.storageBackupDeleteError"));
+      if (response.retainedFiles)
+        setStorageError(t("settings.storageBackupPartialFailure", { count: response.retainedFiles }));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setStorageNotice("");
+      setStorageError(
+        message.includes("storage_backup_plan_stale") || message.includes("storage_backup_confirmation_required")
+          ? t("settings.storageBackupPlanStale")
+          : message.includes("storage_backup_active_reference")
+            ? t("settings.storageBackupActiveReference")
+            : message.includes("storage_maintenance")
+              ? storageCleanupError(error, t)
+              : t("settings.storageBackupDeleteError"),
+      );
     } finally {
       setStorageBusy(false);
     }
@@ -499,6 +545,29 @@ function StoragePanel(props: {
                 onAction={() => void props.onClearHistory("migration-backups")}
               />
             ) : null}
+            {props.overview.backups.map((backup) =>
+              backup.kind === "app-layout" ? (
+                <div className="settings-storage-backup-item" key={backup.id}>
+                  <strong>{rawDiagnosticText(backup.appId)}</strong>
+                  <span>{formatBytes(backup.bytes)}</span>
+                  <p className="settings-help">
+                    {backup.state === "verified"
+                      ? t("settings.storageBackupVerified")
+                      : backup.state === "unverified"
+                        ? t("settings.storageBackupUnverified")
+                        : t("settings.storageBackupProtected", { reason: backupProtectionReason(backup.reason, t) })}
+                  </p>
+                  {backup.workspacePath ? (
+                    <p className="settings-help">
+                      {t("settings.storageBackupWorkspace", {
+                        app: backup.appId,
+                        path: backup.workspacePath,
+                      })}
+                    </p>
+                  ) : null}
+                </div>
+              ) : null,
+            )}
           </div>
         </>
       )}
@@ -559,7 +628,7 @@ function storageOverviewCategoryDescription(
   if (id === "apps-and-runtime") return t("settings.storageCategoryAppsAndRuntimeCopy");
   if (id === "rebuildable") return t("settings.storageCategoryRebuildableCopy");
   if (id === "backups") {
-    const migrationBackups = overview?.backups.filter((backup) => backup.kind === "migration") ?? [];
+    const migrationBackups = overview?.backups ?? [];
     const latest = migrationBackups[0];
     if (!latest) return t("settings.storageCategoryBackupsCopy");
     return `${t("settings.storageCategoryBackupsCopy")} ${t("settings.storageBackupSummary", {
@@ -571,13 +640,22 @@ function storageOverviewCategoryDescription(
 }
 
 function backupKindSummary(overview: SettingsStorageOverview | undefined, t: TranslationFn): string {
-  const backups = overview?.backups.filter((backup) => backup.kind === "migration") ?? [];
+  const backups = overview?.backups ?? [];
   const latest = backups[0];
   if (!latest) return t("settings.storageBackupNone");
   return t("settings.storageBackupSummary", {
     count: backups.length,
     time: formatDateTime(latest.createdAt),
   });
+}
+
+function backupProtectionReason(reason: string | undefined, t: TranslationFn): string {
+  if (reason === "activation_unconfirmed") return t("settings.storageBackupActivationUnconfirmed");
+  if (reason === "workspace_unavailable") return t("settings.storageBackupWorkspaceUnavailable");
+  if (reason === "active_reference") return t("settings.storageBackupActiveReference");
+  if (reason === "verification_failed") return t("settings.storageBackupVerificationFailed");
+  if (reason === "missing_receipt") return t("settings.storageBackupUnverified");
+  return t("settings.storageBackupUnsafePath");
 }
 
 function formatBytes(bytes: number): string {
