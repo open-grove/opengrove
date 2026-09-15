@@ -19,3 +19,4 @@ export * from "./runs.js";
 export * from "./host-errors.js";
 export * from "./run-records.js";
 export * from "./interactions.js";
+export * from "./interaction-records.js";
