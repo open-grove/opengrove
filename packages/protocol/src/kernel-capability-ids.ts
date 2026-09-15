@@ -28,4 +28,3 @@ export const STANDARD_KERNEL_CAPABILITY_IDS = [
 ] as const;
 
 export type KernelCapabilityId = (typeof STANDARD_KERNEL_CAPABILITY_IDS)[number];
-
