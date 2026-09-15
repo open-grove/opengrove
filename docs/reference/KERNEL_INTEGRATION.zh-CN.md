@@ -130,7 +130,7 @@ App、Workspace、工具可见范围或管理员身份。原生工具由内核�
 | Kernel | 请求批准 | 帮我批准 | 完全访问权限 |
 | --- | --- | --- | --- |
 | Codex | `workspace-write` + `on-request` + reviewer `user` | 同样的沙箱与策略，reviewer `auto_review` | `danger-full-access` + `never` |
-| Claude Agent SDK | `default` | `auto`，发送任务前检查 SDK 的 `supportsAutoMode` 并等待 `setPermissionMode` 成功 | `bypassPermissions` + `allowDangerouslySkipPermissions` |
+| Claude Agent SDK | `default` | `auto`，发送任务前等待原生 `setPermissionMode` 成功 | `bypassPermissions` + `allowDangerouslySkipPermissions` |
 | Hermes | `approvals.mode: manual` | `approvals.mode: smart` | `approvals.mode: off` |
 | OpenCode | 读取允许，其余默认询问；保留显式 deny | 不可用 | 普通操作允许；保留传入配置中的显式 deny |
 | Kimi | ACP 请求交给用户决定 | 不可用 | 对普通 ACP 权限请求选择 `allow_once`；问题仍交给用户 |
@@ -139,8 +139,11 @@ App、Workspace、工具可见范围或管理员身份。原生工具由内核�
 
 Codex 前两档都关闭沙箱内网络访问，写入 Workspace 之外或联网需要走原生审批。
 `on-failure` 和 Claude `acceptEdits` 都不代表“帮我批准”。
-Claude 的可选模型来自 SDK 实际返回的模型缓存；未知时置灰，运行时重新验证当前模型与账号，
-拒绝静默回退。旧 CLI 路径缺少这项预检，自动审查必须使用 Agent SDK。
+Claude Opus 5 和 Opus 4.8 按[原生模型要求](https://code.claude.com/docs/en/permission-modes#eliminate-permission-prompts-with-auto-mode)
+直接声明支持自动审查，没有缓存或缓存过期也可选。其他模型及别名使用 SDK 模型记录；原生默认模型
+使用 `default` 记录及其解析后的型号，支持情况未知时置灰。执行时直接开启原生模式，不等待模型列表查询；
+开启失败显示错误，实际模式不是 `auto` 时拒绝继续。模型元数据仍尽力刷新，供选择器使用。
+旧 CLI 路径没有实现原生模式开启确认，自动审查必须使用 Agent SDK。
 创建员工、同步内置员工、权限迁移、导入 App 和恢复 App 默认设置时，与权限选择器读取同一个
 Claude 配置目录中的缓存。自定义 `kernelPathOverrides["claude-code"].configHome` 同时用于判断
 选项是否可用和计算默认档位。
@@ -150,13 +153,14 @@ Hermes 按环境与档位隔离进程及配置副本，保留用户的 deny 与�
 兼容 desktop contract v7 的 server request 与此前的通知协议。
 
 全局 PM 及各 App 内的 PM 绑定默认使用**完全访问权限**。其他新员工和聊天优先选择**帮我批准**：
-Codex、Hermes 默认 auto；Claude 只有当前模型的缓存确认支持时默认 auto，否则请求批准；
+Codex、Hermes 默认 auto；Claude Opus 5 和 Opus 4.8 按上述声明默认 auto，其他 Claude 模型
+需要缓存确认支持，否则新员工默认请求批准；
 Pi、Kimi、OpenCode 默认请求批准。OpenClaw 仍由 Gateway 管理，远程权限由远端决定。
 
 普通 seed 同步中，用户明确选择优先于 App 声明，兼容的 App 声明优先于产品默认值。
 App 版本激活和主动恢复 App 默认设置可以重新应用 App 配置。普通同步也保留非 PM 内置员工已保存的权限；
-App 没有声明权限档位时，保留该 App 员工已保存的权限。Claude 缓存刷新或丢失只影响选项是否可用、
-以及新员工的默认档位，不改写这些已有选择；内核不支持的组合仍会修正。v3 迁移只补齐员工缺失的权限、
+App 没有声明权限档位时，保留该 App 员工已保存的权限。对没有支持声明的模型，Claude 缓存刷新或丢失
+可能影响选项是否可用、以及新员工的默认档位，不改写已有选择；内核不支持的组合仍会修正。v3 迁移只补齐员工缺失的权限、
 修正不支持的组合，并在修改前备份状态，不统一重置已有兼容选择。PM 的新默认值通过产品 seed
 同步应用，保留用户明确的权限覆盖。聊天读取已有选择时不改写；没有选择时根据当前内核和模型决定默认档位。
 

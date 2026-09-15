@@ -1,4 +1,3 @@
-import { assertRuntimeAccessMode } from "../runtime-access.js";
 import { createHash } from "node:crypto";
 import { existsSync, readdirSync } from "node:fs";
 import { homedir } from "node:os";
@@ -328,7 +327,7 @@ export class ClaudeAgentSdkRuntime implements AgentRuntime {
     let contextUsageRequested = false;
     try {
       await runWithNativeSessionLock("claude-code", nativeSession.sessionId, async () => {
-        // Keep user input out of the native loop until its model and account accept auto mode.
+        // Submit user input after Claude acknowledges the requested permission mode.
         const approvalPrompt = permissionMode === "auto" ? new AsyncEventQueue<SDKUserMessage>() : undefined;
         const query = (this.options.query ?? claudeQuery)({
           prompt:
@@ -355,27 +354,13 @@ export class ClaudeAgentSdkRuntime implements AgentRuntime {
 
         try {
           if (approvalPrompt) {
-            const models = await query.supportedModels();
-            writeClaudeModelsCache(models, {
-              configHome: preparedEnv.CLAUDE_CONFIG_DIR,
-              now: new Date().toISOString(),
-            });
-            const supported = models.some(
-              (model) =>
-                model.supportsAutoMode === true &&
-                (requestedModel === undefined
-                  ? model.value === "default"
-                  : model.value === requestedModel || model.resolvedModel === requestedModel),
-            );
-            assertRuntimeAccessMode("claude-code", "auto-review", supported);
             await query.setPermissionMode("auto");
             for await (const message of claudeUserMessageStream(request.input, imageBlocks, nativeSession.sessionId)) {
               approvalPrompt.push(message);
             }
             approvalPrompt.close();
-          } else {
-            this.refreshClaudeModelsCache(query, runtimeEnv);
           }
+          this.refreshClaudeModelsCache(query, runtimeEnv);
           for await (const message of query) {
             for (const event of mapClaudeSdkMessage(message, {
               runId,

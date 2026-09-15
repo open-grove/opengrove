@@ -150,7 +150,7 @@ identity. Kernels approve native tools; Host tools continue to enforce App polic
 | Kernel | Ask for approval | Help me approve | Full access |
 | --- | --- | --- | --- |
 | Codex | `workspace-write` + `on-request` + reviewer `user` | Same sandbox and policy; reviewer `auto_review` | `danger-full-access` + `never` |
-| Claude Agent SDK | `default` | `auto`; check fresh `supportsAutoMode` and await `setPermissionMode` before sending user input | `bypassPermissions` + `allowDangerouslySkipPermissions` |
+| Claude Agent SDK | `default` | `auto`; await native `setPermissionMode` before sending user input | `bypassPermissions` + `allowDangerouslySkipPermissions` |
 | Hermes | `approvals.mode: manual` | `approvals.mode: smart` | `approvals.mode: off` |
 | OpenCode | Allow reads, ask for other operations, retain explicit deny rules | Unavailable | Allow ordinary operations, retaining explicit denials in supplied configuration |
 | Kimi | Human ACP approval | Unavailable | Select `allow_once` for ordinary ACP permission requests; questions still need an answer |
@@ -164,10 +164,14 @@ presets, network access remains owned by native configuration: neither thread co
 overrides it. Claude calls without a preset retain the configured mode, falling back to
 `bypassPermissions`. These API fallbacks are separate from the product's explicit default selections.
 Neither `on-failure` nor Claude `acceptEdits` is auto review.
-Claude model availability comes from the SDK model cache and is revalidated for the current
-model/account before each auto-review run. The native default selection uses the SDK `default` record. With an empty cache, support is
-unknown until a normal turn refreshes it. Unknown support disables the picker option; a rejected
-mode never silently falls back. The legacy CLI path lacks this preflight and must use the SDK for auto review.
+Claude Opus 5 and Opus 4.8 are declared to support auto review, matching the
+[native model requirements](https://code.claude.com/docs/en/permission-modes#eliminate-permission-prompts-with-auto-mode).
+They remain selectable with an empty or stale SDK cache. Other models and aliases use SDK model
+records; the native default uses the `default` record, including its resolved model. Unknown support
+disables the picker option. Execution directly activates the requested native mode without waiting
+for a model-catalog lookup. Activation failures are reported, and an effective mode other than
+`auto` is rejected. Model metadata refresh remains best-effort for the picker. Auto review requires
+the SDK; the legacy CLI path does not implement native activation acknowledgement.
 Employee creation, seed synchronization, permission migration, App imports and restoring App defaults
 read this cache from the same configured Claude directory as the permission picker. A custom
 `kernelPathOverrides["claude-code"].configHome` therefore applies to both availability and defaults.
@@ -178,16 +182,17 @@ checks the effective mode and fails if it cannot apply it. Approval and question
 both desktop contract v7 server requests and earlier notification-based requests.
 
 The global PM and its App-scoped bindings default to **Full access**. Other new Employees and chats
-prefer **Help me approve** when supported: Codex and Hermes use auto review; Claude requires cached
-support for the selected model, otherwise it starts with Ask for approval. Pi, Kimi and OpenCode start
+prefer **Help me approve** when supported: Codex and Hermes use auto review; Claude Opus 5 and
+Opus 4.8 use the declared support above, while other Claude models require cached support.
+Without either, a new Employee starts with Ask for approval. Pi, Kimi and OpenCode start
 with Ask for approval. OpenClaw remains Gateway-managed; remote permissions belong to the remote owner.
 
 Explicit user choices survive ordinary seed synchronization and take priority over App defaults;
 compatible App declarations take priority over product defaults. App version activation and the
 explicit restore-App-defaults action can reapply the App's configuration. Ordinary synchronization
 also preserves saved permissions for non-PM product Employees and App Employees whose App declares
-no permission mode. A refreshed or missing Claude cache changes availability and defaults for new
-Employees, without rewriting these saved selections. Unsupported kernel combinations are still repaired.
+no permission mode. A refreshed or missing Claude cache can change availability and defaults for
+models without declared support, without rewriting these saved selections. Unsupported kernel combinations are still repaired.
 A one-time v3 migration only fills missing employee modes and repairs unsupported combinations,
 backing up changed state. It does
 not blanket-reset compatible choices. PM's new default follows the existing product seed mechanism

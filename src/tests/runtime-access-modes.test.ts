@@ -250,11 +250,11 @@ test("Pi full access preserves explicit native and Host tool denials", async () 
   assert.deepEqual(decisions, ["deny", "deny"]);
 });
 
-test("Claude auto review checks fresh native support before submitting any user input", async () => {
+test("Claude auto review uses native activation without a blocking model catalog lookup", async () => {
   const cwd = mkdtempSync(join(tmpdir(), "opengrove-claude-permissions-"));
   for (const scenario of ["supported", "unsupported-model", "org-denied", "wrong-effective-mode"] as const) {
     let submitted = false;
-    let preflight = false;
+    let acknowledged = false;
     let closed = false;
     let selectedMode: unknown;
     const query: ClaudeAgentSdkQueryFunction = (params) => {
@@ -263,7 +263,7 @@ test("Claude auto review checks fresh native support before submitting any user 
         assert.equal(typeof params.prompt, "object");
         if (typeof params.prompt !== "string")
           for await (const _input of params.prompt) {
-            assert.equal(preflight, true, "user input must wait for the native approval-mode acknowledgement");
+            assert.equal(acknowledged, true, "user input must wait for the native approval-mode acknowledgement");
             submitted = true;
           }
         yield {
@@ -281,18 +281,14 @@ test("Claude auto review checks fresh native support before submitting any user 
         yield { type: "result", subtype: "success", result: "done", session_id: "session", usage: {}, modelUsage: {} };
       }
       return Object.assign(messages(), {
-        supportedModels: async () => [
-          {
-            value: "claude-test",
-            displayName: "Claude",
-            description: "test",
-            supportsAutoMode: scenario !== "unsupported-model",
-          },
-        ],
+        supportedModels: async () => {
+          throw new Error("model catalog unavailable");
+        },
         setPermissionMode: async (mode: string) => {
           assert.equal(mode, "auto");
           if (scenario === "org-denied") throw new Error("auto mode disabled by organization");
-          preflight = true;
+          if (scenario === "unsupported-model") throw new Error("auto mode unavailable for this model");
+          acknowledged = true;
         },
         close: () => {
           closed = true;
@@ -320,13 +316,11 @@ test("Claude auto review checks fresh native support before submitting any user 
       events.some((event) => event.type === "error"),
       scenario !== "supported",
     );
-    const controls = buildClaudeCodeRuntimeControls(join(cwd, scenario), undefined);
-    assert.deepEqual(controls.autoReviewModelIds, scenario === "unsupported-model" ? [] : ["claude-test"]);
   }
 });
 
 for (const scenario of ["supported", "unsupported", "unverified", "missing"] as const) {
-  test(`Claude native default auto review: ${scenario}`, async () => {
+  test(`Claude native activation succeeds independently of model metadata: ${scenario}`, async () => {
     const cwd = mkdtempSync(join(tmpdir(), "opengrove-claude-default-permissions-"));
     let submitted = false;
     let acknowledged = false;
@@ -402,19 +396,36 @@ for (const scenario of ["supported", "unsupported", "unverified", "missing"] as 
       events.push(event);
 
     assert.equal(closed, true);
-    assert.equal(submitted, scenario === "supported");
-    assert.equal(acknowledged, scenario === "supported");
+    assert.equal(submitted, true);
+    assert.equal(acknowledged, true);
     const errors = events.filter((event) => event.type === "error");
-    assert.equal(errors.length, scenario === "supported" ? 0 : 1);
-    if (scenario !== "supported") assert.match(errors[0]!.message, /runtime_access_mode_unavailable/);
-    assert.deepEqual(
-      buildClaudeCodeRuntimeControls(cwd, undefined).autoReviewModelIds,
-      scenario === "supported"
-        ? ["default", "claude-default-concrete", "claude-code-default", "claude-other"]
-        : ["claude-other"],
-    );
+    assert.equal(errors.length, 0);
   });
 }
+
+test("Opus 5 and Opus 4.8 advertise auto review and default to it without cached support", () => {
+  const configHome = mkdtempSync(join(tmpdir(), "opengrove-known-claude-permissions-"));
+  try {
+    for (const support of [undefined, false, true]) {
+      if (support !== undefined) {
+        writeClaudeModelsCache(
+          ["claude-opus-5", "claude-opus-4-8"].map((value) => ({ value, supportsAutoMode: support })),
+          { configHome, now: "2026-09-15T00:00:00Z" },
+        );
+      }
+      const controls = buildClaudeCodeRuntimeControls(configHome, undefined);
+      assert.deepEqual(controls.autoReviewModelIds, ["claude-opus-5", "claude-opus-4-8"]);
+      for (const model of ["claude-opus-5", "claude-opus-4-8"]) {
+        assert.equal(normalizeEmployeeAccessMode("claude-code", undefined, model, configHome), "auto-review");
+        assert.equal(normalizeEmployeeAccessMode("claude-code", "default", model, configHome), "default");
+      }
+      assert.equal(controls.autoReviewModelIds.includes("claude-code-default"), false);
+      assert.equal(normalizeEmployeeAccessMode("claude-code", undefined, "claude-custom", configHome), "default");
+    }
+  } finally {
+    rmSync(configHome, { recursive: true, force: true });
+  }
+});
 
 test("Hermes presets use separate native homes, preserve denials and still ask user questions", async () => {
   const cwd = mkdtempSync(join(tmpdir(), "opengrove-hermes-presets-"));
@@ -605,7 +616,7 @@ for (const initialSupport of [false, true]) {
     const appRoot = join(cwd, "app");
     const writeSupport = (supportsAutoMode: boolean) =>
       writeClaudeModelsCache(
-        ["deepseek-v4-flash", "claude-opus-4-8"].map((value) => ({ value, supportsAutoMode })),
+        ["deepseek-v4-flash", "claude-custom"].map((value) => ({ value, supportsAutoMode })),
         { configHome, now: "2026-09-15T00:00:00Z" },
       );
     writeSupport(initialSupport);
@@ -615,9 +626,9 @@ for (const initialSupport of [false, true]) {
       title: "Cache drift",
       workspace: { path: "workspace" },
       employees: [
-        { id: "writer", kernel: "claude-code", model: "claude-opus-4-8" },
-        { id: "store", kernel: "claude-code", model: "claude-opus-4-8" },
-        { id: "declared", kernel: "claude-code", model: "claude-opus-4-8", accessMode: "full-access" },
+        { id: "writer", kernel: "claude-code", model: "claude-custom" },
+        { id: "store", kernel: "claude-code", model: "claude-custom" },
+        { id: "declared", kernel: "claude-code", model: "claude-custom", accessMode: "full-access" },
       ],
       store: {
         employeeDefaults: [
@@ -625,7 +636,7 @@ for (const initialSupport of [false, true]) {
             memberId: "member-app-cache-drift-store",
             name: "Store",
             kernel: "claude-code",
-            model: "claude-opus-4-8",
+            model: "claude-custom",
           },
         ],
       },
@@ -642,7 +653,8 @@ for (const initialSupport of [false, true]) {
       state.settings.kernelPathOverrides["claude-code"] = { configHome };
       state.settings.mountedApps = [{ id: "cache-drift", path: appRoot, enabled: true, appBuilderEnabled: true }];
       state.settings.nativeApprovalPresetsVersion = 0;
-      for (const id of ["grove-guide", "app-builder"]) state.app.rooms.patchMember(id, { accessMode: undefined });
+      state.app.rooms.patchMember("grove-guide", { accessMode: undefined });
+      state.app.rooms.patchMember("app-builder", { accessMode: initialSupport ? "auto-review" : "default" });
       await restart();
       const expected = initialSupport ? "auto-review" : "default";
       const assertSavedPermissions = (declared: "default" | "full-access" = "full-access") => {
@@ -672,14 +684,14 @@ for (const initialSupport of [false, true]) {
         else writeSupport(support);
         await restart();
         assert.equal(
-          buildClaudeCodeRuntimeControls(configHome, undefined).autoReviewModelIds?.includes("claude-opus-4-8"),
+          buildClaudeCodeRuntimeControls(configHome, undefined).autoReviewModelIds?.includes("claude-custom"),
           support === true,
         );
         assertSavedPermissions();
       }
       writeSupport(!initialSupport);
       manifest.employees.find((employee) => employee.id === "declared")!.accessMode = "default";
-      manifest.employees.push({ id: "fresh", kernel: "claude-code", model: "claude-opus-4-8" });
+      manifest.employees.push({ id: "fresh", kernel: "claude-code", model: "claude-custom" });
       writeFileSync(join(appRoot, "opengrove.app.json"), JSON.stringify(manifest));
       await restart();
       assertSavedPermissions("default");
@@ -704,7 +716,7 @@ for (const configuredSupport of [true, false]) {
     const models = (supported: boolean) => [
       { value: "default", supportsAutoMode: supported },
       { value: "deepseek-v4-flash", supportsAutoMode: supported },
-      { value: "claude-opus-4-8", supportsAutoMode: supported },
+      { value: "claude-custom", supportsAutoMode: supported },
     ];
     writeClaudeModelsCache(models(configuredSupport), { configHome: configuredHome, now: "2026-09-15T00:00:00Z" });
     writeClaudeModelsCache(models(!configuredSupport), { configHome: ambientHome, now: "2026-09-15T00:00:00Z" });
@@ -718,6 +730,7 @@ for (const configuredSupport of [true, false]) {
       state.app.rooms.upsertMember({
         ...state.app.rooms.listMembers().find((member) => member.id === "app-builder")!,
         id: "configuration-migration",
+        model: "claude-custom",
         accessMode: undefined,
       });
       saveBridgeSettings(state);
@@ -729,7 +742,7 @@ for (const configuredSupport of [true, false]) {
       for (const id of ["grove-guide", "app-builder", "configuration-migration"]) {
         assert.equal(
           state.app.rooms.listMembers().find((member) => member.id === id)?.accessMode,
-          configuredSupport ? "auto-review" : "default",
+          id === "app-builder" || configuredSupport ? "auto-review" : "default",
           id,
         );
       }
@@ -764,7 +777,7 @@ for (const configuredSupport of [true, false]) {
       await mutateMember("/rooms/members", "POST", {
         id: "new-claude",
         kernel: "claude-code",
-        model: "claude-opus-4-8",
+        model: "claude-custom",
       });
       const memberById = (id: string) => state.app.rooms.listMembers().find((member) => member.id === id)!;
       assert.equal(memberById("new-claude").accessMode, expected, "upsert route");
@@ -776,7 +789,7 @@ for (const configuredSupport of [true, false]) {
       await mutateMember(`/rooms/${encodeURIComponent(roomId)}/members`, "POST", {
         id: "room-claude",
         kernel: "claude-code",
-        model: "claude-opus-4-8",
+        model: "claude-custom",
       });
       assert.equal(memberById("room-claude").accessMode, expected, "room add route");
       state.app.rooms.patchMember("new-claude", { kernel: "codex", accessMode: undefined });
@@ -793,14 +806,14 @@ for (const configuredSupport of [true, false]) {
           id: "permission-context",
           title: "Permission Context",
           workspace: { path: "workspace" },
-          employees: [{ id: "writer", kernel: "claude-code", model: "claude-opus-4-8" }],
+          employees: [{ id: "writer", kernel: "claude-code", model: "claude-custom" }],
           store: {
             employeeDefaults: [
               {
                 memberId: "member-app-permission-context-writer",
                 name: "Writer",
                 kernel: "claude-code",
-                model: "claude-opus-4-8",
+                model: "claude-custom",
               },
             ],
           },
@@ -813,12 +826,16 @@ for (const configuredSupport of [true, false]) {
       const appEmployees = mountedMembers.filter((member) => member.employeeDefinitionId !== "pm");
       assert.equal(appEmployees.length, 2);
       for (const member of appEmployees) {
-        assert.equal(member.accessMode, expected, `mounted ${member.id}`);
+        assert.equal(
+          member.accessMode,
+          member.employeeDefinitionId === "app-builder" ? "auto-review" : expected,
+          `mounted ${member.id}`,
+        );
       }
       state.app.rooms.patchMember("new-claude", {
         appId: "permission-context",
         userOverrides: ["accessMode"],
-        manifestDefaults: { kernel: "claude-code", model: "claude-opus-4-8" },
+        manifestDefaults: { kernel: "claude-code", model: "claude-custom" },
       });
       await mutateMember("/rooms/members/new-claude/restore-app-defaults", "POST", {});
       assert.equal(memberById("new-claude").accessMode, expected, "restore App defaults route");
@@ -955,18 +972,19 @@ test("Claude explicit presets and omitted permission defaults use distinct nativ
   }
 });
 
-test("Claude creation defaults require cached support for the selected model", () => {
+test("Unlisted Claude models use cached support or resolve to a declared model", () => {
   const configHome = mkdtempSync(join(tmpdir(), "opengrove-claude-default-permissions-"));
   assert.equal(normalizeEmployeeAccessMode("claude-code", undefined, "claude-code-default", configHome), "default");
   writeClaudeModelsCache(
     [
       { value: "default", supportsAutoMode: true },
       { value: "supported", resolvedModel: "resolved-supported", supportsAutoMode: true },
+      { value: "known-alias", resolvedModel: "claude-opus-5", supportsAutoMode: false },
       { value: "unsupported", supportsAutoMode: false },
     ],
     { configHome, now: "2026-09-15T00:00:00Z" },
   );
-  for (const model of ["claude-code-default", "supported", "resolved-supported"])
+  for (const model of ["claude-code-default", "supported", "resolved-supported", "known-alias"])
     assert.equal(normalizeEmployeeAccessMode("claude-code", undefined, model, configHome), "auto-review");
   for (const model of ["unsupported", "deepseek-test"])
     assert.equal(normalizeEmployeeAccessMode("claude-code", undefined, model, configHome), "default");
