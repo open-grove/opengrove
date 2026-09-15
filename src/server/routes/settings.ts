@@ -58,6 +58,7 @@ import {
   inspectUpgradeBackups,
   prepareUpgradeBackupDeletion,
   upgradeBackupInput,
+  upgradeBackupErrorCode,
 } from "../storage-upgrade-backups.js";
 
 type SendJson = (response: ServerResponse, status: number, data: unknown) => void;
@@ -348,7 +349,7 @@ export async function handleSettingsRoute(options: {
         console.warn("storage_upgrade_backup_action_failed", { error: String(error) });
         sendJson(response, 409, {
           ok: false,
-          error: error instanceof Error ? error.message : "storage_backup_action_failed",
+          error: upgradeBackupErrorCode(error),
         });
       } finally {
         clearInterval(renew);

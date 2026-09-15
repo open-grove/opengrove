@@ -80,10 +80,30 @@ try {
     bytes: 10,
     createdAt: "2026-08-12T00:00:00.000Z",
     state: "verified",
+    appStatus: "active",
     workspacePath: "/workspaces/app",
   };
   const preview = { token: "confirmed", bytes: 10, backups: [appBackup], protectedBackups: [] };
   assert.deepEqual(parseSettingsStorageBackupPreviewResponse({ ok: true, preview }), preview);
+  const uninstalled = { ...appBackup, appStatus: "uninstalled", workspacePath: undefined };
+  assert.equal(
+    parseSettingsStorageBackupPreviewResponse({ ok: true, preview: { ...preview, backups: [uninstalled] } }).backups[0]
+      .appStatus,
+    "uninstalled",
+  );
+  for (const appStatus of ["active", "disabled", "unknown", undefined]) {
+    assert.throws(
+      () =>
+        parseSettingsStorageBackupPreviewResponse({
+          ok: true,
+          preview: {
+            ...preview,
+            backups: [{ ...uninstalled, appStatus }],
+          },
+        }),
+      /storage_overview_backup_invalid/,
+    );
+  }
   assert.throws(
     () =>
       parseSettingsStorageBackupPreviewResponse({

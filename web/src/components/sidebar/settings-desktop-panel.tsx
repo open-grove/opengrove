@@ -138,7 +138,11 @@ export function SettingsDesktopPanel() {
       }
       const details = preview.backups.map((backup) =>
         backup.kind === "app-layout"
-          ? t("settings.storageBackupWorkspace", { app: backup.appId, path: backup.workspacePath ?? "" })
+          ? backup.appStatus === "uninstalled"
+            ? t("settings.storageBackupUninstalledApp", { app: backup.appId })
+            : backup.appStatus === "disabled"
+              ? t("settings.storageBackupDisabledApp", { app: backup.appId, path: backup.workspacePath ?? "" })
+              : t("settings.storageBackupWorkspace", { app: backup.appId, path: backup.workspacePath ?? "" })
           : t("settings.storageBackupSystemData"),
       );
       if (
@@ -552,12 +556,19 @@ function StoragePanel(props: {
                   <span>{formatBytes(backup.bytes)}</span>
                   <p className="settings-help">
                     {backup.state === "verified"
-                      ? t("settings.storageBackupVerified")
+                      ? backup.appStatus === "uninstalled"
+                        ? t("settings.storageBackupUninstalledApp", { app: backup.appId })
+                        : backup.appStatus === "disabled"
+                          ? t("settings.storageBackupDisabledApp", {
+                              app: backup.appId,
+                              path: backup.workspacePath ?? "",
+                            })
+                          : t("settings.storageBackupVerified")
                       : backup.state === "unverified"
                         ? t("settings.storageBackupUnverified")
                         : t("settings.storageBackupProtected", { reason: backupProtectionReason(backup.reason, t) })}
                   </p>
-                  {backup.workspacePath ? (
+                  {backup.workspacePath && backup.appStatus !== "disabled" ? (
                     <p className="settings-help">
                       {t("settings.storageBackupWorkspace", {
                         app: backup.appId,
@@ -653,7 +664,8 @@ function backupProtectionReason(reason: string | undefined, t: TranslationFn): s
   if (reason === "activation_unconfirmed") return t("settings.storageBackupActivationUnconfirmed");
   if (reason === "workspace_unavailable") return t("settings.storageBackupWorkspaceUnavailable");
   if (reason === "active_reference") return t("settings.storageBackupActiveReference");
-  if (reason === "verification_failed") return t("settings.storageBackupVerificationFailed");
+  if (reason === "reference_scan_failed") return t("settings.storageBackupReferenceScanFailed");
+  if (reason === "app_not_mounted") return t("settings.storageBackupAppNotMounted");
   if (reason === "missing_receipt") return t("settings.storageBackupUnverified");
   return t("settings.storageBackupUnsafePath");
 }

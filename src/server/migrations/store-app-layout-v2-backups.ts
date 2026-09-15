@@ -7,6 +7,7 @@ import type { OpenGroveAppLayoutBackup } from "../../storage/storage-overview-co
 import { appStoreAppDirectoryName, isValidAppStoreAppId } from "../app-store-app-id.js";
 import { readAppStorePackageInstallMarker } from "../app-store-install-marker.js";
 import type { BridgeMountedAppSettings } from "../bridge-types.js";
+import { parsePersistedAppSettings } from "../bridge-settings-store.js";
 import { inspectLegacyStoreProgramMetadata, type StoreAppLayoutRoots } from "./store-app-layout-v2.js";
 
 /**
@@ -23,6 +24,8 @@ export interface StoreAppBackupContext {
   persistedMountedApps?: BridgeMountedAppSettings[];
   appInitialized: boolean;
   initializedMountedApps?: BridgeMountedAppSettings[];
+  uninstalledAppIds?: string[];
+  persistedUninstalledAppIds?: string[];
 }
 
 export interface StoreAppLayoutBackupCandidate {
@@ -35,40 +38,20 @@ export interface StoreAppLayoutBackupCandidate {
 interface BackupReceipt {
   schemaVersion: 1;
   kind: "store-app-layout-v2-backup";
-  verification: "migration" | "activation";
+  verification: "migration" | "activation" | "retirement";
   appId: string;
   sourcePath: string;
-  workspacePath: string;
+  workspacePath?: string;
   verifiedAt: string;
   createdAt: string;
-  workspaceIdentity: string;
+  workspaceIdentity?: string;
   backupIdentity: string;
 }
 
 /** Read-only and fail-closed: never use loadBridgeSettings, which may repair corrupt settings. */
-export function readPersistedBackupMounts(path: string): BridgeMountedAppSettings[] | undefined {
+export function readPersistedBackupSettings(path: string): ReturnType<typeof parsePersistedAppSettings> | undefined {
   try {
-    const data: unknown = JSON.parse(readFileSync(path, "utf8"));
-    if (!isRecord(data) || !Array.isArray(data.mountedApps)) return undefined;
-    const mounts: BridgeMountedAppSettings[] = [];
-    for (const value of data.mountedApps) {
-      if (
-        !isRecord(value) ||
-        typeof value.id !== "string" ||
-        typeof value.path !== "string" ||
-        !value.path.trim() ||
-        typeof value.enabled !== "boolean" ||
-        (value.workspacePath !== undefined && typeof value.workspacePath !== "string")
-      )
-        return undefined;
-      mounts.push({
-        id: value.id,
-        path: value.path,
-        enabled: value.enabled,
-        ...(typeof value.workspacePath === "string" ? { workspacePath: value.workspacePath } : {}),
-      });
-    }
-    return new Set(mounts.map((mount) => mount.id)).size === mounts.length ? mounts : undefined;
+    return parsePersistedAppSettings(JSON.parse(readFileSync(path, "utf8")));
   } catch {
     // non-critical-fallback: unavailable activation evidence protects every App backup.
     return undefined;
@@ -89,7 +72,7 @@ export function discoverStoreAppLayoutBackups(context: StoreAppBackupContext): S
       const metadata = backupProgramMetadata(appId, appRoot);
       if (!metadata) {
         // A partial deletion may leave only its receipt. Keep it visible and inspectable.
-        result.push(candidate(path, appId, Boolean(receipt), context));
+        result.push(candidate(path, appId, Boolean(receipt), context, receipt));
         continue;
       }
       const oldWorkspace = join(context.roots.legacyWorkspacesRoot, appId, metadata.workspaceRelativePath);
@@ -97,7 +80,7 @@ export function discoverStoreAppLayoutBackups(context: StoreAppBackupContext): S
       if (entry(link)?.isSymbolicLink() && sameLocation(resolve(dirname(link), readlinkSync(link)), oldWorkspace)) {
         programEvidence.add(appId);
       }
-      result.push(candidate(path, appId, true, context));
+      result.push(candidate(path, appId, true, context, receipt));
     }
   }
   for (const path of directories(context.roots.legacyWorkspacesRoot).filter((path) => path.endsWith(SUFFIX))) {
@@ -105,7 +88,7 @@ export function discoverStoreAppLayoutBackups(context: StoreAppBackupContext): S
     if (!isValidAppStoreAppId(appId)) continue;
     const metadata = backupProgramMetadata(appId, path);
     const receipt = readReceipt(path);
-    result.push(candidate(path, appId, Boolean(metadata || programEvidence.has(appId) || receipt), context));
+    result.push(candidate(path, appId, Boolean(metadata || programEvidence.has(appId) || receipt), context, receipt));
   }
   return result;
 }
@@ -124,6 +107,7 @@ function candidate(
   appId: string,
   attributed: boolean,
   context: StoreAppBackupContext,
+  receipt: BackupReceipt | undefined,
 ): StoreAppLayoutBackupCandidate {
   const sourcePath = path.slice(0, -SUFFIX.length);
   const backup: OpenGroveAppLayoutBackup = {
@@ -146,9 +130,9 @@ function candidate(
     backup.state = "protected";
     backup.reason = issue;
   } else {
-    const mount = context.mountedApps.find((mount) => mount.id === appId)!;
-    backup.workspacePath = resolve(mount.workspacePath!);
-    const receipt = readReceipt(path);
+    const mount = context.mountedApps.find((mount) => mount.id === appId);
+    backup.appStatus = mount ? (mount.enabled ? "active" : "disabled") : "uninstalled";
+    if (mount?.workspacePath) backup.workspacePath = resolve(mount.workspacePath);
     if (entry(join(path, STORE_APP_LAYOUT_BACKUP_RECEIPT)) && !receipt) {
       backup.state = "protected";
       backup.reason = "unsafe_path";
@@ -156,15 +140,26 @@ function candidate(
     }
     if (
       receipt &&
-      receipt.appId === appId &&
-      sameLocation(receipt.sourcePath, sourcePath) &&
-      sameLocation(receipt.workspacePath, mount.workspacePath!) &&
-      receipt.workspaceIdentity === directoryIdentity(mount.workspacePath!) &&
-      receipt.backupIdentity === directoryIdentity(path)
+      (receipt.appId !== appId ||
+        !sameLocation(receipt.sourcePath, sourcePath) ||
+        receipt.backupIdentity !== directoryIdentity(path))
+    ) {
+      backup.state = "protected";
+      backup.reason = "unsafe_path";
+      return item;
+    }
+    if (
+      attributed &&
+      (!receipt ||
+        backup.appStatus === "uninstalled" ||
+        (receipt.workspacePath !== undefined &&
+          mount?.workspacePath !== undefined &&
+          sameLocation(receipt.workspacePath, mount.workspacePath) &&
+          receipt.workspaceIdentity === directoryIdentity(mount.workspacePath)))
     ) {
       backup.state = "verified";
       delete backup.reason;
-      backup.createdAt = receipt.createdAt;
+      if (receipt) backup.createdAt = receipt.createdAt;
     } else if (receipt) {
       backup.state = "protected";
       backup.reason = "workspace_unavailable";
@@ -182,22 +177,40 @@ export function backupActivationIssue(
   const mount = context.mountedApps.find((mount) => mount.id === item.backup.appId);
   const saved = context.persistedMountedApps.find((mount) => mount.id === item.backup.appId);
   const initialized = context.initializedMountedApps.find((mount) => mount.id === item.backup.appId);
-  if (
-    !mount?.enabled ||
-    mount.policyIssue ||
-    !saved?.enabled ||
-    !mount.workspacePath ||
-    !saved.workspacePath ||
-    !sameLocation(mount.path, saved.path) ||
-    !sameLocation(mount.workspacePath, saved.workspacePath)
-  ) {
-    return "activation_unconfirmed";
+  if (!ordinaryDirectory(item.path) || !sameLocation(dirname(item.path), dirname(item.sourcePath)))
+    return "unsafe_path";
+  if (entry(item.sourcePath)) return "active_reference";
+  try {
+    for (const other of [...context.mountedApps, ...context.persistedMountedApps, ...context.initializedMountedApps]) {
+      for (const root of [other.path, ...(other.workspacePath ? [other.workspacePath] : [])]) {
+        if (overlaps(root, item.path) || overlaps(root, item.sourcePath)) return "active_reference";
+      }
+    }
+  } catch (error) {
+    console.warn("storage_backup_reference_scan_failed", { appId: item.backup.appId, error: String(error) });
+    return "reference_scan_failed";
+  }
+  if (!mount && !saved && !initialized) {
+    // Absence alone is not proof of uninstall: require the product's saved uninstall record.
+    return context.uninstalledAppIds?.includes(item.backup.appId) &&
+      context.persistedUninstalledAppIds?.includes(item.backup.appId)
+      ? undefined
+      : "app_not_mounted";
   }
   if (
-    !initialized?.enabled ||
+    !mount ||
+    !saved ||
+    !initialized ||
+    mount.policyIssue ||
     initialized.policyIssue ||
+    mount.enabled !== saved.enabled ||
+    mount.enabled !== initialized.enabled ||
+    !mount.workspacePath ||
+    !saved.workspacePath ||
     !initialized.workspacePath ||
+    !sameLocation(mount.path, saved.path) ||
     !sameLocation(mount.path, initialized.path) ||
+    !sameLocation(mount.workspacePath, saved.workspacePath) ||
     !sameLocation(mount.workspacePath, initialized.workspacePath)
   )
     return "activation_unconfirmed";
@@ -218,15 +231,6 @@ export function backupActivationIssue(
     return "workspace_unavailable";
   const binding = join(mount.path, metadata.workspaceRelativePath);
   if (!entry(binding)?.isSymbolicLink() || !sameLocation(binding, mount.workspacePath)) return "workspace_unavailable";
-  if (!ordinaryDirectory(item.path) || !sameLocation(dirname(item.path), dirname(item.sourcePath)))
-    return "unsafe_path";
-  if (entry(item.sourcePath)) return "active_reference";
-  for (const other of [...context.mountedApps, ...context.persistedMountedApps, ...context.initializedMountedApps]) {
-    const roots = [other.path, ...(other.workspacePath ? [other.workspacePath] : [])];
-    for (const root of roots) {
-      if (overlaps(root, item.path) || overlaps(root, item.sourcePath)) return "active_reference";
-    }
-  }
   return undefined;
 }
 
@@ -239,29 +243,34 @@ export function recordStoreAppLayoutBackups(
   if (!paths.length) return;
   const retired = new Set(paths.map((path) => resolve(path)));
   for (const item of discoverStoreAppLayoutBackups(context)) {
-    if (retired.has(item.path) && validatedAppIds.includes(item.backup.appId) && !backupActivationIssue(item, context))
-      writeReceipt(item, context, "migration");
+    if (
+      retired.has(item.path) &&
+      validatedAppIds.includes(item.backup.appId) &&
+      !backupActivationIssue(item, context)
+    ) {
+      try {
+        writeReceipt(item, context, "migration");
+      } catch (error) {
+        // Retirement already succeeded. Receipt failure must not be reported as a deferred rename.
+        console.warn("store_app_layout_backup_receipt_failed", {
+          appId: item.backup.appId,
+          path: item.path,
+          error: String(error),
+        });
+      }
+    }
   }
 }
 
-/** Verify current activation, not content equality with a historical snapshot. */
-export function verifyStoreAppBackupActivation(
+/** Confirmed deletion only: preserve ownership evidence if removal is interrupted. */
+export function recordConfirmedStoreAppBackup(
   item: StoreAppLayoutBackupCandidate,
   context: StoreAppBackupContext,
-): boolean {
-  if (!item.attributed || backupActivationIssue(item, context)) return false;
-  try {
-    // Older versions did not record migration completion. Record only what we can verify now.
-    // Normal edits, new files, and intentional deletions in the current Workspace are allowed.
-    writeReceipt(item, context, "activation");
-    return true;
-  } catch (error) {
-    console.warn("store_app_layout_backup_activation_verification_failed", {
-      appId: item.backup.appId,
-      error: String(error),
-    });
-    return false;
-  }
+): void {
+  if (!item.attributed || item.backup.state !== "verified" || backupActivationIssue(item, context))
+    throw new Error("storage_backup_plan_stale");
+  if (!entry(join(item.path, STORE_APP_LAYOUT_BACKUP_RECEIPT)))
+    writeReceipt(item, context, item.backup.appStatus === "uninstalled" ? "retirement" : "activation");
 }
 
 function writeReceipt(
@@ -269,17 +278,18 @@ function writeReceipt(
   context: StoreAppBackupContext,
   verification: BackupReceipt["verification"],
 ): void {
-  const workspacePath = context.mountedApps.find((mount) => mount.id === item.backup.appId)!.workspacePath!;
+  const workspacePath = context.mountedApps.find((mount) => mount.id === item.backup.appId)?.workspacePath;
   const receipt: BackupReceipt = {
     schemaVersion: 1,
     kind: "store-app-layout-v2-backup",
     verification,
     appId: item.backup.appId,
     sourcePath: resolve(item.sourcePath),
-    workspacePath: resolve(workspacePath),
+    ...(workspacePath
+      ? { workspacePath: resolve(workspacePath), workspaceIdentity: directoryIdentity(workspacePath) }
+      : {}),
     verifiedAt: new Date().toISOString(),
     createdAt: item.backup.createdAt,
-    workspaceIdentity: directoryIdentity(workspacePath),
     backupIdentity: directoryIdentity(item.path),
   };
   writePrivateJsonAtomically(join(item.path, STORE_APP_LAYOUT_BACKUP_RECEIPT), receipt);
@@ -288,19 +298,23 @@ function writeReceipt(
 function readReceipt(path: string): BackupReceipt | undefined {
   try {
     const file = join(path, STORE_APP_LAYOUT_BACKUP_RECEIPT);
-    if (!entry(file)?.isFile() || entry(file)?.isSymbolicLink()) return undefined;
+    const stat = entry(file);
+    if (!stat?.isFile() || stat.isSymbolicLink()) return undefined;
     const value: unknown = JSON.parse(readFileSync(file, "utf8"));
     if (
       !isRecord(value) ||
       value.schemaVersion !== 1 ||
       value.kind !== "store-app-layout-v2-backup" ||
-      (value.verification !== "migration" && value.verification !== "activation") ||
+      !["migration", "activation", "retirement"].includes(String(value.verification)) ||
       typeof value.appId !== "string" ||
       typeof value.sourcePath !== "string" ||
       !isAbsolute(value.sourcePath) ||
-      typeof value.workspacePath !== "string" ||
-      !isAbsolute(value.workspacePath) ||
-      typeof value.workspaceIdentity !== "string" ||
+      (value.verification !== "retirement" &&
+        (typeof value.workspacePath !== "string" ||
+          !isAbsolute(value.workspacePath) ||
+          typeof value.workspaceIdentity !== "string")) ||
+      (value.verification === "retirement" &&
+        (value.workspacePath !== undefined || value.workspaceIdentity !== undefined)) ||
       typeof value.backupIdentity !== "string" ||
       typeof value.verifiedAt !== "string" ||
       typeof value.createdAt !== "string" ||
@@ -347,24 +361,30 @@ export async function inspectBackupTree(root: string): Promise<{ bytes: number; 
   return { bytes, fingerprint: digest.digest("hex") };
 }
 
-export async function mountedBackupReferences(context: StoreAppBackupContext): Promise<string[]> {
+export async function mountedBackupReferences(
+  context: StoreAppBackupContext,
+): Promise<{ references: string[]; complete: boolean }> {
   const references = new Set<string>();
   const visited = new Set<string>();
+  let complete = true;
+  const record = (path: string) => {
+    references.add(resolve(path));
+    references.add(location(path));
+  };
   const visit = async (path: string): Promise<void> => {
     if (visited.has(path)) return;
     visited.add(path);
-    let stat;
     try {
-      stat = await lstat(path);
+      const stat = await lstat(path);
+      if (stat.isSymbolicLink()) {
+        record(resolve(dirname(path), await readlink(path)));
+      } else if (stat.isDirectory()) {
+        for (const name of await readdir(path)) await visit(join(path, name));
+      }
     } catch (error) {
       if (fsCode(error) === "ENOENT") return;
-      throw error;
-    }
-    if (stat.isSymbolicLink()) {
-      references.add(resolve(dirname(path), await readlink(path)));
-      references.add(location(path));
-    } else if (stat.isDirectory()) {
-      for (const name of await readdir(path)) await visit(join(path, name));
+      complete = false;
+      console.warn("storage_backup_reference_scan_failed", { path, error: String(error) });
     }
   };
   for (const mount of [
@@ -373,18 +393,24 @@ export async function mountedBackupReferences(context: StoreAppBackupContext): P
     ...(context.initializedMountedApps ?? []),
   ]) {
     for (const root of [mount.path, ...(mount.workspacePath ? [mount.workspacePath] : [])]) {
-      references.add(root);
+      try {
+        record(root);
+      } catch (error) {
+        complete = false;
+        console.warn("storage_backup_reference_scan_failed", { path: root, error: String(error) });
+      }
       await visit(resolve(root));
     }
   }
-  return [...references];
+  return { references: [...references], complete };
 }
 
 export function backupHasReferences(
   item: Pick<StoreAppLayoutBackupCandidate, "path" | "sourcePath">,
   references: string[],
 ): boolean {
-  return references.some((path) => overlaps(path, item.path) || overlaps(path, item.sourcePath));
+  const targets = [item.path, item.sourcePath].flatMap((path) => [resolve(path), location(path)]);
+  return references.some((path) => targets.some((target) => inside(path, target) || inside(target, path)));
 }
 
 function directories(root: string): string[] {

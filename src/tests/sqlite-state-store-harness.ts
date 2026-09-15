@@ -15,6 +15,7 @@ import {
   type PersistableAgentStatePorts,
   type PersistedAgentState,
 } from "../storage/json-state-store.js";
+import { listStateMigrationBackupPaths } from "../storage/migration-backups.js";
 import { createSqliteStateStore } from "../storage/sqlite-state-store.js";
 
 const root = mkdtempSync(join(tmpdir(), "opengrove-sqlite-state-"));
@@ -235,17 +236,19 @@ function verifyMigrationAndBlobArchive(rootDir: string): void {
     restored?.rooms.events.map((event) => event.eventSeq),
     [2],
   );
-  const backupCleanup = restarted.clearMigrationBackups?.();
-  assert.equal(backupCleanup?.removedFiles, 7);
-  assert.ok((backupCleanup?.reclaimedBytes ?? 0) > 0);
-  assert.equal(existsSync(join(dataDir, "local-state.before-sqlite-migration.json")), false);
-  assert.equal(existsSync(`${databasePath}.before-unscoped-migration.json`), false);
-  assert.equal(existsSync(`${legacyPath}.before-unscoped-migration.json`), false);
-  assert.equal(existsSync(`${databasePath}.before-app-pm-purge.json`), false);
-  assert.equal(existsSync(`${databasePath}.before-app-room-scopes-v1.json`), false);
-  assert.equal(existsSync(`${databasePath}.before-app-member-identities-v1.json`), false);
-  assert.equal(existsSync(`${databasePath}.before-native-employee-model-v1.json`), false);
-  assert.equal(restarted.storageStats?.().migrationBackupBytes, 0);
+  assert.deepEqual(
+    listStateMigrationBackupPaths(databasePath, legacyPath).sort(),
+    [
+      join(dataDir, "local-state.before-sqlite-migration.json"),
+      `${databasePath}.before-unscoped-migration.json`,
+      `${legacyPath}.before-unscoped-migration.json`,
+      `${databasePath}.before-app-pm-purge.json`,
+      `${databasePath}.before-app-room-scopes-v1.json`,
+      `${databasePath}.before-app-member-identities-v1.json`,
+      `${databasePath}.before-native-employee-model-v1.json`,
+    ].sort(),
+    "restarting retains every migration backup for confirmed storage management",
+  );
   void restarted.close?.();
 }
 
@@ -311,9 +314,7 @@ function verifyFreshDatabaseDefersToRealLegacyHistory(rootDir: string): void {
   assert.equal(existsSync(legacyPath), false);
   assert.equal(existsSync(join(dataDir, "local-state.before-legacy-recovery")), true);
   assert.ok((recovered.storageStats?.().migrationBackupBytes ?? 0) > 0);
-  const cleanup = recovered.clearMigrationBackups?.();
-  assert.ok((cleanup?.removedFiles ?? 0) >= 2);
-  assert.equal(existsSync(join(dataDir, "local-state.before-legacy-recovery")), false);
+  assert.ok(listStateMigrationBackupPaths(databasePath, legacyPath).length >= 2);
   void recovered.close?.();
 }
 

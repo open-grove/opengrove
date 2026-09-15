@@ -12,10 +12,11 @@ import {
   discoverStoreAppLayoutBackups,
   inspectBackupTree,
   mountedBackupReferences,
-  readPersistedBackupMounts,
+  readPersistedBackupSettings,
   STORE_APP_LAYOUT_BACKUP_RECEIPT,
-  verifyStoreAppBackupActivation,
+  recordConfirmedStoreAppBackup,
   type StoreAppBackupContext,
+  type StoreAppLayoutBackupCandidate,
 } from "./migrations/store-app-layout-v2-backups.js";
 
 export interface UpgradeBackupInput {
@@ -27,6 +28,7 @@ interface BackupItem {
   fingerprint: string;
   identity: string;
   backup: OpenGroveStorageBackup;
+  layout?: StoreAppLayoutBackupCandidate;
 }
 interface DeletionPlan {
   token: string;
@@ -36,9 +38,22 @@ interface DeletionPlan {
 }
 const plans = new WeakMap<object, DeletionPlan>();
 
+/** Public error boundary: filesystem paths and implementation errors stay in server diagnostics. */
+export function upgradeBackupErrorCode(error: unknown): string {
+  const code = error instanceof Error ? error.message : "";
+  return [
+    "storage_backup_confirmation_required",
+    "storage_backup_plan_stale",
+    "storage_backup_active_reference",
+  ].includes(code)
+    ? code
+    : "storage_backup_action_failed";
+}
+
 export function upgradeBackupInput(state: BridgeState): UpgradeBackupInput {
   const storeRoot = appStoreDataRoot(state);
   const paths = resolveStateMigrationPaths(state.store.path);
+  const saved = readPersistedBackupSettings(bridgeSettingsPath(state));
   return {
     context: {
       roots: {
@@ -48,7 +63,9 @@ export function upgradeBackupInput(state: BridgeState): UpgradeBackupInput {
         workspacesRoot: defaultAppStoreRoot(),
       },
       mountedApps: state.settings.mountedApps,
-      persistedMountedApps: readPersistedBackupMounts(bridgeSettingsPath(state)),
+      persistedMountedApps: saved?.mountedApps,
+      uninstalledAppIds: state.settings.uninstalledStoreAppIds,
+      persistedUninstalledAppIds: saved?.uninstalledStoreAppIds,
       appInitialized: state.appInitialized === true,
       initializedMountedApps: state.initializedMountedApps,
     },
@@ -60,16 +77,15 @@ export function upgradeBackupInput(state: BridgeState): UpgradeBackupInput {
 export async function inspectUpgradeBackups(input: UpgradeBackupInput, forDeletion = false): Promise<BackupItem[]> {
   const items: BackupItem[] = [];
   const layouts = discoverStoreAppLayoutBackups(input.context);
-  let references: string[] | undefined;
-  try {
-    references = layouts.length || forDeletion ? await mountedBackupReferences(input.context) : [];
-  } catch (error) {
-    console.warn("storage_backup_reference_inspection_failed", { error: String(error) });
-  }
+  const { references, complete } =
+    layouts.length || forDeletion ? await mountedBackupReferences(input.context) : { references: [], complete: true };
   for (const item of layouts) {
-    if (!references || backupHasReferences(item, references)) {
+    if (backupHasReferences(item, references)) {
       item.backup.state = "protected";
-      item.backup.reason = references ? "active_reference" : "unsafe_path";
+      item.backup.reason = "active_reference";
+    } else if (!complete) {
+      item.backup.state = "protected";
+      item.backup.reason = "reference_scan_failed";
     }
     try {
       const tree = await inspectBackupTree(item.path);
@@ -78,6 +94,7 @@ export async function inspectUpgradeBackups(input: UpgradeBackupInput, forDeleti
         fingerprint: tree.fingerprint,
         identity: identity(item.path),
         backup: { ...item.backup, bytes: tree.bytes },
+        layout: item,
       });
     } catch (error) {
       console.warn("storage_backup_tree_inspection_failed", { appId: item.backup.appId, error: String(error) });
@@ -90,7 +107,9 @@ export async function inspectUpgradeBackups(input: UpgradeBackupInput, forDeleti
     }
   }
   for (const path of input.stateBackupPaths) {
-    if (forDeletion && (!references || backupHasReferences({ path, sourcePath: path }, references))) {
+    // State snapshots are independently owned by the state migration registry. An unrelated
+    // unreadable App subtree does not invalidate that ownership; observed references still protect them.
+    if (forDeletion && backupHasReferences({ path, sourcePath: path }, references)) {
       throw new Error("storage_backup_active_reference");
     }
     const stat = lstatSync(path);
@@ -106,6 +125,7 @@ export async function inspectUpgradeBackups(input: UpgradeBackupInput, forDeleti
   return items;
 }
 
+/** Read-only preview: only an in-memory, single-use confirmation plan is created. */
 export async function prepareUpgradeBackupDeletion(
   owner: object,
   getInput: () => UpgradeBackupInput,
@@ -113,20 +133,8 @@ export async function prepareUpgradeBackupDeletion(
   plans.delete(owner);
   const input = getInput();
   const authority = activationAuthority(input);
-  const historical = discoverStoreAppLayoutBackups(input.context);
-  const failedVerification = new Set<string>();
-  for (const item of historical) {
-    if (item.backup.state !== "unverified") continue;
-    if (!verifyStoreAppBackupActivation(item, getInput().context)) failedVerification.add(item.backup.id);
-  }
   const items = await inspectUpgradeBackups(getInput(), true);
   if (authority !== activationAuthority(getInput())) throw new Error("storage_backup_plan_stale");
-  for (const item of items) {
-    if (item.backup.kind === "app-layout" && failedVerification.has(item.backup.id)) {
-      item.backup.state = "protected";
-      item.backup.reason = "verification_failed";
-    }
-  }
   const eligible = items.filter((item) => item.backup.kind === "migration" || item.backup.state === "verified");
   const plan: DeletionPlan = { token: randomUUID(), expiresAt: Date.now() + 10 * 60_000, authority, items: eligible };
   plans.set(owner, plan);
@@ -152,6 +160,7 @@ export async function deleteConfirmedUpgradeBackups(
     throw new Error("storage_backup_confirmation_required");
   if (plan.authority !== activationAuthority(getInput())) throw new Error("storage_backup_plan_stale");
   const current = await inspectUpgradeBackups(getInput(), true);
+  const confirmed: BackupItem[] = [];
   for (const item of plan.items) {
     const fresh = current.find((entry) => entry.path === item.path);
     if (
@@ -161,6 +170,7 @@ export async function deleteConfirmedUpgradeBackups(
       (fresh.backup.kind === "app-layout" && fresh.backup.state !== "verified")
     )
       throw new Error("storage_backup_plan_stale");
+    confirmed.push(fresh);
   }
   // No await between the final authority check and the filesystem mutations.
   // Other Bridge requests cannot change mounts inside this critical section.
@@ -168,13 +178,19 @@ export async function deleteConfirmedUpgradeBackups(
   let removedFiles = 0;
   let reclaimedBytes = 0;
   let retainedFiles = 0;
-  for (const item of plan.items) {
+  const partial: Array<{ item: BackupItem; addedReceiptBytes: number }> = [];
+  for (const item of confirmed) {
+    let addedReceiptBytes = 0;
     try {
       if (identity(item.path) !== item.identity || lstatSync(item.path).isSymbolicLink())
         throw new Error("storage_backup_plan_stale");
       // fs.rm removes links themselves; it never traverses linked directories.
       // Keep the discoverable name so interruption/partial failure cannot hide retained data.
       if (item.backup.kind === "app-layout") {
+        const receiptPath = join(item.path, STORE_APP_LAYOUT_BACKUP_RECEIPT);
+        const needsReceipt = !readdirSync(item.path).includes(STORE_APP_LAYOUT_BACKUP_RECEIPT);
+        recordConfirmedStoreAppBackup(item.layout!, getInput().context);
+        if (needsReceipt) addedReceiptBytes = lstatSync(receiptPath).size;
         // Keep attribution until all data is removed, so failures remain manageable.
         for (const name of readdirSync(item.path)) {
           if (name !== STORE_APP_LAYOUT_BACKUP_RECEIPT)
@@ -189,7 +205,19 @@ export async function deleteConfirmedUpgradeBackups(
       reclaimedBytes += item.backup.bytes;
     } catch (error) {
       retainedFiles += 1;
+      partial.push({ item, addedReceiptBytes });
       console.warn("storage_upgrade_backup_delete_failed", { error: String(error) });
+    }
+  }
+  // All mutations are complete. Count the original bytes removed by partial deletions too.
+  for (const { item, addedReceiptBytes } of partial) {
+    try {
+      if (identity(item.path) !== item.identity) continue;
+      const remaining = await inspectBackupTree(item.path);
+      reclaimedBytes += Math.max(0, item.backup.bytes - Math.max(0, remaining.bytes - addedReceiptBytes));
+    } catch (error) {
+      // non-critical-fallback: when remaining bytes cannot be inspected, report only proven removals.
+      console.warn("storage_backup_remaining_size_unavailable", { error: String(error) });
     }
   }
   return { removedFiles, reclaimedBytes, retainedFiles };
@@ -212,6 +240,8 @@ function activationAuthority(input: UpgradeBackupInput): string {
         saved: mountFields(input.context.persistedMountedApps),
         running: mountFields(input.context.initializedMountedApps),
         initialized: input.context.appInitialized,
+        uninstalled: input.context.uninstalledAppIds,
+        persistedUninstalled: input.context.persistedUninstalledAppIds,
       }),
     )
     .digest("hex");

@@ -85,8 +85,19 @@ try {
     assert.equal(await page.evaluate(() => document.documentElement.dataset.backupDeleted), undefined);
     await backupDialog.getByRole("button", { name: "取消", exact: true }).click();
     assert.equal(await page.evaluate(() => document.documentElement.dataset.backupDeleted), undefined);
+    for (const appStatus of ["disabled", "uninstalled"]) {
+      await page.evaluate((status) => {
+        const backup = globalThis.storagePayload.overview.backups[1];
+        backup.appStatus = status;
+        if (status === "uninstalled") delete backup.workspacePath;
+      }, appStatus);
+      await page.getByRole("button", { name: "删除升级备份", exact: true }).click();
+      assert.match(await backupDialog.textContent(), appStatus === "disabled" ? /已禁用/ : /已卸载/);
+      if (appStatus === "uninstalled") assert.doesNotMatch(await backupDialog.textContent(), /当前工作区：/);
+      await backupDialog.getByRole("button", { name: "取消", exact: true }).click();
+    }
     await page.getByRole("button", { name: "删除升级备份", exact: true }).click();
-    await backupDialog.getByRole("button", { name: "确认正常并删除", exact: true }).click();
+    await backupDialog.getByRole("button", { name: "确认删除旧备份", exact: true }).click();
     await page.getByText(/已删除约 768 MB 的升级备份/).waitFor();
     assert.equal(await page.evaluate(() => document.documentElement.dataset.backupDeleted), "true");
 
@@ -198,7 +209,7 @@ function entrySource() {
         backups: [
           { kind: "migration", bytes: 512 * 1024 ** 2, createdAt: "2026-08-12T00:00:00.000Z" },
           { kind: "app-layout", id: "verified-backup", appId: "verified-app", bytes: 256 * 1024 ** 2,
-            createdAt: "2026-08-12T00:00:00.000Z", state: "verified", workspacePath: "/test/workspaces/verified-app/workspace" },
+            createdAt: "2026-08-12T00:00:00.000Z", state: "verified", appStatus: "active", workspacePath: "/test/workspaces/verified-app/workspace" },
           { kind: "app-layout", id: "protected-backup", appId: "protected-app", bytes: 256 * 1024 ** 2,
             createdAt: "2026-08-12T00:00:00.000Z", state: "protected", reason: "activation_unconfirmed" },
         ],

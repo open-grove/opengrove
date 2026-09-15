@@ -14,7 +14,8 @@ export const APP_BACKUP_PROTECTION_REASONS = [
   "active_reference",
   "unsafe_path",
   "missing_receipt",
-  "verification_failed",
+  "reference_scan_failed",
+  "app_not_mounted",
 ] as const;
 export interface OpenGroveAppLayoutBackup {
   kind: "app-layout";
@@ -23,6 +24,7 @@ export interface OpenGroveAppLayoutBackup {
   bytes: number;
   createdAt: string;
   state: "verified" | "unverified" | "protected";
+  appStatus?: "active" | "disabled" | "uninstalled";
   reason?: (typeof APP_BACKUP_PROTECTION_REASONS)[number];
   workspacePath?: string;
 }
@@ -96,8 +98,12 @@ export function parseStorageBackup(value: unknown): OpenGroveStorageBackup {
     (backup.reason !== undefined &&
       !APP_BACKUP_PROTECTION_REASONS.includes(backup.reason as OpenGroveAppLayoutBackup["reason"] & string)) ||
     (backup.workspacePath !== undefined && typeof backup.workspacePath !== "string") ||
+    (backup.appStatus !== undefined && !["active", "disabled", "uninstalled"].includes(String(backup.appStatus))) ||
     (backup.state === "verified" &&
-      (typeof backup.workspacePath !== "string" || !backup.workspacePath.trim() || backup.reason !== undefined)) ||
+      (backup.appStatus === undefined ||
+        backup.reason !== undefined ||
+        (backup.appStatus !== "uninstalled" &&
+          (typeof backup.workspacePath !== "string" || !backup.workspacePath.trim())))) ||
     (backup.state !== "verified" && backup.reason === undefined)
   )
     throw new Error("storage_overview_backup_invalid");
@@ -108,6 +114,7 @@ export function parseStorageBackup(value: unknown): OpenGroveStorageBackup {
     bytes,
     createdAt: backup.createdAt,
     state: backup.state as OpenGroveAppLayoutBackup["state"],
+    ...(backup.appStatus !== undefined ? { appStatus: backup.appStatus as OpenGroveAppLayoutBackup["appStatus"] } : {}),
     ...(backup.reason !== undefined ? { reason: backup.reason as OpenGroveAppLayoutBackup["reason"] } : {}),
     ...(typeof backup.workspacePath === "string" ? { workspacePath: backup.workspacePath } : {}),
   };

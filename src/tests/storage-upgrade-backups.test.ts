@@ -15,8 +15,7 @@ import { join } from "node:path";
 import test from "node:test";
 import { migrateStoreAppLayoutsV2, retireLegacyStoreAppLayoutsV2 } from "../server/migrations/store-app-layout-v2.js";
 import {
-  discoverStoreAppLayoutBackups,
-  readPersistedBackupMounts,
+  readPersistedBackupSettings,
   recordStoreAppLayoutBackups,
   STORE_APP_LAYOUT_BACKUP_RECEIPT,
   type StoreAppBackupContext,
@@ -25,6 +24,7 @@ import {
   deleteConfirmedUpgradeBackups,
   inspectUpgradeBackups,
   prepareUpgradeBackupDeletion,
+  upgradeBackupErrorCode,
 } from "../server/storage-upgrade-backups.js";
 import { inspectOpenGroveStorage } from "../server/storage-overview.js";
 
@@ -55,13 +55,19 @@ function fixture(receipt = true) {
   const mountedApps = migration.mountedApps;
   const initializedMountedApps = mountedApps.map((mount) => ({ ...mount }));
   writeFileSync(settingsPath, JSON.stringify({ mountedApps }));
-  const context = (): StoreAppBackupContext => ({
-    roots,
-    mountedApps,
-    initializedMountedApps,
-    persistedMountedApps: readPersistedBackupMounts(settingsPath),
-    appInitialized: true,
-  });
+  const uninstalledAppIds: string[] = [];
+  const context = (): StoreAppBackupContext => {
+    const saved = readPersistedBackupSettings(settingsPath);
+    return {
+      roots,
+      mountedApps,
+      initializedMountedApps,
+      persistedMountedApps: saved?.mountedApps,
+      uninstalledAppIds,
+      persistedUninstalledAppIds: saved?.uninstalledStoreAppIds,
+      appInitialized: true,
+    };
+  };
   const retirement = retireLegacyStoreAppLayoutsV2({ roots, mountedApps });
   assert.equal(retirement.renamed.length, 1);
   if (receipt) recordStoreAppLayoutBackups(retirement.renamed, context(), [appId]);
@@ -76,6 +82,7 @@ function fixture(receipt = true) {
     oldMount,
     mountedApps,
     initializedMountedApps,
+    uninstalledAppIds,
     settingsPath,
     context,
     owner,
@@ -132,16 +139,17 @@ test("verified App backups share Update backups accounting and confirmed deletio
   }
 });
 
-test("pre-receipt backups verify current activation without certifying historical content", async () => {
+test("preview verifies activation without writing a receipt or changing backup contents", async () => {
   const f = fixture(false);
   try {
-    assert.equal(discoverStoreAppLayoutBackups(f.context())[0]?.backup.state, "unverified");
+    const before = await inspectUpgradeBackups(f.input());
     const preview = await prepareUpgradeBackupDeletion(f.owner, f.input);
     assert.equal(preview.backups.length, 2);
-    assert.equal(
-      JSON.parse(readFileSync(join(f.backup, STORE_APP_LAYOUT_BACKUP_RECEIPT), "utf8")).verification,
-      "activation",
-    );
+    assert.equal(existsSync(join(f.backup, STORE_APP_LAYOUT_BACKUP_RECEIPT)), false);
+    assert.deepEqual(await inspectUpgradeBackups(f.input()), before);
+    const second = await prepareUpgradeBackupDeletion(f.owner, f.input);
+    assert.equal(second.bytes, preview.bytes);
+    assert.equal(existsSync(join(f.backup, STORE_APP_LAYOUT_BACKUP_RECEIPT)), false);
   } finally {
     f.close();
   }
@@ -255,6 +263,28 @@ test("later retirement cannot mint evidence without copy validation in that acti
   }
 });
 
+test("persisted backup evidence uses the settings mount normalizer without repairing files", () => {
+  const f = fixture();
+  try {
+    writeFileSync(f.settingsPath, JSON.stringify({ mountedApps: [{ path: "~/backup-normalization-app" }] }));
+    assert.deepEqual(readPersistedBackupSettings(f.settingsPath)?.mountedApps, [
+      {
+        id: "backup-normalization-app",
+        path: join(process.env.HOME!, "backup-normalization-app"),
+        enabled: true,
+      },
+    ]);
+    for (const value of [[], { settingsSchemaVersion: 999, mountedApps: [] }, { mountedApps: [{}] }]) {
+      const contents = JSON.stringify(value);
+      writeFileSync(f.settingsPath, contents);
+      assert.equal(readPersistedBackupSettings(f.settingsPath), undefined);
+      assert.equal(readFileSync(f.settingsPath, "utf8"), contents);
+    }
+  } finally {
+    f.close();
+  }
+});
+
 test("database backups referenced from a Workspace cannot be deleted", async () => {
   const f = fixture();
   try {
@@ -267,25 +297,218 @@ test("database backups referenced from a Workspace cannot be deleted", async () 
   }
 });
 
-test("partial deletion preserves the receipt and keeps the remaining backup manageable", {
-  skip: process.platform === "win32" || process.getuid?.() === 0,
-}, async () => {
-  const f = fixture();
-  const oldWorkspace = join(f.backup, "workspace");
+for (const appStatus of ["disabled", "uninstalled"] as const) {
+  for (const receipt of [true, false]) {
+    test(`${appStatus} App backups can be confirmed without reactivating the App (receipt: ${receipt})`, async () => {
+      const f = fixture(receipt);
+      try {
+        if (appStatus === "disabled") {
+          f.mountedApps[0]!.enabled = false;
+          f.initializedMountedApps[0]!.enabled = false;
+        } else {
+          f.mountedApps.length = 0;
+          f.initializedMountedApps.length = 0;
+          f.uninstalledAppIds.push("backup-app");
+          rmSync(f.workspace, { recursive: true });
+        }
+        writeFileSync(
+          f.settingsPath,
+          JSON.stringify({ mountedApps: f.mountedApps, uninstalledStoreAppIds: f.uninstalledAppIds }),
+        );
+        const preview = await prepareUpgradeBackupDeletion(f.owner, f.input);
+        assert.equal(preview.backups.length, 2);
+        const app = preview.backups.find((backup) => backup.kind === "app-layout")!;
+        assert.equal("appStatus" in app && app.appStatus, appStatus);
+        assert.equal(existsSync(join(f.backup, STORE_APP_LAYOUT_BACKUP_RECEIPT)), receipt, "preview is read-only");
+        const result = await deleteConfirmedUpgradeBackups(f.owner, preview.token, f.input);
+        assert.equal(result.removedFiles, 2);
+        assert.equal(existsSync(f.backup), false);
+      } finally {
+        f.close();
+      }
+    });
+  }
+}
+
+for (const scenario of [
+  "missing-uninstall-record",
+  "unsaved-uninstall",
+  "runtime-still-mounted",
+  "unsaved-disable",
+  "unknown-ownership",
+  "replaced-backup",
+] as const) {
+  test(`inactive App cleanup stays protected: ${scenario}`, async () => {
+    const f = fixture(scenario !== "unknown-ownership");
+    try {
+      if (scenario === "unsaved-disable") {
+        f.mountedApps[0]!.enabled = false;
+      } else {
+        f.mountedApps.length = 0;
+        if (scenario !== "runtime-still-mounted") f.initializedMountedApps.length = 0;
+        if (scenario !== "missing-uninstall-record") f.uninstalledAppIds.push("backup-app");
+        if (scenario !== "unsaved-uninstall")
+          writeFileSync(
+            f.settingsPath,
+            JSON.stringify({
+              mountedApps: [],
+              uninstalledStoreAppIds: f.uninstalledAppIds,
+            }),
+          );
+        if (scenario === "unknown-ownership") {
+          rmSync(join(f.backup, ".opengrove-store-package.json"));
+          rmSync(join(f.backup, "opengrove.app.json"));
+        }
+        if (scenario === "replaced-backup") {
+          const receipt = readFileSync(join(f.backup, STORE_APP_LAYOUT_BACKUP_RECEIPT));
+          renameSync(f.backup, `${f.backup}-original`);
+          mkdirSync(f.backup);
+          writeFileSync(join(f.backup, STORE_APP_LAYOUT_BACKUP_RECEIPT), receipt);
+        }
+      }
+      const preview = await prepareUpgradeBackupDeletion(f.owner, f.input);
+      assert.deepEqual(
+        preview.backups.map((backup) => backup.kind),
+        ["migration"],
+      );
+      assert.equal(preview.protectedBackups.length, 1);
+      if (scenario === "missing-uninstall-record") assert.equal(preview.protectedBackups[0]?.reason, "app_not_mounted");
+      assert.equal(existsSync(f.backup), true);
+    } finally {
+      f.close();
+    }
+  });
+}
+
+test("only domain errors cross the upgrade backup API boundary", () => {
+  assert.equal(upgradeBackupErrorCode(new Error("storage_backup_plan_stale")), "storage_backup_plan_stale");
+  for (const error of [
+    new Error("EACCES: /private/user/workspace"),
+    new Error("storage_backup_plan_stale:/private/path"),
+    "internal failure",
+  ])
+    assert.equal(upgradeBackupErrorCode(error), "storage_backup_action_failed");
+});
+
+test("authority changes during preview leave pre-receipt backups untouched", async () => {
+  const f = fixture(false);
   try {
-    chmodSync(oldWorkspace, 0o500);
-    const preview = await prepareUpgradeBackupDeletion(f.owner, f.input);
-    const result = await deleteConfirmedUpgradeBackups(f.owner, preview.token, f.input);
-    assert.equal(result.retainedFiles, 1);
-    assert.equal(result.removedFiles, 1);
-    assert.equal(existsSync(join(f.backup, STORE_APP_LAYOUT_BACKUP_RECEIPT)), true);
-    const retained = await inspectUpgradeBackups(f.input());
-    assert.equal(retained.length, 1);
-    assert.equal(retained[0]?.backup.kind, "app-layout");
-    assert.ok(retained[0]!.backup.bytes >= 17);
-    assert.equal(readFileSync(join(f.workspace, "story.md"), "utf8"), "my original story");
+    const preview = prepareUpgradeBackupDeletion(f.owner, f.input);
+    f.mountedApps[0]!.enabled = false;
+    await assert.rejects(preview, /storage_backup_plan_stale/);
+    assert.equal(existsSync(join(f.backup, STORE_APP_LAYOUT_BACKUP_RECEIPT)), false);
+    assert.equal(existsSync(f.stateBackup), true);
   } finally {
-    if (existsSync(oldWorkspace)) chmodSync(oldWorkspace, 0o700);
     f.close();
   }
 });
+
+test("a changed uninstall record invalidates confirmation before any receipt or deletion", async () => {
+  const f = fixture(false);
+  try {
+    f.mountedApps.length = 0;
+    f.initializedMountedApps.length = 0;
+    f.uninstalledAppIds.push("backup-app");
+    writeFileSync(f.settingsPath, JSON.stringify({ mountedApps: [], uninstalledStoreAppIds: f.uninstalledAppIds }));
+    const preview = await prepareUpgradeBackupDeletion(f.owner, f.input);
+    f.uninstalledAppIds.length = 0;
+    await assert.rejects(deleteConfirmedUpgradeBackups(f.owner, preview.token, f.input), /storage_backup_plan_stale/);
+    assert.equal(existsSync(join(f.backup, STORE_APP_LAYOUT_BACKUP_RECEIPT)), false);
+    assert.equal(existsSync(f.stateBackup), true);
+  } finally {
+    f.close();
+  }
+});
+
+test("reference scanning continues past broken links and retains discovered database references", async () => {
+  const f = fixture();
+  try {
+    symlinkSync("a-loop", join(f.workspace, "a-loop"));
+    symlinkSync(f.stateBackup, join(f.workspace, "z-database"));
+    await assert.rejects(prepareUpgradeBackupDeletion(f.owner, f.input), /storage_backup_active_reference/);
+    assert.equal(existsSync(f.stateBackup), true);
+  } finally {
+    f.close();
+  }
+});
+
+test("receipt write failure does not misreport a successful retirement", {
+  skip: process.platform === "win32" || process.getuid?.() === 0,
+}, (t) => {
+  const f = fixture(false);
+  const warnings: unknown[][] = [];
+  t.mock.method(console, "warn", (...args: unknown[]) => {
+    warnings.push(args);
+  });
+  try {
+    chmodSync(f.backup, 0o500);
+    assert.doesNotThrow(() => recordStoreAppLayoutBackups([f.backup], f.context(), ["backup-app"]));
+    assert.equal(existsSync(f.source), false);
+    assert.equal(existsSync(f.backup), true);
+    assert.equal(existsSync(join(f.backup, STORE_APP_LAYOUT_BACKUP_RECEIPT)), false);
+    assert.ok(warnings.some(([event]) => event === "store_app_layout_backup_receipt_failed"));
+  } finally {
+    chmodSync(f.backup, 0o700);
+    f.close();
+  }
+});
+
+for (const hasAppBackup of [true, false]) {
+  test(`unreadable App folders do not block independent database backups (App backup: ${hasAppBackup})`, {
+    skip: process.platform === "win32" || process.getuid?.() === 0,
+  }, async () => {
+    const f = fixture();
+    const unreadable = join(f.workspace, "private-folder");
+    try {
+      if (!hasAppBackup) rmSync(f.backup, { recursive: true });
+      mkdirSync(unreadable);
+      chmodSync(unreadable, 0o000);
+      const preview = await prepareUpgradeBackupDeletion(f.owner, f.input);
+      assert.deepEqual(
+        preview.backups.map((backup) => backup.kind),
+        ["migration"],
+      );
+      assert.equal(preview.protectedBackups.length, hasAppBackup ? 1 : 0);
+      if (hasAppBackup) assert.equal(preview.protectedBackups[0]?.reason, "reference_scan_failed");
+      const result = await deleteConfirmedUpgradeBackups(f.owner, preview.token, f.input);
+      assert.equal(result.removedFiles, 1);
+      assert.equal(existsSync(f.stateBackup), false);
+      assert.equal(existsSync(f.backup), hasAppBackup);
+    } finally {
+      chmodSync(unreadable, 0o700);
+      f.close();
+    }
+  });
+}
+
+for (const hasReceipt of [true, false]) {
+  test(`partial deletion preserves ownership and counts removed bytes (receipt: ${hasReceipt})`, {
+    skip: process.platform === "win32" || process.getuid?.() === 0,
+  }, async () => {
+    const f = fixture(hasReceipt);
+    const oldWorkspace = join(f.backup, "workspace");
+    try {
+      chmodSync(oldWorkspace, 0o500);
+      const preview = await prepareUpgradeBackupDeletion(f.owner, f.input);
+      const result = await deleteConfirmedUpgradeBackups(f.owner, preview.token, f.input);
+      assert.equal(result.retainedFiles, 1);
+      assert.equal(result.removedFiles, 1);
+      assert.equal(existsSync(join(f.backup, STORE_APP_LAYOUT_BACKUP_RECEIPT)), true);
+      const retained = await inspectUpgradeBackups(f.input());
+      assert.equal(retained.length, 1);
+      assert.equal(retained[0]?.backup.kind, "app-layout");
+      assert.ok(retained[0]!.backup.bytes >= 17);
+      const addedReceiptBytes = hasReceipt ? 0 : readFileSync(join(f.backup, STORE_APP_LAYOUT_BACKUP_RECEIPT)).length;
+      assert.equal(result.reclaimedBytes, preview.bytes - retained[0]!.backup.bytes + addedReceiptBytes);
+      if (!hasReceipt)
+        assert.equal(
+          JSON.parse(readFileSync(join(f.backup, STORE_APP_LAYOUT_BACKUP_RECEIPT), "utf8")).verification,
+          "activation",
+        );
+      assert.equal(readFileSync(join(f.workspace, "story.md"), "utf8"), "my original story");
+    } finally {
+      if (existsSync(oldWorkspace)) chmodSync(oldWorkspace, 0o700);
+      f.close();
+    }
+  });
+}

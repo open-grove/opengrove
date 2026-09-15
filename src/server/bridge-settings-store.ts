@@ -546,6 +546,34 @@ function defaultMountedApps(): BridgeMountedAppSettings[] {
   );
 }
 
+/** Read-only evidence for destructive actions; invalid entries must not look like an uninstalled App. */
+export function parsePersistedAppSettings(
+  value: unknown,
+): Pick<BridgeSettings, "mountedApps" | "uninstalledStoreAppIds"> {
+  const source = validatedBridgeSettingsSource(value);
+  const rawItems = typeof source.mountedApps === "string" ? source.mountedApps.split(delimiter) : source.mountedApps;
+  if (
+    !Array.isArray(rawItems) ||
+    rawItems.some((raw) => {
+      const item = typeof raw === "string" ? { path: raw } : record(raw);
+      return (
+        !stringOrUndefined(item.path) ||
+        (item.enabled !== undefined && typeof item.enabled !== "boolean") ||
+        (item.workspacePath !== undefined && typeof item.workspacePath !== "string")
+      );
+    })
+  )
+    throw new Error("bridge_settings_mounts_invalid");
+  const uninstalled = source.uninstalledStoreAppIds ?? [];
+  if (!Array.isArray(uninstalled) || uninstalled.some((id) => typeof id !== "string" || !id.trim()))
+    throw new Error("bridge_settings_uninstalled_apps_invalid");
+  const mountedApps = normalizeMountedApps(source.mountedApps, []);
+  return {
+    mountedApps,
+    uninstalledStoreAppIds: normalizedUninstalledStoreAppIds(normalizeStringList(uninstalled, []), mountedApps),
+  };
+}
+
 function normalizeMountedApps(input: unknown, fallback: BridgeMountedAppSettings[]): BridgeMountedAppSettings[] {
   if (input === undefined || input === null) {
     return fallback.filter((item) => !isRetiredKnowledgeVaultMount(item)).map((item) => ({ ...item }));

@@ -106,7 +106,7 @@ import {
   validateStoreAppLayoutWorkspaceCopiesV2,
 } from "./migrations/store-app-layout-v2.js";
 import { STORE_APP_LAYOUT_V2_LOG_EVENTS } from "./migrations/store-app-layout-v2-metadata.js";
-import { readPersistedBackupMounts, recordStoreAppLayoutBackups } from "./migrations/store-app-layout-v2-backups.js";
+import { readPersistedBackupSettings, recordStoreAppLayoutBackups } from "./migrations/store-app-layout-v2-backups.js";
 import { migrateStoreWorkspaceBindingsV1 } from "./migrations/store-workspace-binding-v1.js";
 import { mountedAppManifestIssue, readMountedAppManifest, resolveMountedAppTarget } from "./mounted-apps.js";
 import { productDefaultEmployees } from "./product-default-employees.js";
@@ -496,7 +496,7 @@ export function createBridgeState(
         {
           roots: storeAppLayoutRoots,
           mountedApps: state.settings.mountedApps,
-          persistedMountedApps: readPersistedBackupMounts(bridgeSettingsPath(state)),
+          persistedMountedApps: readPersistedBackupSettings(bridgeSettingsPath(state))?.mountedApps,
           appInitialized: state.appInitialized === true,
           initializedMountedApps: state.initializedMountedApps,
         },
