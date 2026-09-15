@@ -8,6 +8,7 @@ import type { HostOperation, HostOperationId, HostOperationOutput, RegisteredHos
 import { hostProtocol } from "#protocol/compiled";
 import type { CompiledHostOperation, CompiledHostOperationGroup } from "#protocol/compiler";
 import { APP_BRIDGE_TOKEN_HEADER } from "../identity.js";
+import { matchOperationCommand, operationCommandPath, operationCommandPaths } from "./command-path.js";
 import { runSchemaCommand } from "./schema-command.js";
 import {
   assertHostOperationInputCatalog,
@@ -62,6 +63,16 @@ export function isHostOperationCommand(
 
 export function assertHostOperationCliCatalog(catalog: HostOperationCliCatalog = hostProtocol): void {
   assertHostOperationInputCatalog(catalog.operations);
+  const paths = new Map<string, string>();
+  for (const operation of catalog.operations) {
+    for (const path of operationCommandPaths(operation)) {
+      const command = path.join(" ");
+      const previous = paths.get(command);
+      if (previous && previous !== operation.id)
+        throw new Error(`Ambiguous CLI command ${command}: ${previous}, ${operation.id}.`);
+      paths.set(command, operation.id);
+    }
+  }
 }
 
 export function renderHostOperationOverview(catalog: HostOperationCliCatalog = hostProtocol): string {
@@ -125,9 +136,10 @@ export async function prepareHostOperationCommand(
     return { kind: "result", result: { handled: false, exitCode: HOST_OPERATION_CLI_EXIT.success } };
   }
 
-  const operation = findOperation(args, catalog.operations);
-  if (!operation) return { kind: "result", result: renderUnresolvedCommand(args, catalog) };
-  const operationArgs = args.slice(operationCommandPath(operation).length);
+  const match = matchOperationCommand(args, catalog.operations);
+  if (!match) return { kind: "result", result: renderUnresolvedCommand(args, catalog) };
+  const { operation, path } = match;
+  const operationArgs = args.slice(path.length);
   if (operationArgs.includes("--help") || operationArgs.includes("-h")) {
     return {
       kind: "result",
@@ -204,7 +216,9 @@ export async function runHostOperationCommand(
 
 function renderUnresolvedCommand(args: readonly string[], catalog: HostOperationCliCatalog): HostOperationCliResult {
   const scope = leadingCommandSegments(args);
-  const help = renderScopeHelp(scope, catalog);
+  const helpScope = [...scope];
+  while (helpScope.length > 0 && !isKnownScope(helpScope, catalog)) helpScope.pop();
+  const help = renderScopeHelp(helpScope, catalog);
   if (args.includes("--help") || args.includes("-h") || isKnownScope(scope, catalog)) {
     return { handled: true, exitCode: HOST_OPERATION_CLI_EXIT.success, stdout: help };
   }
@@ -221,14 +235,7 @@ function findOperation(
   args: readonly string[],
   operations: readonly CompiledHostOperation[],
 ): CompiledHostOperation | undefined {
-  return operations
-    .slice()
-    .sort((left, right) => operationCommandPath(right).length - operationCommandPath(left).length)
-    .find((operation) => operationCommandPath(operation).every((segment, index) => args[index] === segment));
-}
-
-function operationCommandPath(operation: CompiledHostOperation): string[] {
-  return [operation.groupId, operation.resourceId, ...operation.methodName.split(".")];
+  return matchOperationCommand(args, operations)?.operation;
 }
 
 function leadingCommandSegments(args: readonly string[]): string[] {
@@ -247,22 +254,25 @@ function isKnownScope(scope: readonly string[], catalog: HostOperationCliCatalog
 }
 
 function renderScopeHelp(scope: readonly string[], catalog: HostOperationCliCatalog): string {
-  const matchingOperations = catalog.operations.filter((operation) => {
-    const path = operationCommandPath(operation);
-    return scope.every((segment, index) => path[index] === segment);
-  });
+  const matchingOperations = catalog.operations.filter((operation) =>
+    operationCommandPaths(operation).some((path) => scope.every((segment, index) => path[index] === segment)),
+  );
   const shownOperations = matchingOperations.length > 0 ? matchingOperations : catalog.operations;
   const heading = scope.length > 0 ? `OpenGrove ${scope.join(" ")}` : "OpenGrove Host commands";
   return [
     heading,
     "",
     "Usage:",
-    ...shownOperations.map((operation) => `  opengrove ${operationCommandPath(operation).join(" ")} [options]`),
+    `  opengrove ${scope.join(" ")} <command> [options]`,
     "",
     "Commands:",
-    ...shownOperations.map(
-      (operation) => `  ${operationCommandPath(operation).slice(scope.length).join(" ")}  ${operation.summary}`,
-    ),
+    ...shownOperations.map((operation) => {
+      const preferred = operationCommandPath(operation);
+      const path = scope.every((part, index) => preferred[index] === part) ? preferred : operation.id.split(".");
+      return `  ${path.slice(scope.length).join(" ")}  ${operation.summary}`;
+    }),
+    "",
+    "Use <command> --help for flags, or opengrove schema <command> for the full contract.",
   ].join("\n");
 }
 

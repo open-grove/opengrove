@@ -37,3 +37,20 @@ test("root help lists domains instead of dumping every operation", () => {
   assert.match(help, /room\s+Rooms/u);
   assert.doesNotMatch(help, /room message create/u);
 });
+
+test("Room collection commands omit repeated nouns while canonical operation paths remain usable", async () => {
+  const concise = await runHostOperationCommand(["room", "create", "--title", "Concise", "--dry-run"]);
+  const canonical = await runHostOperationCommand(["room", "room", "create", "--title", "Concise", "--dry-run"]);
+  assert.equal(concise.handled, true);
+  assert.equal(concise.exitCode, 0, concise.stderr);
+  assert.deepEqual(JSON.parse(concise.stdout ?? "null"), JSON.parse(canonical.stdout ?? "null"));
+  const schema = await runHostOperationCommand(["schema", "room", "create"]);
+  assert.equal(schema.exitCode, 0, schema.stderr);
+  assert.equal(JSON.parse(schema.stdout ?? "null").data.command, "opengrove room create");
+  const help = await runHostOperationCommand(["room", "--help"]);
+  assert.match(help.stdout ?? "", /create\s+Create a Room/u);
+  assert.doesNotMatch(help.stdout ?? "", /room room/u);
+  const unknown = await runHostOperationCommand(["room", "message", "unknown"]);
+  assert.equal(unknown.exitCode, 2);
+  assert.doesNotMatch(JSON.parse(unknown.stderr ?? "null").help, /auth|network/u);
+});

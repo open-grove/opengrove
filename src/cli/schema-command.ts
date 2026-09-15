@@ -1,3 +1,4 @@
+import { operationCommandPath } from "./command-path.js";
 import type { CompiledHostOperation } from "#protocol/compiler";
 import type { HostOperationCliCatalog } from "./host-operation-command.js";
 import { hostOperationFields } from "./host-operation-input.js";
@@ -50,7 +51,9 @@ export function runSchemaCommand(args: readonly string[], catalog: HostOperation
     });
   }
   const id = path.join(".");
-  const operation = catalog.operations.find((candidate) => candidate.id === id);
+  const operation = catalog.operations.find(
+    (candidate) => candidate.id === id || operationCommandPath(candidate).join(".") === id,
+  );
   if (operation) return hostOperationCliSuccess({ ok: true, data: describeOperation(operation) });
   const operations = catalog.operations.filter((candidate) => candidate.id.startsWith(`${id}.`));
   if (operations.length > 0) {
@@ -58,7 +61,7 @@ export function runSchemaCommand(args: readonly string[], catalog: HostOperation
       ok: true,
       data: operations.map((entry) => ({
         id: entry.id,
-        command: `opengrove ${entry.id.split(".").join(" ")}`,
+        command: `opengrove ${operationCommandPath(entry).join(" ")}`,
         summary: entry.summary,
         risk: entry.risk,
       })),
@@ -75,7 +78,7 @@ export function runSchemaCommand(args: readonly string[], catalog: HostOperation
 function describeOperation(operation: CompiledHostOperation) {
   return {
     id: operation.id,
-    command: `opengrove ${operation.id.split(".").join(" ")}`,
+    command: `opengrove ${operationCommandPath(operation).join(" ")}`,
     summary: operation.summary,
     description: operation.description,
     risk: operation.risk,
