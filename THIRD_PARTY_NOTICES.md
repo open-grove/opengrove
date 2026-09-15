@@ -224,3 +224,15 @@ Source: https://github.com/anomalyco/models.dev
 `vendor/agent-router-sdk-0.1.4.tgz` includes its LICENSE; npm verifies the
 distribution checksum recorded in `package-lock.json`. The Host imports only
 the package public entry point.
+
+## App Store archive libraries
+
+OpenGrove bundles `tar` 7.5.22 (Blue Oak Model License 1.0.0) and
+`adm-zip` 0.6.1 (MIT License) to extract App Store archives inside the Host.
+Their original license files ship in `node_modules/tar/LICENSE.md` and
+`node_modules/adm-zip/LICENSE` in desktop distributions.
+
+Sources:
+
+- https://github.com/isaacs/node-tar
+- https://github.com/cthackers/adm-zip

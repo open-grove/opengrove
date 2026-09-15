@@ -1,8 +1,21 @@
-import { spawnSync, type SpawnSyncReturns } from "node:child_process";
-import { copyFileSync, existsSync, lstatSync, mkdirSync, readdirSync, statSync } from "node:fs";
+import {
+  closeSync,
+  copyFileSync,
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  openSync,
+  readSync,
+  readdirSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import { dirname, join } from "node:path";
-import { tarCommand } from "../archive/tar-command.js";
+import { crc32 } from "node:zlib";
+import AdmZip from "adm-zip";
+import { extract, list, type ReadEntry } from "tar";
 
+const MAX_APP_STORE_ARCHIVE_BYTES = 256 * 1024 * 1024;
 const MAX_APP_STORE_UNPACKED_BYTES = 1024 * 1024 * 1024;
 const MAX_APP_STORE_FILES = 25_000;
 
@@ -12,31 +25,43 @@ export function unpackAppStoreArchive(
   archivePath: string,
   target: string,
 ): { ok: true } | { ok: false; error: string } {
-  const entries = listArchiveEntries(archivePath);
-  if (!entries.ok) return entries;
-  if (entries.entries.length > MAX_APP_STORE_FILES) {
-    return { ok: false, error: "app_store_archive_file_count_exceeded" };
+  try {
+    const archive = lstatSync(archivePath);
+    if (!archive.isFile()) throw new Error("app_store_archive_file_invalid");
+    if (archive.size > MAX_APP_STORE_ARCHIVE_BYTES) throw new Error("app_store_archive_too_large");
+    const targetEntry = lstatSync(target);
+    if (!targetEntry.isDirectory() || targetEntry.isSymbolicLink() || readdirSync(target).length) {
+      throw new Error("app_store_archive_target_invalid");
+    }
+    if (archivePath.toLowerCase().endsWith(".zip")) {
+      unpackZipArchive(archivePath, target);
+    } else {
+      unpackTarArchive(archivePath, target);
+    }
+    return { ok: true };
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    const code = error instanceof Error && "code" in error ? String(error.code) : "";
+    return {
+      ok: false,
+      error: detail.startsWith("app_store_archive_")
+        ? detail
+        : `app_store_archive_extract_failed: ${code ? `${code}: ` : ""}${detail}`,
+    };
   }
-  if (entries.entries.some((entry) => !isSafeAppStoreArchiveEntry(entry))) {
-    return { ok: false, error: "app_store_archive_path_invalid" };
-  }
-  if (isTarArchive(archivePath)) {
-    const entryTypes = validateTarEntryTypes(archivePath);
-    if (!entryTypes.ok) return entryTypes;
-  }
-  const lower = archivePath.toLowerCase();
-  const command = lower.endsWith(".zip")
-    ? { bin: "unzip", args: ["-q", archivePath, "-d", target] }
-    : { bin: tarCommand(), args: ["-xf", archivePath, "-C", target] };
-  const result = spawnSync(command.bin, command.args, { encoding: "utf8", windowsHide: true });
-  if (!result.error && result.status === 0) return { ok: true };
-  return { ok: false, error: archiveCommandFailure(command.bin, command.args, result) };
 }
 
 export function isSafeAppStoreArchiveEntry(entry: string): boolean {
   const normalized = entry.replace(/\\/g, "/");
-  if (!normalized || normalized.startsWith("/") || /^[a-zA-Z]:/.test(normalized)) return false;
-  return !normalized.split("/").some((segment) => segment === "..");
+  if (!normalized || normalized.startsWith("/") || /[\x00-\x1f<>:"|?*]/.test(normalized)) return false;
+  return !normalized
+    .split("/")
+    .some(
+      (segment) =>
+        segment === ".." ||
+        (segment !== "." &&
+          (/[. ]$/.test(segment) || /^(con|prn|aux|nul|com[1-9¹²³]|lpt[1-9¹²³])(?:\.|$)/i.test(segment))),
+    );
 }
 
 export function validateAppStoreExtractedTree(root: string): void {
@@ -107,58 +132,111 @@ export function findAppStoreArchiveRoot(root: string, kind: AppStoreArchiveKind)
   return undefined;
 }
 
-function listArchiveEntries(archivePath: string): { ok: true; entries: string[] } | { ok: false; error: string } {
-  const lower = archivePath.toLowerCase();
-  const command = lower.endsWith(".zip")
-    ? { bin: "unzip", args: ["-Z1", archivePath] }
-    : { bin: tarCommand(), args: ["-tf", archivePath] };
-  const result = spawnSync(command.bin, command.args, { encoding: "utf8", windowsHide: true });
-  if (result.error || result.status !== 0) {
-    return { ok: false, error: archiveCommandFailure(command.bin, command.args, result) };
-  }
-  return {
-    ok: true,
-    entries: result.stdout
-      .split(/\r?\n/g)
-      .map((entry) => entry.trim())
-      .filter(Boolean),
+// Validate every entry's path, type, and size before writing. The target is a fresh, Host-owned
+// staging directory; links and duplicate file paths never enter the extracted tree.
+function archiveEntryValidator(): (path: string, directory: boolean, size: number) => string {
+  let entries = 0;
+  let bytes = 0;
+  const paths = new Map<string, boolean>();
+  return (path, directory, size) => {
+    if (++entries > MAX_APP_STORE_FILES) throw new Error("app_store_archive_file_count_exceeded");
+    if (!isSafeAppStoreArchiveEntry(path)) throw new Error("app_store_archive_path_invalid");
+    if (!Number.isSafeInteger(size) || size < 0 || (directory && size !== 0)) {
+      throw new Error("app_store_archive_size_invalid");
+    }
+    bytes += size;
+    if (bytes > MAX_APP_STORE_UNPACKED_BYTES) throw new Error("app_store_archive_unpacked_too_large");
+    const parts = path
+      .replace(/\\/g, "/")
+      .split("/")
+      .filter((part) => part && part !== ".");
+    if (!parts.length && !directory) throw new Error("app_store_archive_path_invalid");
+    for (let i = 1; i <= parts.length; i++) {
+      const relative = parts.slice(0, i).join("/");
+      const key = process.platform === "win32" ? relative.normalize("NFC").toLowerCase() : relative;
+      const isDirectory = i < parts.length || directory;
+      const previous = paths.get(key);
+      if (previous !== undefined && (!previous || !isDirectory)) {
+        throw new Error("app_store_archive_path_conflict");
+      }
+      paths.set(key, isDirectory);
+      if (paths.size > MAX_APP_STORE_FILES) throw new Error("app_store_archive_file_count_exceeded");
+    }
+    return parts.join("/");
   };
 }
 
-function archiveCommandFailure(bin: string, args: string[], result: SpawnSyncReturns<string>): string {
-  const error = result.error as NodeJS.ErrnoException | undefined;
-  const details = [
-    error?.code,
-    error?.errno !== undefined ? `errno ${error.errno}` : undefined,
-    error?.message,
-    result.status !== null ? `exit code ${result.status}` : undefined,
-    result.signal ? `signal ${result.signal}` : undefined,
-    result.stderr?.trim(),
-    result.stdout?.trim(),
-  ].filter(Boolean);
-  return `${bin} ${args[0]} failed: ${details.join("; ") || "process ended without an exit code or error output"}`;
-}
-
-function validateTarEntryTypes(archivePath: string): { ok: true } | { ok: false; error: string } {
-  const bin = tarCommand();
-  const args = ["-tvf", archivePath];
-  const result = spawnSync(bin, args, { encoding: "utf8", windowsHide: true });
-  if (result.error || result.status !== 0) {
-    return { ok: false, error: archiveCommandFailure(bin, args, result) };
+function validateTarEntry(entry: ReadEntry, validate: ReturnType<typeof archiveEntryValidator>): void {
+  if (entry.type !== "File" && entry.type !== "OldFile" && entry.type !== "Directory") {
+    throw new Error("app_store_archive_entry_type_invalid");
   }
-  const safe = result.stdout
-    .split(/\r?\n/g)
-    .filter(Boolean)
-    .every((line) => {
-      const type = line[0] ?? "";
-      return type === "-" || type === "d";
-    });
-  return safe ? { ok: true } : { ok: false, error: "app_store_archive_entry_type_invalid" };
+  entry.path = validate(entry.path, entry.type === "Directory", entry.size) || ".";
+  // Preserve executable bits without restoring ownership or special permission bits.
+  entry.mode = ((entry.mode ?? 0o644) & 0o777) | (entry.type === "Directory" ? 0o700 : 0o600);
 }
 
-function isTarArchive(archivePath: string): boolean {
-  const lower = archivePath.toLowerCase();
-  return lower.endsWith(".tar") || lower.endsWith(".tgz") || lower.endsWith(".tar.gz");
+function unpackTarArchive(archivePath: string, target: string): void {
+  const validate = archiveEntryValidator();
+  const parser = list({ sync: true, strict: true, onReadEntry: (entry) => validateTarEntry(entry, validate) });
+  parser.on("ignoredEntry", () => {
+    throw new Error("app_store_archive_entry_type_invalid");
+  });
+  parser.on("error", (error) => {
+    throw error;
+  });
+  const fd = openSync(archivePath, "r");
+  try {
+    const buffer = Buffer.alloc(64 * 1024);
+    let size: number;
+    while ((size = readSync(fd, buffer)) > 0) parser.write(buffer.subarray(0, size));
+    parser.end();
+  } finally {
+    closeSync(fd);
+  }
+  const validateExtractedEntry = archiveEntryValidator();
+  extract({
+    file: archivePath,
+    cwd: target,
+    sync: true,
+    strict: true,
+    preservePaths: false,
+    preserveOwner: false,
+    filter: (_path, entry) => {
+      if (!("type" in entry)) throw new Error("app_store_archive_entry_type_invalid");
+      validateTarEntry(entry, validateExtractedEntry);
+      return true;
+    },
+  });
+}
+
+function unpackZipArchive(archivePath: string, target: string): void {
+  const zip = new AdmZip(archivePath);
+  if (zip.getEntryCount() > MAX_APP_STORE_FILES) throw new Error("app_store_archive_file_count_exceeded");
+  const validate = archiveEntryValidator();
+  const entries = zip.getEntries().map((entry) => {
+    const type = (entry.attr >>> 16) & 0o170000;
+    if (type !== 0 && type !== (entry.isDirectory ? 0o040000 : 0o100000)) {
+      throw new Error("app_store_archive_entry_type_invalid");
+    }
+    if (entry.header.flags & 1 || (entry.header.method !== 0 && entry.header.method !== 8)) {
+      throw new Error("app_store_archive_zip_encoding_unsupported");
+    }
+    const path = validate(entry.entryName, entry.isDirectory, entry.header.size);
+    return { entry, path };
+  });
+  for (const { entry, path } of entries) {
+    const outputPath = join(target, path);
+    if (entry.isDirectory) {
+      mkdirSync(outputPath, { recursive: true });
+      continue;
+    }
+    const data = entry.getData();
+    if (data.length !== entry.header.size || crc32(data) !== entry.header.crc) {
+      throw new Error("app_store_archive_zip_content_invalid");
+    }
+    mkdirSync(dirname(outputPath), { recursive: true });
+    writeFileSync(outputPath, data, { flag: "wx", mode: ((entry.attr >>> 16) & 0o777) | 0o600 });
+  }
 }
 
 function singleDirectoryRoot(root: string): string | undefined {
