@@ -48,7 +48,6 @@ jobs:
   baseline-health:
     name: Golden and previous installer availability
     runs-on: ubuntu-latest
-    environment: desktop-release
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4

@@ -53,6 +53,31 @@ export function planRealAgents(required, images) {
   }
   return { matrix: { include }, unconfigured };
 }
+export function selectRealAgentCases(cases, { headSha, runId, runAttempt, now = new Date() }) {
+  const latest = new Map();
+  for (const item of cases) {
+    const attempt = Number(item.runAttempt);
+    if (
+      item.headSha !== headSha ||
+      item.runId !== String(runId) ||
+      !Number.isSafeInteger(attempt) ||
+      attempt < 1 ||
+      attempt > Number(runAttempt)
+    )
+      throw new Error("Real Agent case receipt belongs to another run or future attempt");
+    const prior = latest.get(item.kernel);
+    if (prior && prior.runAttempt === item.runAttempt)
+      throw new Error(`duplicate Real Agent case attempt: ${item.kernel}`);
+    if (!prior || Number(prior.runAttempt) < attempt) latest.set(item.kernel, item);
+  }
+  for (const item of latest.values()) {
+    const age = now.getTime() - Date.parse(item.generatedAt);
+    if (!Number.isFinite(age) || age < -300_000 || age > 24 * 60 * 60_000)
+      throw new Error(`Real Agent case is stale: ${item.kernel}; rerun its probe`);
+  }
+  return [...latest.values()];
+}
+
 export function summarizeRealAgentCoverage(required, cases) {
   const seen = new Set();
   for (const item of cases) {
@@ -74,6 +99,8 @@ export function summarizeRealAgentCoverage(required, cases) {
       kernel: item.kernel,
       runtimeMode: item.runtime_mode,
       kernelVersion: proof?.kernelVersion ?? null,
+      checkedAt: proof?.generatedAt ?? null,
+      caseRunAttempt: proof?.runAttempt ?? null,
       required: true,
       capabilities,
     };
@@ -134,29 +161,35 @@ async function main() {
     .filter((name) => name.endsWith("case-receipt.json"))
     .map((name) => JSON.parse(readFileSync(join(directory, name), "utf8")));
   const commit = process.env.GITHUB_SHA;
-  for (const item of cases) {
-    if (
-      item.headSha !== commit ||
-      item.runId !== process.env.GITHUB_RUN_ID ||
-      item.runAttempt !== process.env.GITHUB_RUN_ATTEMPT
-    )
-      throw new Error("Real Agent case receipt does not belong to this attempt");
-  }
+  const selectedCases = selectRealAgentCases(cases, {
+    headSha: commit,
+    runId: process.env.GITHUB_RUN_ID,
+    runAttempt: process.env.GITHUB_RUN_ATTEMPT,
+  });
   const summary = {
     schemaVersion: 1,
     headSha: commit,
     runId: process.env.GITHUB_RUN_ID,
     runAttempt: process.env.GITHUB_RUN_ATTEMPT,
     inputDigest: realAgentInputDigest(commit),
-    ...summarizeRealAgentCoverage(required, cases),
+    ...summarizeRealAgentCoverage(required, selectedCases),
+    executionResult: process.env.SMOKE_RESULT,
   };
+  if (summary.executionResult !== "success") summary.ready = false;
   writeFileSync(join(directory, "real-agent-coverage.json"), `${JSON.stringify(summary, null, 2)}\n`);
   if (process.env.GITHUB_STEP_SUMMARY)
     appendFileSync(
       process.env.GITHUB_STEP_SUMMARY,
       `## Real Agent coverage\n\n| Kernel | Passed / required |\n|---|---|\n${summary.coverage.map((item) => `| ${item.kernel} | ${item.capabilities.filter((cap) => cap.status === "passed").length} / ${item.capabilities.length} |`).join("\n")}\n\nRelease eligible: **${summary.ready}**\n`,
     );
-  if (!summary.ready)
+  const diagnostic = process.env.DISPATCH_KERNEL;
+  const diagnosticPassed =
+    diagnostic &&
+    summary.executionResult === "success" &&
+    summary.coverage.some(
+      (item) => item.kernel === diagnostic && item.capabilities.every((capability) => capability.status === "passed"),
+    );
+  if (!summary.ready && !diagnosticPassed)
     throw new Error(
       "Incomplete Real Agent coverage; configure missing images/provider access or fix failed probes. See coverage artifact.",
     );

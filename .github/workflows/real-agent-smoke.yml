@@ -19,6 +19,7 @@ concurrency:
 
 jobs:
   plan:
+    timeout-minutes: 5
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.build.outputs.matrix }}
@@ -52,6 +53,7 @@ jobs:
       fail-fast: false
       matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
     container:
+      options: --init
       image: ${{ matrix.image }}
       credentials:
         username: ${{ github.actor }}
@@ -196,6 +198,7 @@ jobs:
           retention-days: 7
 
   coverage:
+    timeout-minutes: 10
     name: Required Real Agent coverage
     if: always()
     needs: [plan, smoke]
@@ -210,6 +213,9 @@ jobs:
           pattern: real-agent-*
           path: ${{ runner.temp }}/real-agent-coverage
       - name: Require complete fresh coverage for this attempt
+        env:
+          DISPATCH_KERNEL: ${{ inputs.kernel }}
+          SMOKE_RESULT: ${{ needs.smoke.result }}
         run: node scripts/real-agent-ci.mjs summarize "$RUNNER_TEMP/real-agent-coverage"
       - uses: actions/upload-artifact@v4
         if: always()

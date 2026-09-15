@@ -15,6 +15,7 @@ jobs:
   checks:
     uses: ./.github/workflows/ci-checks.yml
   required:
+    timeout-minutes: 5
     name: PR required
     if: always()
     needs: checks

@@ -12,6 +12,7 @@ env:
 
 jobs:
   plan:
+    timeout-minutes: 5
     runs-on: ubuntu-latest
     outputs:
       checks: ${{ steps.plan.outputs.checks }}
@@ -32,7 +33,7 @@ jobs:
         run: |
           set -euo pipefail
           archive="$RUNNER_TEMP/actionlint.tar.gz"
-          curl --fail --silent --show-error --location --retry 2 https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_linux_amd64.tar.gz -o "$archive"
+          curl --fail --silent --show-error --location --connect-timeout 15 --max-time 90 --retry 2 https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_linux_amd64.tar.gz -o "$archive"
           echo "8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8  $archive" | sha256sum --check
           tar -xzf "$archive" -C "$RUNNER_TEMP" actionlint
           "$RUNNER_TEMP/actionlint" -shellcheck=''
@@ -157,6 +158,7 @@ jobs:
           if-no-files-found: ignore
 
   result:
+    timeout-minutes: 5
     if: always()
     needs: [plan, checks, platforms, packages]
     runs-on: ubuntu-latest

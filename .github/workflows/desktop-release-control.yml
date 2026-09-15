@@ -1,5 +1,5 @@
 name: Control active desktop release
-run-name: ${{ inputs.orchestration_id && format('OpenGrove {0} / promote [{1}]', inputs.orchestration_tag, inputs.orchestration_id) || format('OpenGrove promote {0}', inputs.client_release_number) }}
+run-name: ${{ inputs.orchestration_id && format('OpenGrove {0} / promote [{1}]', inputs.orchestration_tag, inputs.orchestration_id) || format('OpenGrove {0} {1}', inputs.action, inputs.client_release_number) }}
 
 on:
   workflow_dispatch:

@@ -146,12 +146,13 @@ const proof = {
       required: true,
       runtimeMode: "sdk",
       kernelVersion: "0.85.1",
+      checkedAt: now.toISOString(),
       capabilities: [{ capability: "turn.lifecycle", status: "passed" }],
     },
   ],
 };
 const checkProof = (evidence = proof, digest = proof.inputDigest) =>
-  verifyReleaseLiveEvidence({ evidence, run, required, candidateInputDigest: digest });
+  verifyReleaseLiveEvidence({ evidence, run, required, candidateInputDigest: digest, now });
 assert.equal(checkProof().capabilities, 1);
 assert.throws(() => checkProof(undefined, "b".repeat(64)), /inputs changed/);
 assert.throws(() => checkProof({ ...proof, ready: false }), /complete/);

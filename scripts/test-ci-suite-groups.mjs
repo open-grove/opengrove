@@ -75,7 +75,7 @@ const expectedFullGroupSizes = {
   "apps-knowledge": 16,
   "app-lifecycle": 21,
   "kernels-providers": 28,
-  "web-desktop": 20,
+  "web-desktop": 19,
   "release-contracts": 1,
 };
 const groupSetupCommands = {
@@ -103,7 +103,7 @@ for (const [groupName, expectedSize] of Object.entries(expectedFullGroupSizes)) 
   groupedLabels.push(...harnessGroups[groupName].map((task) => task.id));
 }
 
-assert.equal(harnessInventory.length, 120, "the canonical deterministic harness inventory must not shrink silently");
+assert.equal(harnessInventory.length, 119, "the canonical deterministic harness inventory must not shrink silently");
 assert.deepEqual(
   harnessGroups.full,
   harnessInventory.filter((task) => !task.network),
@@ -188,3 +188,9 @@ assert.deepEqual(
 );
 assert.ok(!harnessGroups.full.some((task) => task.network));
 console.log("CI suite ownership harness ok");
+
+assert.ok(
+  !harnessInventory.some((task) => task.id === "desktop-dev-processes"),
+  "desktop process checks belong to the desktop contract owner",
+);
+assert.ok(packageJson.scripts["check:desktop-dev-runtime"].includes("scripts/test-desktop-dev-processes.mjs"));

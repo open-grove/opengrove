@@ -17,6 +17,7 @@ jobs:
   checks:
     uses: ./.github/workflows/ci-checks.yml
   result:
+    timeout-minutes: 5
     name: Main CI result
     if: always()
     needs: checks

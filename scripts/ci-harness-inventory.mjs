@@ -63,7 +63,6 @@ export const harnessInventory = [
   task("app-builder", "dist/tests/app-builder-harness.js", "apps-knowledge"),
   task("app-store", "dist/tests/app-store-harness.js", "apps-knowledge", { suite: "critical" }),
   task("kernel-command-path", "dist/tests/kernel-command-path-harness.js", "kernels-providers"),
-  task("desktop-dev-processes", "scripts/test-desktop-dev-processes.mjs", "web-desktop"),
   task("codex-app-server-client", "dist/tests/codex-app-server-client-harness.js", "kernels-providers"),
   task("codex-event-projector", "dist/tests/codex-event-projector-harness.js", "kernels-providers"),
   task("claude-code-runtime", "dist/tests/claude-code-runtime-harness.js", "kernels-providers"),

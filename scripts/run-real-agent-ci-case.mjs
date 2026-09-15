@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 const kernel = process.env.CI_KERNEL;
@@ -9,6 +9,7 @@ const capabilities = process.env.CI_CAPABILITIES;
 const directory = join(process.env.RUNNER_TEMP, "real-agent-case");
 const rawFile = join(directory, "probe.json");
 const publicDir = join(directory, "sanitized");
+rmSync(publicDir, { recursive: true, force: true });
 mkdirSync(publicDir, { recursive: true });
 const profiles = JSON.parse(process.env.CI_RUNTIME_ENVIRONMENTS || "{}");
 const extraEnv = profiles[kernel] ?? {};
@@ -71,5 +72,5 @@ execFileSync(
 writeFileSync(join(publicDir, "evidence.json"), readFileSync(rawFile));
 writeFileSync(
   join(publicDir, "case-receipt.json"),
-  `${JSON.stringify({ kernel, runtimeMode: mode, kernelVersion: version, image: process.env.CI_AGENT_IMAGE, capabilities: capabilities.split(","), passed: true, headSha: process.env.GITHUB_SHA, runId: process.env.GITHUB_RUN_ID, runAttempt: process.env.GITHUB_RUN_ATTEMPT }, null, 2)}\n`,
+  `${JSON.stringify({ kernel, runtimeMode: mode, kernelVersion: version, image: process.env.CI_AGENT_IMAGE, capabilities: capabilities.split(","), passed: true, generatedAt: startedAt, headSha: process.env.GITHUB_SHA, runId: process.env.GITHUB_RUN_ID, runAttempt: process.env.GITHUB_RUN_ATTEMPT }, null, 2)}\n`,
 );

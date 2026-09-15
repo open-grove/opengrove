@@ -30,7 +30,6 @@ concurrency:
 jobs:
   release:
     runs-on: ubuntu-latest
-    environment: desktop-release
     timeout-minutes: 360
     steps:
       - uses: actions/checkout@v4

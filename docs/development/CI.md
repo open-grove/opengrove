@@ -42,7 +42,10 @@ time; raw npm configuration and credentials are not uploaded. A timeout is an
 installation failure, not evidence that a product assertion failed. Investigate
 before rerunning; CI does not blindly retry the test.
 
-Baseline health checks verify availability and expected size for the pinned
+The repository variable `OPENGROVE_DESKTOP_RELEASE_PUBLIC_ROOT` exposes only the
+public download root to secret-free baseline health checks. Keep it aligned with
+the release environment; scheduled checks do not enter the protected publishing
+environment. Baseline health checks verify availability and expected size for the pinned
 historical golden and current stable installers. They are not byte-integrity
 proof. The candidate still downloads/replays golden bytes and acquires all three
 N-1 installers before any platform build. N-1 size/SHA-256 comes from the stable
@@ -74,15 +77,18 @@ Provider credentials belong to the `opengrove-real-agent-test` environment:
 
 The environment profile is an integration seam, not automatic account provisioning.
 Missing images, credentials, services, skipped probes or incomplete coverage leave
-the release unverified. A manual single-Kernel diagnostic is never full coverage.
+the release unverified. A successful single-Kernel diagnostic may be green, but its artifact remains
+`ready: false` and never counts as full coverage.
 The old opt-in switch cannot make a skipped matrix qualify a release.
 
 Only leak-checked successful case evidence is uploaded. The aggregate artifact
 `real-agent-coverage-RUN_ATTEMPT` records all required capabilities and binds them
 to the workflow run, attempt, commit, runtime modes and tested engine versions.
 Release eligibility downloads that artifact from the latest successful Nightly,
-checks completeness and compares a digest of tracked runtime/build/probe inputs
-with the candidate. A recent ancestor's evidence is reusable only when those
+checks completeness and individual case freshness, and compares a digest of tracked runtime/build/probe inputs
+with the candidate. Failed-job reruns may reuse passing cases from an earlier
+attempt of the same run/SHA for up to 24 hours; the newest case wins, and a failed
+matrix cannot qualify a release. Changed configuration requires a new run. A recent ancestor's evidence is reusable only when those
 inputs are identical; otherwise run Nightly again. PRs receive no live-provider
 or signing secrets.
 

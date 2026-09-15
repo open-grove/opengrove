@@ -95,7 +95,7 @@ export function evaluateReleaseCiEligibility({
   };
 }
 
-export function verifyReleaseLiveEvidence({ evidence, run, candidateInputDigest, required }) {
+export function verifyReleaseLiveEvidence({ evidence, run, candidateInputDigest, required, now = new Date() }) {
   if (evidence?.schemaVersion !== 1 || evidence.ready !== true)
     throw new Error("Nightly has no complete Real Agent coverage");
   if (
@@ -118,6 +118,9 @@ export function verifyReleaseLiveEvidence({ evidence, run, candidateInputDigest,
       !actual.kernelVersion
     )
       throw new Error(`Missing Real Agent runtime identity: ${expected.kernel}`);
+    const ageMs = now.getTime() - Date.parse(actual.checkedAt);
+    if (!Number.isFinite(ageMs) || ageMs < -300_000 || ageMs > 24 * 60 * 60_000)
+      throw new Error(`Stale Real Agent case: ${expected.kernel}`);
     if (!Array.isArray(actual.capabilities) || actual.capabilities.length !== expected.capabilities.length)
       throw new Error(`Incomplete Real Agent capabilities: ${expected.kernel}`);
     for (const capability of expected.capabilities) {

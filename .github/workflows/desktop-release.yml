@@ -1,5 +1,5 @@
 name: Desktop release candidate
-run-name: ${{ inputs.orchestration_id && format('OpenGrove {0} / candidate [{1}]', inputs.orchestration_tag, inputs.orchestration_id) || format('OpenGrove candidate {0}', inputs.ref) }}
+run-name: ${{ inputs.orchestration_id && format('OpenGrove {0} / candidate [{1}]', inputs.orchestration_tag, inputs.orchestration_id) || format('Desktop candidate {0} [{1}]', inputs.ref, inputs.platforms) }}
 
 on:
   workflow_dispatch:
@@ -235,7 +235,6 @@ jobs:
     if: >-
       !cancelled() && needs.resolve-candidate.result == 'success' &&
       (needs.deployment-readiness.result == 'success' || needs.resolve-candidate.outputs.full_candidate != 'true')
-    environment: desktop-release
     runs-on: ubuntu-latest
     timeout-minutes: 20
     outputs:
