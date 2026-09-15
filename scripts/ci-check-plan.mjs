@@ -9,11 +9,22 @@ export function createCiCheckPlan(event, paths) {
   }
   const scope = classifyCiChanges(event, paths);
   if (scope.docsOnly) {
-    return { checks: [{ id: "docs", command: "npm run check:doc-refs" }], platforms: [], packages: [] };
+    return { checks: [{ id: "docs", command: "npm run check:doc-refs", browser: false }], platforms: [], packages: [] };
   }
   const checks = [];
   const add = (id, command, enabled) => {
-    if (enabled) checks.push({ id, command });
+    if (enabled)
+      checks.push({
+        id,
+        command,
+        browser: [
+          "integration",
+          "browser-ui",
+          "desktop-protocol",
+          "harness-app-lifecycle",
+          "harness-web-desktop",
+        ].includes(id),
+      });
   };
   for (const [id, command, enabled] of [
     ["repository", "check:static:base", scope.base],

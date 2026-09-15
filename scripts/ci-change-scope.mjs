@@ -102,7 +102,12 @@ function classifyPath(path, result) {
 
   result.base = true;
 
-  if (CONSERVATIVE_PATHS.has(path) || path.startsWith(".github/actions/")) {
+  if (
+    CONSERVATIVE_PATHS.has(path) ||
+    path.startsWith(".github/actions/") ||
+    path.startsWith("scripts/ci-") ||
+    path.startsWith("scripts/run-ci-")
+  ) {
     enableEveryCodeScope(result);
   } else if (startsWithAny(path, SHARED_PROTOCOL_PATHS)) {
     enableScopes(result, [

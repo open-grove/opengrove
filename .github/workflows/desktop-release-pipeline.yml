@@ -1,0 +1,58 @@
+name: Desktop release pipeline
+run-name: OpenGrove pipeline ${{ inputs.ref }} / ${{ inputs.stop_after }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Exact authorized candidate SHA on main
+        required: true
+        type: string
+      stop_after:
+        description: Authorized endpoint (finalize stops before registration)
+        default: candidate
+        required: true
+        type: choice
+        options: [candidate, finalize, register, promote]
+      resume_run_id:
+        description: Original pipeline run ID to resume using its existing child runs
+        required: false
+        type: string
+
+permissions:
+  actions: write
+  contents: read
+
+concurrency:
+  group: desktop-release-pipeline-${{ inputs.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    environment: desktop-release
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Continue through the authorized release stages
+        env:
+          RELEASE_PROGRESS_FILE: ${{ runner.temp }}/release-progress.json
+          GH_TOKEN: ${{ github.token }}
+          CANDIDATE_COMMIT: ${{ inputs.ref }}
+          STOP_AFTER: ${{ inputs.stop_after }}
+          RESUME_RUN_ID: ${{ inputs.resume_run_id }}
+        run: node scripts/release-orchestration.mjs
+      - name: Preserve progress even if a stage fails
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-progress-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/release-progress.json
+          if-no-files-found: error
+          retention-days: 30

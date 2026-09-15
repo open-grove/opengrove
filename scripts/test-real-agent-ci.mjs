@@ -1,4 +1,8 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { planRealAgents, summarizeRealAgentCoverage, readRealAgentRequirements } from "./real-agent-ci.mjs";
 const required = [
   {
@@ -35,3 +39,57 @@ assert.equal(
   85,
 );
 console.log("Real Agent CI coverage policy ok");
+
+const directory = mkdtempSync(join(tmpdir(), "opengrove-evidence-policy-"));
+try {
+  const file = join(directory, "probe.json");
+  const timestamp = new Date().toISOString();
+  const probe = {
+    kernel: "pi",
+    capability: "turn.lifecycle",
+    status: "passed",
+    checkedAt: timestamp.slice(0, 10),
+    hostVersion: "0.7.0",
+    kernelVersion: "0.85.1",
+    runtimeMode: "sdk",
+  };
+  const invoke = (value) => {
+    writeFileSync(file, JSON.stringify(value));
+    return spawnSync(
+      process.execPath,
+      [
+        "scripts/check-real-runtime-evidence.mjs",
+        "--file",
+        file,
+        "--kernel",
+        "pi",
+        "--require",
+        "turn.lifecycle",
+        "--fail-on-failed",
+        "--not-before",
+        timestamp,
+        "--host-version",
+        "0.7.0",
+        "--kernel-version",
+        "0.85.1",
+        "--runtime-mode",
+        "sdk",
+      ],
+      { encoding: "utf8" },
+    );
+  };
+  const evidence = { schemaVersion: 1, generatedAt: timestamp, probes: [probe] };
+  assert.equal(invoke(evidence).status, 0);
+  for (const change of [
+    { kernelVersion: "0.84.0" },
+    { hostVersion: "0.6.0" },
+    { runtimeMode: "cli" },
+    { status: "skipped", reason: "missing_credentials" },
+  ])
+    assert.equal(invoke({ ...evidence, probes: [{ ...probe, ...change }] }).status, 1);
+  assert.equal(invoke({ ...evidence, generatedAt: "2020-01-01T00:00:00Z" }).status, 1);
+  assert.equal(invoke({ ...evidence, authorization: "test-only-value" }).status, 1);
+  assert.equal(invoke({ ...evidence, probes: [probe, probe] }).status, 1);
+} finally {
+  rmSync(directory, { recursive: true, force: true });
+}

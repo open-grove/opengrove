@@ -60,3 +60,25 @@ for (const file of readdirSync(resolve(root, ".github/workflows")).filter((file)
   }
 }
 console.log("CI workflow contract harness ok");
+
+assert.equal(
+  shared.jobs.checks.container,
+  undefined,
+  "permission and process cleanup tests require the standard Linux user/init environment",
+);
+assert.ok(!nightly.jobs.harness && !nightly.jobs["browser-ui"] && !nightly.jobs["web-package"]);
+const live = workflow("real-agent-smoke.yml");
+assert.ok(live.jobs.coverage.steps.some((step) => step.run?.includes("real-agent-ci.mjs summarize")));
+assert.ok(
+  !live.on.push && !live.on.pull_request,
+  "Nightly owns live service health; PR source checks must not require secrets",
+);
+const pipeline = workflow("desktop-release-pipeline.yml");
+assert.deepEqual(Object.keys(pipeline.on), ["workflow_dispatch"]);
+assert.equal(pipeline.on.workflow_dispatch.inputs.stop_after.default, "candidate");
+assert.deepEqual(pipeline.on.workflow_dispatch.inputs.stop_after.options, [
+  "candidate",
+  "finalize",
+  "register",
+  "promote",
+]);

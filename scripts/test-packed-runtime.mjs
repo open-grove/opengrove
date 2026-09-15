@@ -19,6 +19,7 @@ const installRoot = join(tempRoot, "runtime");
 const startedAt = Date.now();
 let phase = "pack";
 let outcome = "failed";
+let failure = null;
 
 try {
   // The caller builds first; skipping lifecycle scripts keeps this probe focused
@@ -82,6 +83,12 @@ try {
   outcome = "passed";
   console.log("packed-runtime ok (Host locale, App update Client, and routes resolve outside the monorepo)");
 } catch (error) {
+  failure = {
+    exitCode: error.code ?? null,
+    signal: error.signal ?? null,
+    killed: error.killed === true,
+    npmErrorCode: /npm error code ([A-Z_]+)/.exec(error.stderr ?? "")?.[1] ?? null,
+  };
   // Keep public diagnostics free of npm configuration, auth and registry URLs.
   console.error(
     `packed-runtime failed in ${phase}: code=${error.code ?? "unknown"}, signal=${error.signal ?? "none"}, killed=${error.killed === true}`,
@@ -94,6 +101,7 @@ try {
     durationMs: Date.now() - startedAt,
     platform: process.platform,
     node: process.version,
+    failure,
   };
   console.log(JSON.stringify(diagnostics));
   if (process.env.OPENGROVE_NETWORK_DIAGNOSTICS) {

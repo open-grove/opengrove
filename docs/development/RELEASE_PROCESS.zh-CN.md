@@ -21,9 +21,24 @@ OpenGrove 桌面正式版由 CI 从明确的候选 commit 构建。通过门禁�
   schema v3 登记的服务。未就绪时严格失败是预期行为；不得为兼容旧发布控制服务而删掉
   本地化发布说明。
 
-Nightly 证据证明近期祖先提交上的额外平台和真实服务健康状况，不要求它与
-候选 SHA 完全相同。Nightly 之后的提交由精确 SHA 的 Main CI 和最终候选制品
-门禁覆盖。
+Nightly 负责外部服务、联网生产依赖安装和基准包可用性。发布资格还会下载完整
+真实 Agent 覆盖制品，验证 run/attempt 身份及运行时输入摘要。近期祖先的相关输入
+未变化时才可复用，否则必须重跑 Nightly。原生平台和无正式签名的安装启动检查由
+精确 SHA 的 Main CI 负责。详见 [CI 职责与配置](CI.zh-CN.md)。
+
+## 持续执行到已授权终点
+
+`desktop-release-pipeline.yml` 按顺序调度既有候选、finalize、部署和切换 workflow。
+输入为已授权的精确 `ref` SHA 与明确的 `stop_after`：`candidate`、`finalize`、
+`register` 或 `promote`。默认停在候选；**停在登记之前**应选择 `finalize`。
+普通 Main push 不会触发发布，启动前必须完成版本和发布说明准备。
+
+编排从候选 SHA 读取版本及客户端发布编号，取得子 run ID 后立即保存，并在失败时
+也上传 `release-progress-<run-id>-<attempt>`。恢复时使用同一 SHA 和原始
+`resume_run_id`，明确选择这次授权的终点。编排验证已有子流程身份和结果，复用
+成功记录；失败阶段不会自动重新发布，应先定位原因、按需要重跑该子 run，再恢复。
+身份有歧义时拒绝继续。各阶段保留原来的 environment、权限、字节身份和远端核验；
+已验收产物不重建，也不会越过选择的终点切换更新。
 
 ## 准备候选版本
 
@@ -41,10 +56,9 @@ Nightly 证据证明近期祖先提交上的额外平台和真实服务健康状
 6. 运行能覆盖本次改动的针对性检查。
 
 导入的旧基线只对 `legacyHostVersion` 指定的 Host 版本有效。新认证行会绑定
-`hostVersion`、`kernelVersion` 与 `runtimeMode`；CI
-能够检查其结构和可重复生成，但不会假装重新运行一套只在本机配置好的真实
-Kernel。真实 Runtime 运行和原始 receipt 只作为本机未跟踪发布证据；人工复核后，
-仓库中只保存导入器生成的最小认证批次。
+`hostVersion`、`kernelVersion` 与 `runtimeMode`；CI 验证其结构和可复现性，
+并要求已配置测试镜像与服务对每个认证组合执行新探针。本地原始回执不提交，只有
+经评审的最小认证批次通过 importer 进入仓库；历史行不能代替 Nightly 的覆盖制品。
 
 ### 汇总并确认发布说明
 
@@ -99,9 +113,9 @@ Gate receipt schema v3 会在登记到 WW 前，用一个 SHA-256 摘要绑定�
 npm run release:readiness
 ```
 
-这个命令检查版本说明、发布配置与 workflow 契约，以及 npm 包清单。它不会
-重复 Main CI 和 Nightly 已负责的完整 harness、完整 Browser UI、Web 包集成或
-跨平台回归。
+这个命令检查正式发布说明与 npm 包清单。发布配置和 workflow 契约已在精确 SHA
+的 Main CI 通过；候选专属的基础设施、签名、基准和安装门禁仍独立保留，不重复
+源码 harness、UI 和 Web 包检查。
 
 如果希望在启动云端候选版本前，提前排除可确定复现的源码和发布资料问题，
 可以选择运行：
@@ -176,8 +190,8 @@ GitHub Release 资产。
   确认清理不会跟随链接或删除范围外文件。
 
 结果必须注明候选 SHA、客户端版本、操作系统版本、文件系统、测试目录、操作前后
-校验值和操作结果，并区分本地机器与 GitHub runner。Nightly 的跨平台 job 运行
-`npm run check:desktop-rebuildable-cleanup`，上传 `storage-cleanup-<platform>-<run-id>`
+校验值和操作结果，并区分本地机器与 GitHub runner。PR/Main 的原生平台 job 执行
+清理验收，上传 `storage-cleanup-<platform>-<run-attempt>`
 验收回执；Windows 会验证 NTFS 和 Junction 类型。该证据只覆盖文件系统清理行为，
 不代表实体电脑上的安装或界面验收。未执行的项目必须在发布记录中写明，
 不能把 mock、静态检查或其他测试通过记作本项通过。
