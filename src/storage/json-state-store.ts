@@ -73,7 +73,6 @@ export interface AgentStateStore {
   deleteRoomEvents?(eventSeqs: readonly number[]): number;
   clearRoomEventArchive?(): number;
   clearRuntimeEventArchive?(): number;
-  clearMigrationBackups?(): AgentFileCleanupResult;
   readDiagnosticArchive?(scope: AgentDiagnosticArchiveScope): AgentDiagnosticArchive;
   flush?(): Promise<void>;
   close?(): Promise<void>;
@@ -127,11 +126,6 @@ export interface AgentStorageStats {
 
 export interface AgentStorageCleanupResult {
   removedBlobs: number;
-  reclaimedBytes: number;
-}
-
-export interface AgentFileCleanupResult {
-  removedFiles: number;
   reclaimedBytes: number;
 }
 

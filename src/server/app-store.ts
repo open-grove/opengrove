@@ -64,6 +64,7 @@ import { getBridgeKernelOptions } from "./kernel-selection.js";
 import { migrateMountedAppManifestV1 } from "./migrations/app-manifest-v1.js";
 import {
   legacyAppStoreProgramsRoot,
+  isStoreAppLayoutV2BackupName,
   storeAppLayoutV2ProgramRoots,
   storeAppLayoutV2ProgramsRootForPath,
   storeAppLayoutV2WorkspaceContainerRootForPath,
@@ -2430,6 +2431,7 @@ function inspectProgramGenerationsInRoot(
       try {
         for (const generation of readdirSync(appBucketRoot, { withFileTypes: true })) {
           if (!generation.isDirectory() || generation.isSymbolicLink()) continue;
+          if (isStoreAppLayoutV2BackupName(generation.name)) continue;
           const generationRoot = join(appBucketRoot, generation.name);
           const appRoot = join(generationRoot, "app");
           if (activeProgramRoots.has(resolve(appRoot))) continue;

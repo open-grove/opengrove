@@ -719,7 +719,7 @@ export const EN = {
     "Clear only caches and temporary files that OpenGrove can recreate. Works, Apps, conversations, Knowledge, account, and settings are kept.",
   "confirm.clearMigrationBackupsTitle": "Delete update backups?",
   "confirm.clearMigrationBackupsBody":
-    "Delete only after confirming OpenGrove works normally after the update. You won't be able to return to the data from before the update.",
+    "Confirm the Apps you still use work normally and you no longer need the old data listed above. Disabled or uninstalled Apps do not need reactivation. Deleted backups cannot restore old files.",
   "confirm.publishEmployeeTitle": "Publish this employee pack?",
   "confirm.publishEmployeeBody":
     "Publishing creates a hireable employee pack. The persona and responsibilities ship with the pack; the public summary, capabilities, inputs and outputs appear in the catalog and A2A card. The pack contains no API keys or local secrets — hires configure dependencies on their own machines.",
@@ -919,12 +919,13 @@ export const EN = {
   "gate.retrying": "Retrying…",
   "gate.preparingLocalData": "Preparing local data",
   "gate.migratingLocalData": "Migrating local data. Please wait",
+  "gate.retryingLocalService": "Retrying the local service automatically",
   "gate.exportDiagnosticsFailed": "Failed to export the diagnostics bundle: {message}",
   "gate.startupIncompleteTitle": "Startup incomplete",
   "gate.startupIncompleteCopy":
     "OpenGrove has not finished starting. Retry, or export a diagnostics bundle for the developers.",
-  "gate.desktopStartupIncompleteCopy":
-    "OpenGrove is recovering the local service automatically. You can leave this window open; if recovery takes too long, export a diagnostics bundle for the developers.",
+  "gate.desktopStartupLongWaitCopy":
+    "This startup step is taking longer than usual. You can keep waiting or export diagnostics for troubleshooting.",
   "gate.startupBlockedTitle": "The local service needs attention",
   "gate.startupBlockedCopy":
     "OpenGrove pauses only when continuing could damage local data. Use an action below; recovery retries automatically when the action finishes.",
@@ -1284,8 +1285,35 @@ export const EN = {
     "Clear cache and temporary files without deleting works, Apps, conversations, Knowledge, account, or settings.",
   "settings.storageDeleteMigrationBackups": "Delete update backups",
   "settings.storageMigrationBackupsCopy":
-    "OpenGrove saves old data automatically before an update. Delete it after confirming the update works normally.",
+    "Old data retained during updates or directory migration. Deletion requires checks and your confirmation that the old data is no longer needed.",
   "settings.storageMigrationBackupsDeleted": "Deleted about {size} of update backups.",
+  "confirm.clearVerifiedBackupsSummary": "Delete {count} checked update backups, totaling {size}.",
+  "confirm.clearVerifiedBackupsAction": "Confirm deletion of old backups",
+  "settings.storageBackupChecking": "Checking current Workspaces, references to old directories, and backup sizes.",
+  "settings.storageBackupVerified": "The App uses the new Workspace; checked again before deletion.",
+  "settings.storageBackupUnverified": "Backup ownership could not be confirmed. The old data has been kept.",
+  "settings.storageBackupProtected": "Protected: {reason}",
+  "settings.storageBackupWorkspace": "Current Workspace for {app}: {path}",
+  "settings.storageBackupSystemData": "Update backups of conversations and system data",
+  "settings.storageBackupProtectedCount": "Another {count} backups did not pass the checks and will be kept.",
+  "settings.storageBackupNoneVerified":
+    "No update backups can be deleted. Review the reasons shown for each retained backup.",
+  "settings.storageBackupPlanStale":
+    "The backups or Workspace bindings changed, or confirmation expired. Check and confirm again.",
+  "settings.storageBackupPartialFailure": "Could not fully delete {count} backups. Remaining contents have been kept.",
+  "settings.storageBackupActivationUnconfirmed": "The new Workspace has not been confirmed active and saved.",
+  "settings.storageBackupWorkspaceUnavailable":
+    "The current Workspace is unavailable, replaced, or has an inconsistent binding.",
+  "settings.storageBackupDisabledApp":
+    "{app} is disabled; retained Workspace: {path}. Old backups can be deleted without enabling the App.",
+  "settings.storageBackupUninstalledApp":
+    "{app} is uninstalled. This is retained old data; delete it only if no longer needed.",
+  "settings.storageBackupAppNotMounted":
+    "The App is absent without a complete uninstall record. Old data has been kept.",
+  "settings.storageBackupReferenceScanFailed":
+    "Some App folders could not be read. Reference checking is incomplete, so this backup has been kept.",
+  "settings.storageBackupActiveReference": "An App or link still refers to the old directory.",
+  "settings.storageBackupUnsafePath": "The backup directory or migration record could not be safely verified.",
   "settings.storageBackupNone": "No backups of this type.",
   "settings.storageCategoryWorksAndFiles": "My works and files",
   "settings.storageCategoryWorksAndFilesCopy":
@@ -1300,7 +1328,7 @@ export const EN = {
     "OpenGrove can recreate them; some content may need to be downloaded again.",
   "settings.storageCategoryBackups": "Update backups",
   "settings.storageCategoryBackupsCopy":
-    "Old data saved automatically before an update, so OpenGrove can recover if the update fails.",
+    "Old data retained during updates or directory migration, including old Apps and Workspaces, for recovery if needed.",
   "settings.storageBackupSummary": "{count} backups; latest saved {time}.",
   "workspace.kernel": "Kernel",
   "workspace.namedKernel": "{name} kernel",

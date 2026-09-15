@@ -394,7 +394,10 @@ function inspectSideBySideLegacyStoreInstallation(
   };
 }
 
-function inspectLegacyStoreProgramMetadata(appId: string, programRoot: string): LegacyStoreProgramMetadata | undefined {
+export function inspectLegacyStoreProgramMetadata(
+  appId: string,
+  programRoot: string,
+): LegacyStoreProgramMetadata | undefined {
   const marker = readAppStorePackageInstallMarker(programRoot);
   if (!marker || stringValue(marker.source) !== "registry" || stringValue(marker.appId) !== appId) return undefined;
   const manifestPath = [join(programRoot, "opengrove.app.json"), join(programRoot, "opengrove.app.jsonc")].find(
@@ -408,6 +411,10 @@ function inspectLegacyStoreProgramMetadata(appId: string, programRoot: string): 
     stringValue(recordValue(manifest?.workspace).path) ||
     "workspace";
   return safeRelativePath(workspaceRelativePath) ? { marker, workspaceRelativePath } : undefined;
+}
+
+export function isStoreAppLayoutV2BackupName(name: string): boolean {
+  return name.endsWith(".legacy-v2");
 }
 
 function directLegacyGenerationName(marker: Record<string, unknown>, programRoot: string): string {
@@ -587,6 +594,7 @@ function legacyProgramGenerations(legacyProgramsRoot: string, appId: string): st
     const bucketRoot = join(legacyProgramsRoot, bucket.name);
     for (const generation of readdirSync(bucketRoot, { withFileTypes: true })) {
       if (!generation.isDirectory() || generation.isSymbolicLink()) continue;
+      if (isStoreAppLayoutV2BackupName(generation.name)) continue;
       const generationRoot = join(bucketRoot, generation.name);
       const marker = readAppStorePackageInstallMarker(join(generationRoot, "app"));
       if (stringValue(marker?.source) === "registry" && stringValue(marker?.appId) === appId) {

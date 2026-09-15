@@ -7,7 +7,10 @@ import { rawDiagnosticText, useI18n } from "../../i18n";
 import type { TranslationFn } from "../../i18n";
 import { teamGateCopy } from "../../locales/team-gate-copy";
 import { readDesktopApi } from "../../desktop-api";
-import type { DesktopBridgeStartupBlockerAction } from "../../../../src/desktop-bridge-startup-state";
+import type {
+  DesktopBridgeStartupBlockerAction,
+  DesktopBridgeStartupState,
+} from "../../../../src/desktop-bridge-startup-state";
 import { OpenGroveSaplingMark } from "../ui/opengrove-sapling-mark";
 import { CloudAuthConstellation } from "./cloud-auth-constellation";
 import { resolveStartupTimeoutMs } from "./startup-timeout-policy";
@@ -699,22 +702,17 @@ export function AccountServiceStatus(props: {
   );
 }
 
-export function CloudAuthLoadingScreen(props: {
-  blocker?: {
-    code: string;
-    message: string;
-    actions: DesktopBridgeStartupBlockerAction[];
-  };
-  recoveringLocalService?: boolean;
-  migratingLocalData?: boolean;
-  onRetry(): void;
-  timeoutMs?: number;
-}) {
+export function CloudAuthLoadingScreen(
+  props: { onRetry(): void; timeoutMs?: number } & (
+    | { mode: "desktop"; startupState: DesktopBridgeStartupState | undefined }
+    | { mode?: "auth"; startupState?: never }
+  ),
+) {
   const { t } = useI18n();
   const desktop = readDesktopApi();
   const timeoutMs = resolveStartupTimeoutMs(props);
   const [attempt, setAttempt] = useState(0);
-  const [timedOut, setTimedOut] = useState(false);
+  const [longWait, setLongWait] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [exportedFileName, setExportedFileName] = useState("");
   const [exportedEvidenceComplete, setExportedEvidenceComplete] = useState<boolean | undefined>();
@@ -722,14 +720,22 @@ export function CloudAuthLoadingScreen(props: {
   const [resolvingAction, setResolvingAction] = useState<DesktopBridgeStartupBlockerAction | "">("");
   const [resolutionError, setResolutionError] = useState("");
   const timeoutRecord = useRef<Promise<void> | undefined>(undefined);
-  const blocked = Boolean(props.blocker);
+  const startupState = props.startupState;
+  const blocker = startupState?.stage === "blocked" ? startupState : undefined;
+  const blocked = Boolean(blocker);
+  const desktopStartup = props.mode === "desktop";
+  const startupStage = startupState?.stage;
+  const startupAttempt = startupState && "attempt" in startupState ? startupState.attempt : undefined;
+  const timedOut = longWait && !desktopStartup;
 
   useEffect(() => {
-    setTimedOut(false);
-    if (blocked) return undefined;
+    setLongWait(false);
+    if (blocked || startupStage === "ready" || startupStage === "maintenance") return undefined;
     const timer = window.setTimeout(() => {
-      setTimedOut(true);
-      if (desktop) {
+      setLongWait(true);
+      // The host owns Desktop readiness and failures. A long migration or
+      // retry is still active work, not evidence of a startup incident.
+      if (desktop && !desktopStartup) {
         console.error("[opengrove-ui] desktop startup timeout", { code: "desktop_startup_timeout" });
         timeoutRecord.current = desktop
           .recordStartupTimeout?.()
@@ -740,10 +746,10 @@ export function CloudAuthLoadingScreen(props: {
       }
     }, timeoutMs);
     return () => window.clearTimeout(timer);
-  }, [attempt, blocked, desktop, timeoutMs]);
+  }, [attempt, blocked, desktop, desktopStartup, startupAttempt, startupStage, timeoutMs]);
 
   const retry = () => {
-    setTimedOut(false);
+    setLongWait(false);
     setExportedFileName("");
     setExportedEvidenceComplete(undefined);
     setExportError("");
@@ -799,6 +805,28 @@ export function CloudAuthLoadingScreen(props: {
     }
   };
 
+  const exportButton = desktop?.exportDiagnostics ? (
+    <button
+      className="og-button cloud-auth-timeout-action"
+      type="button"
+      onClick={exportDiagnostics}
+      disabled={exporting}
+    >
+      {exporting ? t("gate.exporting") : t("gate.exportDiagnostics")}
+    </button>
+  ) : null;
+  const exportFeedback = (
+    <>
+      {exportedFileName ? (
+        <p className="cloud-auth-status">{t("gate.exportedFile", { name: exportedFileName })}</p>
+      ) : null}
+      {exportedEvidenceComplete === false ? (
+        <p className="bridge-token-error">{t("gate.exportedFileIncomplete")}</p>
+      ) : null}
+      {exportError ? <p className="bridge-token-error">{exportError}</p> : null}
+    </>
+  );
+
   return (
     <main className="cloud-auth-shell cloud-auth-loading-shell" aria-label="OpenGrove">
       <div className="cloud-auth-window-drag-region" aria-hidden="true" />
@@ -808,18 +836,10 @@ export function CloudAuthLoadingScreen(props: {
             <OpenGroveSaplingMark />
           </div>
           <h1>{t(blocked ? "gate.startupBlockedTitle" : "gate.startupIncompleteTitle")}</h1>
-          <p>
-            {t(
-              blocked
-                ? "gate.startupBlockedCopy"
-                : props.recoveringLocalService
-                  ? "gate.desktopStartupIncompleteCopy"
-                  : "gate.startupIncompleteCopy",
-            )}
-          </p>
-          {props.blocker ? <p className="bridge-token-error">{rawDiagnosticText(props.blocker.message)}</p> : null}
+          <p>{t(blocked ? "gate.startupBlockedCopy" : "gate.startupIncompleteCopy")}</p>
+          {blocker ? <p className="bridge-token-error">{rawDiagnosticText(blocker.message)}</p> : null}
           <div className="rooms-guide-actions">
-            {props.blocker?.actions.includes("stop_blocking_process") ? (
+            {blocker?.actions.includes("stop_blocking_process") ? (
               <button
                 className="og-button og-button--primary cloud-auth-timeout-action"
                 type="button"
@@ -829,7 +849,7 @@ export function CloudAuthLoadingScreen(props: {
                 {t("gate.stopBlockingServiceAndRetry")}
               </button>
             ) : null}
-            {props.blocker?.actions.includes("repair_state_access") ? (
+            {blocker?.actions.includes("repair_state_access") ? (
               <button
                 className="og-button og-button--primary cloud-auth-timeout-action"
                 type="button"
@@ -841,7 +861,7 @@ export function CloudAuthLoadingScreen(props: {
             ) : null}
             <button
               className={
-                props.blocker
+                blocker
                   ? "og-button cloud-auth-timeout-action"
                   : "og-button cloud-auth-timeout-action cloud-auth-timeout-action--neutral"
               }
@@ -849,9 +869,9 @@ export function CloudAuthLoadingScreen(props: {
               onClick={retry}
               disabled={exporting || Boolean(resolvingAction)}
             >
-              {t(props.blocker ? "gate.recheck" : "mountedApp.retry")}
+              {t(blocker ? "gate.recheck" : "mountedApp.retry")}
             </button>
-            {props.blocker?.actions.includes("open_data_dir") && desktop?.openDataDir ? (
+            {blocker?.actions.includes("open_data_dir") && desktop?.openDataDir ? (
               <button
                 className="og-button cloud-auth-timeout-action"
                 type="button"
@@ -861,34 +881,28 @@ export function CloudAuthLoadingScreen(props: {
                 {t("gate.openDataDirectory")}
               </button>
             ) : null}
-            {desktop?.exportDiagnostics ? (
-              <button
-                className="og-button cloud-auth-timeout-action"
-                type="button"
-                onClick={exportDiagnostics}
-                disabled={exporting}
-              >
-                {exporting ? t("gate.exporting") : t("gate.exportDiagnostics")}
-              </button>
-            ) : null}
+            {exportButton}
           </div>
-          {exportedFileName ? (
-            <p className="cloud-auth-status">{t("gate.exportedFile", { name: exportedFileName })}</p>
-          ) : null}
-          {exportedEvidenceComplete === false ? (
-            <p className="bridge-token-error">{t("gate.exportedFileIncomplete")}</p>
-          ) : null}
-          {exportError ? <p className="bridge-token-error">{exportError}</p> : null}
+          {exportFeedback}
           {resolutionError ? <p className="bridge-token-error">{resolutionError}</p> : null}
         </section>
       ) : (
-        <CloudAuthStartupProgress migratingLocalData={props.migratingLocalData === true} />
+        <section className="cloud-auth-startup-panel">
+          <CloudAuthStartupProgress startupState={startupState} />
+          {longWait ? (
+            <div className="cloud-auth-long-wait" aria-live="polite">
+              <p>{t("gate.desktopStartupLongWaitCopy")}</p>
+              {exportButton}
+              {exportFeedback}
+            </div>
+          ) : null}
+        </section>
       )}
     </main>
   );
 }
 
-function CloudAuthStartupProgress(props: { migratingLocalData: boolean }) {
+function CloudAuthStartupProgress(props: { startupState?: DesktopBridgeStartupState }) {
   const { t } = useI18n();
   const [animationCycle, setAnimationCycle] = useState(0);
 
@@ -904,7 +918,13 @@ function CloudAuthStartupProgress(props: { migratingLocalData: boolean }) {
         <OpenGroveSaplingMark />
       </div>
       <p className="cloud-auth-loading-status">
-        {t(props.migratingLocalData ? "gate.migratingLocalData" : "gate.preparingLocalData")}
+        {t(
+          props.startupState?.stage === "migrating"
+            ? "gate.migratingLocalData"
+            : props.startupState?.stage === "retrying"
+              ? "gate.retryingLocalService"
+              : "gate.preparingLocalData",
+        )}
         <span className="cloud-auth-loading-dots" aria-hidden="true">
           <span>.</span>
           <span>.</span>

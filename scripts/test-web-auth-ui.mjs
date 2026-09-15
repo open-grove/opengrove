@@ -339,6 +339,7 @@ async function runBrowserHarness(path) {
       countryCode: "US",
     });
 
+    await page.clock.install();
     await page.evaluate(() => window.renderStartupLoadingHarness());
     const startupProgress = page.getByRole("status");
     await startupProgress.waitFor();
@@ -356,12 +357,57 @@ async function runBrowserHarness(path) {
       new Set(["opengrove-startup-base", "opengrove-startup-trunk", "opengrove-startup-leaf"]),
       "desktop startup progress must use the approved Fluent-style base, trunk, and leaf sequence",
     );
-    await page.evaluate(() => window.renderStartupLoadingHarness(true));
+    await page.clock.fastForward(45_001);
+    await assertVisibleText(page, "当前启动步骤耗时较长");
+    assert.equal(await page.getByRole("alert").count(), 0, "a slow local service startup is not a confirmed failure");
+    await page.evaluate(() => window.renderStartupLoadingHarness({ stage: "migrating", attempt: 1 }));
+    assert.equal(await page.getByText("当前启动步骤耗时较长", { exact: false }).count(), 0);
     assert.equal(
       await page.getByRole("status").textContent(),
       "正在迁移本地数据，请稍候...",
       "the migration activity must replace generic startup copy without adding a blocking control",
     );
+    await page.clock.fastForward(45_001);
+    assert.equal(await page.getByRole("alert").count(), 0, "an active migration must not become a timer failure");
+    assert.equal(await page.evaluate(() => window.__startupCalls.record), 0, "elapsed time is not a startup incident");
+    assert.equal(
+      await page.getByRole("button", { name: "重试", exact: true }).count(),
+      0,
+      "do not restart active migration work",
+    );
+    await page.getByRole("button", { name: "导出错误包" }).click();
+    await assertVisibleText(page, "OpenGrove-migration-test.zip");
+    assert.equal(await page.evaluate(() => window.__startupCalls.export), 1);
+    await page.clock.fastForward(15 * 60_000);
+    assert.equal(await page.getByRole("status").textContent(), "正在迁移本地数据，请稍候...");
+    assert.equal(await page.getByRole("alert").count(), 0);
+    assert.equal(await page.evaluate(() => window.__startupCalls.record), 0);
+    await page.evaluate(() =>
+      window.renderStartupLoadingHarness({
+        stage: "retrying",
+        attempt: 1,
+        retryInMs: 1_000,
+        message: "Temporary startup failure",
+      }),
+    );
+    assert.equal(await page.getByRole("status").textContent(), "正在自动重试本机服务...");
+    assert.equal(await page.getByText("当前启动步骤耗时较长", { exact: false }).count(), 0);
+    await page.clock.fastForward(45_001);
+    await assertVisibleText(page, "当前启动步骤耗时较长");
+    await page.evaluate(() =>
+      window.renderStartupLoadingHarness({
+        stage: "retrying",
+        attempt: 2,
+        retryInMs: 2_000,
+        message: "Temporary startup failure",
+      }),
+    );
+    assert.equal(
+      await page.getByText("当前启动步骤耗时较长", { exact: false }).count(),
+      0,
+      "a new host attempt clears the previous wait notice",
+    );
+    await page.clock.resume();
 
     await page.evaluate(() => window.renderStartupTimeoutHarness(true));
     await page.getByText("启动未完成").waitFor();
@@ -602,12 +648,22 @@ function entrySource() {
         onRetry: () => { window.__startupCalls.retry += 1; },
       })));
     };
-    window.renderStartupLoadingHarness = (migratingLocalData = false) => {
-      window.openGroveDesktop = {};
+    window.renderStartupLoadingHarness = (startupState = { stage: "starting", attempt: 1 }) => {
+      if (!window.__loadingDesktopApi) {
+        window.__startupCalls = { retry: 0, record: 0, export: 0 };
+        window.__loadingDesktopApi = {
+          recordStartupTimeout: async () => { window.__startupCalls.record += 1; },
+          exportDiagnostics: async () => {
+            window.__startupCalls.export += 1;
+            return { status: "saved", fileName: "OpenGrove-migration-test.zip", evidenceComplete: true };
+          },
+        };
+      }
+      window.openGroveDesktop = window.__loadingDesktopApi;
       flushSync(() => root.render(React.createElement(CloudAuthLoadingScreen, {
         key: "desktop-loading",
-        recoveringLocalService: true,
-        migratingLocalData,
+        mode: "desktop",
+        startupState,
         onRetry: () => {},
       })));
     };
@@ -624,7 +680,10 @@ function entrySource() {
       flushSync(() => root.render(React.createElement(CloudAuthLoadingScreen, {
         key: "desktop-blocker",
         timeoutMs: 10,
-        blocker: {
+        mode: "desktop",
+        startupState: {
+          stage: "blocked",
+          attempt: 1,
           code: "LOCAL_STATE_LOCKED",
           message: "PID 4242 is still using this OpenGrove data. Close the other OpenGrove window and retry.",
           actions: ["stop_blocking_process", "repair_state_access", "open_data_dir", "retry"],

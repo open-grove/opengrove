@@ -221,6 +221,19 @@ await handleSettingsRoute({
 assert.equal(routeStatus, 409);
 assert.match((routePayload as { error: string }).error, /^desktop_storage_maintenance_active_runs:/);
 assert.equal(cleanupCalls, 0, "the real cleanup route must not delete while a Run is active");
+await handleSettingsRoute({
+  request: { method: "POST" } as IncomingMessage,
+  response: {} as ServerResponse,
+  url: new URL("http://localhost/settings/storage/clear-history"),
+  state: routeState,
+  sendJson: (_response, status, payload) => {
+    routeStatus = status;
+    routePayload = payload;
+  },
+  readJsonBody: async () => ({ scope: "migration-backups", preview: true }),
+});
+assert.equal(routeStatus, 409, "backup verification cannot run while a Run writes Workspace files");
+assert.match((routePayload as { error: string }).error, /^desktop_storage_maintenance_active_runs:/);
 releaseRouteRun();
 
 await handleSettingsRoute({

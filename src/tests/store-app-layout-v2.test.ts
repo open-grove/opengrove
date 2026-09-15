@@ -794,6 +794,41 @@ test("deferred cleanup scans verified legacy Programs generations", () => {
   }
 });
 
+test("retired layout backups survive later startup and cache cleanup", () => {
+  const fixture = createLegacyFixture("retained-backup-app");
+  const previousEnv = captureEnv(["OPENGROVE_PROGRAMS_DIR"]);
+  try {
+    process.env.OPENGROVE_PROGRAMS_DIR = fixture.roots.programsRoot;
+    const migration = migrateStoreAppLayoutsV2({ roots: fixture.roots, mountedApps: [fixture.mount] });
+    assert.deepEqual(migration.failures, []);
+    const retired = retireLegacyStoreAppLayoutsV2({ roots: fixture.roots, mountedApps: migration.mountedApps });
+    assert.equal(retired.renamed.length, 2);
+    const generation = retired.renamed.find((path) => path.startsWith(fixture.roots.legacyProgramsRoot))!;
+    writeFileSync(
+      join(generation, ".opengrove-cleanup-pending"),
+      JSON.stringify({
+        schemaVersion: 1,
+        kind: "program-generation-cleanup",
+        appRoot: resolve(generation, "app"),
+        createdAt: new Date().toISOString(),
+      }),
+    );
+    assert.deepEqual(
+      retireLegacyStoreAppLayoutsV2({ roots: fixture.roots, mountedApps: migration.mountedApps }).renamed,
+      [],
+    );
+    const cleanup = cleanupUnreferencedAppStoreProgramGenerations(dirname(fixture.roots.legacyProgramsRoot), {
+      mountedApps: migration.mountedApps,
+    });
+    assert.deepEqual(cleanup.removed, []);
+    for (const path of retired.renamed) assert.equal(existsSync(path), true);
+    assert.equal(existsSync(generation + ".legacy-v2"), false);
+  } finally {
+    restoreEnv(previousEnv);
+    rmSync(fixture.root, { recursive: true, force: true });
+  }
+});
+
 test("Store program buckets stay readable and Windows-safe", () => {
   assert.equal(appStoreAppDirectoryName("story-seed"), "story-seed");
   assert.equal(appStoreAppDirectoryName("publisher:story-seed"), "publisher%3Astory-seed");
@@ -948,6 +983,11 @@ test("Bridge startup persists the new pointer before retiring legacy paths", asy
     assert.equal(loadBridgeSettings(migratedState).mountedApps[0]?.path, mount.path);
     assert.equal(existsSync(`${fixture.legacyWorkspaceContainer}.legacy-v2`), true);
     assert.equal(existsSync(`${dirname(fixture.legacyProgramRoot)}.legacy-v2`), true);
+    assert.equal(
+      existsSync(join(`${fixture.legacyWorkspaceContainer}.legacy-v2`, ".opengrove-layout-backup.json")),
+      true,
+      "healthy persisted activation must leave evidence for later backup cleanup",
+    );
   } finally {
     await seedState?.store.close?.();
     await migratedState?.store.close?.();

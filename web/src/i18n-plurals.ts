@@ -25,6 +25,18 @@ const ENGLISH_PLURAL_FORMS: Partial<Record<TranslationKey, EnglishPluralForms>> 
     one: "{count} backup; latest saved {time}.",
     other: "{count} backups; latest saved {time}.",
   },
+  "confirm.clearVerifiedBackupsSummary": {
+    one: "Delete {count} checked update backup, totaling {size}.",
+    other: "Delete {count} checked update backups, totaling {size}.",
+  },
+  "settings.storageBackupProtectedCount": {
+    one: "Another {count} backup did not pass the checks and will be kept.",
+    other: "Another {count} backups did not pass the checks and will be kept.",
+  },
+  "settings.storageBackupPartialFailure": {
+    one: "Could not fully delete {count} backup. Remaining contents have been kept.",
+    other: "Could not fully delete {count} backups. Remaining contents have been kept.",
+  },
   "system.maxAttachments": {
     one: "You can add up to {count} attachment at once.",
     other: "You can add up to {count} attachments at once.",
