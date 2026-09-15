@@ -29,6 +29,7 @@ try {
     const page = await browser.newPage({ viewport: { width: 1180, height: 860 } });
     await page.goto(pathToFileURL(htmlPath).href);
     await testEmployeePageFlow(page);
+    await testEmployeeAccessKernelSwitch(page);
     await testEmployeeReasoningKernelSwitch(page);
     await testEmployeeReasoningCapabilityStates(page);
     await testEmployeeReasoningServerDefault(page);
@@ -46,6 +47,24 @@ try {
   }
 } finally {
   await rm(tempDir, { recursive: true, force: true });
+}
+
+async function testEmployeeAccessKernelSwitch(page) {
+  await renderFixture(page, "employee-page");
+  const surface = page.locator("#identity-root .contacts-employee-settings-surface");
+  const access = surface.locator(".employee-dialog-field").filter({ hasText: "权限" });
+  assert.match(await access.getByRole("button").innerText(), /完全访问/);
+  await access.getByRole("button").click();
+  await page.getByRole("option", { name: /帮我批准/ }).click();
+  await surface.locator(".employee-dialog-kernel-list").getByRole("button", { name: "Pi", exact: true }).click();
+  await page.waitForFunction(
+    () => window.__savedEmployeeKernel === "pi" && window.__savedEmployeeAccessMode === "default",
+  );
+  assert.match(await access.getByRole("button").innerText(), /请求批准/);
+  assert.match(await surface.getByRole("status").innerText(), /已改为请求批准/);
+  await access.getByRole("button").click();
+  assert.equal(await page.getByRole("option", { name: /帮我批准/ }).isDisabled(), true);
+  await page.keyboard.press("Escape");
 }
 
 // ===== Employee reasoning behavior =====
@@ -934,6 +953,7 @@ function entrySource() {
         }
         window.__savedEmployeeName = nextMember.name;
         window.__savedEmployeeKernel = nextMember.kernel;
+        window.__savedEmployeeAccessMode = nextMember.accessMode;
         window.__savedEmployeeModel = nextMember.model;
         window.__savedEmployeeProviderId = nextMember.providerId;
         window.__savedEmployeeReasoningEffort = nextMember.reasoningEffort;

@@ -146,9 +146,19 @@ Hermes 按环境与档位隔离进程及配置副本，保留用户的 deny 与�
 `HERMES_HOME`。原生启动时核对有效模式，无法应用就报错。阻塞审批和用户问题分别接入，
 兼容 desktop contract v7 的 server request 与此前的通知协议。
 
-所有不支持的档位既在选择器中禁用，也在运行入口拒绝。升级自旧版本时，历史 `auto-review`
-员工记录和聊天本地设置一次性迁移为 `default`，员工记录先备份并保留 override，等待用户重新选择。
-这不会把旧的自动接受编辑行为变成新的自动授权。
+新员工和聊天默认使用**完全访问权限**。v2 迁移会一次性把已有本地员工和聊天的所有档位改为
+`full-access`，包括明确选择过的请求批准、auto-review，以及运行过未发布 v1 迁移的设置。
+员工状态先备份，并记录 override，防止 App seed 同步覆盖；迁移后用户重新选择的档位在重启后保留。
+OpenClaw 仍由 Gateway 管理，远程员工的权限仍由远端决定。新安装 App 明确声明的兼容权限保留为其默认值。
+
+不支持的档位在选择器中禁用、运行入口拒绝。从 auto 切换到 Pi、Kimi 或 OpenCode 时，自动改为
+请求批准并显示提示。员工创建、更新、App 导入和 seed 同步使用同一条兼容规则；发布时拒绝不支持的组合。
+Claude 本机尚未确认模型支持，与内核本身不支持不同，不因此拒绝可移植 App 的权限声明。
+
+Codex 三档的映射与未指定档位的调用分开：没有传 `accessMode` 时保留原有审批和沙箱配置，
+没有其他配置时仍回落到 `danger-full-access` / `never`；旧的 `workspace-write` 调用允许联网。
+线程设置与每轮执行设置保持一致。Claude 原生默认模型根据 SDK 的 `default` 记录判断；首次没有缓存时，
+需通过普通运行刷新模型支持信息。
 
 参数契约回归：[`runtime-access-modes.test.ts`](../../src/tests/runtime-access-modes.test.ts)。
 协议依据：[Codex desktop 预设](https://learn.chatgpt.com/docs/sandboxing)、

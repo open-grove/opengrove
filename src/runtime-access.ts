@@ -1,5 +1,21 @@
 /** Picker availability and runtime validation share this policy; it is not a capability certification. */
 export type RuntimeAccessIssue = "gateway-managed" | "auto-review-unavailable" | "auto-review-unverified";
+export const DEFAULT_RUNTIME_ACCESS_MODE = "full-access";
+
+/** Normalize saved selections at creation/import/kernel-switch boundaries, never during execution. */
+export function resolveRuntimeAccessModeSelection(
+  kernel: string | undefined,
+  requested: unknown,
+): "default" | "auto-review" | "full-access" {
+  const mode =
+    requested === "default" || requested === "auto-review" || requested === "full-access"
+      ? requested
+      : DEFAULT_RUNTIME_ACCESS_MODE;
+  if (kernel === "openclaw") return "default";
+  if (kernel && runtimeAccessIssue(kernel, mode) === "auto-review-unavailable") return "default";
+  // Claude support depends on the local model/account. Unknown support must not rewrite a saved choice.
+  return mode;
+}
 
 export function runtimeAccessIssue(
   kernel: string | undefined,

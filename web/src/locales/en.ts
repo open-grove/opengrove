@@ -265,10 +265,11 @@ export const EN = {
   "composer.accessQuestion": "How should kernel actions be approved?",
   "composer.unavailableAccessLabel": "{label} · Unavailable",
   "composer.accessGatewayManaged": "Managed by Gateway",
+  "composer.accessModeResetToAsk": "This kernel does not support auto review. Switched to ask for approval.",
   "composer.autoReviewUnavailable":
     "Native auto review is not connected for this kernel. Choose ask for approval or full access.",
   "composer.autoReviewUnverified":
-    "Native auto review is not verified for this model. Run with ask for approval to refresh support.",
+    "Auto review support has not been confirmed for this model. Send a message with ask for approval or full access to refresh it.",
   "composer.selectedAccessUnavailable":
     "This permission selection is unavailable. Select a supported mode before running.",
   "composer.defaultAccess": "Ask for approval",

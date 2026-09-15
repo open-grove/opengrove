@@ -1,3 +1,4 @@
+import { normalizeEmployeeAccessMode } from "../../employee-access-mode.js";
 import type { AgentAttachmentContext, JsonObject } from "../../../core.js";
 import { DEFAULT_BRIDGE_MODEL_ID, LEGACY_NATIVE_MODEL_ID, type BridgeState } from "../../bridge-types.js";
 import { record } from "../../http-utils.js";
@@ -30,7 +31,7 @@ export function normalizeMember(input: Record<string, unknown>): RoomChannelMemb
     workspaceRoot: readOptionalString(input.workspaceRoot),
     storePackageId: readOptionalString(input.storePackageId),
     toolIds: readStringArray(input.toolIds),
-    accessMode: readMemberAccessMode(input.accessMode),
+    accessMode: normalizeEmployeeAccessMode(kernel, input.accessMode),
     reasoningEffort: readMemberReasoningEffort(input.reasoningEffort),
     contextTokenBudget: readOptionalContextTokenBudget(input.contextTokenBudget),
     avatarMode: readMemberAvatarMode(input.avatarMode),

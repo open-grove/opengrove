@@ -115,6 +115,7 @@ await writeFile(
   import { mergeHydratedRoomMessages } from ${JSON.stringify(roomMessageHydrationImport)};
   import { APP_EMPLOYEE_OVERRIDE_FIELD_ITEMS, appEmployeeOverrideFields, appEmployeeOverrideItems, buildContactSkillOptions, canEditEmployeeRuntime, contactKernelSubline, effectiveMemberAvailableSkillIds, effectiveMemberSkillIds, visibleEmployeeDefinitions } from ${JSON.stringify(contactsModelImport)};
   import { canSubmitDraft, createDefaultDraft, createMemberFromDraft } from ${JSON.stringify(employeeDialogImport)};
+  import { migrateStoredAccessModeV2 } from ${JSON.stringify(join(projectRoot, "web/src/runtime/compat/access-mode-v2.ts"))};
   import { ROOM_MEMBER_AVATAR_MAX_BYTES } from ${JSON.stringify(avatarDataUrlImport)};
   import { applyMountedAppEmployeeDefaults, canArchiveMountedAppGroup, filterMountedAppSharedMembers, restorableMountedAppMembers, restoreMountedAppMember, shouldEnsureMountedAppDefaultGroup } from ${JSON.stringify(mountedAppChatPanelImport)};
   import { latestContextUsage } from ${JSON.stringify(uiModelImport)};
@@ -532,6 +533,23 @@ await writeFile(
     color: "#64748b",
     lastActive: "now",
   };
+  for (const version of [undefined, "1"]) {
+    for (const mode of [undefined, "default", "auto-review", "full-access"]) {
+      const values = new Map();
+      if (mode) values.set("access", mode);
+      if (version) values.set("access.nativePresetsVersion", version);
+      const storage = { getItem: (key) => values.get(key) ?? null, setItem: (key, value) => values.set(key, value) };
+      migrateStoredAccessModeV2(storage, "access");
+      assert.equal(values.get("access"), "full-access");
+      assert.equal(values.get("access.nativePresetsVersion"), "2");
+      for (const selected of ["default", "auto-review"]) {
+        values.set("access", selected);
+        migrateStoredAccessModeV2(storage, "access");
+        assert.equal(values.get("access"), selected);
+      }
+    }
+  }
+
   const legacyDraft = createDefaultDraft(
     { id: "codex", label: "Codex", available: true },
     "codex",

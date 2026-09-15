@@ -271,12 +271,12 @@ function seedMember(overrides: Partial<RoomChannelMember> = {}): RoomChannelMemb
 }
 
 // 4b) accessMode/reasoningEffort/contextTokenBudget follow the manifest seed when NOT overridden,
-//     even if the existing member happens to carry different values.
+//     even if the existing member happens to carry different values; unsupported modes are repaired.
 {
   const existing = seedMember({ accessMode: "full-access", reasoningEffort: "xhigh", contextTokenBudget: 90_000 });
   const seed = seedMember({ accessMode: "auto-review", reasoningEffort: "low", contextTokenBudget: 150_000 });
   const merged = syncMountedAppSeedMember(existing, seed);
-  assert.equal(merged.accessMode, "auto-review", "un-overridden accessMode follows manifest seed");
+  assert.equal(merged.accessMode, "default", "OpenCode cannot inherit an unsupported auto-review seed");
   assert.equal(merged.reasoningEffort, "low", "un-overridden reasoningEffort follows manifest seed");
   assert.equal(merged.contextTokenBudget, 150_000, "un-overridden contextTokenBudget follows manifest seed");
 }
@@ -397,6 +397,7 @@ function seedMember(overrides: Partial<RoomChannelMember> = {}): RoomChannelMemb
       name: "Worker",
       kernel: "claude-code",
       model: "claude-code-default",
+      accessMode: "auto-review",
       reasoningEffort: "high",
       role: "Work",
       status: "idle",
@@ -423,10 +424,15 @@ function seedMember(overrides: Partial<RoomChannelMember> = {}): RoomChannelMemb
     assert.equal(handled, true);
     assert.equal(calls[0]?.status, 200);
     assert.equal(calls[0]?.data.member.kernel, "pi");
+    assert.equal(
+      calls[0]?.data.member.accessMode,
+      "default",
+      "a kernel-only PATCH repairs the previous auto selection",
+    );
     assert.equal(calls[0]?.data.member.reasoningEffort, undefined);
     assert.deepEqual(
       calls[0]?.data.member.userOverrides,
-      ["kernel"],
+      ["kernel", "accessMode"],
       "clearing reasoning while switching Kernels must restore inherited defaults instead of recording a user choice",
     );
 

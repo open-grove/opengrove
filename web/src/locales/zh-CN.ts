@@ -258,7 +258,9 @@ export const ZH_CN = {
   "composer.unavailableAccessLabel": "{label} · 不可用",
   "composer.accessGatewayManaged": "由 Gateway 管理",
   "composer.autoReviewUnavailable": "此内核尚未接入原生自动审查，请选择请求批准或完全访问权限",
-  "composer.autoReviewUnverified": "尚未确认此模型支持原生自动审查；使用请求批准运行后将刷新支持状态",
+  "composer.autoReviewUnverified":
+    "尚未确认此模型是否支持自动审批。先用请求批准或完全访问发送一条消息，会更新支持状态。",
+  "composer.accessModeResetToAsk": "此内核不支持自动审批，已改为请求批准。",
   "composer.selectedAccessUnavailable": "当前权限选择不可用，请重新选择后运行",
   "composer.defaultAccess": "请求批准",
   "composer.defaultAccessDescription": "由你确认内核提出的权限请求",

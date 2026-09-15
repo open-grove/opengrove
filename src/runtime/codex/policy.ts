@@ -38,14 +38,14 @@ export function resolveCodexSandboxMode(
   if (capabilitySandbox) {
     return capabilitySandbox;
   }
-  return configured ?? "workspace-write";
+  return configured ?? "danger-full-access";
 }
 
 export function resolveCodexApprovalPolicy(
   requested: RuntimeAccessMode | undefined,
   configured: CodexApprovalPolicy | undefined,
 ): CodexApprovalPolicy {
-  return codexPolicyForAccessMode(requested)?.approvalPolicy ?? configured ?? "on-request";
+  return codexPolicyForAccessMode(requested)?.approvalPolicy ?? configured ?? "never";
 }
 
 export function resolveCodexApprovalsReviewer(
@@ -58,7 +58,7 @@ export function resolveCodexApprovalsReviewer(
     : "user";
 }
 
-export function toCodexSandboxPolicy(mode: CodexSandboxMode): JsonObject {
+export function toCodexSandboxPolicy(mode: CodexSandboxMode, accessMode?: RuntimeAccessMode): JsonObject {
   switch (mode) {
     case "read-only":
       return { type: "readOnly", networkAccess: false };
@@ -66,7 +66,7 @@ export function toCodexSandboxPolicy(mode: CodexSandboxMode): JsonObject {
       return {
         type: "workspaceWrite",
         writableRoots: [],
-        networkAccess: false,
+        networkAccess: !accessMode,
         excludeTmpdirEnvVar: false,
         excludeSlashTmp: false,
       };

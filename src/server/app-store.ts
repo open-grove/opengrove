@@ -1,3 +1,4 @@
+import { normalizeEmployeeAccessMode } from "./employee-access-mode.js";
 import { createHash, randomUUID } from "node:crypto";
 import {
   cpSync,
@@ -1826,7 +1827,7 @@ function syncPublishedEmployeeDefaultsToLocalState(input: {
       requiredKernelCapabilities: normalizeRequiredKernelCapabilities(item.requiredKernelCapabilities),
       reasoningEffort: normalizeReasoningEffort(item.reasoningEffort),
       contextTokenBudget: positiveInteger(item.contextTokenBudget),
-      accessMode: normalizeEmployeeAccessMode(item.accessMode),
+      accessMode: normalizeEmployeeAccessMode(stringOrUndefined(item.kernel) ?? member.kernel, item.accessMode),
       visibility: normalizeVisibility(item.visibility),
       publicDescription: stringOrUndefined(item.publicDescription),
       publicSkills: stringArray(item.publicSkills),
@@ -3374,10 +3375,6 @@ function normalizeReasoningEffort(value: unknown): RoomChannelMember["reasoningE
   return value === "low" || value === "medium" || value === "high" || value === "xhigh" || value === "max"
     ? value
     : undefined;
-}
-
-function normalizeEmployeeAccessMode(value: unknown): RoomChannelMember["accessMode"] {
-  return value === "default" || value === "auto-review" || value === "full-access" ? value : undefined;
 }
 
 function positiveInteger(value: unknown): number | undefined {

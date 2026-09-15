@@ -1,3 +1,4 @@
+import { normalizeEmployeeAccessMode } from "./employee-access-mode.js";
 import { existsSync, readFileSync, readdirSync, realpathSync, statSync } from "node:fs";
 import { basename, join, relative, resolve, sep } from "node:path";
 import type { JsonObject } from "../core.js";
@@ -193,8 +194,8 @@ function applyStoreEmployeeDefaults(members: RoomChannelMember[], manifest: Json
     const roleLead = typeof override.role === "string" ? override.role.trim() : undefined;
     const reasoningEffort = normalizeReasoningEffort(override.reasoningEffort);
     const contextTokenBudget = positiveInteger(override.contextTokenBudget);
-    const accessMode = normalizeAccessMode(override.accessMode);
     const configuredKernel = stringOrUndefined(override.kernel) ?? member.kernel;
+    const accessMode = normalizeEmployeeAccessMode(configuredKernel, override.accessMode);
     const configuredModel = stringOrUndefined(override.model);
     const configured: RoomChannelMember = {
       ...member,
@@ -280,7 +281,7 @@ export function employeeManifestDefaultsPatch(
     requiredKernelCapabilities: defaults.requiredKernelCapabilities,
     reasoningEffort: defaults.reasoningEffort,
     contextTokenBudget: defaults.contextTokenBudget,
-    accessMode: defaults.accessMode,
+    accessMode: normalizeEmployeeAccessMode(defaults.kernel ?? member.kernel, defaults.accessMode),
     visibility: defaults.visibility ?? member.visibility,
     publicDescription: defaults.publicDescription,
     publicSkills: defaults.publicSkills,
@@ -378,7 +379,7 @@ function normalizeManifestEmployee(
     requiredKernelCapabilities: normalizeRequiredKernelCapabilities(input.requiredKernelCapabilities),
     appId,
     workspaceRoot: employeeWorkspaceRoot,
-    accessMode: normalizeAccessMode(input.accessMode),
+    accessMode: normalizeEmployeeAccessMode(kernel, input.accessMode),
     reasoningEffort: normalizeReasoningEffort(input.reasoningEffort) ?? defaultEmployeeReasoningEffort(),
     contextTokenBudget: positiveInteger(input.contextTokenBudget),
     source: "local",
@@ -462,7 +463,7 @@ function createAppBuilderMember(input: {
     defaultSkillIds: skillIds,
     appId: input.appId,
     workspaceRoot: input.workspaceRoot,
-    accessMode: "default",
+    accessMode: "full-access",
     reasoningEffort: defaultEmployeeReasoningEffort(),
     source: "local",
     sourceLabel: `${input.appDisplayTitle} App`,
@@ -843,10 +844,6 @@ function stringOrUndefined(value: unknown): string | undefined {
 
 function normalizeVisibility(value: unknown): "private" | "public" | undefined {
   return value === "public" || value === "private" ? value : undefined;
-}
-
-function normalizeAccessMode(value: unknown): RoomChannelMember["accessMode"] {
-  return value === "default" || value === "auto-review" || value === "full-access" ? value : undefined;
 }
 
 function normalizeReasoningEffort(value: unknown): RoomChannelMember["reasoningEffort"] {

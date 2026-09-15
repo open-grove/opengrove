@@ -51,10 +51,10 @@ export function useAppPersistentUiState(activeView: string) {
     }
   }, [activeView, setRoomsAppView]);
 
-  function setAccessMode(value: RuntimeAccessMode) {
+  const setAccessMode = useCallback((value: RuntimeAccessMode) => {
     setAccessModeState(value);
     window.localStorage.setItem(APP_STORAGE_KEYS.accessMode, value);
-  }
+  }, []);
 
   function setReasoningEffort(value: ReasoningEffort) {
     setReasoningEffortState(value);

@@ -1,4 +1,5 @@
 import { record } from "../../http-utils.js";
+import { normalizeEmployeeAccessMode } from "../../employee-access-mode.js";
 import { isBridgeKernelId, type RoomChannelMember, type RoomChannelStore } from "../../../rooms/channel-store.js";
 import { employeeManifestDefaultsPatch, mountedAppDefaultEmployees } from "../../bridge-mounted-app-employees.js";
 import { isProductDefaultEmployeeId } from "../../product-default-employees.js";
@@ -137,6 +138,18 @@ async function handleMemberPatchRoute(context: RoomsRouteContext): Promise<boole
     return true;
   }
   const touched = USER_OVERRIDABLE_FIELDS.filter((field) => Object.prototype.hasOwnProperty.call(rawBody, field));
+  if (touched.includes("kernel") || touched.includes("accessMode")) {
+    patch.accessMode = normalizeEmployeeAccessMode(
+      patch.kernel ?? existing?.kernel ?? "",
+      touched.includes("accessMode") ? rawBody.accessMode : existing?.accessMode,
+    );
+    if (
+      existing?.accessMode !== undefined &&
+      patch.accessMode !== existing.accessMode &&
+      !touched.includes("accessMode")
+    )
+      touched.push("accessMode");
+  }
   // For seed-managed employees, non-null fields become user overrides. Clearing
   // reasoning or model means "follow App/Kernel defaults", so remove that marker
   // and immediately restore the effective default value instead.

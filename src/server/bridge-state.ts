@@ -1,7 +1,8 @@
 import {
-  migrateNativeApprovalPresetsV1,
+  migrateNativeApprovalPresetsV2,
   NATIVE_APPROVAL_PRESETS_VERSION,
-} from "./migrations/native-approval-presets-v1.js";
+} from "./migrations/native-approval-presets-v2.js";
+import { normalizeEmployeeAccessMode } from "./employee-access-mode.js";
 import { existsSync, readdirSync, renameSync, statSync, writeFileSync } from "node:fs";
 import { basename, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -793,10 +794,10 @@ export function recreateBridgeApp(state: BridgeState, options: RecreateBridgeApp
   );
   const needsApprovalMigration = state.settings.nativeApprovalPresetsVersion < NATIVE_APPROVAL_PRESETS_VERSION;
   const approvalMigrationChanged = needsApprovalMigration
-    ? migrateNativeApprovalPresetsV1(
+    ? migrateNativeApprovalPresetsV2(
         state.app.rooms,
         loadedState
-          ? () => backupLocalStateBeforeMigration(state.store.path, loadedState, "native-approval-presets-v1")
+          ? () => backupLocalStateBeforeMigration(state.store.path, loadedState, "native-approval-presets-v2")
           : undefined,
       )
     : false;
@@ -1068,7 +1069,7 @@ function backupLocalStateBeforeMigration(
     | "kernel-native-resume-v1"
     | "routine-app-command-id-v1"
     | "native-employee-model-v1"
-    | "native-approval-presets-v1",
+    | "native-approval-presets-v2",
 ): void {
   if (!statePath) return;
   const backupPath = `${statePath}.before-${step}.json`;
@@ -1223,7 +1224,7 @@ export function syncMountedAppSeedMember(existing: RoomChannelMember, seed: Room
     color: keep("color"),
     availableSkillIds: keep("availableSkillIds"),
     defaultSkillIds: keep("defaultSkillIds"),
-    accessMode: keep("accessMode"),
+    accessMode: normalizeEmployeeAccessMode(keep("kernel"), keep("accessMode")),
     reasoningEffort: keep("reasoningEffort"),
     contextTokenBudget: keep("contextTokenBudget"),
     visibility: keep("visibility"),
