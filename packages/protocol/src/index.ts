@@ -7,3 +7,5 @@ export * from "./operation.js";
 export * from "./registry.js";
 export * from "./rooms.js";
 export * from "./network.js";
+export * from "./remote-agent.js";
+export * from "./kernel-capability-ids.js";
