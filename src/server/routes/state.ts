@@ -1,5 +1,10 @@
 import { createHash } from "node:crypto";
-import type { ListSessionsOperation, ListRunsOperation, ListExecutionsOperation } from "#protocol";
+import type {
+  ListSessionsOperation,
+  ListRunsOperation,
+  ListExecutionsOperation,
+  ListRunEventsOperation,
+} from "#protocol";
 import { hostContractById } from "#protocol/compiled";
 import { createAnnotationArtifact, createComputerSnapshotArtifact } from "../artifact-actions.js";
 import { syncBridgeWorkingState } from "../bridge-working-state.js";
@@ -16,7 +21,7 @@ import type { BridgeRoute, BridgeRouteContext, HostOperationRouteContext } from 
 import { route, operationRoute } from "./registry-utils.js";
 import { resolveHostLanguageSettings } from "../language-preference.js";
 import { presentAgentEvent } from "../event-presentation.js";
-import { readLongPollWaitMs, waitForLongPoll } from "../long-poll.js";
+import { waitForLongPoll } from "../long-poll.js";
 import { presentArtifactSummaries, presentArtifactSummary } from "../artifact-presentation.js";
 import {
   presentExecutionSummaries,
@@ -44,7 +49,7 @@ export function createStateRoutes(): BridgeRoute[] {
     route("artifact-annotation", "POST", /^\/artifacts\/([^/]+)\/annotation$/, handleArtifactAnnotationRoute),
     route("working-state-patch", "PATCH", "/working-state", handleWorkingStatePatchRoute),
     route("computer-state-patch", "PATCH", "/computer-state", handleComputerStatePatchRoute),
-    route("events", "GET", "/events", handleEventsRoute),
+    operationRoute(hostContractById["run.event.list"], handleEventsRoute),
   ];
 }
 
@@ -306,14 +311,9 @@ async function handleComputerStatePatchRoute(context: BridgeRouteContext): Promi
   return true;
 }
 
-async function handleEventsRoute(context: BridgeRouteContext): Promise<boolean> {
-  const runIds = new Set(
-    context.url.searchParams
-      .getAll("runId")
-      .flatMap((value) => value.split(","))
-      .map((value) => value.trim())
-      .filter(Boolean),
-  );
+async function handleEventsRoute(context: HostOperationRouteContext<ListRunEventsOperation>): Promise<true> {
+  const { limit, cursor, beforeCursor, waitMs } = context.input.query;
+  const runIds = new Set(context.input.query.runId);
   const predicate = runIds.size
     ? (event: ReturnType<typeof context.state.app.events.list>[number]) =>
         typeof event.runId === "string" && runIds.has(event.runId)
@@ -322,10 +322,6 @@ async function handleEventsRoute(context: BridgeRouteContext): Promise<boolean> 
     .update(JSON.stringify([...runIds].sort()))
     .digest("base64url")
     .slice(0, 16);
-  const requestedLimit = Number(context.url.searchParams.get("limit") ?? 200);
-  const limit = Number.isSafeInteger(requestedLimit) ? Math.max(1, Math.min(requestedLimit, 1_000)) : 200;
-  const cursor = context.url.searchParams.get("cursor")?.trim();
-  const beforeCursor = context.url.searchParams.get("beforeCursor")?.trim();
   if (cursor && beforeCursor) {
     context.sendJson(context.response, 400, { ok: false, error: "event_cursor_conflict" });
     return true;
@@ -335,7 +331,6 @@ async function handleEventsRoute(context: BridgeRouteContext): Promise<boolean> 
     : cursor
       ? context.state.app.events.eventsAfter(cursor, limit, predicate, cursorScope)
       : context.state.app.events.latest(limit, predicate, cursorScope);
-  const waitMs = readLongPollWaitMs(context.url);
   if (cursor && !beforeCursor && waitMs > 0 && !result.resetRequired && !result.hasMore && result.events.length === 0) {
     const events = context.state.app.events;
     const responseOpen = await waitForLongPoll(context.response, (signal) =>

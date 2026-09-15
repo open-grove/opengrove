@@ -4,6 +4,7 @@ import type { HostOperationRequest, OpenGroveRequestOptions } from "../transport
 
 export const openGroveClientOperationIds = [
   "host.host.bootstrap",
+  "run.event.list",
   "run.run.list",
   "run.session.list",
   "run.execution.list",
@@ -66,6 +67,22 @@ export function bindOpenGroveClient(request: HostOperationRequest) {
       },
     },
     runs: {
+      events: {
+        list: (
+          input: HostOperationInput<(typeof hostOperationById)["run.event.list"]> = {},
+          options?: OpenGroveRequestOptions,
+        ): Promise<HostOperationOutput<(typeof hostOperationById)["run.event.list"]>> =>
+          request(hostOperationById["run.event.list"], {
+            query: {
+              beforeCursor: input.beforeCursor,
+              cursor: input.cursor,
+              limit: input.limit,
+              runId: input.runId,
+              waitMs: input.waitMs,
+            },
+            signal: options?.signal,
+          }),
+      },
       collection: {
         list: (
           input: HostOperationInput<(typeof hostOperationById)["run.run.list"]> = {},

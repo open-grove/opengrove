@@ -22,7 +22,8 @@
     "run.session": "sessions",
     "run.execution": "executions",
     "interaction.approval": "approvals",
-    "interaction.question": "questions"
+    "interaction.question": "questions",
+    "run.event": "events"
   },
   "operations": {
     "app.release.keep-local": "keepLocal",

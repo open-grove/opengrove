@@ -134,6 +134,9 @@ import type {
   RunDirectGuideData,
   RunDirectGuideErrors,
   RunDirectGuideResponses,
+  RunEventListData,
+  RunEventListErrors,
+  RunEventListResponses,
   RunExecutionListData,
   RunExecutionListErrors,
   RunExecutionListResponses,
@@ -211,6 +214,22 @@ export class Host2 extends HeyApiClient {
   private _host?: Host;
   get host(): Host {
     return (this._host ??= new Host({ client: this.client }));
+  }
+}
+
+export class Event_ extends HeyApiClient {
+  /**
+   * Read execution events
+   *
+   * Read a bounded event page, older history, or changes after a cursor. Repeat run-id to filter runs. Long polling waits up to 25 seconds. Cursor and before-cursor are mutually exclusive.
+   */
+  public list<ThrowOnError extends boolean = false>(
+    options?: Options<RunEventListData, ThrowOnError>,
+  ): RequestResult<RunEventListResponses, RunEventListErrors, ThrowOnError> {
+    return (options?.client ?? this.client).get<RunEventListResponses, RunEventListErrors, ThrowOnError>({
+      url: "/events",
+      ...options,
+    });
   }
 }
 
@@ -319,6 +338,11 @@ export class Direct extends HeyApiClient {
 }
 
 export class Run2 extends HeyApiClient {
+  private _event?: Event_;
+  get event(): Event_ {
+    return (this._event ??= new Event_({ client: this.client }));
+  }
+
   private _run?: Run;
   get run(): Run {
     return (this._run ??= new Run({ client: this.client }));
@@ -902,7 +926,7 @@ export class Message extends HeyApiClient {
   }
 }
 
-export class Event_ extends HeyApiClient {
+export class Event2 extends HeyApiClient {
   /**
    * Read or wait for Room events
    *
@@ -983,9 +1007,9 @@ export class Room2 extends HeyApiClient {
     return (this._message ??= new Message({ client: this.client }));
   }
 
-  private _event?: Event_;
-  get event(): Event_ {
-    return (this._event ??= new Event_({ client: this.client }));
+  private _event?: Event2;
+  get event(): Event2 {
+    return (this._event ??= new Event2({ client: this.client }));
   }
 
   private _direct?: Direct2;

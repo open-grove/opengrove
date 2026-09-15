@@ -415,6 +415,346 @@
         }
       }
     },
+    "/events": {
+      "get": {
+        "operationId": "run.event.list",
+        "summary": "Read execution events",
+        "description": "Read a bounded event page, older history, or changes after a cursor. Repeat run-id to filter runs. Long polling waits up to 25 seconds. Cursor and before-cursor are mutually exclusive.",
+        "tags": ["run"],
+        "x-opengrove-group": "run",
+        "x-opengrove-resource": "event",
+        "x-opengrove-risk": "read",
+        "parameters": [
+          {
+            "name": "beforeCursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "default": 200,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000
+            }
+          },
+          {
+            "name": "runId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "default": [],
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "name": "waitMs",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 25000
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunEventPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The input is invalid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "const": false
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "contractId": {
+                      "type": "string"
+                    },
+                    "traceId": {
+                      "type": "string"
+                    },
+                    "incidentId": {
+                      "type": "string"
+                    },
+                    "issues": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "path": {
+                            "type": "string"
+                          },
+                          "code": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["path", "code"],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": ["error"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "A valid Host session or token is required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "const": false
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "contractId": {
+                      "type": "string"
+                    },
+                    "traceId": {
+                      "type": "string"
+                    },
+                    "incidentId": {
+                      "type": "string"
+                    },
+                    "issues": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "path": {
+                            "type": "string"
+                          },
+                          "code": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["path", "code"],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": ["error"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The request is not authorized.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "const": false
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "contractId": {
+                      "type": "string"
+                    },
+                    "traceId": {
+                      "type": "string"
+                    },
+                    "incidentId": {
+                      "type": "string"
+                    },
+                    "issues": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "path": {
+                            "type": "string"
+                          },
+                          "code": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["path", "code"],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": ["error"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The Host could not complete the operation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "const": false
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "contractId": {
+                      "type": "string"
+                    },
+                    "traceId": {
+                      "type": "string"
+                    },
+                    "incidentId": {
+                      "type": "string"
+                    },
+                    "issues": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "path": {
+                            "type": "string"
+                          },
+                          "code": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["path", "code"],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": ["error"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The Host or authenticated session is temporarily unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "const": false
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "contractId": {
+                      "type": "string"
+                    },
+                    "traceId": {
+                      "type": "string"
+                    },
+                    "incidentId": {
+                      "type": "string"
+                    },
+                    "issues": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "path": {
+                            "type": "string"
+                          },
+                          "code": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["path", "code"],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": ["error"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/runs": {
       "get": {
         "operationId": "run.run.list",
@@ -17618,6 +17958,3329 @@
   },
   "components": {
     "schemas": {
+      "RunEventPage": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "const": true
+          },
+          "events": {
+            "type": "array",
+            "items": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "turn.started"
+                    },
+                    "runId": {
+                      "type": "string"
+                    },
+                    "at": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["type", "runId", "at"],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "context.assembled"
+                    },
+                    "runId": {
+                      "type": "string"
+                    },
+                    "context": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "createdAt": {
+                          "type": "string"
+                        },
+                        "summary": {
+                          "type": "string"
+                        },
+                        "promptBlock": {
+                          "type": "string"
+                        },
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "kind": {
+                                "type": "string",
+                                "enum": [
+                                  "page",
+                                  "selection",
+                                  "attachment",
+                                  "computer",
+                                  "artifact",
+                                  "session",
+                                  "execution",
+                                  "task",
+                                  "knowledge",
+                                  "memory",
+                                  "routine",
+                                  "permission",
+                                  "skill"
+                                ]
+                              },
+                              "title": {
+                                "type": "string"
+                              },
+                              "text": {
+                                "type": "string"
+                              },
+                              "source": {
+                                "type": "object",
+                                "properties": {
+                                  "title": {
+                                    "type": "string"
+                                  },
+                                  "url": {
+                                    "type": "string"
+                                  },
+                                  "locator": {
+                                    "type": "string"
+                                  },
+                                  "quote": {
+                                    "type": "string"
+                                  }
+                                },
+                                "additionalProperties": false
+                              },
+                              "score": {
+                                "type": "number"
+                              },
+                              "data": {
+                                "type": "object",
+                                "propertyNames": {
+                                  "type": "string"
+                                },
+                                "additionalProperties": {
+                                  "$ref": "#/components/schemas/RunEventPage.definition.__schema0"
+                                }
+                              }
+                            },
+                            "required": ["id", "kind", "title", "text"],
+                            "additionalProperties": false
+                          }
+                        },
+                        "budget": {
+                          "type": "object",
+                          "properties": {
+                            "maxItems": {
+                              "type": "number"
+                            },
+                            "usedItems": {
+                              "type": "number"
+                            },
+                            "maxCharacters": {
+                              "type": "number"
+                            },
+                            "usedCharacters": {
+                              "type": "number"
+                            },
+                            "truncated": {
+                              "type": "boolean"
+                            }
+                          },
+                          "required": ["maxItems", "usedItems", "maxCharacters", "usedCharacters", "truncated"],
+                          "additionalProperties": false
+                        }
+                      },
+                      "required": ["id", "createdAt", "summary", "promptBlock", "items", "budget"],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": ["type", "runId", "context"],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "compaction.started"
+                    },
+                    "runId": {
+                      "type": "string"
+                    },
+                    "at": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    },
+                    "item": {
+                      "$ref": "#/components/schemas/RunEventPage.definition.__schema1"
+                    }
+                  },
+                  "required": ["type", "runId", "at"],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "compaction.finished"
+                    },
+                    "runId": {
+                      "type": "string"
+                    },
+                    "at": {
+                      "type": "string"
+                    },
+                    "summary": {
+                      "type": "string"
+                    },
+                    "item": {
+                      "$ref": "#/components/schemas/RunEventPage.definition.__schema2"
+                    }
+                  },
+                  "required": ["type", "runId", "at"],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "model.requested"
+                    },
+                    "runId": {
+                      "type": "string"
+                    },
+                    "request": {
+                      "type": "object",
+                      "properties": {
+                        "systemPrompt": {
+                          "type": "string"
+                        },
+                        "userInput": {
+                          "type": "string"
+                        },
+                        "modelId": {
+                          "type": "string"
+                        },
+                        "session": {
+                          "type": "object",
+                          "properties": {
+                            "provider": {
+                              "type": "string"
+                            },
+                            "sessionId": {
+                              "type": "string"
+                            },
+                            "persistent": {
+                              "type": "boolean"
+                            },
+                            "priorMessageCount": {
+                              "type": "number"
+                            },
+                            "priorMessages": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "role": {
+                                    "type": "string",
+                                    "enum": ["system", "user", "assistant", "tool"]
+                                  },
+                                  "content": {
+                                    "type": "string"
+                                  },
+                                  "name": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": ["role", "content"],
+                                "additionalProperties": false
+                              }
+                            },
+                            "nativeSessionId": {
+                              "type": "string"
+                            }
+                          },
+                          "required": ["provider", "sessionId", "persistent", "priorMessageCount", "priorMessages"],
+                          "additionalProperties": false
+                        },
+                        "messages": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "role": {
+                                "type": "string",
+                                "enum": ["system", "user", "assistant", "tool"]
+                              },
+                              "content": {
+                                "type": "string"
+                              },
+                              "name": {
+                                "type": "string"
+                              }
+                            },
+                            "required": ["role", "content"],
+                            "additionalProperties": false
+                          }
+                        },
+                        "context": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string"
+                            },
+                            "createdAt": {
+                              "type": "string"
+                            },
+                            "summary": {
+                              "type": "string"
+                            },
+                            "promptBlock": {
+                              "type": "string"
+                            },
+                            "items": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "id": {
+                                    "type": "string"
+                                  },
+                                  "kind": {
+                                    "type": "string",
+                                    "enum": [
+                                      "page",
+                                      "selection",
+                                      "attachment",
+                                      "computer",
+                                      "artifact",
+                                      "session",
+                                      "execution",
+                                      "task",
+                                      "knowledge",
+                                      "memory",
+                                      "routine",
+                                      "permission",
+                                      "skill"
+                                    ]
+                                  },
+                                  "title": {
+                                    "type": "string"
+                                  },
+                                  "text": {
+                                    "type": "string"
+                                  },
+                                  "source": {
+                                    "type": "object",
+                                    "properties": {
+                                      "title": {
+                                        "type": "string"
+                                      },
+                                      "url": {
+                                        "type": "string"
+                                      },
+                                      "locator": {
+                                        "type": "string"
+                                      },
+                                      "quote": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "additionalProperties": false
+                                  },
+                                  "score": {
+                                    "type": "number"
+                                  },
+                                  "data": {
+                                    "type": "object",
+                                    "propertyNames": {
+                                      "type": "string"
+                                    },
+                                    "additionalProperties": {
+                                      "$ref": "#/components/schemas/RunEventPage.definition.__schema0"
+                                    }
+                                  }
+                                },
+                                "required": ["id", "kind", "title", "text"],
+                                "additionalProperties": false
+                              }
+                            },
+                            "budget": {
+                              "type": "object",
+                              "properties": {
+                                "maxItems": {
+                                  "type": "number"
+                                },
+                                "usedItems": {
+                                  "type": "number"
+                                },
+                                "maxCharacters": {
+                                  "type": "number"
+                                },
+                                "usedCharacters": {
+                                  "type": "number"
+                                },
+                                "truncated": {
+                                  "type": "boolean"
+                                }
+                              },
+                              "required": ["maxItems", "usedItems", "maxCharacters", "usedCharacters", "truncated"],
+                              "additionalProperties": false
+                            }
+                          },
+                          "required": ["id", "createdAt", "summary", "promptBlock", "items", "budget"],
+                          "additionalProperties": false
+                        },
+                        "tools": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "title": {
+                                "type": "string"
+                              },
+                              "description": {
+                                "type": "string"
+                              },
+                              "activity": {
+                                "type": "string",
+                                "enum": ["browser", "chat", "local", "api", "computer"]
+                              },
+                              "risk": {
+                                "type": "string",
+                                "enum": ["read", "write", "send", "spend", "delete"]
+                              },
+                              "input": {
+                                "type": "object",
+                                "properties": {
+                                  "type": {
+                                    "type": "string",
+                                    "const": "json-schema"
+                                  },
+                                  "schema": {
+                                    "type": "object",
+                                    "propertyNames": {
+                                      "type": "string"
+                                    },
+                                    "additionalProperties": {
+                                      "$ref": "#/components/schemas/RunEventPage.definition.__schema0"
+                                    }
+                                  }
+                                },
+                                "required": ["type", "schema"],
+                                "additionalProperties": false
+                              },
+                              "output": {
+                                "type": "object",
+                                "properties": {
+                                  "type": {
+                                    "type": "string",
+                                    "const": "json-schema"
+                                  },
+                                  "schema": {
+                                    "type": "object",
+                                    "propertyNames": {
+                                      "type": "string"
+                                    },
+                                    "additionalProperties": {
+                                      "$ref": "#/components/schemas/RunEventPage.definition.__schema0"
+                                    }
+                                  }
+                                },
+                                "required": ["type", "schema"],
+                                "additionalProperties": false
+                              },
+                              "permission": {
+                                "type": "object",
+                                "properties": {
+                                  "mode": {
+                                    "type": "string",
+                                    "enum": ["allow", "ask", "deny"]
+                                  },
+                                  "reason": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": ["mode", "reason"],
+                                "additionalProperties": false
+                              },
+                              "liveness": {
+                                "type": "object",
+                                "properties": {
+                                  "cancellation": {
+                                    "type": "string",
+                                    "enum": ["run-signal", "none"]
+                                  },
+                                  "deadlineSource": {
+                                    "type": "string",
+                                    "enum": ["kernel-native", "upstream-service", "business-rule", "none"]
+                                  },
+                                  "abandonOutcome": {
+                                    "type": "string",
+                                    "const": "outcome-unknown"
+                                  },
+                                  "terminalConfirmation": {
+                                    "type": "string",
+                                    "const": "tool-result"
+                                  },
+                                  "cancellationGraceMs": {
+                                    "type": "number"
+                                  }
+                                },
+                                "required": [
+                                  "cancellation",
+                                  "deadlineSource",
+                                  "abandonOutcome",
+                                  "terminalConfirmation"
+                                ],
+                                "additionalProperties": false
+                              }
+                            },
+                            "required": ["id", "title", "description", "activity", "risk", "input", "permission"],
+                            "additionalProperties": false
+                          }
+                        },
+                        "skills": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "name": {
+                                "type": "string"
+                              },
+                              "aliases": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              },
+                              "title": {
+                                "type": "string"
+                              },
+                              "description": {
+                                "type": "string"
+                              },
+                              "whenToUse": {
+                                "type": "string"
+                              },
+                              "format": {
+                                "type": "string",
+                                "enum": ["markdown-v1", "markdown-v2"]
+                              },
+                              "entry": {
+                                "type": "string"
+                              },
+                              "skillRoot": {
+                                "type": "string"
+                              },
+                              "activities": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string",
+                                  "enum": ["browser", "chat", "local", "api", "computer"]
+                                }
+                              },
+                              "toolIds": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              },
+                              "memoryHooks": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "kind": {
+                                      "type": "string"
+                                    },
+                                    "mode": {
+                                      "type": "string",
+                                      "enum": ["direct", "propose", "ask"]
+                                    },
+                                    "reason": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": ["kind", "mode", "reason"],
+                                  "additionalProperties": false
+                                }
+                              },
+                              "allowedTools": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              },
+                              "argumentHint": {
+                                "type": "string"
+                              },
+                              "arguments": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              },
+                              "userInvocable": {
+                                "type": "boolean"
+                              },
+                              "disableModelInvocation": {
+                                "type": "boolean"
+                              },
+                              "model": {
+                                "type": "string"
+                              },
+                              "effort": {
+                                "type": "string"
+                              },
+                              "context": {
+                                "type": "string",
+                                "enum": ["inline", "fork"]
+                              },
+                              "shell": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              },
+                              "paths": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              },
+                              "hooks": {
+                                "type": "object",
+                                "propertyNames": {
+                                  "type": "string"
+                                },
+                                "additionalProperties": {
+                                  "$ref": "#/components/schemas/RunEventPage.definition.__schema0"
+                                }
+                              },
+                              "source": {
+                                "type": "string",
+                                "enum": ["bundled", "project", "user", "pack"]
+                              },
+                              "trust": {
+                                "type": "string",
+                                "enum": ["trusted", "untrusted"]
+                              },
+                              "packId": {
+                                "type": "string"
+                              },
+                              "capabilityId": {
+                                "type": "string"
+                              },
+                              "contentLength": {
+                                "type": "number"
+                              },
+                              "tags": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "name",
+                              "title",
+                              "description",
+                              "format",
+                              "entry",
+                              "skillRoot",
+                              "activities",
+                              "toolIds",
+                              "memoryHooks",
+                              "allowedTools",
+                              "userInvocable",
+                              "disableModelInvocation",
+                              "context",
+                              "source",
+                              "trust"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "packs": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "title": {
+                                "type": "string"
+                              },
+                              "description": {
+                                "type": "string"
+                              },
+                              "source": {
+                                "type": "string",
+                                "enum": ["bundled", "project", "user", "pack"]
+                              },
+                              "trust": {
+                                "type": "string",
+                                "enum": ["trusted", "untrusted"]
+                              },
+                              "rootDir": {
+                                "type": "string"
+                              },
+                              "skillIds": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              },
+                              "toolIds": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              },
+                              "capabilityIds": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              },
+                              "artifactTypes": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              },
+                              "referenceAssetDirs": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              },
+                              "tags": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "title",
+                              "description",
+                              "source",
+                              "trust",
+                              "rootDir",
+                              "skillIds",
+                              "toolIds",
+                              "capabilityIds",
+                              "artifactTypes"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "capabilities": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "title": {
+                                "type": "string"
+                              },
+                              "version": {
+                                "type": "string"
+                              },
+                              "description": {
+                                "type": "string"
+                              },
+                              "source": {
+                                "type": "object",
+                                "properties": {
+                                  "kind": {
+                                    "type": "string",
+                                    "enum": ["native", "wrapped-open-source", "mcp", "external-api", "user-routine"]
+                                  },
+                                  "project": {
+                                    "type": "string"
+                                  },
+                                  "url": {
+                                    "type": "string"
+                                  },
+                                  "license": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": ["kind"],
+                                "additionalProperties": false
+                              },
+                              "activities": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string",
+                                  "enum": ["browser", "chat", "local", "api", "computer"]
+                                }
+                              },
+                              "triggers": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "propertyNames": {
+                                    "type": "string"
+                                  },
+                                  "additionalProperties": {
+                                    "$ref": "#/components/schemas/RunEventPage.definition.__schema0"
+                                  }
+                                }
+                              },
+                              "tools": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "id": {
+                                      "type": "string"
+                                    },
+                                    "title": {
+                                      "type": "string"
+                                    },
+                                    "description": {
+                                      "type": "string"
+                                    },
+                                    "activity": {
+                                      "type": "string",
+                                      "enum": ["browser", "chat", "local", "api", "computer"]
+                                    },
+                                    "risk": {
+                                      "type": "string",
+                                      "enum": ["read", "write", "send", "spend", "delete"]
+                                    },
+                                    "input": {
+                                      "type": "object",
+                                      "properties": {
+                                        "type": {
+                                          "type": "string",
+                                          "const": "json-schema"
+                                        },
+                                        "schema": {
+                                          "type": "object",
+                                          "propertyNames": {
+                                            "type": "string"
+                                          },
+                                          "additionalProperties": {
+                                            "$ref": "#/components/schemas/RunEventPage.definition.__schema0"
+                                          }
+                                        }
+                                      },
+                                      "required": ["type", "schema"],
+                                      "additionalProperties": false
+                                    },
+                                    "output": {
+                                      "type": "object",
+                                      "properties": {
+                                        "type": {
+                                          "type": "string",
+                                          "const": "json-schema"
+                                        },
+                                        "schema": {
+                                          "type": "object",
+                                          "propertyNames": {
+                                            "type": "string"
+                                          },
+                                          "additionalProperties": {
+                                            "$ref": "#/components/schemas/RunEventPage.definition.__schema0"
+                                          }
+                                        }
+                                      },
+                                      "required": ["type", "schema"],
+                                      "additionalProperties": false
+                                    },
+                                    "permission": {
+                                      "type": "object",
+                                      "properties": {
+                                        "mode": {
+                                          "type": "string",
+                                          "enum": ["allow", "ask", "deny"]
+                                        },
+                                        "reason": {
+                                          "type": "string"
+                                        }
+                                      },
+                                      "required": ["mode", "reason"],
+                                      "additionalProperties": false
+                                    },
+                                    "liveness": {
+                                      "type": "object",
+                                      "properties": {
+                                        "cancellation": {
+                                          "type": "string",
+                                          "enum": ["run-signal", "none"]
+                                        },
+                                        "deadlineSource": {
+                                          "type": "string",
+                                          "enum": ["kernel-native", "upstream-service", "business-rule", "none"]
+                                        },
+                                        "abandonOutcome": {
+                                          "type": "string",
+                                          "const": "outcome-unknown"
+                                        },
+                                        "terminalConfirmation": {
+                                          "type": "string",
+                                          "const": "tool-result"
+                                        },
+                                        "cancellationGraceMs": {
+                                          "type": "number"
+                                        }
+                                      },
+                                      "required": [
+                                        "cancellation",
+                                        "deadlineSource",
+                                        "abandonOutcome",
+                                        "terminalConfirmation"
+                                      ],
+                                      "additionalProperties": false
+                                    }
+                                  },
+                                  "required": ["id", "title", "description", "activity", "risk", "input", "permission"],
+                                  "additionalProperties": false
+                                }
+                              },
+                              "skills": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "id": {
+                                      "type": "string"
+                                    },
+                                    "name": {
+                                      "type": "string"
+                                    },
+                                    "aliases": {
+                                      "type": "array",
+                                      "items": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "title": {
+                                      "type": "string"
+                                    },
+                                    "description": {
+                                      "type": "string"
+                                    },
+                                    "whenToUse": {
+                                      "type": "string"
+                                    },
+                                    "format": {
+                                      "type": "string",
+                                      "enum": ["markdown-v1", "markdown-v2"]
+                                    },
+                                    "entry": {
+                                      "type": "string"
+                                    },
+                                    "skillRoot": {
+                                      "type": "string"
+                                    },
+                                    "activities": {
+                                      "type": "array",
+                                      "items": {
+                                        "type": "string",
+                                        "enum": ["browser", "chat", "local", "api", "computer"]
+                                      }
+                                    },
+                                    "toolIds": {
+                                      "type": "array",
+                                      "items": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "memoryHooks": {
+                                      "type": "array",
+                                      "items": {
+                                        "type": "object",
+                                        "properties": {
+                                          "kind": {
+                                            "type": "string"
+                                          },
+                                          "mode": {
+                                            "type": "string",
+                                            "enum": ["direct", "propose", "ask"]
+                                          },
+                                          "reason": {
+                                            "type": "string"
+                                          }
+                                        },
+                                        "required": ["kind", "mode", "reason"],
+                                        "additionalProperties": false
+                                      }
+                                    },
+                                    "allowedTools": {
+                                      "type": "array",
+                                      "items": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "argumentHint": {
+                                      "type": "string"
+                                    },
+                                    "arguments": {
+                                      "type": "array",
+                                      "items": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "userInvocable": {
+                                      "type": "boolean"
+                                    },
+                                    "disableModelInvocation": {
+                                      "type": "boolean"
+                                    },
+                                    "model": {
+                                      "type": "string"
+                                    },
+                                    "effort": {
+                                      "type": "string"
+                                    },
+                                    "context": {
+                                      "type": "string",
+                                      "enum": ["inline", "fork"]
+                                    },
+                                    "shell": {
+                                      "type": "array",
+                                      "items": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "paths": {
+                                      "type": "array",
+                                      "items": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "hooks": {
+                                      "type": "object",
+                                      "propertyNames": {
+                                        "type": "string"
+                                      },
+                                      "additionalProperties": {
+                                        "$ref": "#/components/schemas/RunEventPage.definition.__schema0"
+                                      }
+                                    },
+                                    "source": {
+                                      "type": "string",
+                                      "enum": ["bundled", "project", "user", "pack"]
+                                    },
+                                    "trust": {
+                                      "type": "string",
+                                      "enum": ["trusted", "untrusted"]
+                                    },
+                                    "packId": {
+                                      "type": "string"
+                                    },
+                                    "capabilityId": {
+                                      "type": "string"
+                                    },
+                                    "contentLength": {
+                                      "type": "number"
+                                    },
+                                    "tags": {
+                                      "type": "array",
+                                      "items": {
+                                        "type": "string"
+                                      }
+                                    }
+                                  },
+                                  "required": [
+                                    "id",
+                                    "name",
+                                    "title",
+                                    "description",
+                                    "format",
+                                    "entry",
+                                    "skillRoot",
+                                    "activities",
+                                    "toolIds",
+                                    "memoryHooks",
+                                    "allowedTools",
+                                    "userInvocable",
+                                    "disableModelInvocation",
+                                    "context",
+                                    "source",
+                                    "trust"
+                                  ],
+                                  "additionalProperties": false
+                                }
+                              },
+                              "memoryHooks": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "kind": {
+                                      "type": "string"
+                                    },
+                                    "mode": {
+                                      "type": "string",
+                                      "enum": ["direct", "propose", "ask"]
+                                    },
+                                    "reason": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": ["kind", "mode", "reason"],
+                                  "additionalProperties": false
+                                }
+                              },
+                              "policy": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "mode": {
+                                      "type": "string",
+                                      "enum": ["allow", "ask", "deny"]
+                                    },
+                                    "reason": {
+                                      "type": "string"
+                                    },
+                                    "id": {
+                                      "type": "string"
+                                    },
+                                    "toolId": {
+                                      "type": "string"
+                                    },
+                                    "capabilityId": {
+                                      "type": "string"
+                                    },
+                                    "risk": {
+                                      "type": "string",
+                                      "enum": ["read", "write", "send", "spend", "delete"]
+                                    }
+                                  },
+                                  "required": ["mode", "reason"],
+                                  "additionalProperties": false
+                                }
+                              },
+                              "sandbox": {
+                                "type": "string",
+                                "enum": ["read-only", "workspace-write", "danger-full-access"]
+                              },
+                              "evals": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "id": {
+                                      "type": "string"
+                                    },
+                                    "description": {
+                                      "type": "string"
+                                    },
+                                    "input": {
+                                      "type": "string"
+                                    },
+                                    "expectedBehavior": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": ["id", "description", "input", "expectedBehavior"],
+                                  "additionalProperties": false
+                                }
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "title",
+                              "version",
+                              "description",
+                              "activities",
+                              "tools",
+                              "skills",
+                              "memoryHooks",
+                              "policy"
+                            ],
+                            "additionalProperties": false
+                          }
+                        }
+                      },
+                      "required": ["systemPrompt", "userInput", "tools", "skills", "packs", "capabilities"],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": ["type", "runId", "request"],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "model.response"
+                    },
+                    "runId": {
+                      "type": "string"
+                    },
+                    "response": {
+                      "type": "object",
+                      "properties": {
+                        "text": {
+                          "type": "string"
+                        },
+                        "usage": {
+                          "type": "object",
+                          "properties": {
+                            "inputTokens": {
+                              "type": "number"
+                            },
+                            "outputTokens": {
+                              "type": "number"
+                            },
+                            "totalTokens": {
+                              "type": "number"
+                            },
+                            "costUsd": {
+                              "type": "number"
+                            },
+                            "latencyMs": {
+                              "type": "number"
+                            },
+                            "contextWindowSize": {
+                              "type": "number"
+                            },
+                            "contextUsedTokens": {
+                              "type": "number"
+                            },
+                            "contextBreakdown": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "category": {
+                                    "type": "string"
+                                  },
+                                  "tokens": {
+                                    "type": "number"
+                                  }
+                                },
+                                "required": ["category", "tokens"],
+                                "additionalProperties": false
+                              }
+                            }
+                          },
+                          "additionalProperties": false
+                        }
+                      },
+                      "required": ["text"],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": ["type", "runId", "response"],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "runtime.diagnostic"
+                    },
+                    "runId": {
+                      "type": "string"
+                    },
+                    "at": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
+                      "additionalProperties": {
+                        "$ref": "#/components/schemas/RunEventPage.definition.__schema0"
+                      }
+                    }
+                  },
+                  "required": ["type", "runId", "at", "name", "data"],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "reasoning.started"
+                    },
+                    "runId": {
+                      "type": "string"
+                    },
+                    "reasoning": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "kind": {
+                          "type": "string",
+                          "enum": ["native", "summary"]
+                        },
+                        "kernelId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": ["id", "kind", "kernelId"],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": ["type", "runId", "reasoning"],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "reasoning.completed"
+                    },
+                    "runId": {
+                      "type": "string"
+                    },
+                    "reasoning": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "kind": {
+                          "type": "string",
+                          "enum": ["native", "summary"]
+                        },
+                        "kernelId": {
+                          "type": "string"
+                        },
+                        "text": {
+                          "type": "string"
+                        },
+                        "redacted": {
+                          "type": "boolean"
+                        },
+                        "elapsedMs": {
+                          "type": "number"
+                        }
+                      },
+                      "required": ["id", "kind", "kernelId", "text"],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": ["type", "runId", "reasoning"],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "assistant.delta"
+                    },
+                    "runId": {
+                      "type": "string"
+                    },
+                    "text": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["type", "runId", "text"],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "assistant.final"
+                    },
+                    "runId": {
+                      "type": "string"
+                    },
+                    "text": {
+                      "type": "string"
+                    },
+                    "at": {
+                      "type": "string"
+                    },
+                    "source": {
+                      "type": "string",
+                      "enum": ["runtime", "adapter", "fallback"]
+                    }
+                  },
+                  "required": ["type", "runId", "text", "at"],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "assistant.status"
+                    },
+                    "runId": {
+                      "type": "string"
+                    },
+                    "text": {
+                      "type": "string"
+                    },
+                    "at": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
+                      "additionalProperties": {
+                        "$ref": "#/components/schemas/RunEventPage.definition.__schema0"
+                      }
+                    }
+                  },
+                  "required": ["type", "runId", "text", "at"],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "skill.discovered"
+                    },
+                    "runId": {
+                      "type": "string"
+                    },
+                    "skills": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "aliases": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "title": {
+                            "type": "string"
+                          },
+                          "description": {
+                            "type": "string"
+                          },
+                          "whenToUse": {
+                            "type": "string"
+                          },
+                          "format": {
+                            "type": "string",
+                            "enum": ["markdown-v1", "markdown-v2"]
+                          },
+                          "entry": {
+                            "type": "string"
+                          },
+                          "skillRoot": {
+                            "type": "string"
+                          },
+                          "activities": {
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "enum": ["browser", "chat", "local", "api", "computer"]
+                            }
+                          },
+                          "toolIds": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "memoryHooks": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "kind": {
+                                  "type": "string"
+                                },
+                                "mode": {
+                                  "type": "string",
+                                  "enum": ["direct", "propose", "ask"]
+                                },
+                                "reason": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": ["kind", "mode", "reason"],
+                              "additionalProperties": false
+                            }
+                          },
+                          "allowedTools": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "argumentHint": {
+                            "type": "string"
+                          },
+                          "arguments": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "userInvocable": {
+                            "type": "boolean"
+                          },
+                          "disableModelInvocation": {
+                            "type": "boolean"
+                          },
+                          "model": {
+                            "type": "string"
+                          },
+                          "effort": {
+                            "type": "string"
+                          },
+                          "context": {
+                            "type": "string",
+                            "enum": ["inline", "fork"]
+                          },
+                          "shell": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "paths": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "hooks": {
+                            "type": "object",
+                            "propertyNames": {
+                              "type": "string"
+                            },
+                            "additionalProperties": {
+                              "$ref": "#/components/schemas/RunEventPage.definition.__schema0"
+                            }
+                          },
+                          "source": {
+                            "type": "string",
+                            "enum": ["bundled", "project", "user", "pack"]
+                          },
+                          "trust": {
+                            "type": "string",
+                            "enum": ["trusted", "untrusted"]
+                          },
+                          "packId": {
+                            "type": "string"
+                          },
+                          "capabilityId": {
+                            "type": "string"
+                          },
+                          "contentLength": {
+                            "type": "number"
+                          },
+                          "tags": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "name",
+                          "title",
+                          "description",
+                          "format",
+                          "entry",
+                          "skillRoot",
+                          "activities",
+                          "toolIds",
+                          "memoryHooks",
+                          "allowedTools",
+                          "userInvocable",
+                          "disableModelInvocation",
+                          "context",
+                          "source",
+                          "trust"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": ["type", "runId", "skills"],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "skill.invoked"
+                    },
+                    "runId": {
+                      "type": "string"
+                    },
+                    "skill": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "aliases": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "title": {
+                          "type": "string"
+                        },
+                        "description": {
+                          "type": "string"
+                        },
+                        "whenToUse": {
+                          "type": "string"
+                        },
+                        "format": {
+                          "type": "string",
+                          "enum": ["markdown-v1", "markdown-v2"]
+                        },
+                        "entry": {
+                          "type": "string"
+                        },
+                        "skillRoot": {
+                          "type": "string"
+                        },
+                        "activities": {
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "enum": ["browser", "chat", "local", "api", "computer"]
+                          }
+                        },
+                        "toolIds": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "memoryHooks": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string"
+                              },
+                              "mode": {
+                                "type": "string",
+                                "enum": ["direct", "propose", "ask"]
+                              },
+                              "reason": {
+                                "type": "string"
+                              }
+                            },
+                            "required": ["kind", "mode", "reason"],
+                            "additionalProperties": false
+                          }
+                        },
+                        "allowedTools": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "argumentHint": {
+                          "type": "string"
+                        },
+                        "arguments": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "userInvocable": {
+                          "type": "boolean"
+                        },
+                        "disableModelInvocation": {
+                          "type": "boolean"
+                        },
+                        "model": {
+                          "type": "string"
+                        },
+                        "effort": {
+                          "type": "string"
+                        },
+                        "context": {
+                          "type": "string",
+                          "enum": ["inline", "fork"]
+                        },
+                        "shell": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "paths": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "hooks": {
+                          "type": "object",
+                          "propertyNames": {
+                            "type": "string"
+                          },
+                          "additionalProperties": {
+                            "$ref": "#/components/schemas/RunEventPage.definition.__schema0"
+                          }
+                        },
+                        "source": {
+                          "type": "string",
+                          "enum": ["bundled", "project", "user", "pack"]
+                        },
+                        "trust": {
+                          "type": "string",
+                          "enum": ["trusted", "untrusted"]
+                        },
+                        "packId": {
+                          "type": "string"
+                        },
+                        "capabilityId": {
+                          "type": "string"
+                        },
+                        "contentLength": {
+                          "type": "number"
+                        },
+                        "tags": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "name",
+                        "title",
+                        "description",
+                        "format",
+                        "entry",
+                        "skillRoot",
+                        "activities",
+                        "toolIds",
+                        "memoryHooks",
+                        "allowedTools",
+                        "userInvocable",
+                        "disableModelInvocation",
+                        "context",
+                        "source",
+                        "trust"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "invocation": {
+                      "type": "object",
+                      "properties": {
+                        "skillId": {
+                          "type": "string"
+                        },
+                        "skillName": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        },
+                        "content": {
+                          "type": "string"
+                        },
+                        "contentPreview": {
+                          "type": "string"
+                        },
+                        "sourcePath": {
+                          "type": "string"
+                        },
+                        "source": {
+                          "type": "string",
+                          "enum": ["bundled", "project", "user", "pack"]
+                        },
+                        "trust": {
+                          "type": "string",
+                          "enum": ["trusted", "untrusted"]
+                        },
+                        "context": {
+                          "type": "string",
+                          "enum": ["inline", "fork"]
+                        },
+                        "args": {
+                          "type": "string"
+                        },
+                        "allowedTools": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "model": {
+                          "type": "string"
+                        },
+                        "effort": {
+                          "type": "string"
+                        },
+                        "packId": {
+                          "type": "string"
+                        },
+                        "capabilityId": {
+                          "type": "string"
+                        },
+                        "invokedAt": {
+                          "type": "string"
+                        },
+                        "origin": {
+                          "type": "string",
+                          "enum": ["user", "model"]
+                        }
+                      },
+                      "required": [
+                        "skillId",
+                        "skillName",
+                        "title",
+                        "content",
+                        "contentPreview",
+                        "sourcePath",
+                        "source",
+                        "trust",
+                        "context",
+                        "allowedTools",
+                        "invokedAt",
+                        "origin"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": ["type", "runId", "skill", "invocation"],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "skill.loaded"
+                    },
+                    "runId": {
+                      "type": "string"
+                    },
+                    "skillId": {
+                      "type": "string"
+                    },
+                    "contentPreview": {
+                      "type": "string"
+                    },
+                    "allowedTools": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "model": {
+                      "type": "string"
+                    },
+                    "effort": {
+                      "type": "string"
+                    },
+                    "context": {
+                      "type": "string",
+                      "enum": ["inline", "fork"]
+                    }
+                  },
+                  "required": ["type", "runId", "skillId", "contentPreview", "allowedTools", "context"],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "skill.forked"
+                    },
+                    "runId": {
+                      "type": "string"
+                    },
+                    "skillId": {
+                      "type": "string"
+                    },
+                    "forkSessionId": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": ["started", "finished"]
+                    },
+                    "result": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["type", "runId", "skillId", "forkSessionId", "status"],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "skill.cleared"
+                    },
+                    "runId": {
+                      "type": "string"
+                    },
+                    "skillId": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["type", "runId", "reason"],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "tool.started"
+                    },
+                    "runId": {
+                      "type": "string"
+                    },
+                    "toolId": {
+                      "type": "string"
+                    },
+                    "callId": {
+                      "type": "string"
+                    },
+                    "input": {
+                      "$ref": "#/components/schemas/RunEventPage.definition.__schema3"
+                    }
+                  },
+                  "required": ["type", "runId", "toolId", "input"],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "tool.progress"
+                    },
+                    "runId": {
+                      "type": "string"
+                    },
+                    "toolId": {
+                      "type": "string"
+                    },
+                    "callId": {
+                      "type": "string"
+                    },
+                    "update": {
+                      "$ref": "#/components/schemas/RunEventPage.definition.__schema4"
+                    }
+                  },
+                  "required": ["type", "runId", "toolId", "update"],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "tool.finished"
+                    },
+                    "runId": {
+                      "type": "string"
+                    },
+                    "toolId": {
+                      "type": "string"
+                    },
+                    "callId": {
+                      "type": "string"
+                    },
+                    "result": {
+                      "type": "object",
+                      "properties": {
+                        "ok": {
+                          "type": "boolean"
+                        },
+                        "value": {
+                          "$ref": "#/components/schemas/RunEventPage.definition.__schema5"
+                        },
+                        "error": {
+                          "type": "string"
+                        },
+                        "problem": {
+                          "type": "object",
+                          "properties": {
+                            "incidentId": {
+                              "type": "string"
+                            },
+                            "code": {
+                              "type": "string"
+                            }
+                          },
+                          "required": ["incidentId", "code"],
+                          "additionalProperties": false
+                        },
+                        "sources": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "title": {
+                                "type": "string"
+                              },
+                              "url": {
+                                "type": "string"
+                              },
+                              "locator": {
+                                "type": "string"
+                              },
+                              "quote": {
+                                "type": "string"
+                              }
+                            },
+                            "additionalProperties": false
+                          }
+                        }
+                      },
+                      "required": ["ok"],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": ["type", "runId", "toolId", "result"],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "approval.requested"
+                    },
+                    "runId": {
+                      "type": "string"
+                    },
+                    "request": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        },
+                        "createdAt": {
+                          "type": "string"
+                        },
+                        "updatedAt": {
+                          "type": "string"
+                        },
+                        "input": {
+                          "$ref": "#/components/schemas/RunEventPage.definition.__schema6"
+                        },
+                        "response": {
+                          "$ref": "#/components/schemas/RunEventPage.definition.__schema7"
+                        },
+                        "resume": {
+                          "oneOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "type": {
+                                  "type": "string",
+                                  "const": "tool"
+                                },
+                                "runId": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": ["type"],
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "object",
+                              "properties": {
+                                "type": {
+                                  "type": "string",
+                                  "const": "routine.step"
+                                },
+                                "routineId": {
+                                  "type": "string"
+                                },
+                                "stepId": {
+                                  "type": "string"
+                                },
+                                "runId": {
+                                  "type": "string"
+                                },
+                                "stepOutputs": {
+                                  "type": "object",
+                                  "propertyNames": {
+                                    "type": "string"
+                                  },
+                                  "additionalProperties": {
+                                    "$ref": "#/components/schemas/RunEventPage.definition.__schema0"
+                                  }
+                                }
+                              },
+                              "required": ["type", "routineId", "stepId", "runId"],
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "object",
+                              "properties": {
+                                "type": {
+                                  "type": "string",
+                                  "const": "kernel.native"
+                                },
+                                "kernelId": {
+                                  "type": "string"
+                                },
+                                "runId": {
+                                  "type": "string"
+                                },
+                                "continuation": {
+                                  "type": "string",
+                                  "const": "same-loop"
+                                }
+                              },
+                              "required": ["type", "kernelId", "runId", "continuation"],
+                              "additionalProperties": false
+                            }
+                          ]
+                        },
+                        "nativeRequestId": {
+                          "type": "string"
+                        },
+                        "deadlineAt": {
+                          "type": "string"
+                        },
+                        "isBlocking": {
+                          "type": "boolean"
+                        },
+                        "autoResolutionMs": {
+                          "type": "number"
+                        },
+                        "kind": {
+                          "type": "string",
+                          "enum": [
+                            "tool",
+                            "command",
+                            "file_change",
+                            "permission_scope",
+                            "routine_step",
+                            "memory_write",
+                            "browser_action",
+                            "computer_action"
+                          ]
+                        },
+                        "reason": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": ["pending", "approved", "rejected", "canceled"]
+                        },
+                        "toolId": {
+                          "type": "string"
+                        },
+                        "capabilityId": {
+                          "type": "string"
+                        },
+                        "skillId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": ["id", "title", "createdAt", "updatedAt", "kind", "reason", "status"],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": ["type", "runId", "request"],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "approval.resolved"
+                    },
+                    "runId": {
+                      "type": "string"
+                    },
+                    "request": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        },
+                        "createdAt": {
+                          "type": "string"
+                        },
+                        "updatedAt": {
+                          "type": "string"
+                        },
+                        "input": {
+                          "$ref": "#/components/schemas/RunEventPage.definition.__schema6"
+                        },
+                        "response": {
+                          "$ref": "#/components/schemas/RunEventPage.definition.__schema7"
+                        },
+                        "resume": {
+                          "oneOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "type": {
+                                  "type": "string",
+                                  "const": "tool"
+                                },
+                                "runId": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": ["type"],
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "object",
+                              "properties": {
+                                "type": {
+                                  "type": "string",
+                                  "const": "routine.step"
+                                },
+                                "routineId": {
+                                  "type": "string"
+                                },
+                                "stepId": {
+                                  "type": "string"
+                                },
+                                "runId": {
+                                  "type": "string"
+                                },
+                                "stepOutputs": {
+                                  "type": "object",
+                                  "propertyNames": {
+                                    "type": "string"
+                                  },
+                                  "additionalProperties": {
+                                    "$ref": "#/components/schemas/RunEventPage.definition.__schema0"
+                                  }
+                                }
+                              },
+                              "required": ["type", "routineId", "stepId", "runId"],
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "object",
+                              "properties": {
+                                "type": {
+                                  "type": "string",
+                                  "const": "kernel.native"
+                                },
+                                "kernelId": {
+                                  "type": "string"
+                                },
+                                "runId": {
+                                  "type": "string"
+                                },
+                                "continuation": {
+                                  "type": "string",
+                                  "const": "same-loop"
+                                }
+                              },
+                              "required": ["type", "kernelId", "runId", "continuation"],
+                              "additionalProperties": false
+                            }
+                          ]
+                        },
+                        "nativeRequestId": {
+                          "type": "string"
+                        },
+                        "deadlineAt": {
+                          "type": "string"
+                        },
+                        "isBlocking": {
+                          "type": "boolean"
+                        },
+                        "autoResolutionMs": {
+                          "type": "number"
+                        },
+                        "kind": {
+                          "type": "string",
+                          "enum": [
+                            "tool",
+                            "command",
+                            "file_change",
+                            "permission_scope",
+                            "routine_step",
+                            "memory_write",
+                            "browser_action",
+                            "computer_action"
+                          ]
+                        },
+                        "reason": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": ["pending", "approved", "rejected", "canceled"]
+                        },
+                        "toolId": {
+                          "type": "string"
+                        },
+                        "capabilityId": {
+                          "type": "string"
+                        },
+                        "skillId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": ["id", "title", "createdAt", "updatedAt", "kind", "reason", "status"],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": ["type", "runId", "request"],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "question.requested"
+                    },
+                    "runId": {
+                      "type": "string"
+                    },
+                    "question": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        },
+                        "createdAt": {
+                          "type": "string"
+                        },
+                        "updatedAt": {
+                          "type": "string"
+                        },
+                        "input": {
+                          "$ref": "#/components/schemas/RunEventPage.definition.__schema6"
+                        },
+                        "response": {
+                          "$ref": "#/components/schemas/RunEventPage.definition.__schema7"
+                        },
+                        "resume": {
+                          "oneOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "type": {
+                                  "type": "string",
+                                  "const": "tool"
+                                },
+                                "runId": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": ["type"],
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "object",
+                              "properties": {
+                                "type": {
+                                  "type": "string",
+                                  "const": "routine.step"
+                                },
+                                "routineId": {
+                                  "type": "string"
+                                },
+                                "stepId": {
+                                  "type": "string"
+                                },
+                                "runId": {
+                                  "type": "string"
+                                },
+                                "stepOutputs": {
+                                  "type": "object",
+                                  "propertyNames": {
+                                    "type": "string"
+                                  },
+                                  "additionalProperties": {
+                                    "$ref": "#/components/schemas/RunEventPage.definition.__schema0"
+                                  }
+                                }
+                              },
+                              "required": ["type", "routineId", "stepId", "runId"],
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "object",
+                              "properties": {
+                                "type": {
+                                  "type": "string",
+                                  "const": "kernel.native"
+                                },
+                                "kernelId": {
+                                  "type": "string"
+                                },
+                                "runId": {
+                                  "type": "string"
+                                },
+                                "continuation": {
+                                  "type": "string",
+                                  "const": "same-loop"
+                                }
+                              },
+                              "required": ["type", "kernelId", "runId", "continuation"],
+                              "additionalProperties": false
+                            }
+                          ]
+                        },
+                        "nativeRequestId": {
+                          "type": "string"
+                        },
+                        "deadlineAt": {
+                          "type": "string"
+                        },
+                        "isBlocking": {
+                          "type": "boolean"
+                        },
+                        "autoResolutionMs": {
+                          "type": "number"
+                        },
+                        "prompt": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": ["pending", "answered", "declined", "canceled"]
+                        },
+                        "source": {
+                          "oneOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "type": {
+                                  "type": "string",
+                                  "const": "kernel.native"
+                                },
+                                "kernelId": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": ["type", "kernelId"],
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "object",
+                              "properties": {
+                                "type": {
+                                  "type": "string",
+                                  "const": "host"
+                                }
+                              },
+                              "required": ["type"],
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "object",
+                              "properties": {
+                                "type": {
+                                  "type": "string",
+                                  "const": "unknown"
+                                }
+                              },
+                              "required": ["type"],
+                              "additionalProperties": false
+                            }
+                          ]
+                        }
+                      },
+                      "required": ["id", "title", "createdAt", "updatedAt", "prompt", "status"],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": ["type", "runId", "question"],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "question.answered"
+                    },
+                    "runId": {
+                      "type": "string"
+                    },
+                    "question": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        },
+                        "createdAt": {
+                          "type": "string"
+                        },
+                        "updatedAt": {
+                          "type": "string"
+                        },
+                        "input": {
+                          "$ref": "#/components/schemas/RunEventPage.definition.__schema6"
+                        },
+                        "response": {
+                          "$ref": "#/components/schemas/RunEventPage.definition.__schema7"
+                        },
+                        "resume": {
+                          "oneOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "type": {
+                                  "type": "string",
+                                  "const": "tool"
+                                },
+                                "runId": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": ["type"],
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "object",
+                              "properties": {
+                                "type": {
+                                  "type": "string",
+                                  "const": "routine.step"
+                                },
+                                "routineId": {
+                                  "type": "string"
+                                },
+                                "stepId": {
+                                  "type": "string"
+                                },
+                                "runId": {
+                                  "type": "string"
+                                },
+                                "stepOutputs": {
+                                  "type": "object",
+                                  "propertyNames": {
+                                    "type": "string"
+                                  },
+                                  "additionalProperties": {
+                                    "$ref": "#/components/schemas/RunEventPage.definition.__schema0"
+                                  }
+                                }
+                              },
+                              "required": ["type", "routineId", "stepId", "runId"],
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "object",
+                              "properties": {
+                                "type": {
+                                  "type": "string",
+                                  "const": "kernel.native"
+                                },
+                                "kernelId": {
+                                  "type": "string"
+                                },
+                                "runId": {
+                                  "type": "string"
+                                },
+                                "continuation": {
+                                  "type": "string",
+                                  "const": "same-loop"
+                                }
+                              },
+                              "required": ["type", "kernelId", "runId", "continuation"],
+                              "additionalProperties": false
+                            }
+                          ]
+                        },
+                        "nativeRequestId": {
+                          "type": "string"
+                        },
+                        "deadlineAt": {
+                          "type": "string"
+                        },
+                        "isBlocking": {
+                          "type": "boolean"
+                        },
+                        "autoResolutionMs": {
+                          "type": "number"
+                        },
+                        "prompt": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": ["pending", "answered", "declined", "canceled"]
+                        },
+                        "source": {
+                          "oneOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "type": {
+                                  "type": "string",
+                                  "const": "kernel.native"
+                                },
+                                "kernelId": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": ["type", "kernelId"],
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "object",
+                              "properties": {
+                                "type": {
+                                  "type": "string",
+                                  "const": "host"
+                                }
+                              },
+                              "required": ["type"],
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "object",
+                              "properties": {
+                                "type": {
+                                  "type": "string",
+                                  "const": "unknown"
+                                }
+                              },
+                              "required": ["type"],
+                              "additionalProperties": false
+                            }
+                          ]
+                        }
+                      },
+                      "required": ["id", "title", "createdAt", "updatedAt", "prompt", "status"],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": ["type", "runId", "question"],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "planning.updated"
+                    },
+                    "runId": {
+                      "type": "string"
+                    },
+                    "plan": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        },
+                        "text": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "string"
+                        },
+                        "raw": {
+                          "type": "object",
+                          "propertyNames": {
+                            "type": "string"
+                          },
+                          "additionalProperties": {
+                            "$ref": "#/components/schemas/RunEventPage.definition.__schema0"
+                          }
+                        },
+                        "updatedAt": {
+                          "type": "string"
+                        },
+                        "source": {
+                          "oneOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "type": {
+                                  "type": "string",
+                                  "const": "kernel.native"
+                                },
+                                "kernelId": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": ["type", "kernelId"],
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "object",
+                              "properties": {
+                                "type": {
+                                  "type": "string",
+                                  "const": "host"
+                                }
+                              },
+                              "required": ["type"],
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "object",
+                              "properties": {
+                                "type": {
+                                  "type": "string",
+                                  "const": "unknown"
+                                }
+                              },
+                              "required": ["type"],
+                              "additionalProperties": false
+                            }
+                          ]
+                        }
+                      },
+                      "required": ["id", "text", "updatedAt"],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": ["type", "runId", "plan"],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "run.cancel_requested"
+                    },
+                    "runId": {
+                      "type": "string"
+                    },
+                    "at": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["type", "runId", "at"],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "run.paused"
+                    },
+                    "runId": {
+                      "type": "string"
+                    },
+                    "at": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    },
+                    "approvalId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["type", "runId", "at", "reason"],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "run.resumed"
+                    },
+                    "runId": {
+                      "type": "string"
+                    },
+                    "at": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    },
+                    "approvalId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["type", "runId", "at"],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "memory.written"
+                    },
+                    "runId": {
+                      "type": "string"
+                    },
+                    "record": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "scope": {
+                          "type": "string",
+                          "enum": ["user", "workspace", "page", "session"]
+                        },
+                        "kind": {
+                          "type": "string"
+                        },
+                        "text": {
+                          "type": "string"
+                        },
+                        "confidence": {
+                          "type": "string",
+                          "enum": ["asserted", "observed", "inferred"]
+                        },
+                        "source": {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "enum": ["user", "agent", "tool", "skill"]
+                            },
+                            "ref": {
+                              "type": "object",
+                              "properties": {
+                                "title": {
+                                  "type": "string"
+                                },
+                                "url": {
+                                  "type": "string"
+                                },
+                                "locator": {
+                                  "type": "string"
+                                },
+                                "quote": {
+                                  "type": "string"
+                                }
+                              },
+                              "additionalProperties": false
+                            }
+                          },
+                          "required": ["kind"],
+                          "additionalProperties": false
+                        },
+                        "tags": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "data": {
+                          "type": "object",
+                          "propertyNames": {
+                            "type": "string"
+                          },
+                          "additionalProperties": {
+                            "$ref": "#/components/schemas/RunEventPage.definition.__schema0"
+                          }
+                        },
+                        "createdAt": {
+                          "type": "string"
+                        },
+                        "updatedAt": {
+                          "type": "string"
+                        },
+                        "expiresAt": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "scope",
+                        "kind",
+                        "text",
+                        "confidence",
+                        "source",
+                        "tags",
+                        "createdAt",
+                        "updatedAt"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": ["type", "runId", "record"],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "turn.finished"
+                    },
+                    "runId": {
+                      "type": "string"
+                    },
+                    "at": {
+                      "type": "string"
+                    },
+                    "outcome": {
+                      "type": "object",
+                      "properties": {
+                        "taskState": {
+                          "type": "string",
+                          "enum": [
+                            "TASK_STATE_UNSPECIFIED",
+                            "TASK_STATE_SUBMITTED",
+                            "TASK_STATE_WORKING",
+                            "TASK_STATE_COMPLETED",
+                            "TASK_STATE_FAILED",
+                            "TASK_STATE_CANCELED",
+                            "TASK_STATE_INPUT_REQUIRED",
+                            "TASK_STATE_REJECTED",
+                            "TASK_STATE_AUTH_REQUIRED"
+                          ]
+                        },
+                        "activity": {
+                          "type": "string",
+                          "enum": ["running", "reconnecting", "cancel_pending", "waiting_on_child"]
+                        },
+                        "reasonCode": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "retryable": {
+                          "type": "boolean"
+                        },
+                        "outcomeUnknown": {
+                          "type": "boolean"
+                        },
+                        "childRunId": {
+                          "type": "string",
+                          "minLength": 1
+                        }
+                      },
+                      "required": ["taskState"],
+                      "additionalProperties": false
+                    },
+                    "synthetic": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": ["type", "runId", "at", "outcome"],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "error"
+                    },
+                    "runId": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "problem": {
+                      "type": "object",
+                      "properties": {
+                        "incidentId": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        }
+                      },
+                      "required": ["incidentId", "code"],
+                      "additionalProperties": false
+                    },
+                    "diagnostics": {
+                      "type": "object",
+                      "properties": {
+                        "runtimeModelId": {
+                          "type": "string"
+                        },
+                        "runtimeVersion": {
+                          "type": "string"
+                        },
+                        "upstreamRequestId": {
+                          "type": "string"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": ["type", "runId", "message"],
+                  "additionalProperties": false
+                }
+              ]
+            }
+          },
+          "cursor": {
+            "type": "string"
+          },
+          "oldestCursor": {
+            "type": "string"
+          },
+          "hasMore": {
+            "type": "boolean"
+          },
+          "hasOlder": {
+            "type": "boolean"
+          },
+          "historyTruncated": {
+            "type": "boolean"
+          },
+          "resetRequired": {
+            "type": "boolean"
+          },
+          "longPollSupported": {
+            "type": "boolean",
+            "const": true
+          },
+          "snapshot": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "ok",
+          "events",
+          "cursor",
+          "oldestCursor",
+          "hasMore",
+          "hasOlder",
+          "historyTruncated",
+          "resetRequired",
+          "longPollSupported",
+          "snapshot"
+        ],
+        "additionalProperties": false
+      },
+      "RunEventPage.definition.__schema0": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "number"
+          },
+          {
+            "type": "boolean"
+          },
+          {
+            "type": "null"
+          },
+          {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RunEventPage.definition.__schema0"
+            }
+          },
+          {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "$ref": "#/components/schemas/RunEventPage.definition.__schema0"
+            }
+          }
+        ]
+      },
+      "RunEventPage.definition.__schema1": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "number"
+          },
+          {
+            "type": "boolean"
+          },
+          {
+            "type": "null"
+          },
+          {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RunEventPage.definition.__schema1"
+            }
+          },
+          {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "$ref": "#/components/schemas/RunEventPage.definition.__schema1"
+            }
+          }
+        ]
+      },
+      "RunEventPage.definition.__schema2": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "number"
+          },
+          {
+            "type": "boolean"
+          },
+          {
+            "type": "null"
+          },
+          {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RunEventPage.definition.__schema2"
+            }
+          },
+          {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "$ref": "#/components/schemas/RunEventPage.definition.__schema2"
+            }
+          }
+        ]
+      },
+      "RunEventPage.definition.__schema3": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "number"
+          },
+          {
+            "type": "boolean"
+          },
+          {
+            "type": "null"
+          },
+          {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RunEventPage.definition.__schema3"
+            }
+          },
+          {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "$ref": "#/components/schemas/RunEventPage.definition.__schema3"
+            }
+          }
+        ]
+      },
+      "RunEventPage.definition.__schema4": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "number"
+          },
+          {
+            "type": "boolean"
+          },
+          {
+            "type": "null"
+          },
+          {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RunEventPage.definition.__schema4"
+            }
+          },
+          {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "$ref": "#/components/schemas/RunEventPage.definition.__schema4"
+            }
+          }
+        ]
+      },
+      "RunEventPage.definition.__schema5": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "number"
+          },
+          {
+            "type": "boolean"
+          },
+          {
+            "type": "null"
+          },
+          {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RunEventPage.definition.__schema5"
+            }
+          },
+          {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "$ref": "#/components/schemas/RunEventPage.definition.__schema5"
+            }
+          }
+        ]
+      },
+      "RunEventPage.definition.__schema6": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "number"
+          },
+          {
+            "type": "boolean"
+          },
+          {
+            "type": "null"
+          },
+          {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RunEventPage.definition.__schema6"
+            }
+          },
+          {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "$ref": "#/components/schemas/RunEventPage.definition.__schema6"
+            }
+          }
+        ]
+      },
+      "RunEventPage.definition.__schema7": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "number"
+          },
+          {
+            "type": "boolean"
+          },
+          {
+            "type": "null"
+          },
+          {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RunEventPage.definition.__schema7"
+            }
+          },
+          {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "$ref": "#/components/schemas/RunEventPage.definition.__schema7"
+            }
+          }
+        ]
+      },
       "run.session.list.response.200": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",

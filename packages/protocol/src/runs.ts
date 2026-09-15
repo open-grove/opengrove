@@ -1,3 +1,4 @@
+import { agentEventSchema } from "./agent-event-records.js";
 import { z } from "zod";
 import {
   activitySpaceSchema,
@@ -117,11 +118,61 @@ export const listExecutionsOperation = defineHostOperation({
   errors: hostRequestErrors,
 });
 export type ListExecutionsOperation = typeof listExecutionsOperation;
+export const listRunEventsOperation = defineHostOperation({
+  id: "run.event.list",
+  summary: "Read execution events",
+  description:
+    "Read a bounded event page, older history, or changes after a cursor. Repeat run-id to filter runs. Long polling waits up to 25 seconds. Cursor and before-cursor are mutually exclusive.",
+  method: "GET",
+  path: "/events",
+  risk: "read",
+  query: z.object({
+    runId: z
+      .array(z.string())
+      .default([])
+      .transform((values) => [
+        ...new Set(
+          values
+            .flatMap((value) => value.split(","))
+            .map((value) => value.trim())
+            .filter(Boolean),
+        ),
+      ]),
+    limit: z.number().int().min(1).max(1000).default(200),
+    cursor: z.string().trim().optional(),
+    beforeCursor: z.string().trim().optional(),
+    waitMs: z.number().int().min(0).max(25000).default(0),
+  }),
+  success: {
+    status: 200,
+    body: z.object({
+      ok: z.literal(true),
+      events: z.array(agentEventSchema),
+      cursor: z.string(),
+      oldestCursor: z.string(),
+      hasMore: z.boolean(),
+      hasOlder: z.boolean(),
+      historyTruncated: z.boolean(),
+      resetRequired: z.boolean(),
+      longPollSupported: z.literal(true),
+      snapshot: z.boolean(),
+    }),
+    schemaId: "RunEventPage",
+  },
+  errors: hostRequestErrors,
+});
+export type ListRunEventsOperation = typeof listRunEventsOperation;
 export const runOperationGroup = defineHostOperationGroup({
   id: "run",
   title: "Execution",
   description: "Run records, direct execution, and session controls.",
   resources: [
+    defineHostOperationResource({
+      id: "event",
+      title: "Execution events",
+      description: "Read event history and poll for new events.",
+      operations: [listRunEventsOperation] as const,
+    }),
     defineHostOperationResource({
       id: "run",
       title: "Runs",

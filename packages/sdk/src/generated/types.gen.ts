@@ -4,6 +4,955 @@ export type ClientOptions = {
   baseUrl: `${string}://${string}/api` | (string & {});
 };
 
+export type RunEventPage = {
+  ok: true;
+  events: Array<
+    | {
+        type: "turn.started";
+        runId: string;
+        at: string;
+      }
+    | {
+        type: "context.assembled";
+        runId: string;
+        context: {
+          id: string;
+          createdAt: string;
+          summary: string;
+          promptBlock: string;
+          items: Array<{
+            id: string;
+            kind:
+              | "page"
+              | "selection"
+              | "attachment"
+              | "computer"
+              | "artifact"
+              | "session"
+              | "execution"
+              | "task"
+              | "knowledge"
+              | "memory"
+              | "routine"
+              | "permission"
+              | "skill";
+            title: string;
+            text: string;
+            source?: {
+              title?: string;
+              url?: string;
+              locator?: string;
+              quote?: string;
+            };
+            score?: number;
+            data?: {
+              [key: string]: RunEventPageDefinitionSchema0;
+            };
+          }>;
+          budget: {
+            maxItems: number;
+            usedItems: number;
+            maxCharacters: number;
+            usedCharacters: number;
+            truncated: boolean;
+          };
+        };
+      }
+    | {
+        type: "compaction.started";
+        runId: string;
+        at: string;
+        reason?: string;
+        item?: RunEventPageDefinitionSchema1;
+      }
+    | {
+        type: "compaction.finished";
+        runId: string;
+        at: string;
+        summary?: string;
+        item?: RunEventPageDefinitionSchema2;
+      }
+    | {
+        type: "model.requested";
+        runId: string;
+        request: {
+          systemPrompt: string;
+          userInput: string;
+          modelId?: string;
+          session?: {
+            provider: string;
+            sessionId: string;
+            persistent: boolean;
+            priorMessageCount: number;
+            priorMessages: Array<{
+              role: "system" | "user" | "assistant" | "tool";
+              content: string;
+              name?: string;
+            }>;
+            nativeSessionId?: string;
+          };
+          messages?: Array<{
+            role: "system" | "user" | "assistant" | "tool";
+            content: string;
+            name?: string;
+          }>;
+          context?: {
+            id: string;
+            createdAt: string;
+            summary: string;
+            promptBlock: string;
+            items: Array<{
+              id: string;
+              kind:
+                | "page"
+                | "selection"
+                | "attachment"
+                | "computer"
+                | "artifact"
+                | "session"
+                | "execution"
+                | "task"
+                | "knowledge"
+                | "memory"
+                | "routine"
+                | "permission"
+                | "skill";
+              title: string;
+              text: string;
+              source?: {
+                title?: string;
+                url?: string;
+                locator?: string;
+                quote?: string;
+              };
+              score?: number;
+              data?: {
+                [key: string]: RunEventPageDefinitionSchema0;
+              };
+            }>;
+            budget: {
+              maxItems: number;
+              usedItems: number;
+              maxCharacters: number;
+              usedCharacters: number;
+              truncated: boolean;
+            };
+          };
+          tools: Array<{
+            id: string;
+            title: string;
+            description: string;
+            activity: "browser" | "chat" | "local" | "api" | "computer";
+            risk: "read" | "write" | "send" | "spend" | "delete";
+            input: {
+              type: "json-schema";
+              schema: {
+                [key: string]: RunEventPageDefinitionSchema0;
+              };
+            };
+            output?: {
+              type: "json-schema";
+              schema: {
+                [key: string]: RunEventPageDefinitionSchema0;
+              };
+            };
+            permission: {
+              mode: "allow" | "ask" | "deny";
+              reason: string;
+            };
+            liveness?: {
+              cancellation: "run-signal" | "none";
+              deadlineSource: "kernel-native" | "upstream-service" | "business-rule" | "none";
+              abandonOutcome: "outcome-unknown";
+              terminalConfirmation: "tool-result";
+              cancellationGraceMs?: number;
+            };
+          }>;
+          skills: Array<{
+            id: string;
+            name: string;
+            aliases?: Array<string>;
+            title: string;
+            description: string;
+            whenToUse?: string;
+            format: "markdown-v1" | "markdown-v2";
+            entry: string;
+            skillRoot: string;
+            activities: Array<"browser" | "chat" | "local" | "api" | "computer">;
+            toolIds: Array<string>;
+            memoryHooks: Array<{
+              kind: string;
+              mode: "direct" | "propose" | "ask";
+              reason: string;
+            }>;
+            allowedTools: Array<string>;
+            argumentHint?: string;
+            arguments?: Array<string>;
+            userInvocable: boolean;
+            disableModelInvocation: boolean;
+            model?: string;
+            effort?: string;
+            context: "inline" | "fork";
+            shell?: Array<string>;
+            paths?: Array<string>;
+            hooks?: {
+              [key: string]: RunEventPageDefinitionSchema0;
+            };
+            source: "bundled" | "project" | "user" | "pack";
+            trust: "trusted" | "untrusted";
+            packId?: string;
+            capabilityId?: string;
+            contentLength?: number;
+            tags?: Array<string>;
+          }>;
+          packs: Array<{
+            id: string;
+            title: string;
+            description: string;
+            source: "bundled" | "project" | "user" | "pack";
+            trust: "trusted" | "untrusted";
+            rootDir: string;
+            skillIds: Array<string>;
+            toolIds: Array<string>;
+            capabilityIds: Array<string>;
+            artifactTypes: Array<string>;
+            referenceAssetDirs?: Array<string>;
+            tags?: Array<string>;
+          }>;
+          capabilities: Array<{
+            id: string;
+            title: string;
+            version: string;
+            description: string;
+            source?: {
+              kind: "native" | "wrapped-open-source" | "mcp" | "external-api" | "user-routine";
+              project?: string;
+              url?: string;
+              license?: string;
+            };
+            activities: Array<"browser" | "chat" | "local" | "api" | "computer">;
+            triggers?: Array<{
+              [key: string]: RunEventPageDefinitionSchema0;
+            }>;
+            tools: Array<{
+              id: string;
+              title: string;
+              description: string;
+              activity: "browser" | "chat" | "local" | "api" | "computer";
+              risk: "read" | "write" | "send" | "spend" | "delete";
+              input: {
+                type: "json-schema";
+                schema: {
+                  [key: string]: RunEventPageDefinitionSchema0;
+                };
+              };
+              output?: {
+                type: "json-schema";
+                schema: {
+                  [key: string]: RunEventPageDefinitionSchema0;
+                };
+              };
+              permission: {
+                mode: "allow" | "ask" | "deny";
+                reason: string;
+              };
+              liveness?: {
+                cancellation: "run-signal" | "none";
+                deadlineSource: "kernel-native" | "upstream-service" | "business-rule" | "none";
+                abandonOutcome: "outcome-unknown";
+                terminalConfirmation: "tool-result";
+                cancellationGraceMs?: number;
+              };
+            }>;
+            skills: Array<{
+              id: string;
+              name: string;
+              aliases?: Array<string>;
+              title: string;
+              description: string;
+              whenToUse?: string;
+              format: "markdown-v1" | "markdown-v2";
+              entry: string;
+              skillRoot: string;
+              activities: Array<"browser" | "chat" | "local" | "api" | "computer">;
+              toolIds: Array<string>;
+              memoryHooks: Array<{
+                kind: string;
+                mode: "direct" | "propose" | "ask";
+                reason: string;
+              }>;
+              allowedTools: Array<string>;
+              argumentHint?: string;
+              arguments?: Array<string>;
+              userInvocable: boolean;
+              disableModelInvocation: boolean;
+              model?: string;
+              effort?: string;
+              context: "inline" | "fork";
+              shell?: Array<string>;
+              paths?: Array<string>;
+              hooks?: {
+                [key: string]: RunEventPageDefinitionSchema0;
+              };
+              source: "bundled" | "project" | "user" | "pack";
+              trust: "trusted" | "untrusted";
+              packId?: string;
+              capabilityId?: string;
+              contentLength?: number;
+              tags?: Array<string>;
+            }>;
+            memoryHooks: Array<{
+              kind: string;
+              mode: "direct" | "propose" | "ask";
+              reason: string;
+            }>;
+            policy: Array<{
+              mode: "allow" | "ask" | "deny";
+              reason: string;
+              id?: string;
+              toolId?: string;
+              capabilityId?: string;
+              risk?: "read" | "write" | "send" | "spend" | "delete";
+            }>;
+            sandbox?: "read-only" | "workspace-write" | "danger-full-access";
+            evals?: Array<{
+              id: string;
+              description: string;
+              input: string;
+              expectedBehavior: string;
+            }>;
+          }>;
+        };
+      }
+    | {
+        type: "model.response";
+        runId: string;
+        response: {
+          text: string;
+          usage?: {
+            inputTokens?: number;
+            outputTokens?: number;
+            totalTokens?: number;
+            costUsd?: number;
+            latencyMs?: number;
+            contextWindowSize?: number;
+            contextUsedTokens?: number;
+            contextBreakdown?: Array<{
+              category: string;
+              tokens: number;
+            }>;
+          };
+        };
+      }
+    | {
+        type: "runtime.diagnostic";
+        runId: string;
+        at: string;
+        name: string;
+        data: {
+          [key: string]: RunEventPageDefinitionSchema0;
+        };
+      }
+    | {
+        type: "reasoning.started";
+        runId: string;
+        reasoning: {
+          id: string;
+          kind: "native" | "summary";
+          kernelId: string;
+        };
+      }
+    | {
+        type: "reasoning.completed";
+        runId: string;
+        reasoning: {
+          id: string;
+          kind: "native" | "summary";
+          kernelId: string;
+          text: string;
+          redacted?: boolean;
+          elapsedMs?: number;
+        };
+      }
+    | {
+        type: "assistant.delta";
+        runId: string;
+        text: string;
+      }
+    | {
+        type: "assistant.final";
+        runId: string;
+        text: string;
+        at: string;
+        source?: "runtime" | "adapter" | "fallback";
+      }
+    | {
+        type: "assistant.status";
+        runId: string;
+        text: string;
+        at: string;
+        data?: {
+          [key: string]: RunEventPageDefinitionSchema0;
+        };
+      }
+    | {
+        type: "skill.discovered";
+        runId: string;
+        skills: Array<{
+          id: string;
+          name: string;
+          aliases?: Array<string>;
+          title: string;
+          description: string;
+          whenToUse?: string;
+          format: "markdown-v1" | "markdown-v2";
+          entry: string;
+          skillRoot: string;
+          activities: Array<"browser" | "chat" | "local" | "api" | "computer">;
+          toolIds: Array<string>;
+          memoryHooks: Array<{
+            kind: string;
+            mode: "direct" | "propose" | "ask";
+            reason: string;
+          }>;
+          allowedTools: Array<string>;
+          argumentHint?: string;
+          arguments?: Array<string>;
+          userInvocable: boolean;
+          disableModelInvocation: boolean;
+          model?: string;
+          effort?: string;
+          context: "inline" | "fork";
+          shell?: Array<string>;
+          paths?: Array<string>;
+          hooks?: {
+            [key: string]: RunEventPageDefinitionSchema0;
+          };
+          source: "bundled" | "project" | "user" | "pack";
+          trust: "trusted" | "untrusted";
+          packId?: string;
+          capabilityId?: string;
+          contentLength?: number;
+          tags?: Array<string>;
+        }>;
+      }
+    | {
+        type: "skill.invoked";
+        runId: string;
+        skill: {
+          id: string;
+          name: string;
+          aliases?: Array<string>;
+          title: string;
+          description: string;
+          whenToUse?: string;
+          format: "markdown-v1" | "markdown-v2";
+          entry: string;
+          skillRoot: string;
+          activities: Array<"browser" | "chat" | "local" | "api" | "computer">;
+          toolIds: Array<string>;
+          memoryHooks: Array<{
+            kind: string;
+            mode: "direct" | "propose" | "ask";
+            reason: string;
+          }>;
+          allowedTools: Array<string>;
+          argumentHint?: string;
+          arguments?: Array<string>;
+          userInvocable: boolean;
+          disableModelInvocation: boolean;
+          model?: string;
+          effort?: string;
+          context: "inline" | "fork";
+          shell?: Array<string>;
+          paths?: Array<string>;
+          hooks?: {
+            [key: string]: RunEventPageDefinitionSchema0;
+          };
+          source: "bundled" | "project" | "user" | "pack";
+          trust: "trusted" | "untrusted";
+          packId?: string;
+          capabilityId?: string;
+          contentLength?: number;
+          tags?: Array<string>;
+        };
+        invocation: {
+          skillId: string;
+          skillName: string;
+          title: string;
+          content: string;
+          contentPreview: string;
+          sourcePath: string;
+          source: "bundled" | "project" | "user" | "pack";
+          trust: "trusted" | "untrusted";
+          context: "inline" | "fork";
+          args?: string;
+          allowedTools: Array<string>;
+          model?: string;
+          effort?: string;
+          packId?: string;
+          capabilityId?: string;
+          invokedAt: string;
+          origin: "user" | "model";
+        };
+      }
+    | {
+        type: "skill.loaded";
+        runId: string;
+        skillId: string;
+        contentPreview: string;
+        allowedTools: Array<string>;
+        model?: string;
+        effort?: string;
+        context: "inline" | "fork";
+      }
+    | {
+        type: "skill.forked";
+        runId: string;
+        skillId: string;
+        forkSessionId: string;
+        status: "started" | "finished";
+        result?: string;
+      }
+    | {
+        type: "skill.cleared";
+        runId: string;
+        skillId?: string;
+        reason: string;
+      }
+    | {
+        type: "tool.started";
+        runId: string;
+        toolId: string;
+        callId?: string;
+        input: RunEventPageDefinitionSchema3;
+      }
+    | {
+        type: "tool.progress";
+        runId: string;
+        toolId: string;
+        callId?: string;
+        update: RunEventPageDefinitionSchema4;
+      }
+    | {
+        type: "tool.finished";
+        runId: string;
+        toolId: string;
+        callId?: string;
+        result: {
+          ok: boolean;
+          value?: RunEventPageDefinitionSchema5;
+          error?: string;
+          problem?: {
+            incidentId: string;
+            code: string;
+          };
+          sources?: Array<{
+            title?: string;
+            url?: string;
+            locator?: string;
+            quote?: string;
+          }>;
+        };
+      }
+    | {
+        type: "approval.requested";
+        runId: string;
+        request: {
+          id: string;
+          title: string;
+          createdAt: string;
+          updatedAt: string;
+          input?: RunEventPageDefinitionSchema6;
+          response?: RunEventPageDefinitionSchema7;
+          resume?:
+            | {
+                type: "tool";
+                runId?: string;
+              }
+            | {
+                type: "routine.step";
+                routineId: string;
+                stepId: string;
+                runId: string;
+                stepOutputs?: {
+                  [key: string]: RunEventPageDefinitionSchema0;
+                };
+              }
+            | {
+                type: "kernel.native";
+                kernelId: string;
+                runId: string;
+                continuation: "same-loop";
+              };
+          nativeRequestId?: string;
+          deadlineAt?: string;
+          isBlocking?: boolean;
+          autoResolutionMs?: number;
+          kind:
+            | "tool"
+            | "command"
+            | "file_change"
+            | "permission_scope"
+            | "routine_step"
+            | "memory_write"
+            | "browser_action"
+            | "computer_action";
+          reason: string;
+          status: "pending" | "approved" | "rejected" | "canceled";
+          toolId?: string;
+          capabilityId?: string;
+          skillId?: string;
+        };
+      }
+    | {
+        type: "approval.resolved";
+        runId: string;
+        request: {
+          id: string;
+          title: string;
+          createdAt: string;
+          updatedAt: string;
+          input?: RunEventPageDefinitionSchema6;
+          response?: RunEventPageDefinitionSchema7;
+          resume?:
+            | {
+                type: "tool";
+                runId?: string;
+              }
+            | {
+                type: "routine.step";
+                routineId: string;
+                stepId: string;
+                runId: string;
+                stepOutputs?: {
+                  [key: string]: RunEventPageDefinitionSchema0;
+                };
+              }
+            | {
+                type: "kernel.native";
+                kernelId: string;
+                runId: string;
+                continuation: "same-loop";
+              };
+          nativeRequestId?: string;
+          deadlineAt?: string;
+          isBlocking?: boolean;
+          autoResolutionMs?: number;
+          kind:
+            | "tool"
+            | "command"
+            | "file_change"
+            | "permission_scope"
+            | "routine_step"
+            | "memory_write"
+            | "browser_action"
+            | "computer_action";
+          reason: string;
+          status: "pending" | "approved" | "rejected" | "canceled";
+          toolId?: string;
+          capabilityId?: string;
+          skillId?: string;
+        };
+      }
+    | {
+        type: "question.requested";
+        runId: string;
+        question: {
+          id: string;
+          title: string;
+          createdAt: string;
+          updatedAt: string;
+          input?: RunEventPageDefinitionSchema6;
+          response?: RunEventPageDefinitionSchema7;
+          resume?:
+            | {
+                type: "tool";
+                runId?: string;
+              }
+            | {
+                type: "routine.step";
+                routineId: string;
+                stepId: string;
+                runId: string;
+                stepOutputs?: {
+                  [key: string]: RunEventPageDefinitionSchema0;
+                };
+              }
+            | {
+                type: "kernel.native";
+                kernelId: string;
+                runId: string;
+                continuation: "same-loop";
+              };
+          nativeRequestId?: string;
+          deadlineAt?: string;
+          isBlocking?: boolean;
+          autoResolutionMs?: number;
+          prompt: string;
+          status: "pending" | "answered" | "declined" | "canceled";
+          source?:
+            | {
+                type: "kernel.native";
+                kernelId: string;
+              }
+            | {
+                type: "host";
+              }
+            | {
+                type: "unknown";
+              };
+        };
+      }
+    | {
+        type: "question.answered";
+        runId: string;
+        question: {
+          id: string;
+          title: string;
+          createdAt: string;
+          updatedAt: string;
+          input?: RunEventPageDefinitionSchema6;
+          response?: RunEventPageDefinitionSchema7;
+          resume?:
+            | {
+                type: "tool";
+                runId?: string;
+              }
+            | {
+                type: "routine.step";
+                routineId: string;
+                stepId: string;
+                runId: string;
+                stepOutputs?: {
+                  [key: string]: RunEventPageDefinitionSchema0;
+                };
+              }
+            | {
+                type: "kernel.native";
+                kernelId: string;
+                runId: string;
+                continuation: "same-loop";
+              };
+          nativeRequestId?: string;
+          deadlineAt?: string;
+          isBlocking?: boolean;
+          autoResolutionMs?: number;
+          prompt: string;
+          status: "pending" | "answered" | "declined" | "canceled";
+          source?:
+            | {
+                type: "kernel.native";
+                kernelId: string;
+              }
+            | {
+                type: "host";
+              }
+            | {
+                type: "unknown";
+              };
+        };
+      }
+    | {
+        type: "planning.updated";
+        runId: string;
+        plan: {
+          id: string;
+          title?: string;
+          text: string;
+          status?: string;
+          raw?: {
+            [key: string]: RunEventPageDefinitionSchema0;
+          };
+          updatedAt: string;
+          source?:
+            | {
+                type: "kernel.native";
+                kernelId: string;
+              }
+            | {
+                type: "host";
+              }
+            | {
+                type: "unknown";
+              };
+        };
+      }
+    | {
+        type: "run.cancel_requested";
+        runId: string;
+        at: string;
+        reason?: string;
+      }
+    | {
+        type: "run.paused";
+        runId: string;
+        at: string;
+        reason: string;
+        approvalId?: string;
+      }
+    | {
+        type: "run.resumed";
+        runId: string;
+        at: string;
+        reason?: string;
+        approvalId?: string;
+      }
+    | {
+        type: "memory.written";
+        runId: string;
+        record: {
+          id: string;
+          scope: "user" | "workspace" | "page" | "session";
+          kind: string;
+          text: string;
+          confidence: "asserted" | "observed" | "inferred";
+          source: {
+            kind: "user" | "agent" | "tool" | "skill";
+            ref?: {
+              title?: string;
+              url?: string;
+              locator?: string;
+              quote?: string;
+            };
+          };
+          tags: Array<string>;
+          data?: {
+            [key: string]: RunEventPageDefinitionSchema0;
+          };
+          createdAt: string;
+          updatedAt: string;
+          expiresAt?: string;
+        };
+      }
+    | {
+        type: "turn.finished";
+        runId: string;
+        at: string;
+        outcome: {
+          taskState:
+            | "TASK_STATE_UNSPECIFIED"
+            | "TASK_STATE_SUBMITTED"
+            | "TASK_STATE_WORKING"
+            | "TASK_STATE_COMPLETED"
+            | "TASK_STATE_FAILED"
+            | "TASK_STATE_CANCELED"
+            | "TASK_STATE_INPUT_REQUIRED"
+            | "TASK_STATE_REJECTED"
+            | "TASK_STATE_AUTH_REQUIRED";
+          activity?: "running" | "reconnecting" | "cancel_pending" | "waiting_on_child";
+          reasonCode?: string;
+          retryable?: boolean;
+          outcomeUnknown?: boolean;
+          childRunId?: string;
+        };
+        synthetic?: boolean;
+      }
+    | {
+        type: "error";
+        runId: string;
+        message: string;
+        problem?: {
+          incidentId: string;
+          code: string;
+        };
+        diagnostics?: {
+          runtimeModelId?: string;
+          runtimeVersion?: string;
+          upstreamRequestId?: string;
+        };
+      }
+  >;
+  cursor: string;
+  oldestCursor: string;
+  hasMore: boolean;
+  hasOlder: boolean;
+  historyTruncated: boolean;
+  resetRequired: boolean;
+  longPollSupported: true;
+  snapshot: boolean;
+};
+
+export type RunEventPageDefinitionSchema0 =
+  | string
+  | number
+  | boolean
+  | null
+  | Array<RunEventPageDefinitionSchema0>
+  | {
+      [key: string]: RunEventPageDefinitionSchema0;
+    };
+
+export type RunEventPageDefinitionSchema1 =
+  | string
+  | number
+  | boolean
+  | null
+  | Array<RunEventPageDefinitionSchema1>
+  | {
+      [key: string]: RunEventPageDefinitionSchema1;
+    };
+
+export type RunEventPageDefinitionSchema2 =
+  | string
+  | number
+  | boolean
+  | null
+  | Array<RunEventPageDefinitionSchema2>
+  | {
+      [key: string]: RunEventPageDefinitionSchema2;
+    };
+
+export type RunEventPageDefinitionSchema3 =
+  | string
+  | number
+  | boolean
+  | null
+  | Array<RunEventPageDefinitionSchema3>
+  | {
+      [key: string]: RunEventPageDefinitionSchema3;
+    };
+
+export type RunEventPageDefinitionSchema4 =
+  | string
+  | number
+  | boolean
+  | null
+  | Array<RunEventPageDefinitionSchema4>
+  | {
+      [key: string]: RunEventPageDefinitionSchema4;
+    };
+
+export type RunEventPageDefinitionSchema5 =
+  | string
+  | number
+  | boolean
+  | null
+  | Array<RunEventPageDefinitionSchema5>
+  | {
+      [key: string]: RunEventPageDefinitionSchema5;
+    };
+
+export type RunEventPageDefinitionSchema6 =
+  | string
+  | number
+  | boolean
+  | null
+  | Array<RunEventPageDefinitionSchema6>
+  | {
+      [key: string]: RunEventPageDefinitionSchema6;
+    };
+
+export type RunEventPageDefinitionSchema7 =
+  | string
+  | number
+  | boolean
+  | null
+  | Array<RunEventPageDefinitionSchema7>
+  | {
+      [key: string]: RunEventPageDefinitionSchema7;
+    };
+
 export type RunSessionListResponse200 = {
   ok: true;
   sessions: Array<{
@@ -2235,6 +3184,113 @@ export type HostHostBootstrapResponses = {
 };
 
 export type HostHostBootstrapResponse = HostHostBootstrapResponses[keyof HostHostBootstrapResponses];
+
+export type RunEventListData = {
+  body?: never;
+  path?: never;
+  query?: {
+    beforeCursor?: string;
+    cursor?: string;
+    limit?: number;
+    runId?: Array<string>;
+    waitMs?: number;
+  };
+  url: "/events";
+};
+
+export type RunEventListErrors = {
+  /**
+   * The input is invalid.
+   */
+  400: {
+    ok?: false;
+    error: string;
+    code?: string;
+    message?: string;
+    contractId?: string;
+    traceId?: string;
+    incidentId?: string;
+    issues?: Array<{
+      path: string;
+      code: string;
+    }>;
+  };
+  /**
+   * A valid Host session or token is required.
+   */
+  401: {
+    ok?: false;
+    error: string;
+    code?: string;
+    message?: string;
+    contractId?: string;
+    traceId?: string;
+    incidentId?: string;
+    issues?: Array<{
+      path: string;
+      code: string;
+    }>;
+  };
+  /**
+   * The request is not authorized.
+   */
+  403: {
+    ok?: false;
+    error: string;
+    code?: string;
+    message?: string;
+    contractId?: string;
+    traceId?: string;
+    incidentId?: string;
+    issues?: Array<{
+      path: string;
+      code: string;
+    }>;
+  };
+  /**
+   * The Host could not complete the operation.
+   */
+  500: {
+    ok?: false;
+    error: string;
+    code?: string;
+    message?: string;
+    contractId?: string;
+    traceId?: string;
+    incidentId?: string;
+    issues?: Array<{
+      path: string;
+      code: string;
+    }>;
+  };
+  /**
+   * The Host or authenticated session is temporarily unavailable.
+   */
+  503: {
+    ok?: false;
+    error: string;
+    code?: string;
+    message?: string;
+    contractId?: string;
+    traceId?: string;
+    incidentId?: string;
+    issues?: Array<{
+      path: string;
+      code: string;
+    }>;
+  };
+};
+
+export type RunEventListError = RunEventListErrors[keyof RunEventListErrors];
+
+export type RunEventListResponses = {
+  /**
+   * Successful response.
+   */
+  200: RunEventPage;
+};
+
+export type RunEventListResponse = RunEventListResponses[keyof RunEventListResponses];
 
 export type RunRunListData = {
   body?: never;

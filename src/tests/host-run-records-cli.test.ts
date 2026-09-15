@@ -79,6 +79,22 @@ test("CLI queries persisted runs, sessions, and executions with revision polling
       "turn.finished",
       "turn.started",
     ]);
+    const eventArgs = ["run", "event", "list", "--run-id", "run-record-cli", "--limit", "1"];
+    const events = await runHostOperationCommand(eventArgs, { env });
+    assert.equal(events.handled, true);
+    assert.equal(events.exitCode, 0, events.stderr);
+    const eventPage = JSON.parse(events.stdout ?? "null").data;
+    assert.equal(eventPage.events[0].type, "turn.finished");
+    assert.equal(eventPage.hasOlder, true);
+    assert.equal(eventPage.longPollSupported, true);
+    const older = await runHostOperationCommand([...eventArgs, "--before-cursor", eventPage.oldestCursor], { env });
+    assert.equal(older.exitCode, 0, older.stderr);
+    assert.equal(JSON.parse(older.stdout ?? "null").data.events[0].type, "turn.started");
+    const delta = await runHostOperationCommand([...eventArgs, "--cursor", eventPage.cursor, "--wait-ms", "0"], {
+      env,
+    });
+    assert.equal(delta.exitCode, 0, delta.stderr);
+    assert.deepEqual(JSON.parse(delta.stdout ?? "null").data.events, []);
     const invalid = await runHostOperationCommand(["run", "list", "--limit", "1001"], { env });
     assert.equal(invalid.exitCode, 2);
   } finally {
