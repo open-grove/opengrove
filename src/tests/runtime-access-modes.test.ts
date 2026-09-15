@@ -10,10 +10,12 @@ import { writeFakeHermesGateway } from "./harnesses/fake-hermes-gateway.js";
 import { RoomChannelStore } from "../rooms/channel-store.js";
 import { migrateNativeApprovalPresetsV3 } from "../server/migrations/native-approval-presets-v3.js";
 import assert from "node:assert/strict";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
+import { IncomingMessage, ServerResponse } from "node:http";
+import { Socket } from "node:net";
 import { createOpenGrove } from "../app/create-opengrove.js";
 import type { AgentEvent, AgentTurnRequest } from "../core.js";
 import { CodexRuntime } from "../runtime/codex-runtime.js";
@@ -23,6 +25,7 @@ import { mountedAppDefaultEmployees } from "../server/bridge-mounted-app-employe
 import { normalizeEmployeeAccessMode } from "../server/employee-access-mode.js";
 import { writeClaudeModelsCache } from "../runtime/claude-models-cache.js";
 import { normalizeReleaseEmployee } from "../server/app-release.js";
+import { handleRoomMemberRoutes } from "../server/routes/rooms/member-routes.js";
 
 function context(cwd: string): AgentTurnRequest["context"] {
   const app = createOpenGrove({ cwd, readPage: async () => ({}), runtime: { async *runTurn() {} } });
@@ -590,6 +593,141 @@ for (const previousVersion of [0, 1, 2]) {
       assert.equal(restarted.app.rooms.listMembers().find((member) => member.id === "pm")?.accessMode, "default");
     } finally {
       await restarted.store.close?.();
+    }
+  });
+}
+
+for (const configuredSupport of [true, false]) {
+  test(`Claude employee lifecycle uses the configured cache (${configuredSupport}) instead of the ambient cache`, async () => {
+    const cwd = mkdtempSync(join(tmpdir(), "opengrove-configured-claude-permissions-"));
+    const configuredHome = join(cwd, "configured-claude");
+    const ambientHome = join(cwd, "ambient-claude");
+    const previousHome = process.env.CLAUDE_CONFIG_DIR;
+    const models = (supported: boolean) => [
+      { value: "default", supportsAutoMode: supported },
+      { value: "deepseek-v4-flash", supportsAutoMode: supported },
+      { value: "claude-opus-4-8", supportsAutoMode: supported },
+    ];
+    writeClaudeModelsCache(models(configuredSupport), { configHome: configuredHome, now: "2026-09-15T00:00:00Z" });
+    writeClaudeModelsCache(models(!configuredSupport), { configHome: ambientHome, now: "2026-09-15T00:00:00Z" });
+    process.env.CLAUDE_CONFIG_DIR = ambientHome;
+    const statePath = join(cwd, "state.sqlite");
+    let state = createBridgeState({ statePath });
+    try {
+      state.settings.kernelPathOverrides["claude-code"] = { configHome: configuredHome };
+      state.settings.nativeApprovalPresetsVersion = 0;
+      state.app.rooms.upsertMember({
+        ...state.app.rooms.listMembers().find((member) => member.id === "app-builder")!,
+        id: "configuration-migration",
+        accessMode: undefined,
+      });
+      saveBridgeSettings(state);
+      state.store.saveFrom(state.app);
+      await state.store.close?.();
+      state = createBridgeState({ statePath });
+      const controls = buildClaudeCodeRuntimeControls(configuredHome, undefined);
+      assert.equal(controls.autoReviewModelIds?.includes("claude-code-default"), configuredSupport);
+      for (const id of ["grove-guide", "app-builder", "configuration-migration"]) {
+        assert.equal(
+          state.app.rooms.listMembers().find((member) => member.id === id)?.accessMode,
+          configuredSupport ? "auto-review" : "default",
+          id,
+        );
+      }
+      assert.equal(state.app.rooms.listMembers().find((member) => member.id === "pm")?.accessMode, "full-access");
+      const expected = configuredSupport ? "auto-review" : "default";
+      const mutateMember = async (path: string, method: string, body: Record<string, unknown>) => {
+        const socket = new Socket();
+        const request = new IncomingMessage(socket);
+        request.method = method;
+        const response = new ServerResponse(request);
+        let responseStatus: number | undefined;
+        try {
+          assert.equal(
+            await handleRoomMemberRoutes({
+              request,
+              response,
+              url: new URL(path, "http://opengrove.test"),
+              state,
+              readJsonBody: async () => body,
+              sendJson: (_response, status) => {
+                responseStatus = status;
+              },
+            }),
+            true,
+          );
+          assert.equal(responseStatus, 200);
+        } finally {
+          request.destroy();
+          socket.destroy();
+        }
+      };
+      await mutateMember("/rooms/members", "POST", {
+        id: "new-claude",
+        kernel: "claude-code",
+        model: "claude-opus-4-8",
+      });
+      const memberById = (id: string) => state.app.rooms.listMembers().find((member) => member.id === id)!;
+      assert.equal(memberById("new-claude").accessMode, expected, "upsert route");
+      const roomId = state.app.rooms.createRoom({
+        id: "permission-context-room",
+        title: "Permission Context",
+        memberIds: ["new-claude"],
+      }).id;
+      await mutateMember(`/rooms/${encodeURIComponent(roomId)}/members`, "POST", {
+        id: "room-claude",
+        kernel: "claude-code",
+        model: "claude-opus-4-8",
+      });
+      assert.equal(memberById("room-claude").accessMode, expected, "room add route");
+      state.app.rooms.patchMember("new-claude", { kernel: "codex", accessMode: undefined });
+      await mutateMember("/rooms/members/new-claude", "PATCH", { kernel: "claude-code" });
+      assert.equal(memberById("new-claude").accessMode, expected, "kernel switch route");
+      await mutateMember("/rooms/members/new-claude", "PATCH", { accessMode: "full-access" });
+      assert.equal(memberById("new-claude").accessMode, "full-access", "explicit permission survives");
+
+      const appRoot = join(cwd, "app");
+      mkdirSync(join(appRoot, "workspace"), { recursive: true });
+      writeFileSync(
+        join(appRoot, "opengrove.app.json"),
+        JSON.stringify({
+          id: "permission-context",
+          title: "Permission Context",
+          workspace: { path: "workspace" },
+          employees: [{ id: "writer", kernel: "claude-code", model: "claude-opus-4-8" }],
+          store: {
+            employeeDefaults: [
+              {
+                memberId: "member-app-permission-context-writer",
+                name: "Writer",
+                kernel: "claude-code",
+                model: "claude-opus-4-8",
+              },
+            ],
+          },
+        }),
+      );
+      const mountedMembers = mountedAppDefaultEmployees({
+        ...state.settings,
+        mountedApps: [{ id: "permission-context", path: appRoot, enabled: true, appBuilderEnabled: true }],
+      });
+      const appEmployees = mountedMembers.filter((member) => member.employeeDefinitionId !== "pm");
+      assert.equal(appEmployees.length, 2);
+      for (const member of appEmployees) {
+        assert.equal(member.accessMode, expected, `mounted ${member.id}`);
+      }
+      state.app.rooms.patchMember("new-claude", {
+        appId: "permission-context",
+        userOverrides: ["accessMode"],
+        manifestDefaults: { kernel: "claude-code", model: "claude-opus-4-8" },
+      });
+      await mutateMember("/rooms/members/new-claude/restore-app-defaults", "POST", {});
+      assert.equal(memberById("new-claude").accessMode, expected, "restore App defaults route");
+    } finally {
+      await state.store.close?.();
+      if (previousHome === undefined) delete process.env.CLAUDE_CONFIG_DIR;
+      else process.env.CLAUDE_CONFIG_DIR = previousHome;
+      rmSync(cwd, { recursive: true, force: true });
     }
   });
 }

@@ -141,6 +141,9 @@ Codex 前两档都关闭沙箱内网络访问，写入 Workspace 之外或联网
 `on-failure` 和 Claude `acceptEdits` 都不代表“帮我批准”。
 Claude 的可选模型来自 SDK 实际返回的模型缓存；未知时置灰，运行时重新验证当前模型与账号，
 拒绝静默回退。旧 CLI 路径缺少这项预检，自动审查必须使用 Agent SDK。
+创建员工、同步内置员工、权限迁移、导入 App 和恢复 App 默认设置时，与权限选择器读取同一个
+Claude 配置目录中的缓存。自定义 `kernelPathOverrides["claude-code"].configHome` 同时用于判断
+选项是否可用和计算默认档位。
 
 Hermes 按环境与档位隔离进程及配置副本，保留用户的 deny 与辅助审查模型配置，不改共享的
 `HERMES_HOME`。原生启动时核对有效模式，无法应用就报错。阻塞审批和用户问题分别接入，

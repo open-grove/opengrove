@@ -10,10 +10,14 @@ export const NATIVE_APPROVAL_PRESETS_VERSION = 3;
  * PM defaults are applied by product seed sync, which respects user overrides.
  * Remove when: direct upgrades from 0.7.0 move to a standalone importer.
  */
-export function migrateNativeApprovalPresetsV3(rooms: RoomChannelStore, beforeApply?: () => void): boolean {
+export function migrateNativeApprovalPresetsV3(
+  rooms: RoomChannelStore,
+  beforeApply?: () => void,
+  claudeConfigHome?: string,
+): boolean {
   const patches = rooms.listMembers().flatMap((member) => {
     if (member.source === "remote" || !isBridgeKernelId(member.kernel)) return [];
-    const accessMode = normalizeEmployeeAccessMode(member.kernel, member.accessMode, member.model);
+    const accessMode = normalizeEmployeeAccessMode(member.kernel, member.accessMode, member.model, claudeConfigHome);
     if (accessMode === member.accessMode) return [];
     return [
       {

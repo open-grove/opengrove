@@ -332,7 +332,7 @@ export function isKernelLoginRouteAvailable(loginProfile: KernelLocalRouteProfil
 // ===== Runtime controls dispatch (from kernel-runtime-controls.ts) =====
 
 // kernelConfigHome inlined here to avoid circular import with kernel-utils.ts
-function kernelConfigHomeForRegistry(
+export function kernelConfigHomeForRegistry(
   settings: { kernelPathOverrides?: Record<string, { configHome?: string }> },
   kernel: BridgeKernelId,
 ): string {

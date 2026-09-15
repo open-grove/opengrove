@@ -1,4 +1,5 @@
 import { normalizeEmployeeAccessMode } from "./employee-access-mode.js";
+import { kernelConfigHomeForRegistry } from "./kernel-registry.js";
 import { existsSync, readFileSync, readdirSync, realpathSync, statSync } from "node:fs";
 import { basename, join, relative, resolve, sep } from "node:path";
 import type { JsonObject } from "../core.js";
@@ -131,6 +132,7 @@ function manifestDefaultEmployees(
   appBuilderEnabled: boolean,
 ): RoomChannelMember[] {
   const appAgentContext = collectMountedAppAgentContext(appRoot, workspaceRoot, appId, manifest);
+  const claudeConfigHome = kernelConfigHomeForRegistry(settings, "claude-code");
   const employeeInputs = manifestEmployeeInputs(manifest);
   const appBuilderId = appBuilderMemberId(appId);
   const pmId = pmAgentMemberId(appId);
@@ -145,6 +147,7 @@ function manifestDefaultEmployees(
         appTitle,
         presentation,
         appAgentContext,
+        claudeConfigHome,
       ),
     )
     .filter((member): member is RoomChannelMember =>
@@ -159,6 +162,7 @@ function manifestDefaultEmployees(
         appDisplayTitle: presentation.title || appTitle,
         workspaceRoot: appRoot,
         language: presentation.locale,
+        claudeConfigHome,
       }),
     );
   }
@@ -178,17 +182,21 @@ function manifestDefaultEmployees(
       }),
     );
   }
-  return applyStoreEmployeeDefaults(appEmployees, manifest).map((member) =>
+  return applyStoreEmployeeDefaults(appEmployees, manifest, claudeConfigHome).map((member) =>
     member.employeeDefinitionId === OPENGROVE_PM_MEMBER_ID
       ? member
       : {
           ...member,
-          accessMode: normalizeEmployeeAccessMode(member.kernel, member.accessMode, member.model),
+          accessMode: normalizeEmployeeAccessMode(member.kernel, member.accessMode, member.model, claudeConfigHome),
         },
   );
 }
 
-function applyStoreEmployeeDefaults(members: RoomChannelMember[], manifest: JsonObject): RoomChannelMember[] {
+function applyStoreEmployeeDefaults(
+  members: RoomChannelMember[],
+  manifest: JsonObject,
+  claudeConfigHome: string,
+): RoomChannelMember[] {
   const defaults = recordArray(record(record(manifest).store).employeeDefaults);
   if (!defaults.length) return members;
   const byMemberId = new Map(defaults.map((item) => [stringOrUndefined(item.memberId), item]));
@@ -206,6 +214,7 @@ function applyStoreEmployeeDefaults(members: RoomChannelMember[], manifest: Json
       configuredKernel,
       override.accessMode ?? member.accessMode,
       stringOrUndefined(override.model) ?? member.model,
+      claudeConfigHome,
     );
     const configuredModel = stringOrUndefined(override.model);
     const configured: RoomChannelMember = {
@@ -277,6 +286,7 @@ export function providerOnlyUserOverrides(member: RoomChannelMember): RoomChanne
 export function employeeManifestDefaultsPatch(
   member: RoomChannelMember,
   defaults: NonNullable<RoomChannelMember["manifestDefaults"]>,
+  claudeConfigHome?: string,
 ): Partial<RoomChannelMember> {
   return {
     name: defaults.name ?? member.name,
@@ -296,6 +306,7 @@ export function employeeManifestDefaultsPatch(
       defaults.kernel ?? member.kernel,
       defaults.accessMode,
       defaults.model ?? member.model,
+      claudeConfigHome,
     ),
     visibility: defaults.visibility ?? member.visibility,
     publicDescription: defaults.publicDescription,
@@ -329,6 +340,7 @@ function normalizeManifestEmployee(
   appTitle: string,
   presentation: AppManifestPresentation,
   appAgentContext: MountedAppAgentContext,
+  claudeConfigHome: string,
 ): RoomChannelMember | undefined {
   const employeeId = stringOrUndefined(input.id) ?? stringOrUndefined(input.name) ?? `employee-${index + 1}`;
   const kernel = normalizeEmployeeKernel(input.kernel);
@@ -397,7 +409,12 @@ function normalizeManifestEmployee(
     accessMode:
       input.accessMode === undefined
         ? undefined
-        : normalizeEmployeeAccessMode(kernel, input.accessMode, declaredEmployeeModel(input.model, kernel)),
+        : normalizeEmployeeAccessMode(
+            kernel,
+            input.accessMode,
+            declaredEmployeeModel(input.model, kernel),
+            claudeConfigHome,
+          ),
     reasoningEffort: normalizeReasoningEffort(input.reasoningEffort) ?? defaultEmployeeReasoningEffort(),
     contextTokenBudget: positiveInteger(input.contextTokenBudget),
     source: "local",
@@ -457,6 +474,7 @@ function createAppBuilderMember(input: {
   appDisplayTitle: string;
   workspaceRoot: string;
   language: SupportedLocale;
+  claudeConfigHome: string;
 }): RoomChannelMember {
   const skillIds = [OPENGROVE_APP_BUILDER_SKILL_NAME, OPENGROVE_APP_WORKSPACE_GUARD_SKILL_NAME];
   const runtime = PRODUCT_EMPLOYEE_RUNTIME_DEFAULTS[OPENGROVE_APP_BUILDER_MEMBER_ID];
@@ -481,7 +499,7 @@ function createAppBuilderMember(input: {
     defaultSkillIds: skillIds,
     appId: input.appId,
     workspaceRoot: input.workspaceRoot,
-    accessMode: normalizeEmployeeAccessMode(runtime.kernel, undefined, runtime.model),
+    accessMode: normalizeEmployeeAccessMode(runtime.kernel, undefined, runtime.model, input.claudeConfigHome),
     reasoningEffort: defaultEmployeeReasoningEffort(),
     source: "local",
     sourceLabel: `${input.appDisplayTitle} App`,

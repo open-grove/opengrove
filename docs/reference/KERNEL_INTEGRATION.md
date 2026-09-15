@@ -168,6 +168,9 @@ Claude model availability comes from the SDK model cache and is revalidated for 
 model/account before each auto-review run. The native default selection uses the SDK `default` record. With an empty cache, support is
 unknown until a normal turn refreshes it. Unknown support disables the picker option; a rejected
 mode never silently falls back. The legacy CLI path lacks this preflight and must use the SDK for auto review.
+Employee creation, seed synchronization, permission migration, App imports and restoring App defaults
+read this cache from the same configured Claude directory as the permission picker. A custom
+`kernelPathOverrides["claude-code"].configHome` therefore applies to both availability and defaults.
 
 Hermes isolates processes and configuration copies by environment and preset, preserving user
 denials and auxiliary reviewer settings without editing a shared `HERMES_HOME`. Native startup

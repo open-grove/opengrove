@@ -1,5 +1,6 @@
 import { record } from "../../http-utils.js";
 import { normalizeEmployeeAccessMode } from "../../employee-access-mode.js";
+import { kernelConfigHomeForRegistry } from "../../kernel-registry.js";
 import { isBridgeKernelId, type RoomChannelMember, type RoomChannelStore } from "../../../rooms/channel-store.js";
 import { employeeManifestDefaultsPatch, mountedAppDefaultEmployees } from "../../bridge-mounted-app-employees.js";
 import { isProductDefaultEmployeeId } from "../../product-default-employees.js";
@@ -69,7 +70,10 @@ async function handleRoomMemberAddRoute(context: RoomsRouteContext): Promise<boo
   const membersAction = url.pathname.match(/^\/rooms\/([^/]+)\/members$/);
   if (!membersAction || request.method !== "POST") return false;
   const [, encodedRoomId] = membersAction;
-  const normalizedMember = withPreservedServerOwnedMeta(state, normalizeMember(record(await readJsonBody(request))));
+  const normalizedMember = withPreservedServerOwnedMeta(
+    state,
+    normalizeMember(record(await readJsonBody(request)), kernelConfigHomeForRegistry(state.settings, "claude-code")),
+  );
   let member: RoomChannelMember;
   try {
     member = state.app.rooms.addMember(decodeURIComponent(encodedRoomId!), normalizedMember);
@@ -88,7 +92,7 @@ async function handleMemberUpsertRoute(context: RoomsRouteContext): Promise<bool
   const { request, response, url, state, sendJson, readJsonBody } = context;
   if (request.method !== "POST" || url.pathname !== "/rooms/members") return false;
   const body = record(await readJsonBody(request));
-  const normalizedMember = normalizeMember(body);
+  const normalizedMember = normalizeMember(body, kernelConfigHomeForRegistry(state.settings, "claude-code"));
   const member = state.app.rooms.upsertMember(withPreservedServerOwnedMeta(state, normalizedMember), {
     emitEvent: true,
   });
@@ -113,7 +117,11 @@ async function handleMemberRestoreAppDefaultsRoute(context: RoomsRouteContext): 
   }
   const member = state.app.rooms.patchMember(
     memberId,
-    employeeManifestDefaultsPatch(existing, existing.manifestDefaults),
+    employeeManifestDefaultsPatch(
+      existing,
+      existing.manifestDefaults,
+      kernelConfigHomeForRegistry(state.settings, "claude-code"),
+    ),
   );
   state.store.saveFrom(state.app);
   sendJson(response, 200, { ok: true, member, currentEventSeq: state.app.rooms.snapshot().currentEventSeq });
@@ -143,6 +151,7 @@ async function handleMemberPatchRoute(context: RoomsRouteContext): Promise<boole
       patch.kernel ?? existing?.kernel ?? "",
       touched.includes("accessMode") ? rawBody.accessMode : existing?.accessMode,
       patch.model ?? existing?.model,
+      kernelConfigHomeForRegistry(state.settings, "claude-code"),
     );
     if (
       existing?.accessMode !== undefined &&
