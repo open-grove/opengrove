@@ -1,6 +1,7 @@
 import {
   OPEN_GROVE_STORAGE_CATEGORY_IDS,
   parseOpenGroveStorageOverview,
+  parseStorageBackupDeletionPreview,
   type OpenGroveStorageCategoryId,
   type OpenGroveStorageOverview,
 } from "../../../../src/storage/storage-overview-contract";
@@ -53,14 +54,21 @@ export function parseSettingsStorageCleanupResponse(value: unknown): { reclaimed
   };
 }
 
-export function parseSettingsStorageHistoryResponse(value: unknown): { reclaimedBytes: number } {
+export function parseSettingsStorageHistoryResponse(value: unknown): { reclaimedBytes: number; retainedFiles: number } {
   const response = record(value, "settings_storage_history_response_invalid");
   if (response.ok !== true) throw new Error("settings_storage_history_response_not_ok");
-  if (response.cleanup === undefined) return { reclaimedBytes: 0 };
+  if (response.cleanup === undefined) return { reclaimedBytes: 0, retainedFiles: 0 };
   const cleanup = record(response.cleanup, "settings_storage_history_cleanup_invalid");
   return {
     reclaimedBytes: nonNegativeNumber(cleanup.reclaimedBytes, "settings_storage_history_bytes_invalid"),
+    retainedFiles: nonNegativeNumber(cleanup.retainedFiles ?? 0, "settings_storage_history_retained_invalid"),
   };
+}
+
+export function parseSettingsStorageBackupPreviewResponse(value: unknown) {
+  const response = record(value, "settings_storage_backup_preview_invalid");
+  if (response.ok !== true) throw new Error("settings_storage_backup_preview_invalid");
+  return parseStorageBackupDeletionPreview(response.preview);
 }
 
 export function parseSettingsStorageMaintenanceStartResponse(value: unknown): { leaseId: string } {

@@ -2068,3 +2068,14 @@ label.settings-list-row {
     padding: 16px;
   }
 }
+
+.settings-storage-backup-item {
+  padding: var(--sp-4) 0;
+  border-top: 1px solid var(--c-border);
+  overflow-wrap: anywhere;
+}
+
+.settings-storage-backup-item > span {
+  margin-left: var(--sp-3);
+  color: var(--og-text-muted);
+}
