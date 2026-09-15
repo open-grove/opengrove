@@ -18,6 +18,7 @@ import {
   type AppReleaseRegistryAccess,
 } from "../app-release-coordinator.js";
 import { ReleaseControlClientError } from "../app-release-client.js";
+import { AppReleaseJournalCorruptedError } from "../app-release-journal.js";
 import { validateAppReleaseBuildContract } from "../app-release-build-contract.js";
 import { AppReleaseValidationError, prepareMountedAppRelease } from "../app-release.js";
 import {
@@ -326,7 +327,7 @@ async function isAdmin(context: AppReleaseRouteContext): Promise<boolean> {
 function sendReleaseError(context: AppReleaseRouteContext, error: unknown, coordinator?: AppReleaseCoordinator): void {
   const progress = error instanceof AppReleaseCoordinatorError ? error.progress : readProgressForError(coordinator);
   const status =
-    error instanceof AppReleaseCoordinatorError
+    error instanceof AppReleaseCoordinatorError || error instanceof AppReleaseJournalCorruptedError
       ? error.status
       : error instanceof AppReleaseValidationError
         ? error.status
@@ -372,7 +373,7 @@ function sendReleaseError(context: AppReleaseRouteContext, error: unknown, coord
 
 function releaseDiagnosticErrorCode(error: unknown): string {
   const value = error instanceof Error ? error.message : String(error);
-  if (error instanceof ReleaseControlClientError) return value;
+  if (error instanceof ReleaseControlClientError || error instanceof AppReleaseJournalCorruptedError) return value;
   if (error instanceof AppReleaseCoordinatorError || error instanceof AppReleaseValidationError) {
     return /^[a-z][a-z0-9_]{0,159}$/.test(value) ? value : "app_release_unknown_error";
   }

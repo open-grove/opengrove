@@ -5,8 +5,8 @@ Internal plans, QA runs, research notes, local runtime evidence, and vendored
 third-party source snapshots are intentionally not tracked.
 
 - [Architecture overview](architecture/OVERVIEW.md)
-- [Building from source](development/BUILDING.md)
-- [从源码构建](development/BUILDING.zh-CN.md)
+- [Building from source](development/BUILDING.md) — Desktop/Web startup, command selection, packaging, and verification
+- [从源码构建](development/BUILDING.zh-CN.md) — Desktop/Web 启动、命令选择、打包与验证
 - [Release process](development/RELEASE_PROCESS.md)
 - [发布流程](development/RELEASE_PROCESS.zh-CN.md)
 - [App release CLI](development/APP_RELEASE_CLI.md)

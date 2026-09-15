@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
-import { lstat, mkdtemp, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
+import { lstat, mkdtemp, mkdir, readFile, readdir, rm, statfs, symlink, writeFile } from "node:fs/promises";
+import { release, tmpdir, version } from "node:os";
+import { dirname, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { build } from "esbuild";
 
@@ -137,8 +139,40 @@ try {
   await writeSized(join(chromiumCacheDirs[1], "webgpu-cache"), 11);
   await writeSized(join(chromiumCacheDirs[2], "graphite-cache"), 13);
 
+  const outsideRoot = join(tempDir, "outside-cleanup");
+  const preservedFiles = [
+    join(outsideRoot, "sentinel.txt"),
+    join(workspaceRoot, "作品.md"),
+    join(tempDir, "data", "conversations.json"),
+    join(tempDir, "data", "settings.json"),
+    join(tempDir, "data", "account.json"),
+    join(tempDir, "knowledge", "notes.md"),
+    join(programRoot, "index.html"),
+  ];
+  for (const [index, file] of preservedFiles.entries()) await writeSized(file, 100 + index);
+  preservedFiles.push(
+    programLookalike,
+    ...["desktop-main.log", "bridge.log", "bridge-crash.log", "desktop-restart.log"].map((file) => join(logDir, file)),
+  );
+  const linkedWorkspace = join(tempDir, "workspaces", "linked-cache");
+  const linkedCache = join(linkedWorkspace, ".cache", "opengrove-media");
+  const linkedUpdater = join(tempDir, "linked-updater");
+  const linkPaths = [
+    join(dirname(workspaceCache), "outside-link"),
+    join(updaterCacheDir, "outside-link"),
+    linkedCache,
+    linkedUpdater,
+  ];
+  for (const link of linkPaths) {
+    await mkdir(dirname(link), { recursive: true });
+    await symlink(outsideRoot, link, process.platform === "win32" ? "junction" : "dir");
+    assert.equal((await lstat(link)).isSymbolicLink(), true);
+  }
+  const filesystem = await inspectFilesystemLinks(linkPaths);
+  const before = await checksums(preservedFiles);
+
   const result = await cleanupDesktopRebuildableFiles({
-    workspaceRoots: [workspaceRoot],
+    workspaceRoots: [workspaceRoot, linkedWorkspace],
     logDir,
     updaterCacheDir,
   });
@@ -173,6 +207,47 @@ try {
       `${cacheDir} is unrelated to filesystem cleanup and must remain untouched`,
     );
   }
+  assert.equal((await lstat(linkedCache)).isSymbolicLink(), true, "a linked cache root must be skipped");
+  assert.deepEqual(await readdir(updaterCacheDir), [], "updater cleanup must remove the nested link itself");
+  const linkedUpdaterResult = await cleanupDesktopRebuildableFiles({
+    workspaceRoots: [],
+    logDir,
+    updaterCacheDir: linkedUpdater,
+  });
+  assert.equal(linkedUpdaterResult.reclaimedBytes, 0);
+  assert.equal((await lstat(linkedUpdater)).isSymbolicLink(), true, "a linked updater root must be skipped");
+  const after = await checksums(preservedFiles);
+  assert.deepEqual(after, before, "cleanup must preserve every file outside its rebuildable boundaries");
+
+  const receiptPath = process.env.OPENGROVE_STORAGE_ACCEPTANCE_RECEIPT;
+  if (receiptPath) {
+    const manifest = JSON.parse(await readFile(join(projectRoot, "package.json"), "utf8"));
+    const receipt = {
+      schemaVersion: 1,
+      evidenceKind: "real-filesystem-cleanup",
+      executionEnvironment: process.env.GITHUB_ACTIONS === "true" ? "github-actions-runner" : "local-host",
+      runnerEnvironment: process.env.RUNNER_ENVIRONMENT ?? null,
+      candidateSha: execFileSync("git", ["rev-parse", "HEAD"], { cwd: projectRoot, encoding: "utf8" }).trim(),
+      clientVersion: manifest.version,
+      clientReleaseNumber: manifest.clientReleaseNumber,
+      checkedAt: new Date().toISOString(),
+      os: { platform: process.platform, release: release(), version: version() },
+      nodeVersion: process.version,
+      filesystem,
+      testRoot: tempDir,
+      linkPaths,
+      outsideRoot,
+      entryPoint: "desktop/rebuildable-storage-cleanup.ts#cleanupDesktopRebuildableFiles",
+      before,
+      after,
+      cleanupResult: result,
+      linkedUpdaterResult,
+      passed: true,
+    };
+    await mkdir(dirname(resolve(receiptPath)), { recursive: true });
+    await writeFile(receiptPath, `${JSON.stringify(receipt, null, 2)}\n`, "utf8");
+  }
+  console.log(`real filesystem cleanup: ${filesystem.linkType}; ${preservedFiles.length} files preserved`);
 } finally {
   await rm(tempDir, { recursive: true, force: true });
 }
@@ -182,4 +257,61 @@ console.log("desktop rebuildable cleanup ok");
 async function writeSized(path, bytes) {
   await mkdir(join(path, ".."), { recursive: true });
   await writeFile(path, "x".repeat(bytes), "utf8");
+}
+
+async function checksums(paths) {
+  return Object.fromEntries(
+    await Promise.all(
+      paths.map(async (file) => [
+        file,
+        createHash("sha256")
+          .update(await readFile(file))
+          .digest("hex"),
+      ]),
+    ),
+  );
+}
+
+async function inspectFilesystemLinks(linkPaths) {
+  const { type } = await statfs(tempDir);
+  if (process.platform !== "win32") {
+    return {
+      statfsType: type,
+      name: process.platform === "darwin" && type === 26 ? "APFS" : null,
+      linkType: "directory-symlink",
+    };
+  }
+  const result = JSON.parse(
+    execFileSync(
+      "powershell.exe",
+      [
+        "-NoProfile",
+        "-NonInteractive",
+        "-Command",
+        `
+    $ErrorActionPreference = 'Stop'
+    $drive = [System.IO.Path]::GetPathRoot($env:OPENGROVE_STORAGE_TEST_ROOT).Substring(0, 1)
+    $volume = Get-Volume -DriveLetter $drive
+    $paths = ConvertFrom-Json -InputObject $env:OPENGROVE_STORAGE_TEST_LINKS
+    $links = @(foreach ($linkPath in $paths) {
+      $item = Get-Item -LiteralPath $linkPath -Force
+      @{ path = $item.FullName; linkType = $item.LinkType; target = @($item.Target) }
+    })
+    @{ name = [string]$volume.FileSystemType; links = $links } | ConvertTo-Json -Depth 5 -Compress
+  `,
+      ],
+      {
+        encoding: "utf8",
+        env: {
+          ...process.env,
+          OPENGROVE_STORAGE_TEST_ROOT: tempDir,
+          OPENGROVE_STORAGE_TEST_LINKS: JSON.stringify(linkPaths),
+        },
+      },
+    ),
+  );
+  assert.equal(result.name, "NTFS", "Windows release acceptance requires an actual NTFS volume");
+  assert.equal(result.links.length, linkPaths.length);
+  for (const link of result.links) assert.equal(link.linkType, "Junction", link.path);
+  return { ...result, statfsType: type, linkType: "directory-junction" };
 }

@@ -176,6 +176,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     environment: desktop-release
+    outputs:
+      public_release_root: ${{ steps.public-source.outputs.public_root }}
     steps:
       - name: Check out trusted readiness code
         uses: actions/checkout@v4
@@ -213,13 +215,20 @@ jobs:
           OPENGROVE_RELEASE_UPLOAD_TOKEN: ${{ secrets.OPENGROVE_RELEASE_UPLOAD_TOKEN }}
         run: node scripts/check-desktop-release-infrastructure.mjs
 
+      - name: Export verified public release root
+        id: public-source
+        env:
+          PUBLIC_ROOT: ${{ vars.OPENGROVE_DESKTOP_RELEASE_PUBLIC_ROOT }}
+        run: node -e 'require("node:fs").appendFileSync(process.env.GITHUB_OUTPUT, `public_root=${new URL(process.env.PUBLIC_ROOT).href}\n`)'
+
   golden-replay:
     name: Replay known-good desktop release gates
-    needs: resolve-candidate
+    needs: [resolve-candidate, deployment-readiness]
     if: needs.resolve-candidate.outputs.full_candidate == 'true'
     uses: ./.github/workflows/desktop-gate-replay.yml
     with:
       ref: ${{ needs.resolve-candidate.outputs.commit }}
+      public_root: ${{ needs.deployment-readiness.outputs.public_release_root }}
 
   mac-release:
     name: Build signed macOS ${{ matrix.arch }} release

@@ -1,13 +1,13 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { readAsarPackageVersion } from "./asar-package-version.mjs";
 import { desktopAsarLookupPath, normalizeDesktopAsarPath } from "./desktop-asar-path.mjs";
 import { desktopDistInventory } from "./desktop-package-inventory.mjs";
-import { verifyDesktopGateBaseline } from "./verify-desktop-gate-baseline.mjs";
+import { downloadDesktopGateBaseline, verifyDesktopGateBaseline } from "./verify-desktop-gate-baseline.mjs";
 
 const require = createRequire(import.meta.url);
 const { createPackage, listPackage, statFile, uncache } = require("@electron/asar");
@@ -56,6 +56,40 @@ async function testPinnedAssetVerification() {
   };
   writeFileSync(manifestPath, `${JSON.stringify(wrongHashManifest)}\n`);
   await assert.rejects(verifyDesktopGateBaseline({ manifestPath, targetId: "mac-arm64", installerPath }), /SHA-256/);
+  writeFileSync(manifestPath, `${JSON.stringify(manifest)}\n`);
+  const outputDir = join(root, "downloaded-baseline");
+  const downloadOptions = {
+    manifestPath,
+    targetId: "mac-arm64",
+    publicRoot: "https://releases.example.test/desktop",
+    outputDir,
+  };
+  const downloaded = await downloadDesktopGateBaseline({
+    ...downloadOptions,
+    fetchImpl: async (url) => {
+      assert.equal(String(url), `https://releases.example.test/desktop/v9.8.7/${asset}`);
+      return new Response(bytes, { headers: { "content-length": String(bytes.length) } });
+    },
+  });
+  assert.deepEqual(readFileSync(downloaded), bytes);
+
+  // A corrupt response must not replace an already verified installer or leave a partial file.
+  for (const response of [
+    new Response(null, { status: 404 }),
+    new Response(bytes, { headers: { "content-length": String(bytes.length + 1) } }),
+    new Response(Buffer.alloc(bytes.length, 1)),
+  ]) {
+    await assert.rejects(downloadDesktopGateBaseline({ ...downloadOptions, fetchImpl: async () => response }));
+    assert.deepEqual(readFileSync(downloaded), bytes);
+    assert.deepEqual(readdirSync(outputDir), [asset]);
+  }
+  for (const publicRoot of [
+    "http://example.test/",
+    "https://user:secret@example.test/",
+    "https://example.test/?token=x",
+  ]) {
+    await assert.rejects(downloadDesktopGateBaseline({ ...downloadOptions, publicRoot }), /credential-free HTTPS/);
+  }
 }
 
 async function testRealAsarCorruptions() {

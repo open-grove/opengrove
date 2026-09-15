@@ -139,6 +139,12 @@ gh workflow run desktop-release.yml --ref main \
 门禁。首个 GitHub Release 创建后，引导路径会被拒绝；后续候选会自动使用
 公开仓的上一个 GitHub Release。
 
+已知良好制品重放使用独立固定的 `v0.6.0` 基线。候选 workflow 从已通过连通性
+检查的正式发布根地址读取该历史安装包，再校验原有文件大小、SHA-256 和 dist
+inventory。它不要求公开仓补建历史 GitHub Release，也不会改变 N-1 更新所用的
+`v0.6.5` 引导制品。独立运行重放 workflow 时可传入 `public_root`；省略时仍使用
+GitHub Release 资产。
+
 只有以下门禁全部通过，workflow 才会组装不可变候选版本：
 
 - 版本号和成对版本说明；
@@ -155,10 +161,12 @@ gh workflow run desktop-release.yml --ref main \
 `platforms=windows-x64` 等单平台运行可用于诊断，但不会生成可登记
 候选版本或 gate receipt。
 
-### 存储管理改动的真机验收
+### 存储管理改动的真实文件系统验收
 
 改动递归清理或本地缓存策略时，除自动化门禁外还必须记录对应平台的
-真机验收结果。验收应使用临时测试数据，并在操作前后核对作品、对话、设置、账号、
+真实文件系统验收结果。可在本地机器或 GitHub 托管的 Windows/macOS runner 上执行，
+但必须运行产品实际使用的清理代码并创建原生文件系统链接。验收应使用临时测试数据，
+并在操作前后核对作品、对话、设置、账号、
 知识库、当前 App 和诊断日志的保留情况。
 
 - Windows（不可恢复风险，必测）：在 OpenGrove 清理范围内创建指向范围外测试目录
@@ -167,8 +175,12 @@ gh workflow run desktop-release.yml --ref main \
 - macOS：在 OpenGrove 清理范围内创建指向范围外测试目录的符号链接，
   确认清理不会跟随链接或删除范围外文件。
 
-真机结果必须注明候选 SHA、客户端版本、操作系统版本、文件系统、测试目录、操作前后
-校验值和操作结果；未执行时必须在发布记录中写明，而不能把自动化测试记作真机通过。
+结果必须注明候选 SHA、客户端版本、操作系统版本、文件系统、测试目录、操作前后
+校验值和操作结果，并区分本地机器与 GitHub runner。Nightly 的跨平台 job 运行
+`npm run check:desktop-rebuildable-cleanup`，上传 `storage-cleanup-<platform>-<run-id>`
+验收回执；Windows 会验证 NTFS 和 Junction 类型。该证据只覆盖文件系统清理行为，
+不代表实体电脑上的安装或界面验收。未执行的项目必须在发布记录中写明，
+不能把 mock、静态检查或其他测试通过记作本项通过。
 
 只有证据表明失败来自瞬时基础设施、且候选代码没有变化时，才可以仅重跑
 失败 job：

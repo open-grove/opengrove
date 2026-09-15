@@ -26,7 +26,7 @@ import {
   type ReleaseControlBuildFailure,
   type ReleaseControlStatus,
 } from "./app-release-status.js";
-import { normalizeLegacyAppReleaseJournal } from "./app-release-journal.compat.js";
+import { normalizeLegacyAppReleaseJournal, releaseForLegacyJournalComparison } from "./app-release-journal.compat.js";
 
 const APP_RELEASE_JOURNAL_SCHEMA_VERSION = 1;
 
@@ -116,6 +116,15 @@ export interface AppReleaseJournalRecord {
 
 // ===== Journal lifecycle =====
 
+export class AppReleaseJournalCorruptedError extends Error {
+  readonly status = 500;
+
+  constructor() {
+    super("app_store_publish_journal_corrupted");
+    this.name = "AppReleaseJournalCorruptedError";
+  }
+}
+
 export class AppReleaseJournalStore {
   constructor(private readonly root: string) {}
 
@@ -136,14 +145,28 @@ export class AppReleaseJournalStore {
     const intentDigest = sha256(Buffer.from(JSON.stringify(intent), "utf8"));
     const idempotencyKey = `og-app-release-${intentDigest}`;
     const existing = this.read(input.localAppId);
+    const comparableIntentDigest = existing
+      ? sha256(
+          Buffer.from(
+            JSON.stringify({
+              ...intent,
+              release: releaseForLegacyJournalComparison(intent.release, existing.release),
+            }),
+            "utf8",
+          ),
+        )
+      : intentDigest;
+    const matchesExistingIntent =
+      existing?.intentDigest === comparableIntentDigest &&
+      existing.idempotencyKey === `og-app-release-${comparableIntentDigest}`;
     if (existing && !terminalAppReleaseJournal(existing)) {
-      if (existing.intentDigest !== intentDigest || existing.idempotencyKey !== idempotencyKey) {
+      if (!matchesExistingIntent) {
         throw new Error("app_store_publish_intent_changed");
       }
       this.readSnapshot(existing);
       return cloneRecord(existing);
     }
-    if (existing && existing.intentDigest === intentDigest && existing.idempotencyKey === idempotencyKey) {
+    if (existing && matchesExistingIntent) {
       return cloneRecord(existing);
     }
 
@@ -186,11 +209,11 @@ export class AppReleaseJournalStore {
     try {
       value = JSON.parse(readFileSync(path, "utf8"));
     } catch {
-      throw new Error("app_store_publish_journal_corrupted");
+      throw new AppReleaseJournalCorruptedError();
     }
     value = normalizeLegacyAppReleaseJournal(value);
     if (!isJournalRecord(value, localAppId)) {
-      throw new Error("app_store_publish_journal_corrupted");
+      throw new AppReleaseJournalCorruptedError();
     }
     return cloneRecord(value);
   }
@@ -385,7 +408,7 @@ export class AppReleaseJournalStore {
     updated.revision = current.revision + 1;
     updated.updatedAt = new Date().toISOString();
     if (!isJournalRecord(updated, localAppId)) {
-      throw new Error("app_store_publish_journal_corrupted");
+      throw new AppReleaseJournalCorruptedError();
     }
     writePrivateJsonAtomically(this.currentPath(localAppId), updated);
     return cloneRecord(updated);
@@ -616,7 +639,11 @@ function isJournalRecord(value: unknown, localAppId: string): value is AppReleas
   if (record.release?.minHostReleaseNumber === undefined && terminalAppReleaseJournal(record)) {
     delete release.minHostReleaseNumber;
   }
-  if (JSON.stringify(release) !== JSON.stringify(record.release)) return false;
+  if (
+    !record.release ||
+    JSON.stringify(releaseForLegacyJournalComparison(release, record.release)) !== JSON.stringify(record.release)
+  )
+    return false;
   if (record.remoteIntentId !== undefined && !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$/.test(record.remoteIntentId))
     return false;
   if (record.remoteStatus !== undefined && !isAppReleaseJournalRemoteStatus(record.remoteStatus)) return false;

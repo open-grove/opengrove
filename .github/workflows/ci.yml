@@ -302,6 +302,16 @@ jobs:
       - name: Verify Windows Codex discovery
         run: npm run test:windows:codex-discovery
       - run: npm run test:windows:state-ownership
+      - name: Verify storage cleanup on NTFS junctions
+        env:
+          OPENGROVE_STORAGE_ACCEPTANCE_RECEIPT: ${{ runner.temp }}/storage-cleanup-receipt.json
+        run: npm run check:desktop-rebuildable-cleanup
+      - name: Upload Windows storage cleanup acceptance
+        uses: actions/upload-artifact@v4
+        with:
+          name: storage-cleanup-windows-pr-${{ github.run_id }}
+          path: ${{ runner.temp }}/storage-cleanup-receipt.json
+          if-no-files-found: error
 
   media-streaming-windows:
     name: Media streaming cleanup (Windows)

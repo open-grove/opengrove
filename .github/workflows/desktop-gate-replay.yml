@@ -3,12 +3,20 @@ name: Desktop gate golden replay
 on:
   workflow_call:
     inputs:
+      public_root:
+        description: Public release root containing the pinned historical installer
+        required: false
+        type: string
       ref:
         description: Commit to validate
         required: false
         type: string
   workflow_dispatch:
     inputs:
+      public_root:
+        description: Optional public release root; otherwise use GitHub Release assets
+        required: false
+        type: string
       ref:
         description: Commit or branch to validate
         required: false
@@ -75,10 +83,20 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           ASSET: ${{ steps.asset.outputs.name }}
           TAG: ${{ steps.asset.outputs.tag }}
+          TARGET: ${{ matrix.smoke_target }}
+          PUBLIC_ROOT: ${{ inputs.public_root }}
         run: |
           set -euo pipefail
           mkdir -p release/desktop/golden
-          gh release download "${TAG}" --pattern "${ASSET}" --dir release/desktop/golden
+          if [ -n "$PUBLIC_ROOT" ]; then
+            node scripts/verify-desktop-gate-baseline.mjs \
+              --manifest "$BASELINE_MANIFEST" \
+              --target "$TARGET" \
+              --public-root "$PUBLIC_ROOT" \
+              --output-dir release/desktop/golden
+          else
+            gh release download "${TAG}" --pattern "${ASSET}" --dir release/desktop/golden
+          fi
 
       - name: Verify pinned installer identity
         id: baseline

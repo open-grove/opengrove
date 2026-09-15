@@ -2117,6 +2117,8 @@ export const EN = {
     "The release recovery record is corrupted or does not match this submission. Refresh the page and try again.",
   "appStore.release.errorPackage": "The App Store returned invalid package metadata. Refresh and try again.",
   "appStore.release.errorJournalMissing": "There is no interrupted release to continue.",
+  "appStore.release.errorJournalCorrupted":
+    "The local release record could not be validated. Update OpenGrove and try again. If the problem persists, contact support and keep the original record.",
   "appStore.release.errorBaseMissing":
     "This App already exists in the store, but the local draft does not record the formal version it is based on. Switch to the latest formal version and save again.",
   "appStore.release.errorBaseInvalid":

@@ -1,0 +1,4 @@
+# Generated clients use LF bytes on every platform, including Windows checkouts.
+/packages/protocol/openapi.json text eol=lf
+/packages/client/src/generated/** text eol=lf
+/packages/sdk/src/generated/** text eol=lf

@@ -406,7 +406,10 @@ test("system Windows PowerShell returns UTF-8 and the actual registry/package qu
   );
   assert.equal(output?.trim(), "中文 用户", JSON.stringify(warnings.mock.calls.map((call) => call.arguments)));
   const refreshed = await refreshWindowsPath({ ...process.env, PATH: "" });
-  assert.ok(refreshed.PATH?.toLowerCase().includes("system32"));
+  assert.ok(
+    refreshed.PATH?.toLowerCase().includes("system32"),
+    JSON.stringify(warnings.mock.calls.map((call) => call.arguments)),
+  );
   assert.equal(readWindowsPath({ ...process.env, PATH: "" }).PATH, refreshed.PATH);
   assert.ok(Array.isArray(await refreshWindowsAppCodexCandidates(process.env)));
   assert.equal(warnings.mock.callCount(), 0, JSON.stringify(warnings.mock.calls.map((call) => call.arguments)));
