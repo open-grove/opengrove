@@ -111,18 +111,43 @@ function registerComponent(id: string, schema: JsonSchema, schemas: Record<strin
   schemas[id] = schema;
 }
 
+const SINGLE_SCHEMA_KEYS = new Set([
+  "not",
+  "if",
+  "then",
+  "else",
+  "contains",
+  "items",
+  "additionalItems",
+  "additionalProperties",
+  "unevaluatedItems",
+  "unevaluatedProperties",
+  "propertyNames",
+  "contentSchema",
+]);
+const ARRAY_SCHEMA_KEYS = new Set(["allOf", "anyOf", "oneOf", "prefixItems"]);
+const MAP_SCHEMA_KEYS = new Set(["properties", "patternProperties", "dependentSchemas", "$defs", "definitions"]);
+
 function mapSchemaReferences(value: unknown, rewrite: (reference: string) => string): unknown {
-  if (Array.isArray(value)) return value.map((item) => mapSchemaReferences(item, rewrite));
-  if (!value || typeof value !== "object") return value;
+  if (!value || typeof value !== "object" || Array.isArray(value)) return value;
   return Object.fromEntries(
-    Object.entries(value).map(([key, child]) => [
-      key,
-      key === "$ref" && typeof child === "string"
-        ? rewrite(child)
-        : ["default", "examples", "const", "enum"].includes(key)
-          ? child
-          : mapSchemaReferences(child, rewrite),
-    ]),
+    Object.entries(value).map(([key, child]) => {
+      if (key === "$ref" && typeof child === "string") return [key, rewrite(child)];
+      if (SINGLE_SCHEMA_KEYS.has(key)) return [key, mapSchemaReferences(child, rewrite)];
+      if (ARRAY_SCHEMA_KEYS.has(key) && Array.isArray(child)) {
+        return [key, child.map((schema) => mapSchemaReferences(schema, rewrite))];
+      }
+      if (MAP_SCHEMA_KEYS.has(key) && child && typeof child === "object" && !Array.isArray(child)) {
+        return [
+          key,
+          Object.fromEntries(
+            Object.entries(child).map(([name, schema]) => [name, mapSchemaReferences(schema, rewrite)]),
+          ),
+        ];
+      }
+      // Names inside properties are data keys; defaults, examples, const, and enum values are data too.
+      return [key, child];
+    }),
   );
 }
 

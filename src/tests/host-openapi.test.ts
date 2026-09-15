@@ -91,7 +91,7 @@ test("OpenAPI keeps recursive JSON references resolvable after embedding schemas
     path: "/fixture",
     risk: "write",
     query: z.object({ filter: z.json().optional() }),
-    body: z.object({ value: z.json() }),
+    body: z.object({ value: z.json(), enum: z.json() }),
     success: { status: 200, body: z.object({ value: z.json() }) },
   });
   const catalog = compileHostProtocol([
