@@ -1,13 +1,8 @@
-import { createRequire } from "node:module";
+import * as yaml from "js-yaml";
 import type { RuntimeAccessMode } from "../../core.js";
 import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { resolve } from "node:path";
-
-const yaml = createRequire(import.meta.url)("js-yaml") as {
-  load(text: string): unknown;
-  dump(value: unknown): string;
-};
 
 export function hermesApprovalMode(accessMode: RuntimeAccessMode | undefined): "manual" | "smart" | "off" {
   return accessMode === "auto-review" ? "smart" : accessMode === "full-access" ? "off" : "manual";
