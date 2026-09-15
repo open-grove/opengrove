@@ -1320,6 +1320,301 @@ export type AppUpdateScheduleResponses = {
 
 export type AppUpdateScheduleResponse = AppUpdateScheduleResponses[keyof AppUpdateScheduleResponses];
 
+export type RoomRoomListData = {
+  body?: never;
+  path?: never;
+  query?: {
+    /**
+     * Recent messages per Room, at most 200.
+     */
+    limit?: number;
+    /**
+     * Total snapshot message limit, at most 1000.
+     */
+    totalLimit?: number;
+  };
+  url: "/rooms";
+};
+
+export type RoomRoomListErrors = {
+  /**
+   * The request does not satisfy the operation contract.
+   */
+  400: {
+    ok?: false;
+    error: string;
+    code?: string;
+    traceId?: string;
+    [key: string]: unknown;
+  };
+  /**
+   * A valid Bridge session or token is required.
+   */
+  401: {
+    ok?: false;
+    error: string;
+    code?: string;
+    traceId?: string;
+    [key: string]: unknown;
+  };
+  /**
+   * The request origin is not allowed.
+   */
+  403: {
+    ok?: false;
+    error: string;
+    code?: string;
+    traceId?: string;
+    [key: string]: unknown;
+  };
+  /**
+   * The reply parent message does not exist.
+   */
+  404: {
+    ok?: false;
+    error: string;
+    code?: string;
+    traceId?: string;
+    [key: string]: unknown;
+  };
+  /**
+   * The message ID conflicts with an earlier message, or the remote conversation belongs to another account or sender.
+   */
+  409: {
+    ok?: false;
+    error: string;
+    code?: string;
+    traceId?: string;
+    [key: string]: unknown;
+  };
+  /**
+   * The authenticated session is temporarily unavailable.
+   */
+  503: {
+    ok?: false;
+    error: string;
+    code?: string;
+    traceId?: string;
+    [key: string]: unknown;
+  };
+};
+
+export type RoomRoomListError = RoomRoomListErrors[keyof RoomRoomListErrors];
+
+export type RoomRoomListResponses = {
+  /**
+   * Successful response.
+   */
+  200: {
+    ok: true;
+    rooms: Array<{
+      id: string;
+      kind: "group" | "direct";
+      title: string;
+      badge: string;
+      memberIds: Array<string>;
+      adminMemberIds: Array<string>;
+      updatedAt: string;
+      unread: number;
+      scope?: {
+        kind: "app";
+        appId: string;
+        role?: "default" | "group" | "direct";
+      };
+      generatedTitle?:
+        | {
+            kind: "numbered-group";
+            sequence: number;
+          }
+        | {
+            kind: "app-group";
+            appId: string;
+            sequence: number;
+          };
+      removedMemberIds?: Array<string>;
+      directMemberId?: string;
+      pinned?: boolean;
+      archived?: boolean;
+      lastReadEventSeq?: number;
+      [key: string]: unknown;
+    }>;
+    members: Array<{
+      name: string;
+      role: string;
+      kernel: string;
+      model: string;
+      color: string;
+      availableSkillIds?: Array<string>;
+      defaultSkillIds?: Array<string>;
+      requiredKernelCapabilities?: Array<
+        | "message.streamText"
+        | "turn.lifecycle"
+        | "session.lifecycle"
+        | "planning.plan"
+        | "interaction.askUser"
+        | "tools.hostTool"
+        | "tools.nativeTool"
+        | "tools.mcpServers"
+        | "tools.parallelCalls"
+        | "tool.progress"
+        | "approval.request"
+        | "control.stop"
+        | "control.steer"
+        | "session.compact"
+        | "session.goal"
+        | "auth.refresh"
+        | "sandbox.policy"
+        | "budget.limit"
+        | "diagnostics.usage"
+        | "response.speed"
+        | "media.input"
+        | "output.structured"
+        | "output.artifacts"
+        | "reasoning.nativeText"
+        | "reasoning.summary"
+        | "knowledge.skills"
+      >;
+      reasoningEffort?: "low" | "medium" | "high" | "xhigh" | "max";
+      contextTokenBudget?: number;
+      accessMode?: "default" | "auto-review" | "full-access";
+      avatarMode?: "generated" | "initials" | "upload";
+      avatarSeed?: string;
+      avatarDataUrl?: string;
+      visibility?: "private" | "public";
+      publicDescription?: string;
+      publicSkills?: Array<string>;
+      inputSpec?: string;
+      outputSpec?: string;
+      id: string;
+      employeeDefinitionId?: string;
+      displayName?: string;
+      providerId?: string;
+      displayRole?: string;
+      status: "idle" | "running" | "done" | "waiting" | "offline";
+      lastActive: string;
+      appId?: string;
+      workspaceRoot?: string;
+      storePackageId?: string;
+      toolIds?: Array<string>;
+      source?: "local" | "human" | "remote";
+      remoteAgent?: {
+        accountIssuer: string;
+        accountUserId: string;
+        serviceUrl: string;
+        matrixId: string;
+        provider: string;
+        senderAgentId: string;
+        owner: string;
+        address: string;
+      };
+      sourceLabel?: string;
+      displayPublicDescription?: string;
+      displayPublicSkills?: Array<string>;
+      displayInputSpec?: string;
+      displayOutputSpec?: string;
+      userOverrides?: Array<string>;
+      manifestDefaults?: {
+        name?: string;
+        role?: string;
+        kernel?: string;
+        model?: string;
+        color?: string;
+        availableSkillIds?: Array<string>;
+        defaultSkillIds?: Array<string>;
+        requiredKernelCapabilities?: Array<
+          | "message.streamText"
+          | "turn.lifecycle"
+          | "session.lifecycle"
+          | "planning.plan"
+          | "interaction.askUser"
+          | "tools.hostTool"
+          | "tools.nativeTool"
+          | "tools.mcpServers"
+          | "tools.parallelCalls"
+          | "tool.progress"
+          | "approval.request"
+          | "control.stop"
+          | "control.steer"
+          | "session.compact"
+          | "session.goal"
+          | "auth.refresh"
+          | "sandbox.policy"
+          | "budget.limit"
+          | "diagnostics.usage"
+          | "response.speed"
+          | "media.input"
+          | "output.structured"
+          | "output.artifacts"
+          | "reasoning.nativeText"
+          | "reasoning.summary"
+          | "knowledge.skills"
+        >;
+        reasoningEffort?: "low" | "medium" | "high" | "xhigh" | "max";
+        contextTokenBudget?: number;
+        accessMode?: "default" | "auto-review" | "full-access";
+        avatarMode?: "generated" | "initials" | "upload";
+        avatarSeed?: string;
+        avatarDataUrl?: string;
+        visibility?: "private" | "public";
+        publicDescription?: string;
+        publicSkills?: Array<string>;
+        inputSpec?: string;
+        outputSpec?: string;
+      };
+      disabled?: boolean;
+    }>;
+    messages: Array<{
+      id: string;
+      roomId: string;
+      channelSeq: number;
+      senderId: string;
+      senderName: string;
+      senderType: "user" | "agent" | "system";
+      text: string;
+      targetIds: Array<string>;
+      status: "sent" | "running" | "done" | "failed" | "interrupted";
+      createdAt: string;
+      updatedAt: string;
+      attachments?: Array<unknown>;
+      parts?: Array<{
+        [key: string]: unknown;
+      }>;
+      duration?: string;
+      runId?: string;
+      remoteTask?: {
+        contextId?: string;
+        messageId: string;
+        requestText?: string;
+        triggerMessageId: string;
+        taskId?: string;
+        inputTaskId?: string;
+        sendStarted?: boolean;
+        needsInput?: boolean;
+        pending: boolean;
+        cancelRequested?: boolean;
+        statusText?: string;
+      };
+      startedAt?: string;
+      finishedAt?: string;
+      audience?: "room" | "internal";
+      deliveryKind?: "user_direct" | "user_broadcast" | "pm_auto_route" | "agent_delegation" | "system_routine";
+      notificationEventSeq?: number;
+      inReplyToMessageId?: string;
+      rootMessageId?: string;
+      selectedFile?: {
+        path: string;
+        [key: string]: unknown;
+      };
+      [key: string]: unknown;
+    }>;
+    currentEventSeq: number;
+    deletedMemberIds: Array<string>;
+    messagesTruncated?: boolean;
+  };
+};
+
+export type RoomRoomListResponse = RoomRoomListResponses[keyof RoomRoomListResponses];
+
 export type RoomRoomCreateData = {
   body: {
     /**
@@ -1724,6 +2019,140 @@ export type RoomRoomReadResponses = {
 
 export type RoomRoomReadResponse = RoomRoomReadResponses[keyof RoomRoomReadResponses];
 
+export type RoomMessageListData = {
+  body?: never;
+  path: {
+    roomId: string;
+  };
+  query?: {
+    afterSeq?: number;
+    beforeSeq?: number;
+    limit?: number;
+  };
+  url: "/rooms/{roomId}/messages";
+};
+
+export type RoomMessageListErrors = {
+  /**
+   * The request does not satisfy the operation contract.
+   */
+  400: {
+    ok?: false;
+    error: string;
+    code?: string;
+    traceId?: string;
+    [key: string]: unknown;
+  };
+  /**
+   * A valid Bridge session or token is required.
+   */
+  401: {
+    ok?: false;
+    error: string;
+    code?: string;
+    traceId?: string;
+    [key: string]: unknown;
+  };
+  /**
+   * The request origin is not allowed.
+   */
+  403: {
+    ok?: false;
+    error: string;
+    code?: string;
+    traceId?: string;
+    [key: string]: unknown;
+  };
+  /**
+   * The reply parent message does not exist.
+   */
+  404: {
+    ok?: false;
+    error: string;
+    code?: string;
+    traceId?: string;
+    [key: string]: unknown;
+  };
+  /**
+   * The message ID conflicts with an earlier message, or the remote conversation belongs to another account or sender.
+   */
+  409: {
+    ok?: false;
+    error: string;
+    code?: string;
+    traceId?: string;
+    [key: string]: unknown;
+  };
+  /**
+   * The authenticated session is temporarily unavailable.
+   */
+  503: {
+    ok?: false;
+    error: string;
+    code?: string;
+    traceId?: string;
+    [key: string]: unknown;
+  };
+};
+
+export type RoomMessageListError = RoomMessageListErrors[keyof RoomMessageListErrors];
+
+export type RoomMessageListResponses = {
+  /**
+   * Successful response.
+   */
+  200: {
+    ok: true;
+    messages: Array<{
+      id: string;
+      roomId: string;
+      channelSeq: number;
+      senderId: string;
+      senderName: string;
+      senderType: "user" | "agent" | "system";
+      text: string;
+      targetIds: Array<string>;
+      status: "sent" | "running" | "done" | "failed" | "interrupted";
+      createdAt: string;
+      updatedAt: string;
+      attachments?: Array<unknown>;
+      parts?: Array<{
+        [key: string]: unknown;
+      }>;
+      duration?: string;
+      runId?: string;
+      remoteTask?: {
+        contextId?: string;
+        messageId: string;
+        requestText?: string;
+        triggerMessageId: string;
+        taskId?: string;
+        inputTaskId?: string;
+        sendStarted?: boolean;
+        needsInput?: boolean;
+        pending: boolean;
+        cancelRequested?: boolean;
+        statusText?: string;
+      };
+      startedAt?: string;
+      finishedAt?: string;
+      audience?: "room" | "internal";
+      deliveryKind?: "user_direct" | "user_broadcast" | "pm_auto_route" | "agent_delegation" | "system_routine";
+      notificationEventSeq?: number;
+      inReplyToMessageId?: string;
+      rootMessageId?: string;
+      selectedFile?: {
+        path: string;
+        [key: string]: unknown;
+      };
+      [key: string]: unknown;
+    }>;
+    currentEventSeq: number;
+  };
+};
+
+export type RoomMessageListResponse = RoomMessageListResponses[keyof RoomMessageListResponses];
+
 export type RoomMessageCreateData = {
   body: {
     /**
@@ -1885,6 +2314,26 @@ export type RoomMessageCreateResponses = {
       parts?: Array<{
         [key: string]: unknown;
       }>;
+      duration?: string;
+      runId?: string;
+      remoteTask?: {
+        contextId?: string;
+        messageId: string;
+        requestText?: string;
+        triggerMessageId: string;
+        taskId?: string;
+        inputTaskId?: string;
+        sendStarted?: boolean;
+        needsInput?: boolean;
+        pending: boolean;
+        cancelRequested?: boolean;
+        statusText?: string;
+      };
+      startedAt?: string;
+      finishedAt?: string;
+      audience?: "room" | "internal";
+      deliveryKind?: "user_direct" | "user_broadcast" | "pm_auto_route" | "agent_delegation" | "system_routine";
+      notificationEventSeq?: number;
       inReplyToMessageId?: string;
       rootMessageId?: string;
       selectedFile?: {
@@ -1909,6 +2358,26 @@ export type RoomMessageCreateResponses = {
       parts?: Array<{
         [key: string]: unknown;
       }>;
+      duration?: string;
+      runId?: string;
+      remoteTask?: {
+        contextId?: string;
+        messageId: string;
+        requestText?: string;
+        triggerMessageId: string;
+        taskId?: string;
+        inputTaskId?: string;
+        sendStarted?: boolean;
+        needsInput?: boolean;
+        pending: boolean;
+        cancelRequested?: boolean;
+        statusText?: string;
+      };
+      startedAt?: string;
+      finishedAt?: string;
+      audience?: "room" | "internal";
+      deliveryKind?: "user_direct" | "user_broadcast" | "pm_auto_route" | "agent_delegation" | "system_routine";
+      notificationEventSeq?: number;
       inReplyToMessageId?: string;
       rootMessageId?: string;
       selectedFile?: {
@@ -1922,6 +2391,645 @@ export type RoomMessageCreateResponses = {
 };
 
 export type RoomMessageCreateResponse = RoomMessageCreateResponses[keyof RoomMessageCreateResponses];
+
+export type RoomEventListData = {
+  body?: never;
+  path?: never;
+  query?: {
+    afterEventSeq?: number;
+    eventVersion?: number;
+    limit?: number;
+    waitMs?: number;
+  };
+  url: "/rooms/events";
+};
+
+export type RoomEventListErrors = {
+  /**
+   * The request does not satisfy the operation contract.
+   */
+  400: {
+    ok?: false;
+    error: string;
+    code?: string;
+    traceId?: string;
+    [key: string]: unknown;
+  };
+  /**
+   * A valid Bridge session or token is required.
+   */
+  401: {
+    ok?: false;
+    error: string;
+    code?: string;
+    traceId?: string;
+    [key: string]: unknown;
+  };
+  /**
+   * The request origin is not allowed.
+   */
+  403: {
+    ok?: false;
+    error: string;
+    code?: string;
+    traceId?: string;
+    [key: string]: unknown;
+  };
+  /**
+   * The reply parent message does not exist.
+   */
+  404: {
+    ok?: false;
+    error: string;
+    code?: string;
+    traceId?: string;
+    [key: string]: unknown;
+  };
+  /**
+   * The message ID conflicts with an earlier message, or the remote conversation belongs to another account or sender.
+   */
+  409: {
+    ok?: false;
+    error: string;
+    code?: string;
+    traceId?: string;
+    [key: string]: unknown;
+  };
+  /**
+   * The authenticated session is temporarily unavailable.
+   */
+  503: {
+    ok?: false;
+    error: string;
+    code?: string;
+    traceId?: string;
+    [key: string]: unknown;
+  };
+};
+
+export type RoomEventListError = RoomEventListErrors[keyof RoomEventListErrors];
+
+export type RoomEventListResponses = {
+  /**
+   * Successful response.
+   */
+  200: {
+    ok: true;
+    events: Array<{
+      schemaVersion?: 1 | 2;
+      eventSeq: number;
+      type:
+        | "room.created"
+        | "room.updated"
+        | "room.member.added"
+        | "room.member.updated"
+        | "room.member.removed"
+        | "room.message.created"
+        | "room.message.updated"
+        | "room.message.deleted";
+      roomId: string;
+      messageId?: string;
+      memberId?: string;
+      createdAt: string;
+      payload: {
+        room?: {
+          id: string;
+          kind: "group" | "direct";
+          title: string;
+          badge: string;
+          memberIds: Array<string>;
+          adminMemberIds: Array<string>;
+          updatedAt: string;
+          unread: number;
+          scope?: {
+            kind: "app";
+            appId: string;
+            role?: "default" | "group" | "direct";
+          };
+          generatedTitle?:
+            | {
+                kind: "numbered-group";
+                sequence: number;
+              }
+            | {
+                kind: "app-group";
+                appId: string;
+                sequence: number;
+              };
+          removedMemberIds?: Array<string>;
+          directMemberId?: string;
+          pinned?: boolean;
+          archived?: boolean;
+          lastReadEventSeq?: number;
+          [key: string]: unknown;
+        };
+        member?: {
+          name: string;
+          role: string;
+          kernel: string;
+          model: string;
+          color: string;
+          availableSkillIds?: Array<string>;
+          defaultSkillIds?: Array<string>;
+          requiredKernelCapabilities?: Array<
+            | "message.streamText"
+            | "turn.lifecycle"
+            | "session.lifecycle"
+            | "planning.plan"
+            | "interaction.askUser"
+            | "tools.hostTool"
+            | "tools.nativeTool"
+            | "tools.mcpServers"
+            | "tools.parallelCalls"
+            | "tool.progress"
+            | "approval.request"
+            | "control.stop"
+            | "control.steer"
+            | "session.compact"
+            | "session.goal"
+            | "auth.refresh"
+            | "sandbox.policy"
+            | "budget.limit"
+            | "diagnostics.usage"
+            | "response.speed"
+            | "media.input"
+            | "output.structured"
+            | "output.artifacts"
+            | "reasoning.nativeText"
+            | "reasoning.summary"
+            | "knowledge.skills"
+          >;
+          reasoningEffort?: "low" | "medium" | "high" | "xhigh" | "max";
+          contextTokenBudget?: number;
+          accessMode?: "default" | "auto-review" | "full-access";
+          avatarMode?: "generated" | "initials" | "upload";
+          avatarSeed?: string;
+          avatarDataUrl?: string;
+          visibility?: "private" | "public";
+          publicDescription?: string;
+          publicSkills?: Array<string>;
+          inputSpec?: string;
+          outputSpec?: string;
+          id: string;
+          employeeDefinitionId?: string;
+          displayName?: string;
+          providerId?: string;
+          displayRole?: string;
+          status: "idle" | "running" | "done" | "waiting" | "offline";
+          lastActive: string;
+          appId?: string;
+          workspaceRoot?: string;
+          storePackageId?: string;
+          toolIds?: Array<string>;
+          source?: "local" | "human" | "remote";
+          remoteAgent?: {
+            accountIssuer: string;
+            accountUserId: string;
+            serviceUrl: string;
+            matrixId: string;
+            provider: string;
+            senderAgentId: string;
+            owner: string;
+            address: string;
+          };
+          sourceLabel?: string;
+          displayPublicDescription?: string;
+          displayPublicSkills?: Array<string>;
+          displayInputSpec?: string;
+          displayOutputSpec?: string;
+          userOverrides?: Array<string>;
+          manifestDefaults?: {
+            name?: string;
+            role?: string;
+            kernel?: string;
+            model?: string;
+            color?: string;
+            availableSkillIds?: Array<string>;
+            defaultSkillIds?: Array<string>;
+            requiredKernelCapabilities?: Array<
+              | "message.streamText"
+              | "turn.lifecycle"
+              | "session.lifecycle"
+              | "planning.plan"
+              | "interaction.askUser"
+              | "tools.hostTool"
+              | "tools.nativeTool"
+              | "tools.mcpServers"
+              | "tools.parallelCalls"
+              | "tool.progress"
+              | "approval.request"
+              | "control.stop"
+              | "control.steer"
+              | "session.compact"
+              | "session.goal"
+              | "auth.refresh"
+              | "sandbox.policy"
+              | "budget.limit"
+              | "diagnostics.usage"
+              | "response.speed"
+              | "media.input"
+              | "output.structured"
+              | "output.artifacts"
+              | "reasoning.nativeText"
+              | "reasoning.summary"
+              | "knowledge.skills"
+            >;
+            reasoningEffort?: "low" | "medium" | "high" | "xhigh" | "max";
+            contextTokenBudget?: number;
+            accessMode?: "default" | "auto-review" | "full-access";
+            avatarMode?: "generated" | "initials" | "upload";
+            avatarSeed?: string;
+            avatarDataUrl?: string;
+            visibility?: "private" | "public";
+            publicDescription?: string;
+            publicSkills?: Array<string>;
+            inputSpec?: string;
+            outputSpec?: string;
+          };
+          disabled?: boolean;
+        };
+        message?: {
+          id: string;
+          roomId: string;
+          channelSeq: number;
+          senderId: string;
+          senderName: string;
+          senderType: "user" | "agent" | "system";
+          text: string;
+          targetIds: Array<string>;
+          status: "sent" | "running" | "done" | "failed" | "interrupted";
+          createdAt: string;
+          updatedAt: string;
+          attachments?: Array<unknown>;
+          parts?: Array<{
+            [key: string]: unknown;
+          }>;
+          duration?: string;
+          runId?: string;
+          remoteTask?: {
+            contextId?: string;
+            messageId: string;
+            requestText?: string;
+            triggerMessageId: string;
+            taskId?: string;
+            inputTaskId?: string;
+            sendStarted?: boolean;
+            needsInput?: boolean;
+            pending: boolean;
+            cancelRequested?: boolean;
+            statusText?: string;
+          };
+          startedAt?: string;
+          finishedAt?: string;
+          audience?: "room" | "internal";
+          deliveryKind?: "user_direct" | "user_broadcast" | "pm_auto_route" | "agent_delegation" | "system_routine";
+          notificationEventSeq?: number;
+          inReplyToMessageId?: string;
+          rootMessageId?: string;
+          selectedFile?: {
+            path: string;
+            [key: string]: unknown;
+          };
+          [key: string]: unknown;
+        };
+        messageId?: string;
+        memberId?: string;
+        audience?: "room" | "internal";
+        messagePatch?: {
+          set: {
+            id?: string;
+            roomId?: string;
+            channelSeq?: number;
+            senderId?: string;
+            senderName?: string;
+            senderType?: "user" | "agent" | "system";
+            text?: string;
+            targetIds?: Array<string>;
+            status?: "sent" | "running" | "done" | "failed" | "interrupted";
+            createdAt?: string;
+            updatedAt?: string;
+            attachments?: Array<unknown>;
+            parts?: Array<{
+              [key: string]: unknown;
+            }>;
+            duration?: string;
+            runId?: string;
+            remoteTask?: {
+              contextId?: string;
+              messageId: string;
+              requestText?: string;
+              triggerMessageId: string;
+              taskId?: string;
+              inputTaskId?: string;
+              sendStarted?: boolean;
+              needsInput?: boolean;
+              pending: boolean;
+              cancelRequested?: boolean;
+              statusText?: string;
+            };
+            startedAt?: string;
+            finishedAt?: string;
+            audience?: "room" | "internal";
+            deliveryKind?: "user_direct" | "user_broadcast" | "pm_auto_route" | "agent_delegation" | "system_routine";
+            notificationEventSeq?: number;
+            inReplyToMessageId?: string;
+            rootMessageId?: string;
+            selectedFile?: {
+              path: string;
+              [key: string]: unknown;
+            };
+            [key: string]: unknown;
+          };
+          unset?: Array<string>;
+        };
+      };
+    }>;
+    currentEventSeq: number;
+    oldestAvailableEventSeq: number;
+    hasMore: boolean;
+    resetRequired: boolean;
+    longPollSupported: true;
+  };
+};
+
+export type RoomEventListResponse = RoomEventListResponses[keyof RoomEventListResponses];
+
+export type RoomDirectOpenData = {
+  body: {
+    memberId: string;
+    roomId?: string;
+    appId?: string;
+    title?: string;
+    member?: {
+      name?: string;
+      role?: string;
+      kernel?: string;
+      model?: string;
+      color?: string;
+      availableSkillIds?: Array<string>;
+      defaultSkillIds?: Array<string>;
+      reasoningEffort?: "low" | "medium" | "high" | "xhigh" | "max";
+      contextTokenBudget?: number;
+      accessMode?: "default" | "auto-review" | "full-access";
+      avatarMode?: "generated" | "initials" | "upload";
+      avatarSeed?: string;
+      avatarDataUrl?: string;
+      visibility?: "private" | "public";
+      publicDescription?: string;
+      publicSkills?: Array<string>;
+      inputSpec?: string;
+      outputSpec?: string;
+      id: string;
+      employeeDefinitionId?: string;
+      providerId?: string;
+      status?: "idle" | "running" | "done" | "waiting" | "offline";
+      lastActive?: string;
+      appId?: string;
+      workspaceRoot?: string;
+      storePackageId?: string;
+      toolIds?: Array<string>;
+      source?: "local" | "human";
+      sourceLabel?: string;
+      disabled?: boolean;
+    };
+  };
+  path?: never;
+  query?: never;
+  url: "/rooms/dm";
+};
+
+export type RoomDirectOpenErrors = {
+  /**
+   * The request does not satisfy the operation contract.
+   */
+  400: {
+    ok?: false;
+    error: string;
+    code?: string;
+    traceId?: string;
+    [key: string]: unknown;
+  };
+  /**
+   * A valid Bridge session or token is required.
+   */
+  401: {
+    ok?: false;
+    error: string;
+    code?: string;
+    traceId?: string;
+    [key: string]: unknown;
+  };
+  /**
+   * The request origin is not allowed.
+   */
+  403: {
+    ok?: false;
+    error: string;
+    code?: string;
+    traceId?: string;
+    [key: string]: unknown;
+  };
+  /**
+   * The reply parent message does not exist.
+   */
+  404: {
+    ok?: false;
+    error: string;
+    code?: string;
+    traceId?: string;
+    [key: string]: unknown;
+  };
+  /**
+   * The message ID conflicts with an earlier message, or the remote conversation belongs to another account or sender.
+   */
+  409: {
+    ok?: false;
+    error: string;
+    code?: string;
+    traceId?: string;
+    [key: string]: unknown;
+  };
+  /**
+   * The authenticated session is temporarily unavailable.
+   */
+  503: {
+    ok?: false;
+    error: string;
+    code?: string;
+    traceId?: string;
+    [key: string]: unknown;
+  };
+};
+
+export type RoomDirectOpenError = RoomDirectOpenErrors[keyof RoomDirectOpenErrors];
+
+export type RoomDirectOpenResponses = {
+  /**
+   * Successful response.
+   */
+  200: {
+    ok: true;
+    room: {
+      id: string;
+      kind: "group" | "direct";
+      title: string;
+      badge: string;
+      memberIds: Array<string>;
+      adminMemberIds: Array<string>;
+      updatedAt: string;
+      unread: number;
+      scope?: {
+        kind: "app";
+        appId: string;
+        role?: "default" | "group" | "direct";
+      };
+      generatedTitle?:
+        | {
+            kind: "numbered-group";
+            sequence: number;
+          }
+        | {
+            kind: "app-group";
+            appId: string;
+            sequence: number;
+          };
+      removedMemberIds?: Array<string>;
+      directMemberId?: string;
+      pinned?: boolean;
+      archived?: boolean;
+      lastReadEventSeq?: number;
+      [key: string]: unknown;
+    };
+    member?: {
+      name: string;
+      role: string;
+      kernel: string;
+      model: string;
+      color: string;
+      availableSkillIds?: Array<string>;
+      defaultSkillIds?: Array<string>;
+      requiredKernelCapabilities?: Array<
+        | "message.streamText"
+        | "turn.lifecycle"
+        | "session.lifecycle"
+        | "planning.plan"
+        | "interaction.askUser"
+        | "tools.hostTool"
+        | "tools.nativeTool"
+        | "tools.mcpServers"
+        | "tools.parallelCalls"
+        | "tool.progress"
+        | "approval.request"
+        | "control.stop"
+        | "control.steer"
+        | "session.compact"
+        | "session.goal"
+        | "auth.refresh"
+        | "sandbox.policy"
+        | "budget.limit"
+        | "diagnostics.usage"
+        | "response.speed"
+        | "media.input"
+        | "output.structured"
+        | "output.artifacts"
+        | "reasoning.nativeText"
+        | "reasoning.summary"
+        | "knowledge.skills"
+      >;
+      reasoningEffort?: "low" | "medium" | "high" | "xhigh" | "max";
+      contextTokenBudget?: number;
+      accessMode?: "default" | "auto-review" | "full-access";
+      avatarMode?: "generated" | "initials" | "upload";
+      avatarSeed?: string;
+      avatarDataUrl?: string;
+      visibility?: "private" | "public";
+      publicDescription?: string;
+      publicSkills?: Array<string>;
+      inputSpec?: string;
+      outputSpec?: string;
+      id: string;
+      employeeDefinitionId?: string;
+      displayName?: string;
+      providerId?: string;
+      displayRole?: string;
+      status: "idle" | "running" | "done" | "waiting" | "offline";
+      lastActive: string;
+      appId?: string;
+      workspaceRoot?: string;
+      storePackageId?: string;
+      toolIds?: Array<string>;
+      source?: "local" | "human" | "remote";
+      remoteAgent?: {
+        accountIssuer: string;
+        accountUserId: string;
+        serviceUrl: string;
+        matrixId: string;
+        provider: string;
+        senderAgentId: string;
+        owner: string;
+        address: string;
+      };
+      sourceLabel?: string;
+      displayPublicDescription?: string;
+      displayPublicSkills?: Array<string>;
+      displayInputSpec?: string;
+      displayOutputSpec?: string;
+      userOverrides?: Array<string>;
+      manifestDefaults?: {
+        name?: string;
+        role?: string;
+        kernel?: string;
+        model?: string;
+        color?: string;
+        availableSkillIds?: Array<string>;
+        defaultSkillIds?: Array<string>;
+        requiredKernelCapabilities?: Array<
+          | "message.streamText"
+          | "turn.lifecycle"
+          | "session.lifecycle"
+          | "planning.plan"
+          | "interaction.askUser"
+          | "tools.hostTool"
+          | "tools.nativeTool"
+          | "tools.mcpServers"
+          | "tools.parallelCalls"
+          | "tool.progress"
+          | "approval.request"
+          | "control.stop"
+          | "control.steer"
+          | "session.compact"
+          | "session.goal"
+          | "auth.refresh"
+          | "sandbox.policy"
+          | "budget.limit"
+          | "diagnostics.usage"
+          | "response.speed"
+          | "media.input"
+          | "output.structured"
+          | "output.artifacts"
+          | "reasoning.nativeText"
+          | "reasoning.summary"
+          | "knowledge.skills"
+        >;
+        reasoningEffort?: "low" | "medium" | "high" | "xhigh" | "max";
+        contextTokenBudget?: number;
+        accessMode?: "default" | "auto-review" | "full-access";
+        avatarMode?: "generated" | "initials" | "upload";
+        avatarSeed?: string;
+        avatarDataUrl?: string;
+        visibility?: "private" | "public";
+        publicDescription?: string;
+        publicSkills?: Array<string>;
+        inputSpec?: string;
+        outputSpec?: string;
+      };
+      disabled?: boolean;
+    };
+    currentEventSeq: number;
+  };
+};
+
+export type RoomDirectOpenResponse = RoomDirectOpenResponses[keyof RoomDirectOpenResponses];
 
 export type NetworkAccountInspectData = {
   body?: never;

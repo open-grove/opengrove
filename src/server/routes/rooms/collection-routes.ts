@@ -1,30 +1,27 @@
 import type { AppRoomScope, RoomChannelMember, RoomChannelRoom } from "../../../rooms/channel-store.js";
-import type { CreateRoomOperation, UpdateRoomOperation, MarkRoomReadOperation } from "#protocol";
+import type {
+  CreateRoomOperation,
+  UpdateRoomOperation,
+  MarkRoomReadOperation,
+  ListRoomsOperation,
+  ListRoomEventsOperation,
+  OpenDirectRoomOperation,
+} from "#protocol";
 import type { HostOperationRouteContext } from "../../router.js";
 import { isLegacyRoomPmMember, isRoomPmMember, pmAgentMemberId } from "../../../rooms/room-pm.js";
-import { record } from "../../http-utils.js";
 import { GROVE_GUIDE_MEMBER_ID, syncGroveGuideWelcome } from "../../product-default-employees.js";
 import { resolveHostLanguageSettings } from "../../language-preference.js";
-import { normalizeMember, objectRecord, readOptionalString, readPositiveInt, readString } from "./normalizers.js";
+import { normalizeMember, objectRecord, readString } from "./normalizers.js";
 import { presentRoomEvent, presentRoomMessage } from "../../room-presentation.js";
-import { readLongPollWaitMs, waitForLongPoll } from "../../long-poll.js";
+import { waitForLongPoll } from "../../long-poll.js";
 import type { RoomsRouteContext } from "./route-context.js";
 import { appScopedDirectRoomId, createRoomId } from "./route-helpers.js";
 import { findDefaultAppGroupRoom } from "../../app-room-ids.js";
 import { resolveMountedAppTarget } from "../../mounted-apps.js";
 import { roomMutationErrorResponse } from "./room-mutation-errors.js";
 
-export async function handleRoomCollectionRoutes(context: RoomsRouteContext): Promise<boolean> {
-  return (
-    (await handleRoomsInitRoute(context)) ||
-    (await handleDirectRoomRoute(context)) ||
-    (await handleRoomEventsRoute(context))
-  );
-}
-
-async function handleRoomsInitRoute(context: RoomsRouteContext): Promise<boolean> {
-  const { request, response, url, state, sendJson } = context;
-  if (request.method !== "GET" || url.pathname !== "/rooms") return false;
+export async function handleListRoomsOperation(context: HostOperationRouteContext<ListRoomsOperation>): Promise<true> {
+  const { response, state, sendJson } = context;
   const groveWelcomeChanged = !state.kernelUnavailableReason
     ? syncGroveGuideWelcome(
         state.app.rooms,
@@ -33,10 +30,7 @@ async function handleRoomsInitRoute(context: RoomsRouteContext): Promise<boolean
       )
     : false;
   if (groveWelcomeChanged) state.store.saveFrom(state.app);
-  const snapshot = state.app.rooms.getInit(
-    Math.min(readPositiveInt(url.searchParams.get("limit"), 80), 200),
-    Math.min(readPositiveInt(url.searchParams.get("totalLimit"), 500), 1_000),
-  );
+  const snapshot = state.app.rooms.getInit(context.input.query.limit, context.input.query.totalLimit);
   sendJson(response, 200, {
     ok: true,
     ...snapshot,
@@ -151,13 +145,14 @@ function mountedAppGroupRoster(
   };
 }
 
-async function handleDirectRoomRoute(context: RoomsRouteContext): Promise<boolean> {
-  const { request, response, url, state, sendJson, readJsonBody } = context;
-  if (request.method !== "POST" || url.pathname !== "/rooms/dm") return false;
-  const body = record(await readJsonBody(request));
-  let memberId = readString(body.memberId);
-  const requestedRoomId = readOptionalString(body.roomId);
-  const requestedAppId = readOptionalString(body.appId);
+export async function handleOpenDirectRoomOperation(
+  context: HostOperationRouteContext<OpenDirectRoomOperation>,
+): Promise<true> {
+  const { response, state, sendJson } = context;
+  const body = context.input.body;
+  let memberId = body.memberId;
+  const requestedRoomId = body.roomId;
+  const requestedAppId = body.appId;
   const mountedApp = requestedAppId ? resolveMountedAppTarget(state, requestedAppId) : undefined;
   if (requestedAppId && !mountedApp) {
     sendJson(response, 409, { ok: false, error: "app_not_mounted" });
@@ -182,7 +177,7 @@ async function handleDirectRoomRoute(context: RoomsRouteContext): Promise<boolea
   try {
     room = state.app.rooms.openDirect({
       memberId,
-      title: readString(body.title),
+      title: body.title,
       id: appId || requestedRoomId ? directRoomId : undefined,
       scope: appId ? { kind: "app", appId, role: "direct" } : undefined,
     });
@@ -200,13 +195,12 @@ async function handleDirectRoomRoute(context: RoomsRouteContext): Promise<boolea
   return true;
 }
 
-async function handleRoomEventsRoute(context: RoomsRouteContext): Promise<boolean> {
-  const { request, response, url, state, sendJson } = context;
-  if (request.method !== "GET" || url.pathname !== "/rooms/events") return false;
-  const afterEventSeq = readPositiveInt(url.searchParams.get("afterEventSeq"), 0);
-  const limit = Math.min(readPositiveInt(url.searchParams.get("limit"), 200), 1_000);
+export async function handleListRoomEventsOperation(
+  context: HostOperationRouteContext<ListRoomEventsOperation>,
+): Promise<true> {
+  const { response, state, sendJson } = context;
+  const { afterEventSeq, limit, waitMs, eventVersion } = context.input.query;
   let result = state.app.rooms.eventsAfter(afterEventSeq, limit);
-  const waitMs = readLongPollWaitMs(url);
   if (waitMs > 0 && !result.resetRequired && !result.hasMore && result.events.length === 0) {
     const rooms = state.app.rooms;
     const responseOpen = await waitForLongPoll(response, (signal) =>
@@ -215,7 +209,7 @@ async function handleRoomEventsRoute(context: RoomsRouteContext): Promise<boolea
     if (!responseOpen) return true;
     result = state.app.rooms.eventsAfter(afterEventSeq, limit);
   }
-  const supportsMessagePatches = readPositiveInt(url.searchParams.get("eventVersion"), 1) >= 2;
+  const supportsMessagePatches = eventVersion >= 2;
   sendJson(response, 200, {
     ok: true,
     ...result,

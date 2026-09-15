@@ -47,12 +47,24 @@ import type {
   NetworkContactAddData,
   NetworkContactAddErrors,
   NetworkContactAddResponses,
+  RoomDirectOpenData,
+  RoomDirectOpenErrors,
+  RoomDirectOpenResponses,
+  RoomEventListData,
+  RoomEventListErrors,
+  RoomEventListResponses,
   RoomMessageCreateData,
   RoomMessageCreateErrors,
   RoomMessageCreateResponses,
+  RoomMessageListData,
+  RoomMessageListErrors,
+  RoomMessageListResponses,
   RoomRoomCreateData,
   RoomRoomCreateErrors,
   RoomRoomCreateResponses,
+  RoomRoomListData,
+  RoomRoomListErrors,
+  RoomRoomListResponses,
   RoomRoomReadData,
   RoomRoomReadErrors,
   RoomRoomReadResponses,
@@ -325,6 +337,20 @@ export class App extends HeyApiClient {
 
 export class Room extends HeyApiClient {
   /**
+   * List Rooms and Employees
+   *
+   * Read the Room snapshot, including Employees, recent messages, and the event cursor for subsequent changes.
+   */
+  public list<ThrowOnError extends boolean = false>(
+    options?: Options<RoomRoomListData, ThrowOnError>,
+  ): RequestResult<RoomRoomListResponses, RoomRoomListErrors, ThrowOnError> {
+    return (options?.client ?? this.client).get<RoomRoomListResponses, RoomRoomListErrors, ThrowOnError>({
+      url: "/rooms",
+      ...options,
+    });
+  }
+
+  /**
    * Create a Room
    *
    * Create a group Room, optionally scoped to an installed App. App-scoped rooms retain their authoritative employee roster.
@@ -381,6 +407,20 @@ export class Room extends HeyApiClient {
 
 export class Message extends HeyApiClient {
   /**
+   * List Room messages
+   *
+   * Read visible Room messages with bounded pagination by channel sequence. Internal delegation messages remain private.
+   */
+  public list<ThrowOnError extends boolean = false>(
+    options: Options<RoomMessageListData, ThrowOnError>,
+  ): RequestResult<RoomMessageListResponses, RoomMessageListErrors, ThrowOnError> {
+    return (options.client ?? this.client).get<RoomMessageListResponses, RoomMessageListErrors, ThrowOnError>({
+      url: "/rooms/{roomId}/messages",
+      ...options,
+    });
+  }
+
+  /**
    * Send a Room message
    *
    * Send a user message to a Room and schedule addressed Employees.
@@ -399,6 +439,42 @@ export class Message extends HeyApiClient {
   }
 }
 
+export class Event_ extends HeyApiClient {
+  /**
+   * Read or wait for Room events
+   *
+   * Read changes after a global event cursor. Long-poll for up to 25 seconds when caught up; resetRequired means a fresh Room snapshot is needed.
+   */
+  public list<ThrowOnError extends boolean = false>(
+    options?: Options<RoomEventListData, ThrowOnError>,
+  ): RequestResult<RoomEventListResponses, RoomEventListErrors, ThrowOnError> {
+    return (options?.client ?? this.client).get<RoomEventListResponses, RoomEventListErrors, ThrowOnError>({
+      url: "/rooms/events",
+      ...options,
+    });
+  }
+}
+
+export class Direct extends HeyApiClient {
+  /**
+   * Open an Employee conversation
+   *
+   * Open or resume a direct Room with an Employee, optionally within an installed App. Supply member metadata to restore a missing local Employee.
+   */
+  public open<ThrowOnError extends boolean = false>(
+    options: Options<RoomDirectOpenData, ThrowOnError>,
+  ): RequestResult<RoomDirectOpenResponses, RoomDirectOpenErrors, ThrowOnError> {
+    return (options.client ?? this.client).post<RoomDirectOpenResponses, RoomDirectOpenErrors, ThrowOnError>({
+      url: "/rooms/dm",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+}
+
 export class Room2 extends HeyApiClient {
   private _room?: Room;
   get room(): Room {
@@ -408,6 +484,16 @@ export class Room2 extends HeyApiClient {
   private _message?: Message;
   get message(): Message {
     return (this._message ??= new Message({ client: this.client }));
+  }
+
+  private _event?: Event_;
+  get event(): Event_ {
+    return (this._event ??= new Event_({ client: this.client }));
+  }
+
+  private _direct?: Direct;
+  get direct(): Direct {
+    return (this._direct ??= new Direct({ client: this.client }));
   }
 }
 

@@ -10,7 +10,8 @@
     "auth.email-code": "emailCodes",
     "auth.session": "session",
     "room.message": "messages",
-    "room.room": "collection"
+    "room.room": "collection",
+    "room.event": "events"
   },
   "operations": {
     "app.release.keep-local": "keepLocal"

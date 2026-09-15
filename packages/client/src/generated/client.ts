@@ -15,10 +15,14 @@ export const openGroveClientOperationIds = [
   "app.release.abandon",
   "app.release.keep-local",
   "app.update.schedule",
+  "room.room.list",
   "room.room.create",
   "room.room.update",
   "room.room.read",
+  "room.message.list",
   "room.message.create",
+  "room.event.list",
+  "room.direct.open",
   "network.account.inspect",
   "network.account.connect",
   "network.contact.add",
@@ -167,6 +171,17 @@ export function bindOpenGroveClient(request: HostOperationRequest) {
     },
     rooms: {
       collection: {
+        list: (
+          input: HostOperationInput<(typeof hostOperationById)["room.room.list"]> = {},
+          options?: OpenGroveRequestOptions,
+        ): Promise<HostOperationOutput<(typeof hostOperationById)["room.room.list"]>> =>
+          request(hostOperationById["room.room.list"], {
+            query: {
+              limit: input.limit,
+              totalLimit: input.totalLimit,
+            },
+            signal: options?.signal,
+          }),
         create: (
           input: HostOperationInput<(typeof hostOperationById)["room.room.create"]> = {},
           options?: OpenGroveRequestOptions,
@@ -216,6 +231,21 @@ export function bindOpenGroveClient(request: HostOperationRequest) {
           }),
       },
       messages: {
+        list: (
+          input: HostOperationInput<(typeof hostOperationById)["room.message.list"]>,
+          options?: OpenGroveRequestOptions,
+        ): Promise<HostOperationOutput<(typeof hostOperationById)["room.message.list"]>> =>
+          request(hostOperationById["room.message.list"], {
+            params: {
+              roomId: input.roomId,
+            },
+            query: {
+              afterSeq: input.afterSeq,
+              beforeSeq: input.beforeSeq,
+              limit: input.limit,
+            },
+            signal: options?.signal,
+          }),
         create: (
           input: HostOperationInput<(typeof hostOperationById)["room.message.create"]>,
           options?: OpenGroveRequestOptions,
@@ -232,6 +262,37 @@ export function bindOpenGroveClient(request: HostOperationRequest) {
               targetIds: input.targetIds,
               text: input.text,
               userMessageId: input.userMessageId,
+            },
+            signal: options?.signal,
+          }),
+      },
+      events: {
+        list: (
+          input: HostOperationInput<(typeof hostOperationById)["room.event.list"]> = {},
+          options?: OpenGroveRequestOptions,
+        ): Promise<HostOperationOutput<(typeof hostOperationById)["room.event.list"]>> =>
+          request(hostOperationById["room.event.list"], {
+            query: {
+              afterEventSeq: input.afterEventSeq,
+              eventVersion: input.eventVersion,
+              limit: input.limit,
+              waitMs: input.waitMs,
+            },
+            signal: options?.signal,
+          }),
+      },
+      direct: {
+        open: (
+          input: HostOperationInput<(typeof hostOperationById)["room.direct.open"]>,
+          options?: OpenGroveRequestOptions,
+        ): Promise<HostOperationOutput<(typeof hostOperationById)["room.direct.open"]>> =>
+          request(hostOperationById["room.direct.open"], {
+            body: {
+              appId: input.appId,
+              member: input.member,
+              memberId: input.memberId,
+              roomId: input.roomId,
+              title: input.title,
             },
             signal: options?.signal,
           }),

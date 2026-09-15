@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { roomMemberSchema, roomMemberInputSchema } from "./room-members.js";
+import { remoteRoomTaskSchema } from "./remote-agent.js";
 import { defineHostOperation, defineHostOperationGroup, defineHostOperationResource } from "./operation.js";
 
 const roomIdentifierSchema = z.string().trim().min(1);
@@ -81,6 +83,16 @@ const roomMessageSchema = z
     updatedAt: z.string(),
     attachments: z.array(z.unknown()).optional(),
     parts: z.array(z.record(z.string(), z.unknown())).optional(),
+    duration: z.string().optional(),
+    runId: z.string().optional(),
+    remoteTask: remoteRoomTaskSchema.optional(),
+    startedAt: z.string().optional(),
+    finishedAt: z.string().optional(),
+    audience: z.enum(["room", "internal"]).optional(),
+    deliveryKind: z
+      .enum(["user_direct", "user_broadcast", "pm_auto_route", "agent_delegation", "system_routine"])
+      .optional(),
+    notificationEventSeq: z.number().int().nonnegative().optional(),
     inReplyToMessageId: z.string().optional(),
     rootMessageId: z.string().optional(),
     selectedFile: z.object({ path: z.string() }).passthrough().optional(),
@@ -172,7 +184,32 @@ export type CreateRoomMessageOperation = typeof createRoomMessageOperation;
 export type CreateRoomMessageRequest = z.input<typeof createRoomMessageOperation.body>;
 export type CreateRoomMessageResponse = z.output<NonNullable<typeof createRoomMessageOperation.success.body>>;
 
-export const roomMessageOperations = [createRoomMessageOperation] as const;
+export const listRoomMessagesOperation = defineHostOperation({
+  id: "room.message.list",
+  summary: "List Room messages",
+  description:
+    "Read visible Room messages with bounded pagination by channel sequence. Internal delegation messages remain private.",
+  method: "GET",
+  path: "/rooms/{roomId}/messages",
+  risk: "read",
+  params: z.object({ roomId: roomIdentifierSchema }),
+  query: z.object({
+    limit: z.number().int().positive().max(200).default(80),
+    beforeSeq: z.number().int().nonnegative().optional(),
+    afterSeq: z.number().int().nonnegative().optional(),
+  }),
+  success: {
+    status: 200,
+    body: z.object({
+      ok: z.literal(true),
+      messages: z.array(roomMessageSchema),
+      currentEventSeq: z.number().int().nonnegative(),
+    }),
+  },
+  errors: createRoomMessageOperation.errors,
+});
+export type ListRoomMessagesOperation = typeof listRoomMessagesOperation;
+export const roomMessageOperations = [listRoomMessagesOperation, createRoomMessageOperation] as const;
 
 export const createRoomOperation = defineHostOperation({
   id: "room.room.create",
@@ -240,11 +277,45 @@ export const markRoomReadOperation = defineHostOperation({
 export type UpdateRoomOperation = typeof updateRoomOperation;
 export type MarkRoomReadOperation = typeof markRoomReadOperation;
 
+export const listRoomsOperation = defineHostOperation({
+  id: "room.room.list",
+  summary: "List Rooms and Employees",
+  description:
+    "Read the Room snapshot, including Employees, recent messages, and the event cursor for subsequent changes.",
+  method: "GET",
+  path: "/rooms",
+  risk: "read",
+  query: z.object({
+    limit: z.number().int().positive().max(200).default(80).describe("Recent messages per Room, at most 200."),
+    totalLimit: z
+      .number()
+      .int()
+      .positive()
+      .max(1000)
+      .default(500)
+      .describe("Total snapshot message limit, at most 1000."),
+  }),
+  success: {
+    status: 200,
+    body: z.object({
+      ok: z.literal(true),
+      rooms: z.array(roomSchema),
+      members: z.array(roomMemberSchema),
+      messages: z.array(roomMessageSchema),
+      currentEventSeq: z.number().int().nonnegative(),
+      deletedMemberIds: z.array(z.string()),
+      messagesTruncated: z.boolean().optional(),
+    }),
+  },
+  errors: createRoomOperation.errors,
+});
+export type ListRoomsOperation = typeof listRoomsOperation;
+
 export const roomCollectionOperationResource = defineHostOperationResource({
   id: "room",
   title: "Rooms",
   description: "Room creation, discovery, and settings.",
-  operations: [createRoomOperation, updateRoomOperation, markRoomReadOperation] as const,
+  operations: [listRoomsOperation, createRoomOperation, updateRoomOperation, markRoomReadOperation] as const,
 });
 
 export const roomMessageOperationResource = defineHostOperationResource({
@@ -254,9 +325,114 @@ export const roomMessageOperationResource = defineHostOperationResource({
   operations: roomMessageOperations,
 });
 
+export const listRoomEventsOperation = defineHostOperation({
+  id: "room.event.list",
+  summary: "Read or wait for Room events",
+  description:
+    "Read changes after a global event cursor. Long-poll for up to 25 seconds when caught up; resetRequired means a fresh Room snapshot is needed.",
+  method: "GET",
+  path: "/rooms/events",
+  risk: "read",
+  query: z.object({
+    afterEventSeq: z.number().int().nonnegative().default(0),
+    limit: z.number().int().positive().max(1000).default(200),
+    waitMs: z.number().int().nonnegative().max(25000).default(0),
+    eventVersion: z.number().int().min(1).max(2).default(1),
+  }),
+  success: {
+    status: 200,
+    body: z.object({
+      ok: z.literal(true),
+      events: z.array(
+        z.object({
+          schemaVersion: z.union([z.literal(1), z.literal(2)]).optional(),
+          eventSeq: z.number().int().nonnegative(),
+          type: z.enum([
+            "room.created",
+            "room.updated",
+            "room.member.added",
+            "room.member.updated",
+            "room.member.removed",
+            "room.message.created",
+            "room.message.updated",
+            "room.message.deleted",
+          ]),
+          roomId: z.string(),
+          messageId: z.string().optional(),
+          memberId: z.string().optional(),
+          createdAt: z.string(),
+          payload: z.object({
+            room: roomSchema.optional(),
+            member: roomMemberSchema.optional(),
+            message: roomMessageSchema.optional(),
+            messageId: z.string().optional(),
+            memberId: z.string().optional(),
+            audience: z.enum(["room", "internal"]).optional(),
+            messagePatch: z
+              .object({ set: roomMessageSchema.partial(), unset: z.array(z.string()).optional() })
+              .optional(),
+          }),
+        }),
+      ),
+      currentEventSeq: z.number().int().nonnegative(),
+      oldestAvailableEventSeq: z.number().int().nonnegative(),
+      hasMore: z.boolean(),
+      resetRequired: z.boolean(),
+      longPollSupported: z.literal(true),
+    }),
+  },
+  errors: createRoomMessageOperation.errors,
+});
+export type ListRoomEventsOperation = typeof listRoomEventsOperation;
+const roomEventOperationResource = defineHostOperationResource({
+  id: "event",
+  title: "Events",
+  description: "Room change cursors and long polling.",
+  operations: [listRoomEventsOperation] as const,
+});
+
+export const openDirectRoomOperation = defineHostOperation({
+  id: "room.direct.open",
+  summary: "Open an Employee conversation",
+  description:
+    "Open or resume a direct Room with an Employee, optionally within an installed App. Supply member metadata to restore a missing local Employee.",
+  method: "POST",
+  path: "/rooms/dm",
+  risk: "write",
+  body: z.object({
+    memberId: roomIdentifierSchema,
+    roomId: roomIdentifierSchema.optional(),
+    appId: roomIdentifierSchema.optional(),
+    title: z.string().trim().default(""),
+    member: roomMemberInputSchema.optional(),
+  }),
+  success: {
+    status: 200,
+    body: z.object({
+      ok: z.literal(true),
+      room: roomSchema,
+      member: roomMemberSchema.optional(),
+      currentEventSeq: z.number().int().nonnegative(),
+    }),
+  },
+  errors: createRoomMessageOperation.errors,
+});
+export type OpenDirectRoomOperation = typeof openDirectRoomOperation;
+const roomDirectOperationResource = defineHostOperationResource({
+  id: "direct",
+  title: "Direct conversations",
+  description: "Direct conversations with Employees.",
+  operations: [openDirectRoomOperation] as const,
+});
+
 export const roomOperationGroup = defineHostOperationGroup({
   id: "room",
   title: "Rooms",
   description: "Local Room collaboration and ledger operations.",
-  resources: [roomCollectionOperationResource, roomMessageOperationResource] as const,
+  resources: [
+    roomCollectionOperationResource,
+    roomMessageOperationResource,
+    roomEventOperationResource,
+    roomDirectOperationResource,
+  ] as const,
 });

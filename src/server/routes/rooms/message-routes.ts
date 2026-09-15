@@ -1,5 +1,5 @@
 import { Buffer } from "node:buffer";
-import type { CreateRoomMessageOperation } from "#protocol";
+import type { CreateRoomMessageOperation, ListRoomMessagesOperation } from "#protocol";
 import type { PostRoomMessageResult, RoomChannelMember, RoomChannelMessage } from "../../../rooms/channel-store.js";
 import { normalizeRoomMessageDeliveryKind, normalizeRoomSelectedFile } from "../../../rooms/channel-normalize.js";
 import { readWwRuntimeAuth } from "../../bridge-security.js";
@@ -24,9 +24,7 @@ import {
   readAttachments,
   readJsonObjects,
   readMessageStatus,
-  readOptionalPositiveInt,
   readOptionalString,
-  readPositiveInt,
   readString,
   readStringArray,
   resolveVisibleRoomTargets,
@@ -41,7 +39,6 @@ import type { HostOperationRouteContext } from "../../router.js";
 export async function handleRoomMessageRoutes(context: RoomsRouteContext): Promise<boolean> {
   return (
     (await handleMessageAttachmentContentRoute(context)) ||
-    (await handleMessagesListRoute(context)) ||
     (await handleAgentMessageRoute(context)) ||
     (await handleMessageCancelRoute(context)) ||
     (await handleMessageDeleteRoute(context)) ||
@@ -73,16 +70,9 @@ function handleMessageAttachmentContentRoute(context: RoomsRouteContext): boolea
   return true;
 }
 
-function handleMessagesListRoute(context: RoomsRouteContext): boolean {
-  const { request, response, url, state, sendJson } = context;
-  const messagesAction = url.pathname.match(/^\/rooms\/([^/]+)\/messages$/);
-  if (!messagesAction || request.method !== "GET") return false;
-  const encodedRoomId = messagesAction[1]!;
-  const messages = state.app.rooms.listVisibleMessages(decodeURIComponent(encodedRoomId), {
-    limit: Math.min(readPositiveInt(url.searchParams.get("limit"), 80), 200),
-    beforeSeq: readOptionalPositiveInt(url.searchParams.get("beforeSeq")),
-    afterSeq: readOptionalPositiveInt(url.searchParams.get("afterSeq")),
-  });
+export function handleListRoomMessagesOperation(context: HostOperationRouteContext<ListRoomMessagesOperation>): true {
+  const { response, state, sendJson } = context;
+  const messages = state.app.rooms.listVisibleMessages(context.input.params.roomId, context.input.query);
   sendJson(response, 200, {
     ok: true,
     messages: messages.map(presentRoomMessage),

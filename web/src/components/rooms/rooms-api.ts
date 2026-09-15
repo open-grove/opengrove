@@ -102,19 +102,16 @@ export type UpsertRoomMemberResponse = {
 };
 
 export async function fetchRoomsInit(limit = 80): Promise<RoomsInitResponse> {
-  const params = new URLSearchParams();
-  params.set("limit", String(limit));
-  const snapshot = await fetchJson<RoomsInitResponse>(`/rooms?${params.toString()}`, { headers: bridgeHeaders(false) });
-  return normalizeRoomsInitResponse(snapshot);
+  const snapshot = await openGroveClient.rooms.collection.list({ limit });
+  return normalizeRoomsInitResponse({
+    ...snapshot,
+    messages: snapshot.messages.map(requireRoomMessage),
+  });
 }
 
 export async function fetchRoomMessages(roomId: string, limit = 80): Promise<RoomMessage[]> {
-  const params = new URLSearchParams({ limit: String(limit) });
-  const response = await fetchJson<RoomMessagesResponse>(
-    `/rooms/${encodeURIComponent(roomId)}/messages?${params.toString()}`,
-    { headers: bridgeHeaders(false) },
-  );
-  return response.messages.map(normalizeServerRoomMessage).sort(sortRoomMessages);
+  const response = await openGroveClient.rooms.messages.list({ roomId, limit });
+  return response.messages.map(requireRoomMessage).sort(sortRoomMessages);
 }
 
 export function isRoomsSessionRequiredError(error: unknown): boolean {
@@ -126,15 +123,15 @@ export async function fetchRoomEvents(
   limit = 200,
   options: { signal?: AbortSignal; waitMs?: number } = {},
 ): Promise<RoomsEventsResponse> {
-  const params = new URLSearchParams();
-  params.set("afterEventSeq", String(afterEventSeq));
-  params.set("limit", String(limit));
-  params.set("eventVersion", "2");
-  if (options.waitMs && options.waitMs > 0) params.set("waitMs", String(options.waitMs));
-  const response = await fetchJson<RoomsEventsResponse>(`/rooms/events?${params.toString()}`, {
-    headers: bridgeHeaders(false),
-    signal: options.signal,
-  });
+  const response = await openGroveClient.rooms.events.list(
+    {
+      afterEventSeq,
+      limit,
+      eventVersion: 2,
+      waitMs: options.waitMs,
+    },
+    { signal: options.signal },
+  );
   return {
     ...response,
     events: response.events.map((event) => {
@@ -261,13 +258,14 @@ export async function openServerDirectRoom(
     appTitle?: string;
   } = {},
 ): Promise<OpenDirectRoomResponse> {
-  const response = await postJson<OpenDirectRoomResponse>("/rooms/dm", {
+  const response = await openGroveClient.rooms.direct.open({
     memberId,
     roomId: input.roomId,
     title,
-    member: input.member,
+    member: input.member
+      ? { ...input.member, source: input.member.source === "remote" ? undefined : input.member.source }
+      : undefined,
     appId: input.appId,
-    appTitle: input.appTitle,
   });
   return {
     ...response,
@@ -794,6 +792,12 @@ function readMessage(value: unknown): ServerRoomMessage | null {
     typeof (value as { id?: unknown }).id === "string"
     ? normalizeServerRoomMessage(value as ServerRoomMessage)
     : null;
+}
+
+function requireRoomMessage(value: unknown): ServerRoomMessage {
+  const message = readMessage(value);
+  if (!message) throw new Error("room_message_response_invalid");
+  return message;
 }
 
 function readPostRoomMessageResponse(value: unknown): PostRoomMessageResponse {
