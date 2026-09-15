@@ -10,3 +10,7 @@ export * from "./network.js";
 export * from "./remote-agent.js";
 export * from "./kernel-capability-ids.js";
 export * from "./employees.js";
+export * from "./client-bootstrap.js";
+export * from "./ask-controls.js";
+export * from "./task-state.js";
+export * from "./run-lifecycle.js";
