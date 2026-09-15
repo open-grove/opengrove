@@ -206,19 +206,27 @@ export const harnessInventory = [
     suite: "clean-home",
     isolation: "clean-home",
   }),
-  task("packed-runtime", "scripts/test-packed-runtime.mjs", "kernels-providers", { suite: "packed-runtime" }),
+  task("packed-runtime", "scripts/test-packed-runtime.mjs", "kernels-providers", {
+    suite: "packed-runtime",
+    network: true,
+  }),
   task("raw-file-range", "dist/tests/raw-file-range-harness.js", "web-desktop", { suite: "media-streaming" }),
 ];
 
 validateInventory(harnessInventory);
 
+const deterministicInventory = harnessInventory.filter((task) => !task.network);
+
 export const harnessGroups = {
   ...Object.fromEntries(
     integrationSuites.map((suite) => [suite, harnessInventory.filter((task) => task.suite === suite)]),
   ),
-  integration: harnessInventory.filter((task) => task.suite),
-  ...Object.fromEntries(harnessOwners.map((owner) => [owner, harnessInventory.filter((task) => task.owner === owner)])),
-  full: harnessInventory,
+  integration: deterministicInventory.filter((task) => task.suite),
+  ...Object.fromEntries(
+    harnessOwners.map((owner) => [owner, deterministicInventory.filter((task) => task.owner === owner)]),
+  ),
+  full: deterministicInventory,
+  network: harnessInventory.filter((task) => task.network),
 };
 
 function task(id, path, owner, options = {}) {

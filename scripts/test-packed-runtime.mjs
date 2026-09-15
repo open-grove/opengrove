@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
-import { mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { promisify } from "node:util";
@@ -16,6 +16,9 @@ const npmArgsPrefix =
     : [];
 const tempRoot = await mkdtemp(join(tmpdir(), "opengrove-packed-runtime-"));
 const installRoot = join(tempRoot, "runtime");
+const startedAt = Date.now();
+let phase = "pack";
+let outcome = "failed";
 
 try {
   // The caller builds first; skipping lifecycle scripts keeps this probe focused
@@ -28,6 +31,8 @@ try {
   const archives = (await readdir(tempRoot)).filter((name) => name.endsWith(".tgz"));
   assert.equal(archives.length, 1, "npm pack must produce exactly one OpenGrove archive");
 
+  phase = "online-production-install";
+  console.log("packed-runtime: installing production dependencies from the registry (300s deadline)");
   await execFileAsync(
     npmCommand,
     [
@@ -43,6 +48,7 @@ try {
     ],
     { cwd: tempRoot, maxBuffer: 16 * 1024 * 1024, timeout: 300_000 },
   );
+  phase = "installed-runtime-probe";
   const registryUrl = pathToFileURL(
     join(installRoot, "node_modules", "opengrove", "dist", "localization", "locale-registry.js"),
   ).href;
@@ -73,7 +79,26 @@ try {
   );
   await execFileAsync(process.execPath, [probePath], { cwd: tempRoot, timeout: 30_000 });
 
+  outcome = "passed";
   console.log("packed-runtime ok (Host locale, App update Client, and routes resolve outside the monorepo)");
+} catch (error) {
+  // Keep public diagnostics free of npm configuration, auth and registry URLs.
+  console.error(
+    `packed-runtime failed in ${phase}: code=${error.code ?? "unknown"}, signal=${error.signal ?? "none"}, killed=${error.killed === true}`,
+  );
+  throw new Error(`packed-runtime ${phase} failed; inspect the owning Nightly network job`, { cause: undefined });
 } finally {
+  const diagnostics = {
+    phase,
+    outcome,
+    durationMs: Date.now() - startedAt,
+    platform: process.platform,
+    node: process.version,
+  };
+  console.log(JSON.stringify(diagnostics));
+  if (process.env.OPENGROVE_NETWORK_DIAGNOSTICS) {
+    await mkdir(dirname(process.env.OPENGROVE_NETWORK_DIAGNOSTICS), { recursive: true });
+    await writeFile(process.env.OPENGROVE_NETWORK_DIAGNOSTICS, `${JSON.stringify(diagnostics, null, 2)}\n`);
+  }
   await rm(tempRoot, { recursive: true, force: true });
 }

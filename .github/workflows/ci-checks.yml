@@ -1,0 +1,175 @@
+name: Shared source and platform checks
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  OPENGROVE_WEB_BUILD_ID: ${{ github.sha }}
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      checks: ${{ steps.plan.outputs.checks }}
+      platforms: ${{ steps.plan.outputs.platforms }}
+      packages: ${{ steps.plan.outputs.packages }}
+      has_checks: ${{ steps.plan.outputs.has_checks }}
+      has_platforms: ${{ steps.plan.outputs.has_platforms }}
+      has_packages: ${{ steps.plan.outputs.has_packages }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Validate GitHub Actions definitions
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive="$RUNNER_TEMP/actionlint.tar.gz"
+          curl --fail --silent --show-error --location --retry 2 https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_linux_amd64.tar.gz -o "$archive"
+          echo "8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8  $archive" | sha256sum --check
+          tar -xzf "$archive" -C "$RUNNER_TEMP" actionlint
+          "$RUNNER_TEMP/actionlint" -shellcheck=''
+      - name: Resolve affected checks
+        id: plan
+        shell: bash
+        env:
+          EVENT: ${{ github.event_name }}
+          DIFF_BASE: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}
+          DIFF_HEAD: ${{ github.event.pull_request.head.sha || github.event.merge_group.head_sha }}
+        run: |
+          set -euo pipefail
+          paths=()
+          if [[ "$EVENT" == pull_request || "$EVENT" == merge_group ]]; then
+            test -n "$DIFF_BASE" && test -n "$DIFF_HEAD"
+            git diff --check "$DIFF_BASE" "$DIFF_HEAD"
+            changed=$(mktemp)
+            if git diff --no-renames --name-only --diff-filter=ACDMRTUXB -z "$DIFF_BASE" "$DIFF_HEAD" > "$changed"; then
+              mapfile -d '' paths < "$changed"
+            else
+              echo '::warning::Changed paths unavailable; running all source checks.'
+            fi
+            rm "$changed"
+          fi
+          node scripts/ci-check-plan.mjs "$EVENT" "${paths[@]}"
+
+  checks:
+    name: Source / ${{ matrix.id }}
+    needs: plan
+    if: needs.plan.outputs.has_checks == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    container:
+      image: mcr.microsoft.com/playwright:v1.62.1-noble
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.plan.outputs.checks) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: ${{ matrix.command }}
+      - name: Upload failed source diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: source-${{ matrix.id }}-${{ github.run_attempt }}
+          path: test-results/
+          if-no-files-found: ignore
+
+  platforms:
+    name: Native platform / ${{ matrix.platform }}
+    needs: plan
+    if: needs.plan.outputs.has_platforms == 'true'
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.plan.outputs.platforms) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install chromium
+      - name: Verify native filesystem and integration behavior
+        env:
+          OPENGROVE_STORAGE_ACCEPTANCE_RECEIPT: ${{ runner.temp }}/storage-cleanup-receipt.json
+        run: node scripts/run-ci-platform.mjs
+      - name: Upload filesystem acceptance
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: storage-cleanup-${{ matrix.platform }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/storage-cleanup-receipt.json
+          if-no-files-found: ignore
+
+  packages:
+    name: Packaged startup / ${{ matrix.target }}
+    needs: plan
+    if: needs.plan.outputs.has_packages == 'true'
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.plan.outputs.packages) }}
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/Library/Caches/electron
+            ~/Library/Caches/electron-builder
+            ~/AppData/Local/electron/Cache
+            ~/AppData/Local/electron-builder/Cache
+          key: desktop-ci-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('package-lock.json', 'electron-builder.yml') }}
+      - run: npm ci
+      - name: Build and verify packaged startup
+        env:
+          RELEASE_TIMING_FILE: ${{ runner.temp }}/desktop-ci-timing.json
+        run: node scripts/run-ci-desktop-package.mjs --target ${{ matrix.target }}
+      - name: Upload package diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-ci-${{ matrix.target }}-${{ github.run_attempt }}
+          path: |
+            release/desktop/release-gates/
+            ${{ runner.temp }}/desktop-ci-timing.json
+          if-no-files-found: ignore
+
+  result:
+    if: always()
+    needs: [plan, checks, platforms, packages]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Verify actual execution matches the plan
+        env:
+          CI_JOB_RESULTS: ${{ toJSON(needs) }}
+          CI_JOB_EXPECTATIONS: |
+            plan=success
+            checks=${{ needs.plan.outputs.has_checks == 'true' && 'success' || 'skipped' }}
+            platforms=${{ needs.plan.outputs.has_platforms == 'true' && 'success' || 'skipped' }}
+            packages=${{ needs.plan.outputs.has_packages == 'true' && 'success' || 'skipped' }}
+        run: node scripts/check-ci-results.mjs

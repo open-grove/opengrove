@@ -1,28 +1,3 @@
-# Real Agent Smoke — drive each real kernel through a real turn.
-#
-# One job per kernel (matrix): each kernel pins its own image + engine version
-# and bootstraps its own auth. Each job pulls the pinned per-kernel image from
-# GHCR (built by build-agent-images.yml), verifies the pinned engine version,
-# runs one real turn, then enforces the evidence policy gate.
-#
-# Triggers:
-#   - workflow_dispatch: pick a single kernel manually.
-#   - workflow_call: Nightly owns the scheduled full matrix when the repository
-#     variable OPENGROVE_REAL_AGENT_SMOKE_ENABLED is set to true.
-#   - PR/merge queue: CI calls this workflow only for Kernel/runtime scope.
-#   - push: Kernel, runtime, protocol, image, or dependency changes on main.
-#     Fork and Dependabot PRs are skipped because they cannot read protected credentials.
-#     Automatic runs are skipped unless OPENGROVE_REAL_AGENT_SMOKE_ENABLED is true,
-#     so public mirrors do not depend on private images or provider credentials.
-#
-# Kernel status:
-#   Cloudflare-backed kernels require authenticated gateway access and upstream Anthropic access configured in Cloudflare.
-#   - claude-code: Anthropic through Cloudflare AI Gateway. Runs today.
-#   - opencode: Anthropic through Cloudflare's provider-native endpoint. Runs today.
-#   - pi: OpenAI-compatible provider via env. Needs the REAL_RUNTIME_OPENAI_*
-#     secrets configured before enabling in the matrix.
-#   - codex: image builds, but its real-provider credentials are not wired into
-#     this workflow yet — left out of the default matrix.
 name: Real Agent Smoke
 
 on:
@@ -30,42 +5,9 @@ on:
   workflow_dispatch:
     inputs:
       kernel:
-        description: Kernel to test
-        required: true
-        type: choice
-        options:
-          - claude-code
-          - opencode
-          - pi
-      engine_version:
-        description: Engine version tag of the GHCR image to run
-        required: true
-        type: string
-      runtime_mode:
-        description: For claude-code, which runtime to exercise (ignored by other kernels)
+        description: Optional single-kernel diagnostic (empty runs all certified kernels)
         required: false
-        default: sdk
-        type: choice
-        options:
-          - sdk
-          - cli
-  push:
-    branches:
-      - main
-    paths:
-      - ".github/workflows/build-agent-images.yml"
-      - ".github/workflows/real-agent-smoke.yml"
-      - "docker/agents/**"
-      - "package.json"
-      - "package-lock.json"
-      - "packages/agent-protocol/**"
-      - "scripts/check-real-runtime-evidence.mjs"
-      - "scripts/verify-agent-image-version.sh"
-      - "src/kernel/**"
-      - "src/runtime/**"
-      - "src/server/kernel-*.ts"
-      - "src/tests/*kernel*"
-      - "src/tests/*runtime*"
+        type: string
 
 permissions:
   contents: read
@@ -76,93 +18,28 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' || github.event_name == 'merge_group' || github.event_name == 'push' }}
 
 jobs:
-  # Resolve which kernels to run into a JSON matrix. workflow_dispatch runs the
-  # single selected kernel; eligible automatic and called runs use the full set.
   plan:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
     outputs:
       matrix: ${{ steps.build.outputs.matrix }}
       run: ${{ steps.build.outputs.run }}
     steps:
-      - name: Build kernel matrix
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Derive required coverage from the certified ledger
         id: build
-        shell: bash
         env:
-          EVENT: ${{ github.event_name }}
-          AUTO_RUN_ENABLED: ${{ vars.OPENGROVE_REAL_AGENT_SMOKE_ENABLED }}
           DISPATCH_KERNEL: ${{ inputs.kernel }}
-          DISPATCH_VERSION: ${{ inputs.engine_version }}
-          DISPATCH_MODE: ${{ inputs.runtime_mode }}
-          IS_FORK: ${{ github.event.pull_request.head.repo.fork }}
-          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
-        run: |
-          set -euo pipefail
-          # Default per-kernel image versions. Update alongside the Dockerfiles.
-          # The CLI compatibility case intentionally stays on the external image.
-          # The SDK case selects the exact platform Engine installed by package-lock.
-          claude_version="2.1.220"
-          opencode_version="1.18.3"
-
-          # A called workflow inherits a manually dispatched Nightly's event name,
-          # but only a direct dispatch supplies the required kernel input.
-          if [[ "$EVENT" == "workflow_dispatch" && -n "$DISPATCH_KERNEL" ]]; then
-            # A single kernel + runtime mode selected manually. claude-code splits
-            # into sdk/cli; other kernels ignore runtime_mode.
-            case_name="$DISPATCH_KERNEL"
-            [[ "$DISPATCH_KERNEL" == "claude-code" ]] && case_name="claude-$DISPATCH_MODE"
-            caps="message.streamText,turn.lifecycle,session.lifecycle,diagnostics.usage"
-            # CLI mode does not emit usage; drop it from the required set.
-            [[ "$DISPATCH_KERNEL" == "claude-code" && "$DISPATCH_MODE" == "cli" ]] && caps="message.streamText,turn.lifecycle,session.lifecycle"
-            [[ "$DISPATCH_KERNEL" == "claude-code" && "$DISPATCH_MODE" == "sdk" ]] && caps="$caps,planning.plan"
-            entry="{\"case\":\"$case_name\",\"kernel\":\"$DISPATCH_KERNEL\",\"image\":\"$DISPATCH_KERNEL\",\"engine_version\":\"$DISPATCH_VERSION\",\"runtime_mode\":\"$DISPATCH_MODE\",\"capabilities\":\"$caps\"}"
-            echo "matrix={\"include\":[$entry]}" >> "$GITHUB_OUTPUT"
-            echo "run=true" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          # Live provider probes require repository-external images and credentials.
-          # Keep automatic CI and nightly runs opt-in so a public source mirror can
-          # retain the workflow without inheriting private infrastructure access.
-          if [[ "$AUTO_RUN_ENABLED" != "true" ]]; then
-            echo "run=false" >> "$GITHUB_OUTPUT"
-            echo 'matrix={"include":[]}' >> "$GITHUB_OUTPUT"
-            echo "Skipping real agent smoke: OPENGROVE_REAL_AGENT_SMOKE_ENABLED is not true" >> "$GITHUB_STEP_SUMMARY"
-            exit 0
-          fi
-
-          # Dependabot PRs cannot read Actions secrets. Keep their deterministic
-          # CI coverage, but skip this credential-backed live probe.
-          if [[ "$PR_AUTHOR" == "dependabot[bot]" ]]; then
-            echo "run=false" >> "$GITHUB_OUTPUT"
-            echo 'matrix={"include":[]}' >> "$GITHUB_OUTPUT"
-            echo "Skipping real agent smoke: Dependabot PR cannot access Actions secrets" >> "$GITHUB_STEP_SUMMARY"
-            exit 0
-          fi
-
-          # Fork PRs can never read the protected credentials, so they are
-          # skipped rather than failing on missing secrets.
-          if [[ "$IS_FORK" == "true" ]]; then
-            echo "run=false" >> "$GITHUB_OUTPUT"
-            echo "matrix={\"include\":[]}" >> "$GITHUB_OUTPUT"
-            echo "Skipping real agent smoke: fork PR cannot access credentials" >> "$GITHUB_STEP_SUMMARY"
-            exit 0
-          fi
-
-          # Default matrix: claude-code exercised in both SDK and CLI modes from
-          # the same base image. The SDK case overrides the Engine path with the
-          # exact platform binary installed by package-lock; the CLI case keeps the
-          # image Engine as an external compatibility probe. SDK exposes usage
-          # diagnostics; the CLI path does not emit a usage event, so CLI omits
-          # diagnostics.usage rather than recording a false failure.
-          # Only credential-wired kernels are included.
-          core="message.streamText,turn.lifecycle,session.lifecycle"
-          sdk="{\"case\":\"claude-sdk\",\"kernel\":\"claude-code\",\"image\":\"claude-code\",\"engine_version\":\"$claude_version\",\"runtime_mode\":\"sdk\",\"capabilities\":\"$core,diagnostics.usage,planning.plan\"}"
-          cli="{\"case\":\"claude-cli\",\"kernel\":\"claude-code\",\"image\":\"claude-code\",\"engine_version\":\"$claude_version\",\"runtime_mode\":\"cli\",\"capabilities\":\"$core\"}"
-          oc="{\"case\":\"opencode\",\"kernel\":\"opencode\",\"image\":\"opencode\",\"engine_version\":\"$opencode_version\",\"runtime_mode\":\"\",\"capabilities\":\"$core\"}"
-          echo "matrix={\"include\":[$sdk,$cli,$oc]}" >> "$GITHUB_OUTPUT"
-          echo "run=true" >> "$GITHUB_OUTPUT"
+          OPENGROVE_REAL_AGENT_IMAGES: ${{ vars.OPENGROVE_REAL_AGENT_IMAGES }}
+        run: node scripts/real-agent-ci.mjs plan "$RUNNER_TEMP/real-agent-plan"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: real-agent-plan-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/real-agent-plan/plan.json
+          if-no-files-found: ignore
 
   smoke:
     needs: plan
@@ -174,11 +51,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
-    # The whole job runs inside the pinned per-kernel image pulled from GHCR
-    # (built by build-agent-images.yml). The engine binary comes from the image;
-    # OpenGrove code is installed with npm ci inside it.
     container:
-      image: ghcr.io/${{ github.repository_owner }}/opengrove-agent-${{ matrix.image }}:${{ matrix.engine_version }}
+      image: ${{ matrix.image }}
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
@@ -210,7 +84,7 @@ jobs:
 
       - name: Verify pinned image engine version
         shell: bash
-        run: bash /opt/opengrove/verify-agent-image-version.sh "${{ matrix.kernel }}"
+        run: bash scripts/verify-agent-image-version.sh "${{ matrix.kernel }}"
 
       - name: Select SDK-bundled Claude Engine
         if: matrix.kernel == 'claude-code' && matrix.runtime_mode == 'sdk'
@@ -291,7 +165,7 @@ jobs:
               echo "OPENCODE_CONFIG_CONTENT=$config"
               echo "OPENGROVE_REAL_RUNTIME_MODEL=$CI_CLOUDFLARE_ANTHROPIC_MODEL"
             } >> "$GITHUB_ENV"
-          elif [[ "$KERNEL" == "pi" ]]; then
+          elif [[ "$KERNEL" == "pi" && -n "$CI_PROVIDER_API_KEY" ]]; then
             test -n "$CI_PROVIDER_BASE_URL" || { echo "REAL_RUNTIME_OPENAI_BASE_URL secret is missing" >&2; exit 1; }
             test -n "$CI_PROVIDER_API_KEY" || { echo "REAL_RUNTIME_OPENAI_API_KEY secret is missing" >&2; exit 1; }
             test -n "$CI_PROVIDER_MODEL" || { echo "REAL_RUNTIME_MODEL var is missing" >&2; exit 1; }
@@ -303,33 +177,44 @@ jobs:
             } >> "$GITHUB_ENV"
           fi
 
-      - name: Run real agent probe
-        shell: bash
-        run: |
-          set -euo pipefail
-          node dist/tests/kernel-capability-real-runtime-probe-runner.js \
-            --kernels "${{ matrix.kernel }}" \
-            --capabilities "${{ matrix.capabilities }}" \
-            --cwd "$RUNNER_TEMP/opengrove-real-runtime/${{ matrix.case }}" \
-            --out "$RUNNER_TEMP/evidence/${{ matrix.case }}.json" \
-            --timeout-ms 180000
-
-      - name: Enforce evidence policy
-        if: always()
-        shell: bash
-        run: |
-          node scripts/check-real-runtime-evidence.mjs \
-            --file "$RUNNER_TEMP/evidence/${{ matrix.case }}.json" \
-            --kernel "${{ matrix.kernel }}" \
-            --require message.streamText,turn.lifecycle,session.lifecycle \
-            --fail-on-failed \
-            --allow-skip diagnostics.usage
-
-      - name: Upload sanitized evidence
+      - name: Probe every required capability and verify current runtime identity
+        env:
+          CI_KERNEL: ${{ matrix.kernel }}
+          CI_RUNTIME_MODE: ${{ matrix.runtime_mode }}
+          CI_KERNEL_VERSION: ${{ matrix.kernel_version }}
+          CI_CAPABILITIES: ${{ matrix.capabilities }}
+          CI_AGENT_IMAGE: ${{ matrix.image }}
+          CI_RUNTIME_ENVIRONMENTS: ${{ secrets.REAL_AGENT_RUNTIME_ENVIRONMENTS }}
+        run: node scripts/run-real-agent-ci-case.mjs
+      - name: Upload verified sanitized evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: real-agent-${{ matrix.case }}-${{ github.sha }}
-          path: ${{ runner.temp }}/evidence
+          name: real-agent-case-${{ matrix.case }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/real-agent-case/sanitized/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  coverage:
+    name: Required Real Agent coverage
+    if: always()
+    needs: [plan, smoke]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: real-agent-*
+          path: ${{ runner.temp }}/real-agent-coverage
+      - name: Require complete fresh coverage for this attempt
+        run: node scripts/real-agent-ci.mjs summarize "$RUNNER_TEMP/real-agent-coverage"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: real-agent-coverage-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/real-agent-coverage/real-agent-coverage.json
           if-no-files-found: error
           retention-days: 7

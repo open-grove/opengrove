@@ -1,4 +1,7 @@
-import { appendFileSync } from "node:fs";
+import { appendFileSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { readRealAgentRequirements, realAgentInputDigest } from "./real-agent-ci.mjs";
 import { execFileSync, spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
@@ -92,6 +95,44 @@ export function evaluateReleaseCiEligibility({
   };
 }
 
+export function verifyReleaseLiveEvidence({ evidence, run, candidateInputDigest, required }) {
+  if (evidence?.schemaVersion !== 1 || evidence.ready !== true)
+    throw new Error("Nightly has no complete Real Agent coverage");
+  if (
+    evidence.headSha !== run.head_sha ||
+    evidence.runId !== String(run.id) ||
+    evidence.runAttempt !== String(run.run_attempt)
+  )
+    throw new Error("Real Agent coverage belongs to a different Nightly run or attempt");
+  if (evidence.inputDigest !== candidateInputDigest)
+    throw new Error("Runtime inputs changed since Nightly; run a fresh Nightly for this candidate");
+  if (!Array.isArray(evidence.coverage) || evidence.coverage.length !== required.length)
+    throw new Error("Real Agent kernel coverage is incomplete");
+  for (const expected of required) {
+    const entries = evidence.coverage.filter((item) => item.kernel === expected.kernel);
+    const actual = entries[0];
+    if (
+      entries.length !== 1 ||
+      actual.required !== true ||
+      actual.runtimeMode !== expected.runtime_mode ||
+      !actual.kernelVersion
+    )
+      throw new Error(`Missing Real Agent runtime identity: ${expected.kernel}`);
+    if (!Array.isArray(actual.capabilities) || actual.capabilities.length !== expected.capabilities.length)
+      throw new Error(`Incomplete Real Agent capabilities: ${expected.kernel}`);
+    for (const capability of expected.capabilities) {
+      const probes = actual.capabilities.filter((probe) => probe.capability === capability);
+      if (probes.length !== 1 || probes[0].status !== "passed")
+        throw new Error(`Unverified required capability: ${expected.kernel}/${capability}`);
+    }
+  }
+  return {
+    kernels: required.length,
+    capabilities: required.reduce((count, item) => count + item.capabilities.length, 0),
+    inputDigest: candidateInputDigest,
+  };
+}
+
 function parseArguments(argv) {
   const values = new Map();
   for (let index = 0; index < argv.length; index += 2) {
@@ -153,6 +194,7 @@ function writeEvidence(evidence, githubOutput, githubStepSummary) {
         "## Release CI evidence",
         "",
         `- Candidate: \`${evidence.candidateCommit}\``,
+        `- Real Agent coverage: ${evidence.realAgents.kernels} kernels / ${evidence.realAgents.capabilities} required capabilities`,
         `- Main CI: [run ${evidence.mainCi.runId}](${evidence.mainCi.runUrl})`,
         `- Nightly: [run ${evidence.nightly.runId}](${evidence.nightly.runUrl}) at \`${evidence.nightly.headSha}\` (${evidence.nightly.ageHours.toFixed(1)} hours old)`,
         "",
@@ -187,6 +229,33 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     maxNightlyAgeHours,
     isAncestor: gitIsAncestor,
   });
+  const nightlyRun = nightlyRuns.find((run) => run.id === evidence.nightly.runId);
+  const receiptDir = mkdtempSync(join(tmpdir(), "opengrove-nightly-coverage-"));
+  try {
+    execFileSync(
+      "gh",
+      [
+        "run",
+        "download",
+        String(nightlyRun.id),
+        "--repo",
+        repository,
+        "--name",
+        `real-agent-coverage-${nightlyRun.run_attempt}`,
+        "--dir",
+        receiptDir,
+      ],
+      { stdio: "inherit" },
+    );
+    evidence.realAgents = verifyReleaseLiveEvidence({
+      evidence: JSON.parse(readFileSync(join(receiptDir, "real-agent-coverage.json"), "utf8")),
+      run: nightlyRun,
+      candidateInputDigest: realAgentInputDigest(candidateCommit),
+      required: readRealAgentRequirements(),
+    });
+  } finally {
+    rmSync(receiptDir, { recursive: true, force: true });
+  }
   writeEvidence(evidence, argumentsByName.get("github-output"), process.env.GITHUB_STEP_SUMMARY);
   console.log(JSON.stringify(evidence, null, 2));
 }

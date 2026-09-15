@@ -6,6 +6,8 @@ to draft `docs/releases/vX.Y.Z.md`.
 
 ## Unreleased
 
+- Verify desktop installation and startup on native Windows/macOS runners before release, and reject incomplete runtime evidence or unavailable upgrade inputs earlier.
+
 ## v0.7.0 - 2026-09-14
 
 - Adapt mobile browsers and narrow windows with drawer navigation, retained panel state, and touch dragging; add desktop navigation resizing, icon mode, hiding, unread indicators, and localized App identity.

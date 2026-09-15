@@ -65,6 +65,9 @@ function parseArgs(argv) {
           .filter(Boolean),
       );
       index += 1;
+    } else if (["--host-version", "--kernel-version", "--runtime-mode", "--not-before"].includes(arg) && value) {
+      options[arg.slice(2)] = value;
+      index += 1;
     } else if (arg === "--fail-on-failed") {
       options.failOnFailed = true;
     } else if (arg === "--checked-at" && value) {
@@ -200,6 +203,13 @@ function main() {
     return;
   }
 
+  if (
+    options["not-before"] &&
+    (!Number.isFinite(Date.parse(evidence.generatedAt)) ||
+      Date.parse(evidence.generatedAt) < Date.parse(options["not-before"]) ||
+      Date.parse(evidence.generatedAt) > Date.now() + 60_000)
+  )
+    errors.push("evidence was not generated during this job");
   const probesForKernel = [];
   evidence.probes.forEach((probe, index) => {
     assertProbeShape(probe, index, errors);
@@ -246,6 +256,14 @@ function main() {
       }
     }
     if (probe.status === "passed") {
+      for (const [argument, field] of [
+        ["host-version", "hostVersion"],
+        ["kernel-version", "kernelVersion"],
+        ["runtime-mode", "runtimeMode"],
+      ]) {
+        if (options[argument] && probe[field] !== options[argument])
+          errors.push(`${probe.capability}: ${field} does not match this job's expected identity`);
+      }
       if (typeof probe.hostVersion !== "string" || probe.hostVersion.length === 0) {
         errors.push(`passed probe ${probe.capability} missing hostVersion`);
       }
