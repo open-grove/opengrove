@@ -21,6 +21,10 @@ export const openGroveClientOperationIds = [
   "room.room.read",
   "room.message.list",
   "room.message.create",
+  "room.message.record",
+  "room.message.cancel",
+  "room.message.update",
+  "room.message.delete",
   "room.event.list",
   "room.direct.open",
   "room.member.add",
@@ -267,6 +271,69 @@ export function bindOpenGroveClient(request: HostOperationRequest) {
               targetIds: input.targetIds,
               text: input.text,
               userMessageId: input.userMessageId,
+            },
+            signal: options?.signal,
+          }),
+        record: (
+          input: HostOperationInput<(typeof hostOperationById)["room.message.record"]>,
+          options?: OpenGroveRequestOptions,
+        ): Promise<HostOperationOutput<(typeof hostOperationById)["room.message.record"]>> =>
+          request(hostOperationById["room.message.record"], {
+            params: {
+              roomId: input.roomId,
+            },
+            body: {
+              deliveryKind: input.deliveryKind,
+              id: input.id,
+              inReplyToMessageId: input.inReplyToMessageId,
+              rootMessageId: input.rootMessageId,
+              selectedFile: input.selectedFile,
+              senderId: input.senderId,
+              senderName: input.senderName,
+              targetIds: input.targetIds,
+              text: input.text,
+            },
+            signal: options?.signal,
+          }),
+        cancel: (
+          input: HostOperationInput<(typeof hostOperationById)["room.message.cancel"]>,
+          options?: OpenGroveRequestOptions,
+        ): Promise<HostOperationOutput<(typeof hostOperationById)["room.message.cancel"]>> =>
+          request(hostOperationById["room.message.cancel"], {
+            params: {
+              messageId: input.messageId,
+              roomId: input.roomId,
+            },
+            signal: options?.signal,
+          }),
+        update: (
+          input: HostOperationInput<(typeof hostOperationById)["room.message.update"]>,
+          options?: OpenGroveRequestOptions,
+        ): Promise<HostOperationOutput<(typeof hostOperationById)["room.message.update"]>> =>
+          request(hostOperationById["room.message.update"], {
+            params: {
+              messageId: input.messageId,
+              roomId: input.roomId,
+            },
+            body: {
+              duration: input.duration,
+              finishedAt: input.finishedAt,
+              parts: input.parts,
+              runId: input.runId,
+              startedAt: input.startedAt,
+              status: input.status,
+              text: input.text,
+            },
+            signal: options?.signal,
+          }),
+        delete: (
+          input: HostOperationInput<(typeof hostOperationById)["room.message.delete"]>,
+          options?: OpenGroveRequestOptions,
+        ): Promise<HostOperationOutput<(typeof hostOperationById)["room.message.delete"]>> =>
+          request(hostOperationById["room.message.delete"], {
+            params: {
+              messageId: input.messageId,
+              roomId: input.roomId,
             },
             signal: options?.signal,
           }),

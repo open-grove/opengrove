@@ -1,4 +1,4 @@
-import { bridgeHeaders, fetchJson, postJson } from "../../bridge";
+import { postJson } from "../../bridge";
 import { openGroveClient } from "../../opengrove-client";
 import { isOpenAppSessionRequiredError } from "../../compat/openapp-session";
 import {
@@ -192,14 +192,8 @@ export type CancelRoomRunResponse = {
 };
 
 export async function cancelServerRoomRun(roomId: string, messageId: string): Promise<CancelRoomRunResponse> {
-  const response = await postJson<CancelRoomRunResponse>(
-    `/rooms/${encodeURIComponent(roomId)}/messages/${encodeURIComponent(messageId)}/cancel`,
-    {},
-  );
-  return {
-    ...response,
-    message: response.message ? normalizeServerRoomMessage(response.message) : undefined,
-  };
+  const response = await openGroveClient.rooms.messages.cancel({ roomId, messageId });
+  return { ...response, message: requireRoomMessage(response.message) };
 }
 
 export type DeleteRoomMessageResponse = {
@@ -209,32 +203,18 @@ export type DeleteRoomMessageResponse = {
 };
 
 export async function deleteServerRoomMessage(roomId: string, messageId: string): Promise<DeleteRoomMessageResponse> {
-  return await fetchJson<DeleteRoomMessageResponse>(
-    `/rooms/${encodeURIComponent(roomId)}/messages/${encodeURIComponent(messageId)}`,
-    {
-      method: "DELETE",
-      headers: bridgeHeaders(false),
-    },
-  );
+  return await openGroveClient.rooms.messages.delete({ roomId, messageId });
 }
 
 export async function postServerRoomAgentMessage(input: {
   roomId: string;
   text: string;
-  senderId?: string;
+  senderId: string;
   senderName?: string;
   id?: string;
 }): Promise<{ ok: true; message: ServerRoomMessage; currentEventSeq: number }> {
-  const response = await postJson<{ ok: true; message: ServerRoomMessage; currentEventSeq: number }>(
-    `/rooms/${encodeURIComponent(input.roomId)}/agent-messages`,
-    {
-      text: input.text,
-      senderId: input.senderId,
-      senderName: input.senderName,
-      id: input.id,
-    },
-  );
-  return { ...response, message: normalizeServerRoomMessage(response.message) };
+  const response = await openGroveClient.rooms.messages.record(input);
+  return { ...response, message: requireRoomMessage(response.message) };
 }
 
 export async function createServerRoom(room: Room): Promise<CreateRoomResponse> {
@@ -353,11 +333,7 @@ export async function patchServerRoomMessage(
   messageId: string,
   patch: Partial<RoomMessage>,
 ): Promise<void> {
-  await fetchJson(`/rooms/${encodeURIComponent(roomId)}/messages/${encodeURIComponent(messageId)}`, {
-    method: "PATCH",
-    headers: bridgeHeaders(),
-    body: JSON.stringify(patch),
-  });
+  await openGroveClient.rooms.messages.update({ roomId, messageId, ...patch });
 }
 
 export function roomsFromServerSnapshot(snapshot: RoomsInitResponse): Room[] {

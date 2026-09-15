@@ -1,20 +1,20 @@
 export type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
 
-export interface TextPart {
+export type TextPart = {
   id: string;
   type: "text";
   text: string;
-}
+};
 
-export interface NotePart {
+export type NotePart = {
   id: string;
   type: "note";
   text: string;
   tone: string;
   data?: JsonValue | undefined;
-}
+};
 
-export interface ReasoningPart {
+export type ReasoningPart = {
   id: string;
   type: "reasoning";
   reasoningId: string;
@@ -24,9 +24,9 @@ export interface ReasoningPart {
   status: string;
   redacted: boolean;
   elapsedMs?: number | undefined;
-}
+};
 
-export interface ToolPart {
+export type ToolPart = {
   id: string;
   type: "tool";
   phase: string;
@@ -45,9 +45,9 @@ export interface ToolPart {
   questionStatus: string;
   questionPrompt: string;
   questionInput?: JsonValue | undefined;
-}
+};
 
-export interface SkillPart {
+export type SkillPart = {
   id: string;
   type: "skill";
   skillId: string;
@@ -66,7 +66,7 @@ export interface SkillPart {
   trust: string;
   context: string;
   packId: string;
-}
+};
 
 export type MessagePart = TextPart | NotePart | ReasoningPart | ToolPart | SkillPart;
 

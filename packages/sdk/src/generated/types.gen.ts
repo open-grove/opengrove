@@ -2392,6 +2392,525 @@ export type RoomMessageCreateResponses = {
 
 export type RoomMessageCreateResponse = RoomMessageCreateResponses[keyof RoomMessageCreateResponses];
 
+export type RoomMessageRecordData = {
+  body: {
+    senderId: string;
+    senderName?: string;
+    text?: string;
+    id?: string;
+    /**
+     * Employee identifiers addressed by this recorded message.
+     */
+    targetIds?: Array<string> | null;
+    deliveryKind?: "user_direct" | "user_broadcast" | "pm_auto_route" | "agent_delegation" | "system_routine";
+    /**
+     * Parent message identifier.
+     */
+    inReplyToMessageId?: string | null;
+    /**
+     * Root message identifier.
+     */
+    rootMessageId?: string | null;
+    /**
+     * Selected local file reference; null or an empty path means no selected file.
+     */
+    selectedFile?: {
+      path: string;
+    } | null;
+  };
+  path: {
+    /**
+     * Room identifier; surrounding whitespace is ignored.
+     */
+    roomId: string;
+  };
+  query?: never;
+  url: "/rooms/{roomId}/agent-messages";
+};
+
+export type RoomMessageRecordErrors = {
+  /**
+   * The request does not satisfy the operation contract.
+   */
+  400: {
+    ok?: false;
+    error: string;
+    code?: string;
+    traceId?: string;
+    [key: string]: unknown;
+  };
+  /**
+   * A valid Bridge session or token is required.
+   */
+  401: {
+    ok?: false;
+    error: string;
+    code?: string;
+    traceId?: string;
+    [key: string]: unknown;
+  };
+  /**
+   * The request origin is not allowed.
+   */
+  403: {
+    ok?: false;
+    error: string;
+    code?: string;
+    traceId?: string;
+    [key: string]: unknown;
+  };
+  /**
+   * The reply parent message does not exist.
+   */
+  404: {
+    ok?: false;
+    error: string;
+    code?: string;
+    traceId?: string;
+    [key: string]: unknown;
+  };
+  /**
+   * The message ID conflicts with an earlier message, or the remote conversation belongs to another account or sender.
+   */
+  409: {
+    ok?: false;
+    error: string;
+    code?: string;
+    traceId?: string;
+    [key: string]: unknown;
+  };
+  /**
+   * The authenticated session is temporarily unavailable.
+   */
+  503: {
+    ok?: false;
+    error: string;
+    code?: string;
+    traceId?: string;
+    [key: string]: unknown;
+  };
+};
+
+export type RoomMessageRecordError = RoomMessageRecordErrors[keyof RoomMessageRecordErrors];
+
+export type RoomMessageRecordResponses = {
+  /**
+   * Successful response.
+   */
+  200: {
+    ok: true;
+    message: {
+      id: string;
+      roomId: string;
+      channelSeq: number;
+      senderId: string;
+      senderName: string;
+      senderType: "user" | "agent" | "system";
+      text: string;
+      targetIds: Array<string>;
+      status: "sent" | "running" | "done" | "failed" | "interrupted";
+      createdAt: string;
+      updatedAt: string;
+      attachments?: Array<unknown>;
+      parts?: Array<{
+        [key: string]: unknown;
+      }>;
+      duration?: string;
+      runId?: string;
+      remoteTask?: {
+        contextId?: string;
+        messageId: string;
+        requestText?: string;
+        triggerMessageId: string;
+        taskId?: string;
+        inputTaskId?: string;
+        sendStarted?: boolean;
+        needsInput?: boolean;
+        pending: boolean;
+        cancelRequested?: boolean;
+        statusText?: string;
+      };
+      startedAt?: string;
+      finishedAt?: string;
+      audience?: "room" | "internal";
+      deliveryKind?: "user_direct" | "user_broadcast" | "pm_auto_route" | "agent_delegation" | "system_routine";
+      notificationEventSeq?: number;
+      inReplyToMessageId?: string;
+      rootMessageId?: string;
+      selectedFile?: {
+        path: string;
+        [key: string]: unknown;
+      };
+      [key: string]: unknown;
+    };
+    currentEventSeq: number;
+  };
+};
+
+export type RoomMessageRecordResponse = RoomMessageRecordResponses[keyof RoomMessageRecordResponses];
+
+export type RoomMessageCancelData = {
+  body?: never;
+  path: {
+    messageId: string;
+    roomId: string;
+  };
+  query?: never;
+  url: "/rooms/{roomId}/messages/{messageId}/cancel";
+};
+
+export type RoomMessageCancelErrors = {
+  /**
+   * The request does not satisfy the operation contract.
+   */
+  400: {
+    ok?: false;
+    error: string;
+    code?: string;
+    traceId?: string;
+    [key: string]: unknown;
+  };
+  /**
+   * A valid Bridge session or token is required.
+   */
+  401: {
+    ok?: false;
+    error: string;
+    code?: string;
+    traceId?: string;
+    [key: string]: unknown;
+  };
+  /**
+   * The request origin is not allowed.
+   */
+  403: {
+    ok?: false;
+    error: string;
+    code?: string;
+    traceId?: string;
+    [key: string]: unknown;
+  };
+  /**
+   * The reply parent message does not exist.
+   */
+  404: {
+    ok?: false;
+    error: string;
+    code?: string;
+    traceId?: string;
+    [key: string]: unknown;
+  };
+  /**
+   * The message ID conflicts with an earlier message, or the remote conversation belongs to another account or sender.
+   */
+  409: {
+    ok?: false;
+    error: string;
+    code?: string;
+    traceId?: string;
+    [key: string]: unknown;
+  };
+  /**
+   * The authenticated session is temporarily unavailable.
+   */
+  503: {
+    ok?: false;
+    error: string;
+    code?: string;
+    traceId?: string;
+    [key: string]: unknown;
+  };
+};
+
+export type RoomMessageCancelError = RoomMessageCancelErrors[keyof RoomMessageCancelErrors];
+
+export type RoomMessageCancelResponses = {
+  /**
+   * Successful response.
+   */
+  200: {
+    ok: true;
+    cancelled: boolean;
+    status?: "sent" | "running" | "done" | "failed" | "interrupted";
+    message: {
+      id: string;
+      roomId: string;
+      channelSeq: number;
+      senderId: string;
+      senderName: string;
+      senderType: "user" | "agent" | "system";
+      text: string;
+      targetIds: Array<string>;
+      status: "sent" | "running" | "done" | "failed" | "interrupted";
+      createdAt: string;
+      updatedAt: string;
+      attachments?: Array<unknown>;
+      parts?: Array<{
+        [key: string]: unknown;
+      }>;
+      duration?: string;
+      runId?: string;
+      remoteTask?: {
+        contextId?: string;
+        messageId: string;
+        requestText?: string;
+        triggerMessageId: string;
+        taskId?: string;
+        inputTaskId?: string;
+        sendStarted?: boolean;
+        needsInput?: boolean;
+        pending: boolean;
+        cancelRequested?: boolean;
+        statusText?: string;
+      };
+      startedAt?: string;
+      finishedAt?: string;
+      audience?: "room" | "internal";
+      deliveryKind?: "user_direct" | "user_broadcast" | "pm_auto_route" | "agent_delegation" | "system_routine";
+      notificationEventSeq?: number;
+      inReplyToMessageId?: string;
+      rootMessageId?: string;
+      selectedFile?: {
+        path: string;
+        [key: string]: unknown;
+      };
+      [key: string]: unknown;
+    };
+    currentEventSeq: number;
+  };
+};
+
+export type RoomMessageCancelResponse = RoomMessageCancelResponses[keyof RoomMessageCancelResponses];
+
+export type RoomMessageDeleteData = {
+  body?: never;
+  path: {
+    messageId: string;
+    roomId: string;
+  };
+  query?: never;
+  url: "/rooms/{roomId}/messages/{messageId}";
+};
+
+export type RoomMessageDeleteErrors = {
+  /**
+   * The request does not satisfy the operation contract.
+   */
+  400: {
+    ok?: false;
+    error: string;
+    code?: string;
+    traceId?: string;
+    [key: string]: unknown;
+  };
+  /**
+   * A valid Bridge session or token is required.
+   */
+  401: {
+    ok?: false;
+    error: string;
+    code?: string;
+    traceId?: string;
+    [key: string]: unknown;
+  };
+  /**
+   * The request origin is not allowed.
+   */
+  403: {
+    ok?: false;
+    error: string;
+    code?: string;
+    traceId?: string;
+    [key: string]: unknown;
+  };
+  /**
+   * The reply parent message does not exist.
+   */
+  404: {
+    ok?: false;
+    error: string;
+    code?: string;
+    traceId?: string;
+    [key: string]: unknown;
+  };
+  /**
+   * The message ID conflicts with an earlier message, or the remote conversation belongs to another account or sender.
+   */
+  409: {
+    ok?: false;
+    error: string;
+    code?: string;
+    traceId?: string;
+    [key: string]: unknown;
+  };
+  /**
+   * The authenticated session is temporarily unavailable.
+   */
+  503: {
+    ok?: false;
+    error: string;
+    code?: string;
+    traceId?: string;
+    [key: string]: unknown;
+  };
+};
+
+export type RoomMessageDeleteError = RoomMessageDeleteErrors[keyof RoomMessageDeleteErrors];
+
+export type RoomMessageDeleteResponses = {
+  /**
+   * Successful response.
+   */
+  200: {
+    ok: true;
+    messageId: string;
+    currentEventSeq: number;
+  };
+};
+
+export type RoomMessageDeleteResponse = RoomMessageDeleteResponses[keyof RoomMessageDeleteResponses];
+
+export type RoomMessageUpdateData = {
+  body: {
+    text?: string;
+    status?: "sent" | "running" | "done" | "failed" | "interrupted";
+    runId?: string | null;
+    duration?: string | null;
+    startedAt?: string | null;
+    finishedAt?: string | null;
+    parts?: Array<{
+      [key: string]: unknown;
+    }> | null;
+  };
+  path: {
+    messageId: string;
+    roomId: string;
+  };
+  query?: never;
+  url: "/rooms/{roomId}/messages/{messageId}";
+};
+
+export type RoomMessageUpdateErrors = {
+  /**
+   * The request does not satisfy the operation contract.
+   */
+  400: {
+    ok?: false;
+    error: string;
+    code?: string;
+    traceId?: string;
+    [key: string]: unknown;
+  };
+  /**
+   * A valid Bridge session or token is required.
+   */
+  401: {
+    ok?: false;
+    error: string;
+    code?: string;
+    traceId?: string;
+    [key: string]: unknown;
+  };
+  /**
+   * The request origin is not allowed.
+   */
+  403: {
+    ok?: false;
+    error: string;
+    code?: string;
+    traceId?: string;
+    [key: string]: unknown;
+  };
+  /**
+   * The reply parent message does not exist.
+   */
+  404: {
+    ok?: false;
+    error: string;
+    code?: string;
+    traceId?: string;
+    [key: string]: unknown;
+  };
+  /**
+   * The message ID conflicts with an earlier message, or the remote conversation belongs to another account or sender.
+   */
+  409: {
+    ok?: false;
+    error: string;
+    code?: string;
+    traceId?: string;
+    [key: string]: unknown;
+  };
+  /**
+   * The authenticated session is temporarily unavailable.
+   */
+  503: {
+    ok?: false;
+    error: string;
+    code?: string;
+    traceId?: string;
+    [key: string]: unknown;
+  };
+};
+
+export type RoomMessageUpdateError = RoomMessageUpdateErrors[keyof RoomMessageUpdateErrors];
+
+export type RoomMessageUpdateResponses = {
+  /**
+   * Successful response.
+   */
+  200: {
+    ok: true;
+    message: {
+      id: string;
+      roomId: string;
+      channelSeq: number;
+      senderId: string;
+      senderName: string;
+      senderType: "user" | "agent" | "system";
+      text: string;
+      targetIds: Array<string>;
+      status: "sent" | "running" | "done" | "failed" | "interrupted";
+      createdAt: string;
+      updatedAt: string;
+      attachments?: Array<unknown>;
+      parts?: Array<{
+        [key: string]: unknown;
+      }>;
+      duration?: string;
+      runId?: string;
+      remoteTask?: {
+        contextId?: string;
+        messageId: string;
+        requestText?: string;
+        triggerMessageId: string;
+        taskId?: string;
+        inputTaskId?: string;
+        sendStarted?: boolean;
+        needsInput?: boolean;
+        pending: boolean;
+        cancelRequested?: boolean;
+        statusText?: string;
+      };
+      startedAt?: string;
+      finishedAt?: string;
+      audience?: "room" | "internal";
+      deliveryKind?: "user_direct" | "user_broadcast" | "pm_auto_route" | "agent_delegation" | "system_routine";
+      notificationEventSeq?: number;
+      inReplyToMessageId?: string;
+      rootMessageId?: string;
+      selectedFile?: {
+        path: string;
+        [key: string]: unknown;
+      };
+      [key: string]: unknown;
+    };
+    currentEventSeq: number;
+  };
+};
+
+export type RoomMessageUpdateResponse = RoomMessageUpdateResponses[keyof RoomMessageUpdateResponses];
+
 export type RoomEventListData = {
   body?: never;
   path?: never;

@@ -68,12 +68,24 @@ import type {
   RoomMemberRemoveData,
   RoomMemberRemoveErrors,
   RoomMemberRemoveResponses,
+  RoomMessageCancelData,
+  RoomMessageCancelErrors,
+  RoomMessageCancelResponses,
   RoomMessageCreateData,
   RoomMessageCreateErrors,
   RoomMessageCreateResponses,
+  RoomMessageDeleteData,
+  RoomMessageDeleteErrors,
+  RoomMessageDeleteResponses,
   RoomMessageListData,
   RoomMessageListErrors,
   RoomMessageListResponses,
+  RoomMessageRecordData,
+  RoomMessageRecordErrors,
+  RoomMessageRecordResponses,
+  RoomMessageUpdateData,
+  RoomMessageUpdateErrors,
+  RoomMessageUpdateResponses,
   RoomRoomCreateData,
   RoomRoomCreateErrors,
   RoomRoomCreateResponses,
@@ -445,6 +457,70 @@ export class Message extends HeyApiClient {
   ): RequestResult<RoomMessageCreateResponses, RoomMessageCreateErrors, ThrowOnError> {
     return (options.client ?? this.client).post<RoomMessageCreateResponses, RoomMessageCreateErrors, ThrowOnError>({
       url: "/rooms/{roomId}/messages",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Record an Employee message
+   *
+   * Record a completed Employee message in a Room without starting a model run.
+   */
+  public record<ThrowOnError extends boolean = false>(
+    options: Options<RoomMessageRecordData, ThrowOnError>,
+  ): RequestResult<RoomMessageRecordResponses, RoomMessageRecordErrors, ThrowOnError> {
+    return (options.client ?? this.client).post<RoomMessageRecordResponses, RoomMessageRecordErrors, ThrowOnError>({
+      url: "/rooms/{roomId}/agent-messages",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Cancel a Room message run
+   *
+   * Stop the Employee run associated with a message. Completed messages retain their terminal state and return cancelled=false.
+   */
+  public cancel<ThrowOnError extends boolean = false>(
+    options: Options<RoomMessageCancelData, ThrowOnError>,
+  ): RequestResult<RoomMessageCancelResponses, RoomMessageCancelErrors, ThrowOnError> {
+    return (options.client ?? this.client).post<RoomMessageCancelResponses, RoomMessageCancelErrors, ThrowOnError>({
+      url: "/rooms/{roomId}/messages/{messageId}/cancel",
+      ...options,
+    });
+  }
+
+  /**
+   * Delete a Room message
+   *
+   * Delete one message from the Room ledger. Running Employee messages must be canceled first. Repeating a deletion is safe.
+   */
+  public delete<ThrowOnError extends boolean = false>(
+    options: Options<RoomMessageDeleteData, ThrowOnError>,
+  ): RequestResult<RoomMessageDeleteResponses, RoomMessageDeleteErrors, ThrowOnError> {
+    return (options.client ?? this.client).delete<RoomMessageDeleteResponses, RoomMessageDeleteErrors, ThrowOnError>({
+      url: "/rooms/{roomId}/messages/{messageId}",
+      ...options,
+    });
+  }
+
+  /**
+   * Update a Room message
+   *
+   * Edit message text or persisted run presentation. Omitted fields are unchanged; null clears optional run metadata.
+   */
+  public update<ThrowOnError extends boolean = false>(
+    options: Options<RoomMessageUpdateData, ThrowOnError>,
+  ): RequestResult<RoomMessageUpdateResponses, RoomMessageUpdateErrors, ThrowOnError> {
+    return (options.client ?? this.client).patch<RoomMessageUpdateResponses, RoomMessageUpdateErrors, ThrowOnError>({
+      url: "/rooms/{roomId}/messages/{messageId}",
       ...options,
       headers: {
         "Content-Type": "application/json",

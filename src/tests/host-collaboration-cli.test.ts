@@ -162,6 +162,54 @@ test("CLI creates a Room through the real Host and reports the persisted room", 
     assert.equal(removed.handled, true);
     assert.equal(removed.exitCode, 0, removed.stderr);
     assert.ok(!JSON.parse(removed.stdout ?? "null").data.room.memberIds.includes("cli-colleague"));
+    const recorded = await runHostOperationCommand(
+      [
+        "room",
+        "message",
+        "record",
+        "--room-id",
+        "cli-room",
+        "--sender-id",
+        "cli-colleague",
+        "--id",
+        "cli-agent-message",
+        "--text",
+        "Recorded result",
+      ],
+      { env: { OPENGROVE_BRIDGE_URL: baseUrl, OPENGROVE_BRIDGE_TOKEN: token } },
+    );
+    assert.equal(recorded.handled, true);
+    assert.equal(recorded.exitCode, 0, recorded.stderr);
+    assert.equal(JSON.parse(recorded.stdout ?? "null").data.message.status, "done");
+    const cancelled = await runHostOperationCommand(
+      ["room", "message", "cancel", "--room-id", "cli-room", "--message-id", "cli-agent-message"],
+      { env: { OPENGROVE_BRIDGE_URL: baseUrl, OPENGROVE_BRIDGE_TOKEN: token } },
+    );
+    assert.equal(cancelled.handled, true);
+    assert.equal(cancelled.exitCode, 0, cancelled.stderr);
+    assert.equal(JSON.parse(cancelled.stdout ?? "null").data.cancelled, false);
+    assert.equal(JSON.parse(cancelled.stdout ?? "null").data.message.status, "done");
+    const edited = await runHostOperationCommand(
+      ["room", "message", "update", "--room-id", "cli-room", "--message-id", "cli-agent-message", "--text", ""],
+      { env: { OPENGROVE_BRIDGE_URL: baseUrl, OPENGROVE_BRIDGE_TOKEN: token } },
+    );
+    assert.equal(edited.handled, true);
+    assert.equal(edited.exitCode, 0, edited.stderr);
+    assert.equal(JSON.parse(edited.stdout ?? "null").data.message.text, "");
+    const deleteArgs = ["room", "message", "delete", "--room-id", "cli-room", "--message-id", "cli-agent-message"];
+    const confirmation = await runHostOperationCommand(deleteArgs, {
+      env: { OPENGROVE_BRIDGE_URL: baseUrl, OPENGROVE_BRIDGE_TOKEN: token },
+    });
+    assert.equal(confirmation.exitCode, 10);
+    const deleted = await runHostOperationCommand([...deleteArgs, "--yes"], {
+      env: { OPENGROVE_BRIDGE_URL: baseUrl, OPENGROVE_BRIDGE_TOKEN: token },
+    });
+    assert.equal(deleted.exitCode, 0, deleted.stderr);
+    assert.equal(JSON.parse(deleted.stdout ?? "null").data.messageId, "cli-agent-message");
+    const deletedAgain = await runHostOperationCommand([...deleteArgs, "--yes"], {
+      env: { OPENGROVE_BRIDGE_URL: baseUrl, OPENGROVE_BRIDGE_TOKEN: token },
+    });
+    assert.equal(deletedAgain.exitCode, 0, deletedAgain.stderr);
     const listing = await runHostOperationCommand(["room", "room", "list", "--limit", "10"], {
       env: { OPENGROVE_BRIDGE_URL: baseUrl, OPENGROVE_BRIDGE_TOKEN: token },
     });

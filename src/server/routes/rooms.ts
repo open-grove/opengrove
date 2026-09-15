@@ -1,1 +1,1 @@
-export { handleRoomMessageRoutes as handleRoomsRoute } from "./rooms/message-routes.js";
+export { handleMessageAttachmentContentRoute as handleRoomsRoute } from "./rooms/message-routes.js";

@@ -209,7 +209,108 @@ export const listRoomMessagesOperation = defineHostOperation({
   errors: createRoomMessageOperation.errors,
 });
 export type ListRoomMessagesOperation = typeof listRoomMessagesOperation;
-export const roomMessageOperations = [listRoomMessagesOperation, createRoomMessageOperation] as const;
+export const recordRoomMessageOperation = defineHostOperation({
+  id: "room.message.record",
+  summary: "Record an Employee message",
+  description: "Record a completed Employee message in a Room without starting a model run.",
+  method: "POST",
+  path: "/rooms/{roomId}/agent-messages",
+  risk: "write",
+  params: createRoomMessageOperation.params,
+  body: z.object({
+    senderId: roomIdentifierSchema,
+    senderName: z.string().trim().default("Agent"),
+    text: z.string().trim().default(""),
+    id: roomIdentifierSchema.optional(),
+    targetIds: roomIdentifierList("Employee identifiers addressed by this recorded message."),
+    deliveryKind: roomMessageSchema.shape.deliveryKind,
+    inReplyToMessageId: optionalRoomIdentifier("Parent message identifier."),
+    rootMessageId: optionalRoomIdentifier("Root message identifier."),
+    selectedFile: roomSelectedFileSchema,
+  }),
+  success: {
+    status: 200,
+    body: z.object({
+      ok: z.literal(true),
+      message: roomMessageSchema,
+      currentEventSeq: z.number().int().nonnegative(),
+    }),
+  },
+  errors: createRoomMessageOperation.errors,
+});
+export type RecordRoomMessageOperation = typeof recordRoomMessageOperation;
+export const cancelRoomMessageOperation = defineHostOperation({
+  id: "room.message.cancel",
+  summary: "Cancel a Room message run",
+  description:
+    "Stop the Employee run associated with a message. Completed messages retain their terminal state and return cancelled=false.",
+  method: "POST",
+  path: "/rooms/{roomId}/messages/{messageId}/cancel",
+  risk: "write",
+  params: z.object({ roomId: roomIdentifierSchema, messageId: roomIdentifierSchema }),
+  success: {
+    status: 200,
+    body: z.object({
+      ok: z.literal(true),
+      cancelled: z.boolean(),
+      status: roomMessageSchema.shape.status.optional(),
+      message: roomMessageSchema,
+      currentEventSeq: z.number().int().nonnegative(),
+    }),
+  },
+  errors: createRoomMessageOperation.errors,
+});
+export type CancelRoomMessageOperation = typeof cancelRoomMessageOperation;
+export const updateRoomMessageOperation = defineHostOperation({
+  id: "room.message.update",
+  summary: "Update a Room message",
+  description:
+    "Edit message text or persisted run presentation. Omitted fields are unchanged; null clears optional run metadata.",
+  method: "PATCH",
+  path: "/rooms/{roomId}/messages/{messageId}",
+  risk: "write",
+  params: cancelRoomMessageOperation.params,
+  body: z.object({
+    text: z.string().optional(),
+    status: roomMessageSchema.shape.status.optional(),
+    runId: z.string().nullish(),
+    duration: z.string().nullish(),
+    startedAt: z.string().nullish(),
+    finishedAt: z.string().nullish(),
+    parts: roomMessageSchema.shape.parts.nullable(),
+  }),
+  success: recordRoomMessageOperation.success,
+  errors: createRoomMessageOperation.errors,
+});
+export type UpdateRoomMessageOperation = typeof updateRoomMessageOperation;
+export const deleteRoomMessageOperation = defineHostOperation({
+  id: "room.message.delete",
+  summary: "Delete a Room message",
+  description:
+    "Delete one message from the Room ledger. Running Employee messages must be canceled first. Repeating a deletion is safe.",
+  method: "DELETE",
+  path: "/rooms/{roomId}/messages/{messageId}",
+  risk: "high-risk-write",
+  params: cancelRoomMessageOperation.params,
+  success: {
+    status: 200,
+    body: z.object({
+      ok: z.literal(true),
+      messageId: roomIdentifierSchema,
+      currentEventSeq: z.number().int().nonnegative(),
+    }),
+  },
+  errors: createRoomMessageOperation.errors,
+});
+export type DeleteRoomMessageOperation = typeof deleteRoomMessageOperation;
+export const roomMessageOperations = [
+  listRoomMessagesOperation,
+  createRoomMessageOperation,
+  recordRoomMessageOperation,
+  cancelRoomMessageOperation,
+  updateRoomMessageOperation,
+  deleteRoomMessageOperation,
+] as const;
 
 export const createRoomOperation = defineHostOperation({
   id: "room.room.create",

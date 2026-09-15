@@ -29,7 +29,14 @@ import { handleLocalResourceRoute } from "./local-resources.js";
 import { handlePendingActionsRoute } from "./pending-actions.js";
 import { moduleRoute, operationRoute } from "./registry-utils.js";
 import { handleRoomLedgerCapabilityRoute } from "./room-ledger.js";
-import { handleCreateRoomMessageOperation, handleListRoomMessagesOperation } from "./rooms/message-routes.js";
+import {
+  handleCreateRoomMessageOperation,
+  handleListRoomMessagesOperation,
+  handleRecordRoomMessageOperation,
+  handleCancelRoomMessageOperation,
+  handleUpdateRoomMessageOperation,
+  handleDeleteRoomMessageOperation,
+} from "./rooms/message-routes.js";
 import {
   handleCreateRoomOperation,
   handleListRoomsOperation,
@@ -90,6 +97,10 @@ export function createBridgeRoutes(): BridgeRoute[] {
     operationRoute(hostContractById["app.release.keep-local"], handleKeepLocalAppReleaseOperation),
     moduleRoute("apps", /^\/apps\//, (context) => handleAppsRoute(context)),
     ...createInventoryRoutes(),
+    operationRoute(hostContractById["room.message.delete"], handleDeleteRoomMessageOperation),
+    operationRoute(hostContractById["room.message.update"], handleUpdateRoomMessageOperation),
+    operationRoute(hostContractById["room.message.cancel"], handleCancelRoomMessageOperation),
+    operationRoute(hostContractById["room.message.record"], handleRecordRoomMessageOperation),
     operationRoute(hostContractById["room.message.list"], handleListRoomMessagesOperation),
     operationRoute(hostContractById["room.message.create"], handleCreateRoomMessageOperation),
     operationRoute(hostContractById["room.direct.open"], handleOpenDirectRoomOperation),
