@@ -3814,6 +3814,42 @@ try {
   );
   assert.equal(missingReleaseStatusCalls[0]?.status, 404);
   assert.equal(missingReleaseStatusCalls[0]?.data.error, "app_store_publish_journal_missing");
+  const corruptJournalRoot = join(
+    appStoreDataRoot(firstPublishState),
+    "app-release-journals",
+    createHash("sha256").update("first-publish-app").digest("hex"),
+  );
+  mkdirSync(corruptJournalRoot, { recursive: true });
+  try {
+    for (const contents of ["{invalid-json", "{}"]) {
+      writeFileSync(join(corruptJournalRoot, "current.json"), contents);
+      for (const suffix of ["", "/status"]) {
+        const corruptedProgressCalls: ReleaseHarnessCall[] = [];
+        await dispatchBridgeRoutes(createBridgeRoutes(), {
+          request: adminRequest("GET", "secondary_admin_harness") as IncomingMessage,
+          response: {} as ServerResponse,
+          url: new URL(`http://opengrove.test/apps/first-publish-app/publish${suffix}`),
+          traceId: "trace-app-release-corrupt-journal",
+          state: firstPublishState,
+          security: adminSessionSecurity,
+          sendJson: captureReleaseResponse(corruptedProgressCalls),
+          readJsonBody: async () => ({}),
+        });
+        assert.equal(
+          corruptedProgressCalls[0]?.data.error,
+          "app_store_publish_journal_corrupted",
+          "publish progress and status must preserve the local journal diagnostic",
+        );
+        assert.equal(
+          corruptedProgressCalls[0]?.status,
+          500,
+          "a local journal failure is a Host error, not an upstream 502",
+        );
+      }
+    }
+  } finally {
+    rmSync(corruptJournalRoot, { recursive: true, force: true });
+  }
   const nonAdminGitPublishCalls: ReleaseHarnessCall[] = [];
   assert.equal(
     await dispatchBridgeRoutes(createBridgeRoutes(), {
