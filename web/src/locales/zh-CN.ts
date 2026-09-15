@@ -2004,6 +2004,8 @@ export const ZH_CN = {
   "appStore.release.errorRecovery": "发布恢复记录损坏或与当前提交不一致，请刷新页面后重试。",
   "appStore.release.errorPackage": "App Store 返回的包信息无效，请刷新后重试。",
   "appStore.release.errorJournalMissing": "没有可以继续的中断发布。",
+  "appStore.release.errorJournalCorrupted":
+    "本机发布记录未通过校验。请更新 OpenGrove 后重试；若仍失败，请联系维护人员并保留原记录。",
   "appStore.release.errorBaseMissing":
     "商店中已有这个 App，但本机草稿没有记录所基于的正式版本。请先切换到最新正式版并重新保存。",
   "appStore.release.errorBaseInvalid": "本机草稿的发布基线不完整或无效。请先切换到最新正式版并重新保存。",

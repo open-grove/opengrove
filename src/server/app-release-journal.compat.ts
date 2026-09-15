@@ -1,3 +1,34 @@
+import type { AppReleaseJournalRelease } from "./app-release-journal.js";
+
+/**
+ * PR #9 added requiredKernelCapabilities to release employees without changing
+ * schema v1. Older journals authenticate the original shape, including absence.
+ * Project only the canonical comparison back to that shape; never rewrite the
+ * stored release or its digest. Explicit requirements retain strict validation.
+ * Supports: OpenGrove 0.6.6 and earlier schema-v1 journals written before PR #9.
+ * Remove when: OpenGrove 0.7.0 no longer accepts pre-PR-9 release journals.
+ */
+export function releaseForLegacyJournalComparison(
+  canonical: AppReleaseJournalRelease,
+  stored: AppReleaseJournalRelease,
+): AppReleaseJournalRelease {
+  return {
+    ...canonical,
+    employees: canonical.employees.map((employee, index) => {
+      if (
+        stored.employees[index] &&
+        !Object.hasOwn(stored.employees[index], "requiredKernelCapabilities") &&
+        employee.requiredKernelCapabilities?.length === 0
+      ) {
+        const legacyEmployee = { ...employee };
+        delete legacyEmployee.requiredKernelCapabilities;
+        return legacyEmployee;
+      }
+      return employee;
+    }),
+  };
+}
+
 /**
  * OpenGrove 0.6.2 Dev builds wrote registry_indexed after the old Host publish.
  * Issue: https://github.com/open-grove/opengrove/issues/585

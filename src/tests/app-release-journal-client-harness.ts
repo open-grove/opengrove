@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -146,6 +146,165 @@ try {
     release: releaseFixture(),
     applyToCurrentApp: false,
   });
+  // Fixed pre-PR-9 digest: the persisted employee did not contain capability requirements.
+  const legacyCapabilitiesRecord = structuredClone(record);
+  delete legacyCapabilitiesRecord.release.employees[0]!.requiredKernelCapabilities;
+  legacyCapabilitiesRecord.intentDigest = "90494174fe2d07d9a8c9631c24e701e0784f5cca3d848cb1003803398ffe9709";
+  legacyCapabilitiesRecord.idempotencyKey =
+    "og-app-release-90494174fe2d07d9a8c9631c24e701e0784f5cca3d848cb1003803398ffe9709";
+  const legacyCapabilitiesPath = join(root, "journals", sha256(Buffer.from(record.localAppId)), "current.json");
+  const legacyCapabilitiesBytes = `${JSON.stringify(legacyCapabilitiesRecord, null, 2)}\n`;
+  writeFileSync(legacyCapabilitiesPath, legacyCapabilitiesBytes);
+  assert.deepEqual(
+    store.read(record.localAppId),
+    legacyCapabilitiesRecord,
+    "pre-capability journals must retain their original release and digest on read",
+  );
+  assert.equal(
+    readFileSync(legacyCapabilitiesPath, "utf8"),
+    legacyCapabilitiesBytes,
+    "compatibility reads must not rewrite the historical journal",
+  );
+  assert.deepEqual(store.readSnapshot(legacyCapabilitiesRecord), source);
+  const resumeLegacyInput = {
+    ...record,
+    packageId: record.packageId!,
+    sourceSnapshot: { ...record.sourceSnapshot, bytes: source },
+    release: releaseFixture(),
+  };
+  assert.deepEqual(
+    store.createOrResume(resumeLegacyInput),
+    legacyCapabilitiesRecord,
+    "an unchanged interrupted legacy release must resume with its original idempotency key",
+  );
+
+  const changedLegacyRelease = releaseFixture();
+  changedLegacyRelease.employees[0]!.requiredKernelCapabilities = ["tools.nativeTool"];
+  assert.throws(
+    () => store.createOrResume({ ...resumeLegacyInput, release: changedLegacyRelease }),
+    /app_store_publish_intent_changed/,
+    "new requirements must not reuse a legacy transaction",
+  );
+  const advancedLegacy = store.recordRemote({
+    localAppId: record.localAppId,
+    expectedRevision: legacyCapabilitiesRecord.revision,
+    intentId: "legacy-capability-intent",
+    status: "awaiting_candidate",
+    phase: "intent_created",
+    allowedActions: [],
+  });
+  assert.equal(advancedLegacy.intentDigest, legacyCapabilitiesRecord.intentDigest);
+  assert.equal(advancedLegacy.idempotencyKey, legacyCapabilitiesRecord.idempotencyKey);
+  assert.deepEqual(store.read(record.localAppId)?.release, legacyCapabilitiesRecord.release);
+  for (const mutate of [
+    (value: typeof record) => {
+      value.release.employees[0]!.name = "Altered writer";
+    },
+    (value: typeof record) => {
+      value.release.employees[0]!.requiredKernelCapabilities = [];
+    },
+    (value: typeof record) => {
+      value.release.employees[0]!.requiredKernelCapabilities = ["tools.nativeTool"];
+    },
+    (value: typeof record) => {
+      value.intentDigest = "0".repeat(64);
+    },
+    (value: typeof record) => {
+      value.idempotencyKey = `og-app-release-${"0".repeat(64)}`;
+    },
+  ]) {
+    const tampered = structuredClone(legacyCapabilitiesRecord);
+    mutate(tampered);
+    writeFileSync(legacyCapabilitiesPath, JSON.stringify(tampered));
+    assert.throws(
+      () => store.read(record.localAppId),
+      /app_store_publish_journal_corrupted/,
+      "legacy compatibility must still authenticate the exact historical content",
+    );
+  }
+  // Even self-consistent digests cannot make noncanonical data valid.
+  const invalidLegacyShapes = [
+    {
+      field: "name",
+      value: " Writer ",
+      digest: "fba2a738bbaab10e4947400da7e43afda5ce78de3e9c8d57cd1f956c1f5da3c9",
+    },
+    {
+      field: "requiredKernelCapabilities",
+      value: null,
+      digest: "e44cb8c79ea522f7f0390a676108ce5d5c3ea5f97644dbb6e2f17dffb8aa3cbe",
+    },
+    {
+      field: "unexpectedField",
+      value: true,
+      digest: "840de32adb469d5a4e0c34d448a159d7de6183bcf64485fbe2c7798d65efd62d",
+    },
+  ];
+  for (const { field, value, digest } of invalidLegacyShapes) {
+    const invalid = structuredClone(legacyCapabilitiesRecord);
+    (invalid.release.employees[0] as unknown as Record<string, unknown>)[field] = value;
+    invalid.intentDigest = digest;
+    invalid.idempotencyKey = `og-app-release-${digest}`;
+    writeFileSync(legacyCapabilitiesPath, JSON.stringify(invalid));
+    assert.throws(
+      () => store.read(record.localAppId),
+      /app_store_publish_journal_corrupted/,
+      "compatibility permits only an absent requirements field, not other normalization changes",
+    );
+  }
+  const completedRoot = join(root, "completed-legacy");
+  const completedStore = new AppReleaseJournalStore(completedRoot);
+  const completedJournalRoot = join(completedRoot, sha256(Buffer.from(record.localAppId)));
+  mkdirSync(completedJournalRoot, { recursive: true });
+  writeFileSync(join(completedJournalRoot, "current.json"), legacyCapabilitiesBytes);
+  const readyLegacy = completedStore.markRegistryReady({
+    localAppId: record.localAppId,
+    expectedRevision: legacyCapabilitiesRecord.revision,
+    intentId: "completed-legacy-intent",
+    status: "published",
+    registryVersion: {
+      packageKey: record.packageKey,
+      version: record.release.version,
+      releaseCommitSha: "1".repeat(40),
+      archiveSha256: "2".repeat(64),
+      archiveSize: 1024,
+    },
+  });
+  const completedLegacy = completedStore.markLocalFinalized({
+    localAppId: record.localAppId,
+    expectedRevision: readyLegacy.revision,
+  });
+  assert.deepEqual(completedStore.createOrResume(resumeLegacyInput), completedLegacy);
+  const nextRelease = releaseFixture();
+  nextRelease.version = "0.1.1";
+  const replacement = completedStore.createOrResume({ ...resumeLegacyInput, release: nextRelease });
+  assert.equal(replacement.release.version, "0.1.1");
+  assert.deepEqual(replacement.release.employees[0]!.requiredKernelCapabilities, []);
+  const archivedLegacy = JSON.parse(
+    readFileSync(join(completedJournalRoot, "history", `${completedLegacy.intentDigest}.json`), "utf8"),
+  );
+  assert.deepEqual(
+    archivedLegacy,
+    completedLegacy,
+    "the completed receipt must be archived without rewriting its intent",
+  );
+  const strippedCurrent = structuredClone(record);
+  delete strippedCurrent.release.employees[0]!.requiredKernelCapabilities;
+  writeFileSync(legacyCapabilitiesPath, JSON.stringify(strippedCurrent));
+  assert.throws(
+    () => store.read(record.localAppId),
+    /app_store_publish_journal_corrupted/,
+    "removing an explicit empty array from a current journal must invalidate its digest",
+  );
+  for (const requirements of [[], ["tools.nativeTool"]] as const) {
+    const currentRelease = releaseFixture();
+    currentRelease.employees[0]!.requiredKernelCapabilities = [...requirements];
+    const currentStore = new AppReleaseJournalStore(join(root, `requirements-${requirements.length}`));
+    const currentRecord = currentStore.createOrResume({ ...resumeLegacyInput, release: currentRelease });
+    assert.deepEqual(currentStore.read(currentRecord.localAppId), currentRecord);
+    assert.deepEqual(currentRecord.release.employees[0]!.requiredKernelCapabilities, requirements);
+  }
+  writeFileSync(legacyCapabilitiesPath, `${JSON.stringify(record, null, 2)}\n`);
   assert.deepEqual(store.readSnapshot(record), source);
   assert.deepEqual(
     store.createOrResume({

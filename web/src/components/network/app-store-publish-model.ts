@@ -193,6 +193,7 @@ export function releaseErrorMessage(t: TranslationFn, error: string): string {
     app_store_publish_recovery_corrupted: t("appStore.release.errorRecovery"),
     app_store_publish_intent_changed: t("appStore.release.errorRecovery"),
     app_store_publish_journal_missing: t("appStore.release.errorJournalMissing"),
+    app_store_publish_journal_corrupted: t("appStore.release.errorJournalCorrupted"),
     app_store_publish_base_missing: t("appStore.release.errorBaseMissing"),
     app_store_publish_base_invalid: t("appStore.release.errorBaseInvalid"),
     app_store_publish_base_stale: t("appStore.release.errorBaseStale"),
