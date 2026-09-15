@@ -156,3 +156,14 @@ export function resolveClaudeEffortLevels(
   }
   return [];
 }
+
+/** Picker ids and creation defaults must use the same SDK support records. */
+export function claudeAutoReviewModelIds(cache: ClaudeModelEffortInfo[]): string[] {
+  return cache
+    .filter((model) => model.supportsAutoMode === true)
+    .flatMap((model) => [
+      model.id,
+      ...(model.resolvedModel ? [model.resolvedModel] : []),
+      ...(model.id === "default" ? ["claude-code-default"] : []),
+    ]);
+}

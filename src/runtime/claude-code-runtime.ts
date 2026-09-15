@@ -962,7 +962,7 @@ function resolveClaudePermissionMode(
     case "full-access":
       return "bypassPermissions";
     default:
-      return configured ?? "default";
+      return configured ?? "bypassPermissions";
   }
 }
 

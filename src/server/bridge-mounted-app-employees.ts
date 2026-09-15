@@ -178,7 +178,14 @@ function manifestDefaultEmployees(
       }),
     );
   }
-  return applyStoreEmployeeDefaults(appEmployees, manifest);
+  return applyStoreEmployeeDefaults(appEmployees, manifest).map((member) =>
+    member.employeeDefinitionId === OPENGROVE_PM_MEMBER_ID
+      ? member
+      : {
+          ...member,
+          accessMode: normalizeEmployeeAccessMode(member.kernel, member.accessMode, member.model),
+        },
+  );
 }
 
 function applyStoreEmployeeDefaults(members: RoomChannelMember[], manifest: JsonObject): RoomChannelMember[] {
@@ -195,7 +202,11 @@ function applyStoreEmployeeDefaults(members: RoomChannelMember[], manifest: Json
     const reasoningEffort = normalizeReasoningEffort(override.reasoningEffort);
     const contextTokenBudget = positiveInteger(override.contextTokenBudget);
     const configuredKernel = stringOrUndefined(override.kernel) ?? member.kernel;
-    const accessMode = normalizeEmployeeAccessMode(configuredKernel, override.accessMode);
+    const accessMode = normalizeEmployeeAccessMode(
+      configuredKernel,
+      override.accessMode ?? member.accessMode,
+      stringOrUndefined(override.model) ?? member.model,
+    );
     const configuredModel = stringOrUndefined(override.model);
     const configured: RoomChannelMember = {
       ...member,
@@ -281,7 +292,11 @@ export function employeeManifestDefaultsPatch(
     requiredKernelCapabilities: defaults.requiredKernelCapabilities,
     reasoningEffort: defaults.reasoningEffort,
     contextTokenBudget: defaults.contextTokenBudget,
-    accessMode: normalizeEmployeeAccessMode(defaults.kernel ?? member.kernel, defaults.accessMode),
+    accessMode: normalizeEmployeeAccessMode(
+      defaults.kernel ?? member.kernel,
+      defaults.accessMode,
+      defaults.model ?? member.model,
+    ),
     visibility: defaults.visibility ?? member.visibility,
     publicDescription: defaults.publicDescription,
     publicSkills: defaults.publicSkills,
@@ -379,7 +394,10 @@ function normalizeManifestEmployee(
     requiredKernelCapabilities: normalizeRequiredKernelCapabilities(input.requiredKernelCapabilities),
     appId,
     workspaceRoot: employeeWorkspaceRoot,
-    accessMode: normalizeEmployeeAccessMode(kernel, input.accessMode),
+    accessMode:
+      input.accessMode === undefined
+        ? undefined
+        : normalizeEmployeeAccessMode(kernel, input.accessMode, declaredEmployeeModel(input.model, kernel)),
     reasoningEffort: normalizeReasoningEffort(input.reasoningEffort) ?? defaultEmployeeReasoningEffort(),
     contextTokenBudget: positiveInteger(input.contextTokenBudget),
     source: "local",
@@ -463,7 +481,7 @@ function createAppBuilderMember(input: {
     defaultSkillIds: skillIds,
     appId: input.appId,
     workspaceRoot: input.workspaceRoot,
-    accessMode: "full-access",
+    accessMode: normalizeEmployeeAccessMode(runtime.kernel, undefined, runtime.model),
     reasoningEffort: defaultEmployeeReasoningEffort(),
     source: "local",
     sourceLabel: `${input.appDisplayTitle} App`,

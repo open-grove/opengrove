@@ -8,7 +8,7 @@ import { openCodeConfigContentForAccessMode } from "../kernel/adapters/opencode.
 import { HermesRuntime } from "../runtime/hermes-runtime.js";
 import { writeFakeHermesGateway } from "./harnesses/fake-hermes-gateway.js";
 import { RoomChannelStore } from "../rooms/channel-store.js";
-import { migrateNativeApprovalPresetsV2 } from "../server/migrations/native-approval-presets-v2.js";
+import { migrateNativeApprovalPresetsV3 } from "../server/migrations/native-approval-presets-v3.js";
 import assert from "node:assert/strict";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -20,6 +20,8 @@ import { CodexRuntime } from "../runtime/codex-runtime.js";
 import { resolveCodexApprovalPolicy, resolveCodexSandboxMode } from "../runtime/codex/policy.js";
 import { normalizeMember as normalizeEmployee } from "../server/routes/rooms/normalizers.js";
 import { mountedAppDefaultEmployees } from "../server/bridge-mounted-app-employees.js";
+import { normalizeEmployeeAccessMode } from "../server/employee-access-mode.js";
+import { writeClaudeModelsCache } from "../runtime/claude-models-cache.js";
 import { normalizeReleaseEmployee } from "../server/app-release.js";
 
 function context(cwd: string): AgentTurnRequest["context"] {
@@ -107,7 +109,7 @@ for await (const line of createInterface({ input: process.stdin })) {
   );
   assert.deepEqual(
     threads.map((m) => m.params.config["sandbox_workspace_write.network_access"]),
-    [false, false, undefined, false, true],
+    [false, false, undefined, false, undefined],
   );
   const turns = messages.filter((m) => m.method === "turn/start");
   assert.deepEqual(
@@ -135,13 +137,7 @@ for await (const line of createInterface({ input: process.stdin })) {
         excludeTmpdirEnvVar: false,
         excludeSlashTmp: false,
       },
-      {
-        type: "workspaceWrite",
-        writableRoots: [],
-        networkAccess: true,
-        excludeTmpdirEnvVar: false,
-        excludeSlashTmp: false,
-      },
+      undefined,
     ],
   );
 });
@@ -468,7 +464,7 @@ test("Hermes presets use separate native homes, preserve denials and still ask u
   }
 });
 
-test("upgrading all local employee permission choices establishes full access once", () => {
+test("upgrading preserves compatible employee choices and repairs unsupported modes", () => {
   const rooms = new RoomChannelStore();
   for (const kernel of ["codex", "claude-code", "hermes", "pi", "kimi", "opencode"])
     for (const accessMode of ["default", "auto-review", "full-access", undefined] as const)
@@ -485,17 +481,27 @@ test("upgrading all local employee permission choices establishes full access on
       });
   let backups = 0;
   assert.equal(
-    migrateNativeApprovalPresetsV2(rooms, () => {
+    migrateNativeApprovalPresetsV3(rooms, () => {
       backups += 1;
     }),
     true,
   );
   assert.equal(backups, 1);
   for (const member of rooms.listMembers()) {
-    assert.equal(member.accessMode, "full-access");
-    assert.deepEqual(member.userOverrides, ["accessMode"]);
+    const original = member.id.slice(member.kernel.length + 1);
+    const unsupportedAuto = original === "auto-review" && ["pi", "kimi", "opencode"].includes(member.kernel);
+    const expected =
+      original === "unset"
+        ? ["codex", "hermes"].includes(member.kernel)
+          ? "auto-review"
+          : "default"
+        : unsupportedAuto
+          ? "default"
+          : original;
+    assert.equal(member.accessMode, expected, member.id);
+    assert.deepEqual(member.userOverrides, unsupportedAuto ? ["accessMode"] : undefined);
   }
-  assert.equal(migrateNativeApprovalPresetsV2(rooms), false);
+  assert.equal(migrateNativeApprovalPresetsV3(rooms), false);
 });
 
 test("permission migration keeps Gateway and remote permission ownership", () => {
@@ -523,13 +529,13 @@ test("permission migration keeps Gateway and remote permission ownership", () =>
     source: "remote",
     accessMode: "default",
   });
-  migrateNativeApprovalPresetsV2(rooms);
+  migrateNativeApprovalPresetsV3(rooms);
   assert.equal(rooms.listMembers().find((member) => member.id === "gateway")?.accessMode, "default");
   assert.equal(rooms.listMembers().find((member) => member.id === "remote")?.accessMode, "default");
   assert.equal(rooms.listMembers().find((member) => member.id === "remote")?.userOverrides, undefined);
 });
 
-for (const previousVersion of [0, 1]) {
+for (const previousVersion of [0, 1, 2]) {
   test(`permission migration from version ${previousVersion} preserves later user choices`, async () => {
     const cwd = mkdtempSync(join(tmpdir(), "opengrove-persisted-permission-migration-"));
     const statePath = join(cwd, "state.sqlite");
@@ -546,6 +552,18 @@ for (const previousVersion of [0, 1]) {
       accessMode: "auto-review",
       source: "local",
     });
+    legacy.app.rooms.upsertMember({
+      id: "unsupported-auto",
+      name: "Unsupported",
+      kernel: "pi",
+      model: "pi-test",
+      role: "",
+      status: "idle",
+      color: "",
+      lastActive: "",
+      accessMode: "auto-review",
+    });
+    legacy.app.rooms.patchMember("pm", { accessMode: "default", userOverrides: undefined });
     legacy.store.saveFrom(legacy.app);
     legacy.settings.nativeApprovalPresetsVersion = previousVersion;
     saveBridgeSettings(legacy);
@@ -553,12 +571,14 @@ for (const previousVersion of [0, 1]) {
     const migrated = createBridgeState({ statePath });
     assert.equal(
       migrated.app.rooms.listMembers().find((member) => member.id === "legacy-auto-review")?.accessMode,
-      "full-access",
+      "auto-review",
     );
-    assert.equal(migrated.settings.nativeApprovalPresetsVersion, 2);
-    assert.equal(existsSync(`${statePath}.before-native-approval-presets-v2.json`), true);
+    assert.equal(migrated.app.rooms.listMembers().find((m) => m.id === "pm")?.accessMode, "full-access");
+    assert.equal(migrated.app.rooms.listMembers().find((m) => m.id === "unsupported-auto")?.accessMode, "default");
+    assert.equal(migrated.settings.nativeApprovalPresetsVersion, 3);
+    assert.equal(existsSync(`${statePath}.before-native-approval-presets-v3.json`), true);
     migrated.app.rooms.patchMember("legacy-auto-review", { accessMode: "auto-review" });
-    migrated.app.rooms.patchMember("pm", { accessMode: "default" });
+    migrated.app.rooms.patchMember("pm", { accessMode: "default", userOverrides: ["accessMode"] });
     migrated.store.saveFrom(migrated.app);
     await migrated.store.close?.();
     const restarted = createBridgeState({ statePath });
@@ -574,10 +594,15 @@ for (const previousVersion of [0, 1]) {
   });
 }
 
-test("employee creation repairs unsupported presets and defaults new employees to full access", () => {
+test("employee creation prefers auto only where supported and preserves explicit choices", () => {
+  for (const kernel of ["codex", "hermes"]) {
+    assert.equal(normalizeEmployee({ id: "employee", kernel }).accessMode, "auto-review");
+    assert.equal(normalizeEmployee({ id: "employee", kernel, accessMode: "full-access" }).accessMode, "full-access");
+    assert.equal(normalizeEmployee({ id: "employee", kernel, accessMode: "default" }).accessMode, "default");
+  }
   for (const kernel of ["pi", "kimi", "opencode"]) {
     assert.equal(normalizeEmployee({ id: "employee", kernel, accessMode: "auto-review" }).accessMode, "default");
-    assert.equal(normalizeEmployee({ id: "employee", kernel }).accessMode, "full-access");
+    assert.equal(normalizeEmployee({ id: "employee", kernel }).accessMode, "default");
     assert.equal(normalizeEmployee({ id: "employee", kernel, accessMode: "default" }).accessMode, "default");
   }
   assert.equal(
@@ -607,9 +632,17 @@ test("App installation repairs both manifest and Store employee permission defau
         { id: "opencode", name: "OpenCode", kernel: "opencode" },
         { id: "gateway", name: "Gateway", kernel: "openclaw", accessMode: "full-access" },
         { id: "new", name: "New", kernel: "codex" },
+        { id: "declared-full", name: "Full", kernel: "claude-code", accessMode: "full-access" },
+        { id: "declared-ask", name: "Ask", kernel: "codex", accessMode: "default" },
       ],
       store: {
         employeeDefaults: [
+          {
+            memberId: "member-app-permission-import-declared%2Dfull",
+            name: "Full",
+            kernel: "claude-code",
+            model: "custom-model",
+          },
           {
             memberId: "member-app-permission-import-opencode",
             name: "OpenCode",
@@ -628,7 +661,15 @@ test("App installation repairs both manifest and Store employee permission defau
     });
     for (const id of ["pi", "kimi", "opencode", "gateway"])
       assert.equal(members.find((member) => member.id === `member-app-permission-import-${id}`)?.accessMode, "default");
-    assert.equal(members.find((member) => member.id === "member-app-permission-import-new")?.accessMode, "full-access");
+    assert.equal(members.find((member) => member.id === "member-app-permission-import-new")?.accessMode, "auto-review");
+    assert.equal(
+      members.find((member) => member.id === "member-app-permission-import-declared%2Dfull")?.accessMode,
+      "full-access",
+    );
+    assert.equal(
+      members.find((member) => member.id === "member-app-permission-import-declared%2Dask")?.accessMode,
+      "default",
+    );
   } finally {
     await state.store.close?.();
   }
@@ -652,11 +693,12 @@ test("App publishing rejects impossible presets without treating unverified Clau
   );
 });
 
-test("Claude ask and full access use distinct native options", async () => {
+test("Claude explicit presets and omitted permission defaults use distinct native options", async () => {
   const cwd = mkdtempSync(join(tmpdir(), "opengrove-claude-nonauto-permissions-"));
   for (const [accessMode, nativeMode] of [
     ["default", "default"],
     ["full-access", "bypassPermissions"],
+    [undefined, "bypassPermissions"],
   ] as const) {
     let selectedMode: unknown;
     let skipAllowed: unknown;
@@ -672,6 +714,25 @@ test("Claude ask and full access use distinct native options", async () => {
     for await (const _event of runtime.runTurn({ input: "hi", context: context(cwd), tools: [], accessMode })) {
     }
     assert.equal(selectedMode, nativeMode);
-    assert.equal(skipAllowed, accessMode === "full-access" ? true : undefined);
+    assert.equal(skipAllowed, nativeMode === "bypassPermissions" ? true : undefined);
   }
+});
+
+test("Claude creation defaults require cached support for the selected model", () => {
+  const configHome = mkdtempSync(join(tmpdir(), "opengrove-claude-default-permissions-"));
+  assert.equal(normalizeEmployeeAccessMode("claude-code", undefined, "claude-code-default", configHome), "default");
+  writeClaudeModelsCache(
+    [
+      { value: "default", supportsAutoMode: true },
+      { value: "supported", resolvedModel: "resolved-supported", supportsAutoMode: true },
+      { value: "unsupported", supportsAutoMode: false },
+    ],
+    { configHome, now: "2026-09-15T00:00:00Z" },
+  );
+  for (const model of ["claude-code-default", "supported", "resolved-supported"])
+    assert.equal(normalizeEmployeeAccessMode("claude-code", undefined, model, configHome), "auto-review");
+  for (const model of ["unsupported", "deepseek-test"])
+    assert.equal(normalizeEmployeeAccessMode("claude-code", undefined, model, configHome), "default");
+  assert.equal(normalizeEmployeeAccessMode("claude-code", "full-access", "supported", configHome), "full-access");
+  assert.equal(normalizeEmployeeAccessMode("claude-code", "default", "supported", configHome), "default");
 });

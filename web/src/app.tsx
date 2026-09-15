@@ -104,7 +104,7 @@ import { appStoreUpdateCount } from "./components/network/app-store-query";
 import { Dialog, DialogContent, DialogTitle } from "./components/ui/dialog";
 import { useConfirm } from "./components/ui/confirm-dialog";
 import { useToast } from "./components/ui/toast";
-import { resolveRuntimeAccessModeSelection } from "../../src/runtime-access";
+import { resolveAccessModeSelection } from "./runtime/access-modes";
 import { WorkspaceInspector } from "./components/workspace/workspace-views";
 import { useUiStore, type UiProject, type UiThread } from "./store";
 import { useVoiceInput } from "./voice/use-voice-input";
@@ -532,13 +532,14 @@ export function App() {
       ? activeKernelOption
       : (kernelOptions.find((kernel) => kernel.available) ?? activeKernelOption ?? kernelOptions[0]);
   const chatKernel = chatKernelOption?.id ?? activeKernel;
-  const effectiveAccessMode = resolveRuntimeAccessModeSelection(chatKernel, accessMode);
+  const chatRuntimeControls = runtimeControlsForKernel(chatKernel, runtimeControls, runtimeControlsByKernel);
+  const effectiveAccessMode = resolveAccessModeSelection(chatKernel, accessMode, model, chatRuntimeControls);
   useEffect(() => {
-    if (!chatKernel || chatKernel === "openclaw" || effectiveAccessMode === accessMode) return;
+    if (!chatKernel || accessMode === undefined || chatKernel === "openclaw" || effectiveAccessMode === accessMode)
+      return;
     setAccessMode(effectiveAccessMode);
     toast({ kind: "info", title: t("composer.accessModeResetToAsk") });
   }, [chatKernel, accessMode, effectiveAccessMode, setAccessMode, t, toast]);
-  const chatRuntimeControls = runtimeControlsForKernel(chatKernel, runtimeControls, runtimeControlsByKernel);
   const chatKernelCapabilityUi = useMemo(
     () => buildKernelCapabilityUiState(chatKernelOption?.capabilityReport, chatKernel),
     [chatKernelOption?.capabilityReport, chatKernel],

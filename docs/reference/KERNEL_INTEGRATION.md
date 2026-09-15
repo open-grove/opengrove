@@ -159,8 +159,11 @@ identity. Kernels approve native tools; Host tools continue to enforce App polic
 
 Both restricted Codex presets disable sandbox network access. Outside-Workspace writes and
 network escalation use native approval. Calls that omit `accessMode` retain the existing configured
-approval/sandbox policy, with `danger-full-access` / `never` as the unconfigured fallback and
-network access enabled for legacy `workspace-write` calls. Thread and turn settings agree. Neither `on-failure` nor Claude `acceptEdits` is auto review.
+approval/sandbox policy, with `danger-full-access` / `never` as the unconfigured fallback. For omitted
+presets, network access remains owned by native configuration: neither thread config nor turn config
+overrides it. Claude calls without a preset retain the configured mode, falling back to
+`bypassPermissions`. These API fallbacks are separate from the product's explicit default selections.
+Neither `on-failure` nor Claude `acceptEdits` is auto review.
 Claude model availability comes from the SDK model cache and is revalidated for the current
 model/account before each auto-review run. The native default selection uses the SDK `default` record. With an empty cache, support is
 unknown until a normal turn refreshes it. Unknown support disables the picker option; a rejected
@@ -171,12 +174,18 @@ denials and auxiliary reviewer settings without editing a shared `HERMES_HOME`. 
 checks the effective mode and fails if it cannot apply it. Approval and question bridges support
 both desktop contract v7 server requests and earlier notification-based requests.
 
-New Employees and chats default to **Full access**. A one-time v2 migration sets all existing local
-Employee and chat selections to `full-access`, including explicit ask and auto-review selections
-and the unreleased v1 migration. Employee state is backed up and overrides prevent App seed sync
-from undoing this change. Subsequent user choices survive restarts. OpenClaw remains Gateway-managed;
-remote Employees retain their owner's permissions. Compatible permissions explicitly declared by an
-App remain its defaults for new installations.
+The global PM and its App-scoped bindings default to **Full access**. Other new Employees and chats
+prefer **Help me approve** when supported: Codex and Hermes use auto review; Claude requires cached
+support for the selected model, otherwise it starts with Ask for approval. Pi, Kimi and OpenCode start
+with Ask for approval. OpenClaw remains Gateway-managed; remote permissions belong to the remote owner.
+
+Explicit user choices survive ordinary seed synchronization and take priority over App defaults;
+compatible App declarations take priority over product defaults. App version activation and the
+explicit restore-App-defaults action can reapply the App's configuration. A one-time v3 migration only
+fills missing employee modes and repairs unsupported combinations, backing up changed state. It does
+not blanket-reset compatible choices. PM's new default follows the existing product seed mechanism
+and preserves explicit user permission overrides. Stored chat choices are read without being rewritten;
+an unset chat choice resolves against the selected kernel and model.
 
 Unsupported presets are disabled in the picker and rejected at execution. Switching to Pi, Kimi or
 OpenCode while auto review is selected changes the selection to ask for approval and displays a notice.

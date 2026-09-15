@@ -1,4 +1,4 @@
-import { accessModeUnavailableKey } from "../../runtime/access-modes";
+import { accessModeUnavailableKey, resolveAccessModeSelection } from "../../runtime/access-modes";
 import { resolveRuntimeAccessModeSelection } from "../../../../src/runtime-access";
 import {
   useCallback,
@@ -164,6 +164,7 @@ export function EmployeeDialog(props: EmployeeDialogProps) {
     return initialDraft;
   });
   const draftRef = useRef(draft);
+  const accessModeExplicitRef = useRef(Boolean(props.initialMember?.accessMode));
   const [submitPending, setSubmitPending] = useState(false);
   const [submitError, setSubmitError] = useState("");
   const [accessModeNotice, setAccessModeNotice] = useState(false);
@@ -251,6 +252,7 @@ export function EmployeeDialog(props: EmployeeDialogProps) {
         [nextDraft.kernel]: employeeKernelRuntimeDraft(nextDraft),
       };
       draftRef.current = nextDraft;
+      accessModeExplicitRef.current = Boolean(props.initialMember?.accessMode);
       setDraft(nextDraft);
       setSubmitPending(false);
       setSubmitError("");
@@ -279,6 +281,11 @@ export function EmployeeDialog(props: EmployeeDialogProps) {
     props.runtimeControls,
     props.runtimeControlsByKernel,
   );
+  useEffect(() => {
+    if (editing || accessModeExplicitRef.current) return;
+    const accessMode = resolveAccessModeSelection(draft.kernel, undefined, draft.model, selectedRuntimeControls);
+    if (accessMode !== draft.accessMode) updateDraft((current) => ({ ...current, accessMode }));
+  }, [editing, draft.kernel, draft.model, draft.accessMode, selectedRuntimeControls, updateDraft]);
   const availableModelOptions = useMemo(
     () => employeeModelOptions(draft.kernel, selectedRuntimeControls, props.providers ?? []),
     [draft.kernel, props.providers, selectedRuntimeControls],
@@ -649,6 +656,7 @@ export function EmployeeDialog(props: EmployeeDialogProps) {
                     };
                   })}
                   onChange={(accessMode) => {
+                    accessModeExplicitRef.current = true;
                     setAccessModeNotice(false);
                     updateDraft(
                       (current) => ({
@@ -924,6 +932,9 @@ export function createDefaultDraft(
   const id = initialMember?.id || createId("employee");
   const kernelId = initialMember?.kernel || kernel?.id || activeKernel || "";
   const avatarMode = initialMember?.avatarMode ?? (initialMember?.avatarDataUrl ? "upload" : "generated");
+  const model = initialMember
+    ? normalizeRoomMemberModelForKernel(kernelId, initialMember.model)
+    : resolveDefaultModel(kernelId, activeKernel, activeModel, runtimeControls, runtimeControlsByKernel, providers);
   return {
     id,
     name: memberPresentationDraft(initialMember, "name", "displayName") || defaultEmployeeName(kernel),
@@ -932,12 +943,15 @@ export function createDefaultDraft(
     avatarDataUrl: initialMember?.avatarDataUrl ?? "",
     legacyInvalidAvatar: hasLegacyInvalidAvatar(initialMember),
     kernel: kernelId,
-    model: initialMember
-      ? normalizeRoomMemberModelForKernel(kernelId, initialMember.model)
-      : resolveDefaultModel(kernelId, activeKernel, activeModel, runtimeControls, runtimeControlsByKernel, providers),
+    model,
     providerId: initialMember?.providerId ?? "",
     reasoningEffort: employeeReasoningOverrideDraft(initialMember),
-    accessMode: resolveRuntimeAccessModeSelection(kernelId, initialMember?.accessMode),
+    accessMode: resolveAccessModeSelection(
+      kernelId,
+      initialMember?.accessMode,
+      model,
+      runtimeControlsForKernel(kernelId, runtimeControls, runtimeControlsByKernel),
+    ),
     role: memberPresentationDraft(initialMember, "role", "displayRole"),
     visibility: initialMember?.visibility ?? "private",
     publicDescription: memberPresentationDraft(initialMember, "publicDescription", "displayPublicDescription"),

@@ -58,7 +58,7 @@ export function resolveCodexApprovalsReviewer(
     : "user";
 }
 
-export function toCodexSandboxPolicy(mode: CodexSandboxMode, accessMode?: RuntimeAccessMode): JsonObject {
+export function toCodexSandboxPolicy(mode: CodexSandboxMode): JsonObject {
   switch (mode) {
     case "read-only":
       return { type: "readOnly", networkAccess: false };
@@ -66,7 +66,7 @@ export function toCodexSandboxPolicy(mode: CodexSandboxMode, accessMode?: Runtim
       return {
         type: "workspaceWrite",
         writableRoots: [],
-        networkAccess: !accessMode,
+        networkAccess: false,
         excludeTmpdirEnvVar: false,
         excludeSlashTmp: false,
       };

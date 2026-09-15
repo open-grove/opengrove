@@ -146,18 +146,23 @@ Hermes 按环境与档位隔离进程及配置副本，保留用户的 deny 与�
 `HERMES_HOME`。原生启动时核对有效模式，无法应用就报错。阻塞审批和用户问题分别接入，
 兼容 desktop contract v7 的 server request 与此前的通知协议。
 
-新员工和聊天默认使用**完全访问权限**。v2 迁移会一次性把已有本地员工和聊天的所有档位改为
-`full-access`，包括明确选择过的请求批准、auto-review，以及运行过未发布 v1 迁移的设置。
-员工状态先备份，并记录 override，防止 App seed 同步覆盖；迁移后用户重新选择的档位在重启后保留。
-OpenClaw 仍由 Gateway 管理，远程员工的权限仍由远端决定。新安装 App 明确声明的兼容权限保留为其默认值。
+全局 PM 及各 App 内的 PM 绑定默认使用**完全访问权限**。其他新员工和聊天优先选择**帮我批准**：
+Codex、Hermes 默认 auto；Claude 只有当前模型的缓存确认支持时默认 auto，否则请求批准；
+Pi、Kimi、OpenCode 默认请求批准。OpenClaw 仍由 Gateway 管理，远程权限由远端决定。
+
+普通 seed 同步中，用户明确选择优先于 App 声明，兼容的 App 声明优先于产品默认值。
+App 版本激活和主动恢复 App 默认设置可以重新应用 App 配置。v3 迁移只补齐员工缺失的权限、
+修正不支持的组合，并在修改前备份状态，不统一重置已有兼容选择。PM 的新默认值通过产品 seed
+同步应用，保留用户明确的权限覆盖。聊天读取已有选择时不改写；没有选择时根据当前内核和模型决定默认档位。
 
 不支持的档位在选择器中禁用、运行入口拒绝。从 auto 切换到 Pi、Kimi 或 OpenCode 时，自动改为
 请求批准并显示提示。员工创建、更新、App 导入和 seed 同步使用同一条兼容规则；发布时拒绝不支持的组合。
 Claude 本机尚未确认模型支持，与内核本身不支持不同，不因此拒绝可移植 App 的权限声明。
 
 Codex 三档的映射与未指定档位的调用分开：没有传 `accessMode` 时保留原有审批和沙箱配置，
-没有其他配置时仍回落到 `danger-full-access` / `never`；旧的 `workspace-write` 调用允许联网。
-线程设置与每轮执行设置保持一致。Claude 原生默认模型根据 SDK 的 `default` 记录判断；首次没有缓存时，
+没有其他配置时仍回落到 `danger-full-access` / `never`；未传档位时，线程和每轮执行均不覆盖原生网络配置。
+Claude 未传档位时保留已有配置，无配置则回落到 `bypassPermissions`。这些 API 兜底与产品默认选择分开。
+Claude 原生默认模型根据 SDK 的 `default` 记录判断；首次没有缓存时，
 需通过普通运行刷新模型支持信息。
 
 参数契约回归：[`runtime-access-modes.test.ts`](../../src/tests/runtime-access-modes.test.ts)。

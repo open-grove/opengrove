@@ -54,6 +54,16 @@ function seedMember(overrides: Partial<RoomChannelMember> = {}): RoomChannelMemb
   const appBuilder = merged.find((member) => member.id === "app-builder");
   assert.equal(appBuilder?.kernel, "codex", "saved App Builder kernel survives product re-seeding");
   assert.equal(appBuilder?.model, "gpt-5.6", "saved App Builder model survives product re-seeding");
+  assert.equal(appBuilder?.accessMode, "auto-review", "implicit permission defaults follow the user's selected kernel");
+  for (const accessMode of ["default", "full-access"] as const) {
+    const explicit = {
+      ...storedAppBuilder,
+      accessMode,
+      userOverrides: [...storedAppBuilder.userOverrides!, "accessMode"],
+    };
+    const saved = syncProductDefaultSeedMembers(new Map([[explicit.id, explicit]]), seed);
+    assert.equal(saved.find((member) => member.id === explicit.id)?.accessMode, accessMode);
+  }
 
   const scopedSeed: RoomChannelMember = {
     ...appBuilderSeed,

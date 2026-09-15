@@ -1,5 +1,3 @@
-import { DEFAULT_RUNTIME_ACCESS_MODE } from "../../../src/runtime-access";
-import { migrateStoredAccessModeV2 } from "./compat/access-mode-v2";
 import { File as FileIcon, FileText, Image as ImageIcon } from "lucide-react";
 import type { QueryClient } from "@tanstack/react-query";
 import type {
@@ -909,12 +907,9 @@ export function formatKernelLabel(value: string | undefined, t: TranslationFn = 
   return productName ? t("workspace.namedKernel", { name: productName }) : "";
 }
 
-export function readStoredAccessMode(): RuntimeAccessMode {
-  if (typeof window !== "undefined") migrateStoredAccessModeV2(window.localStorage, APP_STORAGE_KEYS.accessMode);
+export function readStoredAccessMode(): RuntimeAccessMode | undefined {
   const value = typeof window === "undefined" ? "" : window.localStorage.getItem(APP_STORAGE_KEYS.accessMode);
-  return value === "default" || value === "auto-review" || value === "full-access"
-    ? value
-    : DEFAULT_RUNTIME_ACCESS_MODE;
+  return value === "default" || value === "auto-review" || value === "full-access" ? value : undefined;
 }
 
 export interface ContextUsage {

@@ -31,7 +31,11 @@ export function normalizeMember(input: Record<string, unknown>): RoomChannelMemb
     workspaceRoot: readOptionalString(input.workspaceRoot),
     storePackageId: readOptionalString(input.storePackageId),
     toolIds: readStringArray(input.toolIds),
-    accessMode: normalizeEmployeeAccessMode(kernel, input.accessMode),
+    accessMode: normalizeEmployeeAccessMode(
+      kernel,
+      input.accessMode,
+      normalizeWritableEmployeeModel(kernel, readString(input.model)),
+    ),
     reasoningEffort: readMemberReasoningEffort(input.reasoningEffort),
     contextTokenBudget: readOptionalContextTokenBudget(input.contextTokenBudget),
     avatarMode: readMemberAvatarMode(input.avatarMode),

@@ -13,7 +13,11 @@ import {
 } from "../../runtime/claude-code-runtime.js";
 import { hasAwsCredential } from "../../runtime/claude-bedrock-env.js";
 import { readClaudeDesktopBedrockConfig } from "../../runtime/claude-desktop-config.js";
-import { readClaudeModelsCache, resolveClaudeEffortLevels } from "../../runtime/claude-models-cache.js";
+import {
+  claudeAutoReviewModelIds,
+  readClaudeModelsCache,
+  resolveClaudeEffortLevels,
+} from "../../runtime/claude-models-cache.js";
 import { APP_PROTOCOL_ID, appEnvName, readAppEnv } from "../../identity.js";
 import { RuntimeKernelAdapter } from "../adapter.js";
 import {
@@ -117,7 +121,7 @@ export function createClaudeCodeKernelAdapterFromOptions(
     configuredModel: options.provider ? options.model : undefined,
     runtimeBindingFingerprint: options.runtimeBindingFingerprint,
     modelAliases,
-    permissionMode: "default",
+    permissionMode: "bypassPermissions",
     env: options.env,
   });
 }
@@ -762,13 +766,7 @@ export function buildClaudeCodeRuntimeControls(
   }));
   return {
     kernel: "claude-code",
-    autoReviewModelIds: effortCache
-      .filter((model) => model.supportsAutoMode === true)
-      .flatMap((model) => [
-        model.id,
-        ...(model.resolvedModel ? [model.resolvedModel] : []),
-        ...(model.id === "default" ? [CLAUDE_CODE_DEFAULT_MODEL_ID] : []),
-      ]),
+    autoReviewModelIds: claudeAutoReviewModelIds(effortCache),
     source: localRouteProfile?.source ?? "claude-code-defaults",
     models,
     defaultModel,

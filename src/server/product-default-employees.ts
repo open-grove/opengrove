@@ -1,3 +1,4 @@
+import { normalizeEmployeeAccessMode } from "./employee-access-mode.js";
 import {
   GROVE_GUIDE_MEMBER_ID,
   GROVE_GUIDE_SKILL_NAME,
@@ -119,7 +120,7 @@ function groveGuideEmployee(): RoomChannelMember {
     lastActive: "已配置",
     availableSkillIds: [GROVE_GUIDE_SKILL_NAME],
     defaultSkillIds: [GROVE_GUIDE_SKILL_NAME],
-    accessMode: "full-access",
+    accessMode: normalizeEmployeeAccessMode(runtime.kernel, undefined, runtime.model),
     reasoningEffort: "medium",
     source: "local",
     sourceLabel: "OpenGrove",
@@ -152,7 +153,7 @@ function appBuilderEmployee(): RoomChannelMember {
     availableSkillIds: [OPENGROVE_APP_BUILDER_SKILL_NAME],
     defaultSkillIds: [OPENGROVE_APP_BUILDER_SKILL_NAME],
     toolIds: ["opengrove.app.import"],
-    accessMode: "full-access",
+    accessMode: normalizeEmployeeAccessMode(runtime.kernel, undefined, runtime.model),
     reasoningEffort: "medium",
     source: "local",
     sourceLabel: "OpenGrove",

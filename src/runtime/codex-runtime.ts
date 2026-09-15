@@ -243,8 +243,8 @@ export class CodexRuntime implements AgentRuntime {
       serviceTier,
       contextTokenBudget: contextBudget.budgetSource === "configured" ? contextBudget.effectiveBudget : undefined,
     });
-    if (sandbox === "workspace-write") {
-      threadConfig["sandbox_workspace_write.network_access"] = !request.accessMode;
+    if (request.accessMode && sandbox === "workspace-write") {
+      threadConfig["sandbox_workspace_write.network_access"] = false;
     }
     const staticDeveloperInstructions = buildCodexDeveloperInstructions();
     const developerInstructions = buildCodexDeveloperInstructions(request);
@@ -578,7 +578,7 @@ export class CodexRuntime implements AgentRuntime {
               input: turnInputItems as unknown as JsonValue,
               approvalPolicy,
               approvalsReviewer,
-              sandboxPolicy: toCodexSandboxPolicy(sandbox, request.accessMode),
+              ...(request.accessMode ? { sandboxPolicy: toCodexSandboxPolicy(sandbox) } : {}),
               ...(request.structuredOutputSchema ? { outputSchema: request.structuredOutputSchema } : {}),
             },
             { timeoutMs: this.options.requestTimeoutMs ?? 60_000 },

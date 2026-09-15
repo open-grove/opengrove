@@ -142,6 +142,7 @@ async function handleMemberPatchRoute(context: RoomsRouteContext): Promise<boole
     patch.accessMode = normalizeEmployeeAccessMode(
       patch.kernel ?? existing?.kernel ?? "",
       touched.includes("accessMode") ? rawBody.accessMode : existing?.accessMode,
+      patch.model ?? existing?.model,
     );
     if (
       existing?.accessMode !== undefined &&

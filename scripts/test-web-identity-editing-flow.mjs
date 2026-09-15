@@ -30,6 +30,7 @@ try {
     await page.goto(pathToFileURL(htmlPath).href);
     await testEmployeePageFlow(page);
     await testEmployeeAccessKernelSwitch(page);
+    await testNewEmployeePermissionDefaults(page);
     await testEmployeeReasoningKernelSwitch(page);
     await testEmployeeReasoningCapabilityStates(page);
     await testEmployeeReasoningServerDefault(page);
@@ -49,11 +50,26 @@ try {
   await rm(tempDir, { recursive: true, force: true });
 }
 
+async function testNewEmployeePermissionDefaults(page) {
+  await renderFixture(page, "employee-create");
+  const surface = page.locator("#identity-root .employee-dialog-embedded");
+  const access = surface.locator(".employee-dialog-field").filter({ hasText: "权限" });
+  await access.getByRole("button", { name: /请求批准/ }).waitFor();
+  await surface.locator(".employee-dialog-kernel-list").getByRole("button", { name: "Codex", exact: true }).click();
+  await access.getByRole("button", { name: /帮我批准/ }).waitFor();
+  await surface.locator(".employee-dialog-kernel-list").getByRole("button", { name: "Pi", exact: true }).click();
+  await access.getByRole("button", { name: /请求批准/ }).waitFor();
+  await access.getByRole("button").click();
+  await page.getByRole("option", { name: /^完全访问/ }).click();
+  await surface.locator(".employee-dialog-kernel-list").getByRole("button", { name: "Codex", exact: true }).click();
+  await access.getByRole("button", { name: /完全访问/ }).waitFor();
+}
+
 async function testEmployeeAccessKernelSwitch(page) {
   await renderFixture(page, "employee-page");
   const surface = page.locator("#identity-root .contacts-employee-settings-surface");
   const access = surface.locator(".employee-dialog-field").filter({ hasText: "权限" });
-  assert.match(await access.getByRole("button").innerText(), /完全访问/);
+  assert.match(await access.getByRole("button").innerText(), /帮我批准/);
   await access.getByRole("button").click();
   await page.getByRole("option", { name: /帮我批准/ }).click();
   await surface.locator(".employee-dialog-kernel-list").getByRole("button", { name: "Pi", exact: true }).click();
@@ -454,7 +470,7 @@ async function renderFixture(page, mode) {
     mode === "employee-reasoning-app-default-incompatible"
   ) {
     await page.locator("#identity-root .contacts-employee-settings-surface").waitFor();
-  } else if (mode === "employee-autosave-external-merge") {
+  } else if (mode === "employee-autosave-external-merge" || mode === "employee-create") {
     await page.locator("#identity-root .employee-dialog-embedded").waitFor();
   } else if (mode === "employee-dialog") {
     await page.getByRole("dialog", { name: "员工资料与运行设置" }).waitFor();
@@ -1032,6 +1048,24 @@ function entrySource() {
       );
     }
 
+    function EmployeeCreateFixture() {
+      return (
+        <EmployeeDialog
+          embedded
+          open
+          activeTab="runtime"
+          activeKernel="claude-code"
+          activeModel="native"
+          runtimeControlsByKernel={runtimeControlsByKernel}
+          kernelOptions={kernelOptions}
+          providers={[]}
+          modelProviderBindings={[]}
+          onOpenChange={() => undefined}
+          onCreate={() => undefined}
+        />
+      );
+    }
+
     function EmployeeAutosaveEchoFixture() {
       const [member, setMember] = React.useState({
         ...initialMember,
@@ -1129,6 +1163,7 @@ function entrySource() {
       if (mode === "employee-reasoning-user-override") renderWithToasts(<EmployeeFixture dialog={false} reasoningState="user-override" />);
       if (mode === "employee-reasoning-app-default-incompatible") renderWithToasts(<EmployeeFixture dialog={false} reasoningState="app-default-incompatible" />);
       if (mode === "employee-autosave-external-merge") renderWithToasts(<EmployeeAutosaveEchoFixture />);
+      if (mode === "employee-create") renderWithToasts(<EmployeeCreateFixture />);
       if (mode === "employee-unavailable-kernel") renderWithToasts(<EmployeeFixture dialog={false} unavailableKernel reasoningState="default" />);
       if (mode === "employee-dialog") renderWithToasts(<EmployeeFixture dialog reasoningState="default" />);
       if (mode === "app-page") renderWithToasts(<AppFixture dialog={false} />);

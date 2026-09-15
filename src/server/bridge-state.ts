@@ -1,7 +1,7 @@
 import {
-  migrateNativeApprovalPresetsV2,
+  migrateNativeApprovalPresetsV3,
   NATIVE_APPROVAL_PRESETS_VERSION,
-} from "./migrations/native-approval-presets-v2.js";
+} from "./migrations/native-approval-presets-v3.js";
 import { normalizeEmployeeAccessMode } from "./employee-access-mode.js";
 import { existsSync, readdirSync, renameSync, statSync, writeFileSync } from "node:fs";
 import { basename, join, relative, resolve } from "node:path";
@@ -794,10 +794,10 @@ export function recreateBridgeApp(state: BridgeState, options: RecreateBridgeApp
   );
   const needsApprovalMigration = state.settings.nativeApprovalPresetsVersion < NATIVE_APPROVAL_PRESETS_VERSION;
   const approvalMigrationChanged = needsApprovalMigration
-    ? migrateNativeApprovalPresetsV2(
+    ? migrateNativeApprovalPresetsV3(
         state.app.rooms,
         loadedState
-          ? () => backupLocalStateBeforeMigration(state.store.path, loadedState, "native-approval-presets-v2")
+          ? () => backupLocalStateBeforeMigration(state.store.path, loadedState, "native-approval-presets-v3")
           : undefined,
       )
     : false;
@@ -1069,7 +1069,7 @@ function backupLocalStateBeforeMigration(
     | "kernel-native-resume-v1"
     | "routine-app-command-id-v1"
     | "native-employee-model-v1"
-    | "native-approval-presets-v2",
+    | "native-approval-presets-v3",
 ): void {
   if (!statePath) return;
   const backupPath = `${statePath}.before-${step}.json`;
@@ -1224,7 +1224,7 @@ export function syncMountedAppSeedMember(existing: RoomChannelMember, seed: Room
     color: keep("color"),
     availableSkillIds: keep("availableSkillIds"),
     defaultSkillIds: keep("defaultSkillIds"),
-    accessMode: normalizeEmployeeAccessMode(keep("kernel"), keep("accessMode")),
+    accessMode: normalizeEmployeeAccessMode(keep("kernel"), keep("accessMode"), keep("model")),
     reasoningEffort: keep("reasoningEffort"),
     contextTokenBudget: keep("contextTokenBudget"),
     visibility: keep("visibility"),
@@ -1312,7 +1312,13 @@ export function syncProductDefaultSeedMembers(
 ): RoomChannelMember[] {
   return seedMembers.map((seed) => {
     const existing = existingMembers.get(seed.id);
-    if (existing) return syncMountedAppSeedMember(existing, seed);
+    if (existing) {
+      const merged = syncMountedAppSeedMember(existing, seed);
+      if (seed.id !== OPENGROVE_PM_MEMBER_ID && !merged.userOverrides?.includes("accessMode")) {
+        merged.accessMode = normalizeEmployeeAccessMode(merged.kernel, undefined, merged.model);
+      }
+      return merged;
+    }
     if (seed.id !== OPENGROVE_PM_MEMBER_ID) return seed;
     return migrateLegacyScopedPmRuntime(existingMembers, seed);
   });
