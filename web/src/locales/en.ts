@@ -919,12 +919,13 @@ export const EN = {
   "gate.retrying": "Retrying…",
   "gate.preparingLocalData": "Preparing local data",
   "gate.migratingLocalData": "Migrating local data. Please wait",
+  "gate.retryingLocalService": "Retrying the local service automatically",
   "gate.exportDiagnosticsFailed": "Failed to export the diagnostics bundle: {message}",
   "gate.startupIncompleteTitle": "Startup incomplete",
   "gate.startupIncompleteCopy":
     "OpenGrove has not finished starting. Retry, or export a diagnostics bundle for the developers.",
-  "gate.desktopStartupIncompleteCopy":
-    "OpenGrove is recovering the local service automatically. You can leave this window open; if recovery takes too long, export a diagnostics bundle for the developers.",
+  "gate.desktopStartupLongWaitCopy":
+    "This startup step is taking longer than usual. You can keep waiting or export diagnostics for troubleshooting.",
   "gate.startupBlockedTitle": "The local service needs attention",
   "gate.startupBlockedCopy":
     "OpenGrove pauses only when continuing could damage local data. Use an action below; recovery retries automatically when the action finishes.",

@@ -113,19 +113,10 @@ function renderWithProviders(root: Root, content: ReactNode) {
 function DesktopBootstrapGate({ desktop }: { desktop: OpenGroveDesktopApi }) {
   const [startupState, setStartupState] = React.useState(readDesktopBridgeStartupState(desktop));
   React.useEffect(() => desktop.onBridgeStartupStateChange?.(setStartupState), [desktop]);
-  const blocker =
-    startupState?.stage === "blocked"
-      ? {
-          code: startupState.code,
-          message: startupState.message,
-          actions: startupState.actions,
-        }
-      : undefined;
   return (
     <CloudAuthLoadingScreen
-      blocker={blocker}
-      recoveringLocalService
-      migratingLocalData={startupState?.stage === "migrating"}
+      mode="desktop"
+      startupState={startupState}
       onRetry={() => {
         void desktop.retryBridgeStartup?.();
       }}
