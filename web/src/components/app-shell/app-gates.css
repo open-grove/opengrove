@@ -112,6 +112,28 @@ html[data-opengrove-desktop="true"] .cloud-auth-language {
   color: var(--og-text-muted);
 }
 
+.cloud-auth-startup-panel,
+.cloud-auth-long-wait {
+  display: grid;
+  justify-items: center;
+  gap: var(--sp-3);
+  text-align: center;
+}
+
+.cloud-auth-startup-panel {
+  width: min(440px, calc(100vw - 40px));
+}
+
+.cloud-auth-long-wait {
+  color: var(--og-text-muted);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-normal);
+}
+
+.cloud-auth-long-wait > p {
+  margin: 0;
+}
+
 .cloud-auth-loading-progress .cloud-auth-loading-mark,
 .cloud-auth-loading-progress .cloud-auth-loading-mark svg {
   width: 62px;
