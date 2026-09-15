@@ -8,6 +8,7 @@ import type { HostOperation, HostOperationId, HostOperationOutput, RegisteredHos
 import { hostProtocol } from "#protocol/compiled";
 import type { CompiledHostOperation, CompiledHostOperationGroup } from "#protocol/compiler";
 import { APP_BRIDGE_TOKEN_HEADER } from "../identity.js";
+import { runSchemaCommand } from "./schema-command.js";
 import {
   assertHostOperationInputCatalog,
   decodeHostOperationCall,
@@ -50,6 +51,7 @@ export function isHostOperationCommand(
   args: readonly string[],
   catalog: HostOperationCliCatalog = hostProtocol,
 ): boolean {
+  if (args[0] === "schema") return true;
   const groupId = args[0];
   const group = groupId ? catalog.groups.find((candidate) => candidate.id === groupId) : undefined;
   if (!group) return false;
@@ -67,12 +69,10 @@ export function renderHostOperationOverview(catalog: HostOperationCliCatalog = h
   if (catalog.groups.length === 0) return "";
   return catalog.groups
     .map((group) => {
-      const commands = group.resources.flatMap((resource) =>
-        resource.operations.map((operation) => `  ${operationCommandPath(operation).join(" ")}  ${operation.summary}`),
-      );
-      return [`${group.title}:`, ...commands].join("\n");
+      const count = group.resources.reduce((total, resource) => total + resource.operations.length, 0);
+      return `  ${group.id.padEnd(12)} ${group.title} (${count} operations) — opengrove ${group.id} --help`;
     })
-    .join("\n\n");
+    .join("\n");
 }
 
 /**
@@ -118,6 +118,9 @@ export async function prepareHostOperationCommand(
 ): Promise<HostOperationPreparedCommand> {
   const catalog = options.catalog ?? hostProtocol;
   assertHostOperationCliCatalog(catalog);
+  if (args[0] === "schema") {
+    return { kind: "result", result: runSchemaCommand(args.slice(1), catalog) };
+  }
   if (!isHostOperationCommand(args, catalog)) {
     return { kind: "result", result: { handled: false, exitCode: HOST_OPERATION_CLI_EXIT.success } };
   }

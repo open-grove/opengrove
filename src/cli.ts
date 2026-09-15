@@ -29,6 +29,7 @@ Usage:
   opengrove app <inspect|validate|scaffold> ...
   opengrove employee pack <memberId> [--output FILE]
   opengrove auth <login|status|logout> ...
+  opengrove schema [group.resource.method]
   opengrove room message create [options]
   opengrove version
 
@@ -38,6 +39,7 @@ Commands:
   app             Inspect, scaffold, and validate portable OpenGrove Apps.
   employee        Package and publish Rooms employees.
   auth            Sign in once and share the CLI account session across commands.
+  schema          Inspect command parameters and responses without connecting.
   room             Call Room capabilities exposed by the Host Protocol.
   version         Print the installed OpenGrove version.
 
