@@ -764,7 +764,11 @@ export function buildClaudeCodeRuntimeControls(
     kernel: "claude-code",
     autoReviewModelIds: effortCache
       .filter((model) => model.supportsAutoMode === true)
-      .flatMap((model) => (model.resolvedModel ? [model.id, model.resolvedModel] : [model.id])),
+      .flatMap((model) => [
+        model.id,
+        ...(model.resolvedModel ? [model.resolvedModel] : []),
+        ...(model.id === "default" ? [CLAUDE_CODE_DEFAULT_MODEL_ID] : []),
+      ]),
     source: localRouteProfile?.source ?? "claude-code-defaults",
     models,
     defaultModel,

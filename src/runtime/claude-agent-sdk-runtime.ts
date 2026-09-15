@@ -363,7 +363,9 @@ export class ClaudeAgentSdkRuntime implements AgentRuntime {
             const supported = models.some(
               (model) =>
                 model.supportsAutoMode === true &&
-                (model.value === requestedModel || model.resolvedModel === requestedModel),
+                (requestedModel === undefined
+                  ? model.value === "default"
+                  : model.value === requestedModel || model.resolvedModel === requestedModel),
             );
             assertRuntimeAccessMode("claude-code", "auto-review", supported);
             await query.setPermissionMode("auto");

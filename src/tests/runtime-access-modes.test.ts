@@ -302,6 +302,97 @@ test("Claude auto review checks fresh native support before submitting any user 
   }
 });
 
+for (const scenario of ["supported", "unsupported", "unverified", "missing"] as const) {
+  test(`Claude native default auto review: ${scenario}`, async () => {
+    const cwd = mkdtempSync(join(tmpdir(), "opengrove-claude-default-permissions-"));
+    let submitted = false;
+    let acknowledged = false;
+    let closed = false;
+    const query: ClaudeAgentSdkQueryFunction = (params) => {
+      assert.equal(params.options?.model, undefined, "the native default must remain selected by Claude");
+      async function* messages() {
+        assert.notEqual(typeof params.prompt, "string");
+        if (typeof params.prompt !== "string") {
+          for await (const _input of params.prompt) {
+            assert.equal(acknowledged, true);
+            submitted = true;
+          }
+        }
+        yield {
+          type: "system",
+          subtype: "init",
+          session_id: "default-session",
+          model: "claude-default-concrete",
+          permissionMode: "auto",
+          claude_code_version: "test",
+          tools: [],
+          mcp_servers: [],
+          slash_commands: [],
+          skills: [],
+        };
+        yield {
+          type: "result",
+          subtype: "success",
+          result: "done",
+          session_id: "default-session",
+          usage: {},
+          modelUsage: {},
+        };
+      }
+      return Object.assign(messages(), {
+        supportedModels: async () => [
+          ...(scenario === "missing"
+            ? []
+            : [
+                {
+                  value: "default",
+                  displayName: "Default",
+                  description: "Native configuration",
+                  resolvedModel: "claude-default-concrete",
+                  ...(scenario === "unverified" ? {} : { supportsAutoMode: scenario === "supported" }),
+                },
+              ]),
+          { value: "claude-other", displayName: "Other", description: "Another model", supportsAutoMode: true },
+        ],
+        setPermissionMode: async (mode: string) => {
+          assert.equal(mode, "auto");
+          acknowledged = true;
+        },
+        close: () => {
+          closed = true;
+        },
+      }) as unknown as ReturnType<ClaudeAgentSdkQueryFunction>;
+    };
+    const runtime = new ClaudeAgentSdkRuntime({
+      cwd,
+      env: { CLAUDE_CONFIG_DIR: cwd },
+      query,
+    });
+    const events: AgentEvent[] = [];
+    for await (const event of runtime.runTurn({
+      input: "hello",
+      context: context(cwd),
+      requestedModelId: "claude-code-default",
+      tools: [],
+      accessMode: "auto-review",
+    }))
+      events.push(event);
+
+    assert.equal(closed, true);
+    assert.equal(submitted, scenario === "supported");
+    assert.equal(acknowledged, scenario === "supported");
+    const errors = events.filter((event) => event.type === "error");
+    assert.equal(errors.length, scenario === "supported" ? 0 : 1);
+    if (scenario !== "supported") assert.match(errors[0]!.message, /runtime_access_mode_unavailable/);
+    assert.deepEqual(
+      buildClaudeCodeRuntimeControls(cwd, undefined).autoReviewModelIds,
+      scenario === "supported"
+        ? ["default", "claude-default-concrete", "claude-code-default", "claude-other"]
+        : ["claude-other"],
+    );
+  });
+}
+
 test("Hermes presets use separate native homes, preserve denials and still ask user questions", async () => {
   const cwd = mkdtempSync(join(tmpdir(), "opengrove-hermes-presets-"));
   const sourceHome = join(cwd, "source");
