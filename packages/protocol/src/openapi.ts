@@ -34,7 +34,7 @@ export function hostProtocolToOpenApi(
   options: HostOpenApiOptions = {},
 ): HostOpenApiDocument {
   const paths: Record<string, Record<string, unknown>> = {};
-  const schemas = collectComponentSchemas(protocol);
+  const schemas: Record<string, JsonSchema> = {};
 
   for (const operation of protocol.operations) {
     const method = operation.method.toLowerCase();
@@ -42,7 +42,7 @@ export function hostProtocolToOpenApi(
     if (pathItem[method]) {
       throw new Error(`Host operations collide at ${operation.method} ${operation.path.template}.`);
     }
-    pathItem[method] = openApiOperation(operation);
+    pathItem[method] = openApiOperation(operation, schemas);
     paths[operation.path.template] = pathItem;
   }
 
@@ -65,34 +65,83 @@ export function hostProtocolToOpenApi(
   };
 }
 
-function collectComponentSchemas(
-  protocol: CompiledHostProtocol<readonly HostOperationGroup[]>,
-): Readonly<Record<string, JsonSchema>> {
-  const schemas: Record<string, JsonSchema> = {};
-  for (const operation of protocol.operations) {
-    for (const response of [operation.success, ...operation.additionalSuccesses, ...operation.errors]) {
-      if (!response.schemaId || !response.jsonSchema) continue;
-      const existing = schemas[response.schemaId];
-      if (existing && JSON.stringify(existing) !== JSON.stringify(response.jsonSchema)) {
-        throw new Error(`Host response schemaId ${response.schemaId} refers to more than one JSON Schema.`);
-      }
-      schemas[response.schemaId] = response.jsonSchema;
+/** JSON Schema refs are rooted at their schema document; OpenAPI embeds those documents. */
+function embedSchema(schema: JsonSchema, id: string, schemas: Record<string, JsonSchema>, force = false): JsonSchema {
+  const pointer = componentPointer(id);
+  const { $defs, ...root } = schema;
+  const definitions = $defs && typeof $defs === "object" && !Array.isArray($defs) ? Object.entries($defs) : [];
+  const definitionPointers = new Map(
+    definitions.map(([name]) => [
+      `#/$defs/${name.replace(/~/gu, "~0").replace(/\//gu, "~1")}`,
+      componentPointer(`${id}.definition.${encodeURIComponent(name)}`),
+    ]),
+  );
+  let hasLocalReference = false;
+  const rewrite = (reference: string): string => {
+    if (!reference.startsWith("#")) return reference;
+    hasLocalReference = true;
+    for (const [source, destination] of definitionPointers) {
+      if (reference === source || reference.startsWith(`${source}/`))
+        return destination + reference.slice(source.length);
     }
+    return `${pointer}${reference.slice(1)}`;
+  };
+  const rebased = mapSchemaReferences(root, rewrite) as JsonSchema;
+  if (!force && !hasLocalReference) return schema;
+  registerComponent(id, rebased, schemas);
+  for (const [name, definition] of definitions) {
+    registerComponent(
+      `${id}.definition.${encodeURIComponent(name)}`,
+      mapSchemaReferences(definition, rewrite) as JsonSchema,
+      schemas,
+    );
   }
-  return schemas;
+  return { $ref: pointer };
 }
 
-function openApiOperation(operation: CompiledHostOperation): Readonly<Record<string, unknown>> {
+function componentPointer(id: string): string {
+  return `#/components/schemas/${id.replace(/~/gu, "~0").replace(/\//gu, "~1")}`;
+}
+
+function registerComponent(id: string, schema: JsonSchema, schemas: Record<string, JsonSchema>): void {
+  const existing = schemas[id];
+  if (existing && JSON.stringify(existing) !== JSON.stringify(schema)) {
+    throw new Error(`Host response schemaId ${id} refers to more than one JSON Schema.`);
+  }
+  schemas[id] = schema;
+}
+
+function mapSchemaReferences(value: unknown, rewrite: (reference: string) => string): unknown {
+  if (Array.isArray(value)) return value.map((item) => mapSchemaReferences(item, rewrite));
+  if (!value || typeof value !== "object") return value;
+  return Object.fromEntries(
+    Object.entries(value).map(([key, child]) => [
+      key,
+      key === "$ref" && typeof child === "string"
+        ? rewrite(child)
+        : ["default", "examples", "const", "enum"].includes(key)
+          ? child
+          : mapSchemaReferences(child, rewrite),
+    ]),
+  );
+}
+
+function openApiOperation(
+  operation: CompiledHostOperation,
+  schemas: Record<string, JsonSchema>,
+): Readonly<Record<string, unknown>> {
   const parameters = [
-    ...openApiParameters(operation, operation.input.params, "path"),
-    ...openApiParameters(operation, operation.input.query, "query"),
+    ...openApiParameters(operation, operation.input.params, "path", schemas),
+    ...openApiParameters(operation, operation.input.query, "query", schemas),
   ];
   const responses = Object.fromEntries([
-    [String(operation.success.status), openApiResponse(operation.success, true)],
+    [String(operation.success.status), openApiResponse(operation.success, true, operation.id, schemas)],
     ...operation.additionalSuccesses.map(
-      (response) => [String(response.status), openApiResponse(response, true)] as const,
+      (response) => [String(response.status), openApiResponse(response, true, operation.id, schemas)] as const,
     ),
-    ...operation.errors.map((response) => [String(response.status), openApiResponse(response, false)] as const),
+    ...operation.errors.map(
+      (response) => [String(response.status), openApiResponse(response, false, operation.id, schemas)] as const,
+    ),
   ]);
 
   return {
@@ -108,7 +157,11 @@ function openApiOperation(operation: CompiledHostOperation): Readonly<Record<str
       ? {
           requestBody: {
             required: true,
-            content: { "application/json": { schema: operation.input.body.jsonSchema } },
+            content: {
+              "application/json": {
+                schema: embedSchema(operation.input.body.jsonSchema, `${operation.id}.body`, schemas),
+              },
+            },
           },
         }
       : {}),
@@ -120,9 +173,12 @@ function openApiParameters(
   operation: CompiledHostOperation,
   section: CompiledHostInputSection | undefined,
   location: "path" | "query",
+  schemas: Record<string, JsonSchema>,
 ): readonly Readonly<Record<string, unknown>>[] {
   if (!section) return [];
-  const properties = schemaProperties(operation.id, section.jsonSchema);
+  const id = `${operation.id}.${section.name}`;
+  const embedded = embedSchema(section.jsonSchema, id, schemas);
+  const properties = schemaProperties(operation.id, schemas[id] ?? embedded);
   return section.fields.map((field) => {
     const schema = properties[field.name];
     if (!schema || typeof schema !== "object" || Array.isArray(schema)) {
@@ -140,14 +196,24 @@ function openApiParameters(
   });
 }
 
-function openApiResponse(response: CompiledHostResponse, success: boolean): Readonly<Record<string, unknown>> {
+function openApiResponse(
+  response: CompiledHostResponse,
+  success: boolean,
+  operationId: string,
+  schemas: Record<string, JsonSchema>,
+): Readonly<Record<string, unknown>> {
   return {
     description: response.description ?? (success ? "Successful response." : "Error response."),
     ...(response.jsonSchema
       ? {
           content: {
             "application/json": {
-              schema: response.schemaId ? { $ref: `#/components/schemas/${response.schemaId}` } : response.jsonSchema,
+              schema: embedSchema(
+                response.jsonSchema,
+                response.schemaId ?? `${operationId}.response.${response.status}`,
+                schemas,
+                Boolean(response.schemaId),
+              ),
             },
           },
         }

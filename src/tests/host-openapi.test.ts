@@ -1,6 +1,13 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { hostProtocolToOpenApi } from "#protocol";
+import { z } from "zod";
+import { compileHostProtocol } from "#protocol/compiler";
+import {
+  defineHostOperation,
+  defineHostOperationGroup,
+  defineHostOperationResource,
+  hostProtocolToOpenApi,
+} from "#protocol";
 import { hostProtocol } from "#protocol/compiled";
 
 test("Host Protocol projects every operation into OpenAPI 3.1", () => {
@@ -74,3 +81,51 @@ function readArray(value: unknown): unknown[] {
   assert.ok(Array.isArray(value));
   return value;
 }
+
+test("OpenAPI keeps recursive JSON references resolvable after embedding schemas", () => {
+  const fixture = defineHostOperation({
+    id: "fixture.json.echo",
+    summary: "Echo JSON",
+    description: "Recursive JSON contract fixture.",
+    method: "POST",
+    path: "/fixture",
+    risk: "write",
+    query: z.object({ filter: z.json().optional() }),
+    body: z.object({ value: z.json() }),
+    success: { status: 200, body: z.object({ value: z.json() }) },
+  });
+  const catalog = compileHostProtocol([
+    defineHostOperationGroup({
+      id: "fixture",
+      title: "Fixture",
+      description: "OpenAPI fixtures.",
+      resources: [
+        defineHostOperationResource({
+          id: "json",
+          title: "JSON",
+          description: "Recursive values.",
+          operations: [fixture] as const,
+        }),
+      ] as const,
+    }),
+  ] as const);
+  const document = hostProtocolToOpenApi(catalog);
+  function inspect(value: unknown): void {
+    if (!value || typeof value !== "object") return;
+    if (Array.isArray(value)) {
+      value.forEach(inspect);
+      return;
+    }
+    const record = value as Record<string, unknown>;
+    if (typeof record.$ref === "string" && record.$ref.startsWith("#")) {
+      let target: unknown = document;
+      for (const segment of record.$ref.slice(2).split("/")) {
+        const name = segment.replace(/~1/g, "/").replace(/~0/g, "~");
+        assert.ok(target && typeof target === "object" && name in target, `Unresolved reference: ${record.$ref}`);
+        target = (target as Record<string, unknown>)[name];
+      }
+    }
+    Object.values(record).forEach(inspect);
+  }
+  inspect(document);
+});
