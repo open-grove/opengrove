@@ -16,7 +16,10 @@ try {
     `
 import assert from "node:assert/strict";
 import { BridgeRequestError } from ${JSON.stringify(join(projectRoot, "web/src/bridge-client.ts"))};
-import { publishProgressFromError } from ${JSON.stringify(join(projectRoot, "web/src/components/network/app-store-publish-model.ts"))};
+import { publishProgressFromError, releaseErrorMessage } from ${JSON.stringify(join(projectRoot, "web/src/components/network/app-store-publish-model.ts"))};
+
+assert.equal(releaseErrorMessage((key) => key, "app_store_publish_journal_corrupted"),
+  "appStore.release.errorJournalCorrupted", "journal failures need an actionable localized message");
 
 const blockedRelease = {
   id: "blocked-release",
