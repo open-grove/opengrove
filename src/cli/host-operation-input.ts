@@ -216,9 +216,10 @@ function sectionFields(section: CompiledHostInputSection): HostOperationCliField
   const properties = isRecord(section.jsonSchema.properties) ? section.jsonSchema.properties : {};
   return section.fields.map((field) => {
     const propertySchema = properties[field.name];
+    const flag = kebabCase(field.name);
     return {
       name: field.name,
-      flag: kebabCase(field.name),
+      flag: COMMON_OPTION_FLAGS.has(flag) ? `${section.name}-${flag}` : flag,
       required: field.required,
       schema: isRecord(propertySchema) ? propertySchema : {},
     };
@@ -233,7 +234,6 @@ function splitFlag(arg: string): { flag: string; inlineValue?: string } {
 
 function readOptionValue(args: readonly string[], index: number, flag: string, inlineValue?: string): string {
   if (inlineValue !== undefined) {
-    if (!inlineValue) throw new HostOperationCliUsageError("option_value_required", `${flag} requires a value.`);
     return inlineValue;
   }
   const value = args[index + 1];

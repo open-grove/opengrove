@@ -297,6 +297,8 @@ function renderOperationHelp(operation: CompiledHostOperation): string {
     "Operation options:",
     ...(fieldLines.length > 0 ? fieldLines : ["  (none)"]),
     "",
+    "Fields that share a common option name use --body-, --query-, or --params- prefixes.",
+    "",
     "Common options:",
     "  --input <json|@file|->  JSON fields, a UTF-8 JSON file, or piped stdin (16 MiB maximum). Field flags override it.",
     `  --base-url <url>   Bridge API base URL. Default: OPENGROVE_BRIDGE_URL or ${DEFAULT_HOST_OPERATION_BRIDGE_API_URL}.`,
