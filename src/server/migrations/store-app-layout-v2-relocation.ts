@@ -60,8 +60,11 @@ function mappedPath(path: string, paths: StoreAppRelocations): string | undefine
   return undefined;
 }
 
-export function relocatedStoreAppLink(source: string, link: string, paths: StoreAppRelocations): string {
-  const oldTarget = resolve(dirname(source), link);
+function mappedReferenceTarget(
+  oldTarget: string,
+  paths: StoreAppRelocations,
+  kind: "link" | "path",
+): string | undefined {
   let effectiveTarget = oldTarget;
   let target = mappedPath(oldTarget, paths);
   if (!target) {
@@ -85,7 +88,13 @@ export function relocatedStoreAppLink(source: string, link: string, paths: Store
       }),
     )
   )
-    throw new Error("store_app_layout_unmapped_legacy_link");
+    throw new Error(`store_app_layout_unmapped_legacy_${kind}`);
+  return target;
+}
+
+export function relocatedStoreAppLink(source: string, link: string, paths: StoreAppRelocations): string {
+  const oldTarget = resolve(dirname(source), link);
+  const target = mappedReferenceTarget(oldTarget, paths, "link");
   if (isAbsolute(link)) return target ?? link;
   const destination = mappedPath(source, paths);
   if (!destination) throw new Error("store_app_layout_relocation_path_invalid");
@@ -107,7 +116,9 @@ export function inspectStoreAppRelocationTree(
 export function relocatedStoreAppFile(source: string, content: Buffer, paths: StoreAppRelocations): Buffer {
   const target = mappedPath(source, paths);
   if (!target) throw new Error("store_app_layout_relocation_path_invalid");
-  return relocatedStoreAppPythonFile(source, target, content);
+  return relocatedStoreAppPythonFile(source, target, content, (path) =>
+    isAbsolute(path) ? (mappedReferenceTarget(path, paths, "path") ?? path) : path,
+  );
 }
 
 /** Only called on our fresh staging copy, never on a source or an unowned pre-existing target. */

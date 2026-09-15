@@ -91,7 +91,12 @@ adapted for OpenGrove's separately located Program and Workspace trees.
 
 For a recognized Python virtual environment, migration updates `pyvenv.cfg` and
 UTF-8 text launchers/activation scripts directly under `bin` or `Scripts` in the
-copy. POSIX Python entry-point shebangs use a shell/Python launcher that supports
+copy. The `home` and `executable` configuration fields, the interpreter in
+`command`, and direct Python shebangs or generated shell/Python launchers use
+the same target mapping as links. This includes a base interpreter bundled
+inside Program but outside the venv. External interpreter addresses stay intact;
+unmapped legacy addresses fail preflight with `store_app_layout_unmapped_legacy_path`.
+POSIX Python entry-point shebangs use a shell/Python launcher that supports
 spaces and long paths. Paths refer to the final location, never staging. Installed
 packages, binary files, other program text, and Workspace documents remain intact;
 no Python or package installer is executed during migration. This is same-machine
