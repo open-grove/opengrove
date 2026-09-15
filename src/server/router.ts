@@ -204,15 +204,15 @@ function operationPathParams(operation: CompiledHostOperation, pathname: string)
   );
 }
 
-function operationQueryParams(operation: CompiledHostOperation, url: URL): Record<string, string | string[]> {
+function operationQueryParams(operation: CompiledHostOperation, url: URL): Record<string, unknown> {
   const properties = operation.input.query?.jsonSchema.properties;
   const schemas = isRecord(properties) ? properties : {};
-  const query: Record<string, string | string[]> = {};
+  const query: Record<string, unknown> = {};
   for (const name of new Set(url.searchParams.keys())) {
     const values = url.searchParams.getAll(name);
     const schema = schemas[name];
-    if (isArraySchema(schema)) {
-      query[name] = values;
+    if (isRecord(schema) && schema.type === "array") {
+      query[name] = values.map((value) => decodeQueryScalar(value, schema.items));
       continue;
     }
     if (schema && values.length > 1) {
@@ -220,13 +220,26 @@ function operationQueryParams(operation: CompiledHostOperation, url: URL): Recor
         { path: `query.${name}`, code: "query_parameter_repeated" },
       ]);
     }
-    query[name] = values.length === 1 ? values[0]! : values;
+    query[name] = values.length === 1 ? decodeQueryScalar(values[0]!, schema) : values;
   }
   return query;
 }
 
-function isArraySchema(value: unknown): boolean {
-  return isRecord(value) && value.type === "array";
+function decodeQueryScalar(value: string, schema: unknown): unknown {
+  if (!isRecord(schema)) return value;
+  // Only the declared wire type is decoded here. Zod still owns constraints and
+  // errors, so empty strings and non-decimal numbers must remain invalid input.
+  if (schema.type === "boolean") {
+    if (value === "true") return true;
+    if (value === "false") return false;
+  }
+  if (
+    (schema.type === "number" || schema.type === "integer") &&
+    /^-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?$/u.test(value)
+  ) {
+    return Number(value);
+  }
+  return value;
 }
 
 function reportHostResponseViolation(

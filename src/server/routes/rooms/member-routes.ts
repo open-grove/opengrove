@@ -1,4 +1,11 @@
-import { record } from "../../http-utils.js";
+import type {
+  UpsertEmployeeOperation,
+  UpdateEmployeeOperation,
+  RestoreEmployeeDefaultsOperation,
+  AddRoomMemberOperation,
+  RemoveRoomMemberOperation,
+} from "#protocol";
+import type { HostOperationRouteContext } from "../../router.js";
 import { isBridgeKernelId, type RoomChannelMember, type RoomChannelStore } from "../../../rooms/channel-store.js";
 import { employeeManifestDefaultsPatch, mountedAppDefaultEmployees } from "../../bridge-mounted-app-employees.js";
 import { isProductDefaultEmployeeId } from "../../product-default-employees.js";
@@ -53,25 +60,18 @@ function withPreservedServerOwnedMeta(state: RoomsRouteContext["state"], member:
   return { ...member, userOverrides: existing.userOverrides, manifestDefaults: existing.manifestDefaults };
 }
 
-export async function handleRoomMemberRoutes(context: RoomsRouteContext): Promise<boolean> {
-  return (
-    (await handleRoomMemberAddRoute(context)) ||
-    (await handleMemberUpsertRoute(context)) ||
-    (await handleMemberRestoreAppDefaultsRoute(context)) ||
-    (await handleMemberPatchRoute(context)) ||
-    (await handleRoomMemberDeleteRoute(context))
-  );
-}
-
-async function handleRoomMemberAddRoute(context: RoomsRouteContext): Promise<boolean> {
-  const { request, response, url, state, sendJson, readJsonBody } = context;
-  const membersAction = url.pathname.match(/^\/rooms\/([^/]+)\/members$/);
-  if (!membersAction || request.method !== "POST") return false;
-  const [, encodedRoomId] = membersAction;
-  const normalizedMember = withPreservedServerOwnedMeta(state, normalizeMember(record(await readJsonBody(request))));
+export async function handleAddRoomMemberOperation(
+  context: HostOperationRouteContext<AddRoomMemberOperation>,
+): Promise<true> {
+  const { response, state, sendJson } = context;
+  const existing = state.app.rooms.listMembers().find((member) => member.id === context.input.body.id);
+  const normalizedMember = withPreservedServerOwnedMeta(state, {
+    ...existing,
+    ...normalizeMember({ ...existing, ...context.input.body }),
+  });
   let member: RoomChannelMember;
   try {
-    member = state.app.rooms.addMember(decodeURIComponent(encodedRoomId!), normalizedMember);
+    member = state.app.rooms.addMember(context.input.params.roomId, normalizedMember);
   } catch (error) {
     const result = roomMutationErrorResponse(error);
     if (!result) throw error;
@@ -83,11 +83,11 @@ async function handleRoomMemberAddRoute(context: RoomsRouteContext): Promise<boo
   return true;
 }
 
-async function handleMemberUpsertRoute(context: RoomsRouteContext): Promise<boolean> {
-  const { request, response, url, state, sendJson, readJsonBody } = context;
-  if (request.method !== "POST" || url.pathname !== "/rooms/members") return false;
-  const body = record(await readJsonBody(request));
-  const normalizedMember = normalizeMember(body);
+export async function handleUpsertEmployeeOperation(
+  context: HostOperationRouteContext<UpsertEmployeeOperation>,
+): Promise<true> {
+  const { response, state, sendJson } = context;
+  const normalizedMember = normalizeMember(context.input.body);
   const member = state.app.rooms.upsertMember(withPreservedServerOwnedMeta(state, normalizedMember), {
     emitEvent: true,
   });
@@ -96,11 +96,11 @@ async function handleMemberUpsertRoute(context: RoomsRouteContext): Promise<bool
   return true;
 }
 
-async function handleMemberRestoreAppDefaultsRoute(context: RoomsRouteContext): Promise<boolean> {
-  const { request, response, url, state, sendJson } = context;
-  const action = url.pathname.match(/^\/rooms\/members\/([^/]+)\/restore-app-defaults$/);
-  if (!action || request.method !== "POST") return false;
-  const memberId = decodeURIComponent(action[1]!);
+export async function handleRestoreEmployeeDefaultsOperation(
+  context: HostOperationRouteContext<RestoreEmployeeDefaultsOperation>,
+): Promise<true> {
+  const { response, state, sendJson } = context;
+  const { memberId } = context.input.params;
   const existing = state.app.rooms.listMembers().find((candidate) => candidate.id === memberId);
   if (!existing) {
     sendJson(response, 404, { ok: false, error: "room_member_not_found" });
@@ -119,14 +119,14 @@ async function handleMemberRestoreAppDefaultsRoute(context: RoomsRouteContext): 
   return true;
 }
 
-async function handleMemberPatchRoute(context: RoomsRouteContext): Promise<boolean> {
-  const { request, response, url, state, sendJson, readJsonBody } = context;
-  const globalMemberAction = url.pathname.match(/^\/rooms\/members\/([^/]+)$/);
-  if (!globalMemberAction || request.method !== "PATCH") return false;
-  const memberId = decodeURIComponent(globalMemberAction[1]!);
-  const rawBody = record(await readJsonBody(request));
+export async function handleUpdateEmployeeOperation(
+  context: HostOperationRouteContext<UpdateEmployeeOperation>,
+): Promise<true> {
+  const { response, state, sendJson } = context;
+  const { memberId } = context.input.params;
+  const patchInput = context.input.body;
   const existing = state.app.rooms.listMembers().find((candidate) => candidate.id === memberId);
-  const patch = normalizeMemberPatch(rawBody, existing?.kernel);
+  const patch = normalizeMemberPatch(patchInput, existing?.kernel);
   if (existing?.source === "remote") {
     const member = state.app.rooms.patchMember(memberId, {
       ...(patch.name !== undefined ? { name: patch.name } : {}),
@@ -136,7 +136,7 @@ async function handleMemberPatchRoute(context: RoomsRouteContext): Promise<boole
     sendJson(response, 200, { ok: true, member, currentEventSeq: state.app.rooms.snapshot().currentEventSeq });
     return true;
   }
-  const touched = USER_OVERRIDABLE_FIELDS.filter((field) => Object.prototype.hasOwnProperty.call(rawBody, field));
+  const touched = USER_OVERRIDABLE_FIELDS.filter((field) => Object.prototype.hasOwnProperty.call(patchInput, field));
   // For seed-managed employees, non-null fields become user overrides. Clearing
   // reasoning or model means "follow App/Kernel defaults", so remove that marker
   // and immediately restore the effective default value instead.
@@ -145,8 +145,8 @@ async function handleMemberPatchRoute(context: RoomsRouteContext): Promise<boole
       const nextOverrides = new Set(existing.userOverrides ?? []);
       for (const field of touched) {
         if (
-          (field === "reasoningEffort" && rawBody.reasoningEffort === null) ||
-          (field === "model" && isClearedModelValue(rawBody.model))
+          (field === "reasoningEffort" && patchInput.reasoningEffort === null) ||
+          (field === "model" && isClearedModelValue(patchInput.model))
         ) {
           nextOverrides.delete(field);
         } else {
@@ -155,7 +155,7 @@ async function handleMemberPatchRoute(context: RoomsRouteContext): Promise<boole
       }
       patch.userOverrides = nextOverrides.size ? [...nextOverrides] : undefined;
     }
-    if (Object.prototype.hasOwnProperty.call(rawBody, "model") && isClearedModelValue(rawBody.model)) {
+    if (Object.prototype.hasOwnProperty.call(patchInput, "model") && isClearedModelValue(patchInput.model)) {
       patch.model = defaultModelForEmployee(state, existing, patch.kernel ?? existing.kernel);
     }
   }
@@ -206,13 +206,11 @@ function propagateEmployeeDefinitionRuntime(rooms: RoomChannelStore, definition:
   }
 }
 
-async function handleRoomMemberDeleteRoute(context: RoomsRouteContext): Promise<boolean> {
-  const { request, response, url, state, sendJson } = context;
-  const memberAction = url.pathname.match(/^\/rooms\/([^/]+)\/members\/([^/]+)$/);
-  if (!memberAction || request.method !== "DELETE") return false;
-  const [, encodedRoomId, encodedMemberId] = memberAction;
-  const roomId = decodeURIComponent(encodedRoomId!);
-  const memberId = decodeURIComponent(encodedMemberId!);
+export async function handleRemoveRoomMemberOperation(
+  context: HostOperationRouteContext<RemoveRoomMemberOperation>,
+): Promise<true> {
+  const { response, state, sendJson } = context;
+  const { roomId, memberId } = context.input.params;
   const room = state.app.rooms.removeMember(roomId, memberId);
   state.store.saveFrom(state.app);
   sendJson(response, 200, {

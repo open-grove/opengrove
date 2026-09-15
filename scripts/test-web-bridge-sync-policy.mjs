@@ -59,7 +59,8 @@ assert.doesNotMatch(
   /input\.refetchInterval !== false/,
   "a refresh cadence must not implicitly opt a query into a 25-second long poll",
 );
-assert.match(eventQuerySource, /params\.append\("runId", runId\)/);
+assert.match(eventQuerySource, /openGroveClient\.runs\.events\.list/);
+assert.match(eventQuerySource, /runId: input\.runIds/);
 assert.equal(
   (flowPreviewSource.match(/useAgentEventsQuery\(/g) ?? []).length,
   1,

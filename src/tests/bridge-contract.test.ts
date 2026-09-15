@@ -382,6 +382,32 @@ test("Host operation query arrays keep their declared shape", async () => {
   assert.deepEqual(receivedQueries, [{ tags: ["one"] }, { tags: ["one", "two"] }]);
 });
 
+test("Host query decoding preserves declared numbers and false booleans", async () => {
+  const operation = defineHostOperation({
+    id: "test.item.list",
+    summary: "List items",
+    description: "Typed query parameters.",
+    method: "POST",
+    path: "/test",
+    risk: "read",
+    query: z.object({ limit: z.number().int().positive(), archived: z.boolean(), ids: z.array(z.number().int()) }),
+    success: { status: 200, body: z.object({ ok: z.literal(true) }) },
+  });
+  const received: unknown[] = [];
+  const route = operationRoute(compileTestOperation(operation), (context) => {
+    received.push(context.input.query);
+  });
+  const context = contractTestContext({ body: {} });
+  context.url = new URL("http://127.0.0.1/test?limit=10&archived=false&ids=3&ids=7");
+  await dispatchBridgeRoutes([route], context);
+  assert.deepEqual(received, [{ limit: 10, archived: false, ids: [3, 7] }]);
+  for (const query of ["limit=&archived=false&ids=3", "limit=10&archived=0&ids=3", "limit=0x10&archived=true&ids=3"]) {
+    context.url = new URL(`http://127.0.0.1/test?${query}`);
+    await assert.rejects(dispatchBridgeRoutes([route], context), BridgeContractViolation);
+  }
+  assert.equal(received.length, 1);
+});
+
 test("Host operation query scalars reject repeated values", async () => {
   const operation = defineHostOperation({
     id: "test.item.list",

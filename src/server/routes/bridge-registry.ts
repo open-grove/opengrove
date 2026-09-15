@@ -26,10 +26,32 @@ import { createHealthRoutes, createInventoryRoutes } from "./core.js";
 import { handleExtensionsRoute } from "./extensions.js";
 import { handleKnowledgeRoute } from "./knowledge.js";
 import { handleLocalResourceRoute } from "./local-resources.js";
-import { handlePendingActionsRoute } from "./pending-actions.js";
+import { createPendingActionRoutes } from "./pending-actions.js";
 import { moduleRoute, operationRoute } from "./registry-utils.js";
 import { handleRoomLedgerCapabilityRoute } from "./room-ledger.js";
-import { handleCreateRoomMessageOperation } from "./rooms/message-routes.js";
+import {
+  handleCreateRoomMessageOperation,
+  handleListRoomMessagesOperation,
+  handleRecordRoomMessageOperation,
+  handleCancelRoomMessageOperation,
+  handleUpdateRoomMessageOperation,
+  handleDeleteRoomMessageOperation,
+} from "./rooms/message-routes.js";
+import {
+  handleCreateRoomOperation,
+  handleListRoomsOperation,
+  handleListRoomEventsOperation,
+  handleOpenDirectRoomOperation,
+  handleUpdateRoomOperation,
+  handleMarkRoomReadOperation,
+} from "./rooms/collection-routes.js";
+import {
+  handleUpsertEmployeeOperation,
+  handleUpdateEmployeeOperation,
+  handleRestoreEmployeeDefaultsOperation,
+  handleAddRoomMemberOperation,
+  handleRemoveRoomMemberOperation,
+} from "./rooms/member-routes.js";
 import { handleRoomsRoute } from "./rooms.js";
 import { createRoutineRoutes } from "./routines.js";
 import { handleSettingsRoute } from "./settings.js";
@@ -62,7 +84,7 @@ export function createBridgeRoutes(): BridgeRoute[] {
       handleWorkspaceResourceRoute(context),
     ),
     moduleRoute("local-resources", /^\/local-resource(?:\/|$)/, (context) => handleLocalResourceRoute(context)),
-    moduleRoute("pending-actions", isPendingActionRoute, (context) => handlePendingActionsRoute(context)),
+    ...createPendingActionRoutes(),
     ...createStateRoutes(),
     moduleRoute("knowledge", /^\/knowledge(?:\/|$)/, (context) => handleKnowledgeRoute(context)),
     moduleRoute("extensions", /^\/extensions(?:\/|$)/, (context) => handleExtensionsRoute(context)),
@@ -75,7 +97,23 @@ export function createBridgeRoutes(): BridgeRoute[] {
     operationRoute(hostContractById["app.release.keep-local"], handleKeepLocalAppReleaseOperation),
     moduleRoute("apps", /^\/apps\//, (context) => handleAppsRoute(context)),
     ...createInventoryRoutes(),
+    operationRoute(hostContractById["room.message.delete"], handleDeleteRoomMessageOperation),
+    operationRoute(hostContractById["room.message.update"], handleUpdateRoomMessageOperation),
+    operationRoute(hostContractById["room.message.cancel"], handleCancelRoomMessageOperation),
+    operationRoute(hostContractById["room.message.record"], handleRecordRoomMessageOperation),
+    operationRoute(hostContractById["room.message.list"], handleListRoomMessagesOperation),
     operationRoute(hostContractById["room.message.create"], handleCreateRoomMessageOperation),
+    operationRoute(hostContractById["room.direct.open"], handleOpenDirectRoomOperation),
+    operationRoute(hostContractById["room.event.list"], handleListRoomEventsOperation),
+    operationRoute(hostContractById["room.room.list"], handleListRoomsOperation),
+    operationRoute(hostContractById["room.room.create"], handleCreateRoomOperation),
+    operationRoute(hostContractById["room.room.update"], handleUpdateRoomOperation),
+    operationRoute(hostContractById["room.room.read"], handleMarkRoomReadOperation),
+    operationRoute(hostContractById["employee.employee.upsert"], handleUpsertEmployeeOperation),
+    operationRoute(hostContractById["employee.employee.update"], handleUpdateEmployeeOperation),
+    operationRoute(hostContractById["employee.employee.restore-defaults"], handleRestoreEmployeeDefaultsOperation),
+    operationRoute(hostContractById["room.member.add"], handleAddRoomMemberOperation),
+    operationRoute(hostContractById["room.member.remove"], handleRemoveRoomMemberOperation),
     moduleRoute("rooms", /^\/rooms(?:\/|$)/, (context) => handleRoomsRoute(context)),
     ...createRoutineRoutes(),
     ...createAskRoutes(),
@@ -90,14 +128,5 @@ function isWithdrawalRoute(context: BridgeRouteContext): boolean {
     context.url.pathname === "/v1/payout-orders" ||
     /^\/v1\/payout-orders\/[^/]+$/.test(context.url.pathname) ||
     /^\/v1\/payout-orders\/[^/]+\/sync$/.test(context.url.pathname)
-  );
-}
-
-function isPendingActionRoute(context: BridgeRouteContext): boolean {
-  return (
-    context.url.pathname === "/approvals" ||
-    context.url.pathname === "/questions" ||
-    /^\/approvals\/[^/]+\/(approve|reject|cancel)$/.test(context.url.pathname) ||
-    /^\/questions\/[^/]+\/(answer|decline|cancel)$/.test(context.url.pathname)
   );
 }

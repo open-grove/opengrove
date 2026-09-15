@@ -82,15 +82,17 @@ test("Host CLI leaves unrelated handwritten commands available when a Protocol g
   assert.equal(isHostOperationCommand(["app", "inspect", "."], catalog), false);
 });
 
-test("Host CLI catalog rejects Protocol fields that collide with common options", () => {
+test("Host CLI scopes business fields that share names with common options", async () => {
   const collisionOperation = defineHostOperation({
     id: "room.message.collision-test",
     summary: "Test a CLI option collision",
     description: "Compiler fixture for a CLI option collision.",
     method: "POST",
-    path: "/rooms/collision-test",
+    path: "/rooms/{token}/collision-test",
     risk: "write",
-    body: z.object({ dryRun: z.boolean() }),
+    params: z.object({ token: z.string() }),
+    query: z.object({ format: z.string() }),
+    body: z.object({ dryRun: z.boolean(), input: z.string() }),
     success: { status: 200, body: z.object({ ok: z.literal(true) }) },
   });
   const catalog = compileHostProtocol([
@@ -109,7 +111,42 @@ test("Host CLI catalog rejects Protocol fields that collide with common options"
     }),
   ] as const);
 
-  assert.throws(() => assertHostOperationCliCatalog(catalog), /field dryRun conflicts with common option --dry-run/u);
+  assert.doesNotThrow(() => assertHostOperationCliCatalog(catalog));
+  const result = await runHostOperationCommand(
+    [
+      "room",
+      "message",
+      "collision-test",
+      "--params-token",
+      "target",
+      "--query-format",
+      "text",
+      "--body-dry-run",
+      "false",
+      "--input",
+      '{"input":"from JSON"}',
+      "--body-input",
+      "hello",
+      "--format",
+      "json",
+      "--token",
+      "credential",
+      "--dry-run",
+    ],
+    { catalog },
+  );
+  assert.equal(result.exitCode, 0, result.stderr);
+  assert.deepEqual(readOutput(result).request, {
+    method: "POST",
+    path: "/rooms/{token}/collision-test",
+    params: { token: "target" },
+    query: { format: "text" },
+    body: { dryRun: false, input: "hello" },
+  });
+  assert.equal(result.stdout?.includes("credential"), false);
+  const help = await runHostOperationCommand(["room", "message", "collision-test", "--help"], { catalog });
+  assert.match(help.stdout ?? "", /--body-input/);
+  assert.match(help.stdout ?? "", /--query-format/);
 });
 
 test("Host CLI dry-run validates input, applies defaults, and never sends a request", async () => {
@@ -363,3 +400,57 @@ function readRecord(value: unknown): Record<string, unknown> {
   assert.ok(value && typeof value === "object" && !Array.isArray(value));
   return value as Record<string, unknown>;
 }
+
+test("Host CLI reports declared business failures even when HTTP succeeds", async () => {
+  const operation = defineHostOperation({
+    id: "run.direct.guide",
+    summary: "Guide a run",
+    description: "Business result fixture.",
+    method: "POST",
+    path: "/ask/guide",
+    risk: "write",
+    success: { status: 200, body: z.object({ ok: z.boolean(), guided: z.boolean(), error: z.string().optional() }) },
+  });
+  const catalog = compileHostProtocol([
+    defineHostOperationGroup({
+      id: "run",
+      title: "Runs",
+      description: "Run controls.",
+      resources: [
+        defineHostOperationResource({
+          id: "direct",
+          title: "Direct runs",
+          description: "Direct controls.",
+          operations: [operation] as const,
+        }),
+      ] as const,
+    }),
+  ] as const);
+  const result = await runHostOperationCommand(["run", "direct", "guide"], {
+    catalog,
+    fetch: async () => new Response(JSON.stringify({ ok: false, guided: false, error: "Run not found" })),
+  });
+  assert.equal(result.exitCode, 1);
+  assert.equal(result.stdout, undefined);
+  const payload = readError(result);
+  assert.equal(payload.operation, "run.direct.guide");
+  assert.equal(readRecord(payload.error).subtype, "operation_failed");
+  assert.equal(readRecord(payload.error).message, "Run not found");
+  assert.deepEqual(payload.data, { ok: false, guided: false, error: "Run not found" });
+});
+
+test("Host CLI accepts an explicit empty string with an equals-style field option", async () => {
+  const result = await runHostOperationCommand([
+    "room",
+    "message",
+    "update",
+    "--room-id",
+    "room",
+    "--message-id",
+    "message",
+    "--text=",
+    "--dry-run",
+  ]);
+  assert.equal(result.exitCode, 0, result.stderr);
+  assert.deepEqual(readRecord(readOutput(result).request).body, { text: "" });
+});
