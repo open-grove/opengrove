@@ -45,12 +45,12 @@ const mountedApp = {
 
 assert.equal(startupTimeoutPolicy.resolveStartupTimeoutMs({}), 15_000);
 assert.equal(
-  startupTimeoutPolicy.resolveStartupTimeoutMs({ recoveringLocalService: true }),
+  startupTimeoutPolicy.resolveStartupTimeoutMs({ mode: "desktop" }),
   45_000,
-  "a recovering desktop Bridge must retain its loading state through normal cold-start CLI discovery variance",
+  "Desktop offers diagnostics after a long wait without treating it as a failure deadline",
 );
 assert.equal(
-  startupTimeoutPolicy.resolveStartupTimeoutMs({ recoveringLocalService: true, timeoutMs: 10 }),
+  startupTimeoutPolicy.resolveStartupTimeoutMs({ mode: "desktop", timeoutMs: 10 }),
   10,
   "explicit harness and product overrides must remain authoritative",
 );

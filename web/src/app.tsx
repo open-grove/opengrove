@@ -1817,19 +1817,11 @@ export function App() {
   }
 
   if (desktopApi && desktopBridgeStartupGateRequired) {
-    const blocker =
-      desktopBridgeStartupState?.stage === "blocked"
-        ? {
-            code: desktopBridgeStartupState.code,
-            message: desktopBridgeStartupState.message,
-            actions: desktopBridgeStartupState.actions,
-          }
-        : undefined;
     return (
       <CloudAuthLoadingScreen
-        blocker={blocker}
-        recoveringLocalService
-        migratingLocalData={desktopBridgeStartupState?.stage === "migrating"}
+        key="desktop-startup"
+        mode="desktop"
+        startupState={desktopBridgeStartupState}
         onRetry={() => {
           void desktopApi.retryBridgeStartup?.();
         }}

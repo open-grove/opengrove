@@ -886,11 +886,11 @@ export const ZH_CN = {
   "gate.retrying": "正在重试…",
   "gate.preparingLocalData": "正在准备本地数据",
   "gate.migratingLocalData": "正在迁移本地数据，请稍候",
+  "gate.retryingLocalService": "正在自动重试本机服务",
   "gate.exportDiagnosticsFailed": "错误包导出失败：{message}",
   "gate.startupIncompleteTitle": "启动未完成",
   "gate.startupIncompleteCopy": "OpenGrove 尚未完成启动。请重试；如果仍无法继续，可导出错误包供开发侧排查。",
-  "gate.desktopStartupIncompleteCopy":
-    "OpenGrove 正在自动恢复本机服务，请保持窗口打开；如果等待过久，可导出错误包供开发侧排查。",
+  "gate.desktopStartupLongWaitCopy": "当前启动步骤耗时较长。可以继续等待，也可以导出错误包帮助排查。",
   "gate.startupBlockedTitle": "本机服务需要处理",
   "gate.startupBlockedCopy":
     "OpenGrove 只在继续启动可能损坏本地数据时才会暂停。请直接使用下方的处理按钮，完成后会自动重试。",
