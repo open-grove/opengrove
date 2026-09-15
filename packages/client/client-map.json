@@ -16,7 +16,10 @@
     "room.event": "events",
     "employee.employee": "collection",
     "room.member": "members",
-    "host.host": "discovery"
+    "host.host": "discovery",
+    "run.run": "collection",
+    "run.session": "sessions",
+    "run.execution": "executions"
   },
   "operations": {
     "app.release.keep-local": "keepLocal",

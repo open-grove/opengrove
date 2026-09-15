@@ -164,6 +164,9 @@
                     "message": {
                       "type": "string"
                     },
+                    "contractId": {
+                      "type": "string"
+                    },
                     "traceId": {
                       "type": "string"
                     },
@@ -212,6 +215,9 @@
                       "type": "string"
                     },
                     "message": {
+                      "type": "string"
+                    },
+                    "contractId": {
                       "type": "string"
                     },
                     "traceId": {
@@ -264,6 +270,9 @@
                     "message": {
                       "type": "string"
                     },
+                    "contractId": {
+                      "type": "string"
+                    },
                     "traceId": {
                       "type": "string"
                     },
@@ -314,6 +323,9 @@
                     "message": {
                       "type": "string"
                     },
+                    "contractId": {
+                      "type": "string"
+                    },
                     "traceId": {
                       "type": "string"
                     },
@@ -362,6 +374,1196 @@
                       "type": "string"
                     },
                     "message": {
+                      "type": "string"
+                    },
+                    "contractId": {
+                      "type": "string"
+                    },
+                    "traceId": {
+                      "type": "string"
+                    },
+                    "incidentId": {
+                      "type": "string"
+                    },
+                    "issues": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "path": {
+                            "type": "string"
+                          },
+                          "code": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["path", "code"],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": ["error"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/runs": {
+      "get": {
+        "operationId": "run.run.list",
+        "summary": "List recorded runs",
+        "description": "List persisted runs by session and task state. Pass the previous revision to receive unchanged=true when the query result is current.",
+        "tags": ["run"],
+        "x-opengrove-group": "run",
+        "x-opengrove-resource": "run",
+        "x-opengrove-risk": "read",
+        "parameters": [
+          {
+            "name": "afterRevision",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "default": 200,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000
+            }
+          },
+          {
+            "name": "sessionId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "taskState",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "TASK_STATE_UNSPECIFIED",
+                "TASK_STATE_SUBMITTED",
+                "TASK_STATE_WORKING",
+                "TASK_STATE_COMPLETED",
+                "TASK_STATE_FAILED",
+                "TASK_STATE_CANCELED",
+                "TASK_STATE_INPUT_REQUIRED",
+                "TASK_STATE_REJECTED",
+                "TASK_STATE_AUTH_REQUIRED"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "ok": {
+                          "type": "boolean",
+                          "const": true
+                        },
+                        "unchanged": {
+                          "type": "boolean",
+                          "const": true
+                        },
+                        "revision": {
+                          "type": "string"
+                        }
+                      },
+                      "required": ["ok", "unchanged", "revision"],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "ok": {
+                          "type": "boolean",
+                          "const": true
+                        },
+                        "runs": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "sessionId": {
+                                "type": "string"
+                              },
+                              "activity": {
+                                "type": "string",
+                                "enum": ["browser", "chat", "local", "api", "computer"]
+                              },
+                              "lifecycle": {
+                                "type": "object",
+                                "properties": {
+                                  "taskState": {
+                                    "type": "string",
+                                    "enum": [
+                                      "TASK_STATE_UNSPECIFIED",
+                                      "TASK_STATE_SUBMITTED",
+                                      "TASK_STATE_WORKING",
+                                      "TASK_STATE_COMPLETED",
+                                      "TASK_STATE_FAILED",
+                                      "TASK_STATE_CANCELED",
+                                      "TASK_STATE_INPUT_REQUIRED",
+                                      "TASK_STATE_REJECTED",
+                                      "TASK_STATE_AUTH_REQUIRED"
+                                    ]
+                                  },
+                                  "activity": {
+                                    "type": "string",
+                                    "enum": ["running", "reconnecting", "cancel_pending", "waiting_on_child"]
+                                  },
+                                  "reasonCode": {
+                                    "type": "string",
+                                    "minLength": 1
+                                  },
+                                  "retryable": {
+                                    "type": "boolean"
+                                  },
+                                  "outcomeUnknown": {
+                                    "type": "boolean"
+                                  },
+                                  "childRunId": {
+                                    "type": "string",
+                                    "minLength": 1
+                                  }
+                                },
+                                "required": ["taskState"],
+                                "additionalProperties": false
+                              },
+                              "input": {
+                                "type": "string"
+                              },
+                              "createdAt": {
+                                "type": "string"
+                              },
+                              "updatedAt": {
+                                "type": "string"
+                              },
+                              "startedAt": {
+                                "type": "string"
+                              },
+                              "endedAt": {
+                                "type": "string"
+                              },
+                              "modelId": {
+                                "type": "string"
+                              },
+                              "summary": {
+                                "type": "string"
+                              },
+                              "error": {
+                                "type": "string"
+                              },
+                              "problem": {
+                                "type": "object",
+                                "properties": {
+                                  "incidentId": {
+                                    "type": "string"
+                                  },
+                                  "code": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": ["incidentId", "code"],
+                                "additionalProperties": false
+                              },
+                              "pausedAt": {
+                                "type": "string"
+                              },
+                              "resumedAt": {
+                                "type": "string"
+                              },
+                              "pauseReason": {
+                                "type": "string"
+                              },
+                              "lastApprovalId": {
+                                "type": "string"
+                              },
+                              "lastQuestionId": {
+                                "type": "string"
+                              },
+                              "resumeCount": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991
+                              },
+                              "approvalIds": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              },
+                              "questionIds": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              },
+                              "toolIds": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              },
+                              "eventCount": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "sessionId",
+                              "activity",
+                              "lifecycle",
+                              "input",
+                              "createdAt",
+                              "updatedAt",
+                              "startedAt",
+                              "resumeCount",
+                              "approvalIds",
+                              "questionIds",
+                              "toolIds",
+                              "eventCount"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "revision": {
+                          "type": "string"
+                        }
+                      },
+                      "required": ["ok", "runs", "revision"],
+                      "additionalProperties": false
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The input is invalid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "const": false
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "contractId": {
+                      "type": "string"
+                    },
+                    "traceId": {
+                      "type": "string"
+                    },
+                    "incidentId": {
+                      "type": "string"
+                    },
+                    "issues": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "path": {
+                            "type": "string"
+                          },
+                          "code": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["path", "code"],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": ["error"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "A valid Host session or token is required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "const": false
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "contractId": {
+                      "type": "string"
+                    },
+                    "traceId": {
+                      "type": "string"
+                    },
+                    "incidentId": {
+                      "type": "string"
+                    },
+                    "issues": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "path": {
+                            "type": "string"
+                          },
+                          "code": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["path", "code"],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": ["error"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The request is not authorized.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "const": false
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "contractId": {
+                      "type": "string"
+                    },
+                    "traceId": {
+                      "type": "string"
+                    },
+                    "incidentId": {
+                      "type": "string"
+                    },
+                    "issues": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "path": {
+                            "type": "string"
+                          },
+                          "code": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["path", "code"],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": ["error"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The Host could not complete the operation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "const": false
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "contractId": {
+                      "type": "string"
+                    },
+                    "traceId": {
+                      "type": "string"
+                    },
+                    "incidentId": {
+                      "type": "string"
+                    },
+                    "issues": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "path": {
+                            "type": "string"
+                          },
+                          "code": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["path", "code"],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": ["error"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The Host or authenticated session is temporarily unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "const": false
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "contractId": {
+                      "type": "string"
+                    },
+                    "traceId": {
+                      "type": "string"
+                    },
+                    "incidentId": {
+                      "type": "string"
+                    },
+                    "issues": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "path": {
+                            "type": "string"
+                          },
+                          "code": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["path", "code"],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": ["error"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/sessions": {
+      "get": {
+        "operationId": "run.session.list",
+        "summary": "List recorded sessions",
+        "description": "List persisted Host sessions, optionally filtered by activity and status.",
+        "tags": ["run"],
+        "x-opengrove-group": "run",
+        "x-opengrove-resource": "session",
+        "x-opengrove-risk": "read",
+        "parameters": [
+          {
+            "name": "activity",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": ["browser", "chat", "local", "api", "computer"]
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 500
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": ["active", "idle", "archived"]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/run.session.list.response.200"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The input is invalid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "const": false
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "contractId": {
+                      "type": "string"
+                    },
+                    "traceId": {
+                      "type": "string"
+                    },
+                    "incidentId": {
+                      "type": "string"
+                    },
+                    "issues": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "path": {
+                            "type": "string"
+                          },
+                          "code": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["path", "code"],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": ["error"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "A valid Host session or token is required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "const": false
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "contractId": {
+                      "type": "string"
+                    },
+                    "traceId": {
+                      "type": "string"
+                    },
+                    "incidentId": {
+                      "type": "string"
+                    },
+                    "issues": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "path": {
+                            "type": "string"
+                          },
+                          "code": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["path", "code"],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": ["error"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The request is not authorized.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "const": false
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "contractId": {
+                      "type": "string"
+                    },
+                    "traceId": {
+                      "type": "string"
+                    },
+                    "incidentId": {
+                      "type": "string"
+                    },
+                    "issues": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "path": {
+                            "type": "string"
+                          },
+                          "code": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["path", "code"],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": ["error"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The Host could not complete the operation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "const": false
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "contractId": {
+                      "type": "string"
+                    },
+                    "traceId": {
+                      "type": "string"
+                    },
+                    "incidentId": {
+                      "type": "string"
+                    },
+                    "issues": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "path": {
+                            "type": "string"
+                          },
+                          "code": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["path", "code"],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": ["error"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The Host or authenticated session is temporarily unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "const": false
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "contractId": {
+                      "type": "string"
+                    },
+                    "traceId": {
+                      "type": "string"
+                    },
+                    "incidentId": {
+                      "type": "string"
+                    },
+                    "issues": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "path": {
+                            "type": "string"
+                          },
+                          "code": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["path", "code"],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": ["error"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/executions": {
+      "get": {
+        "operationId": "run.execution.list",
+        "summary": "List execution steps",
+        "description": "List recorded execution steps by session, run, or step kind. A matching revision returns unchanged=true.",
+        "tags": ["run"],
+        "x-opengrove-group": "run",
+        "x-opengrove-resource": "execution",
+        "x-opengrove-risk": "read",
+        "parameters": [
+          {
+            "name": "afterRevision",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "loop",
+                "model",
+                "reasoning",
+                "tool_call",
+                "approval",
+                "question",
+                "planning",
+                "artifact",
+                "memory",
+                "error"
+              ]
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "default": 200,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000
+            }
+          },
+          {
+            "name": "runId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "sessionId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/run.execution.list.response.200"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The input is invalid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "const": false
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "contractId": {
+                      "type": "string"
+                    },
+                    "traceId": {
+                      "type": "string"
+                    },
+                    "incidentId": {
+                      "type": "string"
+                    },
+                    "issues": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "path": {
+                            "type": "string"
+                          },
+                          "code": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["path", "code"],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": ["error"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "A valid Host session or token is required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "const": false
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "contractId": {
+                      "type": "string"
+                    },
+                    "traceId": {
+                      "type": "string"
+                    },
+                    "incidentId": {
+                      "type": "string"
+                    },
+                    "issues": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "path": {
+                            "type": "string"
+                          },
+                          "code": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["path", "code"],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": ["error"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The request is not authorized.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "const": false
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "contractId": {
+                      "type": "string"
+                    },
+                    "traceId": {
+                      "type": "string"
+                    },
+                    "incidentId": {
+                      "type": "string"
+                    },
+                    "issues": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "path": {
+                            "type": "string"
+                          },
+                          "code": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["path", "code"],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": ["error"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The Host could not complete the operation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "const": false
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "contractId": {
+                      "type": "string"
+                    },
+                    "traceId": {
+                      "type": "string"
+                    },
+                    "incidentId": {
+                      "type": "string"
+                    },
+                    "issues": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "path": {
+                            "type": "string"
+                          },
+                          "code": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["path", "code"],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": ["error"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The Host or authenticated session is temporarily unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "const": false
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "contractId": {
                       "type": "string"
                     },
                     "traceId": {
@@ -467,6 +1669,9 @@
                     "message": {
                       "type": "string"
                     },
+                    "contractId": {
+                      "type": "string"
+                    },
                     "traceId": {
                       "type": "string"
                     },
@@ -515,6 +1720,9 @@
                       "type": "string"
                     },
                     "message": {
+                      "type": "string"
+                    },
+                    "contractId": {
                       "type": "string"
                     },
                     "traceId": {
@@ -567,6 +1775,9 @@
                     "message": {
                       "type": "string"
                     },
+                    "contractId": {
+                      "type": "string"
+                    },
                     "traceId": {
                       "type": "string"
                     },
@@ -617,6 +1828,9 @@
                     "message": {
                       "type": "string"
                     },
+                    "contractId": {
+                      "type": "string"
+                    },
                     "traceId": {
                       "type": "string"
                     },
@@ -665,6 +1879,9 @@
                       "type": "string"
                     },
                     "message": {
+                      "type": "string"
+                    },
+                    "contractId": {
                       "type": "string"
                     },
                     "traceId": {
@@ -777,6 +1994,9 @@
                     "message": {
                       "type": "string"
                     },
+                    "contractId": {
+                      "type": "string"
+                    },
                     "traceId": {
                       "type": "string"
                     },
@@ -825,6 +2045,9 @@
                       "type": "string"
                     },
                     "message": {
+                      "type": "string"
+                    },
+                    "contractId": {
                       "type": "string"
                     },
                     "traceId": {
@@ -877,6 +2100,9 @@
                     "message": {
                       "type": "string"
                     },
+                    "contractId": {
+                      "type": "string"
+                    },
                     "traceId": {
                       "type": "string"
                     },
@@ -927,6 +2153,9 @@
                     "message": {
                       "type": "string"
                     },
+                    "contractId": {
+                      "type": "string"
+                    },
                     "traceId": {
                       "type": "string"
                     },
@@ -975,6 +2204,9 @@
                       "type": "string"
                     },
                     "message": {
+                      "type": "string"
+                    },
+                    "contractId": {
                       "type": "string"
                     },
                     "traceId": {
@@ -1087,6 +2319,9 @@
                     "message": {
                       "type": "string"
                     },
+                    "contractId": {
+                      "type": "string"
+                    },
                     "traceId": {
                       "type": "string"
                     },
@@ -1135,6 +2370,9 @@
                       "type": "string"
                     },
                     "message": {
+                      "type": "string"
+                    },
+                    "contractId": {
                       "type": "string"
                     },
                     "traceId": {
@@ -1187,6 +2425,9 @@
                     "message": {
                       "type": "string"
                     },
+                    "contractId": {
+                      "type": "string"
+                    },
                     "traceId": {
                       "type": "string"
                     },
@@ -1237,6 +2478,9 @@
                     "message": {
                       "type": "string"
                     },
+                    "contractId": {
+                      "type": "string"
+                    },
                     "traceId": {
                       "type": "string"
                     },
@@ -1285,6 +2529,9 @@
                       "type": "string"
                     },
                     "message": {
+                      "type": "string"
+                    },
+                    "contractId": {
                       "type": "string"
                     },
                     "traceId": {
@@ -13893,6 +15140,239 @@
   },
   "components": {
     "schemas": {
+      "run.session.list.response.200": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "const": true
+          },
+          "sessions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "activity": {
+                  "type": "string",
+                  "enum": ["browser", "chat", "local", "api", "computer"]
+                },
+                "status": {
+                  "type": "string",
+                  "enum": ["active", "idle", "archived"]
+                },
+                "createdAt": {
+                  "type": "string"
+                },
+                "updatedAt": {
+                  "type": "string"
+                },
+                "activeRunId": {
+                  "type": "string"
+                },
+                "latestRunId": {
+                  "type": "string"
+                },
+                "runIds": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "lastUserInput": {
+                  "type": "string"
+                },
+                "metadata": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {
+                    "$ref": "#/components/schemas/run.session.list.response.200.definition.__schema0"
+                  }
+                }
+              },
+              "required": ["id", "status", "createdAt", "updatedAt", "runIds"],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": ["ok", "sessions"],
+        "additionalProperties": false
+      },
+      "run.session.list.response.200.definition.__schema0": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "number"
+          },
+          {
+            "type": "boolean"
+          },
+          {
+            "type": "null"
+          },
+          {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/run.session.list.response.200.definition.__schema0"
+            }
+          },
+          {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "$ref": "#/components/schemas/run.session.list.response.200.definition.__schema0"
+            }
+          }
+        ]
+      },
+      "run.execution.list.response.200": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "ok": {
+                "type": "boolean",
+                "const": true
+              },
+              "unchanged": {
+                "type": "boolean",
+                "const": true
+              },
+              "revision": {
+                "type": "string"
+              }
+            },
+            "required": ["ok", "unchanged", "revision"],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "ok": {
+                "type": "boolean",
+                "const": true
+              },
+              "executions": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "runId": {
+                      "type": "string"
+                    },
+                    "sessionId": {
+                      "type": "string"
+                    },
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "loop",
+                        "model",
+                        "reasoning",
+                        "tool_call",
+                        "approval",
+                        "question",
+                        "planning",
+                        "artifact",
+                        "memory",
+                        "error"
+                      ]
+                    },
+                    "eventType": {
+                      "type": "string",
+                      "description": "The recorded Agent event type."
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "at": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "toolId": {
+                      "type": "string"
+                    },
+                    "approvalId": {
+                      "type": "string"
+                    },
+                    "questionId": {
+                      "type": "string"
+                    },
+                    "artifactId": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
+                      "additionalProperties": {
+                        "$ref": "#/components/schemas/run.execution.list.response.200.definition.__schema0"
+                      }
+                    }
+                  },
+                  "required": ["id", "runId", "kind", "eventType", "title", "at"],
+                  "additionalProperties": false
+                }
+              },
+              "revision": {
+                "type": "string"
+              }
+            },
+            "required": ["ok", "executions", "revision"],
+            "additionalProperties": false
+          }
+        ]
+      },
+      "run.execution.list.response.200.definition.__schema0": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "number"
+          },
+          {
+            "type": "boolean"
+          },
+          {
+            "type": "null"
+          },
+          {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/run.execution.list.response.200.definition.__schema0"
+            }
+          },
+          {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "$ref": "#/components/schemas/run.execution.list.response.200.definition.__schema0"
+            }
+          }
+        ]
+      },
       "AuthError": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",

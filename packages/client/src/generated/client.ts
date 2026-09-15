@@ -4,6 +4,9 @@ import type { HostOperationRequest, OpenGroveRequestOptions } from "../transport
 
 export const openGroveClientOperationIds = [
   "host.host.bootstrap",
+  "run.run.list",
+  "run.session.list",
+  "run.execution.list",
   "run.direct.cancel",
   "run.direct.guide",
   "run.direct.compact",
@@ -55,6 +58,51 @@ export function bindOpenGroveClient(request: HostOperationRequest) {
       },
     },
     runs: {
+      collection: {
+        list: (
+          input: HostOperationInput<(typeof hostOperationById)["run.run.list"]> = {},
+          options?: OpenGroveRequestOptions,
+        ): Promise<HostOperationOutput<(typeof hostOperationById)["run.run.list"]>> =>
+          request(hostOperationById["run.run.list"], {
+            query: {
+              afterRevision: input.afterRevision,
+              limit: input.limit,
+              sessionId: input.sessionId,
+              taskState: input.taskState,
+            },
+            signal: options?.signal,
+          }),
+      },
+      sessions: {
+        list: (
+          input: HostOperationInput<(typeof hostOperationById)["run.session.list"]> = {},
+          options?: OpenGroveRequestOptions,
+        ): Promise<HostOperationOutput<(typeof hostOperationById)["run.session.list"]>> =>
+          request(hostOperationById["run.session.list"], {
+            query: {
+              activity: input.activity,
+              limit: input.limit,
+              status: input.status,
+            },
+            signal: options?.signal,
+          }),
+      },
+      executions: {
+        list: (
+          input: HostOperationInput<(typeof hostOperationById)["run.execution.list"]> = {},
+          options?: OpenGroveRequestOptions,
+        ): Promise<HostOperationOutput<(typeof hostOperationById)["run.execution.list"]>> =>
+          request(hostOperationById["run.execution.list"], {
+            query: {
+              afterRevision: input.afterRevision,
+              kind: input.kind,
+              limit: input.limit,
+              runId: input.runId,
+              sessionId: input.sessionId,
+            },
+            signal: options?.signal,
+          }),
+      },
       direct: {
         cancel: (
           input: HostOperationInput<(typeof hostOperationById)["run.direct.cancel"]> = {},

@@ -4,6 +4,86 @@ export type ClientOptions = {
   baseUrl: `${string}://${string}/api` | (string & {});
 };
 
+export type RunSessionListResponse200 = {
+  ok: true;
+  sessions: Array<{
+    id: string;
+    title?: string;
+    activity?: "browser" | "chat" | "local" | "api" | "computer";
+    status: "active" | "idle" | "archived";
+    createdAt: string;
+    updatedAt: string;
+    activeRunId?: string;
+    latestRunId?: string;
+    runIds: Array<string>;
+    lastUserInput?: string;
+    metadata?: {
+      [key: string]: RunSessionListResponse200DefinitionSchema0;
+    };
+  }>;
+};
+
+export type RunSessionListResponse200DefinitionSchema0 =
+  | string
+  | number
+  | boolean
+  | null
+  | Array<RunSessionListResponse200DefinitionSchema0>
+  | {
+      [key: string]: RunSessionListResponse200DefinitionSchema0;
+    };
+
+export type RunExecutionListResponse200 =
+  | {
+      ok: true;
+      unchanged: true;
+      revision: string;
+    }
+  | {
+      ok: true;
+      executions: Array<{
+        id: string;
+        runId: string;
+        sessionId?: string;
+        kind:
+          | "loop"
+          | "model"
+          | "reasoning"
+          | "tool_call"
+          | "approval"
+          | "question"
+          | "planning"
+          | "artifact"
+          | "memory"
+          | "error";
+        /**
+         * The recorded Agent event type.
+         */
+        eventType: string;
+        title: string;
+        at: string;
+        status?: string;
+        toolId?: string;
+        approvalId?: string;
+        questionId?: string;
+        artifactId?: string;
+        data?: {
+          [key: string]: RunExecutionListResponse200DefinitionSchema0;
+        };
+      }>;
+      revision: string;
+    };
+
+export type RunExecutionListResponse200DefinitionSchema0 =
+  | string
+  | number
+  | boolean
+  | null
+  | Array<RunExecutionListResponse200DefinitionSchema0>
+  | {
+      [key: string]: RunExecutionListResponse200DefinitionSchema0;
+    };
+
 export type AuthError = {
   ok?: false;
   error: string;
@@ -258,6 +338,7 @@ export type HostHostBootstrapErrors = {
     error: string;
     code?: string;
     message?: string;
+    contractId?: string;
     traceId?: string;
     incidentId?: string;
     issues?: Array<{
@@ -273,6 +354,7 @@ export type HostHostBootstrapErrors = {
     error: string;
     code?: string;
     message?: string;
+    contractId?: string;
     traceId?: string;
     incidentId?: string;
     issues?: Array<{
@@ -288,6 +370,7 @@ export type HostHostBootstrapErrors = {
     error: string;
     code?: string;
     message?: string;
+    contractId?: string;
     traceId?: string;
     incidentId?: string;
     issues?: Array<{
@@ -303,6 +386,7 @@ export type HostHostBootstrapErrors = {
     error: string;
     code?: string;
     message?: string;
+    contractId?: string;
     traceId?: string;
     incidentId?: string;
     issues?: Array<{
@@ -318,6 +402,7 @@ export type HostHostBootstrapErrors = {
     error: string;
     code?: string;
     message?: string;
+    contractId?: string;
     traceId?: string;
     incidentId?: string;
     issues?: Array<{
@@ -357,6 +442,396 @@ export type HostHostBootstrapResponses = {
 
 export type HostHostBootstrapResponse = HostHostBootstrapResponses[keyof HostHostBootstrapResponses];
 
+export type RunRunListData = {
+  body?: never;
+  path?: never;
+  query?: {
+    afterRevision?: string;
+    limit?: number;
+    sessionId?: string;
+    taskState?:
+      | "TASK_STATE_UNSPECIFIED"
+      | "TASK_STATE_SUBMITTED"
+      | "TASK_STATE_WORKING"
+      | "TASK_STATE_COMPLETED"
+      | "TASK_STATE_FAILED"
+      | "TASK_STATE_CANCELED"
+      | "TASK_STATE_INPUT_REQUIRED"
+      | "TASK_STATE_REJECTED"
+      | "TASK_STATE_AUTH_REQUIRED";
+  };
+  url: "/runs";
+};
+
+export type RunRunListErrors = {
+  /**
+   * The input is invalid.
+   */
+  400: {
+    ok?: false;
+    error: string;
+    code?: string;
+    message?: string;
+    contractId?: string;
+    traceId?: string;
+    incidentId?: string;
+    issues?: Array<{
+      path: string;
+      code: string;
+    }>;
+  };
+  /**
+   * A valid Host session or token is required.
+   */
+  401: {
+    ok?: false;
+    error: string;
+    code?: string;
+    message?: string;
+    contractId?: string;
+    traceId?: string;
+    incidentId?: string;
+    issues?: Array<{
+      path: string;
+      code: string;
+    }>;
+  };
+  /**
+   * The request is not authorized.
+   */
+  403: {
+    ok?: false;
+    error: string;
+    code?: string;
+    message?: string;
+    contractId?: string;
+    traceId?: string;
+    incidentId?: string;
+    issues?: Array<{
+      path: string;
+      code: string;
+    }>;
+  };
+  /**
+   * The Host could not complete the operation.
+   */
+  500: {
+    ok?: false;
+    error: string;
+    code?: string;
+    message?: string;
+    contractId?: string;
+    traceId?: string;
+    incidentId?: string;
+    issues?: Array<{
+      path: string;
+      code: string;
+    }>;
+  };
+  /**
+   * The Host or authenticated session is temporarily unavailable.
+   */
+  503: {
+    ok?: false;
+    error: string;
+    code?: string;
+    message?: string;
+    contractId?: string;
+    traceId?: string;
+    incidentId?: string;
+    issues?: Array<{
+      path: string;
+      code: string;
+    }>;
+  };
+};
+
+export type RunRunListError = RunRunListErrors[keyof RunRunListErrors];
+
+export type RunRunListResponses = {
+  /**
+   * Successful response.
+   */
+  200:
+    | {
+        ok: true;
+        unchanged: true;
+        revision: string;
+      }
+    | {
+        ok: true;
+        runs: Array<{
+          id: string;
+          sessionId: string;
+          activity: "browser" | "chat" | "local" | "api" | "computer";
+          lifecycle: {
+            taskState:
+              | "TASK_STATE_UNSPECIFIED"
+              | "TASK_STATE_SUBMITTED"
+              | "TASK_STATE_WORKING"
+              | "TASK_STATE_COMPLETED"
+              | "TASK_STATE_FAILED"
+              | "TASK_STATE_CANCELED"
+              | "TASK_STATE_INPUT_REQUIRED"
+              | "TASK_STATE_REJECTED"
+              | "TASK_STATE_AUTH_REQUIRED";
+            activity?: "running" | "reconnecting" | "cancel_pending" | "waiting_on_child";
+            reasonCode?: string;
+            retryable?: boolean;
+            outcomeUnknown?: boolean;
+            childRunId?: string;
+          };
+          input: string;
+          createdAt: string;
+          updatedAt: string;
+          startedAt: string;
+          endedAt?: string;
+          modelId?: string;
+          summary?: string;
+          error?: string;
+          problem?: {
+            incidentId: string;
+            code: string;
+          };
+          pausedAt?: string;
+          resumedAt?: string;
+          pauseReason?: string;
+          lastApprovalId?: string;
+          lastQuestionId?: string;
+          resumeCount: number;
+          approvalIds: Array<string>;
+          questionIds: Array<string>;
+          toolIds: Array<string>;
+          eventCount: number;
+        }>;
+        revision: string;
+      };
+};
+
+export type RunRunListResponse = RunRunListResponses[keyof RunRunListResponses];
+
+export type RunSessionListData = {
+  body?: never;
+  path?: never;
+  query?: {
+    activity?: "browser" | "chat" | "local" | "api" | "computer";
+    limit?: number;
+    status?: "active" | "idle" | "archived";
+  };
+  url: "/sessions";
+};
+
+export type RunSessionListErrors = {
+  /**
+   * The input is invalid.
+   */
+  400: {
+    ok?: false;
+    error: string;
+    code?: string;
+    message?: string;
+    contractId?: string;
+    traceId?: string;
+    incidentId?: string;
+    issues?: Array<{
+      path: string;
+      code: string;
+    }>;
+  };
+  /**
+   * A valid Host session or token is required.
+   */
+  401: {
+    ok?: false;
+    error: string;
+    code?: string;
+    message?: string;
+    contractId?: string;
+    traceId?: string;
+    incidentId?: string;
+    issues?: Array<{
+      path: string;
+      code: string;
+    }>;
+  };
+  /**
+   * The request is not authorized.
+   */
+  403: {
+    ok?: false;
+    error: string;
+    code?: string;
+    message?: string;
+    contractId?: string;
+    traceId?: string;
+    incidentId?: string;
+    issues?: Array<{
+      path: string;
+      code: string;
+    }>;
+  };
+  /**
+   * The Host could not complete the operation.
+   */
+  500: {
+    ok?: false;
+    error: string;
+    code?: string;
+    message?: string;
+    contractId?: string;
+    traceId?: string;
+    incidentId?: string;
+    issues?: Array<{
+      path: string;
+      code: string;
+    }>;
+  };
+  /**
+   * The Host or authenticated session is temporarily unavailable.
+   */
+  503: {
+    ok?: false;
+    error: string;
+    code?: string;
+    message?: string;
+    contractId?: string;
+    traceId?: string;
+    incidentId?: string;
+    issues?: Array<{
+      path: string;
+      code: string;
+    }>;
+  };
+};
+
+export type RunSessionListError = RunSessionListErrors[keyof RunSessionListErrors];
+
+export type RunSessionListResponses = {
+  /**
+   * Successful response.
+   */
+  200: RunSessionListResponse200;
+};
+
+export type RunSessionListResponse = RunSessionListResponses[keyof RunSessionListResponses];
+
+export type RunExecutionListData = {
+  body?: never;
+  path?: never;
+  query?: {
+    afterRevision?: string;
+    kind?:
+      | "loop"
+      | "model"
+      | "reasoning"
+      | "tool_call"
+      | "approval"
+      | "question"
+      | "planning"
+      | "artifact"
+      | "memory"
+      | "error";
+    limit?: number;
+    runId?: string;
+    sessionId?: string;
+  };
+  url: "/executions";
+};
+
+export type RunExecutionListErrors = {
+  /**
+   * The input is invalid.
+   */
+  400: {
+    ok?: false;
+    error: string;
+    code?: string;
+    message?: string;
+    contractId?: string;
+    traceId?: string;
+    incidentId?: string;
+    issues?: Array<{
+      path: string;
+      code: string;
+    }>;
+  };
+  /**
+   * A valid Host session or token is required.
+   */
+  401: {
+    ok?: false;
+    error: string;
+    code?: string;
+    message?: string;
+    contractId?: string;
+    traceId?: string;
+    incidentId?: string;
+    issues?: Array<{
+      path: string;
+      code: string;
+    }>;
+  };
+  /**
+   * The request is not authorized.
+   */
+  403: {
+    ok?: false;
+    error: string;
+    code?: string;
+    message?: string;
+    contractId?: string;
+    traceId?: string;
+    incidentId?: string;
+    issues?: Array<{
+      path: string;
+      code: string;
+    }>;
+  };
+  /**
+   * The Host could not complete the operation.
+   */
+  500: {
+    ok?: false;
+    error: string;
+    code?: string;
+    message?: string;
+    contractId?: string;
+    traceId?: string;
+    incidentId?: string;
+    issues?: Array<{
+      path: string;
+      code: string;
+    }>;
+  };
+  /**
+   * The Host or authenticated session is temporarily unavailable.
+   */
+  503: {
+    ok?: false;
+    error: string;
+    code?: string;
+    message?: string;
+    contractId?: string;
+    traceId?: string;
+    incidentId?: string;
+    issues?: Array<{
+      path: string;
+      code: string;
+    }>;
+  };
+};
+
+export type RunExecutionListError = RunExecutionListErrors[keyof RunExecutionListErrors];
+
+export type RunExecutionListResponses = {
+  /**
+   * Successful response.
+   */
+  200: RunExecutionListResponse200;
+};
+
+export type RunExecutionListResponse = RunExecutionListResponses[keyof RunExecutionListResponses];
+
 export type RunDirectCancelData = {
   body: {
     runId?: string;
@@ -376,6 +851,7 @@ export type RunDirectCancelErrors = {
     error: string;
     code?: string;
     message?: string;
+    contractId?: string;
     traceId?: string;
     incidentId?: string;
     issues?: Array<{
@@ -391,6 +867,7 @@ export type RunDirectCancelErrors = {
     error: string;
     code?: string;
     message?: string;
+    contractId?: string;
     traceId?: string;
     incidentId?: string;
     issues?: Array<{
@@ -406,6 +883,7 @@ export type RunDirectCancelErrors = {
     error: string;
     code?: string;
     message?: string;
+    contractId?: string;
     traceId?: string;
     incidentId?: string;
     issues?: Array<{
@@ -421,6 +899,7 @@ export type RunDirectCancelErrors = {
     error: string;
     code?: string;
     message?: string;
+    contractId?: string;
     traceId?: string;
     incidentId?: string;
     issues?: Array<{
@@ -436,6 +915,7 @@ export type RunDirectCancelErrors = {
     error: string;
     code?: string;
     message?: string;
+    contractId?: string;
     traceId?: string;
     incidentId?: string;
     issues?: Array<{
@@ -479,6 +959,7 @@ export type RunDirectGuideErrors = {
     error: string;
     code?: string;
     message?: string;
+    contractId?: string;
     traceId?: string;
     incidentId?: string;
     issues?: Array<{
@@ -494,6 +975,7 @@ export type RunDirectGuideErrors = {
     error: string;
     code?: string;
     message?: string;
+    contractId?: string;
     traceId?: string;
     incidentId?: string;
     issues?: Array<{
@@ -509,6 +991,7 @@ export type RunDirectGuideErrors = {
     error: string;
     code?: string;
     message?: string;
+    contractId?: string;
     traceId?: string;
     incidentId?: string;
     issues?: Array<{
@@ -524,6 +1007,7 @@ export type RunDirectGuideErrors = {
     error: string;
     code?: string;
     message?: string;
+    contractId?: string;
     traceId?: string;
     incidentId?: string;
     issues?: Array<{
@@ -539,6 +1023,7 @@ export type RunDirectGuideErrors = {
     error: string;
     code?: string;
     message?: string;
+    contractId?: string;
     traceId?: string;
     incidentId?: string;
     issues?: Array<{
@@ -582,6 +1067,7 @@ export type RunDirectCompactErrors = {
     error: string;
     code?: string;
     message?: string;
+    contractId?: string;
     traceId?: string;
     incidentId?: string;
     issues?: Array<{
@@ -597,6 +1083,7 @@ export type RunDirectCompactErrors = {
     error: string;
     code?: string;
     message?: string;
+    contractId?: string;
     traceId?: string;
     incidentId?: string;
     issues?: Array<{
@@ -612,6 +1099,7 @@ export type RunDirectCompactErrors = {
     error: string;
     code?: string;
     message?: string;
+    contractId?: string;
     traceId?: string;
     incidentId?: string;
     issues?: Array<{
@@ -627,6 +1115,7 @@ export type RunDirectCompactErrors = {
     error: string;
     code?: string;
     message?: string;
+    contractId?: string;
     traceId?: string;
     incidentId?: string;
     issues?: Array<{
@@ -642,6 +1131,7 @@ export type RunDirectCompactErrors = {
     error: string;
     code?: string;
     message?: string;
+    contractId?: string;
     traceId?: string;
     incidentId?: string;
     issues?: Array<{

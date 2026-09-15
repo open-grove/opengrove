@@ -5,6 +5,7 @@ export const hostErrorSchema = z.object({
   error: z.string(),
   code: z.string().optional(),
   message: z.string().optional(),
+  contractId: z.string().optional(),
   traceId: z.string().optional(),
   incidentId: z.string().optional(),
   issues: z.array(z.object({ path: z.string(), code: z.string() })).optional(),

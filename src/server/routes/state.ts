@@ -1,12 +1,10 @@
 import { createHash } from "node:crypto";
-import { a2aTaskStateSchema } from "#agent-protocol";
+import type { ListSessionsOperation, ListRunsOperation, ListExecutionsOperation } from "#protocol";
+import { hostContractById } from "#protocol/compiled";
 import { createAnnotationArtifact, createComputerSnapshotArtifact } from "../artifact-actions.js";
 import { syncBridgeWorkingState } from "../bridge-working-state.js";
 import {
-  isActivitySpace,
-  isExecutionKind,
   isMemoryScope,
-  isSessionStatus,
   normalizeArtifactAnnotationPayload,
   normalizeArtifactCreatePayload,
   normalizeArtifactPatchPayload,
@@ -14,8 +12,8 @@ import {
   normalizeMemoryPatchPayload,
   normalizeWorkingStatePatchPayload,
 } from "../payloads.js";
-import type { BridgeRoute, BridgeRouteContext } from "../router.js";
-import { route } from "./registry-utils.js";
+import type { BridgeRoute, BridgeRouteContext, HostOperationRouteContext } from "../router.js";
+import { route, operationRoute } from "./registry-utils.js";
 import { resolveHostLanguageSettings } from "../language-preference.js";
 import { presentAgentEvent } from "../event-presentation.js";
 import { readLongPollWaitMs, waitForLongPoll } from "../long-poll.js";
@@ -35,9 +33,9 @@ export function createStateRoutes(): BridgeRoute[] {
     route("artifact-item-read", "GET", /^\/artifacts\/([^/]+)$/, handleArtifactItemReadRoute),
     route("working-state-read", "GET", "/working-state", handleWorkingStateReadRoute),
     route("computer-state-read", "GET", "/computer-state", handleComputerStateReadRoute),
-    route("sessions-list", "GET", "/sessions", handleSessionsListRoute),
-    route("runs-list", "GET", "/runs", handleRunsListRoute),
-    route("executions-list", "GET", "/executions", handleExecutionsListRoute),
+    operationRoute(hostContractById["run.session.list"], handleSessionsListRoute),
+    operationRoute(hostContractById["run.run.list"], handleRunsListRoute),
+    operationRoute(hostContractById["run.execution.list"], handleExecutionsListRoute),
     route("memory-item-delete", "DELETE", /^\/memory\/([^/]+)$/, handleMemoryItemRoute),
     route("memory-item-patch", "PATCH", /^\/memory\/([^/]+)$/, handleMemoryItemRoute),
     route("artifacts-create", "POST", "/artifacts", handleArtifactsCreateRoute),
@@ -145,60 +143,36 @@ function handleComputerStateReadRoute(context: BridgeRouteContext): boolean {
   return true;
 }
 
-function handleSessionsListRoute(context: BridgeRouteContext): boolean {
-  const status = context.url.searchParams.get("status") ?? "";
-  const activity = context.url.searchParams.get("activity") ?? "";
-  const limit = readBoundedLimit(context.url, 100, 500);
-  context.sendJson(context.response, 200, {
-    ok: true,
-    sessions: context.state.app.sessions.list({
-      status: isSessionStatus(status) ? status : undefined,
-      activity: isActivitySpace(activity) ? activity : undefined,
-      limit,
-    }),
-  });
+function handleSessionsListRoute(context: HostOperationRouteContext<ListSessionsOperation>): true {
+  context.sendJson(context.response, 200, { ok: true, sessions: context.state.app.sessions.list(context.input.query) });
   return true;
 }
 
-function handleRunsListRoute(context: BridgeRouteContext): boolean {
-  const sessionId = context.url.searchParams.get("sessionId") ?? "";
-  const taskState = context.url.searchParams.get("taskState") ?? "";
-  const limit = readBoundedLimit(context.url, 200, 1_000);
-  const revision = `${context.state.app.sessions.revision()}:runs:${sessionId}:${taskState}:${limit}`;
-  if (context.url.searchParams.get("afterRevision") === revision) {
+function handleRunsListRoute(context: HostOperationRouteContext<ListRunsOperation>): true {
+  const { sessionId, taskState, limit, afterRevision } = context.input.query;
+  const revision = `${context.state.app.sessions.revision()}:runs:${sessionId ?? ""}:${taskState ?? ""}:${limit}`;
+  if (afterRevision === revision) {
     context.sendJson(context.response, 200, { ok: true, unchanged: true, revision });
     return true;
   }
   context.sendJson(context.response, 200, {
     ok: true,
-    runs: context.state.app.sessions.listRuns({
-      sessionId: sessionId || undefined,
-      taskState: a2aTaskStateSchema.safeParse(taskState).success ? a2aTaskStateSchema.parse(taskState) : undefined,
-      limit,
-    }),
+    runs: context.state.app.sessions.listRuns({ sessionId, taskState, limit }),
     revision,
   });
   return true;
 }
 
-function handleExecutionsListRoute(context: BridgeRouteContext): boolean {
-  const sessionId = context.url.searchParams.get("sessionId") ?? "";
-  const runId = context.url.searchParams.get("runId") ?? "";
-  const kind = context.url.searchParams.get("kind") ?? "";
-  const limit = readBoundedLimit(context.url, 200, 1_000);
-  const revision = `${context.state.app.executions.revision()}:executions:${sessionId}:${runId}:${kind}:${limit}`;
-  if (context.url.searchParams.get("afterRevision") === revision) {
+function handleExecutionsListRoute(context: HostOperationRouteContext<ListExecutionsOperation>): true {
+  const { sessionId, runId, kind, limit, afterRevision } = context.input.query;
+  const revision = `${context.state.app.executions.revision()}:executions:${sessionId ?? ""}:${runId ?? ""}:${kind ?? ""}:${limit}`;
+  if (afterRevision === revision) {
     context.sendJson(context.response, 200, { ok: true, unchanged: true, revision });
     return true;
   }
   context.sendJson(context.response, 200, {
     ok: true,
-    executions: context.state.app.executions.list({
-      sessionId: sessionId || undefined,
-      runId: runId || undefined,
-      kind: isExecutionKind(kind) ? kind : undefined,
-      limit,
-    }),
+    executions: context.state.app.executions.list({ sessionId, runId, kind, limit }),
     revision,
   });
   return true;

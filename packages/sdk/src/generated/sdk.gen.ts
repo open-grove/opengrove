@@ -110,6 +110,15 @@ import type {
   RunDirectGuideData,
   RunDirectGuideErrors,
   RunDirectGuideResponses,
+  RunExecutionListData,
+  RunExecutionListErrors,
+  RunExecutionListResponses,
+  RunRunListData,
+  RunRunListErrors,
+  RunRunListResponses,
+  RunSessionListData,
+  RunSessionListErrors,
+  RunSessionListResponses,
 } from "./types.gen.js";
 
 export type Options<
@@ -181,6 +190,54 @@ export class Host2 extends HeyApiClient {
   }
 }
 
+export class Run extends HeyApiClient {
+  /**
+   * List recorded runs
+   *
+   * List persisted runs by session and task state. Pass the previous revision to receive unchanged=true when the query result is current.
+   */
+  public list<ThrowOnError extends boolean = false>(
+    options?: Options<RunRunListData, ThrowOnError>,
+  ): RequestResult<RunRunListResponses, RunRunListErrors, ThrowOnError> {
+    return (options?.client ?? this.client).get<RunRunListResponses, RunRunListErrors, ThrowOnError>({
+      url: "/runs",
+      ...options,
+    });
+  }
+}
+
+export class Session extends HeyApiClient {
+  /**
+   * List recorded sessions
+   *
+   * List persisted Host sessions, optionally filtered by activity and status.
+   */
+  public list<ThrowOnError extends boolean = false>(
+    options?: Options<RunSessionListData, ThrowOnError>,
+  ): RequestResult<RunSessionListResponses, RunSessionListErrors, ThrowOnError> {
+    return (options?.client ?? this.client).get<RunSessionListResponses, RunSessionListErrors, ThrowOnError>({
+      url: "/sessions",
+      ...options,
+    });
+  }
+}
+
+export class Execution extends HeyApiClient {
+  /**
+   * List execution steps
+   *
+   * List recorded execution steps by session, run, or step kind. A matching revision returns unchanged=true.
+   */
+  public list<ThrowOnError extends boolean = false>(
+    options?: Options<RunExecutionListData, ThrowOnError>,
+  ): RequestResult<RunExecutionListResponses, RunExecutionListErrors, ThrowOnError> {
+    return (options?.client ?? this.client).get<RunExecutionListResponses, RunExecutionListErrors, ThrowOnError>({
+      url: "/executions",
+      ...options,
+    });
+  }
+}
+
 export class Direct extends HeyApiClient {
   /**
    * Cancel a direct run
@@ -237,7 +294,22 @@ export class Direct extends HeyApiClient {
   }
 }
 
-export class Run extends HeyApiClient {
+export class Run2 extends HeyApiClient {
+  private _run?: Run;
+  get run(): Run {
+    return (this._run ??= new Run({ client: this.client }));
+  }
+
+  private _session?: Session;
+  get session(): Session {
+    return (this._session ??= new Session({ client: this.client }));
+  }
+
+  private _execution?: Execution;
+  get execution(): Execution {
+    return (this._execution ??= new Execution({ client: this.client }));
+  }
+
   private _direct?: Direct;
   get direct(): Direct {
     return (this._direct ??= new Direct({ client: this.client }));
@@ -264,7 +336,7 @@ export class EmailCode extends HeyApiClient {
   }
 }
 
-export class Session extends HeyApiClient {
+export class Session2 extends HeyApiClient {
   /**
    * Create an account session
    *
@@ -318,9 +390,9 @@ export class Auth extends HeyApiClient {
     return (this._emailCode ??= new EmailCode({ client: this.client }));
   }
 
-  private _session?: Session;
-  get session(): Session {
-    return (this._session ??= new Session({ client: this.client }));
+  private _session?: Session2;
+  get session(): Session2 {
+    return (this._session ??= new Session2({ client: this.client }));
   }
 }
 
@@ -879,9 +951,9 @@ export class OpenGroveApi extends HeyApiClient {
     return (this._host ??= new Host2({ client: this.client }));
   }
 
-  private _run?: Run;
-  get run(): Run {
-    return (this._run ??= new Run({ client: this.client }));
+  private _run?: Run2;
+  get run(): Run2 {
+    return (this._run ??= new Run2({ client: this.client }));
   }
 
   private _auth?: Auth;
