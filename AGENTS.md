@@ -4,6 +4,10 @@ Use this file before broad searches. Default to focused reads under `src/`, `web
 
 Terminology: `CONTEXT.md` at the repo root is the canonical glossary — use its terms in code, docs, and issues.
 
+For source startup, builds, or local packaging, read [Building OpenGrove](docs/development/BUILDING.md)
+([中文](docs/development/BUILDING.zh-CN.md)) for command selection, outputs, and verification.
+For formal desktop publication, use the [release process](docs/development/RELEASE_PROCESS.md).
+
 ## Code Map
 
 - UI and settings: `web/src/app.tsx`, `web/src/store.ts`, `web/src/components/**`, `web/src/styles.css`.
