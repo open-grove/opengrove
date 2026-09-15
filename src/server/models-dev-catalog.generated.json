@@ -2,7 +2,7 @@
   "version": 1,
   "source": {
     "repository": "https://github.com/anomalyco/models.dev.git",
-    "commit": "00c8960400a4de02332e04f7c21863e724af8eb3"
+    "commit": "0e04d3787eaf1c50e40117bf798f2b4241370b5d"
   },
   "providers": {
     "aihubmix": {
@@ -13,6 +13,38 @@
       ],
       "doc": "https://docs.aihubmix.com",
       "models": [
+        {
+          "id": "deepseek-v4.1-flash",
+          "name": "DeepSeek V4.1 Flash",
+          "family": "deepseek-flash",
+          "canonicalModelId": "deepseek/deepseek-v4.1-flash",
+          "metadata": {
+            "reasoning": true,
+            "toolCall": true,
+            "contextWindow": 1000000,
+            "maxOutputTokens": 384000,
+            "inputModalities": [
+              "text",
+              "image"
+            ],
+            "outputModalities": [
+              "text"
+            ],
+            "reasoningEfforts": [
+              "low",
+              "high",
+              "max"
+            ],
+            "interleaved": {
+              "field": "reasoning_content"
+            },
+            "cost": {
+              "input": 0.155,
+              "output": 0.62,
+              "cacheRead": 0.0031
+            }
+          }
+        },
         {
           "id": "glm-5.3-flash",
           "name": "GLM-5.3-Flash",
@@ -4165,6 +4197,103 @@
       "doc": "https://docs.aws.amazon.com/bedrock/latest/userguide/models-supported.html",
       "models": [
         {
+          "id": "global.openai.gpt-6-astra",
+          "name": "GPT-6 Astra (Global)",
+          "family": "gpt-astra",
+          "canonicalModelId": "openai/gpt-6-astra",
+          "metadata": {
+            "reasoning": true,
+            "toolCall": true,
+            "contextWindow": 1050000,
+            "maxOutputTokens": 128000,
+            "inputModalities": [
+              "text",
+              "image"
+            ],
+            "outputModalities": [
+              "text"
+            ],
+            "reasoningEfforts": [
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ],
+            "cost": {
+              "input": 10,
+              "output": 50,
+              "cacheRead": 1,
+              "cacheWrite": 12.5
+            }
+          }
+        },
+        {
+          "id": "openai.gpt-6-astra",
+          "name": "GPT-6 Astra",
+          "family": "gpt-astra",
+          "canonicalModelId": "openai/gpt-6-astra",
+          "metadata": {
+            "reasoning": true,
+            "toolCall": true,
+            "contextWindow": 1050000,
+            "maxOutputTokens": 128000,
+            "inputModalities": [
+              "text",
+              "image",
+              "pdf"
+            ],
+            "outputModalities": [
+              "text"
+            ],
+            "reasoningEfforts": [
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ],
+            "cost": {
+              "input": 11,
+              "output": 55,
+              "cacheRead": 1.1,
+              "cacheWrite": 13.75
+            }
+          }
+        },
+        {
+          "id": "us.openai.gpt-6-astra",
+          "name": "GPT-6 Astra (US)",
+          "family": "gpt-astra",
+          "canonicalModelId": "openai/gpt-6-astra",
+          "metadata": {
+            "reasoning": true,
+            "toolCall": true,
+            "contextWindow": 1050000,
+            "maxOutputTokens": 128000,
+            "inputModalities": [
+              "text",
+              "image"
+            ],
+            "outputModalities": [
+              "text"
+            ],
+            "reasoningEfforts": [
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ],
+            "cost": {
+              "input": 11,
+              "output": 55,
+              "cacheRead": 1.1,
+              "cacheWrite": 13.75
+            }
+          }
+        },
+        {
           "id": "anthropic.claude-fable-5-1",
           "name": "Claude Fable 5.1",
           "family": "claude-fable",
@@ -4563,8 +4692,7 @@
             "maxOutputTokens": 128000,
             "inputModalities": [
               "text",
-              "image",
-              "pdf"
+              "image"
             ],
             "outputModalities": [
               "text"
@@ -4597,8 +4725,7 @@
             "maxOutputTokens": 128000,
             "inputModalities": [
               "text",
-              "image",
-              "pdf"
+              "image"
             ],
             "outputModalities": [
               "text"
@@ -4631,8 +4758,7 @@
             "maxOutputTokens": 128000,
             "inputModalities": [
               "text",
-              "image",
-              "pdf"
+              "image"
             ],
             "outputModalities": [
               "text"
@@ -4650,6 +4776,74 @@
               "output": 12,
               "cacheRead": 0.2,
               "cacheWrite": 2.5
+            }
+          }
+        },
+        {
+          "id": "in.openai.gpt-5.6-luna",
+          "name": "GPT-5.6 Luna (India)",
+          "family": "gpt-luna",
+          "canonicalModelId": "openai/gpt-5.6-luna",
+          "metadata": {
+            "reasoning": true,
+            "toolCall": true,
+            "contextWindow": 1050000,
+            "maxOutputTokens": 128000,
+            "inputModalities": [
+              "text",
+              "image",
+              "pdf"
+            ],
+            "outputModalities": [
+              "text"
+            ],
+            "reasoningEfforts": [
+              "none",
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ],
+            "cost": {
+              "input": 0.22,
+              "output": 1.32,
+              "cacheRead": 0.022,
+              "cacheWrite": 0.275
+            }
+          }
+        },
+        {
+          "id": "in.openai.gpt-5.6-terra",
+          "name": "GPT-5.6 Terra (India)",
+          "family": "gpt-terra",
+          "canonicalModelId": "openai/gpt-5.6-terra",
+          "metadata": {
+            "reasoning": true,
+            "toolCall": true,
+            "contextWindow": 1050000,
+            "maxOutputTokens": 128000,
+            "inputModalities": [
+              "text",
+              "image",
+              "pdf"
+            ],
+            "outputModalities": [
+              "text"
+            ],
+            "reasoningEfforts": [
+              "none",
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ],
+            "cost": {
+              "input": 2.2,
+              "output": 13.2,
+              "cacheRead": 0.22,
+              "cacheWrite": 2.75
             }
           }
         },
@@ -4735,6 +4929,105 @@
               "text",
               "image",
               "pdf"
+            ],
+            "outputModalities": [
+              "text"
+            ],
+            "reasoningEfforts": [
+              "none",
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ],
+            "cost": {
+              "input": 2.2,
+              "output": 13.2,
+              "cacheRead": 0.22,
+              "cacheWrite": 2.75
+            }
+          }
+        },
+        {
+          "id": "us.openai.gpt-5.6-luna",
+          "name": "GPT-5.6 Luna (US)",
+          "family": "gpt-luna",
+          "canonicalModelId": "openai/gpt-5.6-luna",
+          "metadata": {
+            "reasoning": true,
+            "toolCall": true,
+            "contextWindow": 1050000,
+            "maxOutputTokens": 128000,
+            "inputModalities": [
+              "text",
+              "image"
+            ],
+            "outputModalities": [
+              "text"
+            ],
+            "reasoningEfforts": [
+              "none",
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ],
+            "cost": {
+              "input": 0.22,
+              "output": 1.32,
+              "cacheRead": 0.022,
+              "cacheWrite": 0.275
+            }
+          }
+        },
+        {
+          "id": "us.openai.gpt-5.6-sol",
+          "name": "GPT-5.6 Sol (US)",
+          "family": "gpt-sol",
+          "canonicalModelId": "openai/gpt-5.6-sol",
+          "metadata": {
+            "reasoning": true,
+            "toolCall": true,
+            "contextWindow": 1050000,
+            "maxOutputTokens": 128000,
+            "inputModalities": [
+              "text",
+              "image"
+            ],
+            "outputModalities": [
+              "text"
+            ],
+            "reasoningEfforts": [
+              "none",
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ],
+            "cost": {
+              "input": 4.4,
+              "output": 22,
+              "cacheRead": 0.44,
+              "cacheWrite": 5.5
+            }
+          }
+        },
+        {
+          "id": "us.openai.gpt-5.6-terra",
+          "name": "GPT-5.6 Terra (US)",
+          "family": "gpt-terra",
+          "canonicalModelId": "openai/gpt-5.6-terra",
+          "metadata": {
+            "reasoning": true,
+            "toolCall": true,
+            "contextWindow": 1050000,
+            "maxOutputTokens": 128000,
+            "inputModalities": [
+              "text",
+              "image"
             ],
             "outputModalities": [
               "text"
@@ -5378,6 +5671,39 @@
           }
         },
         {
+          "id": "au.anthropic.claude-opus-4-7",
+          "name": "Claude Opus 4.7 (AU)",
+          "family": "claude-opus",
+          "canonicalModelId": "anthropic/claude-opus-4-7",
+          "metadata": {
+            "reasoning": true,
+            "toolCall": true,
+            "contextWindow": 1000000,
+            "maxOutputTokens": 128000,
+            "inputModalities": [
+              "text",
+              "image",
+              "pdf"
+            ],
+            "outputModalities": [
+              "text"
+            ],
+            "reasoningEfforts": [
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ],
+            "cost": {
+              "input": 5.5,
+              "output": 27.5,
+              "cacheRead": 0.55,
+              "cacheWrite": 6.875
+            }
+          }
+        },
+        {
           "id": "eu.anthropic.claude-opus-4-7",
           "name": "Claude Opus 4.7 (EU)",
           "family": "claude-opus",
@@ -5507,47 +5833,87 @@
           }
         },
         {
-          "id": "minimax.minimax-m2.5",
-          "name": "MiniMax M2.5",
-          "family": "minimax",
+          "id": "google.gemma-4-26b-a4b",
+          "name": "Gemma 4 26B A4B IT",
+          "family": "gemma",
+          "canonicalModelId": "google/gemma-4-26b-a4b-it",
           "metadata": {
             "reasoning": true,
             "toolCall": true,
-            "contextWindow": 196608,
-            "maxOutputTokens": 98304,
+            "contextWindow": 262144,
+            "maxOutputTokens": 32768,
             "inputModalities": [
-              "text"
+              "text",
+              "image",
+              "video"
             ],
             "outputModalities": [
               "text"
             ],
+            "reasoningEfforts": [
+              "none",
+              "high"
+            ],
             "cost": {
-              "input": 0.3,
-              "output": 1.2
+              "input": 0.13,
+              "output": 0.4
             }
           }
         },
         {
-          "id": "zai.glm-5",
-          "name": "GLM-5",
-          "family": "glm",
+          "id": "google.gemma-4-31b",
+          "name": "Gemma 4 31B IT",
+          "family": "gemma",
+          "canonicalModelId": "google/gemma-4-31b-it",
           "metadata": {
             "reasoning": true,
             "toolCall": true,
-            "contextWindow": 202752,
-            "maxOutputTokens": 101376,
+            "contextWindow": 262144,
+            "maxOutputTokens": 32768,
             "inputModalities": [
-              "text"
+              "text",
+              "image",
+              "video"
             ],
             "outputModalities": [
               "text"
             ],
-            "interleaved": {
-              "field": "reasoning_content"
-            },
+            "reasoningEfforts": [
+              "none",
+              "high"
+            ],
             "cost": {
-              "input": 1,
-              "output": 3.2
+              "input": 0.14,
+              "output": 0.4
+            }
+          }
+        },
+        {
+          "id": "google.gemma-4-e2b",
+          "name": "Gemma 4 E2B IT",
+          "family": "gemma",
+          "canonicalModelId": "google/gemma-4-E2B-it",
+          "metadata": {
+            "reasoning": true,
+            "toolCall": true,
+            "contextWindow": 131072,
+            "maxOutputTokens": 8192,
+            "inputModalities": [
+              "text",
+              "image",
+              "audio",
+              "video"
+            ],
+            "outputModalities": [
+              "text"
+            ],
+            "reasoningEfforts": [
+              "none",
+              "high"
+            ],
+            "cost": {
+              "input": 0.04,
+              "output": 0.08
             }
           }
         },
@@ -5765,27 +6131,6 @@
           }
         },
         {
-          "id": "mistral.devstral-2-123b",
-          "name": "Devstral 2 123B",
-          "family": "devstral",
-          "metadata": {
-            "reasoning": false,
-            "toolCall": true,
-            "contextWindow": 256000,
-            "maxOutputTokens": 8192,
-            "inputModalities": [
-              "text"
-            ],
-            "outputModalities": [
-              "text"
-            ],
-            "cost": {
-              "input": 0.4,
-              "output": 2
-            }
-          }
-        },
-        {
           "id": "us.anthropic.claude-sonnet-4-6",
           "name": "Claude Sonnet 4.6 (US)",
           "family": "claude-sonnet",
@@ -5818,14 +6163,15 @@
           }
         },
         {
-          "id": "deepseek.v3.2",
-          "name": "DeepSeek-V3.2",
-          "family": "deepseek",
+          "id": "minimax.minimax-m2.5",
+          "name": "MiniMax-M2.5",
+          "family": "minimax",
+          "canonicalModelId": "minimax/MiniMax-M2.5",
           "metadata": {
             "reasoning": true,
             "toolCall": true,
-            "contextWindow": 163840,
-            "maxOutputTokens": 81920,
+            "contextWindow": 196608,
+            "maxOutputTokens": 98304,
             "inputModalities": [
               "text"
             ],
@@ -5833,42 +6179,21 @@
               "text"
             ],
             "cost": {
-              "input": 0.62,
-              "output": 1.85
+              "input": 0.3,
+              "output": 1.2
             }
           }
         },
         {
-          "id": "moonshotai.kimi-k2.5",
-          "name": "Kimi K2.5",
-          "family": "kimi",
+          "id": "zai.glm-5",
+          "name": "GLM-5",
+          "family": "glm",
+          "canonicalModelId": "zhipuai/glm-5",
           "metadata": {
             "reasoning": true,
             "toolCall": true,
-            "contextWindow": 262143,
-            "maxOutputTokens": 16000,
-            "inputModalities": [
-              "text",
-              "image"
-            ],
-            "outputModalities": [
-              "text"
-            ],
-            "cost": {
-              "input": 0.6,
-              "output": 3
-            }
-          }
-        },
-        {
-          "id": "qwen.qwen3-coder-next",
-          "name": "Qwen3 Coder Next",
-          "family": "qwen",
-          "metadata": {
-            "reasoning": true,
-            "toolCall": true,
-            "contextWindow": 131072,
-            "maxOutputTokens": 65536,
+            "contextWindow": 202752,
+            "maxOutputTokens": 131072,
             "inputModalities": [
               "text"
             ],
@@ -5876,8 +6201,8 @@
               "text"
             ],
             "cost": {
-              "input": 0.22,
-              "output": 1.8
+              "input": 1,
+              "output": 3.2
             }
           }
         },
@@ -6041,9 +6366,55 @@
           }
         },
         {
+          "id": "qwen.qwen3-coder-next",
+          "name": "Qwen3 Coder Next",
+          "family": "qwen",
+          "canonicalModelId": "alibaba/qwen3-coder-next",
+          "metadata": {
+            "reasoning": false,
+            "toolCall": true,
+            "contextWindow": 262144,
+            "maxOutputTokens": 65536,
+            "inputModalities": [
+              "text"
+            ],
+            "outputModalities": [
+              "text"
+            ],
+            "cost": {
+              "input": 0.5,
+              "output": 1.2
+            }
+          }
+        },
+        {
+          "id": "moonshotai.kimi-k2.5",
+          "name": "Kimi K2.5",
+          "family": "kimi-k2",
+          "canonicalModelId": "moonshotai/kimi-k2.5",
+          "metadata": {
+            "reasoning": true,
+            "toolCall": true,
+            "contextWindow": 262143,
+            "maxOutputTokens": 16384,
+            "inputModalities": [
+              "text",
+              "image"
+            ],
+            "outputModalities": [
+              "text"
+            ],
+            "cost": {
+              "input": 0.6,
+              "output": 3
+            }
+          }
+        },
+        {
           "id": "zai.glm-4.7-flash",
           "name": "GLM-4.7-Flash",
           "family": "glm-flash",
+          "canonicalModelId": "zhipuai/glm-4.7-flash",
           "metadata": {
             "reasoning": true,
             "toolCall": true,
@@ -6063,8 +6434,9 @@
         },
         {
           "id": "minimax.minimax-m2.1",
-          "name": "MiniMax M2.1",
+          "name": "MiniMax-M2.1",
           "family": "minimax",
+          "canonicalModelId": "minimax/MiniMax-M2.1",
           "metadata": {
             "reasoning": true,
             "toolCall": true,
@@ -6083,6 +6455,28 @@
           }
         },
         {
+          "id": "zai.glm-4.7",
+          "name": "GLM-4.7",
+          "family": "glm",
+          "canonicalModelId": "zhipuai/glm-4.7",
+          "metadata": {
+            "reasoning": true,
+            "toolCall": true,
+            "contextWindow": 204800,
+            "maxOutputTokens": 131072,
+            "inputModalities": [
+              "text"
+            ],
+            "outputModalities": [
+              "text"
+            ],
+            "cost": {
+              "input": 0.6,
+              "output": 2.2
+            }
+          }
+        },
+        {
           "id": "nvidia.nemotron-nano-3-30b",
           "name": "NVIDIA Nemotron Nano 3 30B",
           "family": "nemotron",
@@ -6090,8 +6484,8 @@
           "metadata": {
             "reasoning": true,
             "toolCall": true,
-            "contextWindow": 128000,
-            "maxOutputTokens": 4096,
+            "contextWindow": 262144,
+            "maxOutputTokens": 8192,
             "inputModalities": [
               "text"
             ],
@@ -6105,38 +6499,165 @@
           }
         },
         {
-          "id": "zai.glm-4.7",
-          "name": "GLM-4.7",
-          "family": "glm",
+          "id": "mistral.devstral-2-123b",
+          "name": "Devstral 2 123B",
+          "family": "devstral",
+          "canonicalModelId": "mistral/devstral-2512",
           "metadata": {
-            "reasoning": true,
+            "reasoning": false,
             "toolCall": true,
-            "contextWindow": 204800,
-            "maxOutputTokens": 131072,
+            "contextWindow": 256000,
+            "maxOutputTokens": 8192,
             "inputModalities": [
               "text"
             ],
             "outputModalities": [
               "text"
             ],
-            "interleaved": {
-              "field": "reasoning_content"
-            },
             "cost": {
-              "input": 0.6,
-              "output": 2.2
+              "input": 0.4,
+              "output": 2
             }
           }
         },
         {
-          "id": "mistral.magistral-small-2509",
-          "name": "Magistral Small 1.2",
-          "family": "magistral",
+          "id": "amazon.nova-2-lite-v1:0",
+          "name": "Nova 2 Lite",
+          "family": "nova",
+          "canonicalModelId": "amazon/nova-2-lite",
           "metadata": {
             "reasoning": true,
             "toolCall": true,
+            "contextWindow": 1000000,
+            "maxOutputTokens": 65535,
+            "inputModalities": [
+              "text",
+              "image",
+              "video",
+              "pdf"
+            ],
+            "outputModalities": [
+              "text"
+            ],
+            "reasoningEfforts": [
+              "low",
+              "medium",
+              "high"
+            ],
+            "cost": {
+              "input": 0.33,
+              "output": 2.75,
+              "cacheRead": 0.0825,
+              "cacheWrite": 0.33
+            }
+          }
+        },
+        {
+          "id": "eu.amazon.nova-2-lite-v1:0",
+          "name": "Nova 2 Lite (EU)",
+          "family": "nova",
+          "canonicalModelId": "amazon/nova-2-lite",
+          "metadata": {
+            "reasoning": true,
+            "toolCall": true,
+            "contextWindow": 1000000,
+            "maxOutputTokens": 65535,
+            "inputModalities": [
+              "text",
+              "image",
+              "video",
+              "pdf"
+            ],
+            "outputModalities": [
+              "text"
+            ],
+            "reasoningEfforts": [
+              "low",
+              "medium",
+              "high"
+            ],
+            "cost": {
+              "input": 0.374,
+              "output": 3.157,
+              "cacheRead": 0.0935,
+              "cacheWrite": 0.374
+            }
+          }
+        },
+        {
+          "id": "global.amazon.nova-2-lite-v1:0",
+          "name": "Nova 2 Lite (Global)",
+          "family": "nova",
+          "canonicalModelId": "amazon/nova-2-lite",
+          "metadata": {
+            "reasoning": true,
+            "toolCall": true,
+            "contextWindow": 1000000,
+            "maxOutputTokens": 65535,
+            "inputModalities": [
+              "text",
+              "image",
+              "video",
+              "pdf"
+            ],
+            "outputModalities": [
+              "text"
+            ],
+            "reasoningEfforts": [
+              "low",
+              "medium",
+              "high"
+            ],
+            "cost": {
+              "input": 0.3,
+              "output": 2.5,
+              "cacheRead": 0.075,
+              "cacheWrite": 0.3
+            }
+          }
+        },
+        {
+          "id": "jp.amazon.nova-2-lite-v1:0",
+          "name": "Nova 2 Lite (JP)",
+          "family": "nova",
+          "canonicalModelId": "amazon/nova-2-lite",
+          "metadata": {
+            "reasoning": true,
+            "toolCall": true,
+            "contextWindow": 1000000,
+            "maxOutputTokens": 65535,
+            "inputModalities": [
+              "text",
+              "image",
+              "video",
+              "pdf"
+            ],
+            "outputModalities": [
+              "text"
+            ],
+            "reasoningEfforts": [
+              "low",
+              "medium",
+              "high"
+            ],
+            "cost": {
+              "input": 0.396,
+              "output": 3.311,
+              "cacheRead": 0.099,
+              "cacheWrite": 0.396
+            }
+          }
+        },
+        {
+          "id": "mistral.ministral-3-14b-instruct",
+          "name": "Ministral 14B 3.0",
+          "family": "ministral",
+          "canonicalModelId": "mistral/ministral-3-14b-instruct-2512",
+          "metadata": {
+            "reasoning": false,
+            "toolCall": true,
             "contextWindow": 128000,
-            "maxOutputTokens": 40000,
+            "maxOutputTokens": 4096,
             "inputModalities": [
               "text",
               "image"
@@ -6145,8 +6666,8 @@
               "text"
             ],
             "cost": {
-              "input": 0.5,
-              "output": 1.5
+              "input": 0.2,
+              "output": 0.2
             }
           }
         },
@@ -6154,6 +6675,7 @@
           "id": "mistral.ministral-3-3b-instruct",
           "name": "Ministral 3 3B",
           "family": "ministral",
+          "canonicalModelId": "mistral/ministral-3-3b-instruct-2512",
           "metadata": {
             "reasoning": false,
             "toolCall": true,
@@ -6173,9 +6695,33 @@
           }
         },
         {
+          "id": "mistral.ministral-3-8b-instruct",
+          "name": "Ministral 3 8B",
+          "family": "ministral",
+          "canonicalModelId": "mistral/ministral-3-8b-instruct-2512",
+          "metadata": {
+            "reasoning": false,
+            "toolCall": true,
+            "contextWindow": 128000,
+            "maxOutputTokens": 4096,
+            "inputModalities": [
+              "text",
+              "image"
+            ],
+            "outputModalities": [
+              "text"
+            ],
+            "cost": {
+              "input": 0.15,
+              "output": 0.15
+            }
+          }
+        },
+        {
           "id": "mistral.mistral-large-3-675b-instruct",
           "name": "Mistral Large 3",
-          "family": "mistral",
+          "family": "mistral-large",
+          "canonicalModelId": "mistral/mistral-large-2512",
           "metadata": {
             "reasoning": false,
             "toolCall": true,
@@ -6195,14 +6741,47 @@
           }
         },
         {
-          "id": "moonshot.kimi-k2-thinking",
-          "name": "Kimi K2 Thinking",
-          "family": "kimi-thinking",
+          "id": "us.amazon.nova-2-lite-v1:0",
+          "name": "Nova 2 Lite (US)",
+          "family": "nova",
+          "canonicalModelId": "amazon/nova-2-lite",
           "metadata": {
             "reasoning": true,
             "toolCall": true,
-            "contextWindow": 262143,
-            "maxOutputTokens": 16000,
+            "contextWindow": 1000000,
+            "maxOutputTokens": 65535,
+            "inputModalities": [
+              "text",
+              "image",
+              "video",
+              "pdf"
+            ],
+            "outputModalities": [
+              "text"
+            ],
+            "reasoningEfforts": [
+              "low",
+              "medium",
+              "high"
+            ],
+            "cost": {
+              "input": 0.33,
+              "output": 2.75,
+              "cacheRead": 0.0825,
+              "cacheWrite": 0.33
+            }
+          }
+        },
+        {
+          "id": "deepseek.v3.2",
+          "name": "DeepSeek V3.2",
+          "family": "deepseek",
+          "canonicalModelId": "deepseek/deepseek-v3.2",
+          "metadata": {
+            "reasoning": true,
+            "toolCall": true,
+            "contextWindow": 163840,
+            "maxOutputTokens": 81920,
             "inputModalities": [
               "text"
             ],
@@ -6210,8 +6789,8 @@
               "text"
             ],
             "cost": {
-              "input": 0.6,
-              "output": 2.5
+              "input": 0.62,
+              "output": 1.85
             }
           }
         },
@@ -6336,11 +6915,34 @@
           }
         },
         {
+          "id": "moonshot.kimi-k2-thinking",
+          "name": "Kimi K2 Thinking",
+          "family": "kimi-thinking",
+          "canonicalModelId": "moonshotai/kimi-k2-thinking",
+          "metadata": {
+            "reasoning": true,
+            "toolCall": true,
+            "contextWindow": 262143,
+            "maxOutputTokens": 16000,
+            "inputModalities": [
+              "text"
+            ],
+            "outputModalities": [
+              "text"
+            ],
+            "cost": {
+              "input": 0.6,
+              "output": 2.5
+            }
+          }
+        },
+        {
           "id": "openai.gpt-oss-safeguard-120b",
           "name": "GPT OSS Safeguard 120B",
           "family": "gpt-oss",
+          "canonicalModelId": "openai/gpt-oss-safeguard-120b",
           "metadata": {
-            "reasoning": false,
+            "reasoning": true,
             "toolCall": true,
             "contextWindow": 128000,
             "maxOutputTokens": 16384,
@@ -6349,6 +6951,11 @@
             ],
             "outputModalities": [
               "text"
+            ],
+            "reasoningEfforts": [
+              "low",
+              "medium",
+              "high"
             ],
             "cost": {
               "input": 0.15,
@@ -6360,8 +6967,9 @@
           "id": "openai.gpt-oss-safeguard-20b",
           "name": "GPT OSS Safeguard 20B",
           "family": "gpt-oss",
+          "canonicalModelId": "openai/gpt-oss-safeguard-20b",
           "metadata": {
-            "reasoning": false,
+            "reasoning": true,
             "toolCall": true,
             "contextWindow": 128000,
             "maxOutputTokens": 16384,
@@ -6371,6 +6979,11 @@
             "outputModalities": [
               "text"
             ],
+            "reasoningEfforts": [
+              "low",
+              "medium",
+              "high"
+            ],
             "cost": {
               "input": 0.07,
               "output": 0.2
@@ -6378,9 +6991,33 @@
           }
         },
         {
+          "id": "nvidia.nemotron-nano-12b-v2",
+          "name": "NVIDIA Nemotron Nano 12B v2 VL BF16",
+          "family": "nemotron",
+          "canonicalModelId": "nvidia/nemotron-nano-12b-v2-vl",
+          "metadata": {
+            "reasoning": false,
+            "toolCall": true,
+            "contextWindow": 128000,
+            "maxOutputTokens": 8192,
+            "inputModalities": [
+              "text",
+              "image"
+            ],
+            "outputModalities": [
+              "text"
+            ],
+            "cost": {
+              "input": 0.2,
+              "output": 0.6
+            }
+          }
+        },
+        {
           "id": "minimax.minimax-m2",
-          "name": "MiniMax M2",
+          "name": "MiniMax-M2",
           "family": "minimax",
+          "canonicalModelId": "minimax/MiniMax-M2",
           "metadata": {
             "reasoning": true,
             "toolCall": true,
@@ -6551,28 +7188,6 @@
           }
         },
         {
-          "id": "qwen.qwen3-vl-235b-a22b",
-          "name": "Qwen/Qwen3-VL-235B-A22B-Instruct",
-          "family": "qwen",
-          "metadata": {
-            "reasoning": false,
-            "toolCall": true,
-            "contextWindow": 262000,
-            "maxOutputTokens": 262000,
-            "inputModalities": [
-              "text",
-              "image"
-            ],
-            "outputModalities": [
-              "text"
-            ],
-            "cost": {
-              "input": 0.3,
-              "output": 1.5
-            }
-          }
-        },
-        {
           "id": "anthropic.claude-sonnet-4-5-20250929-v1:0",
           "name": "Claude Sonnet 4.5",
           "family": "claude-sonnet",
@@ -6725,9 +7340,78 @@
           }
         },
         {
+          "id": "qwen.qwen3-vl-235b-a22b",
+          "name": "Qwen3 VL 235B A22B Instruct",
+          "family": "qwen",
+          "canonicalModelId": "alibaba/qwen3-vl-235b-a22b-instruct",
+          "metadata": {
+            "reasoning": false,
+            "toolCall": true,
+            "contextWindow": 262144,
+            "maxOutputTokens": 262000,
+            "inputModalities": [
+              "text",
+              "image"
+            ],
+            "outputModalities": [
+              "text"
+            ],
+            "cost": {
+              "input": 0.53,
+              "output": 2.66
+            }
+          }
+        },
+        {
+          "id": "mistral.magistral-small-2509",
+          "name": "Magistral Small 1.2",
+          "family": "magistral",
+          "canonicalModelId": "mistral/magistral-small-2509",
+          "metadata": {
+            "reasoning": true,
+            "toolCall": true,
+            "contextWindow": 128000,
+            "maxOutputTokens": 40000,
+            "inputModalities": [
+              "text",
+              "image"
+            ],
+            "outputModalities": [
+              "text"
+            ],
+            "cost": {
+              "input": 0.5,
+              "output": 1.5
+            }
+          }
+        },
+        {
+          "id": "qwen.qwen3-next-80b-a3b",
+          "name": "Qwen3-Next 80B-A3B Instruct",
+          "family": "qwen",
+          "canonicalModelId": "alibaba/qwen3-next-80b-a3b-instruct",
+          "metadata": {
+            "reasoning": false,
+            "toolCall": true,
+            "contextWindow": 262144,
+            "maxOutputTokens": 262000,
+            "inputModalities": [
+              "text"
+            ],
+            "outputModalities": [
+              "text"
+            ],
+            "cost": {
+              "input": 0.15,
+              "output": 1.2
+            }
+          }
+        },
+        {
           "id": "deepseek.v3-v1:0",
           "name": "DeepSeek-V3.1",
           "family": "deepseek",
+          "canonicalModelId": "deepseek/deepseek-v3.1",
           "metadata": {
             "reasoning": true,
             "toolCall": true,
@@ -6746,77 +7430,15 @@
           }
         },
         {
-          "id": "qwen.qwen3-235b-a22b-2507-v1:0",
-          "name": "Qwen3 235B A22B 2507",
-          "family": "qwen",
-          "metadata": {
-            "reasoning": false,
-            "toolCall": true,
-            "contextWindow": 262144,
-            "maxOutputTokens": 131072,
-            "inputModalities": [
-              "text"
-            ],
-            "outputModalities": [
-              "text"
-            ],
-            "cost": {
-              "input": 0.22,
-              "output": 0.88
-            }
-          }
-        },
-        {
-          "id": "qwen.qwen3-32b-v1:0",
-          "name": "Qwen3 32B (dense)",
-          "family": "qwen",
-          "metadata": {
-            "reasoning": true,
-            "toolCall": true,
-            "contextWindow": 16384,
-            "maxOutputTokens": 16384,
-            "inputModalities": [
-              "text"
-            ],
-            "outputModalities": [
-              "text"
-            ],
-            "cost": {
-              "input": 0.15,
-              "output": 0.6
-            }
-          }
-        },
-        {
-          "id": "qwen.qwen3-coder-30b-a3b-v1:0",
-          "name": "Qwen3 Coder 30B A3B Instruct",
-          "family": "qwen",
-          "metadata": {
-            "reasoning": false,
-            "toolCall": true,
-            "contextWindow": 262144,
-            "maxOutputTokens": 131072,
-            "inputModalities": [
-              "text"
-            ],
-            "outputModalities": [
-              "text"
-            ],
-            "cost": {
-              "input": 0.15,
-              "output": 0.6
-            }
-          }
-        },
-        {
-          "id": "qwen.qwen3-coder-480b-a35b-v1:0",
-          "name": "Qwen3 Coder 480B A35B Instruct",
-          "family": "qwen",
+          "id": "nvidia.nemotron-nano-9b-v2",
+          "name": "NVIDIA Nemotron Nano 9B v2",
+          "family": "nemotron",
+          "canonicalModelId": "nvidia/nemotron-nano-9b-v2",
           "metadata": {
             "reasoning": false,
             "toolCall": true,
             "contextWindow": 131072,
-            "maxOutputTokens": 65536,
+            "maxOutputTokens": 8192,
             "inputModalities": [
               "text"
             ],
@@ -6824,29 +7446,8 @@
               "text"
             ],
             "cost": {
-              "input": 0.22,
-              "output": 1.8
-            }
-          }
-        },
-        {
-          "id": "qwen.qwen3-next-80b-a3b",
-          "name": "Qwen/Qwen3-Next-80B-A3B-Instruct",
-          "family": "qwen",
-          "metadata": {
-            "reasoning": false,
-            "toolCall": true,
-            "contextWindow": 262000,
-            "maxOutputTokens": 262000,
-            "inputModalities": [
-              "text"
-            ],
-            "outputModalities": [
-              "text"
-            ],
-            "cost": {
-              "input": 0.14,
-              "output": 1.4
+              "input": 0.06,
+              "output": 0.23
             }
           }
         },
@@ -6854,6 +7455,7 @@
           "id": "openai.gpt-oss-120b",
           "name": "gpt-oss-120b",
           "family": "gpt-oss",
+          "canonicalModelId": "openai/gpt-oss-120b",
           "metadata": {
             "reasoning": true,
             "toolCall": true,
@@ -6880,6 +7482,7 @@
           "id": "openai.gpt-oss-120b-1:0",
           "name": "gpt-oss-120b",
           "family": "gpt-oss",
+          "canonicalModelId": "openai/gpt-oss-120b",
           "metadata": {
             "reasoning": true,
             "toolCall": true,
@@ -6906,6 +7509,7 @@
           "id": "openai.gpt-oss-20b",
           "name": "gpt-oss-20b",
           "family": "gpt-oss",
+          "canonicalModelId": "openai/gpt-oss-20b",
           "metadata": {
             "reasoning": true,
             "toolCall": true,
@@ -6932,6 +7536,7 @@
           "id": "openai.gpt-oss-20b-1:0",
           "name": "gpt-oss-20b",
           "family": "gpt-oss",
+          "canonicalModelId": "openai/gpt-oss-20b",
           "metadata": {
             "reasoning": true,
             "toolCall": true,
@@ -6955,35 +7560,157 @@
           }
         },
         {
-          "id": "google.gemma-3-27b-it",
-          "name": "Google Gemma 3 27B Instruct",
-          "family": "gemma",
+          "id": "us-gov.openai.gpt-oss-120b-1:0",
+          "name": "gpt-oss-120b (GovCloud)",
+          "family": "gpt-oss",
+          "canonicalModelId": "openai/gpt-oss-120b",
+          "metadata": {
+            "reasoning": true,
+            "toolCall": true,
+            "contextWindow": 128000,
+            "maxOutputTokens": 16384,
+            "inputModalities": [
+              "text"
+            ],
+            "outputModalities": [
+              "text"
+            ],
+            "reasoningEfforts": [
+              "low",
+              "medium",
+              "high"
+            ],
+            "cost": {
+              "input": 0.18,
+              "output": 0.72
+            }
+          }
+        },
+        {
+          "id": "us-gov.openai.gpt-oss-20b-1:0",
+          "name": "gpt-oss-20b (GovCloud)",
+          "family": "gpt-oss",
+          "canonicalModelId": "openai/gpt-oss-20b",
+          "metadata": {
+            "reasoning": true,
+            "toolCall": true,
+            "contextWindow": 128000,
+            "maxOutputTokens": 16384,
+            "inputModalities": [
+              "text"
+            ],
+            "outputModalities": [
+              "text"
+            ],
+            "reasoningEfforts": [
+              "low",
+              "medium",
+              "high"
+            ],
+            "cost": {
+              "input": 0.084,
+              "output": 0.36
+            }
+          }
+        },
+        {
+          "id": "qwen.qwen3-coder-30b-a3b-v1:0",
+          "name": "Qwen3-Coder 30B-A3B Instruct",
+          "family": "qwen",
+          "canonicalModelId": "alibaba/qwen3-coder-30b-a3b-instruct",
           "metadata": {
             "reasoning": false,
             "toolCall": true,
-            "contextWindow": 202752,
-            "maxOutputTokens": 8192,
+            "contextWindow": 262144,
+            "maxOutputTokens": 131072,
             "inputModalities": [
-              "text",
-              "image"
+              "text"
             ],
             "outputModalities": [
               "text"
             ],
             "cost": {
-              "input": 0.12,
-              "output": 0.2
+              "input": 0.15,
+              "output": 0.6
+            }
+          }
+        },
+        {
+          "id": "qwen.qwen3-coder-480b-a35b-v1:0",
+          "name": "Qwen3-Coder 480B-A35B Instruct",
+          "family": "qwen",
+          "canonicalModelId": "alibaba/qwen3-coder-480b-a35b-instruct",
+          "metadata": {
+            "reasoning": false,
+            "toolCall": true,
+            "contextWindow": 131072,
+            "maxOutputTokens": 65536,
+            "inputModalities": [
+              "text"
+            ],
+            "outputModalities": [
+              "text"
+            ],
+            "cost": {
+              "input": 0.45,
+              "output": 1.8
+            }
+          }
+        },
+        {
+          "id": "qwen.qwen3-235b-a22b-2507-v1:0",
+          "name": "Qwen3 235B-A22B Instruct 2507",
+          "family": "qwen",
+          "canonicalModelId": "alibaba/qwen3-235b-a22b-instruct-2507",
+          "metadata": {
+            "reasoning": false,
+            "toolCall": true,
+            "contextWindow": 262144,
+            "maxOutputTokens": 131072,
+            "inputModalities": [
+              "text"
+            ],
+            "outputModalities": [
+              "text"
+            ],
+            "cost": {
+              "input": 0.22,
+              "output": 0.88
+            }
+          }
+        },
+        {
+          "id": "mistral.voxtral-mini-3b-2507",
+          "name": "Voxtral Mini 3B 2507",
+          "family": "voxtral",
+          "canonicalModelId": "mistral/voxtral-mini-3b-2507",
+          "metadata": {
+            "reasoning": false,
+            "toolCall": true,
+            "contextWindow": 32768,
+            "maxOutputTokens": 4096,
+            "inputModalities": [
+              "text",
+              "audio"
+            ],
+            "outputModalities": [
+              "text"
+            ],
+            "cost": {
+              "input": 0.04,
+              "output": 0.04
             }
           }
         },
         {
           "id": "mistral.voxtral-small-24b-2507",
           "name": "Voxtral Small 24B 2507",
-          "family": "mistral",
+          "family": "voxtral",
+          "canonicalModelId": "mistral/voxtral-small-24b-2507",
           "metadata": {
             "reasoning": false,
             "toolCall": true,
-            "contextWindow": 32000,
+            "contextWindow": 32768,
             "maxOutputTokens": 8192,
             "inputModalities": [
               "text",
@@ -6993,36 +7720,16 @@
               "text"
             ],
             "cost": {
-              "input": 0.15,
-              "output": 0.35
+              "input": 0.1,
+              "output": 0.3
             }
           }
         },
         {
-          "id": "writer.palmyra-x4-v1:0",
-          "name": "Palmyra X4",
+          "id": "us.writer.palmyra-x5-v1:0",
+          "name": "Palmyra X5 (US)",
           "family": "palmyra",
-          "metadata": {
-            "reasoning": true,
-            "toolCall": true,
-            "contextWindow": 122880,
-            "maxOutputTokens": 8192,
-            "inputModalities": [
-              "text"
-            ],
-            "outputModalities": [
-              "text"
-            ],
-            "cost": {
-              "input": 2.5,
-              "output": 10
-            }
-          }
-        },
-        {
-          "id": "writer.palmyra-x5-v1:0",
-          "name": "Palmyra X5",
-          "family": "palmyra",
+          "canonicalModelId": "writer/palmyra-x5",
           "metadata": {
             "reasoning": true,
             "toolCall": true,
@@ -7041,9 +7748,78 @@
           }
         },
         {
+          "id": "writer.palmyra-x5-v1:0",
+          "name": "Palmyra X5",
+          "family": "palmyra",
+          "canonicalModelId": "writer/palmyra-x5",
+          "metadata": {
+            "reasoning": true,
+            "toolCall": true,
+            "contextWindow": 1040000,
+            "maxOutputTokens": 8192,
+            "inputModalities": [
+              "text"
+            ],
+            "outputModalities": [
+              "text"
+            ],
+            "cost": {
+              "input": 0.6,
+              "output": 6
+            }
+          }
+        },
+        {
+          "id": "eu.mistral.pixtral-large-2502-v1:0",
+          "name": "Pixtral Large (25.02) (EU)",
+          "family": "pixtral",
+          "canonicalModelId": "mistral/pixtral-large-2502",
+          "metadata": {
+            "reasoning": false,
+            "toolCall": true,
+            "contextWindow": 128000,
+            "maxOutputTokens": 8192,
+            "inputModalities": [
+              "text",
+              "image"
+            ],
+            "outputModalities": [
+              "text"
+            ],
+            "cost": {
+              "input": 2,
+              "output": 6
+            }
+          }
+        },
+        {
           "id": "mistral.pixtral-large-2502-v1:0",
           "name": "Pixtral Large (25.02)",
-          "family": "mistral",
+          "family": "pixtral",
+          "canonicalModelId": "mistral/pixtral-large-2502",
+          "metadata": {
+            "reasoning": false,
+            "toolCall": true,
+            "contextWindow": 128000,
+            "maxOutputTokens": 8192,
+            "inputModalities": [
+              "text",
+              "image"
+            ],
+            "outputModalities": [
+              "text"
+            ],
+            "cost": {
+              "input": 2,
+              "output": 6
+            }
+          }
+        },
+        {
+          "id": "us.mistral.pixtral-large-2502-v1:0",
+          "name": "Pixtral Large (25.02) (US)",
+          "family": "pixtral",
+          "canonicalModelId": "mistral/pixtral-large-2502",
           "metadata": {
             "reasoning": false,
             "toolCall": true,
@@ -7066,11 +7842,12 @@
           "id": "meta.llama4-maverick-17b-instruct-v1:0",
           "name": "Llama 4 Maverick 17B Instruct",
           "family": "llama",
+          "canonicalModelId": "meta/llama-4-maverick-17b-instruct",
           "metadata": {
             "reasoning": false,
             "toolCall": true,
             "contextWindow": 1000000,
-            "maxOutputTokens": 16384,
+            "maxOutputTokens": 8192,
             "inputModalities": [
               "text",
               "image"
@@ -7088,11 +7865,12 @@
           "id": "meta.llama4-scout-17b-instruct-v1:0",
           "name": "Llama 4 Scout 17B Instruct",
           "family": "llama",
+          "canonicalModelId": "meta/llama-4-scout-17b-instruct",
           "metadata": {
             "reasoning": false,
             "toolCall": true,
-            "contextWindow": 3500000,
-            "maxOutputTokens": 16384,
+            "contextWindow": 10000000,
+            "maxOutputTokens": 8192,
             "inputModalities": [
               "text",
               "image"
@@ -7115,7 +7893,7 @@
             "reasoning": false,
             "toolCall": true,
             "contextWindow": 1000000,
-            "maxOutputTokens": 16384,
+            "maxOutputTokens": 8192,
             "inputModalities": [
               "text",
               "image"
@@ -7137,8 +7915,8 @@
           "metadata": {
             "reasoning": false,
             "toolCall": true,
-            "contextWindow": 3500000,
-            "maxOutputTokens": 16384,
+            "contextWindow": 10000000,
+            "maxOutputTokens": 8192,
             "inputModalities": [
               "text",
               "image"
@@ -7153,14 +7931,15 @@
           }
         },
         {
-          "id": "deepseek.r1-v1:0",
-          "name": "DeepSeek-R1",
-          "family": "deepseek-thinking",
+          "id": "qwen.qwen3-32b-v1:0",
+          "name": "Qwen3 32B",
+          "family": "qwen",
+          "canonicalModelId": "alibaba/qwen3-32b",
           "metadata": {
             "reasoning": true,
             "toolCall": true,
-            "contextWindow": 128000,
-            "maxOutputTokens": 32768,
+            "contextWindow": 32768,
+            "maxOutputTokens": 16384,
             "inputModalities": [
               "text"
             ],
@@ -7168,30 +7947,8 @@
               "text"
             ],
             "cost": {
-              "input": 1.35,
-              "output": 5.4
-            }
-          }
-        },
-        {
-          "id": "us.deepseek.r1-v1:0",
-          "name": "DeepSeek-R1 (US)",
-          "family": "deepseek-thinking",
-          "canonicalModelId": "deepseek/deepseek-r1",
-          "metadata": {
-            "reasoning": true,
-            "toolCall": true,
-            "contextWindow": 128000,
-            "maxOutputTokens": 32768,
-            "inputModalities": [
-              "text"
-            ],
-            "outputModalities": [
-              "text"
-            ],
-            "cost": {
-              "input": 1.35,
-              "output": 5.4
+              "input": 0.15,
+              "output": 0.6
             }
           }
         },
@@ -7199,6 +7956,29 @@
           "id": "meta.llama3-3-70b-instruct-v1:0",
           "name": "Llama 3.3 70B Instruct",
           "family": "llama",
+          "canonicalModelId": "meta/llama-3.3-70b-instruct",
+          "metadata": {
+            "reasoning": false,
+            "toolCall": true,
+            "contextWindow": 128000,
+            "maxOutputTokens": 4096,
+            "inputModalities": [
+              "text"
+            ],
+            "outputModalities": [
+              "text"
+            ],
+            "cost": {
+              "input": 0.72,
+              "output": 0.72
+            }
+          }
+        },
+        {
+          "id": "us.meta.llama3-3-70b-instruct-v1:0",
+          "name": "Llama 3.3 70B Instruct (US)",
+          "family": "llama",
+          "canonicalModelId": "meta/llama-3.3-70b-instruct",
           "metadata": {
             "reasoning": false,
             "toolCall": true,
@@ -7220,15 +8000,17 @@
           "id": "amazon.nova-lite-v1:0",
           "name": "Nova Lite",
           "family": "nova-lite",
+          "canonicalModelId": "amazon/nova-lite",
           "metadata": {
             "reasoning": false,
             "toolCall": true,
             "contextWindow": 300000,
-            "maxOutputTokens": 8192,
+            "maxOutputTokens": 10000,
             "inputModalities": [
               "text",
               "image",
-              "video"
+              "video",
+              "pdf"
             ],
             "outputModalities": [
               "text"
@@ -7236,7 +8018,8 @@
             "cost": {
               "input": 0.06,
               "output": 0.24,
-              "cacheRead": 0.015
+              "cacheRead": 0.015,
+              "cacheWrite": 0.06
             }
           }
         },
@@ -7244,11 +8027,12 @@
           "id": "amazon.nova-micro-v1:0",
           "name": "Nova Micro",
           "family": "nova-micro",
+          "canonicalModelId": "amazon/nova-micro",
           "metadata": {
             "reasoning": false,
             "toolCall": true,
             "contextWindow": 128000,
-            "maxOutputTokens": 8192,
+            "maxOutputTokens": 10000,
             "inputModalities": [
               "text"
             ],
@@ -7258,7 +8042,8 @@
             "cost": {
               "input": 0.035,
               "output": 0.14,
-              "cacheRead": 0.00875
+              "cacheRead": 0.00875,
+              "cacheWrite": 0.035
             }
           }
         },
@@ -7266,15 +8051,17 @@
           "id": "amazon.nova-pro-v1:0",
           "name": "Nova Pro",
           "family": "nova-pro",
+          "canonicalModelId": "amazon/nova-pro",
           "metadata": {
             "reasoning": false,
             "toolCall": true,
             "contextWindow": 300000,
-            "maxOutputTokens": 8192,
+            "maxOutputTokens": 10000,
             "inputModalities": [
               "text",
               "image",
-              "video"
+              "video",
+              "pdf"
             ],
             "outputModalities": [
               "text"
@@ -7282,166 +8069,313 @@
             "cost": {
               "input": 0.8,
               "output": 3.2,
-              "cacheRead": 0.2
+              "cacheRead": 0.2,
+              "cacheWrite": 0.8
             }
           }
         },
         {
-          "id": "amazon.nova-2-lite-v1:0",
-          "name": "Nova 2 Lite",
-          "family": "nova",
+          "id": "apac.amazon.nova-lite-v1:0",
+          "name": "Nova Lite (APAC)",
+          "family": "nova-lite",
+          "canonicalModelId": "amazon/nova-lite",
           "metadata": {
-            "reasoning": true,
+            "reasoning": false,
             "toolCall": true,
-            "contextWindow": 128000,
-            "maxOutputTokens": 4096,
+            "contextWindow": 300000,
+            "maxOutputTokens": 10000,
             "inputModalities": [
               "text",
               "image",
-              "video"
+              "video",
+              "pdf"
             ],
             "outputModalities": [
               "text"
             ],
-            "reasoningEfforts": [
-              "low",
-              "medium",
-              "high"
-            ],
             "cost": {
-              "input": 0.33,
-              "output": 2.75
+              "input": 0.063,
+              "output": 0.252,
+              "cacheRead": 0.01575,
+              "cacheWrite": 0.063
             }
           }
         },
         {
-          "id": "google.gemma-3-4b-it",
-          "name": "Gemma 3 4B IT",
-          "family": "gemma",
+          "id": "apac.amazon.nova-micro-v1:0",
+          "name": "Nova Micro (APAC)",
+          "family": "nova-micro",
+          "canonicalModelId": "amazon/nova-micro",
           "metadata": {
             "reasoning": false,
             "toolCall": true,
             "contextWindow": 128000,
-            "maxOutputTokens": 4096,
+            "maxOutputTokens": 10000,
+            "inputModalities": [
+              "text"
+            ],
+            "outputModalities": [
+              "text"
+            ],
+            "cost": {
+              "input": 0.037,
+              "output": 0.148,
+              "cacheRead": 0.00925,
+              "cacheWrite": 0.037
+            }
+          }
+        },
+        {
+          "id": "apac.amazon.nova-pro-v1:0",
+          "name": "Nova Pro (APAC)",
+          "family": "nova-pro",
+          "canonicalModelId": "amazon/nova-pro",
+          "metadata": {
+            "reasoning": false,
+            "toolCall": true,
+            "contextWindow": 300000,
+            "maxOutputTokens": 10000,
             "inputModalities": [
               "text",
-              "image"
+              "image",
+              "video",
+              "pdf"
+            ],
+            "outputModalities": [
+              "text"
+            ],
+            "cost": {
+              "input": 0.84,
+              "output": 3.36,
+              "cacheRead": 0.21,
+              "cacheWrite": 0.84
+            }
+          }
+        },
+        {
+          "id": "ca.amazon.nova-lite-v1:0",
+          "name": "Nova Lite (CA)",
+          "family": "nova-lite",
+          "canonicalModelId": "amazon/nova-lite",
+          "metadata": {
+            "reasoning": false,
+            "toolCall": true,
+            "contextWindow": 300000,
+            "maxOutputTokens": 10000,
+            "inputModalities": [
+              "text",
+              "image",
+              "video",
+              "pdf"
+            ],
+            "outputModalities": [
+              "text"
+            ],
+            "cost": {
+              "input": 0.064,
+              "output": 0.256,
+              "cacheRead": 0.016,
+              "cacheWrite": 0.064
+            }
+          }
+        },
+        {
+          "id": "eu.amazon.nova-lite-v1:0",
+          "name": "Nova Lite (EU)",
+          "family": "nova-lite",
+          "canonicalModelId": "amazon/nova-lite",
+          "metadata": {
+            "reasoning": false,
+            "toolCall": true,
+            "contextWindow": 300000,
+            "maxOutputTokens": 10000,
+            "inputModalities": [
+              "text",
+              "image",
+              "video",
+              "pdf"
+            ],
+            "outputModalities": [
+              "text"
+            ],
+            "cost": {
+              "input": 0.069,
+              "output": 0.276,
+              "cacheRead": 0.01725,
+              "cacheWrite": 0.069
+            }
+          }
+        },
+        {
+          "id": "eu.amazon.nova-micro-v1:0",
+          "name": "Nova Micro (EU)",
+          "family": "nova-micro",
+          "canonicalModelId": "amazon/nova-micro",
+          "metadata": {
+            "reasoning": false,
+            "toolCall": true,
+            "contextWindow": 128000,
+            "maxOutputTokens": 10000,
+            "inputModalities": [
+              "text"
             ],
             "outputModalities": [
               "text"
             ],
             "cost": {
               "input": 0.04,
-              "output": 0.08
+              "output": 0.16,
+              "cacheRead": 0.01,
+              "cacheWrite": 0.04
             }
           }
         },
         {
-          "id": "mistral.ministral-3-14b-instruct",
-          "name": "Ministral 14B 3.0",
-          "family": "ministral",
+          "id": "eu.amazon.nova-pro-v1:0",
+          "name": "Nova Pro (EU)",
+          "family": "nova-pro",
+          "canonicalModelId": "amazon/nova-pro",
           "metadata": {
             "reasoning": false,
             "toolCall": true,
-            "contextWindow": 128000,
-            "maxOutputTokens": 4096,
-            "inputModalities": [
-              "text"
-            ],
-            "outputModalities": [
-              "text"
-            ],
-            "cost": {
-              "input": 0.2,
-              "output": 0.2
-            }
-          }
-        },
-        {
-          "id": "mistral.ministral-3-8b-instruct",
-          "name": "Ministral 3 8B",
-          "family": "ministral",
-          "metadata": {
-            "reasoning": false,
-            "toolCall": true,
-            "contextWindow": 128000,
-            "maxOutputTokens": 4096,
-            "inputModalities": [
-              "text"
-            ],
-            "outputModalities": [
-              "text"
-            ],
-            "cost": {
-              "input": 0.15,
-              "output": 0.15
-            }
-          }
-        },
-        {
-          "id": "mistral.voxtral-mini-3b-2507",
-          "name": "Voxtral Mini 3B 2507",
-          "family": "mistral",
-          "metadata": {
-            "reasoning": false,
-            "toolCall": true,
-            "contextWindow": 128000,
-            "maxOutputTokens": 4096,
-            "inputModalities": [
-              "audio",
-              "text"
-            ],
-            "outputModalities": [
-              "text"
-            ],
-            "cost": {
-              "input": 0.04,
-              "output": 0.04
-            }
-          }
-        },
-        {
-          "id": "nvidia.nemotron-nano-12b-v2",
-          "name": "NVIDIA Nemotron Nano 12B v2 VL BF16",
-          "family": "nemotron",
-          "canonicalModelId": "nvidia/nemotron-nano-12b-v2-vl",
-          "metadata": {
-            "reasoning": false,
-            "toolCall": true,
-            "contextWindow": 128000,
-            "maxOutputTokens": 4096,
+            "contextWindow": 300000,
+            "maxOutputTokens": 10000,
             "inputModalities": [
               "text",
-              "image"
+              "image",
+              "video",
+              "pdf"
             ],
             "outputModalities": [
               "text"
             ],
             "cost": {
-              "input": 0.2,
-              "output": 0.6
+              "input": 0.92,
+              "output": 3.68,
+              "cacheRead": 0.23,
+              "cacheWrite": 0.92
             }
           }
         },
         {
-          "id": "nvidia.nemotron-nano-9b-v2",
-          "name": "NVIDIA Nemotron Nano 9B v2",
-          "family": "nemotron",
-          "canonicalModelId": "nvidia/nemotron-nano-9b-v2",
+          "id": "us.amazon.nova-lite-v1:0",
+          "name": "Nova Lite (US)",
+          "family": "nova-lite",
+          "canonicalModelId": "amazon/nova-lite",
           "metadata": {
             "reasoning": false,
             "toolCall": true,
-            "contextWindow": 128000,
-            "maxOutputTokens": 4096,
+            "contextWindow": 300000,
+            "maxOutputTokens": 10000,
             "inputModalities": [
-              "text"
+              "text",
+              "image",
+              "video",
+              "pdf"
             ],
             "outputModalities": [
               "text"
             ],
             "cost": {
               "input": 0.06,
-              "output": 0.23
+              "output": 0.24,
+              "cacheRead": 0.015,
+              "cacheWrite": 0.06
+            }
+          }
+        },
+        {
+          "id": "us.amazon.nova-micro-v1:0",
+          "name": "Nova Micro (US)",
+          "family": "nova-micro",
+          "canonicalModelId": "amazon/nova-micro",
+          "metadata": {
+            "reasoning": false,
+            "toolCall": true,
+            "contextWindow": 128000,
+            "maxOutputTokens": 10000,
+            "inputModalities": [
+              "text"
+            ],
+            "outputModalities": [
+              "text"
+            ],
+            "cost": {
+              "input": 0.035,
+              "output": 0.14,
+              "cacheRead": 0.00875,
+              "cacheWrite": 0.035
+            }
+          }
+        },
+        {
+          "id": "us.amazon.nova-pro-v1:0",
+          "name": "Nova Pro (US)",
+          "family": "nova-pro",
+          "canonicalModelId": "amazon/nova-pro",
+          "metadata": {
+            "reasoning": false,
+            "toolCall": true,
+            "contextWindow": 300000,
+            "maxOutputTokens": 10000,
+            "inputModalities": [
+              "text",
+              "image",
+              "video",
+              "pdf"
+            ],
+            "outputModalities": [
+              "text"
+            ],
+            "cost": {
+              "input": 0.8,
+              "output": 3.2,
+              "cacheRead": 0.2,
+              "cacheWrite": 0.8
+            }
+          }
+        },
+        {
+          "id": "us.writer.palmyra-x4-v1:0",
+          "name": "Palmyra X4 (US)",
+          "family": "palmyra",
+          "canonicalModelId": "writer/palmyra-x4",
+          "metadata": {
+            "reasoning": true,
+            "toolCall": true,
+            "contextWindow": 122880,
+            "maxOutputTokens": 8192,
+            "inputModalities": [
+              "text"
+            ],
+            "outputModalities": [
+              "text"
+            ],
+            "cost": {
+              "input": 2.5,
+              "output": 10
+            }
+          }
+        },
+        {
+          "id": "writer.palmyra-x4-v1:0",
+          "name": "Palmyra X4",
+          "family": "palmyra",
+          "canonicalModelId": "writer/palmyra-x4",
+          "metadata": {
+            "reasoning": true,
+            "toolCall": true,
+            "contextWindow": 122880,
+            "maxOutputTokens": 8192,
+            "inputModalities": [
+              "text"
+            ],
+            "outputModalities": [
+              "text"
+            ],
+            "cost": {
+              "input": 2.5,
+              "output": 10
             }
           }
         },
@@ -7449,6 +8383,7 @@
           "id": "meta.llama3-1-70b-instruct-v1:0",
           "name": "Llama 3.1 70B Instruct",
           "family": "llama",
+          "canonicalModelId": "meta/llama-3.1-70b-instruct",
           "metadata": {
             "reasoning": false,
             "toolCall": true,
@@ -7470,6 +8405,51 @@
           "id": "meta.llama3-1-8b-instruct-v1:0",
           "name": "Llama 3.1 8B Instruct",
           "family": "llama",
+          "canonicalModelId": "meta/llama-3.1-8b-instruct",
+          "metadata": {
+            "reasoning": false,
+            "toolCall": true,
+            "contextWindow": 128000,
+            "maxOutputTokens": 4096,
+            "inputModalities": [
+              "text"
+            ],
+            "outputModalities": [
+              "text"
+            ],
+            "cost": {
+              "input": 0.22,
+              "output": 0.22
+            }
+          }
+        },
+        {
+          "id": "us.meta.llama3-1-70b-instruct-v1:0",
+          "name": "Llama 3.1 70B Instruct (US)",
+          "family": "llama",
+          "canonicalModelId": "meta/llama-3.1-70b-instruct",
+          "metadata": {
+            "reasoning": false,
+            "toolCall": true,
+            "contextWindow": 128000,
+            "maxOutputTokens": 4096,
+            "inputModalities": [
+              "text"
+            ],
+            "outputModalities": [
+              "text"
+            ],
+            "cost": {
+              "input": 0.72,
+              "output": 0.72
+            }
+          }
+        },
+        {
+          "id": "us.meta.llama3-1-8b-instruct-v1:0",
+          "name": "Llama 3.1 8B Instruct (US)",
+          "family": "llama",
+          "canonicalModelId": "meta/llama-3.1-8b-instruct",
           "metadata": {
             "reasoning": false,
             "toolCall": true,
@@ -9495,11 +10475,10 @@
       "doc": "https://api-docs.deepseek.com/quick_start/pricing",
       "models": [
         {
-          "id": "deepseek-v4-flash-vision-exp",
-          "name": "DeepSeek V4 Flash Vision Exp",
+          "id": "deepseek-flash",
+          "name": "DeepSeek V4.1 Flash",
           "family": "deepseek-flash",
-          "canonicalModelId": "deepseek/deepseek-v4-flash-vision-exp",
-          "status": "beta",
+          "canonicalModelId": "deepseek/deepseek-v4.1-flash",
           "metadata": {
             "reasoning": true,
             "toolCall": true,
@@ -9521,9 +10500,73 @@
               "field": "reasoning_content"
             },
             "cost": {
-              "input": 0.14,
-              "output": 0.28,
-              "cacheRead": 0.0028
+              "input": 0.15,
+              "output": 0.6,
+              "cacheRead": 0.003
+            }
+          }
+        },
+        {
+          "id": "deepseek-v4-flash",
+          "name": "DeepSeek V4 Flash",
+          "family": "deepseek-flash",
+          "canonicalModelId": "deepseek/deepseek-v4.1-flash",
+          "metadata": {
+            "reasoning": true,
+            "toolCall": true,
+            "contextWindow": 1000000,
+            "maxOutputTokens": 384000,
+            "inputModalities": [
+              "text",
+              "image"
+            ],
+            "outputModalities": [
+              "text"
+            ],
+            "reasoningEfforts": [
+              "low",
+              "high",
+              "max"
+            ],
+            "interleaved": {
+              "field": "reasoning_content"
+            },
+            "cost": {
+              "input": 0.15,
+              "output": 0.6,
+              "cacheRead": 0.003
+            }
+          }
+        },
+        {
+          "id": "deepseek-v4-flash-vision-exp",
+          "name": "DeepSeek V4 Flash Vision Exp",
+          "family": "deepseek-flash",
+          "canonicalModelId": "deepseek/deepseek-v4.1-flash",
+          "metadata": {
+            "reasoning": true,
+            "toolCall": true,
+            "contextWindow": 1000000,
+            "maxOutputTokens": 384000,
+            "inputModalities": [
+              "text",
+              "image"
+            ],
+            "outputModalities": [
+              "text"
+            ],
+            "reasoningEfforts": [
+              "low",
+              "high",
+              "max"
+            ],
+            "interleaved": {
+              "field": "reasoning_content"
+            },
+            "cost": {
+              "input": 0.15,
+              "output": 0.6,
+              "cacheRead": 0.003
             }
           }
         },
@@ -9554,37 +10597,6 @@
               "input": 0.435,
               "output": 0.87,
               "cacheRead": 0.003625
-            }
-          }
-        },
-        {
-          "id": "deepseek-v4-flash",
-          "name": "DeepSeek V4 Flash",
-          "family": "deepseek-flash",
-          "canonicalModelId": "deepseek/deepseek-v4-flash-0731",
-          "metadata": {
-            "reasoning": true,
-            "toolCall": true,
-            "contextWindow": 1000000,
-            "maxOutputTokens": 384000,
-            "inputModalities": [
-              "text"
-            ],
-            "outputModalities": [
-              "text"
-            ],
-            "reasoningEfforts": [
-              "low",
-              "high",
-              "max"
-            ],
-            "interleaved": {
-              "field": "reasoning_content"
-            },
-            "cost": {
-              "input": 0.14,
-              "output": 0.28,
-              "cacheRead": 0.0028
             }
           }
         }
@@ -11760,6 +12772,408 @@
       "doc": "https://openrouter.ai/models",
       "models": [
         {
+          "id": "~deepseek/deepseek-flash-latest",
+          "name": "DeepSeek Flash Latest",
+          "family": "deepseek-flash",
+          "metadata": {
+            "reasoning": true,
+            "toolCall": true,
+            "contextWindow": 1048576,
+            "maxOutputTokens": 943718,
+            "inputModalities": [
+              "text",
+              "image"
+            ],
+            "outputModalities": [
+              "text"
+            ],
+            "reasoningEfforts": [
+              "low",
+              "high",
+              "max"
+            ],
+            "cost": {
+              "input": 0.15,
+              "output": 0.6,
+              "cacheRead": 0.015
+            }
+          }
+        },
+        {
+          "id": "~deepseek/deepseek-pro-latest",
+          "name": "DeepSeek Pro Latest",
+          "family": "deepseek",
+          "metadata": {
+            "reasoning": true,
+            "toolCall": true,
+            "contextWindow": 1048576,
+            "maxOutputTokens": 384000,
+            "inputModalities": [
+              "text"
+            ],
+            "outputModalities": [
+              "text"
+            ],
+            "reasoningEfforts": [
+              "low",
+              "high",
+              "max"
+            ],
+            "cost": {
+              "input": 0.66,
+              "output": 1.98,
+              "cacheRead": 0.022
+            }
+          }
+        },
+        {
+          "id": "~openai/gpt-astra-latest",
+          "name": "GPT Astra Latest",
+          "family": "gpt-astra",
+          "metadata": {
+            "reasoning": true,
+            "toolCall": true,
+            "contextWindow": 1050000,
+            "maxOutputTokens": 128000,
+            "inputModalities": [
+              "pdf",
+              "image",
+              "text"
+            ],
+            "outputModalities": [
+              "text"
+            ],
+            "reasoningEfforts": [
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ],
+            "cost": {
+              "input": 10,
+              "output": 50,
+              "cacheRead": 1,
+              "cacheWrite": 12.5
+            }
+          }
+        },
+        {
+          "id": "~openai/gpt-luna-latest",
+          "name": "GPT Luna Latest",
+          "family": "gpt-luna",
+          "metadata": {
+            "reasoning": true,
+            "toolCall": true,
+            "contextWindow": 1050000,
+            "maxOutputTokens": 128000,
+            "inputModalities": [
+              "pdf",
+              "image",
+              "text"
+            ],
+            "outputModalities": [
+              "text"
+            ],
+            "reasoningEfforts": [
+              "none",
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ],
+            "cost": {
+              "input": 0.2,
+              "output": 1.2,
+              "cacheRead": 0.02,
+              "cacheWrite": 0.25
+            }
+          }
+        },
+        {
+          "id": "~openai/gpt-sol-latest",
+          "name": "GPT Sol Latest",
+          "family": "gpt-sol",
+          "metadata": {
+            "reasoning": true,
+            "toolCall": true,
+            "contextWindow": 1050000,
+            "maxOutputTokens": 128000,
+            "inputModalities": [
+              "pdf",
+              "image",
+              "text"
+            ],
+            "outputModalities": [
+              "text"
+            ],
+            "reasoningEfforts": [
+              "none",
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ],
+            "cost": {
+              "input": 2,
+              "output": 10,
+              "cacheRead": 0.2,
+              "cacheWrite": 2.5
+            }
+          }
+        },
+        {
+          "id": "~openai/gpt-terra-latest",
+          "name": "GPT Terra Latest",
+          "family": "gpt-terra",
+          "metadata": {
+            "reasoning": true,
+            "toolCall": true,
+            "contextWindow": 1050000,
+            "maxOutputTokens": 128000,
+            "inputModalities": [
+              "pdf",
+              "image",
+              "text"
+            ],
+            "outputModalities": [
+              "text"
+            ],
+            "reasoningEfforts": [
+              "none",
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ],
+            "cost": {
+              "input": 2,
+              "output": 12,
+              "cacheRead": 0.2,
+              "cacheWrite": 2.5
+            }
+          }
+        },
+        {
+          "id": "sakana/fugu-max",
+          "name": "Fugu Max",
+          "family": "fugu",
+          "metadata": {
+            "reasoning": true,
+            "toolCall": true,
+            "contextWindow": 1000000,
+            "maxOutputTokens": 128000,
+            "inputModalities": [
+              "text",
+              "image",
+              "pdf"
+            ],
+            "outputModalities": [
+              "text"
+            ],
+            "reasoningEfforts": [
+              "high",
+              "xhigh",
+              "max"
+            ],
+            "cost": {
+              "input": 2,
+              "output": 6,
+              "cacheRead": 0.25
+            }
+          }
+        },
+        {
+          "id": "sakana/fugu-ultra-v2",
+          "name": "Fugu Ultra v2",
+          "family": "fugu",
+          "metadata": {
+            "reasoning": true,
+            "toolCall": true,
+            "contextWindow": 1000000,
+            "maxOutputTokens": 128000,
+            "inputModalities": [
+              "text",
+              "image",
+              "pdf"
+            ],
+            "outputModalities": [
+              "text"
+            ],
+            "reasoningEfforts": [
+              "high",
+              "xhigh",
+              "max"
+            ],
+            "cost": {
+              "input": 5,
+              "output": 30,
+              "cacheRead": 0.5
+            }
+          }
+        },
+        {
+          "id": "deepseek/deepseek-v4.1-flash",
+          "name": "DeepSeek V4.1 Flash",
+          "family": "deepseek-flash",
+          "canonicalModelId": "deepseek/deepseek-v4.1-flash",
+          "metadata": {
+            "reasoning": true,
+            "toolCall": true,
+            "contextWindow": 1048576,
+            "maxOutputTokens": 384000,
+            "inputModalities": [
+              "text",
+              "image"
+            ],
+            "outputModalities": [
+              "text"
+            ],
+            "reasoningEfforts": [
+              "low",
+              "high",
+              "max"
+            ],
+            "cost": {
+              "input": 0.15,
+              "output": 0.6,
+              "cacheRead": 0.003
+            }
+          }
+        },
+        {
+          "id": "inclusionai/ling-3.0-flash-vl",
+          "name": "Ling 3.0 Flash VL",
+          "family": "ling",
+          "metadata": {
+            "reasoning": true,
+            "toolCall": true,
+            "contextWindow": 131072,
+            "maxOutputTokens": 32768,
+            "inputModalities": [
+              "text",
+              "image",
+              "video"
+            ],
+            "outputModalities": [
+              "text"
+            ],
+            "cost": {
+              "input": 0.06,
+              "output": 0.18,
+              "cacheRead": 0.012
+            }
+          }
+        },
+        {
+          "id": "inclusionai/ling-3.0-flash-vl:free",
+          "name": "Ling 3.0 Flash VL (free)",
+          "family": "ling",
+          "metadata": {
+            "reasoning": true,
+            "toolCall": true,
+            "contextWindow": 262144,
+            "maxOutputTokens": 32768,
+            "inputModalities": [
+              "text",
+              "image",
+              "video"
+            ],
+            "outputModalities": [
+              "text"
+            ],
+            "cost": {
+              "input": 0,
+              "output": 0
+            }
+          }
+        },
+        {
+          "id": "inception/mercury-2.5",
+          "name": "Mercury 2.5",
+          "family": "mercury",
+          "metadata": {
+            "reasoning": true,
+            "toolCall": true,
+            "contextWindow": 260000,
+            "maxOutputTokens": 65536,
+            "inputModalities": [
+              "text"
+            ],
+            "outputModalities": [
+              "text"
+            ],
+            "reasoningEfforts": [
+              "none",
+              "low",
+              "medium",
+              "high"
+            ],
+            "cost": {
+              "input": 0.04,
+              "output": 0.15,
+              "cacheRead": 0.004
+            }
+          }
+        },
+        {
+          "id": "nex-agi/nex-n2.5-mini:free",
+          "name": "Nex-N2.5-Mini (free)",
+          "family": "agi",
+          "metadata": {
+            "reasoning": true,
+            "toolCall": true,
+            "contextWindow": 262144,
+            "maxOutputTokens": 235929,
+            "inputModalities": [
+              "text",
+              "image"
+            ],
+            "outputModalities": [
+              "text"
+            ],
+            "reasoningEfforts": [
+              "none",
+              "medium",
+              "high"
+            ],
+            "cost": {
+              "input": 0,
+              "output": 0
+            }
+          }
+        },
+        {
+          "id": "nex-agi/nex-n2.5-pro:free",
+          "name": "Nex-N2.5-Pro (free)",
+          "family": "agi",
+          "metadata": {
+            "reasoning": true,
+            "toolCall": true,
+            "contextWindow": 262144,
+            "maxOutputTokens": 235929,
+            "inputModalities": [
+              "text",
+              "image"
+            ],
+            "outputModalities": [
+              "text"
+            ],
+            "reasoningEfforts": [
+              "none",
+              "medium",
+              "high"
+            ],
+            "cost": {
+              "input": 0,
+              "output": 0
+            }
+          }
+        },
+        {
           "id": "inclusionai/ling-3.0-flash-sante:free",
           "name": "Ling 3.0 Flash Sante (free)",
           "family": "ling",
@@ -12034,37 +13448,9 @@
               "high"
             ],
             "cost": {
-              "input": 0.1,
-              "output": 0.15,
-              "cacheRead": 0.05
-            }
-          }
-        },
-        {
-          "id": "inception/mercury-2.5-preview",
-          "name": "Mercury 2.5 Preview",
-          "family": "mercury",
-          "metadata": {
-            "reasoning": true,
-            "toolCall": true,
-            "contextWindow": 260000,
-            "maxOutputTokens": 65536,
-            "inputModalities": [
-              "text"
-            ],
-            "outputModalities": [
-              "text"
-            ],
-            "reasoningEfforts": [
-              "none",
-              "low",
-              "medium",
-              "high"
-            ],
-            "cost": {
-              "input": 0.04,
-              "output": 0.15,
-              "cacheRead": 0.004
+              "input": 0.06,
+              "output": 0.25,
+              "cacheRead": 0.015
             }
           }
         },
@@ -12119,9 +13505,9 @@
               "max"
             ],
             "cost": {
-              "input": 0.07125,
-              "output": 0.2375,
-              "cacheRead": 0.01425
+              "input": 0.075,
+              "output": 0.25,
+              "cacheRead": 0.015
             }
           }
         },
@@ -12218,9 +13604,9 @@
               "max"
             ],
             "cost": {
-              "input": 0.075,
-              "output": 0.25,
-              "cacheRead": 0.015
+              "input": 0.15,
+              "output": 0.5,
+              "cacheRead": 0.03
             }
           }
         },
@@ -12233,7 +13619,7 @@
             "reasoning": true,
             "toolCall": true,
             "contextWindow": 1048576,
-            "maxOutputTokens": 384000,
+            "maxOutputTokens": 943718,
             "inputModalities": [
               "text",
               "image"
@@ -12294,7 +13680,7 @@
             "reasoning": true,
             "toolCall": true,
             "contextWindow": 1310720,
-            "maxOutputTokens": 943718,
+            "maxOutputTokens": 235929,
             "inputModalities": [
               "text"
             ],
@@ -12307,9 +13693,9 @@
               "max"
             ],
             "cost": {
-              "input": 1.12,
-              "output": 3.52,
-              "cacheRead": 0.208
+              "input": 0.8775,
+              "output": 2.97,
+              "cacheRead": 0.1755
             }
           }
         },
@@ -12358,9 +13744,9 @@
               "xhigh"
             ],
             "cost": {
-              "input": 0.42,
-              "output": 3,
-              "cacheRead": 0.085
+              "input": 0.214,
+              "output": 2.55,
+              "cacheRead": 0.15
             }
           }
         },
@@ -12373,7 +13759,7 @@
             "reasoning": true,
             "toolCall": true,
             "contextWindow": 1310720,
-            "maxOutputTokens": 943718,
+            "maxOutputTokens": 943717,
             "inputModalities": [
               "text"
             ],
@@ -12470,9 +13856,9 @@
               "max"
             ],
             "cost": {
-              "input": 1.0494,
-              "output": 3.1482,
-              "cacheRead": 0.03498
+              "input": 0.9834,
+              "output": 2.9502,
+              "cacheRead": 0.03278
             }
           }
         },
@@ -12485,7 +13871,7 @@
             "reasoning": true,
             "toolCall": true,
             "contextWindow": 1048576,
-            "maxOutputTokens": 262144,
+            "maxOutputTokens": 131072,
             "inputModalities": [
               "text"
             ],
@@ -12625,8 +14011,8 @@
               "xhigh"
             ],
             "cost": {
-              "input": 0.3,
-              "output": 1.1,
+              "input": 0.35,
+              "output": 1.5,
               "cacheRead": 0.04
             }
           }
@@ -12647,9 +14033,9 @@
               "text"
             ],
             "cost": {
-              "input": 0.03,
-              "output": 0.12,
-              "cacheRead": 0.006
+              "input": 0.09,
+              "output": 0.36,
+              "cacheRead": 0.018
             }
           }
         },
@@ -12737,9 +14123,9 @@
               "max"
             ],
             "cost": {
-              "input": 0.05,
-              "output": 0.16,
-              "cacheRead": 0.013
+              "input": 0.04,
+              "output": 0.1,
+              "cacheRead": 0.01
             }
           }
         },
@@ -12752,7 +14138,7 @@
             "reasoning": true,
             "toolCall": true,
             "contextWindow": 1310720,
-            "maxOutputTokens": 131072,
+            "maxOutputTokens": 943718,
             "inputModalities": [
               "text"
             ],
@@ -12765,9 +14151,9 @@
               "max"
             ],
             "cost": {
-              "input": 0.14,
-              "output": 0.28,
-              "cacheRead": 0.028
+              "input": 0.06,
+              "output": 0.12,
+              "cacheRead": 0.012
             }
           }
         },
@@ -13048,9 +14434,9 @@
               "max"
             ],
             "cost": {
-              "input": 3,
-              "output": 15,
-              "cacheRead": 0.3
+              "input": 2.648138,
+              "output": 13.282724,
+              "cacheRead": 0.302644
             }
           }
         },
@@ -13580,29 +14966,6 @@
           }
         },
         {
-          "id": "nex-agi/nex-n2-mini",
-          "name": "Nex-N2-Mini",
-          "family": "agi",
-          "metadata": {
-            "reasoning": true,
-            "toolCall": true,
-            "contextWindow": 262144,
-            "maxOutputTokens": 235929,
-            "inputModalities": [
-              "text",
-              "image"
-            ],
-            "outputModalities": [
-              "text"
-            ],
-            "cost": {
-              "input": 0.025,
-              "output": 0.1,
-              "cacheRead": 0.0025
-            }
-          }
-        },
-        {
           "id": "cohere/north-mini-code:free",
           "name": "North Mini Code (free)",
           "family": "north",
@@ -13661,7 +15024,7 @@
             "reasoning": true,
             "toolCall": true,
             "contextWindow": 1048576,
-            "maxOutputTokens": 131072,
+            "maxOutputTokens": 128000,
             "inputModalities": [
               "text"
             ],
@@ -13676,9 +15039,9 @@
               "field": "reasoning_content"
             },
             "cost": {
-              "input": 0.966,
-              "output": 3.036,
-              "cacheRead": 0.1932
+              "input": 1.4,
+              "output": 4.4,
+              "cacheRead": 0.14
             }
           }
         },
@@ -13700,9 +15063,9 @@
               "text"
             ],
             "cost": {
-              "input": 0.66,
-              "output": 3.4,
-              "cacheRead": 0.18
+              "input": 0.71,
+              "output": 3.5,
+              "cacheRead": 0.15
             }
           }
         },
@@ -13772,29 +15135,6 @@
           }
         },
         {
-          "id": "nex-agi/nex-n2-pro",
-          "name": "Nex-N2-Pro",
-          "family": "agi",
-          "metadata": {
-            "reasoning": true,
-            "toolCall": true,
-            "contextWindow": 262144,
-            "maxOutputTokens": 235929,
-            "inputModalities": [
-              "text",
-              "image"
-            ],
-            "outputModalities": [
-              "text"
-            ],
-            "cost": {
-              "input": 0.25,
-              "output": 1,
-              "cacheRead": 0.025
-            }
-          }
-        },
-        {
           "id": "nvidia/nemotron-3-ultra-550b-a55b",
           "name": "Nemotron 3 Ultra 550B A55B",
           "family": "nemotron",
@@ -13803,7 +15143,7 @@
             "reasoning": true,
             "toolCall": true,
             "contextWindow": 262144,
-            "maxOutputTokens": 32768,
+            "maxOutputTokens": 182520,
             "inputModalities": [
               "text"
             ],
@@ -13815,9 +15155,9 @@
               "high"
             ],
             "cost": {
-              "input": 0.625,
-              "output": 3.125,
-              "cacheRead": 0.1875
+              "input": 0.6,
+              "output": 2.4,
+              "cacheRead": 0.12
             }
           }
         },
@@ -13894,30 +15234,6 @@
               "input": 0.3,
               "output": 1.2,
               "cacheRead": 0.06
-            }
-          }
-        },
-        {
-          "id": "minimax/minimax-m3:free",
-          "name": "MiniMax M3 (free)",
-          "family": "minimax",
-          "canonicalModelId": "minimax/MiniMax-M3",
-          "metadata": {
-            "reasoning": true,
-            "toolCall": true,
-            "contextWindow": 1048576,
-            "maxOutputTokens": 943718,
-            "inputModalities": [
-              "text",
-              "image",
-              "video"
-            ],
-            "outputModalities": [
-              "text"
-            ],
-            "cost": {
-              "input": 0,
-              "output": 0
             }
           }
         },
@@ -14179,7 +15495,7 @@
         },
         {
           "id": "~anthropic/claude-haiku-latest",
-          "name": "Anthropic Claude Haiku Latest",
+          "name": "Claude Haiku Latest",
           "family": "claude-haiku",
           "metadata": {
             "reasoning": true,
@@ -14204,7 +15520,7 @@
         },
         {
           "id": "~anthropic/claude-sonnet-latest",
-          "name": "Anthropic Claude Sonnet Latest",
+          "name": "Claude Sonnet Latest",
           "family": "claude-sonnet",
           "metadata": {
             "reasoning": true,
@@ -14236,7 +15552,7 @@
         },
         {
           "id": "~google/gemini-flash-latest",
-          "name": "Google Gemini Flash Latest",
+          "name": "Gemini Flash Latest",
           "family": "gemini-flash",
           "metadata": {
             "reasoning": true,
@@ -14268,7 +15584,7 @@
         },
         {
           "id": "~google/gemini-pro-latest",
-          "name": "Google Gemini Pro Latest",
+          "name": "Gemini Pro Latest",
           "family": "gemini-pro",
           "metadata": {
             "reasoning": true,
@@ -14300,7 +15616,7 @@
         },
         {
           "id": "~moonshotai/kimi-latest",
-          "name": "MoonshotAI Kimi Latest",
+          "name": "Kimi Latest",
           "family": "kimi",
           "metadata": {
             "reasoning": true,
@@ -14321,48 +15637,15 @@
               "max"
             ],
             "cost": {
-              "input": 2.55,
-              "output": 12.75,
-              "cacheRead": 0.256
-            }
-          }
-        },
-        {
-          "id": "~openai/gpt-latest",
-          "name": "OpenAI GPT Latest",
-          "family": "gpt",
-          "metadata": {
-            "reasoning": true,
-            "toolCall": true,
-            "contextWindow": 1050000,
-            "maxOutputTokens": 128000,
-            "inputModalities": [
-              "pdf",
-              "image",
-              "text"
-            ],
-            "outputModalities": [
-              "text"
-            ],
-            "reasoningEfforts": [
-              "none",
-              "low",
-              "medium",
-              "high",
-              "xhigh",
-              "max"
-            ],
-            "cost": {
-              "input": 2,
-              "output": 10,
-              "cacheRead": 0.2,
-              "cacheWrite": 2.5
+              "input": 2.1,
+              "output": 10.95,
+              "cacheRead": 0.23
             }
           }
         },
         {
           "id": "~openai/gpt-mini-latest",
-          "name": "OpenAI GPT Mini Latest",
+          "name": "GPT Mini Latest",
           "family": "gpt-mini",
           "metadata": {
             "reasoning": true,
@@ -14479,7 +15762,7 @@
             "reasoning": true,
             "toolCall": true,
             "contextWindow": 1048576,
-            "maxOutputTokens": 384000,
+            "maxOutputTokens": 393216,
             "inputModalities": [
               "text"
             ],
@@ -14494,9 +15777,9 @@
               "field": "reasoning_content"
             },
             "cost": {
-              "input": 0.95526,
-              "output": 1.91052,
-              "cacheRead": 0.079605
+              "input": 1.6,
+              "output": 3.2,
+              "cacheRead": 0.135
             }
           }
         },
@@ -14934,7 +16217,7 @@
             "reasoning": true,
             "toolCall": true,
             "contextWindow": 262144,
-            "maxOutputTokens": 16384,
+            "maxOutputTokens": 235929,
             "inputModalities": [
               "image",
               "text",
@@ -14944,8 +16227,9 @@
               "text"
             ],
             "cost": {
-              "input": 0.07,
-              "output": 0.34
+              "input": 0.09,
+              "output": 0.3,
+              "cacheRead": 0.05
             }
           }
         },
@@ -15188,28 +16472,6 @@
           }
         },
         {
-          "id": "minimax/minimax-m2.7:free",
-          "name": "MiniMax M2.7 (free)",
-          "family": "minimax",
-          "canonicalModelId": "minimax/MiniMax-M2.7",
-          "metadata": {
-            "reasoning": true,
-            "toolCall": true,
-            "contextWindow": 196608,
-            "maxOutputTokens": 176947,
-            "inputModalities": [
-              "text"
-            ],
-            "outputModalities": [
-              "text"
-            ],
-            "cost": {
-              "input": 0,
-              "output": 0
-            }
-          }
-        },
-        {
           "id": "openai/gpt-5.4-mini",
           "name": "GPT-5.4 mini",
           "family": "gpt-mini",
@@ -15335,8 +16597,8 @@
           "metadata": {
             "reasoning": true,
             "toolCall": true,
-            "contextWindow": 1000000,
-            "maxOutputTokens": 16384,
+            "contextWindow": 262144,
+            "maxOutputTokens": 235929,
             "inputModalities": [
               "text"
             ],
@@ -15348,8 +16610,8 @@
               "medium"
             ],
             "cost": {
-              "input": 0.085,
-              "output": 0.4
+              "input": 0.08,
+              "output": 0.45
             }
           }
         },
@@ -15555,7 +16817,7 @@
             "reasoning": true,
             "toolCall": true,
             "contextWindow": 262144,
-            "maxOutputTokens": 81920,
+            "maxOutputTokens": 65536,
             "inputModalities": [
               "text",
               "image",
@@ -15565,8 +16827,8 @@
               "text"
             ],
             "cost": {
-              "input": 0.29,
-              "output": 2.4
+              "input": 0.26,
+              "output": 2.08
             }
           }
         },
@@ -15603,7 +16865,7 @@
             "reasoning": true,
             "toolCall": true,
             "contextWindow": 262144,
-            "maxOutputTokens": 16384,
+            "maxOutputTokens": 65536,
             "inputModalities": [
               "text",
               "image",
@@ -15613,9 +16875,8 @@
               "text"
             ],
             "cost": {
-              "input": 0.3125,
-              "output": 1.25,
-              "cacheRead": 0.15625
+              "input": 0.1625,
+              "output": 1.3
             }
           }
         },
@@ -15779,7 +17040,7 @@
             "reasoning": true,
             "toolCall": true,
             "contextWindow": 262144,
-            "maxOutputTokens": 65536,
+            "maxOutputTokens": 235929,
             "inputModalities": [
               "text",
               "image",
@@ -15789,8 +17050,9 @@
               "text"
             ],
             "cost": {
-              "input": 0.39,
-              "output": 2.34
+              "input": 0.55,
+              "output": 3.5,
+              "cacheRead": 0.225
             }
           }
         },
@@ -16161,8 +17423,8 @@
           "metadata": {
             "reasoning": true,
             "toolCall": true,
-            "contextWindow": 202752,
-            "maxOutputTokens": 16384,
+            "contextWindow": 200000,
+            "maxOutputTokens": 117964,
             "inputModalities": [
               "text"
             ],
@@ -16173,9 +17435,8 @@
               "field": "reasoning_details"
             },
             "cost": {
-              "input": 0.06,
-              "output": 0.4,
-              "cacheRead": 0.01
+              "input": 0.0605,
+              "output": 0.4
             }
           }
         },
@@ -16642,6 +17903,31 @@
           }
         },
         {
+          "id": "mistralai/mistral-large-2512",
+          "name": "Mistral Large 3",
+          "family": "mistral-large",
+          "canonicalModelId": "mistral/mistral-large-2512",
+          "metadata": {
+            "reasoning": false,
+            "toolCall": true,
+            "contextWindow": 262144,
+            "maxOutputTokens": 209715,
+            "inputModalities": [
+              "text",
+              "image",
+              "pdf"
+            ],
+            "outputModalities": [
+              "text"
+            ],
+            "cost": {
+              "input": 0.5,
+              "output": 1.5,
+              "cacheRead": 0.05
+            }
+          }
+        },
+        {
           "id": "deepseek/deepseek-chat",
           "name": "DeepSeek Chat",
           "family": "deepseek",
@@ -16650,7 +17936,7 @@
             "reasoning": false,
             "toolCall": true,
             "contextWindow": 163840,
-            "maxOutputTokens": 16384,
+            "maxOutputTokens": 16000,
             "inputModalities": [
               "text"
             ],
@@ -16658,8 +17944,8 @@
               "text"
             ],
             "cost": {
-              "input": 0.32,
-              "output": 0.89
+              "input": 0.2574,
+              "output": 1.0287
             }
           }
         },
@@ -16840,7 +18126,7 @@
             "reasoning": true,
             "toolCall": true,
             "contextWindow": 262144,
-            "maxOutputTokens": 100352,
+            "maxOutputTokens": 98304,
             "inputModalities": [
               "text"
             ],
@@ -16881,33 +18167,10 @@
           }
         },
         {
-          "id": "mistralai/voxtral-small-24b-2507",
-          "name": "Voxtral Small 24B 2507",
-          "family": "mistral",
-          "metadata": {
-            "reasoning": false,
-            "toolCall": true,
-            "contextWindow": 32768,
-            "maxOutputTokens": 26214,
-            "inputModalities": [
-              "text",
-              "audio",
-              "pdf"
-            ],
-            "outputModalities": [
-              "text"
-            ],
-            "cost": {
-              "input": 0.1,
-              "output": 0.3,
-              "cacheRead": 0.01
-            }
-          }
-        },
-        {
           "id": "openai/gpt-oss-safeguard-20b",
-          "name": "gpt-oss-safeguard-20b",
+          "name": "GPT OSS Safeguard 20B",
           "family": "gpt-oss",
+          "canonicalModelId": "openai/gpt-oss-safeguard-20b",
           "metadata": {
             "reasoning": true,
             "toolCall": true,
@@ -17311,7 +18574,7 @@
             "reasoning": false,
             "toolCall": true,
             "contextWindow": 262144,
-            "maxOutputTokens": 100352,
+            "maxOutputTokens": 98304,
             "inputModalities": [
               "text"
             ],
@@ -17333,7 +18596,7 @@
             "reasoning": false,
             "toolCall": true,
             "contextWindow": 262144,
-            "maxOutputTokens": 235929,
+            "maxOutputTokens": 16384,
             "inputModalities": [
               "text"
             ],
@@ -17341,9 +18604,8 @@
               "text"
             ],
             "cost": {
-              "input": 0.1,
-              "output": 1.1,
-              "cacheRead": 0.07
+              "input": 0.09,
+              "output": 1.1
             }
           }
         },
@@ -17356,7 +18618,7 @@
             "reasoning": true,
             "toolCall": true,
             "contextWindow": 262144,
-            "maxOutputTokens": 235929,
+            "maxOutputTokens": 32768,
             "inputModalities": [
               "text"
             ],
@@ -17398,7 +18660,7 @@
             "reasoning": true,
             "toolCall": true,
             "contextWindow": 163840,
-            "maxOutputTokens": 144900,
+            "maxOutputTokens": 32768,
             "inputModalities": [
               "text"
             ],
@@ -17406,9 +18668,9 @@
               "text"
             ],
             "cost": {
-              "input": 0.55,
-              "output": 1.65,
-              "cacheRead": 0.55
+              "input": 0.25,
+              "output": 0.95,
+              "cacheRead": 0.13
             }
           }
         },
@@ -17823,7 +19085,7 @@
             "reasoning": false,
             "toolCall": true,
             "contextWindow": 262144,
-            "maxOutputTokens": 16384,
+            "maxOutputTokens": 235929,
             "inputModalities": [
               "text"
             ],
@@ -17831,8 +19093,34 @@
               "text"
             ],
             "cost": {
-              "input": 0.09,
-              "output": 0.55
+              "input": 0.0875,
+              "output": 0.35,
+              "cacheRead": 0.0175
+            }
+          }
+        },
+        {
+          "id": "mistralai/voxtral-small-24b-2507",
+          "name": "Voxtral Small 24B 2507",
+          "family": "voxtral",
+          "canonicalModelId": "mistral/voxtral-small-24b-2507",
+          "metadata": {
+            "reasoning": false,
+            "toolCall": true,
+            "contextWindow": 32768,
+            "maxOutputTokens": 26214,
+            "inputModalities": [
+              "text",
+              "audio",
+              "pdf"
+            ],
+            "outputModalities": [
+              "text"
+            ],
+            "cost": {
+              "input": 0.1,
+              "output": 0.3,
+              "cacheRead": 0.01
             }
           }
         },
@@ -17844,7 +19132,7 @@
             "reasoning": false,
             "toolCall": true,
             "contextWindow": 131072,
-            "maxOutputTokens": 100352,
+            "maxOutputTokens": 98304,
             "inputModalities": [
               "text"
             ],
@@ -17864,7 +19152,7 @@
           "metadata": {
             "reasoning": false,
             "toolCall": true,
-            "contextWindow": 131072,
+            "contextWindow": 256000,
             "maxOutputTokens": 16384,
             "inputModalities": [
               "image",
@@ -18103,33 +19391,6 @@
               "output": 15,
               "cacheRead": 0.3,
               "cacheWrite": 3.75
-            }
-          }
-        },
-        {
-          "id": "google/gemini-2.5-pro-preview-05-06",
-          "name": "Gemini 2.5 Pro Preview 05-06",
-          "family": "gemini-pro",
-          "metadata": {
-            "reasoning": true,
-            "toolCall": true,
-            "contextWindow": 1048576,
-            "maxOutputTokens": 65535,
-            "inputModalities": [
-              "text",
-              "image",
-              "pdf",
-              "audio",
-              "video"
-            ],
-            "outputModalities": [
-              "text"
-            ],
-            "cost": {
-              "input": 1.25,
-              "output": 10,
-              "cacheRead": 0.125,
-              "cacheWrite": 0.375
             }
           }
         },
@@ -18381,7 +19642,7 @@
             "reasoning": false,
             "toolCall": true,
             "contextWindow": 1048576,
-            "maxOutputTokens": 115200,
+            "maxOutputTokens": 16384,
             "inputModalities": [
               "text",
               "image"
@@ -18390,8 +19651,8 @@
               "text"
             ],
             "cost": {
-              "input": 0.2,
-              "output": 0.696
+              "input": 0.1875,
+              "output": 0.6525
             }
           }
         },
@@ -18506,8 +19767,9 @@
         },
         {
           "id": "google/gemma-3-12b-it",
-          "name": "Gemma 3 12B",
+          "name": "Gemma 3 12B IT",
           "family": "gemma",
+          "canonicalModelId": "google/gemma-3-12b-it",
           "metadata": {
             "reasoning": false,
             "toolCall": true,
@@ -18528,8 +19790,9 @@
         },
         {
           "id": "google/gemma-3-27b-it",
-          "name": "Gemma 3 27B",
+          "name": "Gemma 3 27B IT",
           "family": "gemma",
+          "canonicalModelId": "google/gemma-3-27b-it",
           "metadata": {
             "reasoning": false,
             "toolCall": true,
@@ -18825,31 +20088,6 @@
           }
         },
         {
-          "id": "mistralai/mistral-large-2512",
-          "name": "Mistral Large 3",
-          "family": "mistral-large",
-          "canonicalModelId": "mistral/mistral-large-2512",
-          "metadata": {
-            "reasoning": false,
-            "toolCall": true,
-            "contextWindow": 262144,
-            "maxOutputTokens": 209715,
-            "inputModalities": [
-              "text",
-              "image",
-              "pdf"
-            ],
-            "outputModalities": [
-              "text"
-            ],
-            "cost": {
-              "input": 0.5,
-              "output": 1.5,
-              "cacheRead": 0.05
-            }
-          }
-        },
-        {
           "id": "qwen/qwen-2.5-7b-instruct",
           "name": "Qwen2.5 7B Instruct",
           "family": "qwen",
@@ -18983,8 +20221,9 @@
         },
         {
           "id": "meta-llama/llama-3.1-70b-instruct",
-          "name": "Llama 3.1 70B Instruct",
+          "name": "Llama-3.1-70B-Instruct",
           "family": "llama",
+          "canonicalModelId": "meta/llama-3.1-70b-instruct",
           "metadata": {
             "reasoning": false,
             "toolCall": true,
@@ -19233,27 +20472,6 @@
             "cost": {
               "input": 1,
               "output": 2
-            }
-          }
-        },
-        {
-          "id": "openai/gpt-4-turbo-preview",
-          "name": "GPT-4 Turbo Preview",
-          "family": "gpt",
-          "metadata": {
-            "reasoning": false,
-            "toolCall": true,
-            "contextWindow": 128000,
-            "maxOutputTokens": 4096,
-            "inputModalities": [
-              "text"
-            ],
-            "outputModalities": [
-              "text"
-            ],
-            "cost": {
-              "input": 10,
-              "output": 30
             }
           }
         },
