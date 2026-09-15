@@ -285,7 +285,10 @@ export async function markServerRoomRead(roomId: string, observedEventSeq: numbe
 }
 
 export async function upsertServerRoomMember(member: RoomMember): Promise<UpsertRoomMemberResponse> {
-  const response = await postJson<UpsertRoomMemberResponse>("/rooms/members", member);
+  const response = await openGroveClient.employees.collection.upsert({
+    ...member,
+    source: member.source === "remote" ? undefined : member.source,
+  });
   return {
     ...response,
     member: readMember(response.member) ?? response.member,
@@ -303,11 +306,7 @@ export async function patchServerRoomMember(
       .filter(([, value]) => options.clearUndefined || value !== undefined)
       .map(([key, value]) => [key, value === undefined ? null : value]),
   );
-  const response = await fetchJson<UpsertRoomMemberResponse>(`/rooms/members/${encodeURIComponent(memberId)}`, {
-    method: "PATCH",
-    headers: bridgeHeaders(),
-    body: JSON.stringify(wirePatch),
-  });
+  const response = await openGroveClient.employees.collection.update({ memberId, ...wirePatch });
   return {
     ...response,
     member: readMember(response.member) ?? response.member,
@@ -315,10 +314,7 @@ export async function patchServerRoomMember(
 }
 
 export async function restoreServerRoomMemberAppDefaults(memberId: string): Promise<UpsertRoomMemberResponse> {
-  const response = await postJson<UpsertRoomMemberResponse>(
-    `/rooms/members/${encodeURIComponent(memberId)}/restore-app-defaults`,
-    {},
-  );
+  const response = await openGroveClient.employees.collection.restoreDefaults({ memberId });
   return {
     ...response,
     member: readMember(response.member) ?? response.member,
@@ -326,7 +322,11 @@ export async function restoreServerRoomMemberAppDefaults(memberId: string): Prom
 }
 
 export async function addServerRoomMember(roomId: string, member: RoomMember): Promise<UpsertRoomMemberResponse> {
-  const response = await postJson<UpsertRoomMemberResponse>(`/rooms/${encodeURIComponent(roomId)}/members`, member);
+  const response = await openGroveClient.rooms.members.add({
+    roomId,
+    ...member,
+    source: member.source === "remote" ? undefined : member.source,
+  });
   return {
     ...response,
     member: readMember(response.member) ?? response.member,
@@ -345,10 +345,7 @@ export async function bindMountedAppBuilder(appId: string, roomId: string): Prom
 }
 
 export async function removeServerRoomMember(roomId: string, memberId: string): Promise<void> {
-  await fetchJson(`/rooms/${encodeURIComponent(roomId)}/members/${encodeURIComponent(memberId)}`, {
-    method: "DELETE",
-    headers: bridgeHeaders(false),
-  });
+  await openGroveClient.rooms.members.remove({ roomId, memberId });
 }
 
 export async function patchServerRoomMessage(

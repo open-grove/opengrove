@@ -105,6 +105,63 @@ test("CLI creates a Room through the real Host and reports the persisted room", 
     assert.equal(directData.room.kind, "direct");
     assert.equal(directData.room.directMemberId, "cli-employee");
     assert.equal(directData.member.name, "CLI Employee");
+    const employee = await runHostOperationCommand(
+      [
+        "employee",
+        "upsert",
+        "--id",
+        "cli-colleague",
+        "--name",
+        "CLI Colleague",
+        "--kernel",
+        "pi",
+        "--provider-id",
+        "cli-provider",
+      ],
+      { env: { OPENGROVE_BRIDGE_URL: baseUrl, OPENGROVE_BRIDGE_TOKEN: token } },
+    );
+    assert.equal(employee.handled, true);
+    assert.equal(employee.exitCode, 0, employee.stderr);
+    assert.equal(JSON.parse(employee.stdout ?? "null").data.member.name, "CLI Colleague");
+    const changedEmployee = await runHostOperationCommand(
+      [
+        "employee",
+        "update",
+        "--member-id",
+        "cli-colleague",
+        "--input",
+        JSON.stringify({
+          name: "Renamed Colleague",
+          reasoningEffort: null,
+          providerId: null,
+        }),
+      ],
+      { env: { OPENGROVE_BRIDGE_URL: baseUrl, OPENGROVE_BRIDGE_TOKEN: token } },
+    );
+    assert.equal(changedEmployee.handled, true);
+    assert.equal(changedEmployee.exitCode, 0, changedEmployee.stderr);
+    assert.equal(JSON.parse(changedEmployee.stdout ?? "null").data.member.name, "Renamed Colleague");
+    assert.equal(JSON.parse(changedEmployee.stdout ?? "null").data.member.providerId, undefined);
+    const restore = await runHostOperationCommand(["employee", "restore-defaults", "--member-id", "cli-colleague"], {
+      env: { OPENGROVE_BRIDGE_URL: baseUrl, OPENGROVE_BRIDGE_TOKEN: token },
+    });
+    assert.equal(restore.handled, true);
+    assert.equal(restore.exitCode, 1);
+    assert.equal(JSON.parse(restore.stderr ?? "null").status, 409);
+    const added = await runHostOperationCommand(
+      ["room", "member", "add", "--room-id", "cli-room", "--id", "cli-colleague"],
+      { env: { OPENGROVE_BRIDGE_URL: baseUrl, OPENGROVE_BRIDGE_TOKEN: token } },
+    );
+    assert.equal(added.handled, true);
+    assert.equal(added.exitCode, 0, added.stderr);
+    assert.equal(JSON.parse(added.stdout ?? "null").data.member.name, "Renamed Colleague");
+    const removed = await runHostOperationCommand(
+      ["room", "member", "remove", "--room-id", "cli-room", "--member-id", "cli-colleague"],
+      { env: { OPENGROVE_BRIDGE_URL: baseUrl, OPENGROVE_BRIDGE_TOKEN: token } },
+    );
+    assert.equal(removed.handled, true);
+    assert.equal(removed.exitCode, 0, removed.stderr);
+    assert.ok(!JSON.parse(removed.stdout ?? "null").data.room.memberIds.includes("cli-colleague"));
     const listing = await runHostOperationCommand(["room", "room", "list", "--limit", "10"], {
       env: { OPENGROVE_BRIDGE_URL: baseUrl, OPENGROVE_BRIDGE_TOKEN: token },
     });

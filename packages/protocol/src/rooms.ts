@@ -425,6 +425,46 @@ const roomDirectOperationResource = defineHostOperationResource({
   operations: [openDirectRoomOperation] as const,
 });
 
+export const addRoomMemberOperation = defineHostOperation({
+  id: "room.member.add",
+  summary: "Add an Employee to a Room",
+  description:
+    "Add an existing Employee by id, preserving unspecified metadata, or supply metadata to create a local Employee. App scope restrictions still apply.",
+  method: "POST",
+  path: "/rooms/{roomId}/members",
+  risk: "write",
+  params: z.object({ roomId: roomIdentifierSchema }),
+  body: roomMemberInputSchema,
+  success: {
+    status: 200,
+    body: z.object({
+      ok: z.literal(true),
+      member: roomMemberSchema,
+      currentEventSeq: z.number().int().nonnegative(),
+    }),
+  },
+  errors: createRoomMessageOperation.errors,
+});
+export const removeRoomMemberOperation = defineHostOperation({
+  id: "room.member.remove",
+  summary: "Remove a Room member",
+  description: "Remove a member from this Room without deleting the Employee or message history.",
+  method: "DELETE",
+  path: "/rooms/{roomId}/members/{memberId}",
+  risk: "write",
+  params: z.object({ roomId: roomIdentifierSchema, memberId: roomIdentifierSchema }),
+  success: createRoomOperation.success,
+  errors: createRoomMessageOperation.errors,
+});
+export type AddRoomMemberOperation = typeof addRoomMemberOperation;
+export type RemoveRoomMemberOperation = typeof removeRoomMemberOperation;
+const roomMemberOperationResource = defineHostOperationResource({
+  id: "member",
+  title: "Members",
+  description: "Manage membership within a Room.",
+  operations: [addRoomMemberOperation, removeRoomMemberOperation] as const,
+});
+
 export const roomOperationGroup = defineHostOperationGroup({
   id: "room",
   title: "Rooms",
@@ -434,5 +474,6 @@ export const roomOperationGroup = defineHostOperationGroup({
     roomMessageOperationResource,
     roomEventOperationResource,
     roomDirectOperationResource,
+    roomMemberOperationResource,
   ] as const,
 });

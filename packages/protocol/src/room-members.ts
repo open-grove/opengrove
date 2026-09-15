@@ -68,3 +68,36 @@ export const roomMemberInputSchema = roomMemberSchema
     id: z.string().trim().min(1),
     source: z.enum(["local", "human"]).optional(),
   });
+
+// Explicit null clears a preference; an omitted field leaves it unchanged.
+const memberInput = roomMemberInputSchema.shape;
+export const roomMemberPatchSchema = z.object({
+  name: memberInput.name.nullable(),
+  kernel: memberInput.kernel.nullable(),
+  model: memberInput.model.nullable(),
+  providerId: memberInput.providerId.nullable(),
+  role: memberInput.role.nullable(),
+  status: memberInput.status.nullable(),
+  color: memberInput.color.nullable(),
+  lastActive: memberInput.lastActive.nullable(),
+  availableSkillIds: memberInput.availableSkillIds.nullable(),
+  defaultSkillIds: memberInput.defaultSkillIds.nullable(),
+  appId: memberInput.appId.nullable(),
+  workspaceRoot: memberInput.workspaceRoot.nullable(),
+  storePackageId: memberInput.storePackageId.nullable(),
+  toolIds: memberInput.toolIds.nullable(),
+  accessMode: memberInput.accessMode.nullable(),
+  reasoningEffort: memberInput.reasoningEffort.nullable(),
+  contextTokenBudget: memberInput.contextTokenBudget.nullable(),
+  avatarMode: memberInput.avatarMode.nullable(),
+  avatarSeed: memberInput.avatarSeed.nullable(),
+  avatarDataUrl: memberInput.avatarDataUrl.nullable(),
+  source: memberInput.source.nullable(),
+  sourceLabel: memberInput.sourceLabel.nullable(),
+  visibility: memberInput.visibility.nullable(),
+  publicDescription: memberInput.publicDescription.nullable(),
+  publicSkills: memberInput.publicSkills.nullable(),
+  inputSpec: memberInput.inputSpec.nullable(),
+  outputSpec: memberInput.outputSpec.nullable(),
+  disabled: memberInput.disabled.nullable(),
+});

@@ -39,6 +39,15 @@ import type {
   AuthSessionGetData,
   AuthSessionGetErrors,
   AuthSessionGetResponses,
+  EmployeeEmployeeRestoreDefaultsData,
+  EmployeeEmployeeRestoreDefaultsErrors,
+  EmployeeEmployeeRestoreDefaultsResponses,
+  EmployeeEmployeeUpdateData,
+  EmployeeEmployeeUpdateErrors,
+  EmployeeEmployeeUpdateResponses,
+  EmployeeEmployeeUpsertData,
+  EmployeeEmployeeUpsertErrors,
+  EmployeeEmployeeUpsertResponses,
   NetworkAccountConnectData,
   NetworkAccountConnectErrors,
   NetworkAccountConnectResponses,
@@ -53,6 +62,12 @@ import type {
   RoomEventListData,
   RoomEventListErrors,
   RoomEventListResponses,
+  RoomMemberAddData,
+  RoomMemberAddErrors,
+  RoomMemberAddResponses,
+  RoomMemberRemoveData,
+  RoomMemberRemoveErrors,
+  RoomMemberRemoveResponses,
   RoomMessageCreateData,
   RoomMessageCreateErrors,
   RoomMessageCreateResponses,
@@ -475,6 +490,40 @@ export class Direct extends HeyApiClient {
   }
 }
 
+export class Member extends HeyApiClient {
+  /**
+   * Add an Employee to a Room
+   *
+   * Add an existing Employee by id, preserving unspecified metadata, or supply metadata to create a local Employee. App scope restrictions still apply.
+   */
+  public add<ThrowOnError extends boolean = false>(
+    options: Options<RoomMemberAddData, ThrowOnError>,
+  ): RequestResult<RoomMemberAddResponses, RoomMemberAddErrors, ThrowOnError> {
+    return (options.client ?? this.client).post<RoomMemberAddResponses, RoomMemberAddErrors, ThrowOnError>({
+      url: "/rooms/{roomId}/members",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Remove a Room member
+   *
+   * Remove a member from this Room without deleting the Employee or message history.
+   */
+  public remove<ThrowOnError extends boolean = false>(
+    options: Options<RoomMemberRemoveData, ThrowOnError>,
+  ): RequestResult<RoomMemberRemoveResponses, RoomMemberRemoveErrors, ThrowOnError> {
+    return (options.client ?? this.client).delete<RoomMemberRemoveResponses, RoomMemberRemoveErrors, ThrowOnError>({
+      url: "/rooms/{roomId}/members/{memberId}",
+      ...options,
+    });
+  }
+}
+
 export class Room2 extends HeyApiClient {
   private _room?: Room;
   get room(): Room {
@@ -494,6 +543,79 @@ export class Room2 extends HeyApiClient {
   private _direct?: Direct;
   get direct(): Direct {
     return (this._direct ??= new Direct({ client: this.client }));
+  }
+
+  private _member?: Member;
+  get member(): Member {
+    return (this._member ??= new Member({ client: this.client }));
+  }
+}
+
+export class Employee extends HeyApiClient {
+  /**
+   * Create or replace an Employee
+   *
+   * Create or replace local Employee metadata. Existing remote bindings and server-owned App defaults are preserved.
+   */
+  public upsert<ThrowOnError extends boolean = false>(
+    options: Options<EmployeeEmployeeUpsertData, ThrowOnError>,
+  ): RequestResult<EmployeeEmployeeUpsertResponses, EmployeeEmployeeUpsertErrors, ThrowOnError> {
+    return (options.client ?? this.client).post<
+      EmployeeEmployeeUpsertResponses,
+      EmployeeEmployeeUpsertErrors,
+      ThrowOnError
+    >({
+      url: "/rooms/members",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Update Employee preferences
+   *
+   * Change selected Employee fields. Explicit null clears a preference; App-managed defaults and remote Employee restrictions remain authoritative.
+   */
+  public update<ThrowOnError extends boolean = false>(
+    options: Options<EmployeeEmployeeUpdateData, ThrowOnError>,
+  ): RequestResult<EmployeeEmployeeUpdateResponses, EmployeeEmployeeUpdateErrors, ThrowOnError> {
+    return (options.client ?? this.client).patch<
+      EmployeeEmployeeUpdateResponses,
+      EmployeeEmployeeUpdateErrors,
+      ThrowOnError
+    >({
+      url: "/rooms/members/{memberId}",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Restore App Employee defaults
+   *
+   * Restore App-owned Employee fields from the installed App's defaults while preserving the user's Provider choice and App instructions.
+   */
+  public restoreDefaults<ThrowOnError extends boolean = false>(
+    options: Options<EmployeeEmployeeRestoreDefaultsData, ThrowOnError>,
+  ): RequestResult<EmployeeEmployeeRestoreDefaultsResponses, EmployeeEmployeeRestoreDefaultsErrors, ThrowOnError> {
+    return (options.client ?? this.client).post<
+      EmployeeEmployeeRestoreDefaultsResponses,
+      EmployeeEmployeeRestoreDefaultsErrors,
+      ThrowOnError
+    >({ url: "/rooms/members/{memberId}/restore-app-defaults", ...options });
+  }
+}
+
+export class Employee2 extends HeyApiClient {
+  private _employee?: Employee;
+  get employee(): Employee {
+    return (this._employee ??= new Employee({ client: this.client }));
   }
 }
 
@@ -591,6 +713,11 @@ export class OpenGroveApi extends HeyApiClient {
   private _room?: Room2;
   get room(): Room2 {
     return (this._room ??= new Room2({ client: this.client }));
+  }
+
+  private _employee?: Employee2;
+  get employee(): Employee2 {
+    return (this._employee ??= new Employee2({ client: this.client }));
   }
 
   private _network?: Network;

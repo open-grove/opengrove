@@ -9,3 +9,4 @@ export * from "./rooms.js";
 export * from "./network.js";
 export * from "./remote-agent.js";
 export * from "./kernel-capability-ids.js";
+export * from "./employees.js";

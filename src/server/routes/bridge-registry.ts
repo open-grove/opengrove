@@ -38,6 +38,13 @@ import {
   handleUpdateRoomOperation,
   handleMarkRoomReadOperation,
 } from "./rooms/collection-routes.js";
+import {
+  handleUpsertEmployeeOperation,
+  handleUpdateEmployeeOperation,
+  handleRestoreEmployeeDefaultsOperation,
+  handleAddRoomMemberOperation,
+  handleRemoveRoomMemberOperation,
+} from "./rooms/member-routes.js";
 import { handleRoomsRoute } from "./rooms.js";
 import { createRoutineRoutes } from "./routines.js";
 import { handleSettingsRoute } from "./settings.js";
@@ -91,6 +98,11 @@ export function createBridgeRoutes(): BridgeRoute[] {
     operationRoute(hostContractById["room.room.create"], handleCreateRoomOperation),
     operationRoute(hostContractById["room.room.update"], handleUpdateRoomOperation),
     operationRoute(hostContractById["room.room.read"], handleMarkRoomReadOperation),
+    operationRoute(hostContractById["employee.employee.upsert"], handleUpsertEmployeeOperation),
+    operationRoute(hostContractById["employee.employee.update"], handleUpdateEmployeeOperation),
+    operationRoute(hostContractById["employee.employee.restore-defaults"], handleRestoreEmployeeDefaultsOperation),
+    operationRoute(hostContractById["room.member.add"], handleAddRoomMemberOperation),
+    operationRoute(hostContractById["room.member.remove"], handleRemoveRoomMemberOperation),
     moduleRoute("rooms", /^\/rooms(?:\/|$)/, (context) => handleRoomsRoute(context)),
     ...createRoutineRoutes(),
     ...createAskRoutes(),

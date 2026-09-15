@@ -2,7 +2,8 @@
   "groups": {
     "app": "apps",
     "auth": "auth",
-    "room": "rooms"
+    "room": "rooms",
+    "employee": "employees"
   },
   "resources": {
     "app.release": "releases",
@@ -11,9 +12,12 @@
     "auth.session": "session",
     "room.message": "messages",
     "room.room": "collection",
-    "room.event": "events"
+    "room.event": "events",
+    "employee.employee": "collection",
+    "room.member": "members"
   },
   "operations": {
-    "app.release.keep-local": "keepLocal"
+    "app.release.keep-local": "keepLocal",
+    "employee.employee.restore-defaults": "restoreDefaults"
   }
 }
