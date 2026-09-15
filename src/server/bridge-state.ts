@@ -71,6 +71,7 @@ import {
 } from "./bridge-mounted-app-employees.js";
 import {
   clearMountedAppUninstallMarkers,
+  bridgeSettingsPath,
   defaultBridgeSettings,
   effectiveMountedApps,
   bridgeSettingsFileExists as hasBridgeSettingsFile,
@@ -111,6 +112,7 @@ import {
   validateStoreAppLayoutWorkspaceCopiesV2,
 } from "./migrations/store-app-layout-v2.js";
 import { STORE_APP_LAYOUT_V2_LOG_EVENTS } from "./migrations/store-app-layout-v2-metadata.js";
+import { readPersistedBackupSettings, recordStoreAppLayoutBackups } from "./migrations/store-app-layout-v2-backups.js";
 import { migrateStoreWorkspaceBindingsV1 } from "./migrations/store-workspace-binding-v1.js";
 import { mountedAppManifestIssue, readMountedAppManifest, resolveMountedAppTarget } from "./mounted-apps.js";
 import { productDefaultEmployees } from "./product-default-employees.js";
@@ -495,6 +497,17 @@ export function createBridgeState(
         mountedApps: state.settings.mountedApps,
         roots: storeAppLayoutRoots,
       });
+      recordStoreAppLayoutBackups(
+        layoutRetirement.renamed,
+        {
+          roots: storeAppLayoutRoots,
+          mountedApps: state.settings.mountedApps,
+          persistedMountedApps: readPersistedBackupSettings(bridgeSettingsPath(state))?.mountedApps,
+          appInitialized: state.appInitialized === true,
+          initializedMountedApps: state.initializedMountedApps,
+        },
+        layoutMigratedAppIds,
+      );
       if (layoutRetirement.renamed.length) {
         console.info(STORE_APP_LAYOUT_V2_LOG_EVENTS.legacyPathsRetired, { paths: layoutRetirement.renamed });
       }
@@ -616,6 +629,7 @@ export interface RecreateBridgeAppOptions {
 }
 
 export function recreateBridgeApp(state: BridgeState, options: RecreateBridgeAppOptions = {}): void {
+  state.initializedMountedApps = undefined;
   const claudeConfigHome = kernelConfigHomeForRegistry(state.settings, "claude-code");
   const rootState = rootBridgeState(state);
   const previousApp = state.appInitialized ? state.app : undefined;
@@ -951,6 +965,7 @@ export function recreateBridgeApp(state: BridgeState, options: RecreateBridgeApp
     saveBridgeSettings(state);
   }
   state.app.skills.list();
+  state.initializedMountedApps = mountedApps.map((mount) => ({ ...mount }));
 }
 
 export function migrateLegacyNativeEmployeeProviderRoutes(state: BridgeState): boolean {

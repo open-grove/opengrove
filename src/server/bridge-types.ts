@@ -387,6 +387,8 @@ export interface BridgeState {
   internalBridgeBaseUrl?: string;
   /** True after the required App store graph has been constructed at least once. */
   appInitialized?: boolean;
+  /** Bindings used by the last successfully completed App recreation; not persisted. */
+  initializedMountedApps?: BridgeMountedAppSettings[];
   store: AgentStateStore;
   /** Per-Host persistence cadence; never shared across Bridge instances. */
   eventCheckpointPolicy?: AgentEventCheckpointPolicy;
