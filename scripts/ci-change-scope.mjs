@@ -17,6 +17,7 @@ const CODE_SCOPE_KEYS = [
 const CONSERVATIVE_PATHS = new Set([
   ".github/workflows/ci.yml",
   ".github/workflows/main-ci.yml",
+  ".github/workflows/ci-checks.yml",
   ".github/workflows/nightly.yml",
   "package.json",
   "package-lock.json",
@@ -29,6 +30,7 @@ const CONSERVATIVE_PATHS = new Set([
 const WINDOWS_MEDIA_CLEANUP_PATHS = new Set([
   ".github/workflows/ci.yml",
   ".github/workflows/main-ci.yml",
+  ".github/workflows/ci-checks.yml",
   ".github/workflows/nightly.yml",
   "package.json",
   "package-lock.json",
@@ -44,6 +46,7 @@ const WINDOWS_MEDIA_CLEANUP_PATHS = new Set([
 const WINDOWS_APP_STORE_PATHS = new Set([
   ".github/workflows/ci.yml",
   ".github/workflows/main-ci.yml",
+  ".github/workflows/ci-checks.yml",
   ".github/workflows/nightly.yml",
   "package.json",
   "package-lock.json",
@@ -99,7 +102,12 @@ function classifyPath(path, result) {
 
   result.base = true;
 
-  if (CONSERVATIVE_PATHS.has(path)) {
+  if (
+    CONSERVATIVE_PATHS.has(path) ||
+    path.startsWith(".github/actions/") ||
+    path.startsWith("scripts/ci-") ||
+    path.startsWith("scripts/run-ci-")
+  ) {
     enableEveryCodeScope(result);
   } else if (startsWithAny(path, SHARED_PROTOCOL_PATHS)) {
     enableScopes(result, [

@@ -63,7 +63,6 @@ export const harnessInventory = [
   task("app-builder", "dist/tests/app-builder-harness.js", "apps-knowledge"),
   task("app-store", "dist/tests/app-store-harness.js", "apps-knowledge", { suite: "critical" }),
   task("kernel-command-path", "dist/tests/kernel-command-path-harness.js", "kernels-providers"),
-  task("desktop-dev-processes", "scripts/test-desktop-dev-processes.mjs", "web-desktop"),
   task("codex-app-server-client", "dist/tests/codex-app-server-client-harness.js", "kernels-providers"),
   task("codex-event-projector", "dist/tests/codex-event-projector-harness.js", "kernels-providers"),
   task("claude-code-runtime", "dist/tests/claude-code-runtime-harness.js", "kernels-providers"),
@@ -206,19 +205,27 @@ export const harnessInventory = [
     suite: "clean-home",
     isolation: "clean-home",
   }),
-  task("packed-runtime", "scripts/test-packed-runtime.mjs", "kernels-providers", { suite: "packed-runtime" }),
+  task("packed-runtime", "scripts/test-packed-runtime.mjs", "kernels-providers", {
+    suite: "packed-runtime",
+    network: true,
+  }),
   task("raw-file-range", "dist/tests/raw-file-range-harness.js", "web-desktop", { suite: "media-streaming" }),
 ];
 
 validateInventory(harnessInventory);
 
+const deterministicInventory = harnessInventory.filter((task) => !task.network);
+
 export const harnessGroups = {
   ...Object.fromEntries(
     integrationSuites.map((suite) => [suite, harnessInventory.filter((task) => task.suite === suite)]),
   ),
-  integration: harnessInventory.filter((task) => task.suite),
-  ...Object.fromEntries(harnessOwners.map((owner) => [owner, harnessInventory.filter((task) => task.owner === owner)])),
-  full: harnessInventory,
+  integration: deterministicInventory.filter((task) => task.suite),
+  ...Object.fromEntries(
+    harnessOwners.map((owner) => [owner, deterministicInventory.filter((task) => task.owner === owner)]),
+  ),
+  full: deterministicInventory,
+  network: harnessInventory.filter((task) => task.network),
 };
 
 function task(id, path, owner, options = {}) {

@@ -1,5 +1,7 @@
 # Building OpenGrove
 
+[CI ownership and configuration](CI.md)
+
 This guide covers source setup, Desktop and Web startup, compilation, local
 packages, and verification. Run every command from the repository root. Choose
 an entry point by goal, then follow its workflow. Formal desktop publication

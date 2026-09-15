@@ -29,9 +29,10 @@ import {
   inspectAgentTurnEvents,
 } from "./harnesses/kernel-event-contract.js";
 import { providerUnavailableReason } from "./kernel-real-runtime-probe-classification.js";
+import { probeRealRuntimeVersion } from "./kernel-real-runtime-version.js";
 import type { KernelAdapter } from "../kernel/types.js";
 import { createClaudeCodeKernelAdapter } from "../kernel/adapters/claude-code.js";
-import { createCodexKernelAdapter } from "../kernel/adapters/codex.js";
+import { createCodexKernelAdapter, codexProviderConfigFromProfile } from "../kernel/adapters/codex.js";
 import { createKimiKernelAdapter, resolveKimiCommand } from "../kernel/adapters/kimi.js";
 import { createOpenCodeKernelAdapter, resolveOpenCodeCommand } from "../kernel/adapters/opencode.js";
 import { createHermesKernelAdapter } from "../kernel/adapters/hermes.js";
@@ -43,7 +44,11 @@ import {
   resolveOpenClawGatewayConnection,
 } from "../runtime/openclaw-gateway-runtime.js";
 import { BRIDGE_KERNEL_IDS, type BridgeKernelId, type BridgeProviderProfile } from "../server/bridge-types.js";
-import { hermesProviderConfigForKernel, providerEnvForKernel } from "../server/provider-profiles.js";
+import {
+  hermesProviderConfigForKernel,
+  providerEnvForKernel,
+  providerProfileForKernel,
+} from "../server/provider-profiles.js";
 import { KERNEL_CAPABILITY_CONTRACTS } from "../kernel/capabilities/contracts.js";
 import {
   REAL_RUNTIME_EVIDENCE_PATH,
@@ -246,6 +251,18 @@ async function runKernelCapabilityProbes(
       continue;
     }
 
+    if (kernel === "codex" && capability === "auth.refresh" && probeProvider(options)) {
+      records.push(
+        skippedProbe(
+          emptyBase,
+          capability,
+          testId,
+          "Codex ChatGPT auth.refresh requires a native account; an external model API key does not verify it.",
+        ),
+      );
+      continue;
+    }
+
     if (!mapping.expectedContractTest) {
       records.push(skippedProbe(emptyBase, capability, testId, "no_contract_test_declared"));
       continue;
@@ -398,13 +415,19 @@ async function createAgentAdapter(
         : undefined;
 
   if (kernel === "codex") {
+    const binding = providerProfileForKernel(kernel, provider, options.model);
     return {
       adapter: createCodexKernelAdapter({
         cwd: options.cwd,
-        env: probeCase?.runtimeEnv,
+        env: { ...providerEnv, ...probeCase?.runtimeEnv },
         approvalPolicy: probeCase?.codexApprovalPolicy,
+        configuredModel,
+        providerConfig: binding ? codexProviderConfigFromProfile(binding) : undefined,
+        allowServiceTier: !binding,
       }),
-      providerKind: "native",
+      providerKind,
+      providerBaseUrl,
+      providerModel: configuredModel,
     };
   }
 
@@ -441,6 +464,7 @@ async function createAgentAdapter(
       providerBaseUrl,
       providerModel: isExternalProbeProvider(providerKind) ? options.model : undefined,
       command,
+      kernelVersion: await probeRealRuntimeVersion(command),
     };
   }
 
@@ -494,6 +518,7 @@ async function createAgentAdapter(
       providerBaseUrl,
       providerModel: isExternalProbeProvider(providerKind) ? options.model : undefined,
       command,
+      kernelVersion: await probeRealRuntimeVersion(command),
     };
   }
 
@@ -513,6 +538,7 @@ async function createAgentAdapter(
       providerBaseUrl,
       providerModel: isExternalProbeProvider(providerKind) ? options.model : undefined,
       command,
+      kernelVersion: await probeRealRuntimeVersion(command),
     };
   }
 

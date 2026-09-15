@@ -150,7 +150,7 @@ export async function validateDesktopReleaseSourceManifests({ releaseDir, packag
 
 export function readDesktopReleaseCandidateSource(projectRoot, version) {
   const status = git(projectRoot, ["status", "--porcelain"]);
-  if (status.trim()) throw new Error("desktop release candidates require a clean Git working tree");
+  if (status.trim()) throw new Error(`desktop release candidates require a clean Git working tree:\n${status.trim()}`);
   const gitCommit = git(projectRoot, ["rev-parse", "HEAD"]).trim();
   const expectedGitTag = `v${version}`;
   const configuredExpectedGitTag = process.env.OPENGROVE_EXPECTED_RELEASE_TAG?.trim();

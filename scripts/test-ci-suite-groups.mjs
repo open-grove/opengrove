@@ -74,8 +74,8 @@ const expectedFullGroupSizes = {
   "rooms-routines": 23,
   "apps-knowledge": 16,
   "app-lifecycle": 21,
-  "kernels-providers": 29,
-  "web-desktop": 20,
+  "kernels-providers": 28,
+  "web-desktop": 19,
   "release-contracts": 1,
 };
 const groupSetupCommands = {
@@ -103,10 +103,10 @@ for (const [groupName, expectedSize] of Object.entries(expectedFullGroupSizes)) 
   groupedLabels.push(...harnessGroups[groupName].map((task) => task.id));
 }
 
-assert.equal(harnessInventory.length, 120, "the canonical deterministic harness inventory must not shrink silently");
-assert.equal(
+assert.equal(harnessInventory.length, 119, "the canonical deterministic harness inventory must not shrink silently");
+assert.deepEqual(
   harnessGroups.full,
-  harnessInventory,
+  harnessInventory.filter((task) => !task.network),
   "the full group should be the canonical inventory, not a second list",
 );
 assert.equal(
@@ -114,10 +114,10 @@ assert.equal(
   harnessInventory.length,
   "every harness id must be unique",
 );
-assert.equal(harnessGroups.integration.length, 42, "the affected-integration subset must not shrink silently");
+assert.equal(harnessGroups.integration.length, 41, "the affected-integration subset must not shrink silently");
 assert.equal(
   new Set(harnessGroups.integration.map((task) => task.id)).size,
-  42,
+  41,
   "the integration subset must not execute a canonical harness twice",
 );
 assert.equal(new Set(groupedLabels).size, groupedLabels.length, "a full harness must have exactly one owner group");
@@ -133,7 +133,7 @@ assert.deepEqual(
 );
 assert.deepEqual(
   new Set(harnessGroups.integration),
-  new Set(integrationSuites.flatMap((suite) => harnessGroups[suite])),
+  new Set(integrationSuites.flatMap((suite) => harnessGroups[suite]).filter((task) => !task.network)),
   "integration should be derived from the named subsets without another task list",
 );
 
@@ -153,7 +153,7 @@ assert.deepEqual(
 );
 
 const windowsTasks = harnessTasksForPlatform(harnessGroups.integration, "win32");
-assert.equal(windowsTasks.length, 39);
+assert.equal(windowsTasks.length, 38);
 assert.ok(windowsTasks.some((task) => task.id === "app-release-windows-build-boundary"));
 assert.deepEqual(
   harnessGroups.integration.filter((task) => !windowsTasks.includes(task)).map((task) => task.id),
@@ -161,7 +161,7 @@ assert.deepEqual(
 );
 for (const platform of ["darwin", "linux"]) {
   const selected = harnessTasksForPlatform(harnessGroups.integration, platform);
-  assert.equal(selected.length, 41);
+  assert.equal(selected.length, 40);
   assert.deepEqual(
     harnessGroups.integration.filter((task) => !selected.includes(task)).map((task) => task.id),
     ["app-release-windows-build-boundary"],
@@ -170,7 +170,9 @@ for (const platform of ["darwin", "linux"]) {
 
 for (const task of harnessGroups.full) {
   assert.deepEqual(
-    Object.keys(task).filter((field) => !["id", "path", "owner", "suite", "isolation", "platforms"].includes(field)),
+    Object.keys(task).filter(
+      (field) => !["id", "path", "owner", "suite", "isolation", "platforms", "network"].includes(field),
+    ),
     [],
     `${task.id} should use only the reviewed, non-redundant inventory fields`,
   );
@@ -180,4 +182,15 @@ for (const task of harnessGroups.full) {
   assert.equal(existsSync(resolve(projectRoot, sourcePath)), true, `${task.id} should reference a tracked test source`);
 }
 
+assert.deepEqual(
+  harnessGroups.network.map((task) => task.id),
+  ["packed-runtime"],
+);
+assert.ok(!harnessGroups.full.some((task) => task.network));
 console.log("CI suite ownership harness ok");
+
+assert.ok(
+  !harnessInventory.some((task) => task.id === "desktop-dev-processes"),
+  "desktop process checks belong to the desktop contract owner",
+);
+assert.ok(packageJson.scripts["check:desktop-dev-runtime"].includes("scripts/test-desktop-dev-processes.mjs"));

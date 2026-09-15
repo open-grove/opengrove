@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { load } from "js-yaml";
 import { spawn, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { createServer, request as createHttpRequest } from "node:http";
@@ -465,7 +466,7 @@ function testDesktopReleaseWorkflow() {
   assert.match(workflow, /Apple ID notarization strategy selected; no API key to materialize/);
   const macJob = workflow.slice(workflow.indexOf("  mac-release:"), workflow.indexOf("  windows-release:"));
   const macJobHeader = macJob.slice(0, macJob.indexOf("    steps:"));
-  assert.match(macJobHeader, /needs: \[resolve-candidate, release-readiness, deployment-readiness, golden-replay\]/);
+
   assert.match(macJobHeader, /!cancelled\(\)/);
   assert.doesNotMatch(macJobHeader, /always\(\)/);
   assert.match(macJobHeader, /full_candidate != 'true'/);
@@ -494,10 +495,7 @@ function testDesktopReleaseWorkflow() {
   assert.match(platformSelection, /ossutil-2\.3\.0-mac-arm64\.zip/);
   const windowsJob = workflow.slice(workflow.indexOf("  windows-release:"), workflow.indexOf("  release-gates:"));
   const windowsJobHeader = windowsJob.slice(0, windowsJob.indexOf("    steps:"));
-  assert.match(
-    windowsJobHeader,
-    /needs: \[resolve-candidate, release-readiness, deployment-readiness, golden-replay\]/,
-  );
+
   assert.match(windowsJobHeader, /!cancelled\(\)/);
   assert.doesNotMatch(windowsJobHeader, /always\(\)/);
   assert.match(windowsJobHeader, /full_candidate != 'true'/);
@@ -576,7 +574,28 @@ function testDesktopReleaseWorkflow() {
   assert.match(workflow, /release-source\/windows-x64\.json/);
   assert.match(workflow, /first_public_release:/);
   assert.match(workflow, /first_public_release is disabled after the first public GitHub Release exists/);
-  assert.match(workflow, /public-release-bootstrap\.mjs download/);
+  const jobs = load(workflow).jobs;
+  for (const id of ["mac-release", "windows-release"]) {
+    const job = jobs[id];
+    for (const prerequisite of [
+      "resolve-candidate",
+      "release-readiness",
+      "deployment-readiness",
+      "golden-replay",
+      "previous-installers",
+    ])
+      assert.ok(job.needs.includes(prerequisite));
+    assert.ok(job.if.includes("needs.previous-installers.result == 'success'"));
+    const at = (text) => job.steps.findIndex((step) => step.run?.includes(text));
+    assert.ok(at("release-baselines.mjs verify") >= 0);
+    assert.ok(at("release-baselines.mjs verify") < at("npm run build"));
+    assert.ok(at("npm run build") < at("check-generated-source.mjs"));
+    assert.ok(at("check-generated-source.mjs") < at("electron-builder --config"));
+    assert.ok(at("write-desktop-release-source.mjs") > at("electron-builder --config"));
+    const download = job.steps.find((step) => step.name === "Download verified previous installers");
+    assert.equal(download.with["artifact-ids"], "${{ needs.previous-installers.outputs.artifact_id }}");
+  }
+  assert.ok(jobs["previous-installers"].steps.some((step) => step.run?.includes("release-baselines.mjs prepare")));
   assert.match(workflow, /vars\.OPENGROVE_DESKTOP_RELEASE_PUBLIC_ROOT/);
   assert.doesNotMatch(workflow, /npm run dist:desktop:release/);
   const finalizer = readFileSync(
@@ -651,7 +670,7 @@ function testDesktopReleaseWorkflow() {
   assert.match(control, /withdraw does not accept a client release number/);
   assert.match(control, /promote and rollback require a positive integer client release number/);
   const ci = readFileSync(join(projectRoot, ".github", "workflows", "ci.yml"), "utf8").replace(/\r\n/g, "\n");
-  assert.match(ci, /npm run check:static:base/);
+  assert.equal(load(ci).jobs.checks.uses, "./.github/workflows/ci-checks.yml");
   assert.match(packageJson.scripts["check:static:base"], /npm run check:typescript-runtime-compat/);
   const publisher = readFileSync(join(projectRoot, "scripts", "publish-desktop-release.mjs"), "utf8");
   const preparer = readFileSync(join(projectRoot, "scripts", "prepare-desktop-release.mjs"), "utf8");

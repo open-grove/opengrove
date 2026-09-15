@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 
-import { evaluateReleaseCiEligibility, validateCandidateCommit } from "./release-ci-eligibility.mjs";
+import {
+  evaluateReleaseCiEligibility,
+  validateCandidateCommit,
+  verifyReleaseLiveEvidence,
+} from "./release-ci-eligibility.mjs";
 
 const candidateCommit = "a".repeat(40);
 const nightlyCommit = "b".repeat(40);
@@ -126,3 +130,39 @@ assert.throws(
 );
 
 console.log("Release CI eligibility harness ok");
+
+const run = { id: 202, run_attempt: 2, head_sha: nightlyCommit };
+const required = [{ kernel: "pi", runtime_mode: "sdk", capabilities: ["turn.lifecycle"] }];
+const proof = {
+  schemaVersion: 1,
+  ready: true,
+  runId: "202",
+  runAttempt: "2",
+  headSha: nightlyCommit,
+  inputDigest: "a".repeat(64),
+  coverage: [
+    {
+      kernel: "pi",
+      required: true,
+      runtimeMode: "sdk",
+      kernelVersion: "0.85.1",
+      checkedAt: now.toISOString(),
+      capabilities: [{ capability: "turn.lifecycle", status: "passed" }],
+    },
+  ],
+};
+const checkProof = (evidence = proof, digest = proof.inputDigest) =>
+  verifyReleaseLiveEvidence({ evidence, run, required, candidateInputDigest: digest, now });
+assert.equal(checkProof().capabilities, 1);
+assert.throws(() => checkProof(undefined, "b".repeat(64)), /inputs changed/);
+assert.throws(() => checkProof({ ...proof, ready: false }), /complete/);
+assert.throws(() => checkProof({ ...proof, runAttempt: "1" }), /different/);
+assert.throws(() => checkProof({ ...proof, coverage: [] }), /incomplete/);
+assert.throws(
+  () =>
+    checkProof({
+      ...proof,
+      coverage: [{ ...proof.coverage[0], capabilities: [{ capability: "turn.lifecycle", status: "skipped" }] }],
+    }),
+  /Unverified/,
+);

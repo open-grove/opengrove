@@ -1,9 +1,17 @@
 name: Desktop release candidate
-run-name: Desktop candidate ${{ inputs.ref }} [${{ inputs.platforms }}]
+run-name: ${{ inputs.orchestration_id && format('OpenGrove {0} / candidate [{1}]', inputs.orchestration_tag, inputs.orchestration_id) || format('Desktop candidate {0} [{1}]', inputs.ref, inputs.platforms) }}
 
 on:
   workflow_dispatch:
     inputs:
+      orchestration_id:
+        description: Pipeline correlation ID (leave empty for a standalone run)
+        required: false
+        type: string
+      orchestration_tag:
+        description: Pipeline release tag (leave empty for a standalone run)
+        required: false
+        type: string
       ref:
         description: Current main commit SHA or the main branch
         required: true
@@ -221,6 +229,40 @@ jobs:
           PUBLIC_ROOT: ${{ vars.OPENGROVE_DESKTOP_RELEASE_PUBLIC_ROOT }}
         run: node -e 'require("node:fs").appendFileSync(process.env.GITHUB_OUTPUT, `public_root=${new URL(process.env.PUBLIC_ROOT).href}\n`)'
 
+  previous-installers:
+    name: Acquire and verify every previous installer
+    needs: [resolve-candidate, deployment-readiness]
+    if: >-
+      !cancelled() && needs.resolve-candidate.result == 'success' &&
+      (needs.deployment-readiness.result == 'success' || needs.resolve-candidate.outputs.full_candidate != 'true')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs:
+      artifact_id: ${{ steps.upload.outputs.artifact-id }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.resolve-candidate.outputs.commit }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Download and verify N-1 bytes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          OPENGROVE_PREVIOUS_RELEASE_TAG: ${{ needs.resolve-candidate.outputs.previous_release_tag }}
+          OPENGROVE_PREVIOUS_RELEASE_SOURCE: ${{ needs.resolve-candidate.outputs.previous_release_source }}
+          OPENGROVE_EXPECTED_RELEASE_TAG: ${{ needs.resolve-candidate.outputs.expected_tag }}
+          OPENGROVE_DESKTOP_RELEASE_PUBLIC_ROOT: ${{ needs.deployment-readiness.outputs.public_release_root || vars.OPENGROVE_DESKTOP_RELEASE_PUBLIC_ROOT }}
+        run: node scripts/release-baselines.mjs prepare "$RUNNER_TEMP/previous-release"
+      - uses: actions/upload-artifact@v4
+        id: upload
+        with:
+          name: previous-installers-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/previous-release/
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 3
+
   golden-replay:
     name: Replay known-good desktop release gates
     needs: [resolve-candidate, deployment-readiness]
@@ -233,7 +275,7 @@ jobs:
   mac-release:
     name: Build signed macOS ${{ matrix.arch }} release
     if: >-
-      !cancelled() &&
+      !cancelled() && needs.previous-installers.result == 'success' &&
       needs.resolve-candidate.result == 'success' &&
       needs.resolve-candidate.outputs.run_mac == 'true' &&
       (
@@ -247,7 +289,7 @@ jobs:
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 150
     environment: desktop-release
-    needs: [resolve-candidate, release-readiness, deployment-readiness, golden-replay]
+    needs: [resolve-candidate, release-readiness, deployment-readiness, golden-replay, previous-installers]
     env:
       OPENGROVE_EXPECTED_RELEASE_TAG: ${{ needs.resolve-candidate.outputs.expected_tag }}
       OPENGROVE_PREVIOUS_RELEASE_TAG: ${{ needs.resolve-candidate.outputs.previous_release_tag }}
@@ -380,10 +422,23 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: node scripts/preflight-desktop-release.mjs
 
+      - name: Download verified previous installers
+        uses: actions/download-artifact@v4
+        with:
+          artifact-ids: ${{ needs.previous-installers.outputs.artifact_id }}
+          path: ${{ runner.temp }}/previous-release
+          merge-multiple: true
+      - name: Verify previous installer before building
+        id: previous
+        run: node scripts/release-baselines.mjs verify "${{ runner.temp }}/previous-release" ${{ matrix.target }}
+
       - name: Build application
         env:
           OPENGROVE_WEB_BUILD_ID: ${{ steps.release.outputs.web_build_id }}
         run: npm run build
+
+      - name: Reject generated source drift before packaging
+        run: node scripts/check-generated-source.mjs
 
       - name: Prepare desktop package inputs
         run: |
@@ -430,31 +485,6 @@ jobs:
           node scripts/verify-desktop-update-metadata.mjs \
             --evidence-out release/desktop/release-gates/${{ matrix.target }}/updater_metadata.json
 
-      - name: Download previous installer
-        id: previous
-        env:
-          GH_TOKEN: ${{ github.token }}
-        shell: bash
-        run: |
-          previous='${{ needs.resolve-candidate.outputs.previous_release_tag }}'
-          test -n "$previous"
-          mkdir -p "$RUNNER_TEMP/previous-release"
-          if [ "$OPENGROVE_PREVIOUS_RELEASE_SOURCE" = bootstrap ]; then
-            node scripts/public-release-bootstrap.mjs download \
-              --expected-tag "$OPENGROVE_EXPECTED_RELEASE_TAG" \
-              --target '${{ matrix.target }}' \
-              --public-root "$OPENGROVE_DESKTOP_RELEASE_PUBLIC_ROOT" \
-              --output-dir "$RUNNER_TEMP/previous-release" \
-              --github-output "$GITHUB_OUTPUT"
-          else
-            gh release download "$previous" \
-              --pattern 'OpenGrove-*-mac-${{ matrix.arch }}.dmg' \
-              --dir "$RUNNER_TEMP/previous-release"
-            installer="$(find "$RUNNER_TEMP/previous-release" -type f -name '*.dmg' -print -quit)"
-            test -n "$installer"
-            echo "installer=$installer" >> "$GITHUB_OUTPUT"
-          fi
-
       - name: Update previous release through the real updater
         run: |
           node scripts/test-previous-desktop-update.mjs \
@@ -489,7 +519,7 @@ jobs:
   windows-release:
     name: Build unsigned Windows x64 release
     if: >-
-      !cancelled() &&
+      !cancelled() && needs.previous-installers.result == 'success' &&
       needs.resolve-candidate.result == 'success' &&
       needs.resolve-candidate.outputs.run_windows == 'true' &&
       (
@@ -503,7 +533,7 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 120
     environment: desktop-release
-    needs: [resolve-candidate, release-readiness, deployment-readiness, golden-replay]
+    needs: [resolve-candidate, release-readiness, deployment-readiness, golden-replay, previous-installers]
     env:
       # Temporary until Authenticode or Trusted Signing is configured.
       OPENGROVE_ALLOW_UNSIGNED_WINDOWS: "1"
@@ -544,10 +574,23 @@ jobs:
       - name: Run release preflight
         run: node scripts/preflight-desktop-release.mjs
 
+      - name: Download verified previous installers
+        uses: actions/download-artifact@v4
+        with:
+          artifact-ids: ${{ needs.previous-installers.outputs.artifact_id }}
+          path: ${{ runner.temp }}/previous-release
+          merge-multiple: true
+      - name: Verify previous installer before building
+        id: previous
+        run: node scripts/release-baselines.mjs verify "${{ runner.temp }}/previous-release" windows-x64
+
       - name: Build application
         env:
           OPENGROVE_WEB_BUILD_ID: ${{ steps.release.outputs.web_build_id }}
         run: npm run build
+
+      - name: Reject generated source drift before packaging
+        run: node scripts/check-generated-source.mjs
 
       - name: Prepare desktop package inputs
         shell: pwsh
@@ -578,25 +621,6 @@ jobs:
           $PSNativeCommandUseErrorActionPreference = $true
           node scripts/prepare-desktop-release.mjs --public-base-url https://release-gate.invalid/opengrove --updater-base-url https://release-gate.invalid/opengrove/updater
           node scripts/verify-desktop-update-metadata.mjs --evidence-out release/desktop/release-gates/windows-x64/updater_metadata.json
-
-      - name: Download previous installer
-        id: previous
-        env:
-          GH_TOKEN: ${{ github.token }}
-        shell: pwsh
-        run: |
-          $previous = '${{ needs.resolve-candidate.outputs.previous_release_tag }}'
-          if (-not $previous) { throw "No previous release tag was found" }
-          $directory = Join-Path $env:RUNNER_TEMP 'previous-release'
-          New-Item -ItemType Directory -Force -Path $directory | Out-Null
-          if ($env:OPENGROVE_PREVIOUS_RELEASE_SOURCE -eq 'bootstrap') {
-            node scripts/public-release-bootstrap.mjs download --expected-tag $env:OPENGROVE_EXPECTED_RELEASE_TAG --target windows-x64 --public-root $env:OPENGROVE_DESKTOP_RELEASE_PUBLIC_ROOT --output-dir $directory --github-output $env:GITHUB_OUTPUT
-          } else {
-            gh release download $previous --pattern 'OpenGrove-*-win-x64.exe' --dir $directory
-            $installer = Get-ChildItem $directory -Filter '*.exe' | Select-Object -First 1
-            if (-not $installer) { throw "Previous Windows installer was not downloaded" }
-            "installer=$($installer.FullName)" >> $env:GITHUB_OUTPUT
-          }
 
       - name: Update previous release through the real updater
         timeout-minutes: 20
