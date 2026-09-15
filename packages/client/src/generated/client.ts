@@ -15,6 +15,9 @@ export const openGroveClientOperationIds = [
   "app.release.abandon",
   "app.release.keep-local",
   "app.update.schedule",
+  "room.room.create",
+  "room.room.update",
+  "room.room.read",
   "room.message.create",
   "network.account.inspect",
   "network.account.connect",
@@ -163,6 +166,55 @@ export function bindOpenGroveClient(request: HostOperationRequest) {
       },
     },
     rooms: {
+      collection: {
+        create: (
+          input: HostOperationInput<(typeof hostOperationById)["room.room.create"]> = {},
+          options?: OpenGroveRequestOptions,
+        ): Promise<HostOperationOutput<(typeof hostOperationById)["room.room.create"]>> =>
+          request(hostOperationById["room.room.create"], {
+            body: {
+              adminMemberIds: input.adminMemberIds,
+              badge: input.badge,
+              generatedTitle: input.generatedTitle,
+              id: input.id,
+              memberIds: input.memberIds,
+              scope: input.scope,
+              title: input.title,
+            },
+            signal: options?.signal,
+          }),
+        update: (
+          input: HostOperationInput<(typeof hostOperationById)["room.room.update"]>,
+          options?: OpenGroveRequestOptions,
+        ): Promise<HostOperationOutput<(typeof hostOperationById)["room.room.update"]>> =>
+          request(hostOperationById["room.room.update"], {
+            params: {
+              roomId: input.roomId,
+            },
+            body: {
+              adminMemberIds: input.adminMemberIds,
+              archived: input.archived,
+              badge: input.badge,
+              generatedTitle: input.generatedTitle,
+              pinned: input.pinned,
+              title: input.title,
+            },
+            signal: options?.signal,
+          }),
+        read: (
+          input: HostOperationInput<(typeof hostOperationById)["room.room.read"]>,
+          options?: OpenGroveRequestOptions,
+        ): Promise<HostOperationOutput<(typeof hostOperationById)["room.room.read"]>> =>
+          request(hostOperationById["room.room.read"], {
+            params: {
+              roomId: input.roomId,
+            },
+            body: {
+              observedEventSeq: input.observedEventSeq,
+            },
+            signal: options?.signal,
+          }),
+      },
       messages: {
         create: (
           input: HostOperationInput<(typeof hostOperationById)["room.message.create"]>,

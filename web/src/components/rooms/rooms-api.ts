@@ -241,9 +241,9 @@ export async function postServerRoomAgentMessage(input: {
 }
 
 export async function createServerRoom(room: Room): Promise<CreateRoomResponse> {
-  return await postJson<CreateRoomResponse>("/rooms", {
+  return await openGroveClient.rooms.collection.create({
     id: room.id,
-    scope: room.scope,
+    scope: room.scope ? { ...room.scope, role: room.scope.role === "direct" ? undefined : room.scope.role } : undefined,
     title: room.title,
     generatedTitle: room.generatedTitle,
     memberIds: room.memberIds,
@@ -279,15 +279,11 @@ export async function patchServerRoom(
   roomId: string,
   patch: Partial<Pick<Room, "title" | "pinned" | "badge" | "adminMemberIds">> & { archived?: boolean },
 ): Promise<void> {
-  await fetchJson(`/rooms/${encodeURIComponent(roomId)}`, {
-    method: "PATCH",
-    headers: bridgeHeaders(),
-    body: JSON.stringify(patch),
-  });
+  await openGroveClient.rooms.collection.update({ roomId, ...patch });
 }
 
 export async function markServerRoomRead(roomId: string, observedEventSeq: number): Promise<MarkRoomReadResponse> {
-  return await postJson<MarkRoomReadResponse>(`/rooms/${encodeURIComponent(roomId)}/read`, { observedEventSeq });
+  return await openGroveClient.rooms.collection.read({ roomId, observedEventSeq });
 }
 
 export async function upsertServerRoomMember(member: RoomMember): Promise<UpsertRoomMemberResponse> {

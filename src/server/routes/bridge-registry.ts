@@ -30,6 +30,11 @@ import { handlePendingActionsRoute } from "./pending-actions.js";
 import { moduleRoute, operationRoute } from "./registry-utils.js";
 import { handleRoomLedgerCapabilityRoute } from "./room-ledger.js";
 import { handleCreateRoomMessageOperation } from "./rooms/message-routes.js";
+import {
+  handleCreateRoomOperation,
+  handleUpdateRoomOperation,
+  handleMarkRoomReadOperation,
+} from "./rooms/collection-routes.js";
 import { handleRoomsRoute } from "./rooms.js";
 import { createRoutineRoutes } from "./routines.js";
 import { handleSettingsRoute } from "./settings.js";
@@ -76,6 +81,9 @@ export function createBridgeRoutes(): BridgeRoute[] {
     moduleRoute("apps", /^\/apps\//, (context) => handleAppsRoute(context)),
     ...createInventoryRoutes(),
     operationRoute(hostContractById["room.message.create"], handleCreateRoomMessageOperation),
+    operationRoute(hostContractById["room.room.create"], handleCreateRoomOperation),
+    operationRoute(hostContractById["room.room.update"], handleUpdateRoomOperation),
+    operationRoute(hostContractById["room.room.read"], handleMarkRoomReadOperation),
     moduleRoute("rooms", /^\/rooms(?:\/|$)/, (context) => handleRoomsRoute(context)),
     ...createRoutineRoutes(),
     ...createAskRoutes(),

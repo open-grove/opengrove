@@ -1320,6 +1320,410 @@ export type AppUpdateScheduleResponses = {
 
 export type AppUpdateScheduleResponse = AppUpdateScheduleResponses[keyof AppUpdateScheduleResponses];
 
+export type RoomRoomCreateData = {
+  body: {
+    /**
+     * Optional caller-selected Room identifier.
+     */
+    id?: string;
+    /**
+     * Room title.
+     */
+    title?: string;
+    /**
+     * Room badge.
+     */
+    badge?: string;
+    /**
+     * Initial member identifiers.
+     */
+    memberIds?: Array<string> | null;
+    /**
+     * Members allowed to delegate work.
+     */
+    adminMemberIds?: Array<string>;
+    scope?: {
+      kind: "app";
+      appId: string;
+      role?: "default" | "group";
+    };
+    generatedTitle?:
+      | {
+          kind: "numbered-group";
+          sequence: number;
+        }
+      | {
+          kind: "app-group";
+          appId: string;
+          sequence: number;
+        };
+  };
+  path?: never;
+  query?: never;
+  url: "/rooms";
+};
+
+export type RoomRoomCreateErrors = {
+  /**
+   * The request does not satisfy the operation contract.
+   */
+  400: {
+    ok?: false;
+    error: string;
+    code?: string;
+    traceId?: string;
+    [key: string]: unknown;
+  };
+  /**
+   * A valid Bridge session or token is required.
+   */
+  401: {
+    ok?: false;
+    error: string;
+    code?: string;
+    traceId?: string;
+    [key: string]: unknown;
+  };
+  /**
+   * The request origin is not allowed.
+   */
+  403: {
+    ok?: false;
+    error: string;
+    code?: string;
+    traceId?: string;
+    [key: string]: unknown;
+  };
+  /**
+   * The reply parent message does not exist.
+   */
+  404: {
+    ok?: false;
+    error: string;
+    code?: string;
+    traceId?: string;
+    [key: string]: unknown;
+  };
+  /**
+   * The message ID conflicts with an earlier message, or the remote conversation belongs to another account or sender.
+   */
+  409: {
+    ok?: false;
+    error: string;
+    code?: string;
+    traceId?: string;
+    [key: string]: unknown;
+  };
+  /**
+   * The authenticated session is temporarily unavailable.
+   */
+  503: {
+    ok?: false;
+    error: string;
+    code?: string;
+    traceId?: string;
+    [key: string]: unknown;
+  };
+};
+
+export type RoomRoomCreateError = RoomRoomCreateErrors[keyof RoomRoomCreateErrors];
+
+export type RoomRoomCreateResponses = {
+  /**
+   * Successful response.
+   */
+  200: {
+    ok: true;
+    room: {
+      id: string;
+      kind: "group" | "direct";
+      title: string;
+      badge: string;
+      memberIds: Array<string>;
+      adminMemberIds: Array<string>;
+      updatedAt: string;
+      unread: number;
+      scope?: {
+        kind: "app";
+        appId: string;
+        role?: "default" | "group" | "direct";
+      };
+      generatedTitle?:
+        | {
+            kind: "numbered-group";
+            sequence: number;
+          }
+        | {
+            kind: "app-group";
+            appId: string;
+            sequence: number;
+          };
+      removedMemberIds?: Array<string>;
+      directMemberId?: string;
+      pinned?: boolean;
+      archived?: boolean;
+      lastReadEventSeq?: number;
+      [key: string]: unknown;
+    };
+    currentEventSeq: number;
+  };
+};
+
+export type RoomRoomCreateResponse = RoomRoomCreateResponses[keyof RoomRoomCreateResponses];
+
+export type RoomRoomUpdateData = {
+  body: {
+    title?: string;
+    generatedTitle?:
+      | {
+          kind: "numbered-group";
+          sequence: number;
+        }
+      | {
+          kind: "app-group";
+          appId: string;
+          sequence: number;
+        }
+      | null;
+    pinned?: boolean;
+    archived?: boolean;
+    badge?: string;
+    adminMemberIds?: Array<string>;
+  };
+  path: {
+    roomId: string;
+  };
+  query?: never;
+  url: "/rooms/{roomId}";
+};
+
+export type RoomRoomUpdateErrors = {
+  /**
+   * The request does not satisfy the operation contract.
+   */
+  400: {
+    ok?: false;
+    error: string;
+    code?: string;
+    traceId?: string;
+    [key: string]: unknown;
+  };
+  /**
+   * A valid Bridge session or token is required.
+   */
+  401: {
+    ok?: false;
+    error: string;
+    code?: string;
+    traceId?: string;
+    [key: string]: unknown;
+  };
+  /**
+   * The request origin is not allowed.
+   */
+  403: {
+    ok?: false;
+    error: string;
+    code?: string;
+    traceId?: string;
+    [key: string]: unknown;
+  };
+  /**
+   * The reply parent message does not exist.
+   */
+  404: {
+    ok?: false;
+    error: string;
+    code?: string;
+    traceId?: string;
+    [key: string]: unknown;
+  };
+  /**
+   * The message ID conflicts with an earlier message, or the remote conversation belongs to another account or sender.
+   */
+  409: {
+    ok?: false;
+    error: string;
+    code?: string;
+    traceId?: string;
+    [key: string]: unknown;
+  };
+  /**
+   * The authenticated session is temporarily unavailable.
+   */
+  503: {
+    ok?: false;
+    error: string;
+    code?: string;
+    traceId?: string;
+    [key: string]: unknown;
+  };
+};
+
+export type RoomRoomUpdateError = RoomRoomUpdateErrors[keyof RoomRoomUpdateErrors];
+
+export type RoomRoomUpdateResponses = {
+  /**
+   * Successful response.
+   */
+  200: {
+    ok: true;
+    room: {
+      id: string;
+      kind: "group" | "direct";
+      title: string;
+      badge: string;
+      memberIds: Array<string>;
+      adminMemberIds: Array<string>;
+      updatedAt: string;
+      unread: number;
+      scope?: {
+        kind: "app";
+        appId: string;
+        role?: "default" | "group" | "direct";
+      };
+      generatedTitle?:
+        | {
+            kind: "numbered-group";
+            sequence: number;
+          }
+        | {
+            kind: "app-group";
+            appId: string;
+            sequence: number;
+          };
+      removedMemberIds?: Array<string>;
+      directMemberId?: string;
+      pinned?: boolean;
+      archived?: boolean;
+      lastReadEventSeq?: number;
+      [key: string]: unknown;
+    };
+    currentEventSeq: number;
+  };
+};
+
+export type RoomRoomUpdateResponse = RoomRoomUpdateResponses[keyof RoomRoomUpdateResponses];
+
+export type RoomRoomReadData = {
+  body: {
+    observedEventSeq: number;
+  };
+  path: {
+    roomId: string;
+  };
+  query?: never;
+  url: "/rooms/{roomId}/read";
+};
+
+export type RoomRoomReadErrors = {
+  /**
+   * The request does not satisfy the operation contract.
+   */
+  400: {
+    ok?: false;
+    error: string;
+    code?: string;
+    traceId?: string;
+    [key: string]: unknown;
+  };
+  /**
+   * A valid Bridge session or token is required.
+   */
+  401: {
+    ok?: false;
+    error: string;
+    code?: string;
+    traceId?: string;
+    [key: string]: unknown;
+  };
+  /**
+   * The request origin is not allowed.
+   */
+  403: {
+    ok?: false;
+    error: string;
+    code?: string;
+    traceId?: string;
+    [key: string]: unknown;
+  };
+  /**
+   * The reply parent message does not exist.
+   */
+  404: {
+    ok?: false;
+    error: string;
+    code?: string;
+    traceId?: string;
+    [key: string]: unknown;
+  };
+  /**
+   * The message ID conflicts with an earlier message, or the remote conversation belongs to another account or sender.
+   */
+  409: {
+    ok?: false;
+    error: string;
+    code?: string;
+    traceId?: string;
+    [key: string]: unknown;
+  };
+  /**
+   * The authenticated session is temporarily unavailable.
+   */
+  503: {
+    ok?: false;
+    error: string;
+    code?: string;
+    traceId?: string;
+    [key: string]: unknown;
+  };
+};
+
+export type RoomRoomReadError = RoomRoomReadErrors[keyof RoomRoomReadErrors];
+
+export type RoomRoomReadResponses = {
+  /**
+   * Successful response.
+   */
+  200: {
+    ok: true;
+    room: {
+      id: string;
+      kind: "group" | "direct";
+      title: string;
+      badge: string;
+      memberIds: Array<string>;
+      adminMemberIds: Array<string>;
+      updatedAt: string;
+      unread: number;
+      scope?: {
+        kind: "app";
+        appId: string;
+        role?: "default" | "group" | "direct";
+      };
+      generatedTitle?:
+        | {
+            kind: "numbered-group";
+            sequence: number;
+          }
+        | {
+            kind: "app-group";
+            appId: string;
+            sequence: number;
+          };
+      removedMemberIds?: Array<string>;
+      directMemberId?: string;
+      pinned?: boolean;
+      archived?: boolean;
+      lastReadEventSeq?: number;
+      [key: string]: unknown;
+    };
+    currentEventSeq: number;
+  };
+};
+
+export type RoomRoomReadResponse = RoomRoomReadResponses[keyof RoomRoomReadResponses];
+
 export type RoomMessageCreateData = {
   body: {
     /**
@@ -1443,6 +1847,26 @@ export type RoomMessageCreateResponses = {
       adminMemberIds: Array<string>;
       updatedAt: string;
       unread: number;
+      scope?: {
+        kind: "app";
+        appId: string;
+        role?: "default" | "group" | "direct";
+      };
+      generatedTitle?:
+        | {
+            kind: "numbered-group";
+            sequence: number;
+          }
+        | {
+            kind: "app-group";
+            appId: string;
+            sequence: number;
+          };
+      removedMemberIds?: Array<string>;
+      directMemberId?: string;
+      pinned?: boolean;
+      archived?: boolean;
+      lastReadEventSeq?: number;
       [key: string]: unknown;
     };
     userMessage: {

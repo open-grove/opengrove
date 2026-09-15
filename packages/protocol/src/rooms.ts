@@ -3,6 +3,17 @@ import { defineHostOperation, defineHostOperationGroup, defineHostOperationResou
 
 const roomIdentifierSchema = z.string().trim().min(1);
 
+const roomGeneratedTitleSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("numbered-group"), sequence: z.number().int().positive() }),
+  z.object({ kind: z.literal("app-group"), appId: roomIdentifierSchema, sequence: z.number().int().positive() }),
+]);
+
+const appRoomScopeSchema = z.object({
+  kind: z.literal("app"),
+  appId: roomIdentifierSchema,
+  role: z.enum(["default", "group", "direct"]).optional(),
+});
+
 function optionalRoomIdentifier(description: string) {
   return roomIdentifierSchema
     .nullish()
@@ -45,6 +56,13 @@ const roomSchema = z
     adminMemberIds: z.array(z.string()),
     updatedAt: z.string(),
     unread: z.number().int().nonnegative(),
+    scope: appRoomScopeSchema.optional(),
+    generatedTitle: roomGeneratedTitleSchema.optional(),
+    removedMemberIds: z.array(z.string()).optional(),
+    directMemberId: z.string().optional(),
+    pinned: z.boolean().optional(),
+    archived: z.boolean().optional(),
+    lastReadEventSeq: z.number().int().nonnegative().optional(),
   })
   .passthrough();
 
@@ -156,6 +174,79 @@ export type CreateRoomMessageResponse = z.output<NonNullable<typeof createRoomMe
 
 export const roomMessageOperations = [createRoomMessageOperation] as const;
 
+export const createRoomOperation = defineHostOperation({
+  id: "room.room.create",
+  summary: "Create a Room",
+  description:
+    "Create a group Room, optionally scoped to an installed App. App-scoped rooms retain their authoritative employee roster.",
+  method: "POST",
+  path: "/rooms",
+  risk: "write",
+  body: z.object({
+    id: roomIdentifierSchema.optional().describe("Optional caller-selected Room identifier."),
+    title: z.string().trim().default("").describe("Room title."),
+    badge: z.string().trim().default("").describe("Room badge."),
+    memberIds: roomIdentifierList("Initial member identifiers."),
+    adminMemberIds: z.array(roomIdentifierSchema).optional().describe("Members allowed to delegate work."),
+    scope: z
+      .object({ kind: z.literal("app"), appId: roomIdentifierSchema, role: z.enum(["default", "group"]).optional() })
+      .optional(),
+    generatedTitle: roomGeneratedTitleSchema.optional(),
+  }),
+  success: {
+    status: 200,
+    body: z.object({ ok: z.literal(true), room: roomSchema, currentEventSeq: z.number().int().nonnegative() }),
+  },
+  errors: createRoomMessageOperation.errors,
+});
+
+export type CreateRoomOperation = typeof createRoomOperation;
+
+export const updateRoomOperation = defineHostOperation({
+  id: "room.room.update",
+  summary: "Update a Room",
+  description:
+    "Rename, pin, archive, or update the administrators of a Room. Rooms with active runs cannot be archived.",
+  method: "PATCH",
+  path: "/rooms/{roomId}",
+  risk: "write",
+  params: z.object({ roomId: roomIdentifierSchema }),
+  body: z.object({
+    title: z.string().trim().optional(),
+    generatedTitle: roomGeneratedTitleSchema.nullable().optional(),
+    pinned: z.boolean().optional(),
+    archived: z.boolean().optional(),
+    badge: z.string().trim().optional(),
+    adminMemberIds: z.array(roomIdentifierSchema).optional(),
+  }),
+  success: createRoomOperation.success,
+  errors: createRoomOperation.errors,
+});
+
+export const markRoomReadOperation = defineHostOperation({
+  id: "room.room.read",
+  summary: "Mark a Room as read",
+  description:
+    "Advance a Room's read cursor to an event sequence observed by this client. A cursor ahead of the Host is rejected.",
+  method: "POST",
+  path: "/rooms/{roomId}/read",
+  risk: "write",
+  params: z.object({ roomId: roomIdentifierSchema }),
+  body: z.object({ observedEventSeq: z.number().int().nonnegative() }),
+  success: createRoomOperation.success,
+  errors: createRoomOperation.errors,
+});
+
+export type UpdateRoomOperation = typeof updateRoomOperation;
+export type MarkRoomReadOperation = typeof markRoomReadOperation;
+
+export const roomCollectionOperationResource = defineHostOperationResource({
+  id: "room",
+  title: "Rooms",
+  description: "Room creation, discovery, and settings.",
+  operations: [createRoomOperation, updateRoomOperation, markRoomReadOperation] as const,
+});
+
 export const roomMessageOperationResource = defineHostOperationResource({
   id: "message",
   title: "Messages",
@@ -167,5 +258,5 @@ export const roomOperationGroup = defineHostOperationGroup({
   id: "room",
   title: "Rooms",
   description: "Local Room collaboration and ledger operations.",
-  resources: [roomMessageOperationResource] as const,
+  resources: [roomCollectionOperationResource, roomMessageOperationResource] as const,
 });

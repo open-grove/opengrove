@@ -9,7 +9,8 @@
     "app.update": "updates",
     "auth.email-code": "emailCodes",
     "auth.session": "session",
-    "room.message": "messages"
+    "room.message": "messages",
+    "room.room": "collection"
   },
   "operations": {
     "app.release.keep-local": "keepLocal"

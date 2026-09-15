@@ -50,6 +50,15 @@ import type {
   RoomMessageCreateData,
   RoomMessageCreateErrors,
   RoomMessageCreateResponses,
+  RoomRoomCreateData,
+  RoomRoomCreateErrors,
+  RoomRoomCreateResponses,
+  RoomRoomReadData,
+  RoomRoomReadErrors,
+  RoomRoomReadResponses,
+  RoomRoomUpdateData,
+  RoomRoomUpdateErrors,
+  RoomRoomUpdateResponses,
 } from "./types.gen.js";
 
 export type Options<
@@ -314,6 +323,62 @@ export class App extends HeyApiClient {
   }
 }
 
+export class Room extends HeyApiClient {
+  /**
+   * Create a Room
+   *
+   * Create a group Room, optionally scoped to an installed App. App-scoped rooms retain their authoritative employee roster.
+   */
+  public create<ThrowOnError extends boolean = false>(
+    options: Options<RoomRoomCreateData, ThrowOnError>,
+  ): RequestResult<RoomRoomCreateResponses, RoomRoomCreateErrors, ThrowOnError> {
+    return (options.client ?? this.client).post<RoomRoomCreateResponses, RoomRoomCreateErrors, ThrowOnError>({
+      url: "/rooms",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Update a Room
+   *
+   * Rename, pin, archive, or update the administrators of a Room. Rooms with active runs cannot be archived.
+   */
+  public update<ThrowOnError extends boolean = false>(
+    options: Options<RoomRoomUpdateData, ThrowOnError>,
+  ): RequestResult<RoomRoomUpdateResponses, RoomRoomUpdateErrors, ThrowOnError> {
+    return (options.client ?? this.client).patch<RoomRoomUpdateResponses, RoomRoomUpdateErrors, ThrowOnError>({
+      url: "/rooms/{roomId}",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Mark a Room as read
+   *
+   * Advance a Room's read cursor to an event sequence observed by this client. A cursor ahead of the Host is rejected.
+   */
+  public read<ThrowOnError extends boolean = false>(
+    options: Options<RoomRoomReadData, ThrowOnError>,
+  ): RequestResult<RoomRoomReadResponses, RoomRoomReadErrors, ThrowOnError> {
+    return (options.client ?? this.client).post<RoomRoomReadResponses, RoomRoomReadErrors, ThrowOnError>({
+      url: "/rooms/{roomId}/read",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+}
+
 export class Message extends HeyApiClient {
   /**
    * Send a Room message
@@ -334,7 +399,12 @@ export class Message extends HeyApiClient {
   }
 }
 
-export class Room extends HeyApiClient {
+export class Room2 extends HeyApiClient {
+  private _room?: Room;
+  get room(): Room {
+    return (this._room ??= new Room({ client: this.client }));
+  }
+
   private _message?: Message;
   get message(): Message {
     return (this._message ??= new Message({ client: this.client }));
@@ -432,9 +502,9 @@ export class OpenGroveApi extends HeyApiClient {
     return (this._app ??= new App({ client: this.client }));
   }
 
-  private _room?: Room;
-  get room(): Room {
-    return (this._room ??= new Room({ client: this.client }));
+  private _room?: Room2;
+  get room(): Room2 {
+    return (this._room ??= new Room2({ client: this.client }));
   }
 
   private _network?: Network;
