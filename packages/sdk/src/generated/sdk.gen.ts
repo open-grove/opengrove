@@ -51,6 +51,12 @@ import type {
   HostHostBootstrapData,
   HostHostBootstrapErrors,
   HostHostBootstrapResponses,
+  InteractionApprovalListData,
+  InteractionApprovalListErrors,
+  InteractionApprovalListResponses,
+  InteractionQuestionListData,
+  InteractionQuestionListErrors,
+  InteractionQuestionListResponses,
   NetworkAccountConnectData,
   NetworkAccountConnectErrors,
   NetworkAccountConnectResponses,
@@ -313,6 +319,52 @@ export class Run2 extends HeyApiClient {
   private _direct?: Direct;
   get direct(): Direct {
     return (this._direct ??= new Direct({ client: this.client }));
+  }
+}
+
+export class Approval extends HeyApiClient {
+  /**
+   * List approvals
+   *
+   * List Host approval summaries, newest first. Includes bounded request input and decision response; continuation internals are omitted.
+   */
+  public list<ThrowOnError extends boolean = false>(
+    options?: Options<InteractionApprovalListData, ThrowOnError>,
+  ): RequestResult<InteractionApprovalListResponses, InteractionApprovalListErrors, ThrowOnError> {
+    return (options?.client ?? this.client).get<
+      InteractionApprovalListResponses,
+      InteractionApprovalListErrors,
+      ThrowOnError
+    >({ url: "/approvals", ...options });
+  }
+}
+
+export class Question extends HeyApiClient {
+  /**
+   * List questions
+   *
+   * List Host question summaries, newest first. Includes bounded choices and answers; continuation internals are omitted.
+   */
+  public list<ThrowOnError extends boolean = false>(
+    options?: Options<InteractionQuestionListData, ThrowOnError>,
+  ): RequestResult<InteractionQuestionListResponses, InteractionQuestionListErrors, ThrowOnError> {
+    return (options?.client ?? this.client).get<
+      InteractionQuestionListResponses,
+      InteractionQuestionListErrors,
+      ThrowOnError
+    >({ url: "/questions", ...options });
+  }
+}
+
+export class Interaction extends HeyApiClient {
+  private _approval?: Approval;
+  get approval(): Approval {
+    return (this._approval ??= new Approval({ client: this.client }));
+  }
+
+  private _question?: Question;
+  get question(): Question {
+    return (this._question ??= new Question({ client: this.client }));
   }
 }
 
@@ -954,6 +1006,11 @@ export class OpenGroveApi extends HeyApiClient {
   private _run?: Run2;
   get run(): Run2 {
     return (this._run ??= new Run2({ client: this.client }));
+  }
+
+  private _interaction?: Interaction;
+  get interaction(): Interaction {
+    return (this._interaction ??= new Interaction({ client: this.client }));
   }
 
   private _auth?: Auth;

@@ -4,7 +4,8 @@
     "auth": "auth",
     "room": "rooms",
     "employee": "employees",
-    "run": "runs"
+    "run": "runs",
+    "interaction": "interactions"
   },
   "resources": {
     "app.release": "releases",
@@ -19,7 +20,9 @@
     "host.host": "discovery",
     "run.run": "collection",
     "run.session": "sessions",
-    "run.execution": "executions"
+    "run.execution": "executions",
+    "interaction.approval": "approvals",
+    "interaction.question": "questions"
   },
   "operations": {
     "app.release.keep-local": "keepLocal",

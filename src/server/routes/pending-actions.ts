@@ -1,3 +1,5 @@
+import type { ListApprovalsOperation, ListQuestionsOperation } from "#protocol";
+import type { HostOperationRouteContext } from "../router.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { JsonValue } from "../../core.js";
 import type { BridgeState } from "../bridge-types.js";
@@ -18,34 +20,6 @@ export async function handlePendingActionsRoute(options: {
   readJsonBody: ReadJsonBody;
 }): Promise<boolean> {
   const { request, response, url, state, sendJson, readJsonBody } = options;
-
-  if (request.method === "GET" && url.pathname === "/approvals") {
-    const status = url.searchParams.get("status");
-    const approvals = presentApprovalSummaries(
-      (status === "pending" || status === "approved" || status === "rejected" || status === "canceled"
-        ? state.app.approvals.list(status)
-        : state.app.approvals.list()
-      )
-        .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))
-        .slice(0, readPendingLimit(url)),
-    );
-    sendJson(response, 200, { ok: true, approvals });
-    return true;
-  }
-
-  if (request.method === "GET" && url.pathname === "/questions") {
-    const status = url.searchParams.get("status");
-    const questions = presentQuestionSummaries(
-      (status === "pending" || status === "answered" || status === "declined" || status === "canceled"
-        ? state.app.questions.list(status)
-        : state.app.questions.list()
-      )
-        .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))
-        .slice(0, readPendingLimit(url)),
-    );
-    sendJson(response, 200, { ok: true, questions });
-    return true;
-  }
 
   const approvalAction = url.pathname.match(/^\/approvals\/([^/]+)\/(approve|reject|cancel)$/);
   if (request.method === "POST" && approvalAction) {
@@ -78,7 +52,26 @@ export async function handlePendingActionsRoute(options: {
   return false;
 }
 
-function readPendingLimit(url: URL): number {
-  const requested = Number(url.searchParams.get("limit") ?? 100);
-  return Number.isSafeInteger(requested) && requested > 0 ? Math.min(requested, 500) : 100;
+export function handleListApprovalsOperation(context: HostOperationRouteContext<ListApprovalsOperation>): true {
+  const { status, limit } = context.input.query;
+  const approvals = presentApprovalSummaries(
+    context.state.app.approvals
+      .list(status)
+      .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))
+      .slice(0, limit),
+  );
+  context.sendJson(context.response, 200, { ok: true, approvals });
+  return true;
+}
+
+export function handleListQuestionsOperation(context: HostOperationRouteContext<ListQuestionsOperation>): true {
+  const { status, limit } = context.input.query;
+  const questions = presentQuestionSummaries(
+    context.state.app.questions
+      .list(status)
+      .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))
+      .slice(0, limit),
+  );
+  context.sendJson(context.response, 200, { ok: true, questions });
+  return true;
 }

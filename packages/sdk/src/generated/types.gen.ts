@@ -84,6 +84,105 @@ export type RunExecutionListResponse200DefinitionSchema0 =
       [key: string]: RunExecutionListResponse200DefinitionSchema0;
     };
 
+export type InteractionApprovalListResponse200 = {
+  ok: true;
+  approvals: Array<{
+    id: string;
+    title: string;
+    createdAt: string;
+    updatedAt: string;
+    input?: InteractionApprovalListResponse200DefinitionSchema0;
+    response?: InteractionApprovalListResponse200DefinitionSchema1;
+    nativeRequestId?: string;
+    deadlineAt?: string;
+    isBlocking?: boolean;
+    autoResolutionMs?: number;
+    kind:
+      | "tool"
+      | "command"
+      | "file_change"
+      | "permission_scope"
+      | "routine_step"
+      | "memory_write"
+      | "browser_action"
+      | "computer_action";
+    reason: string;
+    status: "pending" | "approved" | "rejected" | "canceled";
+    toolId?: string;
+    capabilityId?: string;
+    skillId?: string;
+  }>;
+};
+
+export type InteractionApprovalListResponse200DefinitionSchema0 =
+  | string
+  | number
+  | boolean
+  | null
+  | Array<InteractionApprovalListResponse200DefinitionSchema0>
+  | {
+      [key: string]: InteractionApprovalListResponse200DefinitionSchema0;
+    };
+
+export type InteractionApprovalListResponse200DefinitionSchema1 =
+  | string
+  | number
+  | boolean
+  | null
+  | Array<InteractionApprovalListResponse200DefinitionSchema1>
+  | {
+      [key: string]: InteractionApprovalListResponse200DefinitionSchema1;
+    };
+
+export type InteractionQuestionListResponse200 = {
+  ok: true;
+  questions: Array<{
+    id: string;
+    title: string;
+    createdAt: string;
+    updatedAt: string;
+    input?: InteractionQuestionListResponse200DefinitionSchema0;
+    response?: InteractionQuestionListResponse200DefinitionSchema1;
+    nativeRequestId?: string;
+    deadlineAt?: string;
+    isBlocking?: boolean;
+    autoResolutionMs?: number;
+    prompt: string;
+    status: "pending" | "answered" | "declined" | "canceled";
+    source?:
+      | {
+          type: "kernel.native";
+          kernelId: string;
+        }
+      | {
+          type: "host";
+        }
+      | {
+          type: "unknown";
+        };
+  }>;
+};
+
+export type InteractionQuestionListResponse200DefinitionSchema0 =
+  | string
+  | number
+  | boolean
+  | null
+  | Array<InteractionQuestionListResponse200DefinitionSchema0>
+  | {
+      [key: string]: InteractionQuestionListResponse200DefinitionSchema0;
+    };
+
+export type InteractionQuestionListResponse200DefinitionSchema1 =
+  | string
+  | number
+  | boolean
+  | null
+  | Array<InteractionQuestionListResponse200DefinitionSchema1>
+  | {
+      [key: string]: InteractionQuestionListResponse200DefinitionSchema1;
+    };
+
 export type AuthError = {
   ok?: false;
   error: string;
@@ -1156,6 +1255,214 @@ export type RunDirectCompactResponses = {
 };
 
 export type RunDirectCompactResponse = RunDirectCompactResponses[keyof RunDirectCompactResponses];
+
+export type InteractionApprovalListData = {
+  body?: never;
+  path?: never;
+  query?: {
+    limit?: number;
+    status?: "pending" | "approved" | "rejected" | "canceled";
+  };
+  url: "/approvals";
+};
+
+export type InteractionApprovalListErrors = {
+  /**
+   * The input is invalid.
+   */
+  400: {
+    ok?: false;
+    error: string;
+    code?: string;
+    message?: string;
+    contractId?: string;
+    traceId?: string;
+    incidentId?: string;
+    issues?: Array<{
+      path: string;
+      code: string;
+    }>;
+  };
+  /**
+   * A valid Host session or token is required.
+   */
+  401: {
+    ok?: false;
+    error: string;
+    code?: string;
+    message?: string;
+    contractId?: string;
+    traceId?: string;
+    incidentId?: string;
+    issues?: Array<{
+      path: string;
+      code: string;
+    }>;
+  };
+  /**
+   * The request is not authorized.
+   */
+  403: {
+    ok?: false;
+    error: string;
+    code?: string;
+    message?: string;
+    contractId?: string;
+    traceId?: string;
+    incidentId?: string;
+    issues?: Array<{
+      path: string;
+      code: string;
+    }>;
+  };
+  /**
+   * The Host could not complete the operation.
+   */
+  500: {
+    ok?: false;
+    error: string;
+    code?: string;
+    message?: string;
+    contractId?: string;
+    traceId?: string;
+    incidentId?: string;
+    issues?: Array<{
+      path: string;
+      code: string;
+    }>;
+  };
+  /**
+   * The Host or authenticated session is temporarily unavailable.
+   */
+  503: {
+    ok?: false;
+    error: string;
+    code?: string;
+    message?: string;
+    contractId?: string;
+    traceId?: string;
+    incidentId?: string;
+    issues?: Array<{
+      path: string;
+      code: string;
+    }>;
+  };
+};
+
+export type InteractionApprovalListError = InteractionApprovalListErrors[keyof InteractionApprovalListErrors];
+
+export type InteractionApprovalListResponses = {
+  /**
+   * Successful response.
+   */
+  200: InteractionApprovalListResponse200;
+};
+
+export type InteractionApprovalListResponse = InteractionApprovalListResponses[keyof InteractionApprovalListResponses];
+
+export type InteractionQuestionListData = {
+  body?: never;
+  path?: never;
+  query?: {
+    limit?: number;
+    status?: "pending" | "answered" | "declined" | "canceled";
+  };
+  url: "/questions";
+};
+
+export type InteractionQuestionListErrors = {
+  /**
+   * The input is invalid.
+   */
+  400: {
+    ok?: false;
+    error: string;
+    code?: string;
+    message?: string;
+    contractId?: string;
+    traceId?: string;
+    incidentId?: string;
+    issues?: Array<{
+      path: string;
+      code: string;
+    }>;
+  };
+  /**
+   * A valid Host session or token is required.
+   */
+  401: {
+    ok?: false;
+    error: string;
+    code?: string;
+    message?: string;
+    contractId?: string;
+    traceId?: string;
+    incidentId?: string;
+    issues?: Array<{
+      path: string;
+      code: string;
+    }>;
+  };
+  /**
+   * The request is not authorized.
+   */
+  403: {
+    ok?: false;
+    error: string;
+    code?: string;
+    message?: string;
+    contractId?: string;
+    traceId?: string;
+    incidentId?: string;
+    issues?: Array<{
+      path: string;
+      code: string;
+    }>;
+  };
+  /**
+   * The Host could not complete the operation.
+   */
+  500: {
+    ok?: false;
+    error: string;
+    code?: string;
+    message?: string;
+    contractId?: string;
+    traceId?: string;
+    incidentId?: string;
+    issues?: Array<{
+      path: string;
+      code: string;
+    }>;
+  };
+  /**
+   * The Host or authenticated session is temporarily unavailable.
+   */
+  503: {
+    ok?: false;
+    error: string;
+    code?: string;
+    message?: string;
+    contractId?: string;
+    traceId?: string;
+    incidentId?: string;
+    issues?: Array<{
+      path: string;
+      code: string;
+    }>;
+  };
+};
+
+export type InteractionQuestionListError = InteractionQuestionListErrors[keyof InteractionQuestionListErrors];
+
+export type InteractionQuestionListResponses = {
+  /**
+   * Successful response.
+   */
+  200: InteractionQuestionListResponse200;
+};
+
+export type InteractionQuestionListResponse = InteractionQuestionListResponses[keyof InteractionQuestionListResponses];
 
 export type AuthEmailCodeCreateData = {
   body: {

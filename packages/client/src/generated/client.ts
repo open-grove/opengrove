@@ -10,6 +10,8 @@ export const openGroveClientOperationIds = [
   "run.direct.cancel",
   "run.direct.guide",
   "run.direct.compact",
+  "interaction.approval.list",
+  "interaction.question.list",
   "auth.email-code.create",
   "auth.session.create",
   "auth.session.get",
@@ -135,6 +137,34 @@ export function bindOpenGroveClient(request: HostOperationRequest) {
             body: {
               reason: input.reason,
               threadId: input.threadId,
+            },
+            signal: options?.signal,
+          }),
+      },
+    },
+    interactions: {
+      approvals: {
+        list: (
+          input: HostOperationInput<(typeof hostOperationById)["interaction.approval.list"]> = {},
+          options?: OpenGroveRequestOptions,
+        ): Promise<HostOperationOutput<(typeof hostOperationById)["interaction.approval.list"]>> =>
+          request(hostOperationById["interaction.approval.list"], {
+            query: {
+              limit: input.limit,
+              status: input.status,
+            },
+            signal: options?.signal,
+          }),
+      },
+      questions: {
+        list: (
+          input: HostOperationInput<(typeof hostOperationById)["interaction.question.list"]> = {},
+          options?: OpenGroveRequestOptions,
+        ): Promise<HostOperationOutput<(typeof hostOperationById)["interaction.question.list"]>> =>
+          request(hostOperationById["interaction.question.list"], {
+            query: {
+              limit: input.limit,
+              status: input.status,
             },
             signal: options?.signal,
           }),

@@ -8,9 +8,12 @@ import { roomOperationGroup } from "./rooms.js";
 import { hostOperationGroup } from "./host.js";
 import { runOperationGroup } from "./runs.js";
 
+import { interactionOperationGroup } from "./interactions.js";
+
 export const hostOperationGroups = [
   hostOperationGroup,
   runOperationGroup,
+  interactionOperationGroup,
   authOperationGroup,
   appOperationGroup,
   roomOperationGroup,
