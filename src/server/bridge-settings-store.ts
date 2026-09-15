@@ -50,6 +50,7 @@ import { isRetiredKnowledgeVaultMount, RETIRED_KNOWLEDGE_VAULT_PACKAGE_KEY } fro
 import { recordProblem } from "./problem-records.js";
 import { kernelLoginRouteProfiles } from "./kernel-login.js";
 import { providerView } from "./provider-state.js";
+import { agentRouterConfiguration, normalizeAgentRouterUrl } from "./remote-agents/configuration.js";
 
 export function getBridgeSettingsSnapshot(state: BridgeState): JsonObject {
   const providerSummaries = getBridgeProviderSummaries(state.settings.customProviders);
@@ -80,6 +81,8 @@ export function getBridgeSettingsSnapshot(state: BridgeState): JsonObject {
     kernelPathOverrides: state.settings.kernelPathOverrides as unknown as JsonObject,
     kernelProxy: kernelProxySummary(resolveKernelProxySettings(state.settings.kernelProxy, process.env)),
     appStore: state.settings.appStore as unknown as JsonObject,
+    agentRouterUrl: agentRouterConfiguration(state.settings).url,
+    agentRouterManaged: agentRouterConfiguration(state.settings).managed,
     appUpdates: state.settings.appUpdates as unknown as JsonObject,
     voice: {
       ...state.settings.voice,
@@ -153,6 +156,7 @@ export function normalizeBridgeSettingsPatch(input: unknown, base: BridgeSetting
     appStore:
       explicitAppStoreSettings() ??
       normalizeAppStoreSettings(source.appStore ?? record(source.cloud).appStore, base.appStore),
+    agentRouterUrl: normalizeAgentRouterUrl(source.agentRouterUrl) ?? base.agentRouterUrl,
     voice: normalizeBridgeVoiceSettings(source.voice, base.voice),
     kernelPathOverrides: normalizeKernelPathOverrides(source.kernelPathOverrides, base.kernelPathOverrides),
     modelProviderBindings: normalizeModelProviderBindings(source.modelProviderBindings, base.modelProviderBindings),
@@ -405,12 +409,24 @@ export function loadBridgeSettings(state: BridgeState): BridgeSettings {
     appStore:
       explicitAppStoreSettings() ??
       normalizeAppStoreSettings(parsed.appStore ?? record(parsed.cloud).appStore, defaults.appStore),
+    agentRouterUrl: normalizeAgentRouterUrl(parsed.agentRouterUrl),
     voice: normalizeBridgeVoiceSettings(parsed.voice, defaults.voice),
     kernelPathOverrides: normalizeKernelPathOverrides(parsed.kernelPathOverrides, defaults.kernelPathOverrides),
     modelProviderBindings,
     customProviders: providerProfilesWithoutCredentialObservations(customProviders),
     roomCollaboration: normalizeRoomCollaborationSettings(parsed.roomCollaboration, defaults.roomCollaboration),
   };
+  if (parsed.agentRouterUrl !== undefined && settings.agentRouterUrl === undefined) {
+    console.warn("invalid_agent_router_url", { settingsFile: basename(path) });
+    recordProblem(state, {
+      category: "bridge",
+      phase: "settings-load",
+      code: "invalid_agent_router_url",
+      level: "error",
+      error: new Error("invalid_agent_router_url"),
+      retryable: false,
+    });
+  }
   const persistedModelBindings = Array.isArray(parsed.modelProviderBindings) ? parsed.modelProviderBindings : [];
   const persistedRuntimeCredentialState = arrayRecords(parsed.customProviders).some((provider) =>
     Object.prototype.hasOwnProperty.call(provider, "authConfigured"),

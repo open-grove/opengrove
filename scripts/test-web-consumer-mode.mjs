@@ -47,6 +47,7 @@ try {
       ["codex", "claude-code", "hermes"],
       "developer mode must keep the complete kernel inventory",
     );
+    assert.equal(isSettingsSectionVisible("network", false), true, "Router configuration must be accessible in standard mode");
     assert.equal(isSettingsSectionVisible("desktop", false), true, "Desktop must remain visible in consumer mode");
     assert.equal(isSettingsSectionVisible("updates", false), true, "Software Update must remain visible in consumer mode");
     assert.equal(isSettingsSectionVisible("kernels", false), true, "Kernel settings must remain visible in consumer mode");

@@ -5,6 +5,11 @@ import { effectiveProxyDescription, effectiveProxyValue } from "./settings-model
 export function SettingsNetworkPanel(props: {
   t: TranslationFn;
   kernelProxy: KernelProxySettings;
+  agentRouterUrl: string;
+  savedAgentRouterUrl: string;
+  agentRouterManaged: boolean;
+  onSetAgentRouterUrl(url: string): void;
+  onSaveAgentRouterUrl(): void;
   loading: boolean;
   saving: boolean;
   onSetKernelProxyDraft(patch: Partial<KernelProxySettings>): void;
@@ -14,6 +19,52 @@ export function SettingsNetworkPanel(props: {
 
   return (
     <div className="settings-page-stack">
+      <section className="settings-list-section">
+        <div className="settings-list-section-heading">
+          <h2>{t("settings.remoteAgents")}</h2>
+        </div>
+        <form
+          className="settings-list"
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (!props.loading && !props.saving && !props.agentRouterManaged) props.onSaveAgentRouterUrl();
+          }}
+        >
+          <label className="settings-list-row settings-list-row-field settings-router-url">
+            <span className="settings-list-row-main">
+              <strong>{t("settings.agentRouterUrl")}</strong>
+              <small>{t("settings.agentRouterHint")}</small>
+            </span>
+            <input
+              type="url"
+              value={props.agentRouterUrl}
+              placeholder={t("settings.agentRouterPlaceholder")}
+              maxLength={2048}
+              autoComplete="off"
+              spellCheck={false}
+              readOnly={props.agentRouterManaged}
+              disabled={props.loading || props.saving}
+              onChange={(event) => props.onSetAgentRouterUrl(event.target.value)}
+            />
+          </label>
+          <div className="settings-list-row">
+            <span className="settings-list-row-main">
+              <small>
+                {props.agentRouterManaged ? t("settings.agentRouterManaged") : t("settings.agentRouterSaveHint")}
+              </small>
+            </span>
+            {!props.agentRouterManaged ? (
+              <button
+                type="submit"
+                className="ghost-button"
+                disabled={props.loading || props.saving || props.agentRouterUrl.trim() === props.savedAgentRouterUrl}
+              >
+                {props.saving ? t("common.saving") : t("settings.saveRouterAddress")}
+              </button>
+            ) : null}
+          </div>
+        </form>
+      </section>
       <section className="settings-list-section">
         <div className="settings-list-section-heading">
           <h2>{t("settings.proxy")}</h2>

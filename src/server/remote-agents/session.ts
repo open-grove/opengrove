@@ -13,6 +13,7 @@ import {
 import type { BridgeState } from "../bridge-types.js";
 import { readWwProviderLocalState, wwProviderAccountMatches } from "../ww-provider-local-state.js";
 import { AgentNetworkSessions, type NetworkConnection } from "./client.js";
+import { agentRouterConfiguration } from "./configuration.js";
 
 const sessions = new WeakMap<BridgeState, AgentNetworkSessions>();
 const generations = new WeakMap<BridgeState, number>();
@@ -23,11 +24,15 @@ export interface NetworkRunAuthorization {
   readonly accountIssuer: string;
   readonly accountUserId: string;
 }
-const runAuthorizations = new WeakMap<NetworkRunAuthorization, { state: BridgeState; generation: number }>();
+const runAuthorizations = new WeakMap<
+  NetworkRunAuthorization,
+  { state: BridgeState; network: AgentNetworkSessions; generation: number }
+>();
 
 function issueNetworkRunAuthorization(state: BridgeState, session: BridgeRuntimeAuthSession): NetworkRunAuthorization {
   const authorization = Object.freeze({ accountIssuer: session.auth.baseUrl, accountUserId: session.auth.userId });
-  runAuthorizations.set(authorization, { state, generation: networkSessionsFor(state).generation });
+  const network = networkSessionsFor(state);
+  runAuthorizations.set(authorization, { state, network, generation: network.generation });
   return authorization;
 }
 
@@ -39,7 +44,8 @@ export function assertNetworkRunAuthorized(
   const issued = authorization && runAuthorizations.get(authorization);
   if (!issued || issued.state !== state) throw new AgentRouterError("remote_authorization_required", 403);
   if (
-    issued.generation !== networkSessionsFor(state).generation ||
+    issued.network !== sessions.get(state) ||
+    issued.generation !== issued.network.generation ||
     (binding &&
       (binding.accountIssuer !== authorization.accountIssuer || binding.accountUserId !== authorization.accountUserId))
   )
@@ -49,7 +55,7 @@ export function assertNetworkRunAuthorized(
 export function networkSessionsFor(state: BridgeState): AgentNetworkSessions {
   let network = sessions.get(state);
   if (!network) {
-    const baseUrl = readAppEnv("AGENT_ROUTER_URL")?.trim();
+    const baseUrl = agentRouterConfiguration(state.settings).url;
     if (!baseUrl) throw new AgentRouterError("remote_not_configured", 503);
     network = new AgentNetworkSessions({
       baseUrl,
@@ -67,6 +73,12 @@ export async function clearNetworkSession(state: BridgeState, reason = "not_auth
   await sessions.get(state)?.clear(reason);
 }
 
+/** Drop the old service client as well as its credentials. Clearing aborts synchronously. */
+export function resetNetworkConfiguration(state: BridgeState): void {
+  void clearNetworkSession(state, "remote_service_changed");
+  sessions.delete(state);
+}
+
 /** Logout clears only communication state authorized by this existing product session. No remote auth lookup. */
 export async function clearNetworkSessionForRequest(state: BridgeState, request: IncomingMessage): Promise<void> {
   const fingerprint = authSessionFingerprint(readAuthTokens(request));
@@ -81,7 +93,7 @@ export function updateNetworkProductSession(
 ): NetworkRunAuthorization | undefined {
   if (generation !== undefined && networkSessionGeneration(state) !== generation) return undefined;
   const network =
-    sessions.get(state) ?? (readAppEnv("AGENT_ROUTER_URL")?.trim() ? networkSessionsFor(state) : undefined);
+    sessions.get(state) ?? (agentRouterConfiguration(state.settings).url ? networkSessionsFor(state) : undefined);
   if (!network) return undefined;
   const product = {
     accountIssuer: session.auth.baseUrl,

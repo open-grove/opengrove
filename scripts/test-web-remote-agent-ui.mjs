@@ -160,7 +160,7 @@ try {
     const item = page.getByRole("menuitem", { name: "添加云端员工", exact: true });
     await expect(item).toContainText("正在检查是否可用");
     await expect(item).toHaveAccessibleDescription("正在检查是否可用…");
-    await expect(item).not.toContainText("请联系管理员");
+    await expect(item).not.toContainText("设置 → 网络");
     await expect(item).toHaveAttribute("aria-disabled", "true");
     await item.focus();
     await expect(item).toBeFocused();
@@ -172,7 +172,7 @@ try {
       window.__configurationMode = "unconfigured";
     });
     await item.press("Enter");
-    await expect(item).toContainText("请联系管理员");
+    await expect(item).toContainText("设置 → 网络");
     const menuBounds = await page.getByRole("menu").boundingBox();
     assert.ok(menuBounds && menuBounds.x >= 0 && menuBounds.x + menuBounds.width <= 390);
     await page.screenshot({ path: join(root, ".artifacts/remote-agent-menu.png") });

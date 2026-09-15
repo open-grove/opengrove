@@ -33,9 +33,19 @@ authority and cannot initiate remote work. Send to the remote Employee explicitl
 from Rooms instead. A future background integration must define and verify its
 own account authorization rather than borrow the Host's cached connection.
 
-## Operator configuration
+## Service configuration
 
-The installation's operator selects a trusted node before starting the Host:
+In **Settings → Network**, enter the trusted **Service address (Router)** and
+select **Save address**. This setting is available in standard mode, starts empty,
+and is stored on this installation. Saving or clearing it updates availability
+immediately without restarting the Host or connecting to the service. Connecting
+still requires a verified OpenGrove admin login. Clearing it disables remote access.
+
+Changing the service disconnects the previous communication session and attempts
+revocation. Existing contacts and conversations keep their original service binding;
+they cannot be silently moved to the new service. Local history remains readable.
+
+An operator can also select the trusted node before starting the Host:
 
 ```sh
 OPENGROVE_AGENT_ROUTER_URL=https://agents.example/_agent-router/v1
@@ -44,7 +54,10 @@ OPENGROVE_AGENT_ROUTER_PROVIDER=opengrove
 
 The provider name defaults to `opengrove`. The service URL has no implicit default:
 this node will receive the OpenGrove access token, so it must be explicitly
-trusted by the operator. This is installation configuration, not per-user
+trusted by the person configuring this installation. A nonempty environment URL
+takes precedence over the saved setting and appears read-only in Settings. URLs
+must use HTTPS without embedded credentials, query parameters, or fragments.
+This is installation configuration, not per-user
 communication-account setup, and it is never taken from a contact's address.
 The node must configure that provider against the existing Cloud account
 `GET /v1/users/me` endpoint with `subjectPath: ["data", "user_id"]`,

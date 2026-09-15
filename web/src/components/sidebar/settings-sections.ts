@@ -39,11 +39,11 @@ export const SETTINGS_SECTIONS: Array<{
   { id: "appearance", labelKey: "settings.appearance", icon: "appearance" },
   { id: "desktop", labelKey: "settings.desktop", icon: "desktop" },
   { id: "updates", labelKey: "settings.updates", icon: "refresh" },
+  { id: "network", labelKey: "settings.network", icon: "network" },
   { id: "ops", labelKey: "settings.opsCenter", icon: "ops" },
   { id: "providers", labelKey: "settings.providers", icon: "provider" },
   { id: "apps", labelKey: "settings.mountedApps", icon: "store" },
   { id: "voice", labelKey: "settings.voice", icon: "voice" },
-  { id: "network", labelKey: "settings.network", icon: "network" },
 ];
 
 export function normalizeSettingsSection(value: SettingsSectionId | undefined): SettingsSectionId {

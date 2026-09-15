@@ -75,7 +75,7 @@ const expectedFullGroupSizes = {
   "apps-knowledge": 16,
   "app-lifecycle": 21,
   "kernels-providers": 29,
-  "web-desktop": 20,
+  "web-desktop": 21,
   "release-contracts": 1,
 };
 const groupSetupCommands = {
@@ -103,7 +103,7 @@ for (const [groupName, expectedSize] of Object.entries(expectedFullGroupSizes)) 
   groupedLabels.push(...harnessGroups[groupName].map((task) => task.id));
 }
 
-assert.equal(harnessInventory.length, 120, "the canonical deterministic harness inventory must not shrink silently");
+assert.equal(harnessInventory.length, 121, "the canonical deterministic harness inventory must not shrink silently");
 assert.equal(
   harnessGroups.full,
   harnessInventory,
