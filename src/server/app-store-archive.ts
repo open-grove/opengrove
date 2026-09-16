@@ -2,6 +2,7 @@ import {
   closeSync,
   copyFileSync,
   existsSync,
+  fstatSync,
   lstatSync,
   mkdirSync,
   openSync,
@@ -15,7 +16,7 @@ import { crc32 } from "node:zlib";
 import AdmZip from "adm-zip";
 import { extract, list, type ReadEntry } from "tar";
 
-const MAX_APP_STORE_ARCHIVE_BYTES = 256 * 1024 * 1024;
+const MAX_APP_STORE_ARCHIVE_BYTES = 1024 * 1024 * 1024;
 const MAX_APP_STORE_UNPACKED_BYTES = 1024 * 1024 * 1024;
 const MAX_APP_STORE_FILES = 25_000;
 
@@ -193,7 +194,9 @@ function unpackTarArchive(archivePath: string, target: string): void {
   });
   const fd = openSync(archivePath, "r");
   try {
-    const buffer = Buffer.alloc(64 * 1024);
+    // Match tar's default read size: tiny writes repeatedly copy the parser's
+    // retained trailing padding and become expensive for large archives.
+    const buffer = Buffer.alloc(Math.min(16 * 1024 * 1024, fstatSync(fd).size));
     let size: number;
     while ((size = readSync(fd, buffer)) > 0) parser.write(buffer.subarray(0, size));
     parser.end();

@@ -7,7 +7,7 @@ to draft `docs/releases/vX.Y.Z.md`.
 ## Unreleased
 
 - Install App Store packages using bundled TAR/ZIP extractors, including on Windows systems without command-line archive tools.
-- **Compatibility change for App packages:** archive files must be at most 256 MiB (expanded content remains limited to 1 GiB and 25,000 entries). Rebuild or split larger packages before distributing them to updated clients.
+- **Compatibility change for App packages:** archive files must be at most 1 GiB (expanded content remains limited to 1 GiB and 25,000 entries). Rebuild or split larger packages before distributing them to updated clients.
 - **Compatibility change for TAR and ZIP packages on every OS:** archive paths must be portable to Windows. Names containing `:`, `?`, `*`, Windows device names such as `aux.txt`, and segments ending in a dot or space are rejected, including ISO timestamp filenames with colons. Rename these entries before publishing. Windows and macOS also reject case/Unicode aliases rather than overwriting files.
 
 ## v0.7.0 - 2026-09-14

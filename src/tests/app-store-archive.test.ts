@@ -397,10 +397,23 @@ test("TAR preflight rejects truncated input without opening output files or leak
   });
 });
 
-test("App Store rejects compressed archives over 256 MiB before parsing", () => {
-  archiveFixture("tar", Buffer.alloc(0), (archive, target) => {
-    fs.truncateSync(archive, 256 * 1024 * 1024 + 1);
-    assert.deepEqual(unpackAppStoreArchive(archive, target), { ok: false, error: "app_store_archive_too_large" });
-    assert.deepEqual(readdirSync(target), []);
+test("App Store accepts TAR archives larger than 256 MiB", () => {
+  const size = 257 * 1024 * 1024;
+  archiveFixture("tar", tarFixture([{ path: "app/large.bin", size }]), (archive, target) => {
+    // Use a sparse zero-filled file body, followed by the two TAR end blocks,
+    // instead of allocating a package-sized buffer in the test runner.
+    fs.truncateSync(archive, 512 + size + 1024);
+    assert.deepEqual(unpackAppStoreArchive(archive, target), { ok: true });
+    assert.equal(statSync(join(target, "app", "large.bin")).size, size);
   });
 });
+
+for (const extension of ["tar", "zip"]) {
+  test(`App Store rejects ${extension} archives over 1 GiB before parsing`, () => {
+    archiveFixture(extension, Buffer.alloc(0), (archive, target) => {
+      fs.truncateSync(archive, 1024 * 1024 * 1024 + 1);
+      assert.deepEqual(unpackAppStoreArchive(archive, target), { ok: false, error: "app_store_archive_too_large" });
+      assert.deepEqual(readdirSync(target), []);
+    });
+  });
+}
