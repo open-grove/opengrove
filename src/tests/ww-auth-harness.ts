@@ -2,9 +2,11 @@ import assert from "node:assert/strict";
 import { once } from "node:events";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import { syncBuiltinESMExports } from "node:module";
 import type { AddressInfo } from "node:net";
-import { release, tmpdir, version } from "node:os";
+import os, { tmpdir } from "node:os";
 import { join } from "node:path";
+import { mock } from "node:test";
 import { startOpenGroveServer } from "../server/create-server.js";
 
 const dir = mkdtempSync(join(tmpdir(), "opengrove-ww-auth-"));
@@ -903,44 +905,72 @@ try {
     assert.equal(spoofedSystemResponse.status, 400, "system metadata must come from the Bridge runtime");
     assert.equal(clientActivityRequests, 0);
 
-    const desktopActivityResponse = await fetch(`${baseUrl}/api/auth/activity`, {
-      method: "POST",
-      headers: { cookie, "content-type": "application/json", "x-opengrove-token": "desktop-token" },
-      body: JSON.stringify({ clientVersion: "0.6.1", clientReleaseNumber: 560 }),
-    });
-    assert.equal(desktopActivityResponse.status, 200);
-    assert.equal(clientActivityRequests, 1);
-    assert.deepEqual(clientActivityBody, {
-      surface: "desktop",
-      operating_system:
-        process.platform === "darwin"
-          ? "macos"
-          : process.platform === "win32"
-            ? "windows"
-            : process.platform === "linux"
-              ? "linux"
-              : "unknown",
-      architecture: process.arch === "arm64" || process.arch === "x64" ? process.arch : "unknown",
-      operating_system_release: release(),
-      operating_system_version: version(),
-      client_version: "0.6.1",
-      client_release_number: 560,
-      bridge_version: packageMetadata.version,
-      bridge_release_number: packageMetadata.clientReleaseNumber,
-      release_channel: "dev",
-    });
-    assert.deepEqual(Object.keys(clientActivityBody ?? {}).sort(), [
-      "architecture",
-      "bridge_release_number",
-      "bridge_version",
-      "client_release_number",
-      "client_version",
-      "operating_system",
-      "operating_system_release",
-      "operating_system_version",
-      "release_channel",
-      "surface",
-    ]);
+    for (const scenario of [
+      {
+        name: "localized runtime metadata is trimmed and preserved",
+        release: " 10.0.26100 ",
+        version: " Windows 11 专业版 ",
+        fields: { operating_system_release: "10.0.26100", operating_system_version: "Windows 11 专业版" },
+      },
+      {
+        name: "an unavailable version does not discard the release",
+        release: "10.0.26100",
+        version: "",
+        fields: { operating_system_release: "10.0.26100" },
+      },
+      {
+        name: "an unavailable release does not discard the version",
+        release: "",
+        version: "Windows 11 专业版",
+        fields: { operating_system_version: "Windows 11 专业版" },
+      },
+      {
+        name: "invalid optional details do not invalidate the activity report",
+        release: "build\u0085123",
+        version: "版".repeat(257),
+        fields: {},
+      },
+    ]) {
+      const releaseMock = mock.method(os, "release", () => scenario.release);
+      const versionMock = mock.method(os, "version", () => scenario.version);
+      syncBuiltinESMExports();
+      try {
+        const requestsBefore: number = clientActivityRequests;
+        const desktopActivityResponse = await fetch(`${baseUrl}/api/auth/activity`, {
+          method: "POST",
+          headers: { cookie, "content-type": "application/json", "x-opengrove-token": "desktop-token" },
+          body: JSON.stringify({ clientVersion: "0.6.1", clientReleaseNumber: 560 }),
+        });
+        assert.equal(desktopActivityResponse.status, 200, scenario.name);
+        assert.equal(clientActivityRequests, requestsBefore + 1, scenario.name);
+        assert.deepEqual(
+          clientActivityBody,
+          {
+            surface: "desktop",
+            operating_system:
+              process.platform === "darwin"
+                ? "macos"
+                : process.platform === "win32"
+                  ? "windows"
+                  : process.platform === "linux"
+                    ? "linux"
+                    : "unknown",
+            architecture: process.arch === "arm64" || process.arch === "x64" ? process.arch : "unknown",
+            ...scenario.fields,
+            client_version: "0.6.1",
+            client_release_number: 560,
+            bridge_version: packageMetadata.version,
+            bridge_release_number: packageMetadata.clientReleaseNumber,
+            release_channel: "dev",
+          },
+          scenario.name,
+        );
+      } finally {
+        releaseMock.mock.restore();
+        versionMock.mock.restore();
+        syncBuiltinESMExports();
+      }
+    }
     for (let index = 0; index < 100; index += 1) {
       const health = await getJson(`${baseUrl}/api/health`, { cookie });
       assert.equal(health.auth.authenticated, undefined);

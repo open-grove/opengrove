@@ -590,8 +590,12 @@ and `os.version()`. The renderer supplies only the client version and release
 number. Release/build values such as `10.0.16299` help identify Windows builds;
 version descriptions are OS-provided text, not normalized marketing names.
 For example, macOS `os.release()` identifies the Darwin kernel, not the macOS
-product version. Printable ASCII values are limited to 128 and 256 characters
-respectively; unavailable or unsupported values are omitted, not truncated.
+product version. Localized Windows edition names are retained; use the release/build
+field to identify builds rather than parsing the description. Leading and trailing
+whitespace is trimmed, and Unicode values are limited to 128 and 256 UTF-16 code
+units respectively. Empty or overlong values, or values still containing C0/C1
+control characters (including DEL) or Unicode line/paragraph separators, are
+omitted, not truncated. Omitting one detail does not discard the other fields.
 
 The receiving activity API and its schema must accept these optional fields
 before a desktop containing this reporter is released. Existing clients may

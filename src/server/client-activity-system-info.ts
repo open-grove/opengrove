@@ -12,6 +12,10 @@ export function readClientActivitySystemInfo(system = { release, version }): {
 
 function optionalSystemDetail(value: string, maxLength: number): string | undefined {
   const normalized = value.trim();
-  // Unusual OS metadata must not invalidate the entire daily activity report.
-  return normalized.length <= maxLength && /^[\x20-\x7e]+$/.test(normalized) ? normalized : undefined;
+  // Localized OS names are valid; keep each optional detail bounded and on one line.
+  return normalized.length > 0 &&
+    normalized.length <= maxLength &&
+    !/[\u0000-\u001f\u007f-\u009f\u2028\u2029]/u.test(normalized)
+    ? normalized
+    : undefined;
 }

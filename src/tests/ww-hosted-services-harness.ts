@@ -207,7 +207,7 @@ async function testClientActivityUsesExactMinimalContract(): Promise<void> {
         surface: "desktop",
         operatingSystem: "windows",
         operatingSystemRelease: "10.0.16299",
-        operatingSystemVersion: "Windows 10 Pro",
+        operatingSystemVersion: "Windows 10 专业版",
         architecture: "x64",
         clientVersion: "0.6.1",
         clientReleaseNumber: 560,
@@ -227,7 +227,7 @@ async function testClientActivityUsesExactMinimalContract(): Promise<void> {
     },
   );
 
-  assert.equal(calls.length, 2, "daily activity must not use the retrying request helper");
+  assert.equal(calls.length, 2, "each activity report must send exactly one request");
   assert.equal(calls[0]?.url, "https://ww.example.test/root/v1/client/activity");
   assert.equal(calls[0]?.init?.method, "POST");
   assert.equal(headersFor(calls[0]?.init).get("authorization"), "Bearer access-token");
@@ -235,7 +235,7 @@ async function testClientActivityUsesExactMinimalContract(): Promise<void> {
     surface: "desktop",
     operating_system: "windows",
     operating_system_release: "10.0.16299",
-    operating_system_version: "Windows 10 Pro",
+    operating_system_version: "Windows 10 专业版",
     architecture: "x64",
     client_version: "0.6.1",
     client_release_number: 560,
