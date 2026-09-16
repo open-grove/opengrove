@@ -14,15 +14,17 @@ import {
 } from "../server/bridge-mounted-app-employees.js";
 import { loadBridgeSettings } from "../server/bridge-settings-store.js";
 import { handleAppsRoute } from "../server/routes/apps.js";
-import { handleRoomMemberRoutes } from "../server/routes/rooms/member-routes.js";
+import { dispatchBridgeRoutes } from "../server/router.js";
+import { createBridgeRoutes } from "../server/routes/bridge-registry.js";
 import { validateAppReleaseBuildContract } from "../server/app-release-build-contract.js";
 import { packApp } from "../app-builder/cli.js";
-import { defaultOpenGroveAppsDir } from "../storage/default-data-dir.js";
+import { defaultOpenGroveWorkspacesDir } from "../storage/default-data-dir.js";
 
 const tempRoot = mkdtempSync(join(tmpdir(), "opengrove-app-create-"));
 const settingsPath = join(tempRoot, "bridge-settings.json");
 const overriddenEnv = {
   [appEnvName("USER_DATA_DIR")]: join(tempRoot, "user-data"),
+  [appEnvName("WORKSPACES_DIR")]: join(tempRoot, "workspaces"),
   [appEnvName("BRIDGE_SETTINGS_PATH")]: settingsPath,
 };
 const previousEnv = Object.fromEntries(Object.keys(overriddenEnv).map((name) => [name, process.env[name]]));
@@ -49,7 +51,9 @@ try {
 
   async function callRoomMembers(path: string, method = "DELETE"): Promise<{ status: number; data: any }> {
     const calls: Array<{ status: number; data: any }> = [];
-    const handled = await handleRoomMemberRoutes({
+    const handled = await dispatchBridgeRoutes(createBridgeRoutes(), {
+      traceId: "room-member-test",
+      security: { authMode: "bridge-token", allowedOrigins: [] },
       request: { method } as any,
       response: {} as any,
       url: new URL(`http://opengrove.test${path}`),
@@ -477,7 +481,7 @@ try {
   const devSourceDir = join(tempRoot, "dev-plain-project");
   mkdirSync(devSourceDir, { recursive: true });
   writeFileSync(join(devSourceDir, "main.py"), "print('dev')\n");
-  const appsDirEnv = appEnvName("APP_STORE_APPS_DIR");
+  const appsDirEnv = appEnvName("WORKSPACES_DIR");
   const previousAppsDirEnv = process.env[appsDirEnv];
   try {
     process.env[appsDirEnv] = devAppsRoot;
@@ -504,7 +508,7 @@ try {
     if (previousAppsDirEnv === undefined) delete process.env[appsDirEnv];
     else process.env[appsDirEnv] = previousAppsDirEnv;
   }
-  const productionAppsDir = defaultOpenGroveAppsDir();
+  const productionAppsDir = defaultOpenGroveWorkspacesDir();
   assert.equal(
     existsSync(join(productionAppsDir, "dev-profile-app")),
     false,

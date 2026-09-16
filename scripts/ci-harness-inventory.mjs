@@ -93,6 +93,7 @@ export const harnessInventory = [
     suite: "critical",
   }),
   task("login-provider-choice", "dist/tests/login-provider-choice-harness.js", "kernels-providers"),
+  task("client-activity-system-info", "dist/tests/client-activity-system-info.test.js", "kernels-providers"),
   task("ww-hosted-services", "dist/tests/ww-hosted-services-harness.js", "kernels-providers"),
   task("ww-auth", "dist/tests/ww-auth-harness.js", "kernels-providers"),
   task("app-update-routing", "dist/tests/app-update-routing-harness.js", "apps-knowledge", { suite: "critical" }),

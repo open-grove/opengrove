@@ -265,7 +265,8 @@ Local bridge 是 UI、state、tools 和 kernels 之间的边界。
 | `/rooms/:roomId` | `PATCH` | 更新本地 room title、pin/archive state 或 badge |
 | `/rooms/:roomId/read` | `POST` | 按请求体中客户端已观察的 `observedEventSeq` 单向推进 Room 已读游标 |
 | `/rooms/members` | `POST` | upsert global room member |
-| `/rooms/:roomId/members` | `POST` | 给 room 添加 member |
+| `/rooms/:roomId/members` | `POST` | 创建或替换员工配置并加入房间；省略的字段使用默认值 |
+| `/rooms/:roomId/members/:memberId` | `POST` | 将已有员工加入房间，不修改配置（`room member join`） |
 | `/rooms/:roomId/members/:memberId` | `DELETE` | 从 room 移除 member |
 | `/rooms/:roomId/messages` | `GET` / `POST` | 读取 room messages，或发送用户消息并调度 room runs |
 | `/rooms/:roomId/messages/:messageId` | `PATCH` | 更新本地 message status、run metadata 或 rendered parts |
@@ -519,3 +520,18 @@ bridge。产品 Login 凭据留在 Kernel 自己的 config directory，可以在
 ### State 看起来过期
 
 停止 bridge，把 `local-state.sqlite`、存在时的 `-wal`/`-shm` 侧车文件、`state-blobs/` 和 `bridge-settings.json` 作为一个整体备份，复制完成后再重启。OpenGrove 会重新创建缺失的 local state files。
+
+## 桌面活跃上报的系统版本
+
+Bridge 在本机通过 Node.js `os.release()` 和 `os.version()` 读取可选的
+`operating_system_release`、`operating_system_version` 字段。渲染进程只提交客户端版本和发布号。
+`10.0.16299` 这样的系统发行号／构建号可用于识别 Windows 构建；版本说明保留系统提供的原文，
+不转换为统一的市场版本名称。例如，macOS 的 `os.release()` 对应 Darwin 内核版本，
+不是 macOS 产品版本。本地化的 Windows 版本名称会保留；识别构建应使用发行号／构建号，
+不要依赖解析版本名称。去掉首尾空白后，两个 Unicode 字段分别限制为 128、256 个 UTF-16
+代码单元。空值、超长值，或仍含 C0/C1 控制字符（含 DEL）、Unicode 行／段分隔符的值
+直接省略，不截断；省略其中一项不影响其他字段上报。
+
+发布包含这些字段的桌面端前，接收活跃上报的 API 和数据库必须先支持新增可选字段。
+已有客户端可以省略两个字段，历史未知版本不会被推断补齐。
+按账号／日期／端类型聚合的规则保持不变，这不是逐设备清单。

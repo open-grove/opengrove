@@ -1,39 +1,27 @@
 import type { AppRoomScope, RoomChannelMember, RoomChannelRoom } from "../../../rooms/channel-store.js";
+import type {
+  CreateRoomOperation,
+  UpdateRoomOperation,
+  MarkRoomReadOperation,
+  ListRoomsOperation,
+  ListRoomEventsOperation,
+  OpenDirectRoomOperation,
+} from "#protocol";
+import type { HostOperationRouteContext } from "../../router.js";
 import { isLegacyRoomPmMember, isRoomPmMember, pmAgentMemberId } from "../../../rooms/room-pm.js";
-import { record } from "../../http-utils.js";
 import { GROVE_GUIDE_MEMBER_ID, syncGroveGuideWelcome } from "../../product-default-employees.js";
 import { resolveHostLanguageSettings } from "../../language-preference.js";
-import {
-  normalizeMember,
-  objectRecord,
-  readOptionalBoolean,
-  readOptionalString,
-  readPositiveInt,
-  readString,
-  readStringArray,
-} from "./normalizers.js";
+import { normalizeMember, objectRecord, readString } from "./normalizers.js";
 import { presentRoomEvent, presentRoomMessage } from "../../room-presentation.js";
-import { readLongPollWaitMs, waitForLongPoll } from "../../long-poll.js";
+import { waitForLongPoll } from "../../long-poll.js";
 import type { RoomsRouteContext } from "./route-context.js";
 import { appScopedDirectRoomId, createRoomId } from "./route-helpers.js";
 import { findDefaultAppGroupRoom } from "../../app-room-ids.js";
 import { resolveMountedAppTarget } from "../../mounted-apps.js";
 import { roomMutationErrorResponse } from "./room-mutation-errors.js";
 
-export async function handleRoomCollectionRoutes(context: RoomsRouteContext): Promise<boolean> {
-  return (
-    (await handleRoomsInitRoute(context)) ||
-    (await handleRoomsCreateRoute(context)) ||
-    (await handleDirectRoomRoute(context)) ||
-    (await handleRoomEventsRoute(context)) ||
-    (await handleRoomReadRoute(context)) ||
-    (await handleRoomPatchRoute(context))
-  );
-}
-
-async function handleRoomsInitRoute(context: RoomsRouteContext): Promise<boolean> {
-  const { request, response, url, state, sendJson } = context;
-  if (request.method !== "GET" || url.pathname !== "/rooms") return false;
+export async function handleListRoomsOperation(context: HostOperationRouteContext<ListRoomsOperation>): Promise<true> {
+  const { response, state, sendJson } = context;
   const groveWelcomeChanged = !state.kernelUnavailableReason
     ? syncGroveGuideWelcome(
         state.app.rooms,
@@ -42,10 +30,7 @@ async function handleRoomsInitRoute(context: RoomsRouteContext): Promise<boolean
       )
     : false;
   if (groveWelcomeChanged) state.store.saveFrom(state.app);
-  const snapshot = state.app.rooms.getInit(
-    Math.min(readPositiveInt(url.searchParams.get("limit"), 80), 200),
-    Math.min(readPositiveInt(url.searchParams.get("totalLimit"), 500), 1_000),
-  );
+  const snapshot = state.app.rooms.getInit(context.input.query.limit, context.input.query.totalLimit);
   sendJson(response, 200, {
     ok: true,
     ...snapshot,
@@ -54,21 +39,16 @@ async function handleRoomsInitRoute(context: RoomsRouteContext): Promise<boolean
   return true;
 }
 
-async function handleRoomsCreateRoute(context: RoomsRouteContext): Promise<boolean> {
-  const { request, response, url, state, sendJson, readJsonBody } = context;
-  if (request.method !== "POST" || url.pathname !== "/rooms") return false;
-  const body = record(await readJsonBody(request));
-  const requestedRoomId = readOptionalString(body.id);
-  const generatedTitle = readGeneratedRoomTitle(body.generatedTitle);
-  const requestedMemberIds = readStringArray(body.memberIds);
-  const requestedAdminMemberIds = Object.prototype.hasOwnProperty.call(body, "adminMemberIds")
-    ? readStringArray(body.adminMemberIds)
-    : undefined;
-  const requestedScope = readRoomScope(body.scope);
-  if (Object.prototype.hasOwnProperty.call(body, "scope") && !requestedScope) {
-    sendJson(response, 400, { ok: false, error: "room_scope_invalid" });
-    return true;
-  }
+export async function handleCreateRoomOperation(
+  context: HostOperationRouteContext<CreateRoomOperation>,
+): Promise<true> {
+  const { response, state, sendJson } = context;
+  const body = context.input.body;
+  const requestedRoomId = body.id;
+  const generatedTitle = body.generatedTitle;
+  const requestedMemberIds = body.memberIds;
+  const requestedAdminMemberIds = body.adminMemberIds;
+  const requestedScope = body.scope;
   let scope: AppRoomScope | undefined;
   let authoritativeRoster: { memberIds: string[]; adminMemberIds: string[] } | undefined;
   if (requestedScope) {
@@ -100,10 +80,10 @@ async function handleRoomsCreateRoute(context: RoomsRouteContext): Promise<boole
     room = state.app.rooms.createRoom({
       id: roomId,
       scope,
-      title: readString(body.title),
+      title: body.title,
       memberIds: authoritativeRoster?.memberIds ?? requestedMemberIds,
       adminMemberIds: authoritativeRoster?.adminMemberIds ?? requestedAdminMemberIds,
-      badge: readString(body.badge),
+      badge: body.badge,
       generatedTitle,
     });
   } catch (error) {
@@ -165,22 +145,14 @@ function mountedAppGroupRoster(
   };
 }
 
-function readRoomScope(value: unknown): AppRoomScope | undefined {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
-  const input = value as Record<string, unknown>;
-  const appId = readOptionalString(input.appId);
-  if (input.kind !== "app" || !appId) return undefined;
-  const role = input.role === "default" || input.role === "group" ? input.role : undefined;
-  return { kind: "app", appId, ...(role ? { role } : {}) };
-}
-
-async function handleDirectRoomRoute(context: RoomsRouteContext): Promise<boolean> {
-  const { request, response, url, state, sendJson, readJsonBody } = context;
-  if (request.method !== "POST" || url.pathname !== "/rooms/dm") return false;
-  const body = record(await readJsonBody(request));
-  let memberId = readString(body.memberId);
-  const requestedRoomId = readOptionalString(body.roomId);
-  const requestedAppId = readOptionalString(body.appId);
+export async function handleOpenDirectRoomOperation(
+  context: HostOperationRouteContext<OpenDirectRoomOperation>,
+): Promise<true> {
+  const { response, state, sendJson } = context;
+  const body = context.input.body;
+  let memberId = body.memberId;
+  const requestedRoomId = body.roomId;
+  const requestedAppId = body.appId;
   const mountedApp = requestedAppId ? resolveMountedAppTarget(state, requestedAppId) : undefined;
   if (requestedAppId && !mountedApp) {
     sendJson(response, 409, { ok: false, error: "app_not_mounted" });
@@ -205,7 +177,7 @@ async function handleDirectRoomRoute(context: RoomsRouteContext): Promise<boolea
   try {
     room = state.app.rooms.openDirect({
       memberId,
-      title: readString(body.title),
+      title: body.title,
       id: appId || requestedRoomId ? directRoomId : undefined,
       scope: appId ? { kind: "app", appId, role: "direct" } : undefined,
     });
@@ -223,13 +195,12 @@ async function handleDirectRoomRoute(context: RoomsRouteContext): Promise<boolea
   return true;
 }
 
-async function handleRoomEventsRoute(context: RoomsRouteContext): Promise<boolean> {
-  const { request, response, url, state, sendJson } = context;
-  if (request.method !== "GET" || url.pathname !== "/rooms/events") return false;
-  const afterEventSeq = readPositiveInt(url.searchParams.get("afterEventSeq"), 0);
-  const limit = Math.min(readPositiveInt(url.searchParams.get("limit"), 200), 1_000);
+export async function handleListRoomEventsOperation(
+  context: HostOperationRouteContext<ListRoomEventsOperation>,
+): Promise<true> {
+  const { response, state, sendJson } = context;
+  const { afterEventSeq, limit, waitMs, eventVersion } = context.input.query;
   let result = state.app.rooms.eventsAfter(afterEventSeq, limit);
-  const waitMs = readLongPollWaitMs(url);
   if (waitMs > 0 && !result.resetRequired && !result.hasMore && result.events.length === 0) {
     const rooms = state.app.rooms;
     const responseOpen = await waitForLongPoll(response, (signal) =>
@@ -238,7 +209,7 @@ async function handleRoomEventsRoute(context: RoomsRouteContext): Promise<boolea
     if (!responseOpen) return true;
     result = state.app.rooms.eventsAfter(afterEventSeq, limit);
   }
-  const supportsMessagePatches = readPositiveInt(url.searchParams.get("eventVersion"), 1) >= 2;
+  const supportsMessagePatches = eventVersion >= 2;
   sendJson(response, 200, {
     ok: true,
     ...result,
@@ -259,17 +230,16 @@ async function handleRoomEventsRoute(context: RoomsRouteContext): Promise<boolea
   return true;
 }
 
-async function handleRoomPatchRoute(context: RoomsRouteContext): Promise<boolean> {
+export async function handleUpdateRoomOperation(
+  context: HostOperationRouteContext<UpdateRoomOperation>,
+): Promise<true> {
   // Room administrator changes cross an authorization boundary. This local
   // route is intentionally available only behind the authenticated Host
   // bridge; untrusted Apps and agents do not receive its session credential.
-  const { request, response, url, state, sendJson, readJsonBody } = context;
-  const roomAction = url.pathname.match(/^\/rooms\/([^/]+)$/);
-  if (!roomAction || request.method !== "PATCH") return false;
-  const [, encodedRoomId] = roomAction;
-  const body = record(await readJsonBody(request));
-  const roomId = decodeURIComponent(encodedRoomId!);
-  const archived = readOptionalBoolean(body.archived);
+  const { response, state, sendJson } = context;
+  const { roomId } = context.input.params;
+  const body = context.input.body;
+  const archived = body.archived;
   if (
     archived === true &&
     state.app.rooms
@@ -282,18 +252,16 @@ async function handleRoomPatchRoute(context: RoomsRouteContext): Promise<boolean
   let room: RoomChannelRoom;
   try {
     room = state.app.rooms.patchRoom(roomId, {
-      title: readOptionalString(body.title),
+      title: body.title,
       generatedTitle: Object.prototype.hasOwnProperty.call(body, "generatedTitle")
-        ? (readGeneratedRoomTitle(body.generatedTitle) ?? null)
+        ? (body.generatedTitle ?? null)
         : Object.prototype.hasOwnProperty.call(body, "title")
           ? null
           : undefined,
-      pinned: readOptionalBoolean(body.pinned),
+      pinned: body.pinned,
       archived,
-      badge: readOptionalString(body.badge),
-      adminMemberIds: Object.prototype.hasOwnProperty.call(body, "adminMemberIds")
-        ? readStringArray(body.adminMemberIds)
-        : undefined,
+      badge: body.badge,
+      adminMemberIds: body.adminMemberIds,
     });
   } catch (error) {
     if (sendRoomMutationError(response, sendJson, error)) return true;
@@ -308,16 +276,15 @@ async function handleRoomPatchRoute(context: RoomsRouteContext): Promise<boolean
   return true;
 }
 
-async function handleRoomReadRoute(context: RoomsRouteContext): Promise<boolean> {
-  const { request, response, url, state, sendJson, readJsonBody } = context;
-  const action = url.pathname.match(/^\/rooms\/([^/]+)\/read$/);
-  if (!action || request.method !== "POST") return false;
-  const roomId = decodeURIComponent(action[1]!);
-  const body = record(await readJsonBody(request));
-  const observedEventSeq = body.observedEventSeq;
+export async function handleMarkRoomReadOperation(
+  context: HostOperationRouteContext<MarkRoomReadOperation>,
+): Promise<true> {
+  const { response, state, sendJson } = context;
+  const { roomId } = context.input.params;
+  const { observedEventSeq } = context.input.body;
   let room: RoomChannelRoom;
   try {
-    room = state.app.rooms.markRoomRead(roomId, typeof observedEventSeq === "number" ? observedEventSeq : Number.NaN);
+    room = state.app.rooms.markRoomRead(roomId, observedEventSeq);
   } catch (error) {
     if (sendRoomMutationError(response, sendJson, error)) return true;
     throw error;
@@ -329,17 +296,6 @@ async function handleRoomReadRoute(context: RoomsRouteContext): Promise<boolean>
     currentEventSeq: state.app.rooms.snapshot().currentEventSeq,
   });
   return true;
-}
-
-function readGeneratedRoomTitle(value: unknown): RoomChannelRoom["generatedTitle"] {
-  const input = record(value);
-  const sequence =
-    typeof input.sequence === "number" && Number.isInteger(input.sequence) && input.sequence > 0 ? input.sequence : 0;
-  if (input.kind === "numbered-group" && sequence) {
-    return { kind: "numbered-group", sequence };
-  }
-  const appId = readString(input.appId);
-  return input.kind === "app-group" && appId && sequence ? { kind: "app-group", appId, sequence } : undefined;
 }
 
 function sendRoomMutationError(

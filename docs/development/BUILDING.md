@@ -431,6 +431,23 @@ lsof -nP -iTCP:5173 -sTCP:LISTEN
 On Windows PowerShell, use `Get-Process -Id 12345` and
 `Get-NetTCPConnection -State Listen -LocalPort 37371,5173` for that information.
 
+### Diagnose event long polling
+
+Run `npm run diagnose:event-long-poll` to rebuild the backend and run the isolated
+inventory harness with timing output. It uses temporary test data and removes it
+on exit. The JSON summary reports event arrival, response validation, SQLite
+calls, and event-loop delay; failed assertions produce a nonzero exit code.
+
+To delay only the test client's observation of the triggering PATCH response:
+
+```bash
+npm run diagnose:event-long-poll -- --delay-mutation-response-ms=1600
+```
+
+The event response should still meet the existing 1000 ms limit. This experiment
+checks that trigger-response latency is excluded from event-delivery timing;
+it does not establish the cause of a past timeout.
+
 ## Focused verification
 
 Select checks for the change. A documentation update does not need the full

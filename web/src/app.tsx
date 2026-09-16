@@ -1,3 +1,5 @@
+import { interactionDecisionBodySchema, createArtifactOperation } from "@opengrove/protocol";
+import { openGroveClient } from "./opengrove-client";
 import { useBlocker } from "react-router";
 import { useAppNavigation } from "./runtime/use-app-navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -1210,10 +1212,10 @@ export function App() {
       action: "approve" | "reject" | "cancel";
       response?: unknown;
     }) =>
-      postJson<any>(
-        `/approvals/${encodeURIComponent(approvalId)}/${action}`,
-        response !== undefined ? { response } : {},
-      ),
+      openGroveClient.interactions.approvals[action]({
+        approvalId,
+        ...interactionDecisionBodySchema.parse({ response }),
+      }),
     onSuccess(result, variables) {
       queryClient.setQueryData(["approvals"], { ok: true, approvals: result.approvals || [] });
       mergeFinalDataIntoCache(queryClient, result);
@@ -1244,10 +1246,10 @@ export function App() {
       action: "answer" | "decline" | "cancel";
       response?: unknown;
     }) =>
-      postJson<any>(
-        `/questions/${encodeURIComponent(questionId)}/${action}`,
-        response !== undefined ? { response } : {},
-      ),
+      openGroveClient.interactions.questions[action]({
+        questionId,
+        ...interactionDecisionBodySchema.parse({ response }),
+      }),
     onSuccess(result, variables) {
       queryClient.setQueryData(["questions"], { ok: true, questions: result.questions || [] });
       mergeFinalDataIntoCache(queryClient, result);
@@ -1267,7 +1269,8 @@ export function App() {
   });
 
   const createArtifactMutation = useMutation({
-    mutationFn: (payload: Record<string, unknown>) => postJson<any>("/artifacts", payload),
+    mutationFn: (payload: Record<string, unknown>) =>
+      openGroveClient.artifacts.collection.create(createArtifactOperation.body.parse(payload)),
     onSuccess() {
       queryClient.invalidateQueries({ queryKey: ["inventory"] });
       queryClient.invalidateQueries({ queryKey: ["events"] });

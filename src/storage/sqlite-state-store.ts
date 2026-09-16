@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { existsSync, lstatSync, readdirSync, rmSync, statSync } from "node:fs";
+import { existsSync, lstatSync, readdirSync, statSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { ContentBlobStore, type ContentBlobMetadata } from "./content-blob-store.js";
@@ -8,7 +8,6 @@ import {
   normalizePersistedAgentState,
   restorePersistedAgentState,
   snapshotPersistedAgentState,
-  type AgentFileCleanupResult,
   type AgentDiagnosticArchive,
   type AgentDiagnosticArchiveScope,
   type AgentStateStore,
@@ -186,9 +185,6 @@ export function createSqliteStateStore(
       },
       clearRuntimeEventArchive() {
         return clearRuntimeEventArchive(database!);
-      },
-      clearMigrationBackups() {
-        return clearMigrationBackups(databasePath, legacyPath);
       },
       readDiagnosticArchive(scope) {
         return readDiagnosticArchive(database!, blobs, scope);
@@ -1012,16 +1008,6 @@ function tailPrefixOverlap(previous: string[], current: string[]): number {
     prefix[index] = candidate;
   }
   return Math.min(current.length, prefix.at(-1) ?? 0);
-}
-
-function clearMigrationBackups(databasePath: string, legacyPath: string): AgentFileCleanupResult {
-  const backups = listStateMigrationBackupPaths(databasePath, legacyPath);
-  let reclaimedBytes = 0;
-  for (const path of backups) {
-    reclaimedBytes += pathSize(path);
-    rmSync(path, { recursive: true, force: false });
-  }
-  return { removedFiles: backups.length, reclaimedBytes };
 }
 
 function pathSize(path: string): number {

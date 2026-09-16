@@ -5,6 +5,7 @@ import {
   OPEN_GROVE_STORAGE_CATEGORY_IDS,
   type OpenGroveStorageCategoryId,
   type OpenGroveStorageOverview,
+  type OpenGroveAppLayoutBackup,
 } from "../storage/storage-overview-contract.js";
 
 export interface OpenGroveStorageRoots {
@@ -20,15 +21,18 @@ export interface OpenGroveStorageRoots {
 export async function inspectOpenGroveStorage(input: {
   roots: OpenGroveStorageRoots;
   stateBackupPaths?: readonly string[];
+  appLayoutBackups?: readonly { path: string; backup: OpenGroveAppLayoutBackup }[];
   rebuildableFilePaths?: readonly string[];
   orphanBlobBytes?: number;
 }): Promise<OpenGroveStorageOverview> {
   const roots = resolveRoots(input.roots);
   const stateBackupPaths = uniquePaths(input.stateBackupPaths ?? []);
   const rebuildableFilePaths = new Set(uniquePaths(input.rebuildableFilePaths ?? []));
-  const backups = (await Promise.all(stateBackupPaths.map((path) => inspectBackup(path)))).filter(
+  const stateBackups = (await Promise.all(stateBackupPaths.map((path) => inspectBackup(path)))).filter(
     (backup): backup is NonNullable<typeof backup> => Boolean(backup),
   );
+  const backups = [...stateBackups, ...(input.appLayoutBackups ?? []).map((item) => item.backup)];
+  const backupPaths = uniquePaths([...stateBackupPaths, ...(input.appLayoutBackups ?? []).map((item) => item.path)]);
   const categoryBytes = emptyCategoryBytes();
   let rebuildableBytes = 0;
 
@@ -40,13 +44,13 @@ export async function inspectOpenGroveStorage(input: {
     ...roots.externalWorkspaceRoots,
     ...roots.appStoreRoots,
     ...(roots.updaterCacheDir ? [roots.updaterCacheDir] : []),
-    ...stateBackupPaths,
+    ...backupPaths,
   ]);
   for (const scanRoot of scanRoots) {
     await walkRegularFiles(scanRoot, async (path, bytes) => {
-      const category = classifyPath(path, roots, stateBackupPaths);
+      const category = classifyPath(path, roots, backupPaths);
       categoryBytes[category] += bytes;
-      if (isCleanupCandidate(path, roots, stateBackupPaths, rebuildableFilePaths)) rebuildableBytes += bytes;
+      if (isCleanupCandidate(path, roots, backupPaths, rebuildableFilePaths)) rebuildableBytes += bytes;
     });
   }
 

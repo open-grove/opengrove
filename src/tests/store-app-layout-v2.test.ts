@@ -1,11 +1,14 @@
 import assert from "node:assert/strict";
+import { execFileSync, spawnSync } from "node:child_process";
 import {
   chmodSync,
+  copyFileSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
   readdirSync,
   readFileSync,
+  readlinkSync,
   realpathSync,
   renameSync,
   rmSync,
@@ -13,7 +16,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { dirname, join, relative, resolve } from "node:path";
 import test from "node:test";
 import {
   appStoreDataRoot,
@@ -296,20 +299,350 @@ test("final validation keeps the legacy pointer authoritative when the source Wo
   }
 });
 
-test("Store layout migration defers absolute Workspace links that would break after retirement", () => {
+test("Store layout migration preserves external absolute Workspace links without copying their target", () => {
   const fixture = createLegacyFixture("absolute-link-app");
   try {
     const externalRoot = join(fixture.root, "external-content");
     mkdirSync(externalRoot, { recursive: true });
+    writeFileSync(join(externalRoot, "external.md"), "outside the migration\n");
     symlinkSync(
       externalRoot,
       join(fixture.legacyWorkspaceRoot, "external-link"),
       process.platform === "win32" ? "junction" : "dir",
     );
     const result = migrateStoreAppLayoutsV2({ mountedApps: [fixture.mount], roots: fixture.roots });
+    assert.deepEqual(result.failures, []);
+    assert.equal(result.changed, true);
+    const copiedLink = join(result.mountedApps[0]!.workspacePath!, "external-link");
+    assert.equal(resolve(realpathSync(copiedLink)), resolve(realpathSync(externalRoot)));
+    assert.equal(readlinkSync(copiedLink), readlinkSync(join(fixture.legacyWorkspaceRoot, "external-link")));
+    retireLegacyStoreAppLayoutsV2({ mountedApps: result.mountedApps, roots: fixture.roots });
+    assert.equal(readFileSync(join(copiedLink, "external.md"), "utf8"), "outside the migration\n");
+  } finally {
+    rmSync(fixture.root, { recursive: true, force: true });
+  }
+});
+
+test("internal directory links and Windows junctions point into the new Workspace", () => {
+  const fixture = createLegacyFixture("directory-links-app");
+  try {
+    const source = join(fixture.legacyWorkspaceRoot, "documents");
+    mkdirSync(source);
+    writeFileSync(join(source, "kept.txt"), "kept");
+    symlinkSync(
+      source,
+      join(fixture.legacyWorkspaceRoot, "documents-link"),
+      process.platform === "win32" ? "junction" : "dir",
+    );
+    const result = migrateStoreAppLayoutsV2({ mountedApps: [fixture.mount], roots: fixture.roots });
+    assert.deepEqual(result.failures, []);
+    const workspace = result.mountedApps[0]!.workspacePath!;
+    assert.equal(realpathSync(join(workspace, "documents-link")), realpathSync(join(workspace, "documents")));
+    assert.deepEqual(
+      validateStoreAppLayoutWorkspaceCopiesV2({
+        appIds: result.migratedAppIds,
+        previousMountedApps: [fixture.mount],
+        mountedApps: result.mountedApps,
+        roots: fixture.roots,
+      }),
+      [],
+    );
+    retireLegacyStoreAppLayoutsV2({ mountedApps: result.mountedApps, roots: fixture.roots });
+    assert.equal(readFileSync(join(workspace, "documents-link", "kept.txt"), "utf8"), "kept");
+  } finally {
+    rmSync(fixture.root, { recursive: true, force: true });
+  }
+});
+
+test("links between split Program and Workspace and external relative links survive retirement", {
+  skip: process.platform === "win32",
+}, () => {
+  const fixture = createDirectLegacyFixture("mapped-links-app");
+  try {
+    const program = fixture.legacyProgramRoot;
+    const workspace = fixture.legacyWorkspaceRoot;
+    const external = join(fixture.root, "external.txt");
+    writeFileSync(external, "external\n");
+    symlinkSync(join(workspace, "story.md"), join(program, "story-link"));
+    symlinkSync("../index.js", join(workspace, "program-link"));
+    symlinkSync(relative(workspace, external), join(workspace, "external-relative"));
+    symlinkSync(join(workspace, "later.txt"), join(workspace, "dangling-internal"));
+    symlinkSync(join(fixture.root, "missing-external"), join(program, "dangling-external"));
+    symlinkSync("cycle-b", join(program, "cycle-a"));
+    symlinkSync("cycle-a", join(program, "cycle-b"));
+    const result = migrateStoreAppLayoutsV2({ mountedApps: [fixture.mount], roots: fixture.roots });
+    assert.deepEqual(result.failures, []);
+    const moved = result.mountedApps[0]!;
+    assert.equal(readlinkSync(join(moved.path, "story-link")), join(moved.workspacePath!, "story.md"));
+    assert.equal(
+      resolve(moved.workspacePath!, readlinkSync(join(moved.workspacePath!, "program-link"))),
+      join(moved.path, "index.js"),
+    );
+    assert.equal(
+      readlinkSync(join(moved.workspacePath!, "dangling-internal")),
+      join(moved.workspacePath!, "later.txt"),
+    );
+    assert.equal(readlinkSync(join(moved.path, "dangling-external")), join(fixture.root, "missing-external"));
+    assert.equal(readlinkSync(join(moved.path, "cycle-a")), "cycle-b");
+    assert.deepEqual(
+      validateStoreAppLayoutWorkspaceCopiesV2({
+        appIds: result.migratedAppIds,
+        previousMountedApps: [fixture.mount],
+        mountedApps: result.mountedApps,
+        roots: fixture.roots,
+      }),
+      [],
+    );
+    const retry = migrateStoreAppLayoutsV2({ mountedApps: [fixture.mount], roots: fixture.roots });
+    assert.deepEqual(retry.failures, []);
+    assert.deepEqual(retry.mountedApps, result.mountedApps);
+    retireLegacyStoreAppLayoutsV2({ mountedApps: result.mountedApps, roots: fixture.roots });
+    assert.equal(readFileSync(join(moved.path, "story-link"), "utf8"), "user-owned\n");
+    assert.equal(readFileSync(join(moved.workspacePath!, "program-link"), "utf8"), "export default true;\n");
+    assert.equal(readFileSync(join(moved.workspacePath!, "external-relative"), "utf8"), "external\n");
+  } finally {
+    rmSync(fixture.root, { recursive: true, force: true });
+  }
+});
+
+test("a link into an unmapped legacy App is retained at the source before copying", {
+  skip: process.platform === "win32",
+}, () => {
+  const fixture = createDirectLegacyFixture("foreign-link-app");
+  try {
+    const other = join(fixture.roots.legacyWorkspacesRoot, "other-app", "workspace");
+    mkdirSync(other, { recursive: true });
+    writeFileSync(join(other, "other.txt"), "keep\n");
+    symlinkSync(other, join(fixture.legacyProgramRoot, "other-app-link"));
+    const result = migrateStoreAppLayoutsV2({ mountedApps: [fixture.mount], roots: fixture.roots });
     assert.equal(result.changed, false);
-    assert.equal(result.mountedApps[0]?.path, fixture.legacyProgramRoot);
-    assert.equal(result.failures[0]?.reason, "store_app_layout_absolute_symlink_unsupported");
+    assert.equal(result.failures[0]?.reason, "store_app_layout_unmapped_legacy_link");
+    assert.equal(existsSync(fixture.roots.workspacesRoot), false);
+    assert.equal(readFileSync(join(other, "other.txt"), "utf8"), "keep\n");
+  } finally {
+    rmSync(fixture.root, { recursive: true, force: true });
+  }
+});
+
+test("unsupported program entries fail preflight before a Workspace copy is created", {
+  skip: process.platform === "win32",
+}, () => {
+  const fixture = createDirectLegacyFixture("preflight-app");
+  try {
+    execFileSync("mkfifo", [join(fixture.legacyProgramRoot, "pipe")]);
+    const result = migrateStoreAppLayoutsV2({ mountedApps: [fixture.mount], roots: fixture.roots });
+    assert.equal(result.changed, false);
+    assert.equal(result.failures[0]?.reason, "store_app_layout_entry_type_invalid");
+    assert.equal(existsSync(fixture.roots.workspacesRoot), false);
+    assert.equal(existsSync(fixture.roots.programsRoot), false);
+    assert.equal(readFileSync(join(fixture.legacyWorkspaceRoot, "story.md"), "utf8"), "user-owned\n");
+  } finally {
+    rmSync(fixture.root, { recursive: true, force: true });
+  }
+});
+
+test("copied Python environment launchers use the final path after legacy retirement", {
+  skip: process.platform === "win32",
+}, () => {
+  const fixture = createDirectLegacyFixture("python-paths-app");
+  try {
+    const env = join(fixture.legacyProgramRoot, "skills", "skill with spaces", ".venv");
+    mkdirSync(join(env, "bin"), { recursive: true });
+    mkdirSync(join(env, "lib"), { recursive: true });
+    const interpreter = join(fixture.root, "system-python");
+    writeFileSync(interpreter, "#!/bin/sh\nprintf 'python-target-ok\\n'\n", { mode: 0o755 });
+    symlinkSync(interpreter, join(env, "bin", "python3.13"));
+    symlinkSync("python3.13", join(env, "bin", "python"));
+    const config = `home = ${fixture.root}\ninclude-system-site-packages = false\nversion = 3.13.0\ncommand = ${interpreter} -m venv ${env}\n`;
+    writeFileSync(join(env, "pyvenv.cfg"), config);
+    const wrapper = `#!/bin/sh\n'''exec' "${env}/bin/python" "$0" "$@"\n' '''\n`;
+    writeFileSync(join(env, "bin", "pip"), wrapper, { mode: 0o755 });
+    writeFileSync(join(env, "bin", "jp.py"), `#!${env}/bin/python\nprint('entry')\n`, { mode: 0o755 });
+    writeFileSync(join(env, "bin", "activate"), `VIRTUAL_ENV="${env}"\nexport VIRTUAL_ENV\n`);
+    writeFileSync(join(env, "lib", "user-data.txt"), env);
+    writeFileSync(join(fixture.legacyWorkspaceRoot, "note.txt"), env);
+    const result = migrateStoreAppLayoutsV2({ mountedApps: [fixture.mount], roots: fixture.roots });
+    assert.deepEqual(result.failures, []);
+    const moved = result.mountedApps[0]!;
+    const targetEnv = join(moved.path, "skills", "skill with spaces", ".venv");
+    assert.equal(
+      readFileSync(join(targetEnv, "bin", "activate"), "utf8"),
+      `VIRTUAL_ENV="${targetEnv}"\nexport VIRTUAL_ENV\n`,
+    );
+    assert.equal(
+      readFileSync(join(targetEnv, "pyvenv.cfg"), "utf8"),
+      `home = ${fixture.root}\ninclude-system-site-packages = false\nversion = 3.13.0\ncommand = ${interpreter} -m venv ${targetEnv}\n`,
+    );
+    assert.equal(readFileSync(join(env, "bin", "pip"), "utf8"), wrapper, "source launcher stays untouched");
+    assert.equal(readFileSync(join(targetEnv, "lib", "user-data.txt"), "utf8"), env);
+    assert.equal(readFileSync(join(moved.workspacePath!, "note.txt"), "utf8"), env);
+    assert.deepEqual(migrateStoreAppLayoutsV2({ mountedApps: [fixture.mount], roots: fixture.roots }).failures, []);
+    retireLegacyStoreAppLayoutsV2({ mountedApps: result.mountedApps, roots: fixture.roots });
+    assert.equal(existsSync(env), false);
+    assert.equal(execFileSync(join(targetEnv, "bin", "pip"), { encoding: "utf8" }), "python-target-ok\n");
+    assert.equal(execFileSync(join(targetEnv, "bin", "jp.py"), { encoding: "utf8" }), "python-target-ok\n");
+  } finally {
+    rmSync(fixture.root, { recursive: true, force: true });
+  }
+});
+
+test("bundled Python configuration and base-interpreter launchers survive legacy retirement", {
+  skip: process.platform === "win32",
+}, () => {
+  const fixture = createDirectLegacyFixture("bundled-python-app");
+  try {
+    const env = join(fixture.legacyProgramRoot, "skill with spaces", ".venv");
+    const home = join(fixture.legacyProgramRoot, "runtime", "python", "bin");
+    const interpreter = join(home, "python3");
+    mkdirSync(home, { recursive: true });
+    mkdirSync(join(env, "bin"), { recursive: true });
+    writeFileSync(interpreter, "#!/bin/sh\nprintf 'bundled-python-ok\\n'\n", { mode: 0o755 });
+    symlinkSync(interpreter, join(env, "bin", "python3"));
+    const config = `home = ${home}\ninclude-system-site-packages = false\nexecutable = ${interpreter}\ncommand = ${interpreter} -m venv ${env}\n`;
+    writeFileSync(join(env, "pyvenv.cfg"), config);
+    const launcher = `#!${interpreter} -I\nprint('entry')\n`;
+    writeFileSync(join(env, "bin", "entry"), launcher, { mode: 0o755 });
+    writeFileSync(join(env, "bin", "wrapped"), `#!/bin/sh\n'''exec' "${interpreter}" "$0" "$@"\n' '''\n`, {
+      mode: 0o755,
+    });
+    const result = migrateStoreAppLayoutsV2({ mountedApps: [fixture.mount], roots: fixture.roots });
+    assert.deepEqual(result.failures, []);
+    const targetEnv = join(result.mountedApps[0]!.path, "skill with spaces", ".venv");
+    const targetHome = join(result.mountedApps[0]!.path, "runtime", "python", "bin");
+    const targetInterpreter = join(targetHome, "python3");
+    assert.equal(
+      readFileSync(join(targetEnv, "pyvenv.cfg"), "utf8"),
+      `home = ${targetHome}\ninclude-system-site-packages = false\nexecutable = ${targetInterpreter}\ncommand = ${targetInterpreter} -m venv ${targetEnv}\n`,
+    );
+    assert.equal(readFileSync(join(env, "pyvenv.cfg"), "utf8"), config);
+    assert.equal(readFileSync(join(env, "bin", "entry"), "utf8"), launcher);
+    assert.deepEqual(migrateStoreAppLayoutsV2({ mountedApps: [fixture.mount], roots: fixture.roots }).failures, []);
+    assert.deepEqual(
+      validateStoreAppLayoutWorkspaceCopiesV2({
+        appIds: result.migratedAppIds,
+        previousMountedApps: [fixture.mount],
+        mountedApps: result.mountedApps,
+        roots: fixture.roots,
+      }),
+      [],
+    );
+    retireLegacyStoreAppLayoutsV2({ mountedApps: result.mountedApps, roots: fixture.roots });
+    assert.equal(existsSync(home), false);
+    assert.equal(existsSync(targetHome), true);
+    assert.equal(execFileSync(join(targetEnv, "bin", "entry"), { encoding: "utf8" }), "bundled-python-ok\n");
+    assert.equal(execFileSync(join(targetEnv, "bin", "wrapped"), { encoding: "utf8" }), "bundled-python-ok\n");
+  } finally {
+    rmSync(fixture.root, { recursive: true, force: true });
+  }
+});
+
+for (const field of ["home", "executable", "command", "shebang", "wrapper"] as const) {
+  test(`unmapped legacy Python ${field} fails before copying either tree`, () => {
+    const fixture = createDirectLegacyFixture(`unmapped-python-${field}`);
+    try {
+      const env = join(fixture.legacyProgramRoot, ".venv");
+      const foreignHome = join(fixture.roots.legacyWorkspacesRoot, "another-app", "runtime", "bin");
+      const foreignPython = join(foreignHome, "python3");
+      mkdirSync(join(env, "bin"), { recursive: true });
+      let config = `home = ${fixture.root}\ninclude-system-site-packages = false\n`;
+      if (field === "home") config = `home = ${foreignHome}\ninclude-system-site-packages = false\n`;
+      if (field === "executable") config += `executable = ${foreignPython}\n`;
+      if (field === "command") config += `command = "${foreignPython}" -m venv ${env}\n`;
+      writeFileSync(join(env, "pyvenv.cfg"), config);
+      if (field === "shebang") writeFileSync(join(env, "bin", "entry"), `#!${foreignPython}\nprint('entry')\n`);
+      if (field === "wrapper")
+        writeFileSync(join(env, "bin", "entry"), `#!/bin/sh\n'''exec' "${foreignPython}" "$0" "$@"\n' '''\n`);
+      const result = migrateStoreAppLayoutsV2({ mountedApps: [fixture.mount], roots: fixture.roots });
+      assert.equal(result.failures[0]?.reason, "store_app_layout_unmapped_legacy_path");
+      assert.equal(result.changed, false);
+      assert.equal(existsSync(fixture.roots.programsRoot), false);
+      assert.equal(existsSync(fixture.roots.workspacesRoot), false);
+      assert.equal(readFileSync(join(env, "pyvenv.cfg"), "utf8"), config);
+      assert.equal(existsSync(fixture.legacyWorkspaceRoot), true);
+    } finally {
+      rmSync(fixture.root, { recursive: true, force: true });
+    }
+  });
+}
+
+test("a real Python with a bundled home starts after both its base and venv move", {
+  skip: process.platform === "win32",
+}, (context) => {
+  if (spawnSync("python3", ["--version"]).status !== 0) {
+    context.skip("python3 is unavailable");
+    return;
+  }
+  const fixture = createDirectLegacyFixture("real-bundled-python-app");
+  try {
+    const details = execFileSync(
+      "python3",
+      [
+        "-c",
+        "import sys, sysconfig; print(sys.executable); print(sysconfig.get_path('stdlib')); print(sysconfig.get_config_var('LDVERSION') or sysconfig.get_python_version())",
+      ],
+      { encoding: "utf8" },
+    )
+      .trim()
+      .split("\n");
+    const env = join(fixture.legacyProgramRoot, "skill with spaces", ".venv");
+    const runtime = join(fixture.legacyProgramRoot, "runtime", "python");
+    mkdirSync(join(runtime, "bin"), { recursive: true });
+    mkdirSync(join(runtime, "lib"), { recursive: true });
+    // Reuse the host stdlib instead of copying it. Framework builds on macOS
+    // also retain their host framework, so this is not a standalone distribution.
+    copyFileSync(details[0]!, join(runtime, "bin", "python3"));
+    symlinkSync(details[1]!, join(runtime, "lib", `python${details[2]!}`), "dir");
+    execFileSync(join(runtime, "bin", "python3"), ["-m", "venv", "--without-pip", env]);
+    const configFile = join(env, "pyvenv.cfg");
+    writeFileSync(
+      configFile,
+      readFileSync(configFile, "utf8").replace(/^home = .+$/m, `home = ${realpathSync(join(runtime, "bin"))}`),
+    );
+    writeFileSync(join(env, "bin", "show-prefix"), `#!${env}/bin/python\nimport sys\nprint(sys.prefix)\n`, {
+      mode: 0o755,
+    });
+    writeFileSync(join(env, "bin", "show-base"), `#!${runtime}/bin/python3\nimport sys\nprint(sys.executable)\n`, {
+      mode: 0o755,
+    });
+    const result = migrateStoreAppLayoutsV2({ mountedApps: [fixture.mount], roots: fixture.roots });
+    assert.deepEqual(result.failures, []);
+    const targetEnv = join(result.mountedApps[0]!.path, "skill with spaces", ".venv");
+    const targetRuntime = join(result.mountedApps[0]!.path, "runtime", "python");
+    const targetHome = readFileSync(join(targetEnv, "pyvenv.cfg"), "utf8").match(/^home = (.+)$/m)?.[1];
+    assert.equal(targetHome, join(targetRuntime, "bin"));
+    retireLegacyStoreAppLayoutsV2({ mountedApps: result.mountedApps, roots: fixture.roots });
+    assert.equal(existsSync(runtime), false);
+    assert.equal(existsSync(targetHome!), true);
+    const actual = execFileSync(join(targetEnv, "bin", "show-prefix"), { encoding: "utf8" }).trim();
+    assert.equal(realpathSync(actual), realpathSync(targetEnv));
+    const base = execFileSync(join(targetEnv, "bin", "show-base"), { encoding: "utf8" }).trim();
+    assert.equal(realpathSync(base), realpathSync(join(targetRuntime, "bin", "python3")));
+  } finally {
+    rmSync(fixture.root, { recursive: true, force: true });
+  }
+});
+
+test("a real Python venv still runs from a path with spaces after migration and retirement", {
+  skip: process.platform === "win32",
+}, (context) => {
+  if (spawnSync("python3", ["--version"]).status !== 0) {
+    context.skip("python3 is unavailable");
+    return;
+  }
+  const fixture = createDirectLegacyFixture("real-python-app");
+  try {
+    const env = join(fixture.legacyProgramRoot, "skill with spaces", ".venv");
+    execFileSync("python3", ["-m", "venv", "--without-pip", env]);
+    writeFileSync(join(env, "bin", "show-prefix"), `#!${env}/bin/python\nimport sys\nprint(sys.prefix)\n`, {
+      mode: 0o755,
+    });
+    const result = migrateStoreAppLayoutsV2({ mountedApps: [fixture.mount], roots: fixture.roots });
+    assert.deepEqual(result.failures, []);
+    const targetEnv = join(result.mountedApps[0]!.path, "skill with spaces", ".venv");
+    retireLegacyStoreAppLayoutsV2({ mountedApps: result.mountedApps, roots: fixture.roots });
+    const actual = execFileSync(join(targetEnv, "bin", "show-prefix"), { encoding: "utf8" }).trim();
+    assert.equal(realpathSync(actual), realpathSync(targetEnv));
+    assert.equal(existsSync(env), false);
   } finally {
     rmSync(fixture.root, { recursive: true, force: true });
   }
@@ -455,6 +788,41 @@ test("deferred cleanup scans verified legacy Programs generations", () => {
     assert.deepEqual(result.removed, [resolve(orphanProgramRoot)]);
     assert.equal(existsSync(orphanGenerationRoot), false);
     assert.equal(existsSync(fixture.legacyProgramRoot), true);
+  } finally {
+    restoreEnv(previousEnv);
+    rmSync(fixture.root, { recursive: true, force: true });
+  }
+});
+
+test("retired layout backups survive later startup and cache cleanup", () => {
+  const fixture = createLegacyFixture("retained-backup-app");
+  const previousEnv = captureEnv(["OPENGROVE_PROGRAMS_DIR"]);
+  try {
+    process.env.OPENGROVE_PROGRAMS_DIR = fixture.roots.programsRoot;
+    const migration = migrateStoreAppLayoutsV2({ roots: fixture.roots, mountedApps: [fixture.mount] });
+    assert.deepEqual(migration.failures, []);
+    const retired = retireLegacyStoreAppLayoutsV2({ roots: fixture.roots, mountedApps: migration.mountedApps });
+    assert.equal(retired.renamed.length, 2);
+    const generation = retired.renamed.find((path) => path.startsWith(fixture.roots.legacyProgramsRoot))!;
+    writeFileSync(
+      join(generation, ".opengrove-cleanup-pending"),
+      JSON.stringify({
+        schemaVersion: 1,
+        kind: "program-generation-cleanup",
+        appRoot: resolve(generation, "app"),
+        createdAt: new Date().toISOString(),
+      }),
+    );
+    assert.deepEqual(
+      retireLegacyStoreAppLayoutsV2({ roots: fixture.roots, mountedApps: migration.mountedApps }).renamed,
+      [],
+    );
+    const cleanup = cleanupUnreferencedAppStoreProgramGenerations(dirname(fixture.roots.legacyProgramsRoot), {
+      mountedApps: migration.mountedApps,
+    });
+    assert.deepEqual(cleanup.removed, []);
+    for (const path of retired.renamed) assert.equal(existsSync(path), true);
+    assert.equal(existsSync(generation + ".legacy-v2"), false);
   } finally {
     restoreEnv(previousEnv);
     rmSync(fixture.root, { recursive: true, force: true });
@@ -615,6 +983,11 @@ test("Bridge startup persists the new pointer before retiring legacy paths", asy
     assert.equal(loadBridgeSettings(migratedState).mountedApps[0]?.path, mount.path);
     assert.equal(existsSync(`${fixture.legacyWorkspaceContainer}.legacy-v2`), true);
     assert.equal(existsSync(`${dirname(fixture.legacyProgramRoot)}.legacy-v2`), true);
+    assert.equal(
+      existsSync(join(`${fixture.legacyWorkspaceContainer}.legacy-v2`, ".opengrove-layout-backup.json")),
+      true,
+      "healthy persisted activation must leave evidence for later backup cleanup",
+    );
   } finally {
     await seedState?.store.close?.();
     await migratedState?.store.close?.();

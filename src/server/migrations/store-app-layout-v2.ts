@@ -12,13 +12,21 @@ import {
   rmSync,
   symlinkSync,
 } from "node:fs";
-import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
+import { basename, dirname, isAbsolute, join, relative, resolve, sep, toNamespacedPath } from "node:path";
 import { parseJsonLikeConfig } from "../../extensions/scanner.js";
 import { readAppEnv } from "../../identity.js";
 import { defaultOpenGroveAppsDir } from "../../storage/default-data-dir.js";
 import { appStoreAppDirectoryName, isValidAppStoreAppId } from "../app-store-app-id.js";
 import { readAppStorePackageInstallMarker } from "../app-store-install-marker.js";
 import type { BridgeMountedAppSettings } from "../bridge-types.js";
+import {
+  inspectStoreAppRelocationTree,
+  relocateCopiedStoreAppTree,
+  relocatedStoreAppLink,
+  relocatedStoreAppFile,
+  storeAppPathRelocations,
+  type StoreAppRelocations,
+} from "./store-app-layout-v2-relocation.js";
 
 /**
  * Supports: OpenGrove <=0.6.5 Store App layouts.
@@ -162,11 +170,26 @@ function migrateLegacyStoreInstallation(
 ): { programRoot: string; workspaceRoot: string } {
   const workspaceContainerRoot = join(roots.workspacesRoot, appStoreAppDirectoryName(legacy.appId));
   const workspaceRoot = join(workspaceContainerRoot, legacy.workspaceRelativePath);
-  prepareWorkspaceTarget(legacy.workspaceRoot, workspaceContainerRoot, workspaceRoot, roots.workspacesRoot, rename);
-
   const appProgramsRoot = join(roots.programsRoot, appStoreAppDirectoryName(legacy.appId));
   const generationRoot = join(appProgramsRoot, legacy.generationName);
   const programRoot = join(generationRoot, "app");
+  const relocations = storeAppPathRelocations(
+    [
+      { source: legacy.programRoot, target: programRoot },
+      { source: legacy.workspaceRoot, target: workspaceRoot },
+    ],
+    [roots.legacyProgramsRoot, roots.legacyWorkspacesRoot],
+  );
+  inspectStoreAppRelocationTree(legacy.programRoot, relocations, legacy.workspaceRelativePath);
+  inspectStoreAppRelocationTree(legacy.workspaceRoot, relocations);
+  prepareWorkspaceTarget(
+    legacy.workspaceRoot,
+    workspaceContainerRoot,
+    workspaceRoot,
+    roots.workspacesRoot,
+    rename,
+    relocations,
+  );
   prepareProgramTarget({
     sourceRoot: legacy.programRoot,
     targetGenerationRoot: generationRoot,
@@ -175,6 +198,7 @@ function migrateLegacyStoreInstallation(
     workspaceRoot,
     appProgramsRoot,
     rename,
+    relocations,
   });
   return { programRoot, workspaceRoot };
 }
@@ -185,9 +209,10 @@ function prepareWorkspaceTarget(
   targetWorkspaceRoot: string,
   workspacesRoot: string,
   rename: typeof renameSync,
+  relocations: StoreAppRelocations,
 ): void {
   if (pathEntry(targetContainerRoot)) {
-    assertTreesMatch(sourceWorkspaceRoot, targetWorkspaceRoot);
+    assertTreesMatch(sourceWorkspaceRoot, targetWorkspaceRoot, relocations);
     return;
   }
   mkdirSync(workspacesRoot, { recursive: true });
@@ -203,6 +228,8 @@ function prepareWorkspaceTarget(
       verbatimSymlinks: true,
     });
     assertSnapshotsMatch(sourceSnapshot, snapshotTree(stagingWorkspaceRoot));
+    relocateCopiedStoreAppTree(sourceWorkspaceRoot, stagingWorkspaceRoot, relocations);
+    assertTreesMatch(sourceWorkspaceRoot, stagingWorkspaceRoot, relocations);
     rename(stagingContainerRoot, targetContainerRoot);
     if (!ordinaryDirectory(targetWorkspaceRoot)) throw new Error("store_app_layout_workspace_target_missing");
   } finally {
@@ -218,6 +245,7 @@ function prepareProgramTarget(input: {
   workspaceRoot: string;
   appProgramsRoot: string;
   rename: typeof renameSync;
+  relocations: StoreAppRelocations;
 }): void {
   if (pathEntry(input.targetGenerationRoot)) {
     assertProgramTargetReady(input);
@@ -243,6 +271,11 @@ function prepareProgramTarget(input: {
     });
     assertSnapshotsMatch(sourceSnapshot, snapshotTree(input.sourceRoot, input.workspaceRelativePath));
     assertSnapshotsMatch(sourceSnapshot, snapshotTree(stagingProgramRoot, input.workspaceRelativePath));
+    relocateCopiedStoreAppTree(input.sourceRoot, stagingProgramRoot, input.relocations, input.workspaceRelativePath);
+    assertSnapshotsMatch(
+      snapshotTree(input.sourceRoot, input.workspaceRelativePath, input.relocations),
+      snapshotTree(stagingProgramRoot, input.workspaceRelativePath),
+    );
     bindWorkspace(stagingProgramRoot, input.workspaceRelativePath, input.workspaceRoot);
     assertWorkspaceBinding(stagingProgramRoot, input.workspaceRelativePath, input.workspaceRoot);
     input.rename(stagingGenerationRoot, input.targetGenerationRoot);
@@ -258,9 +291,10 @@ function assertProgramTargetReady(input: {
   targetProgramRoot: string;
   workspaceRelativePath: string;
   workspaceRoot: string;
+  relocations: StoreAppRelocations;
 }): void {
   assertSnapshotsMatch(
-    snapshotTree(input.sourceRoot, input.workspaceRelativePath),
+    snapshotTree(input.sourceRoot, input.workspaceRelativePath, input.relocations),
     snapshotTree(input.targetProgramRoot, input.workspaceRelativePath),
   );
   assertWorkspaceBinding(input.targetProgramRoot, input.workspaceRelativePath, input.workspaceRoot);
@@ -360,7 +394,10 @@ function inspectSideBySideLegacyStoreInstallation(
   };
 }
 
-function inspectLegacyStoreProgramMetadata(appId: string, programRoot: string): LegacyStoreProgramMetadata | undefined {
+export function inspectLegacyStoreProgramMetadata(
+  appId: string,
+  programRoot: string,
+): LegacyStoreProgramMetadata | undefined {
   const marker = readAppStorePackageInstallMarker(programRoot);
   if (!marker || stringValue(marker.source) !== "registry" || stringValue(marker.appId) !== appId) return undefined;
   const manifestPath = [join(programRoot, "opengrove.app.json"), join(programRoot, "opengrove.app.jsonc")].find(
@@ -374,6 +411,10 @@ function inspectLegacyStoreProgramMetadata(appId: string, programRoot: string): 
     stringValue(recordValue(manifest?.workspace).path) ||
     "workspace";
   return safeRelativePath(workspaceRelativePath) ? { marker, workspaceRelativePath } : undefined;
+}
+
+export function isStoreAppLayoutV2BackupName(name: string): boolean {
+  return name.endsWith(".legacy-v2");
 }
 
 function directLegacyGenerationName(marker: Record<string, unknown>, programRoot: string): string {
@@ -483,7 +524,17 @@ export function validateStoreAppLayoutWorkspaceCopiesV2(input: {
       if (!legacy || !currentMount || !currentLayoutMount(currentMount, roots) || !currentMount.workspacePath?.trim()) {
         throw new Error("store_app_layout_validation_paths_changed");
       }
-      assertTreesMatch(legacy.workspaceRoot, resolve(currentMount.workspacePath));
+      assertTreesMatch(
+        legacy.workspaceRoot,
+        resolve(currentMount.workspacePath),
+        storeAppPathRelocations(
+          [
+            { source: legacy.programRoot, target: currentMount.path },
+            { source: legacy.workspaceRoot, target: currentMount.workspacePath },
+          ],
+          [roots.legacyProgramsRoot, roots.legacyWorkspacesRoot],
+        ),
+      );
     } catch (error) {
       failures.push({
         appId,
@@ -543,6 +594,7 @@ function legacyProgramGenerations(legacyProgramsRoot: string, appId: string): st
     const bucketRoot = join(legacyProgramsRoot, bucket.name);
     for (const generation of readdirSync(bucketRoot, { withFileTypes: true })) {
       if (!generation.isDirectory() || generation.isSymbolicLink()) continue;
+      if (isStoreAppLayoutV2BackupName(generation.name)) continue;
       const generationRoot = join(bucketRoot, generation.name);
       const marker = readAppStorePackageInstallMarker(join(generationRoot, "app"));
       if (stringValue(marker?.source) === "registry" && stringValue(marker?.appId) === appId) {
@@ -575,8 +627,8 @@ function retirePath(
   }
 }
 
-function assertTreesMatch(sourceRoot: string, targetRoot: string): void {
-  assertSnapshotsMatch(snapshotTree(sourceRoot), snapshotTree(targetRoot));
+function assertTreesMatch(sourceRoot: string, targetRoot: string, relocations?: StoreAppRelocations): void {
+  assertSnapshotsMatch(snapshotTree(sourceRoot, undefined, relocations), snapshotTree(targetRoot));
 }
 
 function assertSnapshotsMatch(source: TreeEntry[], target: TreeEntry[]): void {
@@ -585,7 +637,7 @@ function assertSnapshotsMatch(source: TreeEntry[], target: TreeEntry[]): void {
   }
 }
 
-function snapshotTree(root: string, excludedRelativePath?: string): TreeEntry[] {
+function snapshotTree(root: string, excludedRelativePath?: string, relocations?: StoreAppRelocations): TreeEntry[] {
   if (!pathEntry(root)) throw new Error("store_app_layout_source_missing");
   const entries: TreeEntry[] = [];
   const visit = (current: string): void => {
@@ -595,19 +647,24 @@ function snapshotTree(root: string, excludedRelativePath?: string): TreeEntry[] 
     const normalizedPath = relativePath.split(sep).join("/") || ".";
     if (entry.isSymbolicLink()) {
       const link = readlinkSync(current);
-      if (isAbsolute(link)) throw new Error("store_app_layout_absolute_symlink_unsupported");
-      const linkedTarget = resolve(dirname(current), link);
-      if (linkedTarget !== resolve(root) && !pathIsInside(root, linkedTarget)) {
-        throw new Error("store_app_layout_external_relative_symlink_unsupported");
-      }
-      entries.push({ path: normalizedPath, type: "symlink", link });
+      const expectedLink = relocations ? relocatedStoreAppLink(current, link, relocations) : link;
+      entries.push({
+        path: normalizedPath,
+        type: "symlink",
+        // Windows junction creation adds the namespace prefix; compare both
+        // original and rewritten absolute targets in the same representation.
+        link: isAbsolute(expectedLink) ? toNamespacedPath(expectedLink) : expectedLink,
+      });
       return;
     }
     if (entry.isFile()) {
+      const content = readFileSync(current);
       entries.push({
         path: normalizedPath,
         type: "file",
-        digest: createHash("sha256").update(readFileSync(current)).digest("hex"),
+        digest: createHash("sha256")
+          .update(relocations ? relocatedStoreAppFile(current, content, relocations) : content)
+          .digest("hex"),
       });
       return;
     }

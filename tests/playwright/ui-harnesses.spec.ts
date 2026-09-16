@@ -56,6 +56,11 @@ const harnesses = [
     marker: "web-settings-layout-ui",
   },
   {
+    name: "Provider toggles preserve model defaults across reloads",
+    script: "scripts/test-web-provider-toggle-ui.mjs",
+    marker: "web-provider-toggle-ui passed",
+  },
+  {
     name: "Storage management remains safe and understandable",
     script: "scripts/test-web-storage-management-ui.mjs",
     marker: "web storage management UI ok",
