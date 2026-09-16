@@ -183,7 +183,7 @@ function pmEmployee(): RoomChannelMember {
     lastActive: "已配置",
     availableSkillIds: [PM_AGENT_SKILL_NAME],
     defaultSkillIds: [PM_AGENT_SKILL_NAME],
-    accessMode: "full-access",
+    accessMode: "auto-review",
     reasoningEffort: "medium",
     source: "local",
     sourceLabel: "OpenGrove",

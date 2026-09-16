@@ -587,7 +587,7 @@ for (const previousVersion of [0, 1, 2]) {
       migrated.app.rooms.listMembers().find((member) => member.id === "legacy-auto-review")?.accessMode,
       "auto-review",
     );
-    assert.equal(migrated.app.rooms.listMembers().find((m) => m.id === "pm")?.accessMode, "full-access");
+    assert.equal(migrated.app.rooms.listMembers().find((m) => m.id === "pm")?.accessMode, "auto-review");
     assert.equal(migrated.app.rooms.listMembers().find((m) => m.id === "unsupported-auto")?.accessMode, "default");
     assert.equal(migrated.settings.nativeApprovalPresetsVersion, 3);
     assert.equal(existsSync(`${statePath}.before-native-approval-presets-v3.json`), true);
@@ -676,7 +676,12 @@ for (const initialSupport of [false, true]) {
           );
         }
         assert.equal(members.find((member) => member.id === "member-app-cache-drift-declared")?.accessMode, declared);
-        assert.equal(members.find((member) => member.id === "pm")?.accessMode, "full-access");
+        const pms = members.filter((member) => member.employeeDefinitionId === "pm");
+        assert.equal(pms.length, 2, "the global PM and its App binding share the product default");
+        for (const pm of pms) {
+          assert.equal(pm.accessMode, "auto-review", pm.id);
+          assert.equal(pm.model, "deepseek-v4-flash", pm.id);
+        }
       };
       assertSavedPermissions();
       for (const support of [!initialSupport, initialSupport, undefined]) {
@@ -746,7 +751,7 @@ for (const configuredSupport of [true, false]) {
           id,
         );
       }
-      assert.equal(state.app.rooms.listMembers().find((member) => member.id === "pm")?.accessMode, "full-access");
+      assert.equal(state.app.rooms.listMembers().find((member) => member.id === "pm")?.accessMode, "auto-review");
       const expected = configuredSupport ? "auto-review" : "default";
       const mutateMember = async (path: string, method: string, body: Record<string, unknown>) => {
         const socket = new Socket();

@@ -152,7 +152,8 @@ Hermes 按环境与档位隔离进程及配置副本，保留用户的 deny 与�
 `HERMES_HOME`。原生启动时核对有效模式，无法应用就报错。阻塞审批和用户问题分别接入，
 兼容 desktop contract v7 的 server request 与此前的通知协议。
 
-全局 PM 及各 App 内的 PM 绑定默认使用**完全访问权限**。其他新员工和聊天优先选择**帮我批准**：
+全局 PM 及各 App 内的 PM 绑定默认使用**帮我批准**，继续使用 Claude Agent SDK 和 DeepSeek v4 Flash。
+这个明确的产品默认值不依赖本机模型缓存；仍须成功启用原生 Auto 后才提交用户输入。其他新员工和聊天优先选择**帮我批准**：
 Codex、Hermes 默认 auto；Claude Opus 5 和 Opus 4.8 按上述声明默认 auto，其他 Claude 模型
 需要缓存确认支持，否则新员工默认请求批准；
 Pi、Kimi、OpenCode 默认请求批准。OpenClaw 仍由 Gateway 管理，远程权限由远端决定。

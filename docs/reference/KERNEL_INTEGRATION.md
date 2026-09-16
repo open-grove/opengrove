@@ -181,7 +181,9 @@ denials and auxiliary reviewer settings without editing a shared `HERMES_HOME`. 
 checks the effective mode and fails if it cannot apply it. Approval and question bridges support
 both desktop contract v7 server requests and earlier notification-based requests.
 
-The global PM and its App-scoped bindings default to **Full access**. Other new Employees and chats
+The global PM and its App-scoped bindings default to **Help me approve**, retaining Claude Agent SDK
+and DeepSeek v4 Flash. This explicit product default does not depend on the local model cache;
+native Auto activation must still succeed before the user prompt is submitted. Other new Employees and chats
 prefer **Help me approve** when supported: Codex and Hermes use auto review; Claude Opus 5 and
 Opus 4.8 use the declared support above, while other Claude models require cached support.
 Without either, a new Employee starts with Ask for approval. Pi, Kimi and OpenCode start
