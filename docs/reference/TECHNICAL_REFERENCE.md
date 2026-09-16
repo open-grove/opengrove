@@ -255,7 +255,7 @@ and re-enabling App updates schedules a check only after settings are saved.
 | `/auth/session` | `GET` | WW session restore and scheduled recovery with authenticated, unauthenticated, and temporarily unavailable outcomes |
 | `/auth/client-update` | `GET` | read-only desktop release metadata; signed-in sessions receive the full version contract and signed-out callers receive the public version contract, both with backward-compatible English and localized `en` / `zh-CN` release-note Markdown; never schedules App updates or refreshes auth cookies |
 | `/app-store/updates` | `POST` | schedule installed App auto-updates for an authenticated workspace account; returns `scheduled`, `already_running`, or `skipped`; honors the App update preference, interval, and safety checks |
-| `/auth/activity` | `POST` | once-daily minimal account activity for signed-in Electron desktop; carries no local product data |
+| `/auth/activity` | `POST` | once-daily account activity for signed-in Electron desktop, including local OS family, architecture, release/build and version description; carries no workspace content |
 | `/inventory` | `GET` | knowledge, memory, artifacts, sessions, tools, skills, and capabilities |
 | `/ask/stream` | `POST` | streaming agent turn API |
 | `/approvals` | `GET` | list approval requests |
@@ -581,3 +581,24 @@ Put Provider secrets in `~/.opengrove/.env.local` or `./.env.local`, then restar
 Stop the bridge, then back up `local-state.sqlite`, its `-wal`/`-shm` sidecars
 if present, `state-blobs/`, and `bridge-settings.json` as one unit. Restart only
 after the copy finishes. OpenGrove will recreate missing local state files.
+
+## Desktop activity system versions
+
+The Bridge reads the optional `operating_system_release` and
+`operating_system_version` activity fields locally using Node.js `os.release()`
+and `os.version()`. The renderer supplies only the client version and release
+number. Release/build values such as `10.0.16299` help identify Windows builds;
+version descriptions are OS-provided text, not normalized marketing names.
+For example, macOS `os.release()` identifies the Darwin kernel, not the macOS
+product version. Localized Windows edition names are retained; use the release/build
+field to identify builds rather than parsing the description. Leading and trailing
+whitespace is trimmed, and Unicode values are limited to 128 and 256 UTF-16 code
+units respectively. Empty or overlong values, or values still containing C0/C1
+control characters (including DEL) or Unicode line/paragraph separators, are
+omitted, not truncated. Omitting one detail does not discard the other fields.
+
+The receiving activity API and its schema must accept these optional fields
+before a desktop containing this reporter is released. Existing clients may
+omit both fields. Historical unknown versions are not inferred, and the
+account/day/surface aggregation remains unchanged; this is not a per-device
+inventory.
