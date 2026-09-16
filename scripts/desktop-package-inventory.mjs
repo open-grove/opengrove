@@ -5,6 +5,17 @@ export const requiredDesktopRuntimePackageFiles = [
   "NOTICE",
   "THIRD_PARTY_NOTICES.md",
   "node_modules/@anthropic-ai/claude-agent-sdk/LICENSE.md",
+  "node_modules/adm-zip/adm-zip.js",
+  "node_modules/adm-zip/methods/inflater.js",
+  "node_modules/adm-zip/LICENSE",
+  "node_modules/tar/dist/esm/index.min.js",
+  "node_modules/tar/package.json",
+  "node_modules/tar/LICENSE.md",
+  "node_modules/minipass/LICENSE.md",
+  "node_modules/minizlib/LICENSE",
+  "node_modules/tar/node_modules/chownr/LICENSE.md",
+  "node_modules/yallist/LICENSE.md",
+  "node_modules/@isaacs/fs-minipass/LICENSE",
   "node_modules/yaml/dist/doc/directives.js",
 ];
 
