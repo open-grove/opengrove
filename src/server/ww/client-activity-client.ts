@@ -12,6 +12,12 @@ export function createWwClientActivityClient(transport: WwTransport): WwClientAc
           body: {
             surface: input.surface,
             operating_system: input.operatingSystem,
+            ...(input.operatingSystemRelease === undefined
+              ? {}
+              : { operating_system_release: input.operatingSystemRelease }),
+            ...(input.operatingSystemVersion === undefined
+              ? {}
+              : { operating_system_version: input.operatingSystemVersion }),
             architecture: input.architecture,
             client_version: input.clientVersion,
             ...(input.clientReleaseNumber === undefined ? {} : { client_release_number: input.clientReleaseNumber }),

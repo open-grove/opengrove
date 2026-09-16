@@ -48,6 +48,8 @@ export interface WwUpdateProfileInput {
 export interface WwClientActivityInput {
   surface: "desktop" | "web";
   operatingSystem: "macos" | "windows" | "linux" | "unknown";
+  operatingSystemRelease?: string;
+  operatingSystemVersion?: string;
   architecture: "arm64" | "x64" | "unknown";
   clientVersion: string;
   clientReleaseNumber?: number;

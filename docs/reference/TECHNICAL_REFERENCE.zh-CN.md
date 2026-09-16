@@ -519,3 +519,16 @@ bridge。产品 Login 凭据留在 Kernel 自己的 config directory，可以在
 ### State 看起来过期
 
 停止 bridge，把 `local-state.sqlite`、存在时的 `-wal`/`-shm` 侧车文件、`state-blobs/` 和 `bridge-settings.json` 作为一个整体备份，复制完成后再重启。OpenGrove 会重新创建缺失的 local state files。
+
+## 桌面活跃上报的系统版本
+
+Bridge 在本机通过 Node.js `os.release()` 和 `os.version()` 读取可选的
+`operating_system_release`、`operating_system_version` 字段。渲染进程只提交客户端版本和发布号。
+`10.0.16299` 这样的系统发行号／构建号可用于识别 Windows 构建；版本说明保留系统提供的原文，
+不转换为统一的市场版本名称。例如，macOS 的 `os.release()` 对应 Darwin 内核版本，
+不是 macOS 产品版本。两个字段分别限制为 128、256 个可打印 ASCII 字符；不可用或不符合
+格式的值直接省略，不截断。
+
+发布包含这些字段的桌面端前，接收活跃上报的 API 和数据库必须先支持新增可选字段。
+已有客户端可以省略两个字段，历史未知版本不会被推断补齐。
+按账号／日期／端类型聚合的规则保持不变，这不是逐设备清单。

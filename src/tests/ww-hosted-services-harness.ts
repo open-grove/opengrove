@@ -205,8 +205,10 @@ async function testClientActivityUsesExactMinimalContract(): Promise<void> {
     async () => {
       const result = await createWwHostedServices(baseUrl).clientActivity.recordClientActivity("access-token", {
         surface: "desktop",
-        operatingSystem: "macos",
-        architecture: "arm64",
+        operatingSystem: "windows",
+        operatingSystemRelease: "10.0.16299",
+        operatingSystemVersion: "Windows 10 Pro",
+        architecture: "x64",
         clientVersion: "0.6.1",
         clientReleaseNumber: 560,
         bridgeVersion: "0.6.1",
@@ -214,23 +216,36 @@ async function testClientActivityUsesExactMinimalContract(): Promise<void> {
         releaseChannel: "stable",
       });
       assert.deepEqual(result, { day: "2026-08-05" });
+      await createWwHostedServices(baseUrl).clientActivity.recordClientActivity("access-token", {
+        surface: "desktop",
+        operatingSystem: "macos",
+        architecture: "arm64",
+        clientVersion: "0.6.1",
+        bridgeVersion: "0.6.1",
+        releaseChannel: "stable",
+      });
     },
   );
 
-  assert.equal(calls.length, 1, "daily activity must not use the retrying request helper");
+  assert.equal(calls.length, 2, "daily activity must not use the retrying request helper");
   assert.equal(calls[0]?.url, "https://ww.example.test/root/v1/client/activity");
   assert.equal(calls[0]?.init?.method, "POST");
   assert.equal(headersFor(calls[0]?.init).get("authorization"), "Bearer access-token");
   assert.deepEqual(JSON.parse(String(calls[0]?.init?.body)), {
     surface: "desktop",
-    operating_system: "macos",
-    architecture: "arm64",
+    operating_system: "windows",
+    operating_system_release: "10.0.16299",
+    operating_system_version: "Windows 10 Pro",
+    architecture: "x64",
     client_version: "0.6.1",
     client_release_number: 560,
     bridge_version: "0.6.1",
     bridge_release_number: 559,
     release_channel: "stable",
   });
+  const legacyBody = JSON.parse(String(calls[1]?.init?.body));
+  assert.equal(Object.hasOwn(legacyBody, "operating_system_release"), false);
+  assert.equal(Object.hasOwn(legacyBody, "operating_system_version"), false);
 }
 
 async function testCreateApiKeyReusesIdempotencyKeyAndHonorsRetryAfter(): Promise<void> {

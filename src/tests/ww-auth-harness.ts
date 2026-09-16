@@ -3,7 +3,7 @@ import { once } from "node:events";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
-import { tmpdir } from "node:os";
+import { release, tmpdir, version } from "node:os";
 import { join } from "node:path";
 import { startOpenGroveServer } from "../server/create-server.js";
 
@@ -895,6 +895,14 @@ try {
     assert.equal(browserActivityResponse.status, 403, "a signed-in browser must not impersonate the desktop app");
     assert.equal(clientActivityRequests, 0);
 
+    const spoofedSystemResponse = await fetch(`${baseUrl}/api/auth/activity`, {
+      method: "POST",
+      headers: { cookie, "content-type": "application/json", "x-opengrove-token": "desktop-token" },
+      body: JSON.stringify({ clientVersion: "0.6.1", operatingSystemRelease: "10.0.16299" }),
+    });
+    assert.equal(spoofedSystemResponse.status, 400, "system metadata must come from the Bridge runtime");
+    assert.equal(clientActivityRequests, 0);
+
     const desktopActivityResponse = await fetch(`${baseUrl}/api/auth/activity`, {
       method: "POST",
       headers: { cookie, "content-type": "application/json", "x-opengrove-token": "desktop-token" },
@@ -913,6 +921,8 @@ try {
               ? "linux"
               : "unknown",
       architecture: process.arch === "arm64" || process.arch === "x64" ? process.arch : "unknown",
+      operating_system_release: release(),
+      operating_system_version: version(),
       client_version: "0.6.1",
       client_release_number: 560,
       bridge_version: packageMetadata.version,
@@ -926,6 +936,8 @@ try {
       "client_release_number",
       "client_version",
       "operating_system",
+      "operating_system_release",
+      "operating_system_version",
       "release_channel",
       "surface",
     ]);
