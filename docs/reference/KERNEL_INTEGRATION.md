@@ -166,7 +166,8 @@ overrides it. Claude calls without a preset retain the configured mode, falling 
 Neither `on-failure` nor Claude `acceptEdits` is auto review.
 Claude Opus 5 and Opus 4.8 are declared to support auto review, matching the
 [native model requirements](https://code.claude.com/docs/en/permission-modes#eliminate-permission-prompts-with-auto-mode).
-They remain selectable with an empty or stale SDK cache. Other models and aliases use SDK model
+DeepSeek v4 Flash is also declared supported through Claude Agent SDK on the OpenGrove Provider.
+These models remain selectable with an empty or stale SDK cache. Other models and aliases use SDK model
 records; the native default uses the `default` record, including its resolved model. Unknown support
 disables the picker option. Execution directly activates the requested native mode without waiting
 for a model-catalog lookup. Activation failures are reported, and an effective mode other than
@@ -184,8 +185,8 @@ both desktop contract v7 server requests and earlier notification-based requests
 The global PM and its App-scoped bindings default to **Help me approve**, retaining Claude Agent SDK
 and DeepSeek v4 Flash. This explicit product default does not depend on the local model cache;
 native Auto activation must still succeed before the user prompt is submitted. Other new Employees and chats
-prefer **Help me approve** when supported: Codex and Hermes use auto review; Claude Opus 5 and
-Opus 4.8 use the declared support above, while other Claude models require cached support.
+prefer **Help me approve** when supported: Codex and Hermes use auto review; Claude Opus 5,
+Opus 4.8 and DeepSeek v4 Flash use the declared support above, while other Claude SDK models require cached support.
 Without either, a new Employee starts with Ask for approval. Pi, Kimi and OpenCode start
 with Ask for approval. OpenClaw remains Gateway-managed; remote permissions belong to the remote owner.
 

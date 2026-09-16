@@ -115,7 +115,8 @@ await writeFile(
   import { mergeHydratedRoomMessages } from ${JSON.stringify(roomMessageHydrationImport)};
   import { APP_EMPLOYEE_OVERRIDE_FIELD_ITEMS, appEmployeeOverrideFields, appEmployeeOverrideItems, buildContactSkillOptions, canEditEmployeeRuntime, contactKernelSubline, effectiveMemberAvailableSkillIds, effectiveMemberSkillIds, visibleEmployeeDefinitions } from ${JSON.stringify(contactsModelImport)};
   import { canSubmitDraft, createDefaultDraft, createMemberFromDraft } from ${JSON.stringify(employeeDialogImport)};
-  import { resolveAccessModeSelection } from ${JSON.stringify(join(projectRoot, "web/src/runtime/access-modes.ts"))};
+  import { accessModeUnavailableKey, resolveAccessModeSelection } from ${JSON.stringify(join(projectRoot, "web/src/runtime/access-modes.ts"))};
+  import { claudeAutoReviewModelIds } from ${JSON.stringify(join(projectRoot, "src/runtime/claude-models-cache.ts"))};
   import { ROOM_MEMBER_AVATAR_MAX_BYTES } from ${JSON.stringify(avatarDataUrlImport)};
   import { applyMountedAppEmployeeDefaults, canArchiveMountedAppGroup, filterMountedAppSharedMembers, restorableMountedAppMembers, restoreMountedAppMember, shouldEnsureMountedAppDefaultGroup } from ${JSON.stringify(mountedAppChatPanelImport)};
   import { latestContextUsage, readStoredAccessMode } from ${JSON.stringify(uiModelImport)};
@@ -546,6 +547,10 @@ await writeFile(
   const claudeAutoControls = { kernel: "claude-code", autoReviewModelIds: ["claude-code-default"] };
   assert.equal(resolveAccessModeSelection("claude-code", undefined, "claude-code-default", claudeAutoControls), "auto-review");
   assert.equal(resolveAccessModeSelection("claude-code", undefined, "other-model", claudeAutoControls), "default");
+  const coldClaudeControls = { kernel: "claude-code", autoReviewModelIds: claudeAutoReviewModelIds([]) };
+  assert.equal(accessModeUnavailableKey("claude-code", "auto-review", "deepseek-v4-flash", coldClaudeControls), undefined);
+  assert.equal(resolveAccessModeSelection("claude-code", undefined, "deepseek-v4-flash", coldClaudeControls), "auto-review");
+  assert.equal(resolveAccessModeSelection("claude-code", "default", "deepseek-v4-flash", coldClaudeControls), "default");
   for (const mode of ["default", "full-access"])
     assert.equal(resolveAccessModeSelection("codex", mode, "native"), mode);
   const newClaudeDraft = createDefaultDraft(

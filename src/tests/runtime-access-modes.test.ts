@@ -403,24 +403,28 @@ for (const scenario of ["supported", "unsupported", "unverified", "missing"] as 
   });
 }
 
-test("Opus 5 and Opus 4.8 advertise auto review and default to it without cached support", () => {
+test("Opus and DeepSeek v4 Flash advertise auto review and default to it without cached support", () => {
   const configHome = mkdtempSync(join(tmpdir(), "opengrove-known-claude-permissions-"));
   try {
     for (const support of [undefined, false, true]) {
       if (support !== undefined) {
         writeClaudeModelsCache(
-          ["claude-opus-5", "claude-opus-4-8"].map((value) => ({ value, supportsAutoMode: support })),
+          ["claude-opus-5", "claude-opus-4-8", "deepseek-v4-flash"].map((value) => ({
+            value,
+            supportsAutoMode: support,
+          })),
           { configHome, now: "2026-09-15T00:00:00Z" },
         );
       }
       const controls = buildClaudeCodeRuntimeControls(configHome, undefined);
-      assert.deepEqual(controls.autoReviewModelIds, ["claude-opus-5", "claude-opus-4-8"]);
-      for (const model of ["claude-opus-5", "claude-opus-4-8"]) {
+      assert.deepEqual(controls.autoReviewModelIds, ["claude-opus-5", "claude-opus-4-8", "deepseek-v4-flash"]);
+      for (const model of ["claude-opus-5", "claude-opus-4-8", "deepseek-v4-flash"]) {
         assert.equal(normalizeEmployeeAccessMode("claude-code", undefined, model, configHome), "auto-review");
         assert.equal(normalizeEmployeeAccessMode("claude-code", "default", model, configHome), "default");
       }
       assert.equal(controls.autoReviewModelIds.includes("claude-code-default"), false);
       assert.equal(normalizeEmployeeAccessMode("claude-code", undefined, "claude-custom", configHome), "default");
+      assert.equal(normalizeEmployeeAccessMode("claude-code", undefined, "deepseek-v4-pro", configHome), "default");
     }
   } finally {
     rmSync(configHome, { recursive: true, force: true });
@@ -653,7 +657,7 @@ for (const initialSupport of [false, true]) {
       state.settings.kernelPathOverrides["claude-code"] = { configHome };
       state.settings.mountedApps = [{ id: "cache-drift", path: appRoot, enabled: true, appBuilderEnabled: true }];
       state.settings.nativeApprovalPresetsVersion = 0;
-      state.app.rooms.patchMember("grove-guide", { accessMode: undefined });
+      state.app.rooms.patchMember("grove-guide", { accessMode: initialSupport ? "auto-review" : "default" });
       state.app.rooms.patchMember("app-builder", { accessMode: initialSupport ? "auto-review" : "default" });
       await restart();
       const expected = initialSupport ? "auto-review" : "default";
@@ -747,7 +751,7 @@ for (const configuredSupport of [true, false]) {
       for (const id of ["grove-guide", "app-builder", "configuration-migration"]) {
         assert.equal(
           state.app.rooms.listMembers().find((member) => member.id === id)?.accessMode,
-          id === "app-builder" || configuredSupport ? "auto-review" : "default",
+          id !== "configuration-migration" || configuredSupport ? "auto-review" : "default",
           id,
         );
       }

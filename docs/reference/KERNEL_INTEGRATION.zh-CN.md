@@ -140,7 +140,8 @@ App、Workspace、工具可见范围或管理员身份。原生工具由内核�
 Codex 前两档都关闭沙箱内网络访问，写入 Workspace 之外或联网需要走原生审批。
 `on-failure` 和 Claude `acceptEdits` 都不代表“帮我批准”。
 Claude Opus 5 和 Opus 4.8 按[原生模型要求](https://code.claude.com/docs/en/permission-modes#eliminate-permission-prompts-with-auto-mode)
-直接声明支持自动审查，没有缓存或缓存过期也可选。其他模型及别名使用 SDK 模型记录；原生默认模型
+直接声明支持自动审查；DeepSeek v4 Flash 通过 Claude Agent SDK 使用 OpenGrove Provider 时也明确支持。
+这些模型没有缓存或缓存过期也可选。其他模型及别名使用 SDK 模型记录；原生默认模型
 使用 `default` 记录及其解析后的型号，支持情况未知时置灰。执行时直接开启原生模式，不等待模型列表查询；
 开启失败显示错误，实际模式不是 `auto` 时拒绝继续。模型元数据仍尽力刷新，供选择器使用。
 旧 CLI 路径没有实现原生模式开启确认，自动审查必须使用 Agent SDK。
@@ -154,7 +155,7 @@ Hermes 按环境与档位隔离进程及配置副本，保留用户的 deny 与�
 
 全局 PM 及各 App 内的 PM 绑定默认使用**帮我批准**，继续使用 Claude Agent SDK 和 DeepSeek v4 Flash。
 这个明确的产品默认值不依赖本机模型缓存；仍须成功启用原生 Auto 后才提交用户输入。其他新员工和聊天优先选择**帮我批准**：
-Codex、Hermes 默认 auto；Claude Opus 5 和 Opus 4.8 按上述声明默认 auto，其他 Claude 模型
+Codex、Hermes 默认 auto；Claude Opus 5、Opus 4.8 和 DeepSeek v4 Flash 按上述声明默认 auto，其他 Claude SDK 模型
 需要缓存确认支持，否则新员工默认请求批准；
 Pi、Kimi、OpenCode 默认请求批准。OpenClaw 仍由 Gateway 管理，远程权限由远端决定。
 

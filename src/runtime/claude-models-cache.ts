@@ -157,11 +157,17 @@ export function resolveClaudeEffortLevels(
   return [];
 }
 
-// Product-supported models meet Claude's documented auto-mode model requirement.
+// Opus entries meet Claude's documented auto-mode model requirement.
 // Source: https://code.claude.com/docs/en/permission-modes#eliminate-permission-prompts-with-auto-mode
-// Checked 2026-09-15 with @anthropic-ai/claude-agent-sdk 0.3.263. Native activation
-// remains authoritative for account/provider errors; cached metadata cannot hide these models.
-const KNOWN_CLAUDE_AUTO_REVIEW_MODEL_IDS: readonly string[] = ["claude-opus-5", "claude-opus-4-8"];
+// DeepSeek v4 Flash native activation and classifier execution were verified on
+// the OpenGrove Provider on 2026-09-16 with @anthropic-ai/claude-agent-sdk 0.3.263.
+// Native activation remains authoritative for account/provider errors;
+// cached metadata cannot hide these models.
+const KNOWN_CLAUDE_AUTO_REVIEW_MODEL_IDS: readonly string[] = [
+  "claude-opus-5",
+  "claude-opus-4-8",
+  "deepseek-v4-flash",
+];
 
 /** Picker ids and creation defaults share product declarations and discovered model aliases. */
 export function claudeAutoReviewModelIds(cache: ClaudeModelEffortInfo[]): string[] {
