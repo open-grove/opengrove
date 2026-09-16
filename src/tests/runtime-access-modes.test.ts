@@ -9,7 +9,7 @@ import { HermesRuntime } from "../runtime/hermes-runtime.js";
 import { prepareHermesRuntimeEnv } from "../runtime/hermes/home-env.js";
 import { writeFakeHermesGateway } from "./harnesses/fake-hermes-gateway.js";
 import { RoomChannelStore } from "../rooms/channel-store.js";
-import { migrateNativeApprovalPresetsV3 } from "../server/migrations/native-approval-presets-v3.js";
+import { migrateNativeApprovalPresetsV4 } from "../server/migrations/native-approval-presets-v4.js";
 import assert from "node:assert/strict";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -639,7 +639,7 @@ for (const ending of ["timeout", "gateway-close"] as const) {
   });
 }
 
-test("upgrading preserves compatible employee choices and repairs unsupported modes", () => {
+test("upgrading raises supported Ask to Auto, preserves Full and repairs unsupported modes", () => {
   const rooms = new RoomChannelStore();
   for (const kernel of ["codex", "claude-code", "hermes", "pi", "kimi", "opencode"])
     for (const accessMode of ["default", "auto-review", "full-access", undefined] as const)
@@ -656,7 +656,7 @@ test("upgrading preserves compatible employee choices and repairs unsupported mo
       });
   let backups = 0;
   assert.equal(
-    migrateNativeApprovalPresetsV3(rooms, () => {
+    migrateNativeApprovalPresetsV4(rooms, () => {
       backups += 1;
     }),
     true,
@@ -665,19 +665,53 @@ test("upgrading preserves compatible employee choices and repairs unsupported mo
   for (const member of rooms.listMembers()) {
     const original = member.id.slice(member.kernel.length + 1);
     const unsupportedAuto = original === "auto-review" && ["pi", "kimi", "opencode"].includes(member.kernel);
+    const supportsAuto = ["codex", "hermes"].includes(member.kernel);
     const expected =
-      original === "unset"
-        ? ["codex", "hermes"].includes(member.kernel)
-          ? "auto-review"
-          : "default"
-        : unsupportedAuto
+      supportsAuto && ["unset", "default"].includes(original)
+        ? "auto-review"
+        : original === "unset"
           ? "default"
-          : original;
+          : unsupportedAuto
+            ? "default"
+            : original;
     assert.equal(member.accessMode, expected, member.id);
-    assert.deepEqual(member.userOverrides, unsupportedAuto ? ["accessMode"] : undefined);
+    assert.deepEqual(member.userOverrides, supportsAuto || unsupportedAuto ? ["accessMode"] : undefined);
   }
-  assert.equal(migrateNativeApprovalPresetsV3(rooms), false);
+  assert.equal(migrateNativeApprovalPresetsV4(rooms), false);
 });
+
+for (const runtimeMode of ["sdk", "cli"] as const) {
+  test(`permission migration respects Claude ${runtimeMode} Auto support without a model cache`, (t) => {
+    t.mock.property(process, "env", { ...process.env, OPENGROVE_CLAUDE_CODE_RUNTIME: runtimeMode });
+    const configHome = mkdtempSync(join(tmpdir(), "opengrove-claude-migration-"));
+    const rooms = new RoomChannelStore();
+    try {
+      for (const model of ["claude-opus-5", "claude-opus-4-8", "deepseek-v4-flash"])
+        for (const accessMode of ["default", "auto-review", "full-access"] as const)
+          rooms.upsertMember({
+            id: `${model}-${accessMode}`,
+            name: model,
+            kernel: "claude-code",
+            model,
+            role: "",
+            status: "idle",
+            color: "",
+            lastActive: "",
+            accessMode,
+            userOverrides: ["accessMode"],
+          });
+      migrateNativeApprovalPresetsV4(rooms, undefined, configHome);
+      for (const model of ["claude-opus-5", "claude-opus-4-8", "deepseek-v4-flash"]) {
+        const members = new Map(rooms.listMembers().map((member) => [member.id, member]));
+        assert.equal(members.get(`${model}-default`)?.accessMode, runtimeMode === "sdk" ? "auto-review" : "default");
+        assert.equal(members.get(`${model}-auto-review`)?.accessMode, "auto-review");
+        assert.equal(members.get(`${model}-full-access`)?.accessMode, "full-access");
+      }
+    } finally {
+      rmSync(configHome, { recursive: true, force: true });
+    }
+  });
+}
 
 test("permission migration keeps Gateway and remote permission ownership", () => {
   const rooms = new RoomChannelStore();
@@ -704,13 +738,13 @@ test("permission migration keeps Gateway and remote permission ownership", () =>
     source: "remote",
     accessMode: "default",
   });
-  migrateNativeApprovalPresetsV3(rooms);
+  migrateNativeApprovalPresetsV4(rooms);
   assert.equal(rooms.listMembers().find((member) => member.id === "gateway")?.accessMode, "default");
   assert.equal(rooms.listMembers().find((member) => member.id === "remote")?.accessMode, "default");
   assert.equal(rooms.listMembers().find((member) => member.id === "remote")?.userOverrides, undefined);
 });
 
-for (const previousVersion of [0, 1, 2]) {
+for (const previousVersion of [0, 1, 2, 3]) {
   test(`permission migration from version ${previousVersion} preserves later user choices`, async () => {
     const cwd = mkdtempSync(join(tmpdir(), "opengrove-persisted-permission-migration-"));
     const statePath = join(cwd, "state.sqlite");
@@ -738,7 +772,7 @@ for (const previousVersion of [0, 1, 2]) {
       lastActive: "",
       accessMode: "auto-review",
     });
-    legacy.app.rooms.patchMember("pm", { accessMode: "default", userOverrides: undefined });
+    legacy.app.rooms.patchMember("pm", { accessMode: "default", userOverrides: ["accessMode"] });
     legacy.store.saveFrom(legacy.app);
     legacy.settings.nativeApprovalPresetsVersion = previousVersion;
     saveBridgeSettings(legacy);
@@ -750,17 +784,17 @@ for (const previousVersion of [0, 1, 2]) {
     );
     assert.equal(migrated.app.rooms.listMembers().find((m) => m.id === "pm")?.accessMode, "auto-review");
     assert.equal(migrated.app.rooms.listMembers().find((m) => m.id === "unsupported-auto")?.accessMode, "default");
-    assert.equal(migrated.settings.nativeApprovalPresetsVersion, 3);
-    assert.equal(existsSync(`${statePath}.before-native-approval-presets-v3.json`), true);
-    migrated.app.rooms.patchMember("legacy-auto-review", { accessMode: "auto-review" });
-    migrated.app.rooms.patchMember("pm", { accessMode: "default", userOverrides: ["accessMode"] });
+    assert.equal(migrated.settings.nativeApprovalPresetsVersion, 4);
+    assert.equal(existsSync(`${statePath}.before-native-approval-presets-v4.json`), true);
+    migrated.app.rooms.patchMember("legacy-auto-review", { accessMode: "default" });
+    migrated.app.rooms.patchMember("pm", { accessMode: "default", userOverrides: undefined });
     migrated.store.saveFrom(migrated.app);
     await migrated.store.close?.();
     const restarted = createBridgeState({ statePath });
     try {
       assert.equal(
         restarted.app.rooms.listMembers().find((member) => member.id === "legacy-auto-review")?.accessMode,
-        "auto-review",
+        "default",
       );
       assert.equal(restarted.app.rooms.listMembers().find((member) => member.id === "pm")?.accessMode, "default");
     } finally {
@@ -768,6 +802,74 @@ for (const previousVersion of [0, 1, 2]) {
     }
   });
 }
+
+test("one-time Auto migration preserves Full, protects App choices and resolves legacy models first", async () => {
+  const cwd = mkdtempSync(join(tmpdir(), "opengrove-auto-floor-"));
+  const statePath = join(cwd, "state.sqlite");
+  const appRoot = join(cwd, "app");
+  mkdirSync(join(appRoot, "workspace"), { recursive: true });
+  writeFileSync(
+    join(appRoot, "opengrove.app.json"),
+    JSON.stringify({
+      id: "permission-floor",
+      title: "Permission floor",
+      workspace: { path: "workspace" },
+      employees: [
+        { id: "writer", kernel: "codex", model: "gpt-test", accessMode: "default" },
+        { id: "full", kernel: "codex", model: "gpt-test", accessMode: "default" },
+      ],
+    }),
+  );
+  let state = createBridgeState({ statePath });
+  const restart = async () => {
+    state.store.saveFrom(state.app);
+    saveBridgeSettings(state);
+    await state.store.close?.();
+    state = createBridgeState({ statePath });
+  };
+  try {
+    state.settings.mountedApps = [{ id: "permission-floor", path: appRoot, enabled: true }];
+    await restart();
+    state.settings.nativeApprovalPresetsVersion = 3;
+    state.settings.employeeModelMigrationVersion = 0;
+    state.app.rooms.patchMember("pm", { accessMode: "full-access", userOverrides: undefined });
+    state.app.rooms.patchMember("grove-guide", { accessMode: "default", model: "native", userOverrides: undefined });
+    state.app.rooms.patchMember("member-app-permission-floor-full", {
+      accessMode: "full-access",
+      userOverrides: undefined,
+    });
+    await restart();
+    const member = (id: string) => state.app.rooms.listMembers().find((entry) => entry.id === id)!;
+    assert.equal(member("pm").accessMode, "full-access");
+    assert.equal(member("grove-guide").accessMode, "auto-review");
+    assert.equal(member("member-app-permission-floor-writer").accessMode, "auto-review");
+    assert.equal(member("member-app-permission-floor-full").accessMode, "full-access");
+    const pmBindings = state.app.rooms
+      .listMembers()
+      .filter((entry) => entry.appId && entry.employeeDefinitionId === "pm");
+    assert.ok(pmBindings.length > 0);
+    for (const binding of pmBindings) assert.equal(binding.accessMode, "full-access");
+    const backupPath = `${statePath}.before-native-approval-presets-v4.json`;
+    const backup = readFileSync(backupPath, "utf8");
+    state.app.rooms.patchMember("pm", { accessMode: "default", userOverrides: undefined });
+    state.app.rooms.patchMember("member-app-permission-floor-writer", {
+      accessMode: "default",
+      userOverrides: ["accessMode"],
+    });
+    await restart();
+    assert.equal(member("pm").accessMode, "default");
+    assert.equal(member("member-app-permission-floor-writer").accessMode, "default");
+    assert.equal(member("member-app-permission-floor-full").accessMode, "full-access");
+    assert.equal(readFileSync(backupPath, "utf8"), backup);
+    for (const binding of state.app.rooms
+      .listMembers()
+      .filter((entry) => entry.appId && entry.employeeDefinitionId === "pm"))
+      assert.equal(binding.accessMode, "default");
+  } finally {
+    await state.store.close?.();
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
 
 for (const initialSupport of [false, true]) {
   test(`saved Employee permissions survive Claude cache refresh and loss (initial support: ${initialSupport})`, async () => {
@@ -813,7 +915,7 @@ for (const initialSupport of [false, true]) {
     try {
       state.settings.kernelPathOverrides["claude-code"] = { configHome };
       state.settings.mountedApps = [{ id: "cache-drift", path: appRoot, enabled: true, appBuilderEnabled: true }];
-      state.settings.nativeApprovalPresetsVersion = 0;
+      state.settings.nativeApprovalPresetsVersion = 4;
       state.app.rooms.patchMember("grove-guide", { accessMode: initialSupport ? "auto-review" : "default" });
       state.app.rooms.patchMember("app-builder", { accessMode: initialSupport ? "auto-review" : "default" });
       await restart();

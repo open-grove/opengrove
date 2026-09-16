@@ -69,8 +69,8 @@ function seedMember(overrides: Partial<RoomChannelMember> = {}): RoomChannelMemb
   const updatedPmSeed = { ...pmSeed, accessMode: "default" as const };
   assert.equal(
     syncProductDefaultSeedMembers(new Map([[pmSeed.id, pmSeed]]), [updatedPmSeed])[0]?.accessMode,
-    "default",
-    "PM still follows an explicit product default change",
+    "auto-review",
+    "PM keeps its saved permission when product defaults change",
   );
   const customizedPm = { ...pmSeed, accessMode: "full-access" as const, userOverrides: ["accessMode"] };
   assert.equal(

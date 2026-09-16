@@ -211,13 +211,16 @@ with Ask for approval. OpenClaw remains Gateway-managed; remote permissions belo
 Explicit user choices survive ordinary seed synchronization and take priority over App defaults;
 compatible App declarations take priority over product defaults. App version activation and the
 explicit restore-App-defaults action can reapply the App's configuration. Ordinary synchronization
-also preserves saved permissions for non-PM product Employees and App Employees whose App declares
+also preserves saved permissions for all product Employees, including PM, and App Employees whose App declares
 no permission mode. A refreshed or missing Claude cache can change availability and defaults for
 models without declared support, without rewriting these saved selections. Unsupported kernel combinations are still repaired.
-A one-time v3 migration only fills missing employee modes and repairs unsupported combinations,
-backing up changed state. It does
-not blanket-reset compatible choices. PM's new default follows the existing product seed mechanism
-and preserves explicit user permission overrides. Stored chat choices are read without being rewritten;
+A one-time v4 migration raises existing local Employees from Ask for approval to Help me approve
+where Auto is supported, including an explicitly saved Ask choice. Auto and Full access stay unchanged.
+It runs after legacy model identifiers are resolved, backs up changed state and records completion.
+The migration skips the Ask-to-Auto upgrade for Claude's legacy CLI runtime, which cannot run Auto.
+Missing modes and unsupported combinations are still normalized. Subsequent permission changes,
+including switching back to Ask, survive restarts; PM's App-scoped bindings follow its global definition.
+Stored chat choices are read without being rewritten;
 an unset chat choice resolves against the selected kernel and model.
 
 Unsupported presets are disabled in the picker and rejected at execution. Switching to Pi, Kimi or

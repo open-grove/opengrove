@@ -1,4 +1,4 @@
-import { NATIVE_APPROVAL_PRESETS_VERSION } from "./migrations/native-approval-presets-v3.js";
+import { NATIVE_APPROVAL_PRESETS_VERSION } from "./migrations/native-approval-presets-v4.js";
 import { randomUUID } from "node:crypto";
 import { copyFileSync, existsSync, readFileSync, renameSync } from "node:fs";
 import { basename, delimiter, resolve } from "node:path";

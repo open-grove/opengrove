@@ -6,6 +6,8 @@ to draft `docs/releases/vX.Y.Z.md`.
 
 ## Unreleased
 
+- **Permission update:** upgrade existing local Employees, including PM, from Ask for approval to Help me approve once where Auto is supported, even when Ask was explicitly selected. Keep existing Auto and Full access choices, back up changed state, and preserve later changes back to Ask across restarts. The legacy Claude CLI runtime is excluded from this upgrade.
+
 ## v0.7.0 - 2026-09-14
 
 - Adapt mobile browsers and narrow windows with drawer navigation, retained panel state, and touch dragging; add desktop navigation resizing, icon mode, hiding, unread indicators, and localized App identity.

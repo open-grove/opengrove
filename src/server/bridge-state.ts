@@ -1,7 +1,7 @@
 import {
-  migrateNativeApprovalPresetsV3,
+  migrateNativeApprovalPresetsV4,
   NATIVE_APPROVAL_PRESETS_VERSION,
-} from "./migrations/native-approval-presets-v3.js";
+} from "./migrations/native-approval-presets-v4.js";
 import { normalizeEmployeeAccessMode } from "./employee-access-mode.js";
 import { kernelConfigHomeForRegistry } from "./kernel-registry.js";
 import { existsSync, readdirSync, renameSync, statSync, writeFileSync } from "node:fs";
@@ -808,16 +808,6 @@ export function recreateBridgeApp(state: BridgeState, options: RecreateBridgeApp
     loadedState,
     mountedAppDefaultEmployees({ ...state.settings, mountedApps }),
   );
-  const needsApprovalMigration = state.settings.nativeApprovalPresetsVersion < NATIVE_APPROVAL_PRESETS_VERSION;
-  const approvalMigrationChanged = needsApprovalMigration
-    ? migrateNativeApprovalPresetsV3(
-        state.app.rooms,
-        loadedState
-          ? () => backupLocalStateBeforeMigration(state.store.path, loadedState, "native-approval-presets-v3")
-          : undefined,
-        claudeConfigHome,
-      )
-    : false;
   const needsEmployeeModelMigration =
     state.settings.employeeModelMigrationVersion < CURRENT_EMPLOYEE_MODEL_MIGRATION_VERSION;
   const legacyNativeEmployeeModelChanged = needsEmployeeModelMigration
@@ -826,6 +816,18 @@ export function recreateBridgeApp(state: BridgeState, options: RecreateBridgeApp
           ? () => backupLocalStateBeforeMigration(state.store.path, loadedState, "native-employee-model-v1")
           : undefined,
       })
+    : false;
+  // Resolve legacy model IDs before deciding which Employees support native Auto.
+  // Apply before seed sync so migrated choices, including unmarked Full, survive it.
+  const needsApprovalMigration = state.settings.nativeApprovalPresetsVersion < NATIVE_APPROVAL_PRESETS_VERSION;
+  const approvalMigrationChanged = needsApprovalMigration
+    ? migrateNativeApprovalPresetsV4(
+        state.app.rooms,
+        loadedState
+          ? () => backupLocalStateBeforeMigration(state.store.path, loadedState, "native-approval-presets-v4")
+          : undefined,
+        claudeConfigHome,
+      )
     : false;
   const routineAppCommandMigration = migrateRoutineAppCommandIdsV1(state, {
     beforeApply: loadedState
@@ -1088,7 +1090,7 @@ function backupLocalStateBeforeMigration(
     | "kernel-native-resume-v1"
     | "routine-app-command-id-v1"
     | "native-employee-model-v1"
-    | "native-approval-presets-v3",
+    | "native-approval-presets-v4",
 ): void {
   if (!statePath) return;
   const backupPath = `${statePath}.before-${step}.json`;
@@ -1341,15 +1343,13 @@ export function syncProductDefaultSeedMembers(
     const existing = existingMembers.get(seed.id);
     if (existing) {
       const merged = syncMountedAppSeedMember(existing, seed, claudeConfigHome);
-      if (seed.id !== OPENGROVE_PM_MEMBER_ID) {
-        // Capability discovery can change available presets, not a saved selection.
-        merged.accessMode = normalizeEmployeeAccessMode(
-          merged.kernel,
-          existing.accessMode,
-          merged.model,
-          claudeConfigHome,
-        );
-      }
+      // Defaults apply to new Employees; upgrades use the one-time migration.
+      merged.accessMode = normalizeEmployeeAccessMode(
+        merged.kernel,
+        existing.accessMode,
+        merged.model,
+        claudeConfigHome,
+      );
       return merged;
     }
     if (seed.id !== OPENGROVE_PM_MEMBER_ID) return seed;
