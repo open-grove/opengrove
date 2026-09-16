@@ -233,11 +233,12 @@ function splitFlag(arg: string): { flag: string; inlineValue?: string } {
 }
 
 function readOptionValue(args: readonly string[], index: number, flag: string, inlineValue?: string): string {
-  if (inlineValue !== undefined) {
-    return inlineValue;
-  }
-  const value = args[index + 1];
-  if (value === undefined || value.startsWith("--")) {
+  const value = inlineValue ?? args[index + 1];
+  if (
+    value === undefined ||
+    (inlineValue === undefined && value.startsWith("--")) ||
+    (COMMON_OPTION_FLAGS.has(flag.slice(2)) && !value.trim())
+  ) {
     throw new HostOperationCliUsageError("option_value_required", `${flag} requires a value.`);
   }
   return value;

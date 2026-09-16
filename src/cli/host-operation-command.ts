@@ -264,7 +264,7 @@ function renderScopeHelp(scope: readonly string[], catalog: HostOperationCliCata
     heading,
     "",
     "Usage:",
-    `  opengrove ${scope.join(" ")} <command> [options]`,
+    `  ${["opengrove", ...scope, "<command>", "[options]"].join(" ")}`,
     "",
     "Commands:",
     ...shownOperations.map((operation) => {

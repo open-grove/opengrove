@@ -454,3 +454,23 @@ test("Host CLI accepts an explicit empty string with an equals-style field optio
   assert.equal(result.exitCode, 0, result.stderr);
   assert.deepEqual(readRecord(readOutput(result).request).body, { text: "" });
 });
+
+test("Host CLI rejects empty common option values before creating a client", async () => {
+  let clientCreations = 0;
+  for (const flag of ["--base-url", "--token", "--input", "--format"]) {
+    for (const args of [[`${flag}=`], [`${flag}=   `], [flag, ""], [flag, "   "], [flag]]) {
+      const result = await runHostOperationCommand(["room", "list", ...args], {
+        env: {},
+        createClient: () => {
+          clientCreations++;
+          throw new Error("unexpected client creation");
+        },
+      });
+      assert.equal(result.exitCode, HOST_OPERATION_CLI_EXIT.validation, JSON.stringify(args));
+      const error = readRecord(readError(result).error);
+      assert.equal(error.subtype, "option_value_required", JSON.stringify(args));
+      assert.equal(error.message, `${flag} requires a value.`);
+    }
+  }
+  assert.equal(clientCreations, 0);
+});

@@ -10,6 +10,8 @@ export interface SkippedRoomMessages {
 
 // List reads may omit damaged messages without changing the stored records.
 // Keep this policy at both HTTP boundaries; writes and envelope errors stay strict.
+// Rooms and members define the snapshot structure: skipping them could hide
+// entire conversations or participants, so their errors still reject the snapshot.
 export function parseHostOperationResponse(
   operation: HostOperation,
   schema: z.ZodType,
