@@ -17,6 +17,7 @@ export interface FakeHermesGatewayOptions {
   trimFinalText?: boolean;
   ambiguousSameNameTools?: boolean;
   promptDelayMs?: number;
+  approvalMode?: "manual" | "smart" | "off";
 }
 
 export function writeFakeHermesGateway(path: string, options: FakeHermesGatewayOptions = {}): void {
@@ -106,7 +107,10 @@ export function fakeHermesGatewaySource(options: FakeHermesGatewayOptions = {}):
     "  const msg = JSON.parse(line);",
     "  if (msg.id === 'approval-1' && msg.result) { resolvePending('approval', msg.result); continue; }",
     "  if (msg.id === 'clarify-1' && msg.result) { resolvePending('clarify', msg.result); continue; }",
-    "  if (msg.method === 'session.create') {",
+    "  if (msg.method === 'config.get' && msg.params?.key === 'approvals.mode') {",
+    `    const mode = ${JSON.stringify(options.approvalMode)} || configText().match(/mode: ['\"]?(manual|smart|off)/)?.[1] || 'manual';`,
+    "    send({ jsonrpc: '2.0', id: msg.id, result: { value: mode } });",
+    "  } else if (msg.method === 'session.create') {",
     `    send({ jsonrpc: '2.0', id: msg.id, result: { session_id: ${JSON.stringify(sessionId)}, info: { model: 'fake-hermes', tools: {}, skills: {}, cwd: process.cwd(), lazy: true } } });`,
     "  } else if (msg.method === 'prompt.submit') {",
     "    send({ jsonrpc: '2.0', id: msg.id, result: { status: 'streaming' } });",

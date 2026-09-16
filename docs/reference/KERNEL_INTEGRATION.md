@@ -151,7 +151,7 @@ identity. Kernels approve native tools; Host tools continue to enforce App polic
 | --- | --- | --- | --- |
 | Codex | `workspace-write` + `on-request` + reviewer `user` | Same sandbox and policy; reviewer `auto_review` | `danger-full-access` + `never` |
 | Claude Agent SDK | `default` | `auto`; await native `setPermissionMode` before sending user input | `bypassPermissions` + `allowDangerouslySkipPermissions` |
-| Hermes | `approvals.mode: manual` | `approvals.mode: smart` | `approvals.mode: off` |
+| Hermes | `approvals.mode: manual` | `approvals.mode: smart` | `HERMES_YOLO_MODE=1`; isolated configuration also sets `approvals.mode: off` |
 | OpenCode | Allow reads, ask for other operations, retain explicit deny rules | Unavailable | Allow ordinary operations, retaining explicit denials in supplied configuration |
 | Kimi | Human ACP approval | Unavailable | Select `allow_once` for ordinary ACP permission requests; questions still need an answer |
 | Pi | Host policy and native tool hooks | Unavailable | Allow ordinary tools, retaining explicit denials |
@@ -177,10 +177,28 @@ Employee creation, seed synchronization, permission migration, App imports and r
 read this cache from the same configured Claude directory as the permission picker. A custom
 `kernelPathOverrides["claude-code"].configHome` therefore applies to both availability and defaults.
 
-Hermes isolates processes and configuration copies by environment and preset, preserving user
-denials and auxiliary reviewer settings without editing a shared `HERMES_HOME`. Native startup
-checks the effective mode and fails if it cannot apply it. Approval and question bridges support
-both desktop contract v7 server requests and earlier notification-based requests.
+Hermes separates processes by environment and preset. Generated configuration copies preserve user
+denials and auxiliary reviewer settings. Full access uses the native YOLO switch, including for
+native gates that do not consult `approvals.mode`; native hard blocks and explicit denials still apply.
+Ask and auto review verify the effective mode through the public `config.get` RPC (desktop contract
+v3+), including for custom gateway commands. An unavailable RPC or mismatched mode stops before
+submitting a prompt and explains how to update Hermes or align its configuration.
+
+Without a Provider override, an explicit `HERMES_HOME` / `OPENGROVE_HERMES_HOME`, or
+`OPENGROVE_HERMES_ISOLATED_HOME=0`, uses the native directory and retains its data. That directory's
+approval configuration must match the requested Ask/Auto preset; OpenGrove does not rewrite it.
+`OPENGROVE_HERMES_ISOLATED_HOME=1` requests a configuration copy instead. Provider overrides always
+use a copy. These copies are temporary: initialization failures, gateway exit and runtime shutdown
+remove them. They do not provide cross-process native session persistence. Invalid YAML and unreadable
+credentials produce actionable errors without echoing configuration contents. Approval and question
+bridges support both desktop contract v7 server requests and earlier notification-based requests.
+Unanswered approvals default to rejection after five minutes; cancellation, turn completion and gateway
+exit settle pending requests. Questions remain human decisions and cancel when their turn ends.
+
+After `npm run build:server`, run `node scripts/certify-hermes-permissions.mjs [hermes-command]` to verify
+the three native configuration modes, Full access, manual rejection and explicit deny rules with disposable
+homes. This contract check makes no model requests and executes no tool commands; it does not assess
+the smart reviewer's model decisions. These permissions were verified against Hermes `v2026.9.7`.
 
 The global PM and its App-scoped bindings default to **Help me approve**, retaining Claude Agent SDK
 and DeepSeek v4 Flash. This explicit product default does not depend on the local model cache;

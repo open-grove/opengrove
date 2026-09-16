@@ -42,7 +42,7 @@ import {
   normalizeOptionalString,
   stripHermesTemplateTokens,
 } from "./hermes/prompt.js";
-import { prepareHermesRuntimeEnv } from "./hermes/home-env.js";
+import { prepareHermesRuntimeEnv, removeHermesRuntimeHome } from "./hermes/home-env.js";
 import {
   contextBudgetDiagnostic,
   contextBudgetExceeded,
@@ -83,6 +83,8 @@ export class HermesRuntime implements AgentRuntime {
 
   close(): void {
     for (const client of new Set(this.gatewayClientsByEnv.values())) client.close();
+    for (const home of this.isolatedHomes.values()) removeHermesRuntimeHome(home);
+    this.isolatedHomes.clear();
     this.gatewayClientsByEnv.clear();
     this.gatewaySessionsByClient.clear();
     this.gatewaySessionByThread.clear();
@@ -182,6 +184,40 @@ export class HermesRuntime implements AgentRuntime {
     const runtimeEnv = mergeRuntimeEnv(this.options.env, request.runtimeEnv);
     const prompt = buildHermesPrompt(request);
     const client = await this.ensureGatewayClient(runtimeEnv, request.accessMode);
+    if (request.accessMode !== "full-access") {
+      // Public TUI config.get (desktop contract v3+) reports the effective policy,
+      // including managed configuration. Custom gateway commands use the same contract.
+      const expected = hermesApprovalMode(request.accessMode);
+      let actual: string | undefined;
+      try {
+        actual = readString(
+          asObject(
+            await client.request(
+              "config.get",
+              { key: "approvals.mode" },
+              { timeoutMs: 15_000, signal: request.signal },
+            ),
+          ),
+          "value",
+        );
+      } catch {
+        const stopped = client.isClosed();
+        client.close();
+        if (request.signal?.aborted) throw new Error("hermes_gateway_turn_aborted");
+        if (stopped) {
+          throw new Error("hermes_gateway_unavailable: Check the Hermes executable and its dependencies, then retry.");
+        }
+        throw new Error(
+          "runtime_access_mode_unavailable: Hermes could not report its approval mode. Update Hermes to a TUI Gateway with desktop contract v3 or newer and retry.",
+        );
+      }
+      if (actual !== expected) {
+        client.close();
+        throw new Error(
+          `runtime_access_mode_unavailable: Hermes reports ${actual ?? "unknown"}; ${expected} is required. Set approvals.mode to ${expected} in your Hermes config, or set OPENGROVE_HERMES_ISOLATED_HOME=1 to use an OpenGrove configuration copy.`,
+        );
+      }
+    }
     const nativeSession = await this.ensureGatewaySession(client, request);
     this.activeGatewayTurns.set(runId, { client, sessionId: nativeSession.sessionId });
     this.activeGatewayTurns.set(request.context.sessionId, { client, sessionId: nativeSession.sessionId });
@@ -194,12 +230,16 @@ export class HermesRuntime implements AgentRuntime {
       priorMessageCount: nativeSession.resuming ? priorMessages.length : 0,
       priorMessages: nativeSession.resuming ? priorMessages : [],
     };
+    const pendingRequests = new AbortController();
     const turnState = createGatewayTurnState({
       runId,
       request,
       queue,
       client,
       sessionId: nativeSession.sessionId,
+      pendingRequestSignal: request.signal
+        ? AbortSignal.any([request.signal, pendingRequests.signal])
+        : pendingRequests.signal,
     });
 
     queue.push({ type: "turn.started", runId, at: new Date().toISOString() });
@@ -263,6 +303,7 @@ export class HermesRuntime implements AgentRuntime {
       this.handleGatewayNotification(notification, turnState);
     });
     const cleanupClose = client.addCloseHandler((error) => {
+      pendingRequests.abort(error);
       turnState.reject(error);
     });
     const abortPrompt = () => {
@@ -352,6 +393,7 @@ export class HermesRuntime implements AgentRuntime {
         message: client.stderr().trim() || message || "hermes_gateway_failed",
       });
     } finally {
+      pendingRequests.abort(new Error("hermes_turn_ended"));
       request.signal?.removeEventListener("abort", abortPrompt);
       cleanupRequests();
       cleanupNotifications();
@@ -387,20 +429,30 @@ export class HermesRuntime implements AgentRuntime {
     if (launch.pythonSourceRoot && !env.HERMES_PYTHON_SRC_ROOT) {
       env.HERMES_PYTHON_SRC_ROOT = launch.pythonSourceRoot;
     }
-    const client = StdioJsonRpcClient.start({
-      command: launch.command,
-      args: launch.args,
-      cwd,
-      env,
-    });
+    let client: StdioJsonRpcClient;
+    try {
+      client = StdioJsonRpcClient.start({ command: launch.command, args: launch.args, cwd, env });
+    } catch (error) {
+      if (preparedEnv.isolatedHome) removeHermesRuntimeHome(preparedEnv.isolatedHome);
+      this.isolatedHomes.delete(envKey);
+      throw error;
+    }
     this.gatewayClientsByEnv.set(envKey, client);
     this.gatewaySessionsByClient.set(client, new Set());
     client.addCloseHandler(() => {
       if (this.gatewayClientsByEnv.get(envKey) === client) this.gatewayClientsByEnv.delete(envKey);
+      if (preparedEnv.isolatedHome) {
+        removeHermesRuntimeHome(preparedEnv.isolatedHome);
+        if (this.isolatedHomes.get(envKey) === preparedEnv.isolatedHome) this.isolatedHomes.delete(envKey);
+      }
       this.gatewaySessionsByClient.delete(client);
       for (const [threadId, remembered] of this.gatewaySessionByThread) {
         if (remembered.client === client) this.gatewaySessionByThread.delete(threadId);
       }
+    });
+    // A terminating native process can still recreate logs; clean again after actual exit.
+    client.addExitHandler(() => {
+      if (preparedEnv.isolatedHome) removeHermesRuntimeHome(preparedEnv.isolatedHome);
     });
     return client;
   }
@@ -792,16 +844,21 @@ export class HermesRuntime implements AgentRuntime {
     let decided: ApprovalRequest;
     try {
       decided = await state.request.context.approvals.waitForDecision(approval.id, {
-        timeoutMs: this.options.approvalTimeoutMs,
-        signal: state.request.signal,
+        timeoutMs: this.options.approvalTimeoutMs ?? 300_000,
+        signal: state.pendingRequestSignal,
       });
     } catch (error) {
       const current = state.request.context.approvals.get(approval.id);
+      const timedOut = error instanceof Error && error.message.startsWith("Approval request timed out:");
       decided =
         current?.status === "pending"
-          ? state.request.context.approvals.decide(approval.id, "canceled", {
+          ? state.request.context.approvals.decide(approval.id, timedOut ? "rejected" : "canceled", {
               system: true,
-              reasonCode: state.request.signal?.aborted ? "run_canceled" : "native_request_failed",
+              reasonCode: state.request.signal?.aborted
+                ? "run_canceled"
+                : timedOut
+                  ? "approval_timeout"
+                  : "native_request_failed",
               error: error instanceof Error ? error.message : String(error),
             })
           : (current ?? approval);
@@ -834,7 +891,7 @@ export class HermesRuntime implements AgentRuntime {
     let decided: QuestionRequest;
     try {
       decided = await state.request.context.questions.waitForDecision(question.id, {
-        signal: state.request.signal,
+        signal: state.pendingRequestSignal,
       });
     } catch (error) {
       const current = state.request.context.questions.get(question.id);

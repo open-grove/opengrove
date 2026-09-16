@@ -8,6 +8,7 @@ export interface HermesGatewayTurnState {
   queue: AsyncEventQueue<AgentEvent>;
   client: StdioJsonRpcClient;
   sessionId: string;
+  pendingRequestSignal: AbortSignal;
   assistantText: string;
   reasoningText: string;
   reasoningSequence: number;
@@ -30,6 +31,7 @@ export function createGatewayTurnState(input: {
   queue: AsyncEventQueue<AgentEvent>;
   client: StdioJsonRpcClient;
   sessionId: string;
+  pendingRequestSignal: AbortSignal;
 }): HermesGatewayTurnState {
   let resolveCompletion: (() => void) | undefined;
   let rejectCompletion: ((error: Error) => void) | undefined;

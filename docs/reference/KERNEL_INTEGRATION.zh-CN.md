@@ -131,7 +131,7 @@ App、Workspace、工具可见范围或管理员身份。原生工具由内核�
 | --- | --- | --- | --- |
 | Codex | `workspace-write` + `on-request` + reviewer `user` | 同样的沙箱与策略，reviewer `auto_review` | `danger-full-access` + `never` |
 | Claude Agent SDK | `default` | `auto`，发送任务前等待原生 `setPermissionMode` 成功 | `bypassPermissions` + `allowDangerouslySkipPermissions` |
-| Hermes | `approvals.mode: manual` | `approvals.mode: smart` | `approvals.mode: off` |
+| Hermes | `approvals.mode: manual` | `approvals.mode: smart` | `HERMES_YOLO_MODE=1`；隔离配置同时设置 `approvals.mode: off` |
 | OpenCode | 读取允许，其余默认询问；保留显式 deny | 不可用 | 普通操作允许；保留传入配置中的显式 deny |
 | Kimi | ACP 请求交给用户决定 | 不可用 | 对普通 ACP 权限请求选择 `allow_once`；问题仍交给用户 |
 | Pi | Host 工具策略与原生工具 hook 询问 | 不可用 | 允许普通工具操作；明确拒绝规则继续生效 |
@@ -149,9 +149,24 @@ Claude Opus 5 和 Opus 4.8 按[原生模型要求](https://code.claude.com/docs/
 Claude 配置目录中的缓存。自定义 `kernelPathOverrides["claude-code"].configHome` 同时用于判断
 选项是否可用和计算默认档位。
 
-Hermes 按环境与档位隔离进程及配置副本，保留用户的 deny 与辅助审查模型配置，不改共享的
-`HERMES_HOME`。原生启动时核对有效模式，无法应用就报错。阻塞审批和用户问题分别接入，
-兼容 desktop contract v7 的 server request 与此前的通知协议。
+Hermes 按环境与档位隔离进程，生成配置副本时保留用户的 deny 与辅助审查模型配置。
+完全访问使用原生 YOLO 开关，覆盖那些不读取 `approvals.mode` 的审批入口；原生硬性阻止与用户明确
+禁止的规则仍然生效。请求批准和自动审查通过公开 `config.get` RPC（desktop contract v3+）核对有效
+模式，自定义 gateway 命令也需要通过。接口不可用或模式不一致时，在提交用户输入前停止，并说明如何
+更新 Hermes 或调整配置。
+
+没有 Provider 覆盖时，显式 `HERMES_HOME` / `OPENGROVE_HERMES_HOME`，或
+`OPENGROVE_HERMES_ISOLATED_HOME=0` 会使用原生目录、保留其中的数据。该目录的审批配置须与员工
+选择的请求批准/自动审查档位一致，OpenGrove 不改写它。设置 `OPENGROVE_HERMES_ISOLATED_HOME=1`
+则使用配置副本；Provider 覆盖始终使用副本。副本是临时的，初始化失败、gateway 退出及运行时关闭时
+都会清理，不提供跨进程的原生会话持久化。YAML 损坏或凭据不可读会给出明确错误，不回显配置正文。
+阻塞审批和用户问题分别接入，兼容 desktop contract v7 的 server request 与此前的通知协议。
+未回答的审批默认五分钟后拒绝；取消、回合结束和 gateway 退出会结束等待中的请求。
+用户问题仍需人工回答，所属回合结束时取消。
+
+执行 `npm run build:server` 后，可运行 `node scripts/certify-hermes-permissions.mjs [hermes-command]`，
+用临时目录验证三档原生配置、完全访问、人工拒绝及用户禁止规则。该契约检查不调用模型、不执行工具命令，
+也不评价 smart 模型的审查结果。这些权限行为已针对 Hermes `v2026.9.7` 验证。
 
 全局 PM 及各 App 内的 PM 绑定默认使用**帮我批准**，继续使用 Claude Agent SDK 和 DeepSeek v4 Flash。
 这个明确的产品默认值不依赖本机模型缓存；仍须成功启用原生 Auto 后才提交用户输入。其他新员工和聊天优先选择**帮我批准**：

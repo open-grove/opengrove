@@ -1,6 +1,6 @@
 import * as yaml from "js-yaml";
 import type { RuntimeAccessMode } from "../../core.js";
-import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { chmodSync, copyFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { resolve } from "node:path";
 
@@ -28,17 +28,41 @@ export function writeHermesHomeConfig(
   accessMode?: RuntimeAccessMode,
   sourceHome = resolve(homedir(), ".hermes"),
 ): void {
-  mkdirSync(homeDir, { recursive: true });
+  const base = readHermesHomeConfig(sourceHome);
+  const generated = configObject(yaml.load(buildHermesConfigYaml(nativeSkillDir, providerConfig, accessMode)));
+  const merged = { ...base, ...generated };
+  merged.approvals = { ...configObject(base.approvals), mode: hermesApprovalMode(accessMode) };
+  mkdirSync(homeDir, { recursive: true, mode: 0o700 });
   for (const name of [".env", "auth.json"]) {
     const source = resolve(sourceHome, name);
-    if (existsSync(source)) copyFileSync(source, resolve(homeDir, name));
+    try {
+      copyFileSync(source, resolve(homeDir, name));
+      chmodSync(resolve(homeDir, name), 0o600);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") continue;
+      throw new Error(`hermes_credentials_unreadable: Check access to ${source}.`);
+    }
   }
-  const sourceConfig = resolve(sourceHome, "config.yaml");
-  const base = existsSync(sourceConfig) ? yaml.load(readFileSync(sourceConfig, "utf8")) : {};
-  const generated = yaml.load(buildHermesConfigYaml(nativeSkillDir, providerConfig, accessMode));
-  const merged = { ...configObject(base), ...configObject(generated) };
-  merged.approvals = { ...configObject(configObject(base).approvals), mode: hermesApprovalMode(accessMode) };
   writeFileSync(resolve(homeDir, "config.yaml"), yaml.dump(merged), { encoding: "utf8", mode: 0o600 });
+}
+
+export function readHermesHomeConfig(homeDir: string): Record<string, unknown> {
+  const path = resolve(homeDir, "config.yaml");
+  let text: string;
+  try {
+    text = readFileSync(path, "utf8");
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return {};
+    throw new Error(`hermes_config_unreadable: Check access to ${path}.`);
+  }
+  try {
+    const config = configObject(yaml.load(text));
+    configObject(config.approvals);
+    return config;
+  } catch {
+    // YAMLException embeds source text, which may contain provider credentials.
+    throw new Error(`hermes_config_invalid: Check ${path} formatting; config and approvals must be mappings.`);
+  }
 }
 
 function configObject(value: unknown): Record<string, unknown> {

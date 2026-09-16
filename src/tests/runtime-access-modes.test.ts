@@ -6,11 +6,12 @@ import { ClaudeAgentSdkRuntime, type ClaudeAgentSdkQueryFunction } from "../runt
 import { buildClaudeCodeRuntimeControls } from "../kernel/adapters/claude-code.js";
 import { openCodeConfigContentForAccessMode } from "../kernel/adapters/opencode.js";
 import { HermesRuntime } from "../runtime/hermes-runtime.js";
+import { prepareHermesRuntimeEnv } from "../runtime/hermes/home-env.js";
 import { writeFakeHermesGateway } from "./harnesses/fake-hermes-gateway.js";
 import { RoomChannelStore } from "../rooms/channel-store.js";
 import { migrateNativeApprovalPresetsV3 } from "../server/migrations/native-approval-presets-v3.js";
 import assert from "node:assert/strict";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -43,6 +44,87 @@ function context(cwd: string): AgentTurnRequest["context"] {
     questions: app.questions,
   };
 }
+
+test("Hermes honors native homes and sends full access to the native gate", () => {
+  const home = mkdtempSync(join(tmpdir(), "opengrove-hermes-native-test-"));
+  const config = "approvals:\n  mode: manual\n";
+  writeFileSync(join(home, "config.yaml"), config);
+  writeFileSync(join(home, "state.db"), "existing native state");
+  const prepared = prepareHermesRuntimeEnv({
+    runtimeEnv: { HERMES_HOME: home },
+    providerConfig: undefined,
+    nativeSkillDir: undefined,
+    isolatedHome: undefined,
+    accessMode: "full-access",
+  });
+  try {
+    assert.equal(prepared.env.HERMES_HOME, home);
+    assert.equal(prepared.env.HERMES_YOLO_MODE, "1");
+    assert.equal(prepared.isolatedHome, undefined);
+    assert.equal(readFileSync(join(home, "config.yaml"), "utf8"), config);
+    assert.equal(readFileSync(join(home, "state.db"), "utf8"), "existing native state");
+  } finally {
+    if (prepared.isolatedHome) rmSync(prepared.isolatedHome, { recursive: true, force: true });
+    rmSync(home, { recursive: true, force: true });
+  }
+});
+
+test("Hermes rejects invalid config without leaking credentials or YAML contents", (t) => {
+  const home = mkdtempSync(join(tmpdir(), "opengrove-hermes-config-test-"));
+  writeFileSync(join(home, ".env"), "TEST_SECRET=private-marker");
+  writeFileSync(join(home, "config.yaml"), "private-marker: [broken yaml");
+  const scratch = join(home, "scratch");
+  mkdirSync(scratch);
+  t.mock.property(process, "env", { ...process.env, TMPDIR: scratch, TMP: scratch, TEMP: scratch });
+  try {
+    assert.throws(
+      () =>
+        prepareHermesRuntimeEnv({
+          runtimeEnv: { HERMES_HOME: home },
+          providerConfig: {
+            providerKey: "test",
+            name: "Test",
+            baseUrl: "https://example.test",
+            apiMode: "chat_completions",
+          },
+          nativeSkillDir: undefined,
+          isolatedHome: undefined,
+        }),
+      /^Error: hermes_config_invalid:.*config.yaml.*format/,
+    );
+    assert.deepEqual(readdirSync(scratch), []);
+    writeFileSync(join(home, "config.yaml"), "approvals: manual\n");
+    assert.throws(
+      () =>
+        prepareHermesRuntimeEnv({
+          runtimeEnv: { HERMES_HOME: home },
+          providerConfig: undefined,
+          nativeSkillDir: undefined,
+          isolatedHome: undefined,
+        }),
+      /hermes_config_invalid/,
+    );
+    writeFileSync(join(home, "config.yaml"), "approvals:\n  mode: manual\n");
+    mkdirSync(join(home, "auth.json"));
+    assert.throws(
+      () =>
+        prepareHermesRuntimeEnv({
+          runtimeEnv: { HERMES_HOME: home, OPENGROVE_HERMES_ISOLATED_HOME: "1" },
+          providerConfig: undefined,
+          nativeSkillDir: undefined,
+          isolatedHome: undefined,
+        }),
+      /hermes_credentials_unreadable/,
+    );
+    assert.deepEqual(
+      readdirSync(scratch),
+      [],
+      "a credential-copy failure after copying .env cleans the whole owned home",
+    );
+  } finally {
+    rmSync(home, { recursive: true, force: true });
+  }
+});
 
 test("Codex sends the three desktop presets on new and resumed turns", async () => {
   const cwd = mkdtempSync(join(tmpdir(), "opengrove-permission-presets-"));
@@ -445,7 +527,7 @@ test("Hermes presets use separate native homes, preserve denials and still ask u
     gatewayCommand: process.execPath,
     gatewayArgs: [gateway],
     cwd,
-    env: { HERMES_HOME: sourceHome, HERMES_YOLO_MODE: "1" },
+    env: { HERMES_HOME: sourceHome, HERMES_YOLO_MODE: "1", OPENGROVE_HERMES_ISOLATED_HOME: "1" },
     approvalTimeoutMs: 1000,
   });
   const homes = new Map<string, string>();
@@ -480,7 +562,82 @@ test("Hermes presets use separate native homes, preserve denials and still ask u
   } finally {
     runtime.close();
   }
+  for (const home of homes.values()) assert.equal(existsSync(home), false, "closing removes owned credential copies");
 });
+
+test("Hermes checks native mode even for custom gateway commands before submitting a prompt", async () => {
+  const cwd = mkdtempSync(join(tmpdir(), "opengrove-hermes-mode-test-"));
+  const gateway = join(cwd, "gateway.mjs");
+  writeFakeHermesGateway(gateway, { approvalMode: "manual", skipBlockingPrompts: true });
+  const runtime = new HermesRuntime({
+    command: process.execPath,
+    gatewayCommand: process.execPath,
+    gatewayArgs: [gateway],
+    cwd,
+    env: { HERMES_HOME: cwd, OPENGROVE_HERMES_ISOLATED_HOME: "1" },
+  });
+  try {
+    const events = [];
+    for await (const event of runtime.runTurn({
+      input: "hi",
+      context: context(cwd),
+      tools: [],
+      accessMode: "auto-review",
+    }))
+      events.push(event);
+    assert.ok(
+      events.some((event) => event.type === "error" && event.message.includes("runtime_access_mode_unavailable")),
+    );
+    assert.equal(
+      events.some((event) => event.type === "model.requested"),
+      false,
+    );
+    assert.equal(
+      events.some((event) => event.type === "model.response"),
+      false,
+    );
+  } finally {
+    runtime.close();
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+for (const ending of ["timeout", "gateway-close"] as const) {
+  test(`Hermes settles pending approvals on ${ending} without caller timeout configuration`, async (t) => {
+    const cwd = mkdtempSync(join(tmpdir(), "opengrove-hermes-pending-test-"));
+    const gateway = join(cwd, "gateway.mjs");
+    writeFakeHermesGateway(gateway, { serverRequests: true });
+    const runtime = new HermesRuntime({
+      command: process.execPath,
+      gatewayCommand: process.execPath,
+      gatewayArgs: [gateway],
+      cwd,
+      env: { HERMES_HOME: cwd, OPENGROVE_HERMES_ISOLATED_HOME: "1" },
+    });
+    const ctx = context(cwd);
+    t.mock.timers.enable({ apis: ["setTimeout"] });
+    let approvalId = "";
+    try {
+      for await (const event of runtime.runTurn({ input: "hi", context: ctx, tools: [], accessMode: "full-access" })) {
+        if (event.type === "approval.requested") {
+          approvalId = event.request.id;
+          if (ending === "timeout") t.mock.timers.tick(300_000);
+          else runtime.close();
+        }
+        if (event.type === "question.requested")
+          ctx.questions.decide(event.question.id, "answered", { answer: "alpha" });
+      }
+      assert.ok(approvalId);
+      assert.notEqual(ctx.approvals.get(approvalId)?.status, "pending");
+      assert.notEqual(ctx.approvals.get(approvalId)?.status, "approved");
+      assert.equal(ctx.approvals.get(approvalId)?.status, ending === "timeout" ? "rejected" : "canceled");
+    } finally {
+      runtime.close();
+      t.mock.timers.reset();
+      rmSync(cwd, { recursive: true, force: true });
+    }
+  });
+}
 
 test("upgrading preserves compatible employee choices and repairs unsupported modes", () => {
   const rooms = new RoomChannelStore();

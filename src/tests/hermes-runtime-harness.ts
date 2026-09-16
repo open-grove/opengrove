@@ -68,6 +68,7 @@ async function main() {
     toolsets: ["skills"],
     nativeSkillDir,
     env: {
+      HERMES_HOME: join(cwd, "hermes-source"),
       [appEnvName("HERMES_ISOLATED_HOME")]: "1",
       [appEnvName("TEST_API_KEY")]: "test-key",
     },
@@ -330,6 +331,7 @@ async function assertEnvChangeDoesNotCloseSibling(cwd: string): Promise<void> {
     gatewayCommand: process.execPath,
     gatewayArgs: [fakeGateway],
     cwd,
+    env: { HERMES_HOME: join(cwd, "hermes-source"), OPENGROVE_HERMES_ISOLATED_HOME: "1" },
   });
   const app = createOpenGrove({
     cwd,
@@ -402,7 +404,7 @@ async function assertCompressionFailureFailsOpen(cwd: string): Promise<void> {
     gatewayCommand: process.execPath,
     gatewayArgs: [fakeGateway],
     cwd,
-    env: { [appEnvName("HERMES_ISOLATED_HOME")]: "1" },
+    env: { HERMES_HOME: join(cwd, "hermes-source"), [appEnvName("HERMES_ISOLATED_HOME")]: "1" },
   });
   const app = createOpenGrove({
     cwd,

@@ -446,6 +446,7 @@ async function runHermesGatewayContractTurn(
     gatewayArgs: [fakeGateway],
     cwd,
     configuredModel: "hermes-contract",
+    env: { HERMES_HOME: join(cwd, "hermes-source"), OPENGROVE_HERMES_ISOLATED_HOME: "1" },
   });
   const { request, app } = createContractRequest("capability-hermes-gateway");
   const events: AgentEvent[] = [];
