@@ -1,6 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import {
   bridgeContractIssues,
+  parseHostOperationResponse,
   type BridgeContractIssue,
   type BridgeJsonContract,
   type HostOperation,
@@ -128,11 +129,12 @@ function contextWithHostOperation(operation: HostOperation, context: BridgeRoute
         context.sendJson(response, status, data);
         return;
       }
-      const parsed = declaredResponse.body.safeParse(data);
+      const { result: parsed, skipped } = parseHostOperationResponse(operation, declaredResponse.body, data);
       if (!parsed.success) {
         reportHostResponseViolation(operation, context, response, bridgeContractIssues(parsed.error));
         return;
       }
+      if (skipped) console.warn("room_message_list_items_skipped", { ...skipped, traceId: context.traceId });
       context.sendJson(response, status, parsed.data);
     },
   };

@@ -1,5 +1,6 @@
 import {
   bridgeContractIssues,
+  parseHostOperationResponse,
   type HostOperation,
   type HostOperationBody,
   type HostOperationDecodedInput,
@@ -126,10 +127,11 @@ function parseOperationResponse(
     }
     return undefined;
   }
-  const parsed = schema.safeParse(value);
+  const { result: parsed, skipped } = parseHostOperationResponse(operation, schema, value);
   if (!parsed.success) {
     throw new OpenGroveProtocolError("response", operation.id, bridgeContractIssues(parsed.error));
   }
+  if (skipped) console.warn("room_message_list_items_skipped", skipped);
   return parsed.data;
 }
 

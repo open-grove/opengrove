@@ -70,7 +70,13 @@ not be disguised as JSON operations.
 
 The Host validates the same request and response schemas that the Client uses.
 An undeclared status or a payload that does not match its declared schema is a
-contract violation, not a successful best-effort parse.
+contract violation. Room snapshot and message-history reads have one explicit
+exception: when every validation issue belongs to an individual `messages`
+item, the Host and Client omit those damaged items and revalidate the complete
+response. Both boundaries report `room_message_list_items_skipped` with the
+operation, count, and field paths, without logging message contents. Stored
+records are untouched. Invalid envelopes, non-array message collections, error
+responses, and all writes remain strict. Web presentation receives the validated messages.
 
 ## Catalog, internal Client, and external SDK
 

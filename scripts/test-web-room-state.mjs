@@ -3419,8 +3419,14 @@ await writeFile(
         parts: [{ id: "historical-text", type: "text", text: "connector --cloud-url example-origin" }],
         attachments: [{ type: "file", name: "notes.txt", customMetadata: "preserved" }],
       };
+      const originalWarn = console.warn;
+      const warnings = [];
+      console.warn = (...args) => warnings.push(args);
       globalThis.fetch = async () => new Response(JSON.stringify({
-        ok: true, rooms: [], members: [], messages: [wireMessage], currentEventSeq: 1, deletedMemberIds: [],
+        ok: true, rooms: [], members: [], messages: [
+          null, { ...wireMessage, id: undefined }, wireMessage,
+          { ...wireMessage, text: undefined }, { ...wireMessage, parts: [null] },
+        ], currentEventSeq: 1, deletedMemberIds: [],
       }), { status: 200, headers: { "content-type": "application/json" } });
       try {
         const snapshot = await fetchRoomsInit();
@@ -3432,8 +3438,16 @@ await writeFile(
           assert.deepEqual(messages[0].attachments, wireMessage.attachments,
             "shared Client transport must preserve message attachment extensions");
         }
+        assert.equal(warnings.length, 2, "each degraded list read must report skipped messages");
+        for (const warning of warnings) {
+          assert.equal(warning[0], "room_message_list_items_skipped");
+          assert.equal(warning[1].skippedCount, 4);
+          assert.equal(JSON.stringify(warning).includes("example-code"), false,
+            "diagnostics must not include private message contents");
+        }
       } finally {
         globalThis.fetch = originalFetch;
+        console.warn = originalWarn;
       }
     }
     for (const support of [true, false, undefined]) {
