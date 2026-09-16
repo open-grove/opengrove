@@ -1,7 +1,13 @@
 import { Buffer } from "node:buffer";
-import type { CreateRoomMessageOperation } from "#protocol";
+import type {
+  CreateRoomMessageOperation,
+  ListRoomMessagesOperation,
+  RecordRoomMessageOperation,
+  CancelRoomMessageOperation,
+  UpdateRoomMessageOperation,
+  DeleteRoomMessageOperation,
+} from "#protocol";
 import type { PostRoomMessageResult, RoomChannelMember, RoomChannelMessage } from "../../../rooms/channel-store.js";
-import { normalizeRoomMessageDeliveryKind, normalizeRoomSelectedFile } from "../../../rooms/channel-normalize.js";
 import { readWwRuntimeAuth } from "../../bridge-security.js";
 import { stopRemoteRoomRun } from "../../remote-agents/cancellation.js";
 import {
@@ -19,16 +25,10 @@ import {
 } from "../../room-runs.js";
 import { roomTargetSupportsHostTools } from "../../room-runs/execution-state.js";
 import { canRoomPmAutoRoute } from "../../../rooms/room-pm.js";
-import { record } from "../../http-utils.js";
 import {
   readAttachments,
   readJsonObjects,
-  readMessageStatus,
-  readOptionalPositiveInt,
   readOptionalString,
-  readPositiveInt,
-  readString,
-  readStringArray,
   resolveVisibleRoomTargets,
   updateNonRunnableLocalTarget,
 } from "./normalizers.js";
@@ -38,18 +38,7 @@ import { resolveHostLanguageSettings } from "../../language-preference.js";
 import { presentRoomMessage } from "../../room-presentation.js";
 import type { HostOperationRouteContext } from "../../router.js";
 
-export async function handleRoomMessageRoutes(context: RoomsRouteContext): Promise<boolean> {
-  return (
-    (await handleMessageAttachmentContentRoute(context)) ||
-    (await handleMessagesListRoute(context)) ||
-    (await handleAgentMessageRoute(context)) ||
-    (await handleMessageCancelRoute(context)) ||
-    (await handleMessageDeleteRoute(context)) ||
-    (await handleMessagePatchRoute(context))
-  );
-}
-
-function handleMessageAttachmentContentRoute(context: RoomsRouteContext): boolean {
+export function handleMessageAttachmentContentRoute(context: RoomsRouteContext): boolean {
   const { request, response, url, state, sendJson } = context;
   const action = url.pathname.match(/^\/rooms\/([^/]+)\/messages\/([^/]+)\/attachments\/(\d+)\/content$/);
   if (!action || request.method !== "GET") return false;
@@ -73,16 +62,9 @@ function handleMessageAttachmentContentRoute(context: RoomsRouteContext): boolea
   return true;
 }
 
-function handleMessagesListRoute(context: RoomsRouteContext): boolean {
-  const { request, response, url, state, sendJson } = context;
-  const messagesAction = url.pathname.match(/^\/rooms\/([^/]+)\/messages$/);
-  if (!messagesAction || request.method !== "GET") return false;
-  const encodedRoomId = messagesAction[1]!;
-  const messages = state.app.rooms.listVisibleMessages(decodeURIComponent(encodedRoomId), {
-    limit: Math.min(readPositiveInt(url.searchParams.get("limit"), 80), 200),
-    beforeSeq: readOptionalPositiveInt(url.searchParams.get("beforeSeq")),
-    afterSeq: readOptionalPositiveInt(url.searchParams.get("afterSeq")),
-  });
+export function handleListRoomMessagesOperation(context: HostOperationRouteContext<ListRoomMessagesOperation>): true {
+  const { response, state, sendJson } = context;
+  const messages = state.app.rooms.listVisibleMessages(context.input.params.roomId, context.input.query);
   sendJson(response, 200, {
     ok: true,
     messages: messages.map(presentRoomMessage),
@@ -91,30 +73,16 @@ function handleMessagesListRoute(context: RoomsRouteContext): boolean {
   return true;
 }
 
-async function handleAgentMessageRoute(context: RoomsRouteContext): Promise<boolean> {
-  const { request, response, url, state, sendJson, readJsonBody } = context;
-  const agentMessagesAction = url.pathname.match(/^\/rooms\/([^/]+)\/agent-messages$/);
-  if (!agentMessagesAction || request.method !== "POST") return false;
-  const encodedRoomId = agentMessagesAction[1]!;
-  const body = record(await readJsonBody(request));
-  const roomId = decodeURIComponent(encodedRoomId);
-  const senderId = readString(body.senderId);
-  if (!senderId) {
-    sendJson(response, 400, { ok: false, error: "sender_id_required" });
-    return true;
-  }
+export async function handleRecordRoomMessageOperation(
+  context: HostOperationRouteContext<RecordRoomMessageOperation>,
+): Promise<true> {
+  const { response, state, sendJson } = context;
+  const body = context.input.body;
   const message = state.app.rooms.postAgentMessage({
-    roomId,
-    senderId,
-    senderName: readString(body.senderName) || "Agent",
-    text: readString(body.text),
-    targetIds: readStringArray(body.targetIds),
-    id: readOptionalString(body.id),
+    ...body,
+    roomId: context.input.params.roomId,
+    senderName: body.senderName || "Agent",
     status: "done",
-    deliveryKind: normalizeRoomMessageDeliveryKind(body.deliveryKind),
-    inReplyToMessageId: readOptionalString(body.inReplyToMessageId),
-    rootMessageId: readOptionalString(body.rootMessageId),
-    selectedFile: normalizeRoomSelectedFile(body.selectedFile),
   });
   state.store.saveFrom(state.app);
   sendJson(response, 200, {
@@ -367,14 +335,11 @@ async function scheduleAndFallbackAssistantMessages(
   return updatedMessages;
 }
 
-async function handleMessageCancelRoute(context: RoomsRouteContext): Promise<boolean> {
-  const { request, response, url, state, sendJson } = context;
-  const cancelAction = url.pathname.match(/^\/rooms\/([^/]+)\/messages\/([^/]+)\/cancel$/);
-  if (!cancelAction || request.method !== "POST") return false;
-  const encodedRoomId = cancelAction[1]!;
-  const encodedMessageId = cancelAction[2]!;
-  const roomId = decodeURIComponent(encodedRoomId);
-  const messageId = decodeURIComponent(encodedMessageId);
+export async function handleCancelRoomMessageOperation(
+  context: HostOperationRouteContext<CancelRoomMessageOperation>,
+): Promise<true> {
+  const { response, state, sendJson } = context;
+  const { roomId, messageId } = context.input.params;
   const message = state.app.rooms.listMessages(roomId, { limit: 200 }).find((candidate) => candidate.id === messageId);
   if (!message) {
     sendJson(response, 404, { ok: false, error: "message_not_found" });
@@ -424,17 +389,14 @@ async function handleMessageCancelRoute(context: RoomsRouteContext): Promise<boo
   return true;
 }
 
-async function handleMessagePatchRoute(context: RoomsRouteContext): Promise<boolean> {
-  const { request, response, url, state, sendJson, readJsonBody } = context;
-  const messageAction = url.pathname.match(/^\/rooms\/([^/]+)\/messages\/([^/]+)$/);
-  if (!messageAction || request.method !== "PATCH") return false;
-  const encodedRoomId = messageAction[1]!;
-  const encodedMessageId = messageAction[2]!;
-  const body = record(await readJsonBody(request));
+export async function handleUpdateRoomMessageOperation(
+  context: HostOperationRouteContext<UpdateRoomMessageOperation>,
+): Promise<true> {
+  const { response, state, sendJson } = context;
   const message = state.app.rooms.updateMessage(
-    decodeURIComponent(encodedRoomId),
-    decodeURIComponent(encodedMessageId),
-    normalizeMessagePatch(body),
+    context.input.params.roomId,
+    context.input.params.messageId,
+    normalizeMessagePatch(context.input.body),
   );
   state.store.saveFrom(state.app);
   sendJson(response, 200, {
@@ -481,14 +443,11 @@ function roomAttachmentContent(
   return undefined;
 }
 
-async function handleMessageDeleteRoute(context: RoomsRouteContext): Promise<boolean> {
-  const { request, response, url, state, sendJson } = context;
-  const messageAction = url.pathname.match(/^\/rooms\/([^/]+)\/messages\/([^/]+)$/);
-  if (!messageAction || request.method !== "DELETE") return false;
-  const encodedRoomId = messageAction[1]!;
-  const encodedMessageId = messageAction[2]!;
-  const roomId = decodeURIComponent(encodedRoomId);
-  const messageId = decodeURIComponent(encodedMessageId);
+export async function handleDeleteRoomMessageOperation(
+  context: HostOperationRouteContext<DeleteRoomMessageOperation>,
+): Promise<true> {
+  const { response, state, sendJson } = context;
+  const { roomId, messageId } = context.input.params;
   if (!state.app.rooms.getRoom(roomId)) {
     sendJson(response, 404, { ok: false, error: "room_not_found" });
     return true;
@@ -517,11 +476,11 @@ async function handleMessageDeleteRoute(context: RoomsRouteContext): Promise<boo
 }
 
 function normalizeMessagePatch(
-  body: Record<string, unknown>,
+  body: HostOperationRouteContext<UpdateRoomMessageOperation>["input"]["body"],
 ): Partial<Omit<RoomChannelMessage, "id" | "roomId" | "channelSeq" | "createdAt">> {
   const patch: Partial<Omit<RoomChannelMessage, "id" | "roomId" | "channelSeq" | "createdAt">> = {};
-  if (Object.prototype.hasOwnProperty.call(body, "text")) patch.text = readOptionalString(body.text);
-  if (Object.prototype.hasOwnProperty.call(body, "status")) patch.status = readMessageStatus(body.status);
+  if (Object.prototype.hasOwnProperty.call(body, "text")) patch.text = body.text;
+  if (Object.prototype.hasOwnProperty.call(body, "status")) patch.status = body.status;
   if (Object.prototype.hasOwnProperty.call(body, "runId")) patch.runId = readOptionalString(body.runId);
   if (Object.prototype.hasOwnProperty.call(body, "duration")) patch.duration = readOptionalString(body.duration);
   if (Object.prototype.hasOwnProperty.call(body, "startedAt")) patch.startedAt = readOptionalString(body.startedAt);

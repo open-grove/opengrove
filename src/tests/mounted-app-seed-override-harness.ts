@@ -15,7 +15,8 @@ import { productDefaultEmployees } from "../server/product-default-employees.js"
 import type { RoomChannelMember } from "../rooms/channel-store.js";
 import { cloneMember, normalizeMember } from "../rooms/channel-normalize.js";
 import { OPENGROVE_PM_MEMBER_ID, PM_AGENT_SKILL_NAME, pmAgentMemberId } from "../rooms/room-pm.js";
-import { handleRoomMemberRoutes } from "../server/routes/rooms/member-routes.js";
+import { dispatchBridgeRoutes } from "../server/router.js";
+import { createBridgeRoutes } from "../server/routes/bridge-registry.js";
 import { normalizeMember as normalizeMemberRoute, normalizeMemberPatch } from "../server/routes/rooms/normalizers.js";
 import { saveBridgeSettings } from "../server/bridge-settings-store.js";
 import { CURRENT_EMPLOYEE_MODEL_MIGRATION_VERSION } from "../server/migrations/native-employee-model-v1.js";
@@ -437,7 +438,9 @@ function seedMember(overrides: Partial<RoomChannelMember> = {}): RoomChannelMemb
       },
     });
     const calls: Array<{ status: number; data: any }> = [];
-    const handled = await handleRoomMemberRoutes({
+    const handled = await dispatchBridgeRoutes(createBridgeRoutes(), {
+      traceId: "room-member-test",
+      security: { authMode: "bridge-token", allowedOrigins: [] },
       request: { method: "PATCH" } as any,
       response: {} as any,
       url: new URL(`http://opengrove.test/rooms/members/${encodeURIComponent(memberId)}`),
@@ -478,7 +481,9 @@ function seedMember(overrides: Partial<RoomChannelMember> = {}): RoomChannelMemb
         model: "claude-opus-4-8",
       },
     });
-    await handleRoomMemberRoutes({
+    await dispatchBridgeRoutes(createBridgeRoutes(), {
+      traceId: "room-member-test",
+      security: { authMode: "bridge-token", allowedOrigins: [] },
       request: { method: "PATCH" } as any,
       response: {} as any,
       url: new URL(`http://opengrove.test/rooms/members/${encodeURIComponent(modelMemberId)}`),
@@ -493,7 +498,9 @@ function seedMember(overrides: Partial<RoomChannelMember> = {}): RoomChannelMemb
       "clearing a model must restore the App default and remove the model override",
     );
 
-    await handleRoomMemberRoutes({
+    await dispatchBridgeRoutes(createBridgeRoutes(), {
+      traceId: "room-member-test",
+      security: { authMode: "bridge-token", allowedOrigins: [] },
       request: { method: "PATCH" } as any,
       response: {} as any,
       url: new URL(`http://opengrove.test/rooms/members/${encodeURIComponent(modelMemberId)}`),
@@ -687,7 +694,9 @@ function seedMember(overrides: Partial<RoomChannelMember> = {}): RoomChannelMemb
       },
     });
     const calls: Array<{ status: number; data: any }> = [];
-    const handled = await handleRoomMemberRoutes({
+    const handled = await dispatchBridgeRoutes(createBridgeRoutes(), {
+      traceId: "room-member-test",
+      security: { authMode: "bridge-token", allowedOrigins: [] },
       request: { method: "POST" } as any,
       response: {} as any,
       url: new URL(`http://opengrove.test/rooms/members/${encodeURIComponent(memberId)}/restore-app-defaults`),

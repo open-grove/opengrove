@@ -844,7 +844,7 @@ export function resolveCurrentSession(
 
 export function resolveLatestRun(
   runs: RunRecord[],
-  sessionId: string,
+  sessionId: string | undefined,
   runIds: string[],
   hasThreadActivity: boolean,
 ): RunRecord | undefined {

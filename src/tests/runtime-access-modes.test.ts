@@ -26,7 +26,8 @@ import { mountedAppDefaultEmployees } from "../server/bridge-mounted-app-employe
 import { normalizeEmployeeAccessMode } from "../server/employee-access-mode.js";
 import { writeClaudeModelsCache } from "../runtime/claude-models-cache.js";
 import { normalizeReleaseEmployee } from "../server/app-release.js";
-import { handleRoomMemberRoutes } from "../server/routes/rooms/member-routes.js";
+import { dispatchBridgeRoutes } from "../server/router.js";
+import { createBridgeRoutes } from "../server/routes/bridge-registry.js";
 
 function context(cwd: string): AgentTurnRequest["context"] {
   const app = createOpenGrove({ cwd, readPage: async () => ({}), runtime: { async *runTurn() {} } });
@@ -1024,7 +1025,9 @@ for (const configuredSupport of [true, false]) {
         let responseStatus: number | undefined;
         try {
           assert.equal(
-            await handleRoomMemberRoutes({
+            await dispatchBridgeRoutes(createBridgeRoutes(), {
+              traceId: "permission-test",
+              security: { authMode: "bridge-token", allowedOrigins: [] },
               request,
               response,
               url: new URL(path, "http://opengrove.test"),

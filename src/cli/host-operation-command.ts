@@ -8,6 +8,8 @@ import type { HostOperation, HostOperationId, HostOperationOutput, RegisteredHos
 import { hostProtocol } from "#protocol/compiled";
 import type { CompiledHostOperation, CompiledHostOperationGroup } from "#protocol/compiler";
 import { APP_BRIDGE_TOKEN_HEADER } from "../identity.js";
+import { matchOperationCommand, operationCommandPath, operationCommandPaths } from "./command-path.js";
+import { runSchemaCommand } from "./schema-command.js";
 import {
   assertHostOperationInputCatalog,
   decodeHostOperationCall,
@@ -22,6 +24,7 @@ import {
   hostOperationCliError,
   hostOperationCliFailure,
   hostOperationCliSuccess,
+  hostOperationCliResponse,
   type HostOperationCliResult,
 } from "./host-operation-output.js";
 
@@ -50,6 +53,7 @@ export function isHostOperationCommand(
   args: readonly string[],
   catalog: HostOperationCliCatalog = hostProtocol,
 ): boolean {
+  if (args[0] === "schema") return true;
   const groupId = args[0];
   const group = groupId ? catalog.groups.find((candidate) => candidate.id === groupId) : undefined;
   if (!group) return false;
@@ -60,6 +64,16 @@ export function isHostOperationCommand(
 
 export function assertHostOperationCliCatalog(catalog: HostOperationCliCatalog = hostProtocol): void {
   assertHostOperationInputCatalog(catalog.operations);
+  const paths = new Map<string, string>();
+  for (const operation of catalog.operations) {
+    for (const path of operationCommandPaths(operation)) {
+      const command = path.join(" ");
+      const previous = paths.get(command);
+      if (previous && previous !== operation.id)
+        throw new Error(`Ambiguous CLI command ${command}: ${previous}, ${operation.id}.`);
+      paths.set(command, operation.id);
+    }
+  }
 }
 
 export function renderHostOperationOverview(catalog: HostOperationCliCatalog = hostProtocol): string {
@@ -67,12 +81,10 @@ export function renderHostOperationOverview(catalog: HostOperationCliCatalog = h
   if (catalog.groups.length === 0) return "";
   return catalog.groups
     .map((group) => {
-      const commands = group.resources.flatMap((resource) =>
-        resource.operations.map((operation) => `  ${operationCommandPath(operation).join(" ")}  ${operation.summary}`),
-      );
-      return [`${group.title}:`, ...commands].join("\n");
+      const count = group.resources.reduce((total, resource) => total + resource.operations.length, 0);
+      return `  ${group.id.padEnd(12)} ${group.title} (${count} operations) — opengrove ${group.id} --help`;
     })
-    .join("\n\n");
+    .join("\n");
 }
 
 /**
@@ -118,13 +130,17 @@ export async function prepareHostOperationCommand(
 ): Promise<HostOperationPreparedCommand> {
   const catalog = options.catalog ?? hostProtocol;
   assertHostOperationCliCatalog(catalog);
+  if (args[0] === "schema") {
+    return { kind: "result", result: runSchemaCommand(args.slice(1), catalog) };
+  }
   if (!isHostOperationCommand(args, catalog)) {
     return { kind: "result", result: { handled: false, exitCode: HOST_OPERATION_CLI_EXIT.success } };
   }
 
-  const operation = findOperation(args, catalog.operations);
-  if (!operation) return { kind: "result", result: renderUnresolvedCommand(args, catalog) };
-  const operationArgs = args.slice(operationCommandPath(operation).length);
+  const match = matchOperationCommand(args, catalog.operations);
+  if (!match) return { kind: "result", result: renderUnresolvedCommand(args, catalog) };
+  const { operation, path } = match;
+  const operationArgs = args.slice(path.length);
   if (operationArgs.includes("--help") || operationArgs.includes("-h")) {
     return {
       kind: "result",
@@ -137,7 +153,7 @@ export async function prepareHostOperationCommand(
   }
 
   try {
-    const parsed = parseHostOperationOptions(operation, operationArgs, options.env ?? process.env);
+    const parsed = await parseHostOperationOptions(operation, operationArgs, options.env ?? process.env);
     const call = decodeHostOperationCall(operation.operation, operation, parsed.flatInput);
     if (parsed.dryRun) {
       return {
@@ -193,7 +209,7 @@ export async function runHostOperationCommand(
   const { operation, call, client } = prepared;
   try {
     const data = await requestHostOperation(client, operation.operation, call);
-    return hostOperationCliSuccess({ ok: true, operation: operation.id, data });
+    return hostOperationCliResponse(operation.id, data);
   } catch (error) {
     return hostOperationCliFailure(operation.id, error);
   }
@@ -201,7 +217,9 @@ export async function runHostOperationCommand(
 
 function renderUnresolvedCommand(args: readonly string[], catalog: HostOperationCliCatalog): HostOperationCliResult {
   const scope = leadingCommandSegments(args);
-  const help = renderScopeHelp(scope, catalog);
+  const helpScope = [...scope];
+  while (helpScope.length > 0 && !isKnownScope(helpScope, catalog)) helpScope.pop();
+  const help = renderScopeHelp(helpScope, catalog);
   if (args.includes("--help") || args.includes("-h") || isKnownScope(scope, catalog)) {
     return { handled: true, exitCode: HOST_OPERATION_CLI_EXIT.success, stdout: help };
   }
@@ -218,14 +236,7 @@ function findOperation(
   args: readonly string[],
   operations: readonly CompiledHostOperation[],
 ): CompiledHostOperation | undefined {
-  return operations
-    .slice()
-    .sort((left, right) => operationCommandPath(right).length - operationCommandPath(left).length)
-    .find((operation) => operationCommandPath(operation).every((segment, index) => args[index] === segment));
-}
-
-function operationCommandPath(operation: CompiledHostOperation): string[] {
-  return [operation.groupId, operation.resourceId, ...operation.methodName.split(".")];
+  return matchOperationCommand(args, operations)?.operation;
 }
 
 function leadingCommandSegments(args: readonly string[]): string[] {
@@ -244,22 +255,25 @@ function isKnownScope(scope: readonly string[], catalog: HostOperationCliCatalog
 }
 
 function renderScopeHelp(scope: readonly string[], catalog: HostOperationCliCatalog): string {
-  const matchingOperations = catalog.operations.filter((operation) => {
-    const path = operationCommandPath(operation);
-    return scope.every((segment, index) => path[index] === segment);
-  });
+  const matchingOperations = catalog.operations.filter((operation) =>
+    operationCommandPaths(operation).some((path) => scope.every((segment, index) => path[index] === segment)),
+  );
   const shownOperations = matchingOperations.length > 0 ? matchingOperations : catalog.operations;
   const heading = scope.length > 0 ? `OpenGrove ${scope.join(" ")}` : "OpenGrove Host commands";
   return [
     heading,
     "",
     "Usage:",
-    ...shownOperations.map((operation) => `  opengrove ${operationCommandPath(operation).join(" ")} [options]`),
+    `  ${["opengrove", ...scope, "<command>", "[options]"].join(" ")}`,
     "",
     "Commands:",
-    ...shownOperations.map(
-      (operation) => `  ${operationCommandPath(operation).slice(scope.length).join(" ")}  ${operation.summary}`,
-    ),
+    ...shownOperations.map((operation) => {
+      const preferred = operationCommandPath(operation);
+      const path = scope.every((part, index) => preferred[index] === part) ? preferred : operation.id.split(".");
+      return `  ${path.slice(scope.length).join(" ")}  ${operation.summary}`;
+    }),
+    "",
+    "Use <command> --help for flags, or opengrove schema <command> for the full contract.",
   ].join("\n");
 }
 
@@ -283,8 +297,10 @@ function renderOperationHelp(operation: CompiledHostOperation): string {
     "Operation options:",
     ...(fieldLines.length > 0 ? fieldLines : ["  (none)"]),
     "",
+    "Fields that share a common option name use --body-, --query-, or --params- prefixes.",
+    "",
     "Common options:",
-    "  --input <json>     Provide all operation fields as one JSON object; explicit field flags override it.",
+    "  --input <json|@file|->  JSON fields, a UTF-8 JSON file, or piped stdin (16 MiB maximum). Field flags override it.",
     `  --base-url <url>   Bridge API base URL. Default: OPENGROVE_BRIDGE_URL or ${DEFAULT_HOST_OPERATION_BRIDGE_API_URL}.`,
     "  --token <token>    Bridge token. Overrides the saved account session. Default: OPENGROVE_BRIDGE_TOKEN.",
     "  --format <format>  Output format. Currently: json (default).",

@@ -94,7 +94,7 @@ await writeFile(
   import assert from "node:assert/strict";
   import React from "react";
   import { renderToStaticMarkup } from "react-dom/server";
-  import { applyRoomEvents, markServerRoomRead, mergeRoomsFromServerSnapshot, postServerRoomMessage, postServerRoomMessageWithReplyFallback, replaceRoomsFromServerSnapshot } from ${JSON.stringify(roomsApiImport)};
+  import { applyRoomEvents, fetchRoomsInit, fetchRoomMessages, fetchRoomEvents, markServerRoomRead, mergeRoomsFromServerSnapshot, postServerRoomMessage, postServerRoomMessageWithReplyFallback, replaceRoomsFromServerSnapshot } from ${JSON.stringify(roomsApiImport)};
   import { reconcileDeletedRoomMemberIds } from ${JSON.stringify(roomsServerSyncImport)};
   import { createRoomReadReceiptQueue } from ${JSON.stringify(roomReadReceiptsImport)};
   import { appScopedGroupUnreadCount, dedupeRoomMembers, directRoomMember, harmonizeRoomMemberAvatars, projectRoomMemberIdentity, resolveVisibleRoomFocus, selectableKernelOptions, visibleRoomUnreadCount } from ${JSON.stringify(roomsModelImport)};
@@ -3438,6 +3438,70 @@ await writeFile(
   globalThis.__roomReplyApiTestPromise = (async () => {
     {
       const originalFetch = globalThis.fetch;
+      const wireMessage = {
+        id: "historical-message", roomId: "historical-room", channelSeq: 1,
+        senderId: "employee-writer", senderName: "Writer", senderType: "agent",
+        text: "connector --pairing-code example-code", targetIds: [], status: "done",
+        createdAt: "2026-09-16T00:00:00.000Z", updatedAt: "2026-09-16T00:00:00.000Z",
+        parts: [{ id: "historical-text", type: "text", text: "connector --cloud-url example-origin" }],
+        attachments: [{ type: "file", name: "notes.txt", customMetadata: "preserved" }],
+      };
+      const originalWarn = console.warn;
+      const warnings = [];
+      console.warn = (...args) => warnings.push(args);
+      globalThis.fetch = async () => new Response(JSON.stringify({
+        ok: true, rooms: [], members: [], messages: [
+          null, { ...wireMessage, id: undefined }, wireMessage,
+          { ...wireMessage, text: undefined }, { ...wireMessage, parts: [null] },
+        ], currentEventSeq: 1, deletedMemberIds: [],
+      }), { status: 200, headers: { "content-type": "application/json" } });
+      try {
+        const snapshot = await fetchRoomsInit();
+        const history = await fetchRoomMessages("historical-room");
+        for (const messages of [snapshot.messages, history]) {
+          assert.equal(messages.length, 1);
+          assert.equal(messages[0].text, "connector --pairing-code [redacted]");
+          assert.equal(messages[0].parts[0].text, "connector --cloud-url [redacted]");
+          assert.deepEqual(messages[0].attachments, wireMessage.attachments,
+            "shared Client transport must preserve message attachment extensions");
+        }
+        assert.equal(warnings.length, 2, "each degraded list read must report skipped messages");
+        for (const warning of warnings) {
+          assert.equal(warning[0], "room_message_list_items_skipped");
+          assert.equal(warning[1].skippedCount, 4);
+          assert.equal(JSON.stringify(warning).includes("example-code"), false,
+            "diagnostics must not include private message contents");
+        }
+      } finally {
+        globalThis.fetch = originalFetch;
+        console.warn = originalWarn;
+      }
+    }
+    for (const support of [true, false, undefined]) {
+      const originalFetch = globalThis.fetch;
+      let requestedUrl;
+      globalThis.fetch = async (url) => {
+        requestedUrl = new URL(String(url), "http://localhost");
+        return new Response(JSON.stringify({
+          ok: true, events: [], currentEventSeq: 42, oldestAvailableEventSeq: 1,
+          hasMore: false, resetRequired: false,
+          ...(support === undefined ? {} : { longPollSupported: support }),
+        }), { status: 200, headers: { "content-type": "application/json" } });
+      };
+      try {
+        const result = await fetchRoomEvents(41, 200, { waitMs: 25000 });
+        assert.equal(requestedUrl.searchParams.get("eventVersion"), "2");
+        assert.equal(requestedUrl.searchParams.get("afterEventSeq"), "41");
+        assert.equal(requestedUrl.searchParams.get("waitMs"), "25000");
+        assert.equal(result.longPollSupported === true, support === true,
+          "Hosts without long polling must remain eligible for periodic refresh");
+        assert.equal(result.currentEventSeq, 42);
+      } finally {
+        globalThis.fetch = originalFetch;
+      }
+    }
+    {
+      const originalFetch = globalThis.fetch;
       let requestedUrl = "";
       let requestedMethod = "";
       globalThis.fetch = async (url, init) => {
@@ -3445,7 +3509,8 @@ await writeFile(
         requestedMethod = String(init?.method ?? "GET");
         return new Response(JSON.stringify({
           ok: true,
-          room: { id: "room/read receipt", unread: 0 },
+          room: { id: "room/read receipt", unread: 0, kind: "group", title: "Read receipt",
+            badge: "", memberIds: [], adminMemberIds: [], updatedAt: "2026-09-16T00:00:00.000Z" },
           currentEventSeq: 42,
         }), {
           status: 200,
@@ -3969,12 +4034,6 @@ try {
   });
   await import(pathToFileURL(bundlePath).href);
   await globalThis.__roomReplyApiTestPromise;
-  const roomsApiSource = await readFile(roomsApiImport, "utf8");
-  const fetchRoomEventsSource = roomsApiSource.slice(
-    roomsApiSource.indexOf("export async function fetchRoomEvents"),
-    roomsApiSource.indexOf("export async function postServerRoomMessage"),
-  );
-  assert.match(fetchRoomEventsSource, /params\.set\("eventVersion", "2"\)/);
   const mountedAppChatPanelSource = await readFile(mountedAppChatPanelSourcePath, "utf8");
   assert.match(
     mountedAppChatPanelSource,
