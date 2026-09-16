@@ -30,7 +30,7 @@ export function unpackAppStoreArchive(
     if (!archive.isFile()) throw new Error("app_store_archive_file_invalid");
     if (archive.size > MAX_APP_STORE_ARCHIVE_BYTES) throw new Error("app_store_archive_too_large");
     const targetEntry = lstatSync(target);
-    if (!targetEntry.isDirectory() || targetEntry.isSymbolicLink() || readdirSync(target).length) {
+    if (!targetEntry.isDirectory() || readdirSync(target).length) {
       throw new Error("app_store_archive_target_invalid");
     }
     if (archivePath.toLowerCase().endsWith(".zip")) {
@@ -40,13 +40,15 @@ export function unpackAppStoreArchive(
     }
     return { ok: true };
   } catch (error) {
-    const detail = error instanceof Error ? error.message : String(error);
-    const code = error instanceof Error && "code" in error ? String(error.code) : "";
+    const detail = error instanceof Error ? error.message : "";
+    const code = error instanceof Error && "code" in error && typeof error.code === "string" ? error.code : "";
+    // Library messages can include archive/output paths. Return stable codes only;
+    // this result is propagated to installation responses and problem records.
     return {
       ok: false,
-      error: detail.startsWith("app_store_archive_")
+      error: /^app_store_archive_[a-z_]+$/.test(detail)
         ? detail
-        : `app_store_archive_extract_failed: ${code ? `${code}: ` : ""}${detail}`,
+        : `app_store_archive_extract_failed${/^[A-Z][A-Z0-9_]{0,63}$/.test(code) ? `: ${code}` : ""}`,
     };
   }
 }
@@ -153,7 +155,7 @@ function archiveEntryValidator(): (path: string, directory: boolean, size: numbe
     if (!parts.length && !directory) throw new Error("app_store_archive_path_invalid");
     for (let i = 1; i <= parts.length; i++) {
       const relative = parts.slice(0, i).join("/");
-      const key = process.platform === "win32" ? relative.normalize("NFC").toLowerCase() : relative;
+      const key = process.platform !== "linux" ? relative.normalize("NFC").toLowerCase() : relative;
       const isDirectory = i < parts.length || directory;
       const previous = paths.get(key);
       if (previous !== undefined && (!previous || !isDirectory)) {
@@ -176,6 +178,11 @@ function validateTarEntry(entry: ReadEntry, validate: ReturnType<typeof archiveE
 }
 
 function unpackTarArchive(archivePath: string, target: string): void {
+  // Contract: reject malformed TAR metadata and truncated input before opening
+  // output files. This is a deliberate extra read/decompression pass: tar 7.5.22
+  // can leave an output fd open when strict extraction throws on truncated input.
+  // Removing the staging directory does not close that fd. The extraction filter
+  // below remains the path/type/size boundary; preflight does not replace it.
   const validate = archiveEntryValidator();
   const parser = list({ sync: true, strict: true, onReadEntry: (entry) => validateTarEntry(entry, validate) });
   parser.on("ignoredEntry", () => {

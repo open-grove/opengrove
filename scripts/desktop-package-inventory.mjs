@@ -11,6 +11,11 @@ export const requiredDesktopRuntimePackageFiles = [
   "node_modules/tar/dist/esm/index.min.js",
   "node_modules/tar/package.json",
   "node_modules/tar/LICENSE.md",
+  "node_modules/minipass/LICENSE.md",
+  "node_modules/minizlib/LICENSE",
+  "node_modules/tar/node_modules/chownr/LICENSE.md",
+  "node_modules/yallist/LICENSE.md",
+  "node_modules/@isaacs/fs-minipass/LICENSE",
   "node_modules/yaml/dist/doc/directives.js",
 ];
 

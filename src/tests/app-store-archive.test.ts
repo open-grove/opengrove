@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import childProcess from "node:child_process";
+import fs from "node:fs";
 import {
   existsSync,
   mkdtempSync,
@@ -209,12 +210,35 @@ for (const extension of ["tar", "zip"]) {
       assert.equal(statSync(join(target, "run.sh")).mode & 0o777, 0o755);
     });
   });
+  for (const [first, second] of [
+    ["A.txt", "a.txt"],
+    ["caf\u00e9.txt", "cafe\u0301.txt"],
+  ] as const) {
+    test(`App Store rejects ${extension} case/Unicode aliases ${first}/${second}`, {
+      skip: process.platform === "linux",
+    }, () => {
+      const entries = [
+        { path: first, body: "first" },
+        { path: second, body: "second" },
+      ];
+      archiveFixture(extension, extension === "tar" ? tarFixture(entries) : zipFixture(entries), (archive, target) => {
+        assert.deepEqual(unpackAppStoreArchive(archive, target), {
+          ok: false,
+          error: "app_store_archive_path_conflict",
+        });
+      });
+    });
+  }
   test(`App Store keeps missing-file errors for ${extension}`, () => {
     archiveFixture(extension, Buffer.alloc(0), (archive, target) => {
       rmSync(archive);
       const result = unpackAppStoreArchive(archive, target);
       assert.equal(result.ok, false);
-      if (!result.ok) assert.match(result.error, /ENOENT/);
+      if (!result.ok) {
+        assert.equal(result.error, "app_store_archive_extract_failed: ENOENT");
+        assert.equal(result.error.includes(archive), false);
+        assert.equal(result.error.includes(target), false);
+      }
     });
   });
   test(`App Store refuses a nonempty ${extension} extraction target`, () => {
@@ -331,8 +355,52 @@ for (const [extension, bytes] of [
     archiveFixture(extension, bytes, (archive, target) => {
       const result = unpackAppStoreArchive(archive, target);
       assert.equal(result.ok, false);
-      if (!result.ok) assert.match(result.error, /app_store_archive_extract_failed: .+/);
+      if (!result.ok) assert.match(result.error, /^app_store_archive_extract_failed(?:: [A-Z][A-Z0-9_]+)?$/);
       assert.deepEqual(readdirSync(target), []);
     });
   });
 }
+
+test("TAR preflight rejects truncated input without opening output files or leaking handles", (t) => {
+  const originalOpen = fs.openSync;
+  const originalClose = fs.closeSync;
+  const active = new Set<number>();
+  const opened: string[] = [];
+  const open = t.mock.method(fs, "openSync", (...args: Parameters<typeof fs.openSync>) => {
+    const fd = originalOpen(...args);
+    active.add(fd);
+    opened.push(String(args[0]));
+    return fd;
+  });
+  const close = t.mock.method(fs, "closeSync", (fd: number) => {
+    const result = originalClose(fd);
+    active.delete(fd);
+    return result;
+  });
+  syncBuiltinESMExports();
+  t.after(() => {
+    open.mock.restore();
+    close.mock.restore();
+    syncBuiltinESMExports();
+    for (const fd of active) originalClose(fd);
+  });
+  const corrupt = tarFixture([{ path: "truncated", body: "payload" }]).subarray(0, 515);
+  archiveFixture("tar", corrupt, (archive, target) => {
+    opened.length = 0;
+    assert.deepEqual(unpackAppStoreArchive(archive, target), {
+      ok: false,
+      error: "app_store_archive_extract_failed: TAR_BAD_ARCHIVE",
+    });
+    assert.equal(opened.includes(join(target, "truncated")), false);
+    assert.equal(active.size, 0);
+    assert.deepEqual(readdirSync(target), []);
+  });
+});
+
+test("App Store rejects compressed archives over 256 MiB before parsing", () => {
+  archiveFixture("tar", Buffer.alloc(0), (archive, target) => {
+    fs.truncateSync(archive, 256 * 1024 * 1024 + 1);
+    assert.deepEqual(unpackAppStoreArchive(archive, target), { ok: false, error: "app_store_archive_too_large" });
+    assert.deepEqual(readdirSync(target), []);
+  });
+});
