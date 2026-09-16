@@ -27,6 +27,12 @@ import type {
   AppUpdateScheduleData,
   AppUpdateScheduleErrors,
   AppUpdateScheduleResponses,
+  ArtifactArtifactCreateData,
+  ArtifactArtifactCreateErrors,
+  ArtifactArtifactCreateResponses,
+  ArtifactArtifactGetData,
+  ArtifactArtifactGetErrors,
+  ArtifactArtifactGetResponses,
   AuthEmailCodeCreateData,
   AuthEmailCodeCreateErrors,
   AuthEmailCodeCreateResponses,
@@ -39,6 +45,42 @@ import type {
   AuthSessionGetData,
   AuthSessionGetErrors,
   AuthSessionGetResponses,
+  EmployeeEmployeeRestoreDefaultsData,
+  EmployeeEmployeeRestoreDefaultsErrors,
+  EmployeeEmployeeRestoreDefaultsResponses,
+  EmployeeEmployeeUpdateData,
+  EmployeeEmployeeUpdateErrors,
+  EmployeeEmployeeUpdateResponses,
+  EmployeeEmployeeUpsertData,
+  EmployeeEmployeeUpsertErrors,
+  EmployeeEmployeeUpsertResponses,
+  HostHostBootstrapData,
+  HostHostBootstrapErrors,
+  HostHostBootstrapResponses,
+  InteractionApprovalApproveData,
+  InteractionApprovalApproveErrors,
+  InteractionApprovalApproveResponses,
+  InteractionApprovalCancelData,
+  InteractionApprovalCancelErrors,
+  InteractionApprovalCancelResponses,
+  InteractionApprovalListData,
+  InteractionApprovalListErrors,
+  InteractionApprovalListResponses,
+  InteractionApprovalRejectData,
+  InteractionApprovalRejectErrors,
+  InteractionApprovalRejectResponses,
+  InteractionQuestionAnswerData,
+  InteractionQuestionAnswerErrors,
+  InteractionQuestionAnswerResponses,
+  InteractionQuestionCancelData,
+  InteractionQuestionCancelErrors,
+  InteractionQuestionCancelResponses,
+  InteractionQuestionDeclineData,
+  InteractionQuestionDeclineErrors,
+  InteractionQuestionDeclineResponses,
+  InteractionQuestionListData,
+  InteractionQuestionListErrors,
+  InteractionQuestionListResponses,
   NetworkAccountConnectData,
   NetworkAccountConnectErrors,
   NetworkAccountConnectResponses,
@@ -47,9 +89,72 @@ import type {
   NetworkContactAddData,
   NetworkContactAddErrors,
   NetworkContactAddResponses,
+  RoomDirectOpenData,
+  RoomDirectOpenErrors,
+  RoomDirectOpenResponses,
+  RoomEventListData,
+  RoomEventListErrors,
+  RoomEventListResponses,
+  RoomMemberAddData,
+  RoomMemberAddErrors,
+  RoomMemberAddResponses,
+  RoomMemberJoinData,
+  RoomMemberJoinErrors,
+  RoomMemberJoinResponses,
+  RoomMemberRemoveData,
+  RoomMemberRemoveErrors,
+  RoomMemberRemoveResponses,
+  RoomMessageCancelData,
+  RoomMessageCancelErrors,
+  RoomMessageCancelResponses,
   RoomMessageCreateData,
   RoomMessageCreateErrors,
   RoomMessageCreateResponses,
+  RoomMessageDeleteData,
+  RoomMessageDeleteErrors,
+  RoomMessageDeleteResponses,
+  RoomMessageListData,
+  RoomMessageListErrors,
+  RoomMessageListResponses,
+  RoomMessageRecordData,
+  RoomMessageRecordErrors,
+  RoomMessageRecordResponses,
+  RoomMessageUpdateData,
+  RoomMessageUpdateErrors,
+  RoomMessageUpdateResponses,
+  RoomRoomCreateData,
+  RoomRoomCreateErrors,
+  RoomRoomCreateResponses,
+  RoomRoomListData,
+  RoomRoomListErrors,
+  RoomRoomListResponses,
+  RoomRoomReadData,
+  RoomRoomReadErrors,
+  RoomRoomReadResponses,
+  RoomRoomUpdateData,
+  RoomRoomUpdateErrors,
+  RoomRoomUpdateResponses,
+  RunDirectCancelData,
+  RunDirectCancelErrors,
+  RunDirectCancelResponses,
+  RunDirectCompactData,
+  RunDirectCompactErrors,
+  RunDirectCompactResponses,
+  RunDirectGuideData,
+  RunDirectGuideErrors,
+  RunDirectGuideResponses,
+  RunEventListData,
+  RunEventListErrors,
+  RunEventListResponses,
+  RunExecutionListData,
+  RunExecutionListErrors,
+  RunExecutionListResponses,
+  RunRunListData,
+  RunRunListErrors,
+  RunRunListResponses,
+  RunSessionListData,
+  RunSessionListErrors,
+  RunSessionListResponses,
 } from "./types.gen.js";
 
 export type Options<
@@ -98,6 +203,399 @@ class HeyApiRegistry<T> {
   }
 }
 
+export class Host extends HeyApiClient {
+  /**
+   * Read Host startup configuration
+   *
+   * Discover the Host identity, runtime environment, authentication requirements, and MCP App sandbox origin.
+   */
+  public bootstrap<ThrowOnError extends boolean = false>(
+    options?: Options<HostHostBootstrapData, ThrowOnError>,
+  ): RequestResult<HostHostBootstrapResponses, HostHostBootstrapErrors, ThrowOnError> {
+    return (options?.client ?? this.client).get<HostHostBootstrapResponses, HostHostBootstrapErrors, ThrowOnError>({
+      url: "/bootstrap",
+      ...options,
+    });
+  }
+}
+
+export class Host2 extends HeyApiClient {
+  private _host?: Host;
+  get host(): Host {
+    return (this._host ??= new Host({ client: this.client }));
+  }
+}
+
+export class Event_ extends HeyApiClient {
+  /**
+   * Read execution events
+   *
+   * Read a bounded event page, older history, or changes after a cursor. Repeat run-id to filter runs. Long polling waits up to 25 seconds. Cursor and before-cursor are mutually exclusive.
+   */
+  public list<ThrowOnError extends boolean = false>(
+    options?: Options<RunEventListData, ThrowOnError>,
+  ): RequestResult<RunEventListResponses, RunEventListErrors, ThrowOnError> {
+    return (options?.client ?? this.client).get<RunEventListResponses, RunEventListErrors, ThrowOnError>({
+      url: "/events",
+      ...options,
+    });
+  }
+}
+
+export class Run extends HeyApiClient {
+  /**
+   * List recorded runs
+   *
+   * List persisted runs by session and task state. Pass the previous revision to receive unchanged=true when the query result is current.
+   */
+  public list<ThrowOnError extends boolean = false>(
+    options?: Options<RunRunListData, ThrowOnError>,
+  ): RequestResult<RunRunListResponses, RunRunListErrors, ThrowOnError> {
+    return (options?.client ?? this.client).get<RunRunListResponses, RunRunListErrors, ThrowOnError>({
+      url: "/runs",
+      ...options,
+    });
+  }
+}
+
+export class Session extends HeyApiClient {
+  /**
+   * List recorded sessions
+   *
+   * List persisted Host sessions, optionally filtered by activity and status.
+   */
+  public list<ThrowOnError extends boolean = false>(
+    options?: Options<RunSessionListData, ThrowOnError>,
+  ): RequestResult<RunSessionListResponses, RunSessionListErrors, ThrowOnError> {
+    return (options?.client ?? this.client).get<RunSessionListResponses, RunSessionListErrors, ThrowOnError>({
+      url: "/sessions",
+      ...options,
+    });
+  }
+}
+
+export class Execution extends HeyApiClient {
+  /**
+   * List execution steps
+   *
+   * List recorded execution steps by session, run, or step kind. A matching revision returns unchanged=true.
+   */
+  public list<ThrowOnError extends boolean = false>(
+    options?: Options<RunExecutionListData, ThrowOnError>,
+  ): RequestResult<RunExecutionListResponses, RunExecutionListErrors, ThrowOnError> {
+    return (options?.client ?? this.client).get<RunExecutionListResponses, RunExecutionListErrors, ThrowOnError>({
+      url: "/executions",
+      ...options,
+    });
+  }
+}
+
+export class Direct extends HeyApiClient {
+  /**
+   * Cancel a direct run
+   *
+   * Cancel an active direct streaming run by run ID or thread ID. A missing or completed run returns cancelled=false. Room message runs use room message cancel.
+   */
+  public cancel<ThrowOnError extends boolean = false>(
+    options: Options<RunDirectCancelData, ThrowOnError>,
+  ): RequestResult<RunDirectCancelResponses, RunDirectCancelErrors, ThrowOnError> {
+    return (options.client ?? this.client).post<RunDirectCancelResponses, RunDirectCancelErrors, ThrowOnError>({
+      url: "/ask/cancel",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Guide an active direct run
+   *
+   * Send an instruction to an active direct streaming run. The selected Kernel determines whether steering is supported.
+   */
+  public guide<ThrowOnError extends boolean = false>(
+    options: Options<RunDirectGuideData, ThrowOnError>,
+  ): RequestResult<RunDirectGuideResponses, RunDirectGuideErrors, ThrowOnError> {
+    return (options.client ?? this.client).post<RunDirectGuideResponses, RunDirectGuideErrors, ThrowOnError>({
+      url: "/ask/guide",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Compact a direct session
+   *
+   * Ask the session's Kernel to compact its context. Kernel support and its confirmed result remain authoritative.
+   */
+  public compact<ThrowOnError extends boolean = false>(
+    options: Options<RunDirectCompactData, ThrowOnError>,
+  ): RequestResult<RunDirectCompactResponses, RunDirectCompactErrors, ThrowOnError> {
+    return (options.client ?? this.client).post<RunDirectCompactResponses, RunDirectCompactErrors, ThrowOnError>({
+      url: "/ask/compact",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+}
+
+export class Run2 extends HeyApiClient {
+  private _event?: Event_;
+  get event(): Event_ {
+    return (this._event ??= new Event_({ client: this.client }));
+  }
+
+  private _run?: Run;
+  get run(): Run {
+    return (this._run ??= new Run({ client: this.client }));
+  }
+
+  private _session?: Session;
+  get session(): Session {
+    return (this._session ??= new Session({ client: this.client }));
+  }
+
+  private _execution?: Execution;
+  get execution(): Execution {
+    return (this._execution ??= new Execution({ client: this.client }));
+  }
+
+  private _direct?: Direct;
+  get direct(): Direct {
+    return (this._direct ??= new Direct({ client: this.client }));
+  }
+}
+
+export class Approval extends HeyApiClient {
+  /**
+   * List approvals
+   *
+   * List Host approval summaries, newest first. Includes bounded request input and decision response; continuation internals are omitted.
+   */
+  public list<ThrowOnError extends boolean = false>(
+    options?: Options<InteractionApprovalListData, ThrowOnError>,
+  ): RequestResult<InteractionApprovalListResponses, InteractionApprovalListErrors, ThrowOnError> {
+    return (options?.client ?? this.client).get<
+      InteractionApprovalListResponses,
+      InteractionApprovalListErrors,
+      ThrowOnError
+    >({ url: "/approvals", ...options });
+  }
+
+  /**
+   * Approve a requested action
+   *
+   * Resolve an approval through its original Host execution. Matching repeated decisions are idempotent. Native requests require their producer to remain live.
+   */
+  public approve<ThrowOnError extends boolean = false>(
+    options: Options<InteractionApprovalApproveData, ThrowOnError>,
+  ): RequestResult<InteractionApprovalApproveResponses, InteractionApprovalApproveErrors, ThrowOnError> {
+    return (options.client ?? this.client).post<
+      InteractionApprovalApproveResponses,
+      InteractionApprovalApproveErrors,
+      ThrowOnError
+    >({
+      url: "/approvals/{approvalId}/approve",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Reject a requested action
+   *
+   * Resolve an approval through its original Host execution. Matching repeated decisions are idempotent. Native requests require their producer to remain live.
+   */
+  public reject<ThrowOnError extends boolean = false>(
+    options: Options<InteractionApprovalRejectData, ThrowOnError>,
+  ): RequestResult<InteractionApprovalRejectResponses, InteractionApprovalRejectErrors, ThrowOnError> {
+    return (options.client ?? this.client).post<
+      InteractionApprovalRejectResponses,
+      InteractionApprovalRejectErrors,
+      ThrowOnError
+    >({
+      url: "/approvals/{approvalId}/reject",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Cancel an approval request
+   *
+   * Resolve an approval through its original Host execution. Matching repeated decisions are idempotent. Native requests require their producer to remain live.
+   */
+  public cancel<ThrowOnError extends boolean = false>(
+    options: Options<InteractionApprovalCancelData, ThrowOnError>,
+  ): RequestResult<InteractionApprovalCancelResponses, InteractionApprovalCancelErrors, ThrowOnError> {
+    return (options.client ?? this.client).post<
+      InteractionApprovalCancelResponses,
+      InteractionApprovalCancelErrors,
+      ThrowOnError
+    >({
+      url: "/approvals/{approvalId}/cancel",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+}
+
+export class Question extends HeyApiClient {
+  /**
+   * List questions
+   *
+   * List Host question summaries, newest first. Includes bounded choices and answers; continuation internals are omitted.
+   */
+  public list<ThrowOnError extends boolean = false>(
+    options?: Options<InteractionQuestionListData, ThrowOnError>,
+  ): RequestResult<InteractionQuestionListResponses, InteractionQuestionListErrors, ThrowOnError> {
+    return (options?.client ?? this.client).get<
+      InteractionQuestionListResponses,
+      InteractionQuestionListErrors,
+      ThrowOnError
+    >({ url: "/questions", ...options });
+  }
+
+  /**
+   * Answer a question
+   *
+   * Resolve a question through its original Host execution. Matching repeated decisions are idempotent. Native requests require their producer to remain live.
+   */
+  public answer<ThrowOnError extends boolean = false>(
+    options: Options<InteractionQuestionAnswerData, ThrowOnError>,
+  ): RequestResult<InteractionQuestionAnswerResponses, InteractionQuestionAnswerErrors, ThrowOnError> {
+    return (options.client ?? this.client).post<
+      InteractionQuestionAnswerResponses,
+      InteractionQuestionAnswerErrors,
+      ThrowOnError
+    >({
+      url: "/questions/{questionId}/answer",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Decline a question
+   *
+   * Resolve a question through its original Host execution. Matching repeated decisions are idempotent. Native requests require their producer to remain live.
+   */
+  public decline<ThrowOnError extends boolean = false>(
+    options: Options<InteractionQuestionDeclineData, ThrowOnError>,
+  ): RequestResult<InteractionQuestionDeclineResponses, InteractionQuestionDeclineErrors, ThrowOnError> {
+    return (options.client ?? this.client).post<
+      InteractionQuestionDeclineResponses,
+      InteractionQuestionDeclineErrors,
+      ThrowOnError
+    >({
+      url: "/questions/{questionId}/decline",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Cancel a question
+   *
+   * Resolve a question through its original Host execution. Matching repeated decisions are idempotent. Native requests require their producer to remain live.
+   */
+  public cancel<ThrowOnError extends boolean = false>(
+    options: Options<InteractionQuestionCancelData, ThrowOnError>,
+  ): RequestResult<InteractionQuestionCancelResponses, InteractionQuestionCancelErrors, ThrowOnError> {
+    return (options.client ?? this.client).post<
+      InteractionQuestionCancelResponses,
+      InteractionQuestionCancelErrors,
+      ThrowOnError
+    >({
+      url: "/questions/{questionId}/cancel",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+}
+
+export class Interaction extends HeyApiClient {
+  private _approval?: Approval;
+  get approval(): Approval {
+    return (this._approval ??= new Approval({ client: this.client }));
+  }
+
+  private _question?: Question;
+  get question(): Question {
+    return (this._question ??= new Question({ client: this.client }));
+  }
+}
+
+export class Artifact extends HeyApiClient {
+  /**
+   * Create an artifact
+   *
+   * Save a typed artifact with structured data, sources, and media metadata. An explicit existing ID replaces that artifact. The response contains bounded summaries; use artifact get for the full data.
+   */
+  public create<ThrowOnError extends boolean = false>(
+    options: Options<ArtifactArtifactCreateData, ThrowOnError>,
+  ): RequestResult<ArtifactArtifactCreateResponses, ArtifactArtifactCreateErrors, ThrowOnError> {
+    return (options.client ?? this.client).post<
+      ArtifactArtifactCreateResponses,
+      ArtifactArtifactCreateErrors,
+      ThrowOnError
+    >({
+      url: "/artifacts",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Read an artifact
+   *
+   * Read the complete artifact record, including structured data, media references, provenance, and lineage.
+   */
+  public get<ThrowOnError extends boolean = false>(
+    options: Options<ArtifactArtifactGetData, ThrowOnError>,
+  ): RequestResult<ArtifactArtifactGetResponses, ArtifactArtifactGetErrors, ThrowOnError> {
+    return (options.client ?? this.client).get<ArtifactArtifactGetResponses, ArtifactArtifactGetErrors, ThrowOnError>({
+      url: "/artifacts/{artifactId}",
+      ...options,
+    });
+  }
+}
+
+export class Artifact2 extends HeyApiClient {
+  private _artifact?: Artifact;
+  get artifact(): Artifact {
+    return (this._artifact ??= new Artifact({ client: this.client }));
+  }
+}
+
 export class EmailCode extends HeyApiClient {
   /**
    * Send an account login code
@@ -118,7 +616,7 @@ export class EmailCode extends HeyApiClient {
   }
 }
 
-export class Session extends HeyApiClient {
+export class Session2 extends HeyApiClient {
   /**
    * Create an account session
    *
@@ -172,9 +670,9 @@ export class Auth extends HeyApiClient {
     return (this._emailCode ??= new EmailCode({ client: this.client }));
   }
 
-  private _session?: Session;
-  get session(): Session {
-    return (this._session ??= new Session({ client: this.client }));
+  private _session?: Session2;
+  get session(): Session2 {
+    return (this._session ??= new Session2({ client: this.client }));
   }
 }
 
@@ -314,7 +812,91 @@ export class App extends HeyApiClient {
   }
 }
 
+export class Room extends HeyApiClient {
+  /**
+   * List Rooms and Employees
+   *
+   * Read the Room snapshot, including Employees, recent messages, and the event cursor for subsequent changes.
+   */
+  public list<ThrowOnError extends boolean = false>(
+    options?: Options<RoomRoomListData, ThrowOnError>,
+  ): RequestResult<RoomRoomListResponses, RoomRoomListErrors, ThrowOnError> {
+    return (options?.client ?? this.client).get<RoomRoomListResponses, RoomRoomListErrors, ThrowOnError>({
+      url: "/rooms",
+      ...options,
+    });
+  }
+
+  /**
+   * Create a Room
+   *
+   * Create a group Room, optionally scoped to an installed App. App-scoped rooms retain their authoritative employee roster.
+   */
+  public create<ThrowOnError extends boolean = false>(
+    options: Options<RoomRoomCreateData, ThrowOnError>,
+  ): RequestResult<RoomRoomCreateResponses, RoomRoomCreateErrors, ThrowOnError> {
+    return (options.client ?? this.client).post<RoomRoomCreateResponses, RoomRoomCreateErrors, ThrowOnError>({
+      url: "/rooms",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Update a Room
+   *
+   * Rename, pin, archive, or update the administrators of a Room. Rooms with active runs cannot be archived.
+   */
+  public update<ThrowOnError extends boolean = false>(
+    options: Options<RoomRoomUpdateData, ThrowOnError>,
+  ): RequestResult<RoomRoomUpdateResponses, RoomRoomUpdateErrors, ThrowOnError> {
+    return (options.client ?? this.client).patch<RoomRoomUpdateResponses, RoomRoomUpdateErrors, ThrowOnError>({
+      url: "/rooms/{roomId}",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Mark a Room as read
+   *
+   * Advance a Room's read cursor to an event sequence observed by this client. A cursor ahead of the Host is rejected.
+   */
+  public read<ThrowOnError extends boolean = false>(
+    options: Options<RoomRoomReadData, ThrowOnError>,
+  ): RequestResult<RoomRoomReadResponses, RoomRoomReadErrors, ThrowOnError> {
+    return (options.client ?? this.client).post<RoomRoomReadResponses, RoomRoomReadErrors, ThrowOnError>({
+      url: "/rooms/{roomId}/read",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+}
+
 export class Message extends HeyApiClient {
+  /**
+   * List Room messages
+   *
+   * Read visible Room messages with bounded pagination by channel sequence. Internal delegation messages remain private.
+   */
+  public list<ThrowOnError extends boolean = false>(
+    options: Options<RoomMessageListData, ThrowOnError>,
+  ): RequestResult<RoomMessageListResponses, RoomMessageListErrors, ThrowOnError> {
+    return (options.client ?? this.client).get<RoomMessageListResponses, RoomMessageListErrors, ThrowOnError>({
+      url: "/rooms/{roomId}/messages",
+      ...options,
+    });
+  }
+
   /**
    * Send a Room message
    *
@@ -332,12 +914,248 @@ export class Message extends HeyApiClient {
       },
     });
   }
+
+  /**
+   * Record an Employee message
+   *
+   * Record a completed Employee message in a Room without starting a model run.
+   */
+  public record<ThrowOnError extends boolean = false>(
+    options: Options<RoomMessageRecordData, ThrowOnError>,
+  ): RequestResult<RoomMessageRecordResponses, RoomMessageRecordErrors, ThrowOnError> {
+    return (options.client ?? this.client).post<RoomMessageRecordResponses, RoomMessageRecordErrors, ThrowOnError>({
+      url: "/rooms/{roomId}/agent-messages",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Cancel a Room message run
+   *
+   * Stop the Employee run associated with a message. Completed messages retain their terminal state and return cancelled=false.
+   */
+  public cancel<ThrowOnError extends boolean = false>(
+    options: Options<RoomMessageCancelData, ThrowOnError>,
+  ): RequestResult<RoomMessageCancelResponses, RoomMessageCancelErrors, ThrowOnError> {
+    return (options.client ?? this.client).post<RoomMessageCancelResponses, RoomMessageCancelErrors, ThrowOnError>({
+      url: "/rooms/{roomId}/messages/{messageId}/cancel",
+      ...options,
+    });
+  }
+
+  /**
+   * Delete a Room message
+   *
+   * Delete one message from the Room ledger. Running Employee messages must be canceled first. Repeating a deletion is safe.
+   */
+  public delete<ThrowOnError extends boolean = false>(
+    options: Options<RoomMessageDeleteData, ThrowOnError>,
+  ): RequestResult<RoomMessageDeleteResponses, RoomMessageDeleteErrors, ThrowOnError> {
+    return (options.client ?? this.client).delete<RoomMessageDeleteResponses, RoomMessageDeleteErrors, ThrowOnError>({
+      url: "/rooms/{roomId}/messages/{messageId}",
+      ...options,
+    });
+  }
+
+  /**
+   * Update a Room message
+   *
+   * Edit message text or persisted run presentation. Omitted fields are unchanged; null clears optional run metadata.
+   */
+  public update<ThrowOnError extends boolean = false>(
+    options: Options<RoomMessageUpdateData, ThrowOnError>,
+  ): RequestResult<RoomMessageUpdateResponses, RoomMessageUpdateErrors, ThrowOnError> {
+    return (options.client ?? this.client).patch<RoomMessageUpdateResponses, RoomMessageUpdateErrors, ThrowOnError>({
+      url: "/rooms/{roomId}/messages/{messageId}",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
 }
 
-export class Room extends HeyApiClient {
+export class Event2 extends HeyApiClient {
+  /**
+   * Read or wait for Room events
+   *
+   * Read changes after a global event cursor. Long-poll for up to 25 seconds when caught up; resetRequired means a fresh Room snapshot is needed.
+   */
+  public list<ThrowOnError extends boolean = false>(
+    options?: Options<RoomEventListData, ThrowOnError>,
+  ): RequestResult<RoomEventListResponses, RoomEventListErrors, ThrowOnError> {
+    return (options?.client ?? this.client).get<RoomEventListResponses, RoomEventListErrors, ThrowOnError>({
+      url: "/rooms/events",
+      ...options,
+    });
+  }
+}
+
+export class Direct2 extends HeyApiClient {
+  /**
+   * Open an Employee conversation
+   *
+   * Open or resume a direct Room with an Employee, optionally within an installed App. Supply member metadata to restore a missing local Employee.
+   */
+  public open<ThrowOnError extends boolean = false>(
+    options: Options<RoomDirectOpenData, ThrowOnError>,
+  ): RequestResult<RoomDirectOpenResponses, RoomDirectOpenErrors, ThrowOnError> {
+    return (options.client ?? this.client).post<RoomDirectOpenResponses, RoomDirectOpenErrors, ThrowOnError>({
+      url: "/rooms/dm",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+}
+
+export class Member extends HeyApiClient {
+  /**
+   * Add an Employee to a Room
+   *
+   * Create or replace Employee metadata and add the Employee to a Room. Omitted fields use defaults. Use room.member.join to keep existing configuration. App scope restrictions still apply.
+   */
+  public add<ThrowOnError extends boolean = false>(
+    options: Options<RoomMemberAddData, ThrowOnError>,
+  ): RequestResult<RoomMemberAddResponses, RoomMemberAddErrors, ThrowOnError> {
+    return (options.client ?? this.client).post<RoomMemberAddResponses, RoomMemberAddErrors, ThrowOnError>({
+      url: "/rooms/{roomId}/members",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Remove a Room member
+   *
+   * Remove a member from this Room without deleting the Employee or message history.
+   */
+  public remove<ThrowOnError extends boolean = false>(
+    options: Options<RoomMemberRemoveData, ThrowOnError>,
+  ): RequestResult<RoomMemberRemoveResponses, RoomMemberRemoveErrors, ThrowOnError> {
+    return (options.client ?? this.client).delete<RoomMemberRemoveResponses, RoomMemberRemoveErrors, ThrowOnError>({
+      url: "/rooms/{roomId}/members/{memberId}",
+      ...options,
+    });
+  }
+
+  /**
+   * Join an existing Employee to a Room
+   *
+   * Add an existing Employee to a Room without changing Employee configuration. App scope restrictions still apply. Use employee update to change configuration.
+   */
+  public join<ThrowOnError extends boolean = false>(
+    options: Options<RoomMemberJoinData, ThrowOnError>,
+  ): RequestResult<RoomMemberJoinResponses, RoomMemberJoinErrors, ThrowOnError> {
+    return (options.client ?? this.client).post<RoomMemberJoinResponses, RoomMemberJoinErrors, ThrowOnError>({
+      url: "/rooms/{roomId}/members/{memberId}",
+      ...options,
+    });
+  }
+}
+
+export class Room2 extends HeyApiClient {
+  private _room?: Room;
+  get room(): Room {
+    return (this._room ??= new Room({ client: this.client }));
+  }
+
   private _message?: Message;
   get message(): Message {
     return (this._message ??= new Message({ client: this.client }));
+  }
+
+  private _event?: Event2;
+  get event(): Event2 {
+    return (this._event ??= new Event2({ client: this.client }));
+  }
+
+  private _direct?: Direct2;
+  get direct(): Direct2 {
+    return (this._direct ??= new Direct2({ client: this.client }));
+  }
+
+  private _member?: Member;
+  get member(): Member {
+    return (this._member ??= new Member({ client: this.client }));
+  }
+}
+
+export class Employee extends HeyApiClient {
+  /**
+   * Create or replace an Employee
+   *
+   * Create or replace local Employee metadata. Existing remote bindings and server-owned App defaults are preserved.
+   */
+  public upsert<ThrowOnError extends boolean = false>(
+    options: Options<EmployeeEmployeeUpsertData, ThrowOnError>,
+  ): RequestResult<EmployeeEmployeeUpsertResponses, EmployeeEmployeeUpsertErrors, ThrowOnError> {
+    return (options.client ?? this.client).post<
+      EmployeeEmployeeUpsertResponses,
+      EmployeeEmployeeUpsertErrors,
+      ThrowOnError
+    >({
+      url: "/rooms/members",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Update Employee preferences
+   *
+   * Change selected Employee fields. Explicit null clears a preference; App-managed defaults and remote Employee restrictions remain authoritative.
+   */
+  public update<ThrowOnError extends boolean = false>(
+    options: Options<EmployeeEmployeeUpdateData, ThrowOnError>,
+  ): RequestResult<EmployeeEmployeeUpdateResponses, EmployeeEmployeeUpdateErrors, ThrowOnError> {
+    return (options.client ?? this.client).patch<
+      EmployeeEmployeeUpdateResponses,
+      EmployeeEmployeeUpdateErrors,
+      ThrowOnError
+    >({
+      url: "/rooms/members/{memberId}",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Restore App Employee defaults
+   *
+   * Restore App-owned Employee fields from the installed App's defaults while preserving the user's Provider choice and App instructions.
+   */
+  public restoreDefaults<ThrowOnError extends boolean = false>(
+    options: Options<EmployeeEmployeeRestoreDefaultsData, ThrowOnError>,
+  ): RequestResult<EmployeeEmployeeRestoreDefaultsResponses, EmployeeEmployeeRestoreDefaultsErrors, ThrowOnError> {
+    return (options.client ?? this.client).post<
+      EmployeeEmployeeRestoreDefaultsResponses,
+      EmployeeEmployeeRestoreDefaultsErrors,
+      ThrowOnError
+    >({ url: "/rooms/members/{memberId}/restore-app-defaults", ...options });
+  }
+}
+
+export class Employee2 extends HeyApiClient {
+  private _employee?: Employee;
+  get employee(): Employee {
+    return (this._employee ??= new Employee({ client: this.client }));
   }
 }
 
@@ -422,6 +1240,26 @@ export class OpenGroveApi extends HeyApiClient {
     OpenGroveApi.__registry.set(this, args?.key);
   }
 
+  private _host?: Host2;
+  get host(): Host2 {
+    return (this._host ??= new Host2({ client: this.client }));
+  }
+
+  private _run?: Run2;
+  get run(): Run2 {
+    return (this._run ??= new Run2({ client: this.client }));
+  }
+
+  private _interaction?: Interaction;
+  get interaction(): Interaction {
+    return (this._interaction ??= new Interaction({ client: this.client }));
+  }
+
+  private _artifact?: Artifact2;
+  get artifact(): Artifact2 {
+    return (this._artifact ??= new Artifact2({ client: this.client }));
+  }
+
   private _auth?: Auth;
   get auth(): Auth {
     return (this._auth ??= new Auth({ client: this.client }));
@@ -432,9 +1270,14 @@ export class OpenGroveApi extends HeyApiClient {
     return (this._app ??= new App({ client: this.client }));
   }
 
-  private _room?: Room;
-  get room(): Room {
-    return (this._room ??= new Room({ client: this.client }));
+  private _room?: Room2;
+  get room(): Room2 {
+    return (this._room ??= new Room2({ client: this.client }));
+  }
+
+  private _employee?: Employee2;
+  get employee(): Employee2 {
+    return (this._employee ??= new Employee2({ client: this.client }));
   }
 
   private _network?: Network;

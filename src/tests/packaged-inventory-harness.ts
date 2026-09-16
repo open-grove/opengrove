@@ -147,12 +147,14 @@ try {
   const eventsUrl = `http://127.0.0.1:${address.port}/api/events`;
   const eventSnapshot = (await (await fetch(`${eventsUrl}?limit=200`)).json()) as EventsResponse;
   assert.equal(eventSnapshot.longPollSupported, true);
-  const longPollStartedAt = Date.now();
+  const longPollStartedAt = performance.now();
   const longPollPromise = fetch(
     `${eventsUrl}?limit=200&cursor=${encodeURIComponent(eventSnapshot.cursor)}&waitMs=2000`,
   ).then(async (eventResponse) => {
     assert.equal(eventResponse.status, 200);
-    return (await eventResponse.json()) as EventsResponse;
+    const delta = (await eventResponse.json()) as EventsResponse;
+    // Measure delivery here: the independent trigger request may finish later.
+    return { delta, elapsedMs: performance.now() - longPollStartedAt };
   });
   await delay(75);
   const computerStateResponse = await fetch(`http://127.0.0.1:${address.port}/api/computer-state`, {
@@ -164,8 +166,7 @@ try {
     }),
   });
   assert.equal(computerStateResponse.status, 200);
-  const eventDelta = await longPollPromise;
-  const longPollElapsedMs = Date.now() - longPollStartedAt;
+  const { delta: eventDelta, elapsedMs: longPollElapsedMs } = await longPollPromise;
   assert.equal(eventDelta.ok, true);
   assert.equal(eventDelta.longPollSupported, true);
   assert.equal(eventDelta.resetRequired, false);

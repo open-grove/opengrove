@@ -39,6 +39,17 @@ export function hostOperationCliSuccess(payload: Readonly<Record<string, unknown
   };
 }
 
+/** Convert a valid Host response into the CLI process result, including business failures. */
+export function hostOperationCliResponse(operation: string, data: unknown): HostOperationCliResult {
+  if (data && typeof data === "object" && "ok" in data && data.ok === false) {
+    const message =
+      "error" in data && typeof data.error === "string" ? data.error : `Operation ${operation} did not succeed.`;
+    const code = "code" in data && typeof data.code === "string" ? data.code : "operation_failed";
+    return hostOperationCliError(HOST_OPERATION_CLI_EXIT.api, "api", code, message, { operation, data });
+  }
+  return hostOperationCliSuccess({ ok: true, operation, data });
+}
+
 export function hostOperationCliError(
   exitCode: number,
   type: HostOperationCliErrorType,

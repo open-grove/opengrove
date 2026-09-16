@@ -2,8 +2,8 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { packageRoot } from "./package-root.js";
-import { runAppBuilderCli } from "./app-builder/cli.js";
-import { runEmployeeCli } from "./app-builder/employee-cli.js";
+import { runAppBuilderCli, APP_BUILDER_COMMAND_HELP } from "./app-builder/cli.js";
+import { runEmployeeCli, EMPLOYEE_COMMAND_HELP } from "./app-builder/employee-cli.js";
 import { isAppReleasePublishCommand, runAppReleasePublishCommand } from "./cli/app-release-command.js";
 import { isAuthWorkflowCommand, runAuthCommand } from "./cli/auth-command.js";
 import { createCliOpenGroveClient } from "./cli/client.js";
@@ -29,6 +29,7 @@ Usage:
   opengrove app <inspect|validate|scaffold> ...
   opengrove employee pack <memberId> [--output FILE]
   opengrove auth <login|status|logout> ...
+  opengrove schema [group.resource.method]
   opengrove room message create [options]
   opengrove version
 
@@ -36,8 +37,9 @@ Commands:
   start, bridge   Start the local OpenGrove bridge. Browser UI requires OPENGROVE_ENABLE_BROWSER_UI=1.
   web             Start the authenticated single-user Web UI and local bridge.
   app             Inspect, scaffold, and validate portable OpenGrove Apps.
-  employee        Package and publish Rooms employees.
+  employee        Manage Employees and package them for sharing.
   auth            Sign in once and share the CLI account session across commands.
+  schema          Inspect command parameters and responses without connecting.
   room             Call Room capabilities exposed by the Host Protocol.
   version         Print the installed OpenGrove version.
 
@@ -65,11 +67,32 @@ async function main(): Promise<void> {
     return;
   }
 
+  if (
+    (command === "app" || command === "employee") &&
+    (args.length === 1 || (args.length === 2 && ["--help", "-h", "help"].includes(args[1]!)))
+  ) {
+    const result = await runHostOperationCommand([command, "--help"]);
+    const localCommands = command === "app" ? APP_BUILDER_COMMAND_HELP : EMPLOYEE_COMMAND_HELP;
+    process.stdout.write(`${result.stdout ?? ""}\n\nLocal tools:\n${localCommands}\n`);
+    process.exitCode = result.exitCode;
+    return;
+  }
+
   if (isHostOperationCommand(args)) {
     const result = await runHostOperationCommand(args, { createClient: createCliOpenGroveClient });
     if (result.stdout) process.stdout.write(`${result.stdout}\n`);
     if (result.stderr) process.stderr.write(`${result.stderr}\n`);
     process.exitCode = result.exitCode;
+    return;
+  }
+
+  if (command === "app") {
+    await runAppBuilderCli(args.slice(1));
+    return;
+  }
+
+  if (command === "employee") {
+    await runEmployeeCli(args.slice(1));
     return;
   }
 
@@ -92,16 +115,6 @@ async function main(): Promise<void> {
 
   if (command === "web") {
     startWebSingleProfile(parseStartOptions(args.slice(1)));
-    return;
-  }
-
-  if (command === "app") {
-    await runAppBuilderCli(args.slice(1));
-    return;
-  }
-
-  if (command === "employee") {
-    await runEmployeeCli(args.slice(1));
     return;
   }
 

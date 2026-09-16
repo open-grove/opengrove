@@ -44,6 +44,16 @@ import {
   appStorePublishRequestIdempotencyKey,
 } from "../app-store-publish-idempotency.js";
 
+export const APP_BUILDER_COMMAND_HELP = `  inspect   Classify a local folder or URL before importing it as an App.
+  import    Create a portable App package around a local project folder.
+  stage     Put a source into an OpenGrove-managed App directory.
+  validate  Validate opengrove.app.json and the basic workspace contract.
+  pack      Create a publishable .tgz App package with a file hash manifest.
+  publish   Pack and upload an App package to a private OpenGrove registry.
+  report    Print a machine-readable import readiness report.
+  scaffold  Create a minimal portable App package for an agent to continue.
+  mount     Register an App root in bridge settings after validation.`;
+
 const USAGE = `OpenGrove App tools
 
 Usage:
@@ -58,15 +68,7 @@ Usage:
   opengrove app mount <app-root> [--settings PATH] [--id ID] [--title TITLE] [--disabled]
 
 Commands:
-  inspect   Classify a local folder or URL before importing it as an App.
-  import    Create a portable App package around a local project folder.
-  stage     Put a source into an OpenGrove-managed App directory.
-  validate  Validate opengrove.app.json and the basic workspace contract.
-  pack      Create a publishable .tgz App package with a file hash manifest.
-  publish   Pack and upload an App package to a private OpenGrove registry.
-  report    Print a machine-readable import readiness report.
-  scaffold  Create a minimal portable App package for an agent to continue.
-  mount     Register an App root in bridge settings after validation.
+${APP_BUILDER_COMMAND_HELP}
 `;
 
 const MAX_FLOW_SCAN_DEPTH = 8;

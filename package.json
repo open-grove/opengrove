@@ -212,6 +212,8 @@
     "experiment:bridge-bundle": "npm run build:server && node scripts/experiment-bridge-bundle.mjs",
     "test:bridge-bundle-experiment": "node scripts/experiment-bridge-bundle.mjs",
     "test:diagnostics:built": "node dist/tests/diagnostic-bundle-harness.js && node scripts/test-desktop-diagnostic-export.mjs && node scripts/test-desktop-bridge.mjs && node scripts/test-web-desktop-diagnostic-export.mjs",
+    "prediagnose:event-long-poll": "npm run build:server",
+    "diagnose:event-long-poll": "node scripts/diagnose-event-long-poll.mjs",
     "test:diagnostics": "npm run build:server && npm run test:diagnostics:built",
     "test:web-auth-ui": "npm run test:auth-degraded-policy && node scripts/test-web-auth-ui.mjs && node scripts/test-web-team-auth.mjs",
     "test:web-fixture-account-switcher": "node scripts/test-web-fixture-account-switcher.mjs",

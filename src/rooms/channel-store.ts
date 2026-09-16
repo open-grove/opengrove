@@ -916,23 +916,35 @@ export class RoomChannelStore {
     const room = this.requireRoom(roomId);
     this.assertAppRoomMemberAllowed(room.scope, normalized);
     this.upsertMember(normalized);
-    if (!room.memberIds.includes(normalized.id)) {
+    return this.attachMember(room, normalized);
+  }
+
+  joinMember(roomId: string, memberId: string): RoomChannelMember {
+    const room = this.requireRoom(roomId);
+    const member = this.members.get(memberId);
+    if (!member) throw new Error("room_member_not_found");
+    this.assertAppRoomMemberAllowed(room.scope, member);
+    return this.attachMember(room, member);
+  }
+
+  private attachMember(room: RoomChannelRoom, member: RoomChannelMember): RoomChannelMember {
+    if (!room.memberIds.includes(member.id)) {
       const updated = {
         ...room,
-        memberIds: [...room.memberIds, normalized.id],
-        removedMemberIds: (room.removedMemberIds ?? []).filter((memberId) => memberId !== normalized.id),
+        memberIds: [...room.memberIds, member.id],
+        removedMemberIds: (room.removedMemberIds ?? []).filter((memberId) => memberId !== member.id),
         updatedAt: nowIso(),
       };
-      this.rooms.set(roomId, updated);
-    } else if ((room.removedMemberIds ?? []).includes(normalized.id)) {
-      this.rooms.set(roomId, {
+      this.rooms.set(room.id, updated);
+    } else if ((room.removedMemberIds ?? []).includes(member.id)) {
+      this.rooms.set(room.id, {
         ...room,
-        removedMemberIds: (room.removedMemberIds ?? []).filter((memberId) => memberId !== normalized.id),
+        removedMemberIds: (room.removedMemberIds ?? []).filter((memberId) => memberId !== member.id),
         updatedAt: nowIso(),
       });
     }
-    this.emit("room.member.added", roomId, { member: normalized }, { memberId: normalized.id });
-    return normalized;
+    this.emit("room.member.added", room.id, { member }, { memberId: member.id });
+    return cloneMember(member);
   }
 
   removeMember(roomId: string, memberId: string): RoomChannelRoom {

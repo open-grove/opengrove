@@ -1,4 +1,5 @@
-import { askCancelContract, askCompactContract, askGuideContract } from "#agent-protocol";
+import type { CancelDirectRunOperation, GuideDirectRunOperation, CompactDirectSessionOperation } from "#protocol";
+import { hostContractById } from "#protocol/compiled";
 import {
   cancelBackgroundAskRun,
   compactBackgroundAskSession,
@@ -6,22 +7,21 @@ import {
   streamAskResponse,
   streamExistingAskResponse,
 } from "../ask-stream.js";
-import { record } from "../http-utils.js";
 import { normalizeAskPayload } from "../payloads.js";
 import { readWwRuntimeAuth } from "../bridge-security.js";
 import { resolveHostLanguageSettings } from "../language-preference.js";
 import { hostMessage } from "../../localization/host-messages.js";
-import type { BridgeRoute, BridgeRouteContext } from "../router.js";
-import { route } from "./registry-utils.js";
+import type { BridgeRoute, BridgeRouteContext, HostOperationRouteContext } from "../router.js";
+import { route, operationRoute } from "./registry-utils.js";
 
 export function createAskRoutes(): BridgeRoute[] {
   return [
     route("ask-disabled", "POST", "/ask", handleAskDisabledRoute),
     route("ask-stream-start", "POST", "/ask/stream", handleAskStreamRoute),
     route("ask-stream-existing", "GET", "/ask/stream", handleExistingAskStreamRoute),
-    route("ask-cancel", "POST", "/ask/cancel", handleAskCancelRoute, askCancelContract),
-    route("ask-guide", "POST", "/ask/guide", handleAskGuideRoute, askGuideContract),
-    route("ask-compact", "POST", "/ask/compact", handleAskCompactRoute, askCompactContract),
+    operationRoute(hostContractById["run.direct.cancel"], handleAskCancelRoute),
+    operationRoute(hostContractById["run.direct.guide"], handleAskGuideRoute),
+    operationRoute(hostContractById["run.direct.compact"], handleAskCompactRoute),
   ];
 }
 
@@ -69,33 +69,20 @@ async function handleExistingAskStreamRoute(context: BridgeRouteContext): Promis
   return true;
 }
 
-async function handleAskCancelRoute(context: BridgeRouteContext): Promise<boolean> {
-  const body = record(await context.readJsonBody(context.request));
-  const cancelled = cancelBackgroundAskRun(context.state, {
-    runId: typeof body.runId === "string" ? body.runId : undefined,
-    threadId: typeof body.threadId === "string" ? body.threadId : undefined,
-  });
+async function handleAskCancelRoute(context: HostOperationRouteContext<CancelDirectRunOperation>): Promise<true> {
+  const cancelled = cancelBackgroundAskRun(context.state, context.input.body);
   context.sendJson(context.response, 200, { ok: true, cancelled });
   return true;
 }
 
-async function handleAskGuideRoute(context: BridgeRouteContext): Promise<boolean> {
-  const body = record(await context.readJsonBody(context.request));
-  const result = await guideBackgroundAskRun(context.state, {
-    runId: typeof body.runId === "string" ? body.runId : undefined,
-    threadId: typeof body.threadId === "string" ? body.threadId : undefined,
-    instruction: typeof body.instruction === "string" ? body.instruction : undefined,
-  });
+async function handleAskGuideRoute(context: HostOperationRouteContext<GuideDirectRunOperation>): Promise<true> {
+  const result = await guideBackgroundAskRun(context.state, context.input.body);
   context.sendJson(context.response, 200, result);
   return true;
 }
 
-async function handleAskCompactRoute(context: BridgeRouteContext): Promise<boolean> {
-  const body = record(await context.readJsonBody(context.request));
-  const result = await compactBackgroundAskSession(context.state, {
-    threadId: typeof body.threadId === "string" ? body.threadId : undefined,
-    reason: typeof body.reason === "string" ? body.reason : undefined,
-  });
+async function handleAskCompactRoute(context: HostOperationRouteContext<CompactDirectSessionOperation>): Promise<true> {
+  const result = await compactBackgroundAskSession(context.state, context.input.body);
   context.sendJson(context.response, 200, result);
   return true;
 }

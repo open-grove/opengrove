@@ -265,7 +265,8 @@ Local bridge 是 UI、state、tools 和 kernels 之间的边界。
 | `/rooms/:roomId` | `PATCH` | 更新本地 room title、pin/archive state 或 badge |
 | `/rooms/:roomId/read` | `POST` | 按请求体中客户端已观察的 `observedEventSeq` 单向推进 Room 已读游标 |
 | `/rooms/members` | `POST` | upsert global room member |
-| `/rooms/:roomId/members` | `POST` | 给 room 添加 member |
+| `/rooms/:roomId/members` | `POST` | 创建或替换员工配置并加入房间；省略的字段使用默认值 |
+| `/rooms/:roomId/members/:memberId` | `POST` | 将已有员工加入房间，不修改配置（`room member join`） |
 | `/rooms/:roomId/members/:memberId` | `DELETE` | 从 room 移除 member |
 | `/rooms/:roomId/messages` | `GET` / `POST` | 读取 room messages，或发送用户消息并调度 room runs |
 | `/rooms/:roomId/messages/:messageId` | `PATCH` | 更新本地 message status、run metadata 或 rendered parts |

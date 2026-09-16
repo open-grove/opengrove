@@ -1,4 +1,4 @@
-import type { ArtifactCreateRequest, ArtifactRecord, MemoryRecord, WorkingStateRecord } from "../core.js";
+import type { ArtifactRecord, MemoryRecord, WorkingStateRecord } from "../core.js";
 import { normalizeComputerSnapshot } from "../environment/computer-adapter.js";
 import type { BrowserPageAttachmentSnapshot, BrowserPageSnapshot } from "../environment/browser-adapter.js";
 import type { ComputerStateSnapshot } from "../environment/computer-adapter.js";
@@ -128,27 +128,6 @@ export function normalizeMemoryPatchPayload(
   }
 
   return patch;
-}
-
-export function normalizeArtifactCreatePayload(input: unknown): ArtifactCreateRequest {
-  const object = record(input);
-  return {
-    id: stringValue(object.id) || undefined,
-    type: stringValue(object.type) || "note",
-    title: stringValue(object.title) || undefined,
-    status: stringValue(object.status) || undefined,
-    version: typeof object.version === "number" ? object.version : undefined,
-    tags: stringArray(object.tags),
-    data: jsonObjectValue(object.data),
-    assets: artifactAssetArray(object.assets),
-    preview: artifactPreviewValue(object.preview),
-    sourceRefs: sourceRefArray(object.sourceRefs),
-    parentId: stringValue(object.parentId) || undefined,
-    variantOf: stringValue(object.variantOf) || undefined,
-    derivedFrom: stringArray(object.derivedFrom),
-    lineage: stringArray(object.lineage),
-    provenance: jsonObjectValue(object.provenance),
-  };
 }
 
 export function normalizeArtifactPatchPayload(
@@ -314,42 +293,4 @@ function normalizeThreadId(value: unknown, snapshot: BrowserPageSnapshot): strin
 function normalizeBridgeModelId(value: unknown): BridgeModelId {
   const model = stringValue(value).trim();
   return model || DEFAULT_BRIDGE_MODEL_ID;
-}
-
-function artifactAssetArray(value: unknown) {
-  return Array.isArray(value)
-    ? value
-        .map((item) => {
-          const object = record(item);
-          const metadata = jsonObjectValue(object.metadata);
-          const asset = {
-            kind: artifactAssetKind(object.kind),
-            uri: stringValue(object.uri) || undefined,
-            path: stringValue(object.path) || undefined,
-            title: stringValue(object.title) || undefined,
-            mimeType: stringValue(object.mimeType) || undefined,
-            metadata: Object.keys(metadata).length ? metadata : undefined,
-          };
-          return asset.uri || asset.path || asset.title || asset.mimeType || asset.metadata ? asset : undefined;
-        })
-        .filter((item): item is NonNullable<typeof item> => Boolean(item))
-    : undefined;
-}
-
-function artifactAssetKind(value: unknown): "image" | "video" | "file" | "url" | "text" {
-  if (value === "image" || value === "video" || value === "file" || value === "url" || value === "text") {
-    return value;
-  }
-  return "file";
-}
-
-function artifactPreviewValue(value: unknown) {
-  const object = record(value);
-  const preview = {
-    title: stringValue(object.title) || undefined,
-    text: stringValue(object.text) || undefined,
-    imageUri: stringValue(object.imageUri) || undefined,
-    status: stringValue(object.status) || undefined,
-  };
-  return Object.values(preview).some(Boolean) ? preview : undefined;
 }

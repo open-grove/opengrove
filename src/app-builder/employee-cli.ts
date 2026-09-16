@@ -2,13 +2,15 @@ import { resolve } from "node:path";
 import { createBridgeState } from "../server/bridge-state.js";
 import { packEmployeeFromState } from "./employee-packager.js";
 
+export const EMPLOYEE_COMMAND_HELP = `  pack  Package one contact/employee from Rooms into a publishable employee package.`;
+
 const USAGE = `OpenGrove Employee tools
 
 Usage:
   opengrove employee pack <memberId> [--output FILE] [--state PATH] [--publisher NAME] [--title TITLE] [--summary TEXT] [--category NAME]
 
 Commands:
-  pack  Package one contact/employee from Rooms into a publishable employee package.
+${EMPLOYEE_COMMAND_HELP}
 `;
 
 export async function runEmployeeCli(args: string[]): Promise<void> {

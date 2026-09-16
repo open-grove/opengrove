@@ -1,6 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import {
   bridgeContractIssues,
+  parseHostOperationResponse,
   type BridgeContractIssue,
   type BridgeJsonContract,
   type HostOperation,
@@ -128,11 +129,12 @@ function contextWithHostOperation(operation: HostOperation, context: BridgeRoute
         context.sendJson(response, status, data);
         return;
       }
-      const parsed = declaredResponse.body.safeParse(data);
+      const { result: parsed, skipped } = parseHostOperationResponse(operation, declaredResponse.body, data);
       if (!parsed.success) {
         reportHostResponseViolation(operation, context, response, bridgeContractIssues(parsed.error));
         return;
       }
+      if (skipped) console.warn("room_message_list_items_skipped", { ...skipped, traceId: context.traceId });
       context.sendJson(response, status, parsed.data);
     },
   };
@@ -204,29 +206,46 @@ function operationPathParams(operation: CompiledHostOperation, pathname: string)
   );
 }
 
-function operationQueryParams(operation: CompiledHostOperation, url: URL): Record<string, string | string[]> {
+function operationQueryParams(operation: CompiledHostOperation, url: URL): Record<string, unknown> {
   const properties = operation.input.query?.jsonSchema.properties;
   const schemas = isRecord(properties) ? properties : {};
-  const query: Record<string, string | string[]> = {};
+  const query: Record<string, unknown> = {};
   for (const name of new Set(url.searchParams.keys())) {
     const values = url.searchParams.getAll(name);
     const schema = schemas[name];
-    if (isArraySchema(schema)) {
-      query[name] = values;
+    if (isRecord(schema) && schema.type === "array") {
+      query[name] = values.map((value) => decodeQueryScalar(value, schema.items));
       continue;
     }
     if (schema && values.length > 1) {
+      if (isRecord(schema) && schema["x-opengrove-query-repeated"] === "first") {
+        query[name] = decodeQueryScalar(values[0]!, schema);
+        continue;
+      }
       throw new BridgeContractViolation("request", operation.id, [
         { path: `query.${name}`, code: "query_parameter_repeated" },
       ]);
     }
-    query[name] = values.length === 1 ? values[0]! : values;
+    query[name] = values.length === 1 ? decodeQueryScalar(values[0]!, schema) : values;
   }
   return query;
 }
 
-function isArraySchema(value: unknown): boolean {
-  return isRecord(value) && value.type === "array";
+function decodeQueryScalar(value: string, schema: unknown): unknown {
+  if (!isRecord(schema)) return value;
+  // Only the declared wire type is decoded here. Zod still owns constraints and
+  // errors, so empty strings and non-decimal numbers must remain invalid input.
+  if (schema.type === "boolean") {
+    if (value === "true") return true;
+    if (value === "false") return false;
+  }
+  if (
+    (schema.type === "number" || schema.type === "integer") &&
+    /^-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?$/u.test(value)
+  ) {
+    return Number(value);
+  }
+  return value;
 }
 
 function reportHostResponseViolation(

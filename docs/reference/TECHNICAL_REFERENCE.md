@@ -287,7 +287,8 @@ and re-enabling App updates schedules a check only after settings are saved.
 | `/rooms/:roomId` | `PATCH` | update local room title, pin/archive state, or badge |
 | `/rooms/:roomId/read` | `POST` | advance the Room read cursor through the body’s client-observed `observedEventSeq` |
 | `/rooms/members` | `POST` | upsert a global room member |
-| `/rooms/:roomId/members` | `POST` | add a member to a room |
+| `/rooms/:roomId/members` | `POST` | create/replace Employee metadata and add to a Room; omitted fields use defaults |
+| `/rooms/:roomId/members/:memberId` | `POST` | join an existing Employee without changing configuration (`room member join`) |
 | `/rooms/:roomId/members/:memberId` | `DELETE` | remove a member from a room |
 | `/rooms/:roomId/messages` | `GET` / `POST` | read room messages or post a user message and schedule room runs |
 | `/rooms/:roomId/messages/:messageId` | `PATCH` | update local message status, run metadata, or rendered parts |
