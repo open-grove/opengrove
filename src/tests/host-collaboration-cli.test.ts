@@ -117,6 +117,8 @@ test("CLI creates a Room through the real Host and reports the persisted room", 
         "pi",
         "--provider-id",
         "cli-provider",
+        "--model",
+        "model-a",
       ],
       { env: { OPENGROVE_BRIDGE_URL: baseUrl, OPENGROVE_BRIDGE_TOKEN: token } },
     );
@@ -149,12 +151,45 @@ test("CLI creates a Room through the real Host and reports the persisted room", 
     assert.equal(restore.exitCode, 1);
     assert.equal(JSON.parse(restore.stderr ?? "null").status, 409);
     const added = await runHostOperationCommand(
-      ["room", "member", "add", "--room-id", "cli-room", "--id", "cli-colleague"],
+      ["room", "member", "join", "--room-id", "cli-room", "--member-id", "cli-colleague"],
       { env: { OPENGROVE_BRIDGE_URL: baseUrl, OPENGROVE_BRIDGE_TOKEN: token } },
     );
     assert.equal(added.handled, true);
     assert.equal(added.exitCode, 0, added.stderr);
     assert.equal(JSON.parse(added.stdout ?? "null").data.member.name, "Renamed Colleague");
+    const configuredMember = JSON.parse(changedEmployee.stdout ?? "null").data.member;
+    assert.equal(configuredMember.model, "model-a");
+    assert.deepEqual(JSON.parse(added.stdout ?? "null").data.member, configuredMember);
+    const rejoined = await runHostOperationCommand(
+      ["room", "member", "join", "--room-id", "cli-room", "--member-id", "cli-colleague"],
+      { env: { OPENGROVE_BRIDGE_URL: baseUrl, OPENGROVE_BRIDGE_TOKEN: token } },
+    );
+    assert.equal(rejoined.exitCode, 0, rejoined.stderr);
+    assert.deepEqual(JSON.parse(rejoined.stdout ?? "null").data.member, configuredMember);
+    const missing = await runHostOperationCommand(
+      ["room", "member", "join", "--room-id", "cli-room", "--member-id", "missing-employee"],
+      { env: { OPENGROVE_BRIDGE_URL: baseUrl, OPENGROVE_BRIDGE_TOKEN: token } },
+    );
+    assert.equal(missing.exitCode, 1, missing.stderr);
+    assert.equal(JSON.parse(missing.stderr ?? "null").status, 404);
+    const unchanged = await runHostOperationCommand(["room", "room", "list"], {
+      env: { OPENGROVE_BRIDGE_URL: baseUrl, OPENGROVE_BRIDGE_TOKEN: token },
+    });
+    assert.equal(unchanged.exitCode, 0, unchanged.stderr);
+    assert.deepEqual(
+      JSON.parse(unchanged.stdout ?? "null").data.members.find(
+        (member: { id: string }) => member.id === "cli-colleague",
+      ),
+      configuredMember,
+    );
+    // The existing POST still replaces submitted metadata, including omitted fields.
+    const legacyAdd = await runHostOperationCommand(
+      ["room", "member", "add", "--room-id", "cli-room", "--id", "cli-colleague"],
+      { env: { OPENGROVE_BRIDGE_URL: baseUrl, OPENGROVE_BRIDGE_TOKEN: token } },
+    );
+    assert.equal(legacyAdd.exitCode, 0, legacyAdd.stderr);
+    assert.equal(JSON.parse(legacyAdd.stdout ?? "null").data.member.name, "cli-colleague");
+    assert.notEqual(JSON.parse(legacyAdd.stdout ?? "null").data.member.model, "model-a");
     const removed = await runHostOperationCommand(
       ["room", "member", "remove", "--room-id", "cli-room", "--member-id", "cli-colleague"],
       { env: { OPENGROVE_BRIDGE_URL: baseUrl, OPENGROVE_BRIDGE_TOKEN: token } },

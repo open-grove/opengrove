@@ -8938,6 +8938,218 @@ export type RoomMemberRemoveResponses = {
 
 export type RoomMemberRemoveResponse = RoomMemberRemoveResponses[keyof RoomMemberRemoveResponses];
 
+export type RoomMemberJoinData = {
+  body?: never;
+  path: {
+    memberId: string;
+    roomId: string;
+  };
+  query?: never;
+  url: "/rooms/{roomId}/members/{memberId}";
+};
+
+export type RoomMemberJoinErrors = {
+  /**
+   * The request does not satisfy the operation contract.
+   */
+  400: {
+    ok?: false;
+    error: string;
+    code?: string;
+    traceId?: string;
+    [key: string]: unknown;
+  };
+  /**
+   * A valid Bridge session or token is required.
+   */
+  401: {
+    ok?: false;
+    error: string;
+    code?: string;
+    traceId?: string;
+    [key: string]: unknown;
+  };
+  /**
+   * The request origin is not allowed.
+   */
+  403: {
+    ok?: false;
+    error: string;
+    code?: string;
+    traceId?: string;
+    [key: string]: unknown;
+  };
+  /**
+   * The reply parent message does not exist.
+   */
+  404: {
+    ok?: false;
+    error: string;
+    code?: string;
+    traceId?: string;
+    [key: string]: unknown;
+  };
+  /**
+   * The message ID conflicts with an earlier message, or the remote conversation belongs to another account or sender.
+   */
+  409: {
+    ok?: false;
+    error: string;
+    code?: string;
+    traceId?: string;
+    [key: string]: unknown;
+  };
+  /**
+   * The authenticated session is temporarily unavailable.
+   */
+  503: {
+    ok?: false;
+    error: string;
+    code?: string;
+    traceId?: string;
+    [key: string]: unknown;
+  };
+};
+
+export type RoomMemberJoinError = RoomMemberJoinErrors[keyof RoomMemberJoinErrors];
+
+export type RoomMemberJoinResponses = {
+  /**
+   * Successful response.
+   */
+  200: {
+    ok: true;
+    member: {
+      name: string;
+      role: string;
+      kernel: string;
+      model: string;
+      color: string;
+      availableSkillIds?: Array<string>;
+      defaultSkillIds?: Array<string>;
+      requiredKernelCapabilities?: Array<
+        | "message.streamText"
+        | "turn.lifecycle"
+        | "session.lifecycle"
+        | "planning.plan"
+        | "interaction.askUser"
+        | "tools.hostTool"
+        | "tools.nativeTool"
+        | "tools.mcpServers"
+        | "tools.parallelCalls"
+        | "tool.progress"
+        | "approval.request"
+        | "control.stop"
+        | "control.steer"
+        | "session.compact"
+        | "session.goal"
+        | "auth.refresh"
+        | "sandbox.policy"
+        | "budget.limit"
+        | "diagnostics.usage"
+        | "response.speed"
+        | "media.input"
+        | "output.structured"
+        | "output.artifacts"
+        | "reasoning.nativeText"
+        | "reasoning.summary"
+        | "knowledge.skills"
+      >;
+      reasoningEffort?: "low" | "medium" | "high" | "xhigh" | "max";
+      contextTokenBudget?: number;
+      accessMode?: "default" | "auto-review" | "full-access";
+      avatarMode?: "generated" | "initials" | "upload";
+      avatarSeed?: string;
+      avatarDataUrl?: string;
+      visibility?: "private" | "public";
+      publicDescription?: string;
+      publicSkills?: Array<string>;
+      inputSpec?: string;
+      outputSpec?: string;
+      id: string;
+      employeeDefinitionId?: string;
+      displayName?: string;
+      providerId?: string;
+      displayRole?: string;
+      status: "idle" | "running" | "done" | "waiting" | "offline";
+      lastActive: string;
+      appId?: string;
+      workspaceRoot?: string;
+      storePackageId?: string;
+      toolIds?: Array<string>;
+      source?: "local" | "human" | "remote";
+      remoteAgent?: {
+        accountIssuer: string;
+        accountUserId: string;
+        serviceUrl: string;
+        matrixId: string;
+        provider: string;
+        senderAgentId: string;
+        owner: string;
+        address: string;
+      };
+      sourceLabel?: string;
+      displayPublicDescription?: string;
+      displayPublicSkills?: Array<string>;
+      displayInputSpec?: string;
+      displayOutputSpec?: string;
+      userOverrides?: Array<string>;
+      manifestDefaults?: {
+        name?: string;
+        role?: string;
+        kernel?: string;
+        model?: string;
+        color?: string;
+        availableSkillIds?: Array<string>;
+        defaultSkillIds?: Array<string>;
+        requiredKernelCapabilities?: Array<
+          | "message.streamText"
+          | "turn.lifecycle"
+          | "session.lifecycle"
+          | "planning.plan"
+          | "interaction.askUser"
+          | "tools.hostTool"
+          | "tools.nativeTool"
+          | "tools.mcpServers"
+          | "tools.parallelCalls"
+          | "tool.progress"
+          | "approval.request"
+          | "control.stop"
+          | "control.steer"
+          | "session.compact"
+          | "session.goal"
+          | "auth.refresh"
+          | "sandbox.policy"
+          | "budget.limit"
+          | "diagnostics.usage"
+          | "response.speed"
+          | "media.input"
+          | "output.structured"
+          | "output.artifacts"
+          | "reasoning.nativeText"
+          | "reasoning.summary"
+          | "knowledge.skills"
+        >;
+        reasoningEffort?: "low" | "medium" | "high" | "xhigh" | "max";
+        contextTokenBudget?: number;
+        accessMode?: "default" | "auto-review" | "full-access";
+        avatarMode?: "generated" | "initials" | "upload";
+        avatarSeed?: string;
+        avatarDataUrl?: string;
+        visibility?: "private" | "public";
+        publicDescription?: string;
+        publicSkills?: Array<string>;
+        inputSpec?: string;
+        outputSpec?: string;
+      };
+      disabled?: boolean;
+    };
+    currentEventSeq: number;
+  };
+};
+
+export type RoomMemberJoinResponse = RoomMemberJoinResponses[keyof RoomMemberJoinResponses];
+
 export type EmployeeEmployeeUpsertData = {
   body: {
     name?: string;

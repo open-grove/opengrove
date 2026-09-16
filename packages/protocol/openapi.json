@@ -15239,7 +15239,7 @@
       "post": {
         "operationId": "room.member.add",
         "summary": "Add an Employee to a Room",
-        "description": "Add an existing Employee by id, preserving unspecified metadata, or supply metadata to create a local Employee. App scope restrictions still apply.",
+        "description": "Create or replace Employee metadata and add the Employee to a Room. Omitted fields use defaults. Use room.member.join to keep existing configuration. App scope restrictions still apply.",
         "tags": ["room"],
         "x-opengrove-group": "room",
         "x-opengrove-resource": "member",
@@ -15906,6 +15906,560 @@
       }
     },
     "/rooms/{roomId}/members/{memberId}": {
+      "post": {
+        "operationId": "room.member.join",
+        "summary": "Join an existing Employee to a Room",
+        "description": "Add an existing Employee to a Room without changing Employee configuration. App scope restrictions still apply. Use employee update to change configuration.",
+        "tags": ["room"],
+        "x-opengrove-group": "room",
+        "x-opengrove-resource": "member",
+        "x-opengrove-risk": "write",
+        "parameters": [
+          {
+            "name": "memberId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "name": "roomId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "const": true
+                    },
+                    "member": {
+                      "type": "object",
+                      "properties": {
+                        "name": {
+                          "type": "string"
+                        },
+                        "role": {
+                          "type": "string"
+                        },
+                        "kernel": {
+                          "type": "string"
+                        },
+                        "model": {
+                          "type": "string"
+                        },
+                        "color": {
+                          "type": "string"
+                        },
+                        "availableSkillIds": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "defaultSkillIds": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "requiredKernelCapabilities": {
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "enum": [
+                              "message.streamText",
+                              "turn.lifecycle",
+                              "session.lifecycle",
+                              "planning.plan",
+                              "interaction.askUser",
+                              "tools.hostTool",
+                              "tools.nativeTool",
+                              "tools.mcpServers",
+                              "tools.parallelCalls",
+                              "tool.progress",
+                              "approval.request",
+                              "control.stop",
+                              "control.steer",
+                              "session.compact",
+                              "session.goal",
+                              "auth.refresh",
+                              "sandbox.policy",
+                              "budget.limit",
+                              "diagnostics.usage",
+                              "response.speed",
+                              "media.input",
+                              "output.structured",
+                              "output.artifacts",
+                              "reasoning.nativeText",
+                              "reasoning.summary",
+                              "knowledge.skills"
+                            ]
+                          }
+                        },
+                        "reasoningEffort": {
+                          "type": "string",
+                          "enum": ["low", "medium", "high", "xhigh", "max"]
+                        },
+                        "contextTokenBudget": {
+                          "type": "number"
+                        },
+                        "accessMode": {
+                          "type": "string",
+                          "enum": ["default", "auto-review", "full-access"]
+                        },
+                        "avatarMode": {
+                          "type": "string",
+                          "enum": ["generated", "initials", "upload"]
+                        },
+                        "avatarSeed": {
+                          "type": "string"
+                        },
+                        "avatarDataUrl": {
+                          "type": "string"
+                        },
+                        "visibility": {
+                          "type": "string",
+                          "enum": ["private", "public"]
+                        },
+                        "publicDescription": {
+                          "type": "string"
+                        },
+                        "publicSkills": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "inputSpec": {
+                          "type": "string"
+                        },
+                        "outputSpec": {
+                          "type": "string"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "employeeDefinitionId": {
+                          "type": "string"
+                        },
+                        "displayName": {
+                          "type": "string"
+                        },
+                        "providerId": {
+                          "type": "string"
+                        },
+                        "displayRole": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": ["idle", "running", "done", "waiting", "offline"]
+                        },
+                        "lastActive": {
+                          "type": "string"
+                        },
+                        "appId": {
+                          "type": "string"
+                        },
+                        "workspaceRoot": {
+                          "type": "string"
+                        },
+                        "storePackageId": {
+                          "type": "string"
+                        },
+                        "toolIds": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "source": {
+                          "type": "string",
+                          "enum": ["local", "human", "remote"]
+                        },
+                        "remoteAgent": {
+                          "type": "object",
+                          "properties": {
+                            "accountIssuer": {
+                              "type": "string",
+                              "format": "uri"
+                            },
+                            "accountUserId": {
+                              "type": "string",
+                              "minLength": 1
+                            },
+                            "serviceUrl": {
+                              "type": "string",
+                              "format": "uri"
+                            },
+                            "matrixId": {
+                              "type": "string",
+                              "minLength": 1
+                            },
+                            "provider": {
+                              "type": "string",
+                              "minLength": 1
+                            },
+                            "senderAgentId": {
+                              "type": "string",
+                              "minLength": 1
+                            },
+                            "owner": {
+                              "type": "string",
+                              "minLength": 1
+                            },
+                            "address": {
+                              "type": "string",
+                              "minLength": 1
+                            }
+                          },
+                          "required": [
+                            "accountIssuer",
+                            "accountUserId",
+                            "serviceUrl",
+                            "matrixId",
+                            "provider",
+                            "senderAgentId",
+                            "owner",
+                            "address"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "sourceLabel": {
+                          "type": "string"
+                        },
+                        "displayPublicDescription": {
+                          "type": "string"
+                        },
+                        "displayPublicSkills": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "displayInputSpec": {
+                          "type": "string"
+                        },
+                        "displayOutputSpec": {
+                          "type": "string"
+                        },
+                        "userOverrides": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "manifestDefaults": {
+                          "type": "object",
+                          "properties": {
+                            "name": {
+                              "type": "string"
+                            },
+                            "role": {
+                              "type": "string"
+                            },
+                            "kernel": {
+                              "type": "string"
+                            },
+                            "model": {
+                              "type": "string"
+                            },
+                            "color": {
+                              "type": "string"
+                            },
+                            "availableSkillIds": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            "defaultSkillIds": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            "requiredKernelCapabilities": {
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "enum": [
+                                  "message.streamText",
+                                  "turn.lifecycle",
+                                  "session.lifecycle",
+                                  "planning.plan",
+                                  "interaction.askUser",
+                                  "tools.hostTool",
+                                  "tools.nativeTool",
+                                  "tools.mcpServers",
+                                  "tools.parallelCalls",
+                                  "tool.progress",
+                                  "approval.request",
+                                  "control.stop",
+                                  "control.steer",
+                                  "session.compact",
+                                  "session.goal",
+                                  "auth.refresh",
+                                  "sandbox.policy",
+                                  "budget.limit",
+                                  "diagnostics.usage",
+                                  "response.speed",
+                                  "media.input",
+                                  "output.structured",
+                                  "output.artifacts",
+                                  "reasoning.nativeText",
+                                  "reasoning.summary",
+                                  "knowledge.skills"
+                                ]
+                              }
+                            },
+                            "reasoningEffort": {
+                              "type": "string",
+                              "enum": ["low", "medium", "high", "xhigh", "max"]
+                            },
+                            "contextTokenBudget": {
+                              "type": "number"
+                            },
+                            "accessMode": {
+                              "type": "string",
+                              "enum": ["default", "auto-review", "full-access"]
+                            },
+                            "avatarMode": {
+                              "type": "string",
+                              "enum": ["generated", "initials", "upload"]
+                            },
+                            "avatarSeed": {
+                              "type": "string"
+                            },
+                            "avatarDataUrl": {
+                              "type": "string"
+                            },
+                            "visibility": {
+                              "type": "string",
+                              "enum": ["private", "public"]
+                            },
+                            "publicDescription": {
+                              "type": "string"
+                            },
+                            "publicSkills": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            "inputSpec": {
+                              "type": "string"
+                            },
+                            "outputSpec": {
+                              "type": "string"
+                            }
+                          },
+                          "additionalProperties": false
+                        },
+                        "disabled": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": ["name", "role", "kernel", "model", "color", "id", "status", "lastActive"],
+                      "additionalProperties": false
+                    },
+                    "currentEventSeq": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": ["ok", "member", "currentEventSeq"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request does not satisfy the operation contract.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "const": false
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "traceId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["error"],
+                  "additionalProperties": {}
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "A valid Bridge session or token is required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "const": false
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "traceId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["error"],
+                  "additionalProperties": {}
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The request origin is not allowed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "const": false
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "traceId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["error"],
+                  "additionalProperties": {}
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The reply parent message does not exist.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "const": false
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "traceId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["error"],
+                  "additionalProperties": {}
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The message ID conflicts with an earlier message, or the remote conversation belongs to another account or sender.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "const": false
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "traceId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["error"],
+                  "additionalProperties": {}
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The authenticated session is temporarily unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "const": false
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "traceId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["error"],
+                  "additionalProperties": {}
+                }
+              }
+            }
+          }
+        }
+      },
       "delete": {
         "operationId": "room.member.remove",
         "summary": "Remove a Room member",

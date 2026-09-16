@@ -98,6 +98,9 @@ import type {
   RoomMemberAddData,
   RoomMemberAddErrors,
   RoomMemberAddResponses,
+  RoomMemberJoinData,
+  RoomMemberJoinErrors,
+  RoomMemberJoinResponses,
   RoomMemberRemoveData,
   RoomMemberRemoveErrors,
   RoomMemberRemoveResponses,
@@ -1017,7 +1020,7 @@ export class Member extends HeyApiClient {
   /**
    * Add an Employee to a Room
    *
-   * Add an existing Employee by id, preserving unspecified metadata, or supply metadata to create a local Employee. App scope restrictions still apply.
+   * Create or replace Employee metadata and add the Employee to a Room. Omitted fields use defaults. Use room.member.join to keep existing configuration. App scope restrictions still apply.
    */
   public add<ThrowOnError extends boolean = false>(
     options: Options<RoomMemberAddData, ThrowOnError>,
@@ -1041,6 +1044,20 @@ export class Member extends HeyApiClient {
     options: Options<RoomMemberRemoveData, ThrowOnError>,
   ): RequestResult<RoomMemberRemoveResponses, RoomMemberRemoveErrors, ThrowOnError> {
     return (options.client ?? this.client).delete<RoomMemberRemoveResponses, RoomMemberRemoveErrors, ThrowOnError>({
+      url: "/rooms/{roomId}/members/{memberId}",
+      ...options,
+    });
+  }
+
+  /**
+   * Join an existing Employee to a Room
+   *
+   * Add an existing Employee to a Room without changing Employee configuration. App scope restrictions still apply. Use employee update to change configuration.
+   */
+  public join<ThrowOnError extends boolean = false>(
+    options: Options<RoomMemberJoinData, ThrowOnError>,
+  ): RequestResult<RoomMemberJoinResponses, RoomMemberJoinErrors, ThrowOnError> {
+    return (options.client ?? this.client).post<RoomMemberJoinResponses, RoomMemberJoinErrors, ThrowOnError>({
       url: "/rooms/{roomId}/members/{memberId}",
       ...options,
     });

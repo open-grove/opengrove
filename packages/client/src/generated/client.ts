@@ -46,6 +46,7 @@ export const openGroveClientOperationIds = [
   "room.event.list",
   "room.direct.open",
   "room.member.add",
+  "room.member.join",
   "room.member.remove",
   "employee.employee.upsert",
   "employee.employee.update",
@@ -680,6 +681,17 @@ export function bindOpenGroveClient(request: HostOperationRequest) {
               toolIds: input.toolIds,
               visibility: input.visibility,
               workspaceRoot: input.workspaceRoot,
+            },
+            signal: options?.signal,
+          }),
+        join: (
+          input: HostOperationInput<(typeof hostOperationById)["room.member.join"]>,
+          options?: OpenGroveRequestOptions,
+        ): Promise<HostOperationOutput<(typeof hostOperationById)["room.member.join"]>> =>
+          request(hostOperationById["room.member.join"], {
+            params: {
+              memberId: input.memberId,
+              roomId: input.roomId,
             },
             signal: options?.signal,
           }),

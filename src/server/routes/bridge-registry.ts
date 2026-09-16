@@ -50,6 +50,7 @@ import {
   handleUpdateEmployeeOperation,
   handleRestoreEmployeeDefaultsOperation,
   handleAddRoomMemberOperation,
+  handleJoinRoomMemberOperation,
   handleRemoveRoomMemberOperation,
 } from "./rooms/member-routes.js";
 import { handleRoomsRoute } from "./rooms.js";
@@ -113,6 +114,7 @@ export function createBridgeRoutes(): BridgeRoute[] {
     operationRoute(hostContractById["employee.employee.update"], handleUpdateEmployeeOperation),
     operationRoute(hostContractById["employee.employee.restore-defaults"], handleRestoreEmployeeDefaultsOperation),
     operationRoute(hostContractById["room.member.add"], handleAddRoomMemberOperation),
+    operationRoute(hostContractById["room.member.join"], handleJoinRoomMemberOperation),
     operationRoute(hostContractById["room.member.remove"], handleRemoveRoomMemberOperation),
     moduleRoute("rooms", /^\/rooms(?:\/|$)/, (context) => handleRoomsRoute(context)),
     ...createRoutineRoutes(),

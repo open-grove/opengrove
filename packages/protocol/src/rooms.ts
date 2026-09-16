@@ -525,7 +525,7 @@ export const addRoomMemberOperation = defineHostOperation({
   id: "room.member.add",
   summary: "Add an Employee to a Room",
   description:
-    "Add an existing Employee by id, preserving unspecified metadata, or supply metadata to create a local Employee. App scope restrictions still apply.",
+    "Create or replace Employee metadata and add the Employee to a Room. Omitted fields use defaults. Use room.member.join to keep existing configuration. App scope restrictions still apply.",
   method: "POST",
   path: "/rooms/{roomId}/members",
   risk: "write",
@@ -541,6 +541,19 @@ export const addRoomMemberOperation = defineHostOperation({
   },
   errors: createRoomMessageOperation.errors,
 });
+export const joinRoomMemberOperation = defineHostOperation({
+  id: "room.member.join",
+  summary: "Join an existing Employee to a Room",
+  description:
+    "Add an existing Employee to a Room without changing Employee configuration. App scope restrictions still apply. Use employee update to change configuration.",
+  method: "POST",
+  path: "/rooms/{roomId}/members/{memberId}",
+  risk: "write",
+  params: z.object({ roomId: roomIdentifierSchema, memberId: roomIdentifierSchema }),
+  success: addRoomMemberOperation.success,
+  errors: createRoomMessageOperation.errors,
+});
+export type JoinRoomMemberOperation = typeof joinRoomMemberOperation;
 export const removeRoomMemberOperation = defineHostOperation({
   id: "room.member.remove",
   summary: "Remove a Room member",
@@ -558,7 +571,7 @@ const roomMemberOperationResource = defineHostOperationResource({
   id: "member",
   title: "Members",
   description: "Manage membership within a Room.",
-  operations: [addRoomMemberOperation, removeRoomMemberOperation] as const,
+  operations: [addRoomMemberOperation, joinRoomMemberOperation, removeRoomMemberOperation] as const,
 });
 
 export const roomOperationGroup = defineHostOperationGroup({

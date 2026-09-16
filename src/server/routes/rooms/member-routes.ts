@@ -3,6 +3,7 @@ import type {
   UpdateEmployeeOperation,
   RestoreEmployeeDefaultsOperation,
   AddRoomMemberOperation,
+  JoinRoomMemberOperation,
   RemoveRoomMemberOperation,
 } from "#protocol";
 import type { HostOperationRouteContext } from "../../router.js";
@@ -64,15 +65,33 @@ export async function handleAddRoomMemberOperation(
   context: HostOperationRouteContext<AddRoomMemberOperation>,
 ): Promise<true> {
   const { response, state, sendJson } = context;
-  const existing = state.app.rooms.listMembers().find((member) => member.id === context.input.body.id);
-  const normalizedMember = withPreservedServerOwnedMeta(state, {
-    ...existing,
-    ...normalizeMember({ ...existing, ...context.input.body }),
-  });
+  const normalizedMember = withPreservedServerOwnedMeta(state, normalizeMember(context.input.body));
   let member: RoomChannelMember;
   try {
     member = state.app.rooms.addMember(context.input.params.roomId, normalizedMember);
   } catch (error) {
+    const result = roomMutationErrorResponse(error);
+    if (!result) throw error;
+    sendJson(response, result.status, { ok: false, error: result.error });
+    return true;
+  }
+  state.store.saveFrom(state.app);
+  sendJson(response, 200, { ok: true, member, currentEventSeq: state.app.rooms.snapshot().currentEventSeq });
+  return true;
+}
+
+export async function handleJoinRoomMemberOperation(
+  context: HostOperationRouteContext<JoinRoomMemberOperation>,
+): Promise<true> {
+  const { response, state, sendJson } = context;
+  let member: RoomChannelMember;
+  try {
+    member = state.app.rooms.joinMember(context.input.params.roomId, context.input.params.memberId);
+  } catch (error) {
+    if (error instanceof Error && ["room_member_not_found", "room_not_found"].includes(error.message)) {
+      sendJson(response, 404, { ok: false, error: error.message });
+      return true;
+    }
     const result = roomMutationErrorResponse(error);
     if (!result) throw error;
     sendJson(response, result.status, { ok: false, error: result.error });
