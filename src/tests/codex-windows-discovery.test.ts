@@ -1,16 +1,16 @@
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
+import { spawnSync } from "node:child_process";
 import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { test } from "node:test";
+import { test, type TestContext } from "node:test";
 import { queryWindowsCommand, readWindowsPath, refreshWindowsPath } from "../environment/windows-discovery.js";
 import { clearCommandVersionCache, commandProbe } from "../kernel/discovery.js";
 import { buildCodexAppServerEnv } from "../runtime/codex/app-server-client.js";
 import { refreshWindowsAppCodexCandidates } from "../runtime/codex/windows-app-discovery.js";
 import { refreshCodexCommandPath, resolveCodexCommandPath } from "../runtime/codex/command-path.js";
 
-function desktopCliFixture(root: string): string {
+function desktopCliFixture(root: string, t: TestContext): string {
   const executable = join(root, "fixture.exe");
   if (process.platform === "win32") {
     const source = join(root, "fixture.cs");
@@ -32,16 +32,35 @@ class Fixture {
 }
 `,
     );
-    execFileSync(
+    const startedAt = Date.now();
+    const compiled = spawnSync(
       join(process.env.SystemRoot!, "System32", "WindowsPowerShell", "v1.0", "powershell.exe"),
       [
         "-NoProfile",
         "-NonInteractive",
         "-Command",
-        "Add-Type -Path $env:OPENGROVE_TEST_SOURCE -OutputAssembly $env:OPENGROVE_TEST_EXE -OutputType ConsoleApplication",
+        [
+          '$ErrorActionPreference = "Stop"',
+          '[Console]::Error.WriteLine("powershellReadyMs=" + ([DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds() - [long]$env:OPENGROVE_TEST_STARTED_AT))',
+          "$compile = [Diagnostics.Stopwatch]::StartNew()",
+          "Add-Type -Path $env:OPENGROVE_TEST_SOURCE -OutputAssembly $env:OPENGROVE_TEST_EXE -OutputType ConsoleApplication",
+          '[Console]::Error.WriteLine("compileMs=" + $compile.ElapsedMilliseconds)',
+        ].join("; "),
       ],
-      { env: { ...process.env, OPENGROVE_TEST_SOURCE: source, OPENGROVE_TEST_EXE: executable }, timeout: 15_000 },
+      {
+        env: {
+          ...process.env,
+          OPENGROVE_TEST_SOURCE: source,
+          OPENGROVE_TEST_EXE: executable,
+          OPENGROVE_TEST_STARTED_AT: String(startedAt),
+        },
+        timeout: 15_000,
+        encoding: "utf8",
+      },
     );
+    t.diagnostic(`codex_discovery_fixture totalMs=${Date.now() - startedAt} ${compiled.stderr?.trim() ?? ""}`);
+    if (compiled.error) throw compiled.error;
+    assert.equal(compiled.status, 0, `fixture compilation failed: ${compiled.stderr}`);
   } else {
     writeFileSync(
       executable,
@@ -57,7 +76,7 @@ test("discovers a runnable desktop CLI one directory below LocalAppData/OpenAI/C
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const executable = join(root, "OpenAI", "Codex", "bin", "bffc5354119c8421", "codex.exe");
   mkdirSync(dirname(executable), { recursive: true });
-  copyFileSync(desktopCliFixture(root), executable);
+  copyFileSync(desktopCliFixture(root, t), executable);
   writeFileSync(join(dirname(executable), "version.txt"), "codex-cli 0.153.4");
   let packageQueries = 0;
   const probe = {
@@ -83,7 +102,7 @@ test("desktop CLI discovery skips unusable candidates and follows updated genera
   const root = mkdtempSync(join(tmpdir(), "opengrove desktop refresh "));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const warnings = t.mock.method(console, "warn", () => {});
-  const fixture = desktopCliFixture(root);
+  const fixture = desktopCliFixture(root, t);
   const bin = join(root, "OpenAI", "Codex", "bin");
   const working = join(bin, "older-working", "codex.exe");
   const unrelated = join(bin, "newer-unrelated", "codex.exe");
@@ -135,7 +154,7 @@ test("desktop CLI refresh retains a validated path after timeout, but deleted pa
   const warnings = t.mock.method(console, "warn", () => {});
   const executable = join(root, "OpenAI", "Codex", "bin", "generation", "codex.exe");
   mkdirSync(dirname(executable), { recursive: true });
-  copyFileSync(desktopCliFixture(root), executable);
+  copyFileSync(desktopCliFixture(root, t), executable);
   writeFileSync(join(dirname(executable), "version.txt"), "codex-cli 0.153.4");
   const installLocation = join(root, "Store package");
   const storeCommand = join(installLocation, "resources", "codex.exe");
