@@ -53,6 +53,7 @@ import { providerView } from "./provider-state.js";
 import { agentRouterConfiguration, normalizeAgentRouterUrl } from "./remote-agents/configuration.js";
 
 export function getBridgeSettingsSnapshot(state: BridgeState): JsonObject {
+  const router = agentRouterConfiguration(state.settings);
   const providerSummaries = getBridgeProviderSummaries(state.settings.customProviders);
   const loginRouteSummaries = kernelLoginRouteProfiles(state).map((profile) => ({
     ...providerView(profile),
@@ -81,8 +82,9 @@ export function getBridgeSettingsSnapshot(state: BridgeState): JsonObject {
     kernelPathOverrides: state.settings.kernelPathOverrides as unknown as JsonObject,
     kernelProxy: kernelProxySummary(resolveKernelProxySettings(state.settings.kernelProxy, process.env)),
     appStore: state.settings.appStore as unknown as JsonObject,
-    agentRouterUrl: agentRouterConfiguration(state.settings).url,
-    agentRouterManaged: agentRouterConfiguration(state.settings).managed,
+    agentRouterUrl: state.settings.agentRouterUrl ?? "",
+    agentRouterEffectiveUrl: router.url,
+    agentRouterManaged: router.managed,
     appUpdates: state.settings.appUpdates as unknown as JsonObject,
     voice: {
       ...state.settings.voice,

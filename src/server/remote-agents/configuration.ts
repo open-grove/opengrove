@@ -7,6 +7,8 @@ export function normalizeAgentRouterUrl(value: unknown): string | undefined {
   if (typeof value !== "string" || value.length > 2048) return undefined;
   const url = value.trim();
   if (!url) return "";
+  // URL.search/hash are empty for bare delimiters, but SDK request paths are appended to href.
+  if (/[?#]/.test(url)) return undefined;
   try {
     return new AgentRouterClient({
       baseUrl: url,

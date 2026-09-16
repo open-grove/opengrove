@@ -7,6 +7,7 @@ import { clearCommandVersionCache, resolveCommandInvocation } from "../../kernel
 import { applyKernelProxyEnv, resolveKernelProxySettings } from "../../runtime/kernel-proxy.js";
 import { defaultOpenGroveWorkspacesDir } from "../../storage/default-data-dir.js";
 import { listStateMigrationBackupPaths, resolveStateMigrationPaths } from "../../storage/migration-backups.js";
+import { snapshotPersistedAgentState } from "../../storage/json-state-store.js";
 import {
   beginBridgeRunMaintenance,
   bridgeRunMaintenanceLeaseMatches,
@@ -55,6 +56,7 @@ import { applyProviderSetupMigration } from "../system-provider-discovery.js";
 import { inspectOpenGroveStorage } from "../storage-overview.js";
 import { agentRouterConfiguration, normalizeAgentRouterUrl } from "../remote-agents/configuration.js";
 import { resetNetworkConfiguration } from "../remote-agents/session.js";
+import { recordProblem } from "../problem-records.js";
 import {
   deleteConfirmedUpgradeBackups,
   inspectUpgradeBackups,
@@ -444,7 +446,7 @@ export async function handleSettingsRoute(options: {
       sendJson(response, 400, { ok: false, error: "invalid_agent_router_url" });
       return true;
     }
-    if (current.managed && url !== normalizeAgentRouterUrl(current.url)) {
+    if (current.managed) {
       sendJson(response, 409, { ok: false, error: "agent_router_managed_by_environment" });
       return true;
     }
@@ -507,62 +509,31 @@ export async function handleSettingsRoute(options: {
 
   const previousWw = previousSettings.customProviders.find((provider) => provider.id === "ww");
   const nextWw = nextSettings.customProviders.find((provider) => provider.id === "ww");
-  if (
+  const wwChanged =
     previousWw?.enabled !== nextWw?.enabled ||
     previousWw?.deleted !== nextWw?.deleted ||
     previousWw?.apiKey !== nextWw?.apiKey ||
     previousWw?.apiKeyEnv !== nextWw?.apiKeyEnv ||
-    previousWw?.anthropicBaseUrl !== nextWw?.anthropicBaseUrl
-  )
-    invalidateWwProviderSession(state);
-  if (!restartRequired) {
-    state.settings = nextSettings;
-    if (presentationLanguageChanged) {
-      const memberPresentationChanged = syncMountedAppMemberPresentations(state);
-      const groupPresentationChanged = syncMountedAppGroupPresentations(state);
-      const numberedGroupPresentationChanged = syncNumberedGroupPresentations(state);
-      if (memberPresentationChanged || groupPresentationChanged || numberedGroupPresentationChanged) {
-        state.store.saveFrom(state.app);
-      }
-    }
-    try {
-      saveBridgeSettings(state);
-    } catch (error) {
-      state.settings = previousSettings;
-      throw error;
-    }
-    if (routerChanged) resetNetworkConfiguration(state);
-    sendJson(
-      response,
-      200,
-      bridgeSettingsPayload(state, {
-        ok: true,
-        restarted: false,
-      }),
-    );
-    return true;
-  }
-
-  state.store.saveFrom(state.app);
+    previousWw?.anthropicBaseUrl !== nextWw?.anthropicBaseUrl;
+  const previousSnapshot = restartRequired
+    ? snapshotPersistedAgentState(state.app, { compactVolatile: false })
+    : undefined;
+  if (restartRequired) state.store.saveFrom(state.app);
   state.settings = nextSettings;
   try {
-    recreateBridgeApp(state);
+    if (restartRequired) {
+      // Validate the new runtime without committing derived state or events.
+      recreateBridgeApp(state, { agentStateSnapshot: previousSnapshot, deferPersistedStateSave: true });
+      clearRemovedProviderEmployeeOverrides(state, removedProviderIds);
+    }
+    // Atomic settings replacement is the commit point for both save paths.
     saveBridgeSettings(state);
-    if (clearRemovedProviderEmployeeOverrides(state, removedProviderIds)) {
-      state.store.saveFrom(state.app);
-    }
-    if (providerConfigChanged) {
-      // 新绑定/新 key 立即拉一次模型名单,不等 TTL。
-      void refreshProviderModelDiscovery({
-        profiles: getAllBridgeProviderProfiles(state.settings.customProviders),
-        force: true,
-      });
-    }
   } catch (error) {
     state.settings = previousSettings;
+    if (!restartRequired) throw error;
     let rollbackError: string | undefined;
     try {
-      recreateBridgeApp(state);
+      recreateBridgeApp(state, { agentStateSnapshot: previousSnapshot, deferPersistedStateSave: true });
     } catch (recoveryError) {
       rollbackError = recoveryError instanceof Error ? recoveryError.message : String(recoveryError);
     }
@@ -579,12 +550,36 @@ export async function handleSettingsRoute(options: {
   }
 
   if (routerChanged) resetNetworkConfiguration(state);
+  if (wwChanged) invalidateWwProviderSession(state);
+  let warning: "settings_state_persist_failed" | undefined;
+  try {
+    let presentationChanged = false;
+    if (!restartRequired && presentationLanguageChanged) {
+      const membersChanged = syncMountedAppMemberPresentations(state);
+      const groupsChanged = syncMountedAppGroupPresentations(state);
+      const numberedGroupsChanged = syncNumberedGroupPresentations(state);
+      presentationChanged = membersChanged || groupsChanged || numberedGroupsChanged;
+    }
+    if (restartRequired || presentationChanged) state.store.saveFrom(state.app);
+  } catch (error) {
+    // Settings are already committed. A false rollback would disagree with disk
+    // and leave credentials for the previous Router active until restart.
+    warning = "settings_state_persist_failed";
+    recordProblem(state, { category: "bridge", phase: "settings-save", code: warning, error, retryable: true });
+  }
+  if (providerConfigChanged) {
+    void refreshProviderModelDiscovery({
+      profiles: getAllBridgeProviderProfiles(state.settings.customProviders),
+      force: true,
+    });
+  }
   sendJson(
     response,
     200,
     bridgeSettingsPayload(state, {
       ok: true,
-      restarted: true,
+      restarted: restartRequired,
+      ...(warning ? { degraded: true, warning } : {}),
     }),
   );
   return true;

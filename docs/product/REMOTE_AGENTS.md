@@ -40,6 +40,8 @@ select **Save address**. This setting is available in standard mode, starts empt
 and is stored on this installation. Saving or clearing it updates availability
 immediately without restarting the Host or connecting to the service. Connecting
 still requires a verified OpenGrove admin login. Clearing it disables remote access.
+Changing this local setting requires normal Host access; it does not require a
+cloud admin role. It applies to this installation, not to every user's installation.
 
 Changing the service disconnects the previous communication session and attempts
 revocation. Existing contacts and conversations keep their original service binding;
@@ -64,6 +66,19 @@ The node must configure that provider against the existing Cloud account
 `rolesPath: ["data", "roles"]`, and `requiredRoles: ["admin"]`. These deployment-specific mappings belong to the operator configuration; the Router SDK is product-independent. OpenGrove does not configure or deploy nodes.
 For isolated local HTTP tests only, `OPENGROVE_AGENT_ROUTER_ALLOW_LOCAL_HTTP=1`
 permits loopback addresses. Other HTTP endpoints remain prohibited.
+
+The settings snapshot separates the saved `agentRouterUrl` from the read-only
+`agentRouterEffectiveUrl`. While environment-managed, any patch containing
+`agentRouterUrl` is rejected, including an identical address. Saving other settings
+does not persist the environment override. Removing that override restores the
+previous local setting, or leaves the service unconfigured if none was saved.
+
+Settings are committed by an atomic file replacement. A failure before that point
+keeps the previous settings and service session. If related workspace state cannot
+be persisted after the commit, the response reports `settings_state_persist_failed`
+and the UI explains that the settings were saved; it does not report a rollback.
+The new service configuration takes effect, and restarting reapplies the settings
+to workspace presentation.
 
 SDK 0.1.4 is supplied as the original distribution archive under `vendor/`,
 with its checksum pinned in the npm lockfile. It is not yet a registry release.

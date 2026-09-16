@@ -676,6 +676,8 @@ export const EN = {
   "settings.languageEnglish": "English",
   "settings.saveFailed": "Failed to save settings",
   "system.saveSettingsFailed": "Failed to save settings: {message}",
+  "system.settingsStatePersistFailed":
+    "Settings were saved, but some related workspace changes could not be saved and may be lost after restart. See diagnostics for details.",
   "system.chooseWorkspaceFailed": "Failed to choose working directory: {message}",
   "system.chooseWorkspaceBridgeOutdated":
     "Failed to choose a working directory: restart OpenGrove so the local bridge can use the folder picker.",

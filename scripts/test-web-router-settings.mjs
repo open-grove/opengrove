@@ -32,11 +32,16 @@ try {
         kernels: [], agentRouterUrl: "", agentRouterManaged: false,
         kernelProxy: { enabled: false, proxyUrl: "", noProxy: "", nodeUseEnvProxy: false },
       });
-      window.__manage = () => setSettings((value) => ({ ...value, agentRouterUrl: "https://managed.example/_agent-router/v1", agentRouterManaged: true }));
+      window.__refresh = () => setSettings((value) => ({ ...value }));
+      window.__manage = () => setSettings((value) => ({ ...value, agentRouterEffectiveUrl: "https://managed.example/_agent-router/v1", agentRouterManaged: true }));
       return <SettingsDialog settings={settings} loading={false} saving={false} error="" initialSection="network"
-        onClose={() => {}} onSave={(payload) => {
+        onClose={() => {}} onSave={(payload, onSaved) => {
           window.__saved.push(payload);
-          setSettings((value) => ({ ...value, ...payload }));
+          if (window.__failSave) { window.__refresh(); return; }
+          const normalized = payload.agentRouterUrl === undefined ? payload : { ...payload, agentRouterUrl: payload.agentRouterUrl.replace(new RegExp("/+$"), "") };
+          const next = { ...settings, ...normalized };
+          setSettings(next);
+          onSaved?.(next);
         }} />;
     }
     createRoot(document.getElementById("root")).render(<ToastProvider><ConfirmProvider><Fixture /></ConfirmProvider></ToastProvider>);
@@ -69,6 +74,11 @@ try {
     await expect(input).toHaveValue("");
     await expect(save).toBeDisabled();
     await input.fill("https://agents.example/_agent-router/v1");
+    await page.evaluate(async () => {
+      window.__refresh();
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    });
+    await expect(input).toHaveValue("https://agents.example/_agent-router/v1");
     await input.blur();
     assert.deepEqual(
       await page.evaluate(() => window.__saved),
@@ -80,6 +90,20 @@ try {
       { agentRouterUrl: "https://agents.example/_agent-router/v1" },
     ]);
     await expect(save).toBeDisabled();
+    await input.fill("https://agents.example/_agent-router/v1/");
+    await save.click();
+    await expect(input).toHaveValue("https://agents.example/_agent-router/v1");
+    await expect(save).toBeDisabled();
+    await page.evaluate(() => {
+      window.__failSave = true;
+    });
+    await input.fill("https://unsaved.example/_agent-router/v1");
+    await save.click();
+    await expect(input).toHaveValue("https://unsaved.example/_agent-router/v1");
+    await expect(save).toBeEnabled();
+    await page.evaluate(() => {
+      window.__failSave = false;
+    });
     await mkdir(join(root, ".artifacts"), { recursive: true });
     await page.screenshot({ path: join(root, ".artifacts/router-settings-desktop.png") });
     await input.fill("");

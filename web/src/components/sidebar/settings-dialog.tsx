@@ -101,20 +101,23 @@ export function SettingsDialog(props: {
   onRefreshKernels?(): void;
   kernelsRefreshing?: boolean;
   onKernelLoginAction?(kernelId: string, action: "login" | "logout"): void;
-  onSave(payload: {
-    developerMode?: boolean;
-    directKernelChatEnabled?: boolean;
-    languagePreference?: LanguagePreference;
-    mountedApps?: MountedAppSettings[];
-    kernelProxy?: KernelProxySettings;
-    appStore?: BridgeSettings["appStore"];
-    appUpdates?: BridgeSettings["appUpdates"];
-    agentRouterUrl?: string;
-    voice?: NonNullable<BridgeSettings["voice"]>;
-    kernelPathOverrides?: Record<string, KernelPathOverride>;
-    modelProviderBindings?: ModelProviderBinding[];
-    customProviders?: ProviderProfile[];
-  }): void;
+  onSave(
+    payload: {
+      developerMode?: boolean;
+      directKernelChatEnabled?: boolean;
+      languagePreference?: LanguagePreference;
+      mountedApps?: MountedAppSettings[];
+      kernelProxy?: KernelProxySettings;
+      appStore?: BridgeSettings["appStore"];
+      appUpdates?: BridgeSettings["appUpdates"];
+      agentRouterUrl?: string;
+      voice?: NonNullable<BridgeSettings["voice"]>;
+      kernelPathOverrides?: Record<string, KernelPathOverride>;
+      modelProviderBindings?: ModelProviderBinding[];
+      customProviders?: ProviderProfile[];
+    },
+    onSaved?: (settings: BridgeSettings) => void,
+  ): void;
 }) {
   const { t, preference: languagePreference, setLanguagePreference } = useI18n();
   const { preference: themePreference, setThemePreference } = useThemePreference();
@@ -174,7 +177,6 @@ export function SettingsDialog(props: {
     setMountedApps(props.settings.mountedApps ?? []);
     setAutomaticAppUpdates(props.settings.appUpdates?.automatic !== false);
     setKernelProxy(normalizeKernelProxySettings(props.settings.kernelProxy));
-    setAgentRouterUrl(props.settings.agentRouterUrl ?? "");
     setVoiceSettings(normalizeVoiceSettings(props.settings.voice));
     setKernelPathOverrides(props.settings.kernelPathOverrides ?? {});
     setModelProviderBindings(props.settings.modelProviderBindings ?? []);
@@ -186,6 +188,10 @@ export function SettingsDialog(props: {
       return "";
     });
   }, [props.settings, props.saving]);
+
+  useEffect(() => {
+    setAgentRouterUrl(props.settings?.agentRouterUrl ?? "");
+  }, [props.settings?.agentRouterUrl]);
 
   useEffect(() => {
     if (providerSaveState !== "saved") return undefined;
@@ -237,21 +243,7 @@ export function SettingsDialog(props: {
     : [];
   const providerModels = editableProviderModels.map((item) => item.trim()).filter(Boolean);
 
-  const saveSettings = (next: {
-    developerMode?: boolean;
-    directKernelChatEnabled?: boolean;
-    languagePreference?: LanguagePreference;
-    mountedApps?: MountedAppSettings[];
-    appUpdates?: BridgeSettings["appUpdates"];
-    agentRouterUrl?: string;
-    kernelProxy?: KernelProxySettings;
-    voice?: NonNullable<BridgeSettings["voice"]>;
-    kernelPathOverrides?: Record<string, KernelPathOverride>;
-    modelProviderBindings?: ModelProviderBinding[];
-    customProviders?: ProviderProfile[];
-  }) => {
-    props.onSave(next);
-  };
+  const saveSettings = props.onSave;
 
   const saveLanguagePreference = (next: LanguagePreference) => {
     setLanguagePreference(next);
@@ -737,11 +729,17 @@ export function SettingsDialog(props: {
             <SettingsNetworkPanel
               t={t}
               kernelProxy={kernelProxy}
-              agentRouterUrl={agentRouterUrl}
+              agentRouterUrl={
+                props.settings?.agentRouterManaged ? (props.settings.agentRouterEffectiveUrl ?? "") : agentRouterUrl
+              }
               savedAgentRouterUrl={props.settings?.agentRouterUrl ?? ""}
               agentRouterManaged={props.settings?.agentRouterManaged === true}
               onSetAgentRouterUrl={setAgentRouterUrl}
-              onSaveAgentRouterUrl={() => saveSettings({ agentRouterUrl: agentRouterUrl.trim() })}
+              onSaveAgentRouterUrl={() =>
+                saveSettings({ agentRouterUrl: agentRouterUrl.trim() }, (settings) =>
+                  setAgentRouterUrl(settings.agentRouterUrl ?? ""),
+                )
+              }
               loading={props.loading}
               saving={props.saving}
               onSetKernelProxyDraft={setKernelProxyDraft}

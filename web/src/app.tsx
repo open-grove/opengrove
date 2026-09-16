@@ -999,7 +999,7 @@ export function App() {
         current
           ? {
               ...current,
-              settings: { ...current.settings, ...payload },
+              settings: { ...current.settings, ...payload, agentRouterUrl: current.settings.agentRouterUrl },
             }
           : current,
       );
@@ -1010,6 +1010,9 @@ export function App() {
     },
     onSuccess(result, payload) {
       queryClient.setQueryData(["settings"], result);
+      if (result.warning === "settings_state_persist_failed") {
+        toast({ kind: "info", title: t("system.settingsStatePersistFailed") });
+      }
       if (payload.agentRouterUrl !== undefined) {
         queryClient.invalidateQueries({ queryKey: ["network", "configuration"] });
       }
@@ -2445,11 +2448,14 @@ export function App() {
             onClose={() => setView(directKernelChatEnabled ? "chat" : mountedApps[0] ? "app" : "app-store")}
             onInstallKernel={(kernelId, actionId) => installKernelMutation.mutate({ kernelId, actionId })}
             onKernelLoginAction={(kernelId, action) => kernelLoginMutation.mutate({ kernelId, action })}
-            onSave={(payload) =>
-              settingsMutation.mutate({
-                ...payload,
-                systemLanguage: detectSystemLanguage(),
-              })
+            onSave={(payload, onSaved) =>
+              settingsMutation.mutate(
+                {
+                  ...payload,
+                  systemLanguage: detectSystemLanguage(),
+                },
+                { onSuccess: (result) => onSaved?.(result.settings) },
+              )
             }
             ops={{
               runs,

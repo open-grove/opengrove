@@ -640,6 +640,7 @@ export const ZH_CN = {
   "settings.languageEnglish": "English",
   "settings.saveFailed": "保存设置失败",
   "system.saveSettingsFailed": "保存设置失败：{message}",
+  "system.settingsStatePersistFailed": "设置已保存，但部分关联的工作区状态保存失败，可能在重启后丢失。请查看诊断信息。",
   "system.chooseWorkspaceFailed": "选择工作目录失败：{message}",
   "system.chooseWorkspaceBridgeOutdated":
     "选择工作目录失败：本地 bridge 还没更新到支持目录选择，请重启 OpenGrove 后再试。",

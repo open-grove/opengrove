@@ -1,18 +1,149 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { sep } from "node:path";
-import { mkdirSync, realpathSync, renameSync, rmdirSync } from "node:fs";
+import { join, sep } from "node:path";
+import { tmpdir } from "node:os";
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync, renameSync, rmdirSync, rmSync } from "node:fs";
 import { setTimeout as delay } from "node:timers/promises";
 import { startRemoteAgentService } from "./fixtures/remote-agent-service.js";
 import { startRemoteRoomHost } from "./fixtures/remote-room-host.js";
+import { createBridgeState, saveBridgeSettings } from "../server/bridge-state.js";
+import { bridgeSettingsPath } from "../server/bridge-settings-store.js";
+import { disposeBridgeKernelWorkers } from "../server/kernel-lifecycle.js";
+import { handleSettingsRoute } from "../server/routes/settings.js";
+import { networkSessionsFor } from "../server/remote-agents/session.js";
 
-test("Router settings start empty, save immediately and survive restart", async (t) => {
+for (const restartRequired of [false, true]) {
+  test(`a committed settings change reports later state persistence failure, restart=${restartRequired}`, async (t) => {
+    const directory = mkdtempSync(join(tmpdir(), "opengrove-settings-commit-"));
+    const state = createBridgeState({ statePath: join(directory, "state.sqlite") });
+    t.after(async () => {
+      await disposeBridgeKernelWorkers(state);
+      await state.store.close?.();
+      rmSync(directory, { recursive: true, force: true });
+    });
+    state.settings = { ...state.settings, languagePreference: "zh-CN", agentRouterUrl: "https://old.example" };
+    const oldNetwork = networkSessionsFor(state);
+    state.app.rooms.createRoom({
+      id: "numbered",
+      title: "新群聊 6",
+      badge: "本地",
+      generatedTitle: { kind: "numbered-group", sequence: 6 },
+      memberIds: [],
+    });
+    state.store.saveFrom(state.app);
+    saveBridgeSettings(state);
+    const path = bridgeSettingsPath(state);
+    const saveFrom = state.store.saveFrom.bind(state.store);
+    state.store.saveFrom = (app) => {
+      if (JSON.parse(readFileSync(path, "utf8")).agentRouterUrl === "https://new.example")
+        throw new Error("injected_state_write_failure");
+      return saveFrom(app);
+    };
+    const responses: Array<{ status: number; data: Record<string, unknown> }> = [];
+    try {
+      await handleSettingsRoute({
+        request: { method: "PATCH" } as never,
+        response: {} as never,
+        url: new URL("http://opengrove.test/settings"),
+        state,
+        readJsonBody: async () => ({
+          languagePreference: "en",
+          agentRouterUrl: "https://new.example",
+          ...(restartRequired
+            ? { kernelProxy: { ...state.settings.kernelProxy, noProxy: "settings-test.invalid" } }
+            : {}),
+        }),
+        sendJson: (_response, status, data) => {
+          responses.push({ status, data: data as Record<string, unknown> });
+        },
+      });
+    } finally {
+      state.store.saveFrom = saveFrom;
+    }
+    assert.equal(responses[0]?.status, 200);
+    assert.equal(responses[0]?.data.degraded, true);
+    assert.equal(responses[0]?.data.warning, "settings_state_persist_failed");
+    assert.equal(state.settings.agentRouterUrl, "https://new.example");
+    assert.equal(state.settings.languagePreference, "en");
+    assert.notEqual(
+      networkSessionsFor(state),
+      oldNetwork,
+      "committed changes invalidate old service credentials even after a state write fails",
+    );
+    assert.equal(JSON.parse(readFileSync(path, "utf8")).agentRouterUrl, "https://new.example");
+  });
+
+  test(`failed settings commit preserves presentation and Router, restart=${restartRequired}`, async (t) => {
+    const directory = mkdtempSync(join(tmpdir(), "opengrove-settings-failure-"));
+    const state = createBridgeState({ statePath: join(directory, "state.sqlite") });
+    t.after(async () => {
+      await disposeBridgeKernelWorkers(state);
+      await state.store.close?.();
+      rmSync(directory, { recursive: true, force: true });
+    });
+    state.settings = { ...state.settings, languagePreference: "zh-CN", agentRouterUrl: "https://old.example" };
+    const oldNetwork = networkSessionsFor(state);
+    state.app.rooms.createRoom({
+      id: "numbered",
+      title: "新群聊 6",
+      badge: "本地",
+      generatedTitle: { kind: "numbered-group", sequence: 6 },
+      memberIds: [],
+    });
+    state.store.saveFrom(state.app);
+    saveBridgeSettings(state);
+    const path = bridgeSettingsPath(state);
+    assert.ok(realpathSync(path).startsWith(realpathSync(directory) + sep));
+    renameSync(path, path + ".backup");
+    mkdirSync(path);
+    const responses: number[] = [];
+    let rejected = false;
+    try {
+      await handleSettingsRoute({
+        request: { method: "PATCH" } as never,
+        response: {} as never,
+        url: new URL("http://opengrove.test/settings"),
+        state,
+        readJsonBody: async () => ({
+          languagePreference: "en",
+          agentRouterUrl: "https://new.example",
+          ...(restartRequired
+            ? { kernelProxy: { ...state.settings.kernelProxy, noProxy: "settings-test.invalid" } }
+            : {}),
+        }),
+        sendJson: (_response, status) => {
+          responses.push(status);
+        },
+      });
+    } catch {
+      rejected = true;
+    } finally {
+      rmdirSync(path);
+      renameSync(path + ".backup", path);
+    }
+    assert.ok(rejected || responses.some((status) => status >= 400));
+    assert.equal(state.settings.languagePreference, "zh-CN");
+    assert.equal(state.settings.agentRouterUrl, "https://old.example");
+    assert.equal(networkSessionsFor(state), oldNetwork, "a rejected change keeps the previous service session");
+    assert.equal(state.app.rooms.getRoom("numbered")?.title, "新群聊 6");
+    state.store.loadInto(state.app);
+    assert.equal(
+      state.app.rooms.getRoom("numbered")?.title,
+      "新群聊 6",
+      "failed commit must not persist translated titles",
+    );
+    assert.equal(JSON.parse(readFileSync(path, "utf8")).agentRouterUrl, "https://old.example");
+  });
+}
+
+test("ordinary users can save Router settings, which start empty and survive restart", async (t) => {
   const host = await startRemoteRoomHost();
   t.after(() => host.dispose());
   delete process.env.OPENGROVE_AGENT_ROUTER_URL;
   const before = await host.request<{ settings: { agentRouterUrl: string } }>("/settings");
   assert.equal(before.settings.agentRouterUrl, "");
   assert.deepEqual(await host.request("/network/account"), { ok: true, configured: false });
+  await host.login("regular");
   const result = await host.request<{ restarted: boolean; settings: { agentRouterUrl: string } }>(
     "/settings",
     { agentRouterUrl: `  ${host.fixture.serviceUrl}/  ` },
@@ -22,6 +153,13 @@ test("Router settings start empty, save immediately and survive restart", async 
   assert.equal(result.restarted, false);
   assert.deepEqual(await host.request("/network/account"), { ok: true, configured: true });
   assert.equal(host.fixture.calls.length, 0, "saving does not connect or send credentials");
+  const connection = await fetch(host.baseUrl + "/network/account", {
+    method: "POST",
+    headers: { ...host.headers, cookie: host.cookies },
+    body: "{}",
+  });
+  assert.equal(connection.status, 403, "saving a local URL does not grant cloud account privileges");
+  assert.equal(host.fixture.exchanges.length, 0);
   await host.restart();
   assert.deepEqual(await host.request("/network/account"), { ok: true, configured: true });
   await host.request("/settings", { agentRouterUrl: "" }, "PATCH");
@@ -41,7 +179,7 @@ test("invalid URLs and environment overrides cannot replace the trusted service"
   const managed = await host.request<{ settings: { agentRouterUrl: string; agentRouterManaged: boolean } }>(
     "/settings",
   );
-  assert.equal(managed.settings.agentRouterUrl, host.fixture.serviceUrl);
+  assert.equal(managed.settings.agentRouterUrl, "");
   assert.equal(managed.settings.agentRouterManaged, true);
   assert.equal((await patch("")).status, 409);
   delete process.env.OPENGROVE_AGENT_ROUTER_URL;
@@ -58,6 +196,8 @@ test("invalid URLs and environment overrides cannot replace the trusted service"
     "https://user:password@agents.example",
     "https://agents.example?token=secret",
     "https://agents.example/#fragment",
+    "https://agents.example/_agent-router/v1?",
+    "https://agents.example/_agent-router/v1#",
     "a".repeat(2049),
   ]) {
     const response = await patch(invalid);
@@ -165,4 +305,35 @@ test("a failed settings write leaves the previous Router active", async (t) => {
     rmdirSync(settings.settingsPath);
     renameSync(backup, settings.settingsPath);
   }
+});
+
+test("an environment address is display-only and cannot become a saved fallback", async (t) => {
+  const host = await startRemoteRoomHost();
+  t.after(() => host.dispose());
+  const response = await fetch(host.baseUrl + "/settings", {
+    method: "PATCH",
+    headers: host.headers,
+    body: JSON.stringify({ agentRouterUrl: host.fixture.serviceUrl }),
+  });
+  assert.equal(response.status, 409, "even an identical environment URL is not writable");
+  const snapshot = await host.request<{ settings: { agentRouterUrl: string; agentRouterEffectiveUrl: string } }>(
+    "/settings",
+  );
+  assert.equal(snapshot.settings.agentRouterUrl, "");
+  assert.equal(snapshot.settings.agentRouterEffectiveUrl, host.fixture.serviceUrl);
+  await host.request("/settings", { developerMode: true }, "PATCH");
+  delete process.env.OPENGROVE_AGENT_ROUTER_URL;
+  await host.restart();
+  assert.deepEqual(await host.request("/network/account"), { ok: true, configured: false });
+  await host.request("/settings", { agentRouterUrl: "https://saved.example/_agent-router/v1" }, "PATCH");
+  process.env.OPENGROVE_AGENT_ROUTER_URL = host.fixture.serviceUrl;
+  const managed = await host.request<{ settings: { agentRouterUrl: string; agentRouterEffectiveUrl: string } }>(
+    "/settings",
+  );
+  assert.equal(managed.settings.agentRouterUrl, "https://saved.example/_agent-router/v1");
+  assert.equal(managed.settings.agentRouterEffectiveUrl, host.fixture.serviceUrl);
+  delete process.env.OPENGROVE_AGENT_ROUTER_URL;
+  await host.restart();
+  const restored = await host.request<{ settings: { agentRouterUrl: string } }>("/settings");
+  assert.equal(restored.settings.agentRouterUrl, "https://saved.example/_agent-router/v1");
 });

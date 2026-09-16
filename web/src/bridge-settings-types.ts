@@ -214,6 +214,7 @@ export interface BridgeSettings {
   kernelProxy: KernelProxySettings;
   appStore?: AppStoreSettings;
   agentRouterUrl?: string;
+  agentRouterEffectiveUrl?: string;
   agentRouterManaged?: boolean;
   appUpdates?: AppUpdateSettings;
   voice?: VoiceSettings;
@@ -670,6 +671,8 @@ export interface ModelProviderBinding {
 
 export interface BridgeSettingsResponse {
   ok: boolean;
+  degraded?: boolean;
+  warning?: "settings_state_persist_failed";
   kernelDiscoveryPending?: boolean;
   restarted?: boolean;
   settings: BridgeSettings;
