@@ -41,7 +41,6 @@ import {
 } from "./claude-bedrock-env.js";
 import { writeClaudeModelsCache } from "./claude-models-cache.js";
 import { normalizeClaudeRuntimeModelId, resolveClaudeRuntimeModel } from "./claude-model-normalize.js";
-import type { ClaudeCodeRuntimeOptions } from "./claude-code-runtime.js";
 import { runWithNativeSessionLock } from "./native-session-lock.js";
 import { imageAttachmentsWithDataUrl } from "./media-input.js";
 import { contextBudgetDiagnostic, resolveContextTokenBudget } from "./context-token-budget.js";
@@ -57,8 +56,16 @@ export type ClaudeAgentSdkQueryFunction = (params: {
   options?: ClaudeAgentSdkOptions;
 }) => ClaudeAgentQuery;
 
-export interface ClaudeAgentSdkRuntimeOptions extends Omit<ClaudeCodeRuntimeOptions, "cliPath"> {
+export interface ClaudeAgentSdkRuntimeOptions {
   cliPath?: string;
+  cwd?: string;
+  permissionMode?: ClaudePermissionMode;
+  configuredBaseUrl?: string;
+  configuredAuthToken?: string;
+  configuredModel?: string;
+  runtimeBindingFingerprint?: string;
+  modelAliases?: Record<string, string>;
+  env?: NodeJS.ProcessEnv;
   query?: ClaudeAgentSdkQueryFunction;
 }
 

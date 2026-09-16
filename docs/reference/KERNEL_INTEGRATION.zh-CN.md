@@ -22,6 +22,10 @@
 [`src/kernel/adapter.ts`](../../src/kernel/adapter.ts) 与
 [`src/kernel/adapters/`](../../src/kernel/adapters/) 下的 Kernel-specific 文件。
 
+Claude 统一通过 Agent SDK 运行，旧 `OPENGROVE_CLAUDE_CODE_RUNTIME` 开关不再生效。
+SDK 仍会启动 Claude 引擎，原生 Login 命令也需要该程序，因此保留引擎查找和
+`OPENGROVE_CLAUDE_CLI_PATH` 路径配置。
+
 ## 选择最窄 transport
 
 优先使用 Kernel 官方支持的 programmatic boundary：
@@ -181,7 +185,7 @@ App 没有声明权限档位时，保留该 App 员工已保存的权限。对�
 可能影响选项是否可用、以及新员工的默认档位，不改写已有选择；内核不支持的组合仍会修正。
 v4 迁移只执行一次：对支持 Auto 的本地员工，将请求批准升为帮我批准，包括用户明确保存的请求批准；
 已有的帮我批准和完全访问保持不变。迁移先转换旧模型标识，在修改前备份状态，并保存完成标记。
-Claude 的旧 CLI 入口无法运行 Auto，因此不执行这项 Ask 到 Auto 的升级。缺失权限和不支持的组合仍会归一化。
+缺失权限和不支持的组合仍会归一化。
 迁移后用户再改回请求批准，重启也会保留；App 内的 PM 绑定跟随全局 PM。
 聊天读取已有选择时不改写；没有选择时根据当前内核和模型决定默认档位。
 

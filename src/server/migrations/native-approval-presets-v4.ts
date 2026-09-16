@@ -1,6 +1,5 @@
 import { isBridgeKernelId, type RoomChannelStore } from "../../rooms/channel-store.js";
 import { normalizeEmployeeAccessMode } from "../employee-access-mode.js";
-import { resolveClaudeCodeRuntimeMode } from "../../kernel/host-tools.js";
 
 export const NATIVE_APPROVAL_PRESETS_VERSION = 4;
 
@@ -19,10 +18,7 @@ export function migrateNativeApprovalPresetsV4(
 ): boolean {
   const patches = rooms.listMembers().flatMap((member) => {
     if (member.source === "remote" || !isBridgeKernelId(member.kernel)) return [];
-    const defaultMode =
-      member.kernel === "claude-code" && resolveClaudeCodeRuntimeMode() === "cli"
-        ? "default"
-        : normalizeEmployeeAccessMode(member.kernel, undefined, member.model, claudeConfigHome);
+    const defaultMode = normalizeEmployeeAccessMode(member.kernel, undefined, member.model, claudeConfigHome);
     const supportsAuto = defaultMode === "auto-review";
     const normalized =
       member.accessMode === undefined

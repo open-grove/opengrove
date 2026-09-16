@@ -66,7 +66,7 @@ what the host and UI need to understand.
 | `src/core/` | Domain contracts: events, policy, registries, stores, shared runtime and knowledge types |
 | `src/app/` | Composition root that wires stores, tools, skills, packs, context, and kernels |
 | `src/kernel/` | Adapter contracts, discovery, manifests, tool bridge, and kernel-specific adapters |
-| `src/runtime/` | Concrete protocol bridges: Codex RPC, Claude SDK/CLI, ACP, HTTP/SSE, Gateway WebSocket, Pi, generic CLI, captures, projectors |
+| `src/runtime/` | Concrete protocol bridges: Codex RPC, Claude Agent SDK, ACP, HTTP/SSE, Gateway WebSocket, Pi, generic CLI, captures, projectors |
 | `src/server/` | Local bridge, routes, settings, kernel selection, provider binding, approvals, rooms, apps, voice, preview, and knowledge file orchestration |
 | `src/rooms/` | Server-backed room ledger and event model |
 | `src/knowledge/` | Knowledge store views, organizer helpers, feedback, and vault-facing records |

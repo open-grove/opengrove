@@ -30,7 +30,7 @@ import {
   buildClaudeCodeRuntimeControls,
   discoverClaudeCodeKernel,
   createClaudeCodeKernelAdapterFromOptions,
-  claudeCodeKernelContract,
+  CLAUDE_CODE_KERNEL_CONTRACT,
 } from "../kernel/adapters/claude-code.js";
 import {
   HERMES_KERNEL_CONTRACT,
@@ -226,7 +226,7 @@ export function getBridgeKernelDescriptor(kernelId: BridgeKernelId): BridgeKerne
 
 const KERNEL_CONTRACTS: Record<BridgeKernelId, () => KernelAdapterContract> = {
   codex: () => CODEX_KERNEL_CONTRACT,
-  "claude-code": claudeCodeKernelContract,
+  "claude-code": () => CLAUDE_CODE_KERNEL_CONTRACT,
   hermes: () => HERMES_KERNEL_CONTRACT,
   pi: () => PI_KERNEL_CONTRACT,
   openclaw: () => OPENCLAW_GATEWAY_CONTRACT,

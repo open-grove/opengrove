@@ -58,7 +58,7 @@ OpenGrove 分三层职责。
 | `src/core/` | 事件、policy、registry、store、runtime/knowledge 共享类型 |
 | `src/app/` | 组合 root，连接 stores、tools、skills、packs、context 和 kernels |
 | `src/kernel/` | adapter contracts、discovery、manifest、tool bridge 和 kernel adapters |
-| `src/runtime/` | Codex RPC、Claude SDK/CLI、ACP、HTTP/SSE、Gateway WebSocket、Pi、generic CLI、capture、projector |
+| `src/runtime/` | Codex RPC、Claude Agent SDK、ACP、HTTP/SSE、Gateway WebSocket、Pi、generic CLI、capture、projector |
 | `src/server/` | 本地 bridge、routes、settings、kernel selection、provider binding、approvals、rooms、apps、voice、preview、knowledge files |
 | `src/rooms/` | 服务端 room ledger 与事件模型 |
 | `src/knowledge/` | 知识 store 视图、organizer、feedback 和 vault-facing records |

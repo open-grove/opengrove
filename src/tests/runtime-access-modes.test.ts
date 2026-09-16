@@ -681,38 +681,35 @@ test("upgrading raises supported Ask to Auto, preserves Full and repairs unsuppo
   assert.equal(migrateNativeApprovalPresetsV4(rooms), false);
 });
 
-for (const runtimeMode of ["sdk", "cli"] as const) {
-  test(`permission migration respects Claude ${runtimeMode} Auto support without a model cache`, (t) => {
-    t.mock.property(process, "env", { ...process.env, OPENGROVE_CLAUDE_CODE_RUNTIME: runtimeMode });
-    const configHome = mkdtempSync(join(tmpdir(), "opengrove-claude-migration-"));
-    const rooms = new RoomChannelStore();
-    try {
-      for (const model of ["claude-opus-5", "claude-opus-4-8", "deepseek-v4-flash"])
-        for (const accessMode of ["default", "auto-review", "full-access"] as const)
-          rooms.upsertMember({
-            id: `${model}-${accessMode}`,
-            name: model,
-            kernel: "claude-code",
-            model,
-            role: "",
-            status: "idle",
-            color: "",
-            lastActive: "",
-            accessMode,
-            userOverrides: ["accessMode"],
-          });
-      migrateNativeApprovalPresetsV4(rooms, undefined, configHome);
-      for (const model of ["claude-opus-5", "claude-opus-4-8", "deepseek-v4-flash"]) {
-        const members = new Map(rooms.listMembers().map((member) => [member.id, member]));
-        assert.equal(members.get(`${model}-default`)?.accessMode, runtimeMode === "sdk" ? "auto-review" : "default");
-        assert.equal(members.get(`${model}-auto-review`)?.accessMode, "auto-review");
-        assert.equal(members.get(`${model}-full-access`)?.accessMode, "full-access");
-      }
-    } finally {
-      rmSync(configHome, { recursive: true, force: true });
+test("permission migration respects Claude Auto support without a model cache", () => {
+  const configHome = mkdtempSync(join(tmpdir(), "opengrove-claude-migration-"));
+  const rooms = new RoomChannelStore();
+  try {
+    for (const model of ["claude-opus-5", "claude-opus-4-8", "deepseek-v4-flash"])
+      for (const accessMode of ["default", "auto-review", "full-access"] as const)
+        rooms.upsertMember({
+          id: `${model}-${accessMode}`,
+          name: model,
+          kernel: "claude-code",
+          model,
+          role: "",
+          status: "idle",
+          color: "",
+          lastActive: "",
+          accessMode,
+          userOverrides: ["accessMode"],
+        });
+    migrateNativeApprovalPresetsV4(rooms, undefined, configHome);
+    for (const model of ["claude-opus-5", "claude-opus-4-8", "deepseek-v4-flash"]) {
+      const members = new Map(rooms.listMembers().map((member) => [member.id, member]));
+      assert.equal(members.get(`${model}-default`)?.accessMode, "auto-review");
+      assert.equal(members.get(`${model}-auto-review`)?.accessMode, "auto-review");
+      assert.equal(members.get(`${model}-full-access`)?.accessMode, "full-access");
     }
-  });
-}
+  } finally {
+    rmSync(configHome, { recursive: true, force: true });
+  }
+});
 
 test("permission migration keeps Gateway and remote permission ownership", () => {
   const rooms = new RoomChannelStore();

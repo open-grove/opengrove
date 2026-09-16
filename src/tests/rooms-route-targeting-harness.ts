@@ -49,13 +49,10 @@ writeFileSync(
   "utf8",
 );
 const token = "rooms-route-targeting-token";
-const claudeRuntimeEnvName = appEnvName("CLAUDE_CODE_RUNTIME");
 const claudeCliPathEnvName = appEnvName("CLAUDE_CLI_PATH");
 const anthropicApiKeyEnvName = "ANTHROPIC_API_KEY";
-const previousClaudeRuntime = process.env[claudeRuntimeEnvName];
 const previousClaudeCliPath = process.env[claudeCliPathEnvName];
 const previousAnthropicApiKey = process.env[anthropicApiKeyEnvName];
-process.env[claudeRuntimeEnvName] = "sdk";
 process.env[claudeCliPathEnvName] = process.execPath;
 process.env[anthropicApiKeyEnvName] = "rooms-route-targeting-test-key";
 const server = startLocalBridgeServer({
@@ -828,11 +825,6 @@ try {
   await new Promise<void>((resolve, reject) => {
     server.close((error) => (error ? reject(error) : resolve()));
   });
-  if (previousClaudeRuntime === undefined) {
-    delete process.env[claudeRuntimeEnvName];
-  } else {
-    process.env[claudeRuntimeEnvName] = previousClaudeRuntime;
-  }
   if (previousClaudeCliPath === undefined) {
     delete process.env[claudeCliPathEnvName];
   } else {

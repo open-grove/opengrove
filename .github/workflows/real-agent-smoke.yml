@@ -41,14 +41,6 @@ on:
         description: Engine version tag of the GHCR image to run
         required: true
         type: string
-      runtime_mode:
-        description: For claude-code, which runtime to exercise (ignored by other kernels)
-        required: false
-        default: sdk
-        type: choice
-        options:
-          - sdk
-          - cli
   push:
     branches:
       - main
@@ -94,13 +86,11 @@ jobs:
           AUTO_RUN_ENABLED: ${{ vars.OPENGROVE_REAL_AGENT_SMOKE_ENABLED }}
           DISPATCH_KERNEL: ${{ inputs.kernel }}
           DISPATCH_VERSION: ${{ inputs.engine_version }}
-          DISPATCH_MODE: ${{ inputs.runtime_mode }}
           IS_FORK: ${{ github.event.pull_request.head.repo.fork }}
           PR_AUTHOR: ${{ github.event.pull_request.user.login }}
         run: |
           set -euo pipefail
           # Default per-kernel image versions. Update alongside the Dockerfiles.
-          # The CLI compatibility case intentionally stays on the external image.
           # The SDK case selects the exact platform Engine installed by package-lock.
           claude_version="2.1.220"
           opencode_version="1.18.3"
@@ -108,15 +98,12 @@ jobs:
           # A called workflow inherits a manually dispatched Nightly's event name,
           # but only a direct dispatch supplies the required kernel input.
           if [[ "$EVENT" == "workflow_dispatch" && -n "$DISPATCH_KERNEL" ]]; then
-            # A single kernel + runtime mode selected manually. claude-code splits
-            # into sdk/cli; other kernels ignore runtime_mode.
+            # Claude always uses the SDK; other Kernels retain their native adapter.
             case_name="$DISPATCH_KERNEL"
-            [[ "$DISPATCH_KERNEL" == "claude-code" ]] && case_name="claude-$DISPATCH_MODE"
+            [[ "$DISPATCH_KERNEL" == "claude-code" ]] && case_name="claude-sdk"
             caps="message.streamText,turn.lifecycle,session.lifecycle,diagnostics.usage"
-            # CLI mode does not emit usage; drop it from the required set.
-            [[ "$DISPATCH_KERNEL" == "claude-code" && "$DISPATCH_MODE" == "cli" ]] && caps="message.streamText,turn.lifecycle,session.lifecycle"
-            [[ "$DISPATCH_KERNEL" == "claude-code" && "$DISPATCH_MODE" == "sdk" ]] && caps="$caps,planning.plan"
-            entry="{\"case\":\"$case_name\",\"kernel\":\"$DISPATCH_KERNEL\",\"image\":\"$DISPATCH_KERNEL\",\"engine_version\":\"$DISPATCH_VERSION\",\"runtime_mode\":\"$DISPATCH_MODE\",\"capabilities\":\"$caps\"}"
+            [[ "$DISPATCH_KERNEL" == "claude-code" ]] && caps="$caps,planning.plan"
+            entry="{\"case\":\"$case_name\",\"kernel\":\"$DISPATCH_KERNEL\",\"image\":\"$DISPATCH_KERNEL\",\"engine_version\":\"$DISPATCH_VERSION\",\"capabilities\":\"$caps\"}"
             echo "matrix={\"include\":[$entry]}" >> "$GITHUB_OUTPUT"
             echo "run=true" >> "$GITHUB_OUTPUT"
             exit 0
@@ -150,18 +137,12 @@ jobs:
             exit 0
           fi
 
-          # Default matrix: claude-code exercised in both SDK and CLI modes from
-          # the same base image. The SDK case overrides the Engine path with the
-          # exact platform binary installed by package-lock; the CLI case keeps the
-          # image Engine as an external compatibility probe. SDK exposes usage
-          # diagnostics; the CLI path does not emit a usage event, so CLI omits
-          # diagnostics.usage rather than recording a false failure.
+          # Exercise the SDK with its locked bundled Engine and the native OpenCode adapter.
           # Only credential-wired kernels are included.
           core="message.streamText,turn.lifecycle,session.lifecycle"
-          sdk="{\"case\":\"claude-sdk\",\"kernel\":\"claude-code\",\"image\":\"claude-code\",\"engine_version\":\"$claude_version\",\"runtime_mode\":\"sdk\",\"capabilities\":\"$core,diagnostics.usage,planning.plan\"}"
-          cli="{\"case\":\"claude-cli\",\"kernel\":\"claude-code\",\"image\":\"claude-code\",\"engine_version\":\"$claude_version\",\"runtime_mode\":\"cli\",\"capabilities\":\"$core\"}"
-          oc="{\"case\":\"opencode\",\"kernel\":\"opencode\",\"image\":\"opencode\",\"engine_version\":\"$opencode_version\",\"runtime_mode\":\"\",\"capabilities\":\"$core\"}"
-          echo "matrix={\"include\":[$sdk,$cli,$oc]}" >> "$GITHUB_OUTPUT"
+          sdk="{\"case\":\"claude-sdk\",\"kernel\":\"claude-code\",\"image\":\"claude-code\",\"engine_version\":\"$claude_version\",\"capabilities\":\"$core,diagnostics.usage,planning.plan\"}"
+          oc="{\"case\":\"opencode\",\"kernel\":\"opencode\",\"image\":\"opencode\",\"engine_version\":\"$opencode_version\",\"capabilities\":\"$core\"}"
+          echo "matrix={\"include\":[$sdk,$oc]}" >> "$GITHUB_OUTPUT"
           echo "run=true" >> "$GITHUB_OUTPUT"
 
   smoke:
@@ -213,7 +194,7 @@ jobs:
         run: bash /opt/opengrove/verify-agent-image-version.sh "${{ matrix.kernel }}"
 
       - name: Select SDK-bundled Claude Engine
-        if: matrix.kernel == 'claude-code' && matrix.runtime_mode == 'sdk'
+        if: matrix.kernel == 'claude-code'
         shell: bash
         run: |
           set -euo pipefail
@@ -236,7 +217,6 @@ jobs:
         shell: bash
         env:
           KERNEL: ${{ matrix.kernel }}
-          RUNTIME_MODE: ${{ matrix.runtime_mode }}
           CASE: ${{ matrix.case }}
           CI_CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CI_CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
@@ -272,12 +252,6 @@ jobs:
             } >> "$GITHUB_ENV"
             if [[ -n "${CI_CLOUDFLARE_ANTHROPIC_HAIKU_MODEL:-}" ]]; then
               echo "ANTHROPIC_DEFAULT_HAIKU_MODEL=$CI_CLOUDFLARE_ANTHROPIC_HAIKU_MODEL" >> "$GITHUB_ENV"
-            fi
-            # CLI mode: OpenGrove drives the Claude CLI instead of the Agent SDK.
-            # This is the case that guards against "runs CLI but UI still shows SDK".
-            # SDK mode leaves the runtime unset (default).
-            if [[ "$RUNTIME_MODE" == "cli" ]]; then
-              echo "OPENGROVE_CLAUDE_CODE_RUNTIME=cli" >> "$GITHUB_ENV"
             fi
           elif [[ "$KERNEL" == "opencode" ]]; then
             test -n "$CI_CLOUDFLARE_ANTHROPIC_MODEL" || { echo "CLOUDFLARE_ANTHROPIC_MODEL var is missing" >&2; exit 1; }

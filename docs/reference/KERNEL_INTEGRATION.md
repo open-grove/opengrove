@@ -26,6 +26,10 @@ files under [`src/kernel/adapters/`](../../src/kernel/adapters/).
 
 ## Choose the narrowest transport
 
+Claude runs exclusively through the Agent SDK. The old `OPENGROVE_CLAUDE_CODE_RUNTIME`
+switch has no effect. Engine discovery and `OPENGROVE_CLAUDE_CLI_PATH` remain available
+because the SDK launches the Claude Engine and native Login commands use that executable.
+
 Prefer the Kernel's supported programmatic boundary:
 
 | Shape | Current reference |
@@ -210,8 +214,8 @@ with Ask for approval. OpenClaw remains Gateway-managed; remote permissions belo
 
 Explicit user choices survive ordinary seed synchronization and take priority over App defaults;
 compatible App declarations take priority over product defaults. App version activation and the
-explicit restore-App-defaults action can reapply the App's configuration. Ordinary synchronization
-keeps App default snapshots separate from user selections. Restoring defaults reads the App declaration;
+explicit restore-App-defaults action can reapply the App's configuration.
+App default snapshots remain separate from user selections. Restoring defaults reads the App declaration;
 an omitted permission resolves to the product default instead of the user's last choice. Ordinary synchronization
 also preserves saved permissions for all product Employees, including PM, and App Employees whose App declares
 no permission mode. A refreshed or missing Claude cache can change availability and defaults for
@@ -219,7 +223,6 @@ models without declared support, without rewriting these saved selections. Unsup
 A one-time v4 migration raises existing local Employees from Ask for approval to Help me approve
 where Auto is supported, including an explicitly saved Ask choice. Auto and Full access stay unchanged.
 It runs after legacy model identifiers are resolved, backs up changed state and records completion.
-The migration skips the Ask-to-Auto upgrade for Claude's legacy CLI runtime, which cannot run Auto.
 Missing modes and unsupported combinations are still normalized. Subsequent permission changes,
 including switching back to Ask, survive restarts; PM's App-scoped bindings follow its global definition.
 Stored chat choices are read without being rewritten;

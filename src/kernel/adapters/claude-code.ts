@@ -5,12 +5,10 @@ import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { ClaudeAgentSdkRuntime, type ClaudeAgentSdkRuntimeOptions } from "../../runtime/claude-agent-sdk-runtime.js";
 import {
-  ClaudeCodeRuntime,
   resolveClaudeCodeCliPath,
   resolveClaudeCodeCliPathDetailed,
   type ClaudeCodeCliPathSource,
-  type ClaudeCodeRuntimeOptions,
-} from "../../runtime/claude-code-runtime.js";
+} from "../../runtime/claude-engine.js";
 import { hasAwsCredential } from "../../runtime/claude-bedrock-env.js";
 import { readClaudeDesktopBedrockConfig } from "../../runtime/claude-desktop-config.js";
 import {
@@ -30,11 +28,7 @@ import {
   resolveCommandInvocation,
   resolveHomePath,
 } from "../discovery.js";
-import {
-  bridgeKernelSupportsHostTools,
-  resolveClaudeCodeRuntimeMode,
-  type ClaudeCodeRuntimeMode,
-} from "../host-tools.js";
+import { bridgeKernelSupportsHostTools } from "../host-tools.js";
 import type { KernelAdapterContract, KernelDiscovery, KernelHealth, ProviderProfile } from "../types.js";
 import type { BridgeRuntimeControls } from "../../server/bridge-types.js";
 import {
@@ -52,28 +46,24 @@ import {
 
 export class ClaudeCodeKernelAdapter extends RuntimeKernelAdapter {
   constructor(private readonly claudeOptions: ClaudeAgentSdkRuntimeOptions) {
-    const runtimeMode = resolveClaudeCodeRuntimeMode();
     const runtimeOptions = withResolvedClaudeCliPath(claudeOptions);
     super({
       id: "claude-code",
       title: "Claude Agent",
-      runtime:
-        runtimeMode === "sdk"
-          ? new ClaudeAgentSdkRuntime(runtimeOptions)
-          : new ClaudeCodeRuntime(toClaudeCodeRuntimeOptions(runtimeOptions)),
+      runtime: new ClaudeAgentSdkRuntime(runtimeOptions),
       capabilities: {
         sessionHistory: "kernel",
         reasoning: {
-          nativeText: runtimeMode === "sdk" ? "conditional" : "unsupported",
+          nativeText: "conditional",
           summary: "unsupported",
         },
         streaming: true,
         toolCalls: true,
         hostTools: bridgeKernelSupportsHostTools("claude-code"),
         approvals: true,
-        elicitation: runtimeMode === "sdk",
+        elicitation: true,
         artifacts: false,
-        compaction: runtimeMode === "sdk",
+        compaction: true,
         authRefresh: false,
         sandbox: ["danger-full-access"],
         knowledge: {
@@ -86,7 +76,7 @@ export class ClaudeCodeKernelAdapter extends RuntimeKernelAdapter {
         nativeThreadGoal: false,
         nativeSkillCatalog: false,
       },
-      contract: claudeCodeKernelContract(runtimeMode),
+      contract: CLAUDE_CODE_KERNEL_CONTRACT,
     });
   }
 
@@ -133,21 +123,6 @@ function claudeCodeModelAliasesFromProvider(_provider: import("../types.js").Pro
   return {};
 }
 
-export { resolveClaudeCodeRuntimeMode } from "../host-tools.js";
-export type { ClaudeCodeRuntimeMode } from "../host-tools.js";
-
-export function claudeCodeKernelContract(
-  runtimeMode: ClaudeCodeRuntimeMode = resolveClaudeCodeRuntimeMode(),
-): KernelAdapterContract {
-  return {
-    ...CLAUDE_CODE_KERNEL_CONTRACT,
-    labels: {
-      ...CLAUDE_CODE_KERNEL_CONTRACT.labels,
-      integrationMode: runtimeMode === "sdk" ? "sdk" : "cli",
-    },
-  };
-}
-
 function withResolvedClaudeCliPath(
   options: ClaudeAgentSdkRuntimeOptions,
 ): ClaudeAgentSdkRuntimeOptions & { cliPath: string } {
@@ -155,13 +130,6 @@ function withResolvedClaudeCliPath(
     ...options,
     cliPath: options.cliPath || resolveClaudeCodeCliPath(options.cwd) || readAppEnv("CLAUDE_CLI_PATH") || "claude",
   };
-}
-
-function toClaudeCodeRuntimeOptions(
-  options: ClaudeAgentSdkRuntimeOptions & { cliPath: string },
-): ClaudeCodeRuntimeOptions {
-  const { query: _query, ...runtimeOptions } = options;
-  return runtimeOptions;
 }
 
 export function discoverClaudeCodeKernel(
@@ -672,29 +640,6 @@ export const CLAUDE_CODE_KERNEL_CONTRACT: KernelAdapterContract = {
         notes: [
           "Runs Claude Agent through @anthropic-ai/claude-agent-sdk, including native tools, MCP, skills, slash commands, permission callbacks, elicitation, hooks, and compact messages.",
           "OpenGrove host tools are exposed as an in-process SDK MCP server named opengrove.",
-        ],
-      },
-      {
-        id: "claude-cli-stream",
-        title: "Claude CLI stream-json capture",
-        layer: "process-stdio",
-        status: "planned",
-        enabledByDefault: false,
-        output: "data/claude-code-captures/",
-        env: [
-          appEnvName("CLAUDE_CODE_CAPTURE"),
-          appEnvName("CLAUDE_CODE_CAPTURE_DIR"),
-          appEnvName("CLAUDE_CODE_CAPTURE_MAX_INLINE_BYTES"),
-          appEnvName("CLAUDE_CODE_CAPTURE_STDERR"),
-          appEnvName("CLAUDE_CODE_CAPTURE_RAW_IO"),
-        ],
-        redaction: "raw",
-        notes: [
-          "Records Claude CLI stream-json stdout events plus OpenGrove-mapped events.",
-          "By default it also records the raw OpenGrove user input, appended system prompt, and raw stdout JSON line, matching native transcript expectations.",
-          `Set ${appEnvName("CLAUDE_CODE_CAPTURE_RAW_IO")}=0 to keep only bytes/hash summaries for input and stdout.`,
-          "Structured event copies are still redacted for easier inspection, but raw fields are intentionally exact.",
-          "It does not expose hidden reasoning or the final provider request payload.",
         ],
       },
       {

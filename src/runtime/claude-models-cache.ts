@@ -163,11 +163,7 @@ export function resolveClaudeEffortLevels(
 // the OpenGrove Provider on 2026-09-16 with @anthropic-ai/claude-agent-sdk 0.3.263.
 // Native activation remains authoritative for account/provider errors;
 // cached metadata cannot hide these models.
-const KNOWN_CLAUDE_AUTO_REVIEW_MODEL_IDS: readonly string[] = [
-  "claude-opus-5",
-  "claude-opus-4-8",
-  "deepseek-v4-flash",
-];
+const KNOWN_CLAUDE_AUTO_REVIEW_MODEL_IDS: readonly string[] = ["claude-opus-5", "claude-opus-4-8", "deepseek-v4-flash"];
 
 /** Picker ids and creation defaults share product declarations and discovered model aliases. */
 export function claudeAutoReviewModelIds(cache: ClaudeModelEffortInfo[]): string[] {
