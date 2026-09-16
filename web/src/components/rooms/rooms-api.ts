@@ -103,15 +103,12 @@ export type UpsertRoomMemberResponse = {
 
 export async function fetchRoomsInit(limit = 80): Promise<RoomsInitResponse> {
   const snapshot = await openGroveClient.rooms.collection.list({ limit });
-  return normalizeRoomsInitResponse({
-    ...snapshot,
-    messages: snapshot.messages.map(requireRoomMessage),
-  });
+  return normalizeRoomsInitResponse(snapshot);
 }
 
 export async function fetchRoomMessages(roomId: string, limit = 80): Promise<RoomMessage[]> {
   const response = await openGroveClient.rooms.messages.list({ roomId, limit });
-  return response.messages.map(requireRoomMessage).sort(sortRoomMessages);
+  return response.messages.map(normalizeServerRoomMessage).sort(sortRoomMessages);
 }
 
 export function isRoomsSessionRequiredError(error: unknown): boolean {

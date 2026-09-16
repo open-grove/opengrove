@@ -95,8 +95,9 @@ test("CLI queries persisted runs, sessions, and executions with revision polling
     });
     assert.equal(delta.exitCode, 0, delta.stderr);
     assert.deepEqual(JSON.parse(delta.stdout ?? "null").data.events, []);
-    const invalid = await runHostOperationCommand(["run", "list", "--limit", "1001"], { env });
-    assert.equal(invalid.exitCode, 2);
+    const capped = await runHostOperationCommand(["run", "list", "--limit", "1001", "--dry-run"], { env });
+    assert.equal(capped.exitCode, 0, capped.stderr);
+    assert.equal(JSON.parse(capped.stdout ?? "null").request.query.limit, 1000);
   } finally {
     await new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
     await rm(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });

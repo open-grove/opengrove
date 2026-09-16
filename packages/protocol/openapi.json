@@ -450,10 +450,8 @@
             "in": "query",
             "required": false,
             "schema": {
-              "default": 200,
-              "type": "integer",
-              "minimum": 1,
-              "maximum": 1000
+              "x-opengrove-query-repeated": "first",
+              "type": ["number", "string"]
             }
           },
           {
@@ -472,11 +470,11 @@
             "name": "waitMs",
             "in": "query",
             "required": false,
+            "description": "Maximum long-poll wait; capped at 25000 ms. Invalid or nonpositive values do not wait.",
             "schema": {
-              "default": 0,
-              "type": "integer",
-              "minimum": 0,
-              "maximum": 25000
+              "description": "Maximum long-poll wait; capped at 25000 ms. Invalid or nonpositive values do not wait.",
+              "x-opengrove-query-repeated": "first",
+              "type": ["number", "string"]
             }
           }
         ],
@@ -781,11 +779,11 @@
             "name": "limit",
             "in": "query",
             "required": false,
+            "description": "Defaults to 200; values above 1000 are capped; invalid values use the default.",
             "schema": {
-              "default": 200,
-              "type": "integer",
-              "minimum": 1,
-              "maximum": 1000
+              "description": "Defaults to 200; values above 1000 are capped; invalid values use the default.",
+              "x-opengrove-query-repeated": "first",
+              "type": ["number", "string"]
             }
           },
           {
@@ -801,18 +799,8 @@
             "in": "query",
             "required": false,
             "schema": {
-              "type": "string",
-              "enum": [
-                "TASK_STATE_UNSPECIFIED",
-                "TASK_STATE_SUBMITTED",
-                "TASK_STATE_WORKING",
-                "TASK_STATE_COMPLETED",
-                "TASK_STATE_FAILED",
-                "TASK_STATE_CANCELED",
-                "TASK_STATE_INPUT_REQUIRED",
-                "TASK_STATE_REJECTED",
-                "TASK_STATE_AUTH_REQUIRED"
-              ]
+              "x-opengrove-query-repeated": "first",
+              "type": "string"
             }
           }
         ],
@@ -1297,19 +1285,19 @@
             "in": "query",
             "required": false,
             "schema": {
-              "type": "string",
-              "enum": ["browser", "chat", "local", "api", "computer"]
+              "x-opengrove-query-repeated": "first",
+              "type": "string"
             }
           },
           {
             "name": "limit",
             "in": "query",
             "required": false,
+            "description": "Defaults to 100; values above 500 are capped; invalid values use the default.",
             "schema": {
-              "default": 100,
-              "type": "integer",
-              "minimum": 1,
-              "maximum": 500
+              "description": "Defaults to 100; values above 500 are capped; invalid values use the default.",
+              "x-opengrove-query-repeated": "first",
+              "type": ["number", "string"]
             }
           },
           {
@@ -1317,8 +1305,8 @@
             "in": "query",
             "required": false,
             "schema": {
-              "type": "string",
-              "enum": ["active", "idle", "archived"]
+              "x-opengrove-query-repeated": "first",
+              "type": "string"
             }
           }
         ],
@@ -1624,30 +1612,19 @@
             "in": "query",
             "required": false,
             "schema": {
-              "type": "string",
-              "enum": [
-                "loop",
-                "model",
-                "reasoning",
-                "tool_call",
-                "approval",
-                "question",
-                "planning",
-                "artifact",
-                "memory",
-                "error"
-              ]
+              "x-opengrove-query-repeated": "first",
+              "type": "string"
             }
           },
           {
             "name": "limit",
             "in": "query",
             "required": false,
+            "description": "Defaults to 200; values above 1000 are capped; invalid values use the default.",
             "schema": {
-              "default": 200,
-              "type": "integer",
-              "minimum": 1,
-              "maximum": 1000
+              "description": "Defaults to 200; values above 1000 are capped; invalid values use the default.",
+              "x-opengrove-query-repeated": "first",
+              "type": ["number", "string"]
             }
           },
           {
@@ -2928,11 +2905,11 @@
             "name": "limit",
             "in": "query",
             "required": false,
+            "description": "Defaults to 100; values above 500 are capped; invalid values use the default.",
             "schema": {
-              "default": 100,
-              "type": "integer",
-              "minimum": 1,
-              "maximum": 500
+              "description": "Defaults to 100; values above 500 are capped; invalid values use the default.",
+              "x-opengrove-query-repeated": "first",
+              "type": ["number", "string"]
             }
           },
           {
@@ -2940,8 +2917,8 @@
             "in": "query",
             "required": false,
             "schema": {
-              "type": "string",
-              "enum": ["pending", "approved", "rejected", "canceled"]
+              "x-opengrove-query-repeated": "first",
+              "type": "string"
             }
           }
         ],
@@ -4165,11 +4142,11 @@
             "name": "limit",
             "in": "query",
             "required": false,
+            "description": "Defaults to 100; values above 500 are capped; invalid values use the default.",
             "schema": {
-              "default": 100,
-              "type": "integer",
-              "minimum": 1,
-              "maximum": 500
+              "description": "Defaults to 100; values above 500 are capped; invalid values use the default.",
+              "x-opengrove-query-repeated": "first",
+              "type": ["number", "string"]
             }
           },
           {
@@ -4177,8 +4154,8 @@
             "in": "query",
             "required": false,
             "schema": {
-              "type": "string",
-              "enum": ["pending", "answered", "declined", "canceled"]
+              "x-opengrove-query-repeated": "first",
+              "type": "string"
             }
           }
         ],
@@ -8503,11 +8480,9 @@
             "required": false,
             "description": "Recent messages per Room, at most 200.",
             "schema": {
-              "default": 80,
+              "x-opengrove-query-repeated": "first",
               "description": "Recent messages per Room, at most 200.",
-              "type": "integer",
-              "exclusiveMinimum": 0,
-              "maximum": 200
+              "type": ["number", "string"]
             }
           },
           {
@@ -8516,11 +8491,9 @@
             "required": false,
             "description": "Total snapshot message limit, at most 1000.",
             "schema": {
-              "default": 500,
+              "x-opengrove-query-repeated": "first",
               "description": "Total snapshot message limit, at most 1000.",
-              "type": "integer",
-              "exclusiveMinimum": 0,
-              "maximum": 1000
+              "type": ["number", "string"]
             }
           }
         ],
@@ -10610,9 +10583,8 @@
             "in": "query",
             "required": false,
             "schema": {
-              "type": "integer",
-              "minimum": 0,
-              "maximum": 9007199254740991
+              "x-opengrove-query-repeated": "first",
+              "type": ["number", "string"]
             }
           },
           {
@@ -10620,9 +10592,8 @@
             "in": "query",
             "required": false,
             "schema": {
-              "type": "integer",
-              "minimum": 0,
-              "maximum": 9007199254740991
+              "x-opengrove-query-repeated": "first",
+              "type": ["number", "string"]
             }
           },
           {
@@ -10630,10 +10601,8 @@
             "in": "query",
             "required": false,
             "schema": {
-              "default": 80,
-              "type": "integer",
-              "exclusiveMinimum": 0,
-              "maximum": 200
+              "x-opengrove-query-repeated": "first",
+              "type": ["number", "string"]
             }
           }
         ],
@@ -13343,10 +13312,8 @@
             "in": "query",
             "required": false,
             "schema": {
-              "default": 0,
-              "type": "integer",
-              "minimum": 0,
-              "maximum": 9007199254740991
+              "x-opengrove-query-repeated": "first",
+              "type": ["number", "string"]
             }
           },
           {
@@ -13354,10 +13321,8 @@
             "in": "query",
             "required": false,
             "schema": {
-              "default": 1,
-              "type": "integer",
-              "minimum": 1,
-              "maximum": 2
+              "x-opengrove-query-repeated": "first",
+              "type": ["number", "string"]
             }
           },
           {
@@ -13365,21 +13330,19 @@
             "in": "query",
             "required": false,
             "schema": {
-              "default": 200,
-              "type": "integer",
-              "exclusiveMinimum": 0,
-              "maximum": 1000
+              "x-opengrove-query-repeated": "first",
+              "type": ["number", "string"]
             }
           },
           {
             "name": "waitMs",
             "in": "query",
             "required": false,
+            "description": "Maximum long-poll wait; capped at 25000 ms. Invalid or nonpositive values do not wait.",
             "schema": {
-              "default": 0,
-              "type": "integer",
-              "minimum": 0,
-              "maximum": 25000
+              "description": "Maximum long-poll wait; capped at 25000 ms. Invalid or nonpositive values do not wait.",
+              "x-opengrove-query-repeated": "first",
+              "type": ["number", "string"]
             }
           }
         ],

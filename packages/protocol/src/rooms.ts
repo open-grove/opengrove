@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { hostLongPollSupportSchema } from "./compat/host-http.js";
+import { hostLongPollSupportSchema, roomQueryInteger, roomQueryCursor, hostQueryWaitMs } from "./compat/host-http.js";
 import { roomMemberSchema, roomMemberInputSchema } from "./room-members.js";
 import { remoteRoomTaskSchema } from "./remote-agent.js";
 import { defineHostOperation, defineHostOperationGroup, defineHostOperationResource } from "./operation.js";
@@ -195,9 +195,9 @@ export const listRoomMessagesOperation = defineHostOperation({
   risk: "read",
   params: z.object({ roomId: roomIdentifierSchema }),
   query: z.object({
-    limit: z.number().int().positive().max(200).default(80),
-    beforeSeq: z.number().int().nonnegative().optional(),
-    afterSeq: z.number().int().nonnegative().optional(),
+    limit: roomQueryInteger(80, 200),
+    beforeSeq: roomQueryCursor,
+    afterSeq: roomQueryCursor,
   }),
   success: {
     status: 200,
@@ -388,14 +388,8 @@ export const listRoomsOperation = defineHostOperation({
   path: "/rooms",
   risk: "read",
   query: z.object({
-    limit: z.number().int().positive().max(200).default(80).describe("Recent messages per Room, at most 200."),
-    totalLimit: z
-      .number()
-      .int()
-      .positive()
-      .max(1000)
-      .default(500)
-      .describe("Total snapshot message limit, at most 1000."),
+    limit: roomQueryInteger(80, 200).describe("Recent messages per Room, at most 200."),
+    totalLimit: roomQueryInteger(500, 1000).describe("Total snapshot message limit, at most 1000."),
   }),
   success: {
     status: 200,
@@ -436,10 +430,10 @@ export const listRoomEventsOperation = defineHostOperation({
   path: "/rooms/events",
   risk: "read",
   query: z.object({
-    afterEventSeq: z.number().int().nonnegative().default(0),
-    limit: z.number().int().positive().max(1000).default(200),
-    waitMs: z.number().int().nonnegative().max(25000).default(0),
-    eventVersion: z.number().int().min(1).max(2).default(1),
+    afterEventSeq: roomQueryInteger(0),
+    limit: roomQueryInteger(200, 1000),
+    waitMs: hostQueryWaitMs,
+    eventVersion: roomQueryInteger(1),
   }),
   success: {
     status: 200,

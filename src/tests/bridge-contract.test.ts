@@ -584,6 +584,56 @@ test("route contracts serialize only documented response fields", async () => {
   assert.deepEqual(sent, [{ ok: true, cancelled: false }]);
 });
 
+test("migrated Host queries preserve existing pagination and filter normalization", async () => {
+  const cases = [
+    ["room.room.list", "/rooms?limit=9999&totalLimit=0x20", { limit: 200, totalLimit: 32 }],
+    ["room.room.list", "/rooms?limit=garbage&limit=5&totalLimit=", { limit: 80, totalLimit: 500 }],
+    [
+      "room.message.list",
+      "/rooms/test/messages?limit=2.9&beforeSeq=oops&afterSeq=0",
+      { limit: 2, beforeSeq: undefined, afterSeq: 0 },
+    ],
+    [
+      "room.event.list",
+      "/rooms/events?waitMs=30000&limit=1001&afterEventSeq=2.9&eventVersion=3",
+      { waitMs: 25000, limit: 1000, afterEventSeq: 2, eventVersion: 3 },
+    ],
+    [
+      "room.event.list",
+      "/rooms/events?waitMs=-1&limit=-1&afterEventSeq=oops",
+      { waitMs: 0, limit: 200, afterEventSeq: 0, eventVersion: 1 },
+    ],
+    [
+      "run.session.list",
+      "/sessions?status=unknown&activity=unknown&limit=9999",
+      { status: undefined, activity: undefined, limit: 500 },
+    ],
+    ["run.run.list", "/runs?taskState=unknown&limit=2.9", { taskState: undefined, limit: 200 }],
+    ["run.execution.list", "/executions?kind=unknown&limit=0x10", { kind: undefined, limit: 16 }],
+    ["interaction.approval.list", "/approvals?status=all&limit=0", { status: undefined, limit: 100 }],
+    ["interaction.question.list", "/questions?status=unknown&limit=9999", { status: undefined, limit: 500 }],
+    ["run.event.list", "/events?limit=-2&waitMs=30000", { runId: [], limit: 1, waitMs: 25000 }],
+    ["run.event.list", "/events?limit=&waitMs=1.5", { runId: [], limit: 1, waitMs: 0 }],
+  ] as const;
+  for (const [id, path, expected] of cases) {
+    const context = contractTestContext({ body: {} });
+    context.request.method = "GET";
+    context.url = new URL(path, "http://localhost");
+    let actual: unknown;
+    const operation: CompiledHostOperation = hostContractById[id];
+    await dispatchBridgeRoutes(
+      [
+        operationRoute(operation, (input) => {
+          actual = input.input.query;
+          return true;
+        }),
+      ],
+      context,
+    );
+    assert.deepEqual(actual, expected, path);
+  }
+});
+
 function compileTestOperation<const TOperation extends HostOperation>(
   operation: TOperation,
 ): CompiledHostOperation<TOperation> {

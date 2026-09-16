@@ -216,6 +216,10 @@ function operationQueryParams(operation: CompiledHostOperation, url: URL): Recor
       continue;
     }
     if (schema && values.length > 1) {
+      if (isRecord(schema) && schema["x-opengrove-query-repeated"] === "first") {
+        query[name] = decodeQueryScalar(values[0]!, schema);
+        continue;
+      }
       throw new BridgeContractViolation("request", operation.id, [
         { path: `query.${name}`, code: "query_parameter_repeated" },
       ]);

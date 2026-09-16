@@ -1,6 +1,12 @@
 import { agentEventSchema } from "./agent-event-records.js";
 import { z } from "zod";
-import { hostLongPollSupportSchema } from "./compat/host-http.js";
+import {
+  hostLongPollSupportSchema,
+  stateQueryLimit,
+  eventQueryLimit,
+  hostQueryWaitMs,
+  hostQueryFilter,
+} from "./compat/host-http.js";
 import {
   activitySpaceSchema,
   sessionStatusSchema,
@@ -61,9 +67,9 @@ export const listSessionsOperation = defineHostOperation({
   path: "/sessions",
   risk: "read",
   query: z.object({
-    status: sessionStatusSchema.optional(),
-    activity: activitySpaceSchema.optional(),
-    limit: z.number().int().min(1).max(500).default(100),
+    status: hostQueryFilter(sessionStatusSchema),
+    activity: hostQueryFilter(activitySpaceSchema),
+    limit: stateQueryLimit(100, 500),
   }),
   success: { status: 200, body: z.object({ ok: z.literal(true), sessions: z.array(sessionRecordSchema) }) },
   errors: hostRequestErrors,
@@ -80,8 +86,8 @@ export const listRunsOperation = defineHostOperation({
   risk: "read",
   query: z.object({
     sessionId: z.string().optional(),
-    taskState: a2aTaskStateSchema.optional(),
-    limit: z.number().int().min(1).max(1000).default(200),
+    taskState: hostQueryFilter(a2aTaskStateSchema),
+    limit: stateQueryLimit(200, 1000),
     afterRevision: z.string().optional(),
   }),
   success: {
@@ -105,8 +111,8 @@ export const listExecutionsOperation = defineHostOperation({
   query: z.object({
     sessionId: z.string().optional(),
     runId: z.string().optional(),
-    kind: executionKindSchema.optional(),
-    limit: z.number().int().min(1).max(1000).default(200),
+    kind: hostQueryFilter(executionKindSchema),
+    limit: stateQueryLimit(200, 1000),
     afterRevision: z.string().optional(),
   }),
   success: {
@@ -139,10 +145,10 @@ export const listRunEventsOperation = defineHostOperation({
             .filter(Boolean),
         ),
       ]),
-    limit: z.number().int().min(1).max(1000).default(200),
+    limit: eventQueryLimit,
     cursor: z.string().trim().optional(),
     beforeCursor: z.string().trim().optional(),
-    waitMs: z.number().int().min(0).max(25000).default(0),
+    waitMs: hostQueryWaitMs,
   }),
   success: {
     status: 200,

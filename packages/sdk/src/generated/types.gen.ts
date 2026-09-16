@@ -3400,9 +3400,12 @@ export type RunEventListData = {
   query?: {
     beforeCursor?: string;
     cursor?: string;
-    limit?: number;
+    limit?: number | string;
     runId?: Array<string>;
-    waitMs?: number;
+    /**
+     * Maximum long-poll wait; capped at 25000 ms. Invalid or nonpositive values do not wait.
+     */
+    waitMs?: number | string;
   };
   url: "/events";
 };
@@ -3506,18 +3509,12 @@ export type RunRunListData = {
   path?: never;
   query?: {
     afterRevision?: string;
-    limit?: number;
+    /**
+     * Defaults to 200; values above 1000 are capped; invalid values use the default.
+     */
+    limit?: number | string;
     sessionId?: string;
-    taskState?:
-      | "TASK_STATE_UNSPECIFIED"
-      | "TASK_STATE_SUBMITTED"
-      | "TASK_STATE_WORKING"
-      | "TASK_STATE_COMPLETED"
-      | "TASK_STATE_FAILED"
-      | "TASK_STATE_CANCELED"
-      | "TASK_STATE_INPUT_REQUIRED"
-      | "TASK_STATE_REJECTED"
-      | "TASK_STATE_AUTH_REQUIRED";
+    taskState?: string;
   };
   url: "/runs";
 };
@@ -3673,9 +3670,12 @@ export type RunSessionListData = {
   body?: never;
   path?: never;
   query?: {
-    activity?: "browser" | "chat" | "local" | "api" | "computer";
-    limit?: number;
-    status?: "active" | "idle" | "archived";
+    activity?: string;
+    /**
+     * Defaults to 100; values above 500 are capped; invalid values use the default.
+     */
+    limit?: number | string;
+    status?: string;
   };
   url: "/sessions";
 };
@@ -3779,18 +3779,11 @@ export type RunExecutionListData = {
   path?: never;
   query?: {
     afterRevision?: string;
-    kind?:
-      | "loop"
-      | "model"
-      | "reasoning"
-      | "tool_call"
-      | "approval"
-      | "question"
-      | "planning"
-      | "artifact"
-      | "memory"
-      | "error";
-    limit?: number;
+    kind?: string;
+    /**
+     * Defaults to 200; values above 1000 are capped; invalid values use the default.
+     */
+    limit?: number | string;
     runId?: string;
     sessionId?: string;
   };
@@ -4220,8 +4213,11 @@ export type InteractionApprovalListData = {
   body?: never;
   path?: never;
   query?: {
-    limit?: number;
-    status?: "pending" | "approved" | "rejected" | "canceled";
+    /**
+     * Defaults to 100; values above 500 are capped; invalid values use the default.
+     */
+    limit?: number | string;
+    status?: string;
   };
   url: "/approvals";
 };
@@ -4636,8 +4632,11 @@ export type InteractionQuestionListData = {
   body?: never;
   path?: never;
   query?: {
-    limit?: number;
-    status?: "pending" | "answered" | "declined" | "canceled";
+    /**
+     * Defaults to 100; values above 500 are capped; invalid values use the default.
+     */
+    limit?: number | string;
+    status?: string;
   };
   url: "/questions";
 };
@@ -6353,11 +6352,11 @@ export type RoomRoomListData = {
     /**
      * Recent messages per Room, at most 200.
      */
-    limit?: number;
+    limit?: number | string;
     /**
      * Total snapshot message limit, at most 1000.
      */
-    totalLimit?: number;
+    totalLimit?: number | string;
   };
   url: "/rooms";
 };
@@ -7051,9 +7050,9 @@ export type RoomMessageListData = {
     roomId: string;
   };
   query?: {
-    afterSeq?: number;
-    beforeSeq?: number;
-    limit?: number;
+    afterSeq?: number | string;
+    beforeSeq?: number | string;
+    limit?: number | string;
   };
   url: "/rooms/{roomId}/messages";
 };
@@ -7941,10 +7940,13 @@ export type RoomEventListData = {
   body?: never;
   path?: never;
   query?: {
-    afterEventSeq?: number;
-    eventVersion?: number;
-    limit?: number;
-    waitMs?: number;
+    afterEventSeq?: number | string;
+    eventVersion?: number | string;
+    limit?: number | string;
+    /**
+     * Maximum long-poll wait; capped at 25000 ms. Invalid or nonpositive values do not wait.
+     */
+    waitMs?: number | string;
   };
   url: "/rooms/events";
 };

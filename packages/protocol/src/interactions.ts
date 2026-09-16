@@ -1,3 +1,4 @@
+import { stateQueryLimit, hostQueryFilter } from "./compat/host-http.js";
 import { routineRunResultSchema } from "./routine-records.js";
 import { artifactRecordSchema, workingStateRecordSchema, toolResultSchema } from "./workspace-records.js";
 import { sessionRecordSchema, runRecordSchema, executionRecordSchema } from "./run-records.js";
@@ -19,7 +20,7 @@ export const listApprovalsOperation = defineHostOperation({
   method: "GET",
   path: "/approvals",
   risk: "read",
-  query: z.object({ status: approvalStatusSchema.optional(), limit: z.number().int().min(1).max(500).default(100) }),
+  query: z.object({ status: hostQueryFilter(approvalStatusSchema), limit: stateQueryLimit(100, 500) }),
   success: {
     status: 200,
     body: z.object({ ok: z.literal(true), approvals: z.array(approvalRequestSchema.omit({ resume: true })) }),
@@ -35,7 +36,7 @@ export const listQuestionsOperation = defineHostOperation({
   method: "GET",
   path: "/questions",
   risk: "read",
-  query: z.object({ status: questionStatusSchema.optional(), limit: z.number().int().min(1).max(500).default(100) }),
+  query: z.object({ status: hostQueryFilter(questionStatusSchema), limit: stateQueryLimit(100, 500) }),
   success: {
     status: 200,
     body: z.object({ ok: z.literal(true), questions: z.array(questionRequestSchema.omit({ resume: true })) }),
