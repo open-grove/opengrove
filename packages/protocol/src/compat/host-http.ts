@@ -1,9 +1,9 @@
 import { z } from "zod";
 
-// Host HTTP behavior before the Protocol migration (OpenGrove 0.7.0, #107):
+// Supports: OpenGrove 0.7.0 Host HTTP behavior before the Protocol migration (#107).
 // https://github.com/open-grove/opengrove/issues/107
 // Older Hosts omit the long-poll capability; consumers must keep periodic refresh.
-// Remove this default only when those Host versions are no longer supported.
+// Remove when: the OpenGrove 0.7.0 HTTP contract is retired in a versioned migration.
 export const hostLongPollSupportSchema = z.boolean().optional().default(false);
 
 // These GET endpoints used URLSearchParams.get and their own number readers in
@@ -11,6 +11,8 @@ export const hostLongPollSupportSchema = z.boolean().optional().default(false);
 // Remove only with an explicitly versioned HTTP contract change.
 const firstValue = { "x-opengrove-query-repeated": "first" };
 const numericQuery = z.union([z.number(), z.string()]).optional();
+export const hostQueryString = z.string().optional().meta(firstValue);
+export const hostQueryCursor = z.string().trim().optional().meta(firstValue);
 
 export function roomQueryInteger(fallback: number, maximum = Infinity) {
   return numericQuery

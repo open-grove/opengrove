@@ -94,7 +94,7 @@ await writeFile(
   import assert from "node:assert/strict";
   import React from "react";
   import { renderToStaticMarkup } from "react-dom/server";
-  import { applyRoomEvents, fetchRoomEvents, markServerRoomRead, mergeRoomsFromServerSnapshot, postServerRoomMessage, postServerRoomMessageWithReplyFallback, replaceRoomsFromServerSnapshot } from ${JSON.stringify(roomsApiImport)};
+  import { applyRoomEvents, fetchRoomsInit, fetchRoomMessages, fetchRoomEvents, markServerRoomRead, mergeRoomsFromServerSnapshot, postServerRoomMessage, postServerRoomMessageWithReplyFallback, replaceRoomsFromServerSnapshot } from ${JSON.stringify(roomsApiImport)};
   import { reconcileDeletedRoomMemberIds } from ${JSON.stringify(roomsServerSyncImport)};
   import { createRoomReadReceiptQueue } from ${JSON.stringify(roomReadReceiptsImport)};
   import { appScopedGroupUnreadCount, dedupeRoomMembers, directRoomMember, harmonizeRoomMemberAvatars, projectRoomMemberIdentity, resolveVisibleRoomFocus, selectableKernelOptions, visibleRoomUnreadCount } from ${JSON.stringify(roomsModelImport)};
@@ -3409,6 +3409,33 @@ await writeFile(
   }
 
   globalThis.__roomReplyApiTestPromise = (async () => {
+    {
+      const originalFetch = globalThis.fetch;
+      const wireMessage = {
+        id: "historical-message", roomId: "historical-room", channelSeq: 1,
+        senderId: "employee-writer", senderName: "Writer", senderType: "agent",
+        text: "connector --pairing-code example-code", targetIds: [], status: "done",
+        createdAt: "2026-09-16T00:00:00.000Z", updatedAt: "2026-09-16T00:00:00.000Z",
+        parts: [{ id: "historical-text", type: "text", text: "connector --cloud-url example-origin" }],
+        attachments: [{ type: "file", name: "notes.txt", customMetadata: "preserved" }],
+      };
+      globalThis.fetch = async () => new Response(JSON.stringify({
+        ok: true, rooms: [], members: [], messages: [wireMessage], currentEventSeq: 1, deletedMemberIds: [],
+      }), { status: 200, headers: { "content-type": "application/json" } });
+      try {
+        const snapshot = await fetchRoomsInit();
+        const history = await fetchRoomMessages("historical-room");
+        for (const messages of [snapshot.messages, history]) {
+          assert.equal(messages.length, 1);
+          assert.equal(messages[0].text, "connector --pairing-code [redacted]");
+          assert.equal(messages[0].parts[0].text, "connector --cloud-url [redacted]");
+          assert.deepEqual(messages[0].attachments, wireMessage.attachments,
+            "shared Client transport must preserve message attachment extensions");
+        }
+      } finally {
+        globalThis.fetch = originalFetch;
+      }
+    }
     for (const support of [true, false, undefined]) {
       const originalFetch = globalThis.fetch;
       let requestedUrl;

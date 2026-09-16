@@ -609,6 +609,16 @@ test("migrated Host queries preserve existing pagination and filter normalizatio
       { status: undefined, activity: undefined, limit: 500 },
     ],
     ["run.run.list", "/runs?taskState=unknown&limit=2.9", { taskState: undefined, limit: 200 }],
+    [
+      "run.run.list",
+      "/runs?sessionId=first&sessionId=second&afterRevision=one&afterRevision=two",
+      { sessionId: "first", afterRevision: "one", limit: 200 },
+    ],
+    [
+      "run.event.list",
+      "/events?cursor=%20first%20&cursor=second",
+      { runId: [], cursor: "first", limit: 200, waitMs: 0 },
+    ],
     ["run.execution.list", "/executions?kind=unknown&limit=0x10", { kind: undefined, limit: 16 }],
     ["interaction.approval.list", "/approvals?status=all&limit=0", { status: undefined, limit: 100 }],
     ["interaction.question.list", "/questions?status=unknown&limit=9999", { status: undefined, limit: 500 }],

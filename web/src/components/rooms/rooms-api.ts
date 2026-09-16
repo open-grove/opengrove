@@ -108,7 +108,7 @@ export async function fetchRoomsInit(limit = 80): Promise<RoomsInitResponse> {
 
 export async function fetchRoomMessages(roomId: string, limit = 80): Promise<RoomMessage[]> {
   const response = await openGroveClient.rooms.messages.list({ roomId, limit });
-  return response.messages.map(normalizeServerRoomMessage).sort(sortRoomMessages);
+  return normalizeServerRoomMessages(response.messages).sort(sortRoomMessages);
 }
 
 export function isRoomsSessionRequiredError(error: unknown): boolean {
@@ -805,8 +805,10 @@ function readPostRoomMessageResponse(value: unknown): PostRoomMessageResponse {
   };
 }
 
-function normalizeRoomsInitResponse(snapshot: RoomsInitResponse): RoomsInitResponse {
-  const messages = snapshot.messages.map(normalizeServerRoomMessage);
+function normalizeRoomsInitResponse(
+  snapshot: Omit<RoomsInitResponse, "messages"> & { messages: unknown[] },
+): RoomsInitResponse {
+  const messages = normalizeServerRoomMessages(snapshot.messages);
   const runningSenderIds = new Set(
     messages
       .filter((message) => message.senderType === "agent" && message.status === "running")
@@ -819,6 +821,16 @@ function normalizeRoomsInitResponse(snapshot: RoomsInitResponse): RoomsInitRespo
     ),
     messages,
   };
+}
+
+function normalizeServerRoomMessages(values: unknown[]): ServerRoomMessage[] {
+  const messages: ServerRoomMessage[] = [];
+  for (const value of values) {
+    const message = readMessage(value);
+    if (message) messages.push(message);
+    else console.warn("room_message_display_skipped: missing message identity");
+  }
+  return messages;
 }
 
 function normalizeServerRoomMessage(message: ServerRoomMessage): ServerRoomMessage {

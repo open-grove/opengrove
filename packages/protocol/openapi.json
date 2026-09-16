@@ -434,6 +434,7 @@
             "in": "query",
             "required": false,
             "schema": {
+              "x-opengrove-query-repeated": "first",
               "type": "string"
             }
           },
@@ -442,6 +443,7 @@
             "in": "query",
             "required": false,
             "schema": {
+              "x-opengrove-query-repeated": "first",
               "type": "string"
             }
           },
@@ -772,6 +774,7 @@
             "in": "query",
             "required": false,
             "schema": {
+              "x-opengrove-query-repeated": "first",
               "type": "string"
             }
           },
@@ -791,6 +794,7 @@
             "in": "query",
             "required": false,
             "schema": {
+              "x-opengrove-query-repeated": "first",
               "type": "string"
             }
           },
@@ -1604,6 +1608,7 @@
             "in": "query",
             "required": false,
             "schema": {
+              "x-opengrove-query-repeated": "first",
               "type": "string"
             }
           },
@@ -1632,6 +1637,7 @@
             "in": "query",
             "required": false,
             "schema": {
+              "x-opengrove-query-repeated": "first",
               "type": "string"
             }
           },
@@ -1640,6 +1646,7 @@
             "in": "query",
             "required": false,
             "schema": {
+              "x-opengrove-query-repeated": "first",
               "type": "string"
             }
           }

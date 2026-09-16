@@ -6,6 +6,8 @@ import {
   eventQueryLimit,
   hostQueryWaitMs,
   hostQueryFilter,
+  hostQueryString,
+  hostQueryCursor,
 } from "./compat/host-http.js";
 import {
   activitySpaceSchema,
@@ -85,10 +87,10 @@ export const listRunsOperation = defineHostOperation({
   path: "/runs",
   risk: "read",
   query: z.object({
-    sessionId: z.string().optional(),
+    sessionId: hostQueryString,
     taskState: hostQueryFilter(a2aTaskStateSchema),
     limit: stateQueryLimit(200, 1000),
-    afterRevision: z.string().optional(),
+    afterRevision: hostQueryString,
   }),
   success: {
     status: 200,
@@ -109,11 +111,11 @@ export const listExecutionsOperation = defineHostOperation({
   path: "/executions",
   risk: "read",
   query: z.object({
-    sessionId: z.string().optional(),
-    runId: z.string().optional(),
+    sessionId: hostQueryString,
+    runId: hostQueryString,
     kind: hostQueryFilter(executionKindSchema),
     limit: stateQueryLimit(200, 1000),
-    afterRevision: z.string().optional(),
+    afterRevision: hostQueryString,
   }),
   success: {
     status: 200,
@@ -146,8 +148,8 @@ export const listRunEventsOperation = defineHostOperation({
         ),
       ]),
     limit: eventQueryLimit,
-    cursor: z.string().trim().optional(),
-    beforeCursor: z.string().trim().optional(),
+    cursor: hostQueryCursor,
+    beforeCursor: hostQueryCursor,
     waitMs: hostQueryWaitMs,
   }),
   success: {
