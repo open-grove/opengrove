@@ -229,7 +229,8 @@ for (const extension of ["tar", "zip"]) {
       });
     });
   }
-  test(`App Store keeps missing-file errors for ${extension}`, () => {
+  test(`App Store keeps missing-file errors for ${extension}`, (t) => {
+    const warn = t.mock.method(console, "warn", () => {});
     archiveFixture(extension, Buffer.alloc(0), (archive, target) => {
       rmSync(archive);
       const result = unpackAppStoreArchive(archive, target);
@@ -239,6 +240,14 @@ for (const extension of ["tar", "zip"]) {
         assert.equal(result.error.includes(archive), false);
         assert.equal(result.error.includes(target), false);
       }
+      assert.equal(warn.mock.callCount(), 1);
+      const [event, context, error] = warn.mock.calls[0]!.arguments;
+      assert.equal(event, "app_store_archive_extract_failed");
+      assert.deepEqual(context, { archivePath: archive, target });
+      assert.ok(error instanceof Error);
+      assert.match(error.message, /ENOENT/);
+      assert.ok(error.message.includes(archive));
+      assert.ok(error.stack?.includes(error.message));
     });
   });
   test(`App Store refuses a nonempty ${extension} extraction target`, () => {
@@ -360,6 +369,23 @@ for (const [extension, bytes] of [
     });
   });
 }
+
+test("App Store logs the original ZIP error while returning only the public code", (t) => {
+  const warn = t.mock.method(console, "warn", () => {});
+  archiveFixture("zip", Buffer.from("not a zip"), (archive, target) => {
+    assert.deepEqual(unpackAppStoreArchive(archive, target), {
+      ok: false,
+      error: "app_store_archive_extract_failed",
+    });
+    assert.equal(warn.mock.callCount(), 1);
+    const [event, context, error] = warn.mock.calls[0]!.arguments;
+    assert.equal(event, "app_store_archive_extract_failed");
+    assert.deepEqual(context, { archivePath: archive, target });
+    assert.ok(error instanceof Error);
+    assert.equal(error.message, "ADM-ZIP: Invalid or unsupported zip format. No END header found");
+    assert.ok(error.stack?.includes(error.message));
+  });
+});
 
 test("TAR preflight rejects truncated input without opening output files or leaking handles", (t) => {
   const originalOpen = fs.openSync;

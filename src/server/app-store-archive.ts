@@ -42,14 +42,16 @@ export function unpackAppStoreArchive(
     return { ok: true };
   } catch (error) {
     const detail = error instanceof Error ? error.message : "";
+    if (/^app_store_archive_[a-z_]+$/.test(detail)) return { ok: false, error: detail };
     const code = error instanceof Error && "code" in error && typeof error.code === "string" ? error.code : "";
+    // Desktop captures stderr in bridge-crash.log, which is included in diagnostic
+    // exports with the existing redaction rules. Keep the original Error for support.
+    console.warn("app_store_archive_extract_failed", { archivePath, target }, error);
     // Library messages can include archive/output paths. Return stable codes only;
     // this result is propagated to installation responses and problem records.
     return {
       ok: false,
-      error: /^app_store_archive_[a-z_]+$/.test(detail)
-        ? detail
-        : `app_store_archive_extract_failed${/^[A-Z][A-Z0-9_]{0,63}$/.test(code) ? `: ${code}` : ""}`,
+      error: `app_store_archive_extract_failed${/^[A-Z][A-Z0-9_]{0,63}$/.test(code) ? `: ${code}` : ""}`,
     };
   }
 }

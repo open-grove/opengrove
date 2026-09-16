@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -232,6 +233,30 @@ try {
   mkdirSync(guessedLogDir, { recursive: true });
   writeFileSync(join(approvedLogDir, "bridge.log"), "approved explicit log\n", "utf8");
   writeFileSync(join(guessedLogDir, "desktop-main.log"), "must not be discovered by ancestor traversal\n", "utf8");
+  const corruptArchive = join(pathBoundaryRoot, "corrupt-app.zip");
+  const extractionTarget = join(pathBoundaryRoot, "unpack");
+  writeFileSync(corruptArchive, "not a zip");
+  mkdirSync(extractionTarget);
+  const archiveFailure = spawnSync(
+    process.execPath,
+    [
+      "--input-type=module",
+      "-e",
+      `import { unpackAppStoreArchive } from ${JSON.stringify(new URL("../server/app-store-archive.js", import.meta.url).href)};
+process.stdout.write(JSON.stringify(unpackAppStoreArchive(process.argv[1], process.argv[2])));`,
+      corruptArchive,
+      extractionTarget,
+    ],
+    { encoding: "utf8", timeout: 10_000 },
+  );
+  assert.equal(archiveFailure.status, 0, archiveFailure.stderr);
+  assert.deepEqual(JSON.parse(archiveFailure.stdout), {
+    ok: false,
+    error: "app_store_archive_extract_failed",
+  });
+  // Exercise real stderr formatting and the same write-time redaction as the
+  // desktop supervisor before exporting its existing diagnostic log file.
+  writeFileSync(join(approvedLogDir, "bridge-crash.log"), redactDiagnosticText(archiveFailure.stderr));
   const boundaryBundle = await createDiagnosticBundle({
     diagnosticsDir: customDiagnosticsDir,
     logDirs: [approvedLogDir],
@@ -241,6 +266,10 @@ try {
   });
   const boundaryEntries = readZipArchiveForTest(boundaryBundle.archive);
   assert.match(boundaryEntries.get("logs/bridge.log")?.toString("utf8") ?? "", /approved explicit log/);
+  const archiveEvidence = boundaryEntries.get("logs/bridge-crash.log")?.toString("utf8") ?? "";
+  assert.match(archiveEvidence, /ADM-ZIP: Invalid or unsupported zip format\. No END header found/);
+  assert.match(archiveEvidence, /corrupt-app\.zip/);
+  assert.match(archiveEvidence, /\n\s+at /);
   assert.deepEqual(JSON.parse(boundaryEntries.get("store-app-layout.json")?.toString("utf8") ?? "{}"), {
     migration: { id: "store-app-layout-v2", introducedIn: "0.6.6" },
   });
