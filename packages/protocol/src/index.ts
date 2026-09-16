@@ -24,3 +24,4 @@ export * from "./workspace-records.js";
 export * from "./agent-event-records.js";
 export * from "./routine-records.js";
 export * from "./artifacts.js";
+export * from "./schema-registry.js";

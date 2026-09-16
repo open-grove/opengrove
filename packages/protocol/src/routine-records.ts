@@ -1,3 +1,4 @@
+import { hostSchemaRegistry } from "./schema-registry.js";
 import { z } from "zod";
 import { agentEventSchema } from "./agent-event-records.js";
 import { diagnosticProblemRefSchema, toolResultSchema } from "./workspace-records.js";
@@ -12,8 +13,10 @@ export const routineRunSummarySchema = z.object({
   error: z.string().optional(),
   problem: diagnosticProblemRefSchema.optional(),
 });
-export const routineRunResultSchema = z.object({
-  summary: routineRunSummarySchema,
-  events: z.array(agentEventSchema),
-  toolResults: z.array(toolResultSchema),
-});
+export const routineRunResultSchema = z
+  .object({
+    summary: routineRunSummarySchema,
+    events: z.array(agentEventSchema),
+    toolResults: z.array(toolResultSchema),
+  })
+  .register(hostSchemaRegistry, { id: "RoutineRunResult" });

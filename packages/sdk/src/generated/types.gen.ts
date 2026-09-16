@@ -4,8 +4,310 @@ export type ClientOptions = {
   baseUrl: `${string}://${string}/api` | (string & {});
 };
 
-export type RunEventPage = {
-  ok: true;
+export type EmployeeWriteInput = {
+  name?: string;
+  role?: string;
+  kernel?: string;
+  model?: string;
+  color?: string;
+  availableSkillIds?: Array<string>;
+  defaultSkillIds?: Array<string>;
+  reasoningEffort?: "low" | "medium" | "high" | "xhigh" | "max";
+  contextTokenBudget?: number;
+  accessMode?: "default" | "auto-review" | "full-access";
+  avatarMode?: "generated" | "initials" | "upload";
+  avatarSeed?: string;
+  avatarDataUrl?: string;
+  visibility?: "private" | "public";
+  publicDescription?: string;
+  publicSkills?: Array<string>;
+  inputSpec?: string;
+  outputSpec?: string;
+  id: string;
+  employeeDefinitionId?: string;
+  providerId?: string;
+  status?: "idle" | "running" | "done" | "waiting" | "offline";
+  lastActive?: string;
+  appId?: string;
+  workspaceRoot?: string;
+  storePackageId?: string;
+  toolIds?: Array<string>;
+  source?: "local" | "human";
+  sourceLabel?: string;
+  disabled?: boolean;
+};
+
+export type HostInputSharedDefinitionSchema0 =
+  | string
+  | number
+  | boolean
+  | null
+  | Array<HostInputSharedDefinitionSchema0>
+  | {
+      [key: string]: HostInputSharedDefinitionSchema0;
+    };
+
+export type HostInputSharedDefinitionSchema1 =
+  | string
+  | number
+  | boolean
+  | null
+  | Array<HostInputSharedDefinitionSchema1>
+  | {
+      [key: string]: HostInputSharedDefinitionSchema1;
+    };
+
+export type HostError = {
+  ok?: false;
+  error: string;
+  code?: string;
+  message?: string;
+  contractId?: string;
+  traceId?: string;
+  incidentId?: string;
+  issues?: Array<{
+    path: string;
+    code: string;
+  }>;
+};
+
+export type RunLifecycle = {
+  taskState:
+    | "TASK_STATE_UNSPECIFIED"
+    | "TASK_STATE_SUBMITTED"
+    | "TASK_STATE_WORKING"
+    | "TASK_STATE_COMPLETED"
+    | "TASK_STATE_FAILED"
+    | "TASK_STATE_CANCELED"
+    | "TASK_STATE_INPUT_REQUIRED"
+    | "TASK_STATE_REJECTED"
+    | "TASK_STATE_AUTH_REQUIRED";
+  activity?: "running" | "reconnecting" | "cancel_pending" | "waiting_on_child";
+  reasonCode?: string;
+  retryable?: boolean;
+  outcomeUnknown?: boolean;
+  childRunId?: string;
+};
+
+export type Question = {
+  id: string;
+  title: string;
+  createdAt: string;
+  updatedAt: string;
+  input?: HostOutputSharedDefinitionSchema0;
+  response?: HostOutputSharedDefinitionSchema1;
+  resume?:
+    | {
+        type: "tool";
+        runId?: string;
+      }
+    | {
+        type: "routine.step";
+        routineId: string;
+        stepId: string;
+        runId: string;
+        stepOutputs?: {
+          [key: string]: HostOutputSharedDefinitionSchema2;
+        };
+      }
+    | {
+        type: "kernel.native";
+        kernelId: string;
+        runId: string;
+        continuation: "same-loop";
+      };
+  nativeRequestId?: string;
+  deadlineAt?: string;
+  isBlocking?: boolean;
+  autoResolutionMs?: number;
+  prompt: string;
+  status: "pending" | "answered" | "declined" | "canceled";
+  source?:
+    | {
+        type: "kernel.native";
+        kernelId: string;
+      }
+    | {
+        type: "host";
+      }
+    | {
+        type: "unknown";
+      };
+};
+
+export type Approval = {
+  id: string;
+  title: string;
+  createdAt: string;
+  updatedAt: string;
+  input?: HostOutputSharedDefinitionSchema0;
+  response?: HostOutputSharedDefinitionSchema1;
+  resume?:
+    | {
+        type: "tool";
+        runId?: string;
+      }
+    | {
+        type: "routine.step";
+        routineId: string;
+        stepId: string;
+        runId: string;
+        stepOutputs?: {
+          [key: string]: HostOutputSharedDefinitionSchema2;
+        };
+      }
+    | {
+        type: "kernel.native";
+        kernelId: string;
+        runId: string;
+        continuation: "same-loop";
+      };
+  nativeRequestId?: string;
+  deadlineAt?: string;
+  isBlocking?: boolean;
+  autoResolutionMs?: number;
+  kind:
+    | "tool"
+    | "command"
+    | "file_change"
+    | "permission_scope"
+    | "routine_step"
+    | "memory_write"
+    | "browser_action"
+    | "computer_action";
+  reason: string;
+  status: "pending" | "approved" | "rejected" | "canceled";
+  toolId?: string;
+  capabilityId?: string;
+  skillId?: string;
+};
+
+export type ToolResult = {
+  ok: boolean;
+  value?: HostOutputSharedDefinitionSchema3;
+  error?: string;
+  problem?: {
+    incidentId: string;
+    code: string;
+  };
+  sources?: Array<{
+    title?: string;
+    url?: string;
+    locator?: string;
+    quote?: string;
+  }>;
+};
+
+export type InvokedSkill = {
+  skillId: string;
+  skillName: string;
+  title: string;
+  content: string;
+  contentPreview: string;
+  sourcePath: string;
+  source: "bundled" | "project" | "user" | "pack";
+  trust: "trusted" | "untrusted";
+  context: "inline" | "fork";
+  args?: string;
+  allowedTools: Array<string>;
+  model?: string;
+  effort?: string;
+  packId?: string;
+  capabilityId?: string;
+  invokedAt: string;
+  origin: "user" | "model";
+};
+
+export type Run = {
+  id: string;
+  sessionId: string;
+  activity: "browser" | "chat" | "local" | "api" | "computer";
+  lifecycle: RunLifecycle;
+  input: string;
+  createdAt: string;
+  updatedAt: string;
+  startedAt: string;
+  endedAt?: string;
+  modelId?: string;
+  summary?: string;
+  error?: string;
+  problem?: {
+    incidentId: string;
+    code: string;
+  };
+  pausedAt?: string;
+  resumedAt?: string;
+  pauseReason?: string;
+  lastApprovalId?: string;
+  lastQuestionId?: string;
+  resumeCount: number;
+  approvalIds: Array<string>;
+  questionIds: Array<string>;
+  toolIds: Array<string>;
+  eventCount: number;
+};
+
+export type Session = {
+  id: string;
+  title?: string;
+  activity?: "browser" | "chat" | "local" | "api" | "computer";
+  status: "active" | "idle" | "archived";
+  createdAt: string;
+  updatedAt: string;
+  activeRunId?: string;
+  latestRunId?: string;
+  runIds: Array<string>;
+  lastUserInput?: string;
+  metadata?: {
+    [key: string]: HostOutputSharedDefinitionSchema2;
+  };
+};
+
+export type Execution = {
+  id: string;
+  runId: string;
+  sessionId?: string;
+  kind:
+    | "loop"
+    | "model"
+    | "reasoning"
+    | "tool_call"
+    | "approval"
+    | "question"
+    | "planning"
+    | "artifact"
+    | "memory"
+    | "error";
+  /**
+   * The recorded Agent event type.
+   */
+  eventType: string;
+  title: string;
+  at: string;
+  status?: string;
+  toolId?: string;
+  approvalId?: string;
+  questionId?: string;
+  artifactId?: string;
+  data?: {
+    [key: string]: HostOutputSharedDefinitionSchema2;
+  };
+};
+
+export type RoutineRunResult = {
+  summary: {
+    id: string;
+    routineId: string;
+    status: "running" | "succeeded" | "failed" | "paused_for_approval";
+    startedAt: string;
+    endedAt?: string;
+    eventCount: number;
+    error?: string;
+    problem?: {
+      incidentId: string;
+      code: string;
+    };
+  };
   events: Array<
     | {
         type: "turn.started";
@@ -46,7 +348,7 @@ export type RunEventPage = {
             };
             score?: number;
             data?: {
-              [key: string]: RunEventPageDefinitionSchema0;
+              [key: string]: HostOutputSharedDefinitionSchema2;
             };
           }>;
           budget: {
@@ -63,14 +365,14 @@ export type RunEventPage = {
         runId: string;
         at: string;
         reason?: string;
-        item?: RunEventPageDefinitionSchema1;
+        item?: HostOutputSharedDefinitionSchema4;
       }
     | {
         type: "compaction.finished";
         runId: string;
         at: string;
         summary?: string;
-        item?: RunEventPageDefinitionSchema2;
+        item?: HostOutputSharedDefinitionSchema5;
       }
     | {
         type: "model.requested";
@@ -127,7 +429,7 @@ export type RunEventPage = {
               };
               score?: number;
               data?: {
-                [key: string]: RunEventPageDefinitionSchema0;
+                [key: string]: HostOutputSharedDefinitionSchema2;
               };
             }>;
             budget: {
@@ -147,13 +449,13 @@ export type RunEventPage = {
             input: {
               type: "json-schema";
               schema: {
-                [key: string]: RunEventPageDefinitionSchema0;
+                [key: string]: HostOutputSharedDefinitionSchema2;
               };
             };
             output?: {
               type: "json-schema";
               schema: {
-                [key: string]: RunEventPageDefinitionSchema0;
+                [key: string]: HostOutputSharedDefinitionSchema2;
               };
             };
             permission: {
@@ -196,7 +498,7 @@ export type RunEventPage = {
             shell?: Array<string>;
             paths?: Array<string>;
             hooks?: {
-              [key: string]: RunEventPageDefinitionSchema0;
+              [key: string]: HostOutputSharedDefinitionSchema2;
             };
             source: "bundled" | "project" | "user" | "pack";
             trust: "trusted" | "untrusted";
@@ -232,7 +534,7 @@ export type RunEventPage = {
             };
             activities: Array<"browser" | "chat" | "local" | "api" | "computer">;
             triggers?: Array<{
-              [key: string]: RunEventPageDefinitionSchema0;
+              [key: string]: HostOutputSharedDefinitionSchema2;
             }>;
             tools: Array<{
               id: string;
@@ -243,13 +545,13 @@ export type RunEventPage = {
               input: {
                 type: "json-schema";
                 schema: {
-                  [key: string]: RunEventPageDefinitionSchema0;
+                  [key: string]: HostOutputSharedDefinitionSchema2;
                 };
               };
               output?: {
                 type: "json-schema";
                 schema: {
-                  [key: string]: RunEventPageDefinitionSchema0;
+                  [key: string]: HostOutputSharedDefinitionSchema2;
                 };
               };
               permission: {
@@ -292,7 +594,7 @@ export type RunEventPage = {
               shell?: Array<string>;
               paths?: Array<string>;
               hooks?: {
-                [key: string]: RunEventPageDefinitionSchema0;
+                [key: string]: HostOutputSharedDefinitionSchema2;
               };
               source: "bundled" | "project" | "user" | "pack";
               trust: "trusted" | "untrusted";
@@ -350,7 +652,7 @@ export type RunEventPage = {
         at: string;
         name: string;
         data: {
-          [key: string]: RunEventPageDefinitionSchema0;
+          [key: string]: HostOutputSharedDefinitionSchema2;
         };
       }
     | {
@@ -392,7 +694,7 @@ export type RunEventPage = {
         text: string;
         at: string;
         data?: {
-          [key: string]: RunEventPageDefinitionSchema0;
+          [key: string]: HostOutputSharedDefinitionSchema2;
         };
       }
     | {
@@ -426,7 +728,7 @@ export type RunEventPage = {
           shell?: Array<string>;
           paths?: Array<string>;
           hooks?: {
-            [key: string]: RunEventPageDefinitionSchema0;
+            [key: string]: HostOutputSharedDefinitionSchema2;
           };
           source: "bundled" | "project" | "user" | "pack";
           trust: "trusted" | "untrusted";
@@ -467,7 +769,7 @@ export type RunEventPage = {
           shell?: Array<string>;
           paths?: Array<string>;
           hooks?: {
-            [key: string]: RunEventPageDefinitionSchema0;
+            [key: string]: HostOutputSharedDefinitionSchema2;
           };
           source: "bundled" | "project" | "user" | "pack";
           trust: "trusted" | "untrusted";
@@ -476,25 +778,7 @@ export type RunEventPage = {
           contentLength?: number;
           tags?: Array<string>;
         };
-        invocation: {
-          skillId: string;
-          skillName: string;
-          title: string;
-          content: string;
-          contentPreview: string;
-          sourcePath: string;
-          source: "bundled" | "project" | "user" | "pack";
-          trust: "trusted" | "untrusted";
-          context: "inline" | "fork";
-          args?: string;
-          allowedTools: Array<string>;
-          model?: string;
-          effort?: string;
-          packId?: string;
-          capabilityId?: string;
-          invokedAt: string;
-          origin: "user" | "model";
-        };
+        invocation: InvokedSkill;
       }
     | {
         type: "skill.loaded";
@@ -525,233 +809,41 @@ export type RunEventPage = {
         runId: string;
         toolId: string;
         callId?: string;
-        input: RunEventPageDefinitionSchema3;
+        input: HostOutputSharedDefinitionSchema6;
       }
     | {
         type: "tool.progress";
         runId: string;
         toolId: string;
         callId?: string;
-        update: RunEventPageDefinitionSchema4;
+        update: HostOutputSharedDefinitionSchema7;
       }
     | {
         type: "tool.finished";
         runId: string;
         toolId: string;
         callId?: string;
-        result: {
-          ok: boolean;
-          value?: RunEventPageDefinitionSchema5;
-          error?: string;
-          problem?: {
-            incidentId: string;
-            code: string;
-          };
-          sources?: Array<{
-            title?: string;
-            url?: string;
-            locator?: string;
-            quote?: string;
-          }>;
-        };
+        result: ToolResult;
       }
     | {
         type: "approval.requested";
         runId: string;
-        request: {
-          id: string;
-          title: string;
-          createdAt: string;
-          updatedAt: string;
-          input?: RunEventPageDefinitionSchema6;
-          response?: RunEventPageDefinitionSchema7;
-          resume?:
-            | {
-                type: "tool";
-                runId?: string;
-              }
-            | {
-                type: "routine.step";
-                routineId: string;
-                stepId: string;
-                runId: string;
-                stepOutputs?: {
-                  [key: string]: RunEventPageDefinitionSchema0;
-                };
-              }
-            | {
-                type: "kernel.native";
-                kernelId: string;
-                runId: string;
-                continuation: "same-loop";
-              };
-          nativeRequestId?: string;
-          deadlineAt?: string;
-          isBlocking?: boolean;
-          autoResolutionMs?: number;
-          kind:
-            | "tool"
-            | "command"
-            | "file_change"
-            | "permission_scope"
-            | "routine_step"
-            | "memory_write"
-            | "browser_action"
-            | "computer_action";
-          reason: string;
-          status: "pending" | "approved" | "rejected" | "canceled";
-          toolId?: string;
-          capabilityId?: string;
-          skillId?: string;
-        };
+        request: Approval;
       }
     | {
         type: "approval.resolved";
         runId: string;
-        request: {
-          id: string;
-          title: string;
-          createdAt: string;
-          updatedAt: string;
-          input?: RunEventPageDefinitionSchema6;
-          response?: RunEventPageDefinitionSchema7;
-          resume?:
-            | {
-                type: "tool";
-                runId?: string;
-              }
-            | {
-                type: "routine.step";
-                routineId: string;
-                stepId: string;
-                runId: string;
-                stepOutputs?: {
-                  [key: string]: RunEventPageDefinitionSchema0;
-                };
-              }
-            | {
-                type: "kernel.native";
-                kernelId: string;
-                runId: string;
-                continuation: "same-loop";
-              };
-          nativeRequestId?: string;
-          deadlineAt?: string;
-          isBlocking?: boolean;
-          autoResolutionMs?: number;
-          kind:
-            | "tool"
-            | "command"
-            | "file_change"
-            | "permission_scope"
-            | "routine_step"
-            | "memory_write"
-            | "browser_action"
-            | "computer_action";
-          reason: string;
-          status: "pending" | "approved" | "rejected" | "canceled";
-          toolId?: string;
-          capabilityId?: string;
-          skillId?: string;
-        };
+        request: Approval;
       }
     | {
         type: "question.requested";
         runId: string;
-        question: {
-          id: string;
-          title: string;
-          createdAt: string;
-          updatedAt: string;
-          input?: RunEventPageDefinitionSchema6;
-          response?: RunEventPageDefinitionSchema7;
-          resume?:
-            | {
-                type: "tool";
-                runId?: string;
-              }
-            | {
-                type: "routine.step";
-                routineId: string;
-                stepId: string;
-                runId: string;
-                stepOutputs?: {
-                  [key: string]: RunEventPageDefinitionSchema0;
-                };
-              }
-            | {
-                type: "kernel.native";
-                kernelId: string;
-                runId: string;
-                continuation: "same-loop";
-              };
-          nativeRequestId?: string;
-          deadlineAt?: string;
-          isBlocking?: boolean;
-          autoResolutionMs?: number;
-          prompt: string;
-          status: "pending" | "answered" | "declined" | "canceled";
-          source?:
-            | {
-                type: "kernel.native";
-                kernelId: string;
-              }
-            | {
-                type: "host";
-              }
-            | {
-                type: "unknown";
-              };
-        };
+        question: Question;
       }
     | {
         type: "question.answered";
         runId: string;
-        question: {
-          id: string;
-          title: string;
-          createdAt: string;
-          updatedAt: string;
-          input?: RunEventPageDefinitionSchema6;
-          response?: RunEventPageDefinitionSchema7;
-          resume?:
-            | {
-                type: "tool";
-                runId?: string;
-              }
-            | {
-                type: "routine.step";
-                routineId: string;
-                stepId: string;
-                runId: string;
-                stepOutputs?: {
-                  [key: string]: RunEventPageDefinitionSchema0;
-                };
-              }
-            | {
-                type: "kernel.native";
-                kernelId: string;
-                runId: string;
-                continuation: "same-loop";
-              };
-          nativeRequestId?: string;
-          deadlineAt?: string;
-          isBlocking?: boolean;
-          autoResolutionMs?: number;
-          prompt: string;
-          status: "pending" | "answered" | "declined" | "canceled";
-          source?:
-            | {
-                type: "kernel.native";
-                kernelId: string;
-              }
-            | {
-                type: "host";
-              }
-            | {
-                type: "unknown";
-              };
-        };
+        question: Question;
       }
     | {
         type: "planning.updated";
@@ -762,7 +854,7 @@ export type RunEventPage = {
           text: string;
           status?: string;
           raw?: {
-            [key: string]: RunEventPageDefinitionSchema0;
+            [key: string]: HostOutputSharedDefinitionSchema2;
           };
           updatedAt: string;
           source?:
@@ -818,7 +910,7 @@ export type RunEventPage = {
           };
           tags: Array<string>;
           data?: {
-            [key: string]: RunEventPageDefinitionSchema0;
+            [key: string]: HostOutputSharedDefinitionSchema2;
           };
           createdAt: string;
           updatedAt: string;
@@ -829,23 +921,7 @@ export type RunEventPage = {
         type: "turn.finished";
         runId: string;
         at: string;
-        outcome: {
-          taskState:
-            | "TASK_STATE_UNSPECIFIED"
-            | "TASK_STATE_SUBMITTED"
-            | "TASK_STATE_WORKING"
-            | "TASK_STATE_COMPLETED"
-            | "TASK_STATE_FAILED"
-            | "TASK_STATE_CANCELED"
-            | "TASK_STATE_INPUT_REQUIRED"
-            | "TASK_STATE_REJECTED"
-            | "TASK_STATE_AUTH_REQUIRED";
-          activity?: "running" | "reconnecting" | "cancel_pending" | "waiting_on_child";
-          reasonCode?: string;
-          retryable?: boolean;
-          outcomeUnknown?: boolean;
-          childRunId?: string;
-        };
+        outcome: RunLifecycle;
         synthetic?: boolean;
       }
     | {
@@ -863,577 +939,380 @@ export type RunEventPage = {
         };
       }
   >;
-  cursor: string;
-  oldestCursor: string;
-  hasMore: boolean;
-  hasOlder: boolean;
-  historyTruncated: boolean;
-  resetRequired: boolean;
-  longPollSupported: boolean;
-  snapshot: boolean;
+  toolResults: Array<ToolResult>;
 };
 
-export type RunEventPageDefinitionSchema0 =
-  | string
-  | number
-  | boolean
-  | null
-  | Array<RunEventPageDefinitionSchema0>
-  | {
-      [key: string]: RunEventPageDefinitionSchema0;
-    };
+export type WorkingState = {
+  sessionId?: string;
+  taskSummary?: string;
+  activeGoal?: string;
+  selectedModel?: string;
+  activePackId?: string;
+  activeSkillId?: string;
+  pinnedArtifactIds: Array<string>;
+  workingArtifactIds: Array<string>;
+  pendingApprovalIds: Array<string>;
+  pendingQuestionIds: Array<string>;
+  activeToolCallIds: Array<string>;
+  discoveredSkillIds: Array<string>;
+  discoveredSkillNames: Array<string>;
+  expandedSkillIds: Array<string>;
+  invokedSkills: Array<InvokedSkill>;
+  loadedNestedMemoryPaths: Array<string>;
+  toolSchemaCache: {
+    [key: string]: string;
+  };
+  updatedAt: string;
+};
 
-export type RunEventPageDefinitionSchema1 =
-  | string
-  | number
-  | boolean
-  | null
-  | Array<RunEventPageDefinitionSchema1>
-  | {
-      [key: string]: RunEventPageDefinitionSchema1;
-    };
-
-export type RunEventPageDefinitionSchema2 =
-  | string
-  | number
-  | boolean
-  | null
-  | Array<RunEventPageDefinitionSchema2>
-  | {
-      [key: string]: RunEventPageDefinitionSchema2;
-    };
-
-export type RunEventPageDefinitionSchema3 =
-  | string
-  | number
-  | boolean
-  | null
-  | Array<RunEventPageDefinitionSchema3>
-  | {
-      [key: string]: RunEventPageDefinitionSchema3;
-    };
-
-export type RunEventPageDefinitionSchema4 =
-  | string
-  | number
-  | boolean
-  | null
-  | Array<RunEventPageDefinitionSchema4>
-  | {
-      [key: string]: RunEventPageDefinitionSchema4;
-    };
-
-export type RunEventPageDefinitionSchema5 =
-  | string
-  | number
-  | boolean
-  | null
-  | Array<RunEventPageDefinitionSchema5>
-  | {
-      [key: string]: RunEventPageDefinitionSchema5;
-    };
-
-export type RunEventPageDefinitionSchema6 =
-  | string
-  | number
-  | boolean
-  | null
-  | Array<RunEventPageDefinitionSchema6>
-  | {
-      [key: string]: RunEventPageDefinitionSchema6;
-    };
-
-export type RunEventPageDefinitionSchema7 =
-  | string
-  | number
-  | boolean
-  | null
-  | Array<RunEventPageDefinitionSchema7>
-  | {
-      [key: string]: RunEventPageDefinitionSchema7;
-    };
-
-export type RunSessionListResponse200 = {
-  ok: true;
-  sessions: Array<{
-    id: string;
+export type Artifact = {
+  id: string;
+  type: string;
+  title?: string;
+  status?: string;
+  version?: number;
+  tags: Array<string>;
+  data: {
+    [key: string]: HostOutputSharedDefinitionSchema2;
+  };
+  assets?: Array<{
+    kind: "image" | "audio" | "video" | "file" | "url" | "text";
+    uri?: string;
+    path?: string;
     title?: string;
-    activity?: "browser" | "chat" | "local" | "api" | "computer";
-    status: "active" | "idle" | "archived";
-    createdAt: string;
-    updatedAt: string;
-    activeRunId?: string;
-    latestRunId?: string;
-    runIds: Array<string>;
-    lastUserInput?: string;
+    mimeType?: string;
     metadata?: {
-      [key: string]: RunSessionListResponse200DefinitionSchema0;
+      [key: string]: HostOutputSharedDefinitionSchema2;
     };
   }>;
+  preview?: {
+    title?: string;
+    text?: string;
+    imageUri?: string;
+    mimeType?: string;
+    status?: string;
+  };
+  createdAt: string;
+  updatedAt: string;
+  sourceRefs?: Array<{
+    title?: string;
+    url?: string;
+    locator?: string;
+    quote?: string;
+  }>;
+  parentId?: string;
+  variantOf?: string;
+  derivedFrom?: Array<string>;
+  lineage?: Array<string>;
+  provenance?: {
+    [key: string]: HostOutputSharedDefinitionSchema2;
+  };
 };
 
-export type RunSessionListResponse200DefinitionSchema0 =
-  | string
-  | number
-  | boolean
-  | null
-  | Array<RunSessionListResponse200DefinitionSchema0>
-  | {
-      [key: string]: RunSessionListResponse200DefinitionSchema0;
-    };
+export type RoomMessage = {
+  id: string;
+  roomId: string;
+  channelSeq: number;
+  senderId: string;
+  senderName: string;
+  senderType: "user" | "agent" | "system";
+  text: string;
+  targetIds: Array<string>;
+  status: "sent" | "running" | "done" | "failed" | "interrupted";
+  createdAt: string;
+  updatedAt: string;
+  attachments?: Array<unknown>;
+  parts?: Array<{
+    [key: string]: unknown;
+  }>;
+  duration?: string;
+  runId?: string;
+  remoteTask?: {
+    contextId?: string;
+    messageId: string;
+    requestText?: string;
+    triggerMessageId: string;
+    taskId?: string;
+    inputTaskId?: string;
+    sendStarted?: boolean;
+    needsInput?: boolean;
+    pending: boolean;
+    cancelRequested?: boolean;
+    statusText?: string;
+  };
+  startedAt?: string;
+  finishedAt?: string;
+  audience?: "room" | "internal";
+  deliveryKind?: "user_direct" | "user_broadcast" | "pm_auto_route" | "agent_delegation" | "system_routine";
+  notificationEventSeq?: number;
+  inReplyToMessageId?: string;
+  rootMessageId?: string;
+  selectedFile?: {
+    path: string;
+    [key: string]: unknown;
+  };
+  [key: string]: unknown;
+};
 
-export type RunExecutionListResponse200 =
-  | {
-      ok: true;
-      unchanged: true;
-      revision: string;
-    }
-  | {
-      ok: true;
-      executions: Array<{
-        id: string;
+export type Employee = {
+  name: string;
+  role: string;
+  kernel: string;
+  model: string;
+  color: string;
+  availableSkillIds?: Array<string>;
+  defaultSkillIds?: Array<string>;
+  requiredKernelCapabilities?: Array<
+    | "message.streamText"
+    | "turn.lifecycle"
+    | "session.lifecycle"
+    | "planning.plan"
+    | "interaction.askUser"
+    | "tools.hostTool"
+    | "tools.nativeTool"
+    | "tools.mcpServers"
+    | "tools.parallelCalls"
+    | "tool.progress"
+    | "approval.request"
+    | "control.stop"
+    | "control.steer"
+    | "session.compact"
+    | "session.goal"
+    | "auth.refresh"
+    | "sandbox.policy"
+    | "budget.limit"
+    | "diagnostics.usage"
+    | "response.speed"
+    | "media.input"
+    | "output.structured"
+    | "output.artifacts"
+    | "reasoning.nativeText"
+    | "reasoning.summary"
+    | "knowledge.skills"
+  >;
+  reasoningEffort?: "low" | "medium" | "high" | "xhigh" | "max";
+  contextTokenBudget?: number;
+  accessMode?: "default" | "auto-review" | "full-access";
+  avatarMode?: "generated" | "initials" | "upload";
+  avatarSeed?: string;
+  avatarDataUrl?: string;
+  visibility?: "private" | "public";
+  publicDescription?: string;
+  publicSkills?: Array<string>;
+  inputSpec?: string;
+  outputSpec?: string;
+  id: string;
+  employeeDefinitionId?: string;
+  displayName?: string;
+  providerId?: string;
+  displayRole?: string;
+  status: "idle" | "running" | "done" | "waiting" | "offline";
+  lastActive: string;
+  appId?: string;
+  workspaceRoot?: string;
+  storePackageId?: string;
+  toolIds?: Array<string>;
+  source?: "local" | "human" | "remote";
+  remoteAgent?: {
+    accountIssuer: string;
+    accountUserId: string;
+    serviceUrl: string;
+    matrixId: string;
+    provider: string;
+    senderAgentId: string;
+    owner: string;
+    address: string;
+  };
+  sourceLabel?: string;
+  displayPublicDescription?: string;
+  displayPublicSkills?: Array<string>;
+  displayInputSpec?: string;
+  displayOutputSpec?: string;
+  userOverrides?: Array<string>;
+  manifestDefaults?: {
+    name?: string;
+    role?: string;
+    kernel?: string;
+    model?: string;
+    color?: string;
+    availableSkillIds?: Array<string>;
+    defaultSkillIds?: Array<string>;
+    requiredKernelCapabilities?: Array<
+      | "message.streamText"
+      | "turn.lifecycle"
+      | "session.lifecycle"
+      | "planning.plan"
+      | "interaction.askUser"
+      | "tools.hostTool"
+      | "tools.nativeTool"
+      | "tools.mcpServers"
+      | "tools.parallelCalls"
+      | "tool.progress"
+      | "approval.request"
+      | "control.stop"
+      | "control.steer"
+      | "session.compact"
+      | "session.goal"
+      | "auth.refresh"
+      | "sandbox.policy"
+      | "budget.limit"
+      | "diagnostics.usage"
+      | "response.speed"
+      | "media.input"
+      | "output.structured"
+      | "output.artifacts"
+      | "reasoning.nativeText"
+      | "reasoning.summary"
+      | "knowledge.skills"
+    >;
+    reasoningEffort?: "low" | "medium" | "high" | "xhigh" | "max";
+    contextTokenBudget?: number;
+    accessMode?: "default" | "auto-review" | "full-access";
+    avatarMode?: "generated" | "initials" | "upload";
+    avatarSeed?: string;
+    avatarDataUrl?: string;
+    visibility?: "private" | "public";
+    publicDescription?: string;
+    publicSkills?: Array<string>;
+    inputSpec?: string;
+    outputSpec?: string;
+  };
+  disabled?: boolean;
+};
+
+export type Room = {
+  id: string;
+  kind: "group" | "direct";
+  title: string;
+  badge: string;
+  memberIds: Array<string>;
+  adminMemberIds: Array<string>;
+  updatedAt: string;
+  unread: number;
+  scope?: {
+    kind: "app";
+    appId: string;
+    role?: "default" | "group" | "direct";
+  };
+  generatedTitle?:
+    | {
+        kind: "numbered-group";
+        sequence: number;
+      }
+    | {
+        kind: "app-group";
+        appId: string;
+        sequence: number;
+      };
+  removedMemberIds?: Array<string>;
+  directMemberId?: string;
+  pinned?: boolean;
+  archived?: boolean;
+  lastReadEventSeq?: number;
+  [key: string]: unknown;
+};
+
+export type RoomError = {
+  ok?: false;
+  error: string;
+  code?: string;
+  traceId?: string;
+  [key: string]: unknown;
+};
+
+export type RunEventPage = {
+  ok: true;
+  events: Array<
+    | {
+        type: "turn.started";
         runId: string;
-        sessionId?: string;
-        kind:
-          | "loop"
-          | "model"
-          | "reasoning"
-          | "tool_call"
-          | "approval"
-          | "question"
-          | "planning"
-          | "artifact"
-          | "memory"
-          | "error";
-        /**
-         * The recorded Agent event type.
-         */
-        eventType: string;
-        title: string;
         at: string;
-        status?: string;
-        toolId?: string;
-        approvalId?: string;
-        questionId?: string;
-        artifactId?: string;
-        data?: {
-          [key: string]: RunExecutionListResponse200DefinitionSchema0;
-        };
-      }>;
-      revision: string;
-    };
-
-export type RunExecutionListResponse200DefinitionSchema0 =
-  | string
-  | number
-  | boolean
-  | null
-  | Array<RunExecutionListResponse200DefinitionSchema0>
-  | {
-      [key: string]: RunExecutionListResponse200DefinitionSchema0;
-    };
-
-export type InteractionApprovalListResponse200 = {
-  ok: true;
-  approvals: Array<{
-    id: string;
-    title: string;
-    createdAt: string;
-    updatedAt: string;
-    input?: InteractionApprovalListResponse200DefinitionSchema0;
-    response?: InteractionApprovalListResponse200DefinitionSchema1;
-    nativeRequestId?: string;
-    deadlineAt?: string;
-    isBlocking?: boolean;
-    autoResolutionMs?: number;
-    kind:
-      | "tool"
-      | "command"
-      | "file_change"
-      | "permission_scope"
-      | "routine_step"
-      | "memory_write"
-      | "browser_action"
-      | "computer_action";
-    reason: string;
-    status: "pending" | "approved" | "rejected" | "canceled";
-    toolId?: string;
-    capabilityId?: string;
-    skillId?: string;
-  }>;
-};
-
-export type InteractionApprovalListResponse200DefinitionSchema0 =
-  | string
-  | number
-  | boolean
-  | null
-  | Array<InteractionApprovalListResponse200DefinitionSchema0>
-  | {
-      [key: string]: InteractionApprovalListResponse200DefinitionSchema0;
-    };
-
-export type InteractionApprovalListResponse200DefinitionSchema1 =
-  | string
-  | number
-  | boolean
-  | null
-  | Array<InteractionApprovalListResponse200DefinitionSchema1>
-  | {
-      [key: string]: InteractionApprovalListResponse200DefinitionSchema1;
-    };
-
-export type ApprovalResolution = {
-  ok: true;
-  alreadyResolved?: boolean;
-  questions: Array<{
-    id: string;
-    title: string;
-    createdAt: string;
-    updatedAt: string;
-    input?: ApprovalResolutionDefinitionSchema0;
-    response?: ApprovalResolutionDefinitionSchema1;
-    resume?:
-      | {
-          type: "tool";
-          runId?: string;
-        }
-      | {
-          type: "routine.step";
-          routineId: string;
-          stepId: string;
-          runId: string;
-          stepOutputs?: {
-            [key: string]: ApprovalResolutionDefinitionSchema2;
+      }
+    | {
+        type: "context.assembled";
+        runId: string;
+        context: {
+          id: string;
+          createdAt: string;
+          summary: string;
+          promptBlock: string;
+          items: Array<{
+            id: string;
+            kind:
+              | "page"
+              | "selection"
+              | "attachment"
+              | "computer"
+              | "artifact"
+              | "session"
+              | "execution"
+              | "task"
+              | "knowledge"
+              | "memory"
+              | "routine"
+              | "permission"
+              | "skill";
+            title: string;
+            text: string;
+            source?: {
+              title?: string;
+              url?: string;
+              locator?: string;
+              quote?: string;
+            };
+            score?: number;
+            data?: {
+              [key: string]: HostOutputSharedDefinitionSchema2;
+            };
+          }>;
+          budget: {
+            maxItems: number;
+            usedItems: number;
+            maxCharacters: number;
+            usedCharacters: number;
+            truncated: boolean;
           };
-        }
-      | {
-          type: "kernel.native";
-          kernelId: string;
-          runId: string;
-          continuation: "same-loop";
         };
-    nativeRequestId?: string;
-    deadlineAt?: string;
-    isBlocking?: boolean;
-    autoResolutionMs?: number;
-    prompt: string;
-    status: "pending" | "answered" | "declined" | "canceled";
-    source?:
-      | {
-          type: "kernel.native";
-          kernelId: string;
-        }
-      | {
-          type: "host";
-        }
-      | {
-          type: "unknown";
-        };
-  }>;
-  artifacts: Array<{
-    id: string;
-    type: string;
-    title?: string;
-    status?: string;
-    version?: number;
-    tags: Array<string>;
-    data: {
-      [key: string]: ApprovalResolutionDefinitionSchema2;
-    };
-    assets?: Array<{
-      kind: "image" | "audio" | "video" | "file" | "url" | "text";
-      uri?: string;
-      path?: string;
-      title?: string;
-      mimeType?: string;
-      metadata?: {
-        [key: string]: ApprovalResolutionDefinitionSchema2;
-      };
-    }>;
-    preview?: {
-      title?: string;
-      text?: string;
-      imageUri?: string;
-      mimeType?: string;
-      status?: string;
-    };
-    createdAt: string;
-    updatedAt: string;
-    sourceRefs?: Array<{
-      title?: string;
-      url?: string;
-      locator?: string;
-      quote?: string;
-    }>;
-    parentId?: string;
-    variantOf?: string;
-    derivedFrom?: Array<string>;
-    lineage?: Array<string>;
-    provenance?: {
-      [key: string]: ApprovalResolutionDefinitionSchema2;
-    };
-  }>;
-  workingState: {
-    sessionId?: string;
-    taskSummary?: string;
-    activeGoal?: string;
-    selectedModel?: string;
-    activePackId?: string;
-    activeSkillId?: string;
-    pinnedArtifactIds: Array<string>;
-    workingArtifactIds: Array<string>;
-    pendingApprovalIds: Array<string>;
-    pendingQuestionIds: Array<string>;
-    activeToolCallIds: Array<string>;
-    discoveredSkillIds: Array<string>;
-    discoveredSkillNames: Array<string>;
-    expandedSkillIds: Array<string>;
-    invokedSkills: Array<{
-      skillId: string;
-      skillName: string;
-      title: string;
-      content: string;
-      contentPreview: string;
-      sourcePath: string;
-      source: "bundled" | "project" | "user" | "pack";
-      trust: "trusted" | "untrusted";
-      context: "inline" | "fork";
-      args?: string;
-      allowedTools: Array<string>;
-      model?: string;
-      effort?: string;
-      packId?: string;
-      capabilityId?: string;
-      invokedAt: string;
-      origin: "user" | "model";
-    }>;
-    loadedNestedMemoryPaths: Array<string>;
-    toolSchemaCache: {
-      [key: string]: string;
-    };
-    updatedAt: string;
-  };
-  sessions: Array<{
-    id: string;
-    title?: string;
-    activity?: "browser" | "chat" | "local" | "api" | "computer";
-    status: "active" | "idle" | "archived";
-    createdAt: string;
-    updatedAt: string;
-    activeRunId?: string;
-    latestRunId?: string;
-    runIds: Array<string>;
-    lastUserInput?: string;
-    metadata?: {
-      [key: string]: ApprovalResolutionDefinitionSchema2;
-    };
-  }>;
-  runs: Array<{
-    id: string;
-    sessionId: string;
-    activity: "browser" | "chat" | "local" | "api" | "computer";
-    lifecycle: {
-      taskState:
-        | "TASK_STATE_UNSPECIFIED"
-        | "TASK_STATE_SUBMITTED"
-        | "TASK_STATE_WORKING"
-        | "TASK_STATE_COMPLETED"
-        | "TASK_STATE_FAILED"
-        | "TASK_STATE_CANCELED"
-        | "TASK_STATE_INPUT_REQUIRED"
-        | "TASK_STATE_REJECTED"
-        | "TASK_STATE_AUTH_REQUIRED";
-      activity?: "running" | "reconnecting" | "cancel_pending" | "waiting_on_child";
-      reasonCode?: string;
-      retryable?: boolean;
-      outcomeUnknown?: boolean;
-      childRunId?: string;
-    };
-    input: string;
-    createdAt: string;
-    updatedAt: string;
-    startedAt: string;
-    endedAt?: string;
-    modelId?: string;
-    summary?: string;
-    error?: string;
-    problem?: {
-      incidentId: string;
-      code: string;
-    };
-    pausedAt?: string;
-    resumedAt?: string;
-    pauseReason?: string;
-    lastApprovalId?: string;
-    lastQuestionId?: string;
-    resumeCount: number;
-    approvalIds: Array<string>;
-    questionIds: Array<string>;
-    toolIds: Array<string>;
-    eventCount: number;
-  }>;
-  executions: Array<{
-    id: string;
-    runId: string;
-    sessionId?: string;
-    kind:
-      | "loop"
-      | "model"
-      | "reasoning"
-      | "tool_call"
-      | "approval"
-      | "question"
-      | "planning"
-      | "artifact"
-      | "memory"
-      | "error";
-    /**
-     * The recorded Agent event type.
-     */
-    eventType: string;
-    title: string;
-    at: string;
-    status?: string;
-    toolId?: string;
-    approvalId?: string;
-    questionId?: string;
-    artifactId?: string;
-    data?: {
-      [key: string]: ApprovalResolutionDefinitionSchema2;
-    };
-  }>;
-  approval: {
-    id: string;
-    title: string;
-    createdAt: string;
-    updatedAt: string;
-    input?: ApprovalResolutionDefinitionSchema0;
-    response?: ApprovalResolutionDefinitionSchema1;
-    resume?:
-      | {
-          type: "tool";
-          runId?: string;
-        }
-      | {
-          type: "routine.step";
-          routineId: string;
-          stepId: string;
-          runId: string;
-          stepOutputs?: {
-            [key: string]: ApprovalResolutionDefinitionSchema2;
+      }
+    | {
+        type: "compaction.started";
+        runId: string;
+        at: string;
+        reason?: string;
+        item?: HostOutputSharedDefinitionSchema4;
+      }
+    | {
+        type: "compaction.finished";
+        runId: string;
+        at: string;
+        summary?: string;
+        item?: HostOutputSharedDefinitionSchema5;
+      }
+    | {
+        type: "model.requested";
+        runId: string;
+        request: {
+          systemPrompt: string;
+          userInput: string;
+          modelId?: string;
+          session?: {
+            provider: string;
+            sessionId: string;
+            persistent: boolean;
+            priorMessageCount: number;
+            priorMessages: Array<{
+              role: "system" | "user" | "assistant" | "tool";
+              content: string;
+              name?: string;
+            }>;
+            nativeSessionId?: string;
           };
-        }
-      | {
-          type: "kernel.native";
-          kernelId: string;
-          runId: string;
-          continuation: "same-loop";
-        };
-    nativeRequestId?: string;
-    deadlineAt?: string;
-    isBlocking?: boolean;
-    autoResolutionMs?: number;
-    kind:
-      | "tool"
-      | "command"
-      | "file_change"
-      | "permission_scope"
-      | "routine_step"
-      | "memory_write"
-      | "browser_action"
-      | "computer_action";
-    reason: string;
-    status: "pending" | "approved" | "rejected" | "canceled";
-    toolId?: string;
-    capabilityId?: string;
-    skillId?: string;
-  };
-  approvals: Array<{
-    id: string;
-    title: string;
-    createdAt: string;
-    updatedAt: string;
-    input?: ApprovalResolutionDefinitionSchema0;
-    response?: ApprovalResolutionDefinitionSchema1;
-    resume?:
-      | {
-          type: "tool";
-          runId?: string;
-        }
-      | {
-          type: "routine.step";
-          routineId: string;
-          stepId: string;
-          runId: string;
-          stepOutputs?: {
-            [key: string]: ApprovalResolutionDefinitionSchema2;
-          };
-        }
-      | {
-          type: "kernel.native";
-          kernelId: string;
-          runId: string;
-          continuation: "same-loop";
-        };
-    nativeRequestId?: string;
-    deadlineAt?: string;
-    isBlocking?: boolean;
-    autoResolutionMs?: number;
-    kind:
-      | "tool"
-      | "command"
-      | "file_change"
-      | "permission_scope"
-      | "routine_step"
-      | "memory_write"
-      | "browser_action"
-      | "computer_action";
-    reason: string;
-    status: "pending" | "approved" | "rejected" | "canceled";
-    toolId?: string;
-    capabilityId?: string;
-    skillId?: string;
-  }>;
-  toolResult?: {
-    ok: boolean;
-    value?: ApprovalResolutionDefinitionSchema3;
-    error?: string;
-    problem?: {
-      incidentId: string;
-      code: string;
-    };
-    sources?: Array<{
-      title?: string;
-      url?: string;
-      locator?: string;
-      quote?: string;
-    }>;
-  };
-  routineResult?: {
-    summary: {
-      id: string;
-      routineId: string;
-      status: "running" | "succeeded" | "failed" | "paused_for_approval";
-      startedAt: string;
-      endedAt?: string;
-      eventCount: number;
-      error?: string;
-      problem?: {
-        incidentId: string;
-        code: string;
-      };
-    };
-    events: Array<
-      | {
-          type: "turn.started";
-          runId: string;
-          at: string;
-        }
-      | {
-          type: "context.assembled";
-          runId: string;
-          context: {
+          messages?: Array<{
+            role: "system" | "user" | "assistant" | "tool";
+            content: string;
+            name?: string;
+          }>;
+          context?: {
             id: string;
             createdAt: string;
             summary: string;
@@ -1464,7 +1343,7 @@ export type ApprovalResolution = {
               };
               score?: number;
               data?: {
-                [key: string]: ApprovalResolutionDefinitionSchema2;
+                [key: string]: HostOutputSharedDefinitionSchema2;
               };
             }>;
             budget: {
@@ -1475,87 +1354,102 @@ export type ApprovalResolution = {
               truncated: boolean;
             };
           };
-        }
-      | {
-          type: "compaction.started";
-          runId: string;
-          at: string;
-          reason?: string;
-          item?: ApprovalResolutionDefinitionSchema4;
-        }
-      | {
-          type: "compaction.finished";
-          runId: string;
-          at: string;
-          summary?: string;
-          item?: ApprovalResolutionDefinitionSchema5;
-        }
-      | {
-          type: "model.requested";
-          runId: string;
-          request: {
-            systemPrompt: string;
-            userInput: string;
-            modelId?: string;
-            session?: {
-              provider: string;
-              sessionId: string;
-              persistent: boolean;
-              priorMessageCount: number;
-              priorMessages: Array<{
-                role: "system" | "user" | "assistant" | "tool";
-                content: string;
-                name?: string;
-              }>;
-              nativeSessionId?: string;
-            };
-            messages?: Array<{
-              role: "system" | "user" | "assistant" | "tool";
-              content: string;
-              name?: string;
-            }>;
-            context?: {
-              id: string;
-              createdAt: string;
-              summary: string;
-              promptBlock: string;
-              items: Array<{
-                id: string;
-                kind:
-                  | "page"
-                  | "selection"
-                  | "attachment"
-                  | "computer"
-                  | "artifact"
-                  | "session"
-                  | "execution"
-                  | "task"
-                  | "knowledge"
-                  | "memory"
-                  | "routine"
-                  | "permission"
-                  | "skill";
-                title: string;
-                text: string;
-                source?: {
-                  title?: string;
-                  url?: string;
-                  locator?: string;
-                  quote?: string;
-                };
-                score?: number;
-                data?: {
-                  [key: string]: ApprovalResolutionDefinitionSchema2;
-                };
-              }>;
-              budget: {
-                maxItems: number;
-                usedItems: number;
-                maxCharacters: number;
-                usedCharacters: number;
-                truncated: boolean;
+          tools: Array<{
+            id: string;
+            title: string;
+            description: string;
+            activity: "browser" | "chat" | "local" | "api" | "computer";
+            risk: "read" | "write" | "send" | "spend" | "delete";
+            input: {
+              type: "json-schema";
+              schema: {
+                [key: string]: HostOutputSharedDefinitionSchema2;
               };
             };
+            output?: {
+              type: "json-schema";
+              schema: {
+                [key: string]: HostOutputSharedDefinitionSchema2;
+              };
+            };
+            permission: {
+              mode: "allow" | "ask" | "deny";
+              reason: string;
+            };
+            liveness?: {
+              cancellation: "run-signal" | "none";
+              deadlineSource: "kernel-native" | "upstream-service" | "business-rule" | "none";
+              abandonOutcome: "outcome-unknown";
+              terminalConfirmation: "tool-result";
+              cancellationGraceMs?: number;
+            };
+          }>;
+          skills: Array<{
+            id: string;
+            name: string;
+            aliases?: Array<string>;
+            title: string;
+            description: string;
+            whenToUse?: string;
+            format: "markdown-v1" | "markdown-v2";
+            entry: string;
+            skillRoot: string;
+            activities: Array<"browser" | "chat" | "local" | "api" | "computer">;
+            toolIds: Array<string>;
+            memoryHooks: Array<{
+              kind: string;
+              mode: "direct" | "propose" | "ask";
+              reason: string;
+            }>;
+            allowedTools: Array<string>;
+            argumentHint?: string;
+            arguments?: Array<string>;
+            userInvocable: boolean;
+            disableModelInvocation: boolean;
+            model?: string;
+            effort?: string;
+            context: "inline" | "fork";
+            shell?: Array<string>;
+            paths?: Array<string>;
+            hooks?: {
+              [key: string]: HostOutputSharedDefinitionSchema2;
+            };
+            source: "bundled" | "project" | "user" | "pack";
+            trust: "trusted" | "untrusted";
+            packId?: string;
+            capabilityId?: string;
+            contentLength?: number;
+            tags?: Array<string>;
+          }>;
+          packs: Array<{
+            id: string;
+            title: string;
+            description: string;
+            source: "bundled" | "project" | "user" | "pack";
+            trust: "trusted" | "untrusted";
+            rootDir: string;
+            skillIds: Array<string>;
+            toolIds: Array<string>;
+            capabilityIds: Array<string>;
+            artifactTypes: Array<string>;
+            referenceAssetDirs?: Array<string>;
+            tags?: Array<string>;
+          }>;
+          capabilities: Array<{
+            id: string;
+            title: string;
+            version: string;
+            description: string;
+            source?: {
+              kind: "native" | "wrapped-open-source" | "mcp" | "external-api" | "user-routine";
+              project?: string;
+              url?: string;
+              license?: string;
+            };
+            activities: Array<"browser" | "chat" | "local" | "api" | "computer">;
+            triggers?: Array<{
+              [key: string]: HostOutputSharedDefinitionSchema2;
+            }>;
             tools: Array<{
               id: string;
               title: string;
@@ -1565,13 +1459,13 @@ export type ApprovalResolution = {
               input: {
                 type: "json-schema";
                 schema: {
-                  [key: string]: ApprovalResolutionDefinitionSchema2;
+                  [key: string]: HostOutputSharedDefinitionSchema2;
                 };
               };
               output?: {
                 type: "json-schema";
                 schema: {
-                  [key: string]: ApprovalResolutionDefinitionSchema2;
+                  [key: string]: HostOutputSharedDefinitionSchema2;
                 };
               };
               permission: {
@@ -1614,7 +1508,7 @@ export type ApprovalResolution = {
               shell?: Array<string>;
               paths?: Array<string>;
               hooks?: {
-                [key: string]: ApprovalResolutionDefinitionSchema2;
+                [key: string]: HostOutputSharedDefinitionSchema2;
               };
               source: "bundled" | "project" | "user" | "pack";
               trust: "trusted" | "untrusted";
@@ -1623,1418 +1517,384 @@ export type ApprovalResolution = {
               contentLength?: number;
               tags?: Array<string>;
             }>;
-            packs: Array<{
-              id: string;
-              title: string;
-              description: string;
-              source: "bundled" | "project" | "user" | "pack";
-              trust: "trusted" | "untrusted";
-              rootDir: string;
-              skillIds: Array<string>;
-              toolIds: Array<string>;
-              capabilityIds: Array<string>;
-              artifactTypes: Array<string>;
-              referenceAssetDirs?: Array<string>;
-              tags?: Array<string>;
-            }>;
-            capabilities: Array<{
-              id: string;
-              title: string;
-              version: string;
-              description: string;
-              source?: {
-                kind: "native" | "wrapped-open-source" | "mcp" | "external-api" | "user-routine";
-                project?: string;
-                url?: string;
-                license?: string;
-              };
-              activities: Array<"browser" | "chat" | "local" | "api" | "computer">;
-              triggers?: Array<{
-                [key: string]: ApprovalResolutionDefinitionSchema2;
-              }>;
-              tools: Array<{
-                id: string;
-                title: string;
-                description: string;
-                activity: "browser" | "chat" | "local" | "api" | "computer";
-                risk: "read" | "write" | "send" | "spend" | "delete";
-                input: {
-                  type: "json-schema";
-                  schema: {
-                    [key: string]: ApprovalResolutionDefinitionSchema2;
-                  };
-                };
-                output?: {
-                  type: "json-schema";
-                  schema: {
-                    [key: string]: ApprovalResolutionDefinitionSchema2;
-                  };
-                };
-                permission: {
-                  mode: "allow" | "ask" | "deny";
-                  reason: string;
-                };
-                liveness?: {
-                  cancellation: "run-signal" | "none";
-                  deadlineSource: "kernel-native" | "upstream-service" | "business-rule" | "none";
-                  abandonOutcome: "outcome-unknown";
-                  terminalConfirmation: "tool-result";
-                  cancellationGraceMs?: number;
-                };
-              }>;
-              skills: Array<{
-                id: string;
-                name: string;
-                aliases?: Array<string>;
-                title: string;
-                description: string;
-                whenToUse?: string;
-                format: "markdown-v1" | "markdown-v2";
-                entry: string;
-                skillRoot: string;
-                activities: Array<"browser" | "chat" | "local" | "api" | "computer">;
-                toolIds: Array<string>;
-                memoryHooks: Array<{
-                  kind: string;
-                  mode: "direct" | "propose" | "ask";
-                  reason: string;
-                }>;
-                allowedTools: Array<string>;
-                argumentHint?: string;
-                arguments?: Array<string>;
-                userInvocable: boolean;
-                disableModelInvocation: boolean;
-                model?: string;
-                effort?: string;
-                context: "inline" | "fork";
-                shell?: Array<string>;
-                paths?: Array<string>;
-                hooks?: {
-                  [key: string]: ApprovalResolutionDefinitionSchema2;
-                };
-                source: "bundled" | "project" | "user" | "pack";
-                trust: "trusted" | "untrusted";
-                packId?: string;
-                capabilityId?: string;
-                contentLength?: number;
-                tags?: Array<string>;
-              }>;
-              memoryHooks: Array<{
-                kind: string;
-                mode: "direct" | "propose" | "ask";
-                reason: string;
-              }>;
-              policy: Array<{
-                mode: "allow" | "ask" | "deny";
-                reason: string;
-                id?: string;
-                toolId?: string;
-                capabilityId?: string;
-                risk?: "read" | "write" | "send" | "spend" | "delete";
-              }>;
-              sandbox?: "read-only" | "workspace-write" | "danger-full-access";
-              evals?: Array<{
-                id: string;
-                description: string;
-                input: string;
-                expectedBehavior: string;
-              }>;
-            }>;
-          };
-        }
-      | {
-          type: "model.response";
-          runId: string;
-          response: {
-            text: string;
-            usage?: {
-              inputTokens?: number;
-              outputTokens?: number;
-              totalTokens?: number;
-              costUsd?: number;
-              latencyMs?: number;
-              contextWindowSize?: number;
-              contextUsedTokens?: number;
-              contextBreakdown?: Array<{
-                category: string;
-                tokens: number;
-              }>;
-            };
-          };
-        }
-      | {
-          type: "runtime.diagnostic";
-          runId: string;
-          at: string;
-          name: string;
-          data: {
-            [key: string]: ApprovalResolutionDefinitionSchema2;
-          };
-        }
-      | {
-          type: "reasoning.started";
-          runId: string;
-          reasoning: {
-            id: string;
-            kind: "native" | "summary";
-            kernelId: string;
-          };
-        }
-      | {
-          type: "reasoning.completed";
-          runId: string;
-          reasoning: {
-            id: string;
-            kind: "native" | "summary";
-            kernelId: string;
-            text: string;
-            redacted?: boolean;
-            elapsedMs?: number;
-          };
-        }
-      | {
-          type: "assistant.delta";
-          runId: string;
-          text: string;
-        }
-      | {
-          type: "assistant.final";
-          runId: string;
-          text: string;
-          at: string;
-          source?: "runtime" | "adapter" | "fallback";
-        }
-      | {
-          type: "assistant.status";
-          runId: string;
-          text: string;
-          at: string;
-          data?: {
-            [key: string]: ApprovalResolutionDefinitionSchema2;
-          };
-        }
-      | {
-          type: "skill.discovered";
-          runId: string;
-          skills: Array<{
-            id: string;
-            name: string;
-            aliases?: Array<string>;
-            title: string;
-            description: string;
-            whenToUse?: string;
-            format: "markdown-v1" | "markdown-v2";
-            entry: string;
-            skillRoot: string;
-            activities: Array<"browser" | "chat" | "local" | "api" | "computer">;
-            toolIds: Array<string>;
             memoryHooks: Array<{
               kind: string;
               mode: "direct" | "propose" | "ask";
               reason: string;
             }>;
-            allowedTools: Array<string>;
-            argumentHint?: string;
-            arguments?: Array<string>;
-            userInvocable: boolean;
-            disableModelInvocation: boolean;
-            model?: string;
-            effort?: string;
-            context: "inline" | "fork";
-            shell?: Array<string>;
-            paths?: Array<string>;
-            hooks?: {
-              [key: string]: ApprovalResolutionDefinitionSchema2;
-            };
-            source: "bundled" | "project" | "user" | "pack";
-            trust: "trusted" | "untrusted";
-            packId?: string;
-            capabilityId?: string;
-            contentLength?: number;
-            tags?: Array<string>;
+            policy: Array<{
+              mode: "allow" | "ask" | "deny";
+              reason: string;
+              id?: string;
+              toolId?: string;
+              capabilityId?: string;
+              risk?: "read" | "write" | "send" | "spend" | "delete";
+            }>;
+            sandbox?: "read-only" | "workspace-write" | "danger-full-access";
+            evals?: Array<{
+              id: string;
+              description: string;
+              input: string;
+              expectedBehavior: string;
+            }>;
           }>;
-        }
-      | {
-          type: "skill.invoked";
-          runId: string;
-          skill: {
-            id: string;
-            name: string;
-            aliases?: Array<string>;
-            title: string;
-            description: string;
-            whenToUse?: string;
-            format: "markdown-v1" | "markdown-v2";
-            entry: string;
-            skillRoot: string;
-            activities: Array<"browser" | "chat" | "local" | "api" | "computer">;
-            toolIds: Array<string>;
-            memoryHooks: Array<{
-              kind: string;
-              mode: "direct" | "propose" | "ask";
-              reason: string;
+        };
+      }
+    | {
+        type: "model.response";
+        runId: string;
+        response: {
+          text: string;
+          usage?: {
+            inputTokens?: number;
+            outputTokens?: number;
+            totalTokens?: number;
+            costUsd?: number;
+            latencyMs?: number;
+            contextWindowSize?: number;
+            contextUsedTokens?: number;
+            contextBreakdown?: Array<{
+              category: string;
+              tokens: number;
             }>;
-            allowedTools: Array<string>;
-            argumentHint?: string;
-            arguments?: Array<string>;
-            userInvocable: boolean;
-            disableModelInvocation: boolean;
-            model?: string;
-            effort?: string;
-            context: "inline" | "fork";
-            shell?: Array<string>;
-            paths?: Array<string>;
-            hooks?: {
-              [key: string]: ApprovalResolutionDefinitionSchema2;
-            };
-            source: "bundled" | "project" | "user" | "pack";
-            trust: "trusted" | "untrusted";
-            packId?: string;
-            capabilityId?: string;
-            contentLength?: number;
-            tags?: Array<string>;
           };
-          invocation: {
-            skillId: string;
-            skillName: string;
-            title: string;
-            content: string;
-            contentPreview: string;
-            sourcePath: string;
-            source: "bundled" | "project" | "user" | "pack";
-            trust: "trusted" | "untrusted";
-            context: "inline" | "fork";
-            args?: string;
-            allowedTools: Array<string>;
-            model?: string;
-            effort?: string;
-            packId?: string;
-            capabilityId?: string;
-            invokedAt: string;
-            origin: "user" | "model";
-          };
-        }
-      | {
-          type: "skill.loaded";
-          runId: string;
-          skillId: string;
-          contentPreview: string;
+        };
+      }
+    | {
+        type: "runtime.diagnostic";
+        runId: string;
+        at: string;
+        name: string;
+        data: {
+          [key: string]: HostOutputSharedDefinitionSchema2;
+        };
+      }
+    | {
+        type: "reasoning.started";
+        runId: string;
+        reasoning: {
+          id: string;
+          kind: "native" | "summary";
+          kernelId: string;
+        };
+      }
+    | {
+        type: "reasoning.completed";
+        runId: string;
+        reasoning: {
+          id: string;
+          kind: "native" | "summary";
+          kernelId: string;
+          text: string;
+          redacted?: boolean;
+          elapsedMs?: number;
+        };
+      }
+    | {
+        type: "assistant.delta";
+        runId: string;
+        text: string;
+      }
+    | {
+        type: "assistant.final";
+        runId: string;
+        text: string;
+        at: string;
+        source?: "runtime" | "adapter" | "fallback";
+      }
+    | {
+        type: "assistant.status";
+        runId: string;
+        text: string;
+        at: string;
+        data?: {
+          [key: string]: HostOutputSharedDefinitionSchema2;
+        };
+      }
+    | {
+        type: "skill.discovered";
+        runId: string;
+        skills: Array<{
+          id: string;
+          name: string;
+          aliases?: Array<string>;
+          title: string;
+          description: string;
+          whenToUse?: string;
+          format: "markdown-v1" | "markdown-v2";
+          entry: string;
+          skillRoot: string;
+          activities: Array<"browser" | "chat" | "local" | "api" | "computer">;
+          toolIds: Array<string>;
+          memoryHooks: Array<{
+            kind: string;
+            mode: "direct" | "propose" | "ask";
+            reason: string;
+          }>;
           allowedTools: Array<string>;
+          argumentHint?: string;
+          arguments?: Array<string>;
+          userInvocable: boolean;
+          disableModelInvocation: boolean;
           model?: string;
           effort?: string;
           context: "inline" | "fork";
-        }
-      | {
-          type: "skill.forked";
-          runId: string;
-          skillId: string;
-          forkSessionId: string;
-          status: "started" | "finished";
-          result?: string;
-        }
-      | {
-          type: "skill.cleared";
-          runId: string;
-          skillId?: string;
-          reason: string;
-        }
-      | {
-          type: "tool.started";
-          runId: string;
-          toolId: string;
-          callId?: string;
-          input: ApprovalResolutionDefinitionSchema6;
-        }
-      | {
-          type: "tool.progress";
-          runId: string;
-          toolId: string;
-          callId?: string;
-          update: ApprovalResolutionDefinitionSchema7;
-        }
-      | {
-          type: "tool.finished";
-          runId: string;
-          toolId: string;
-          callId?: string;
-          result: {
-            ok: boolean;
-            value?: ApprovalResolutionDefinitionSchema3;
-            error?: string;
-            problem?: {
-              incidentId: string;
-              code: string;
-            };
-            sources?: Array<{
+          shell?: Array<string>;
+          paths?: Array<string>;
+          hooks?: {
+            [key: string]: HostOutputSharedDefinitionSchema2;
+          };
+          source: "bundled" | "project" | "user" | "pack";
+          trust: "trusted" | "untrusted";
+          packId?: string;
+          capabilityId?: string;
+          contentLength?: number;
+          tags?: Array<string>;
+        }>;
+      }
+    | {
+        type: "skill.invoked";
+        runId: string;
+        skill: {
+          id: string;
+          name: string;
+          aliases?: Array<string>;
+          title: string;
+          description: string;
+          whenToUse?: string;
+          format: "markdown-v1" | "markdown-v2";
+          entry: string;
+          skillRoot: string;
+          activities: Array<"browser" | "chat" | "local" | "api" | "computer">;
+          toolIds: Array<string>;
+          memoryHooks: Array<{
+            kind: string;
+            mode: "direct" | "propose" | "ask";
+            reason: string;
+          }>;
+          allowedTools: Array<string>;
+          argumentHint?: string;
+          arguments?: Array<string>;
+          userInvocable: boolean;
+          disableModelInvocation: boolean;
+          model?: string;
+          effort?: string;
+          context: "inline" | "fork";
+          shell?: Array<string>;
+          paths?: Array<string>;
+          hooks?: {
+            [key: string]: HostOutputSharedDefinitionSchema2;
+          };
+          source: "bundled" | "project" | "user" | "pack";
+          trust: "trusted" | "untrusted";
+          packId?: string;
+          capabilityId?: string;
+          contentLength?: number;
+          tags?: Array<string>;
+        };
+        invocation: InvokedSkill;
+      }
+    | {
+        type: "skill.loaded";
+        runId: string;
+        skillId: string;
+        contentPreview: string;
+        allowedTools: Array<string>;
+        model?: string;
+        effort?: string;
+        context: "inline" | "fork";
+      }
+    | {
+        type: "skill.forked";
+        runId: string;
+        skillId: string;
+        forkSessionId: string;
+        status: "started" | "finished";
+        result?: string;
+      }
+    | {
+        type: "skill.cleared";
+        runId: string;
+        skillId?: string;
+        reason: string;
+      }
+    | {
+        type: "tool.started";
+        runId: string;
+        toolId: string;
+        callId?: string;
+        input: HostOutputSharedDefinitionSchema6;
+      }
+    | {
+        type: "tool.progress";
+        runId: string;
+        toolId: string;
+        callId?: string;
+        update: HostOutputSharedDefinitionSchema7;
+      }
+    | {
+        type: "tool.finished";
+        runId: string;
+        toolId: string;
+        callId?: string;
+        result: ToolResult;
+      }
+    | {
+        type: "approval.requested";
+        runId: string;
+        request: Approval;
+      }
+    | {
+        type: "approval.resolved";
+        runId: string;
+        request: Approval;
+      }
+    | {
+        type: "question.requested";
+        runId: string;
+        question: Question;
+      }
+    | {
+        type: "question.answered";
+        runId: string;
+        question: Question;
+      }
+    | {
+        type: "planning.updated";
+        runId: string;
+        plan: {
+          id: string;
+          title?: string;
+          text: string;
+          status?: string;
+          raw?: {
+            [key: string]: HostOutputSharedDefinitionSchema2;
+          };
+          updatedAt: string;
+          source?:
+            | {
+                type: "kernel.native";
+                kernelId: string;
+              }
+            | {
+                type: "host";
+              }
+            | {
+                type: "unknown";
+              };
+        };
+      }
+    | {
+        type: "run.cancel_requested";
+        runId: string;
+        at: string;
+        reason?: string;
+      }
+    | {
+        type: "run.paused";
+        runId: string;
+        at: string;
+        reason: string;
+        approvalId?: string;
+      }
+    | {
+        type: "run.resumed";
+        runId: string;
+        at: string;
+        reason?: string;
+        approvalId?: string;
+      }
+    | {
+        type: "memory.written";
+        runId: string;
+        record: {
+          id: string;
+          scope: "user" | "workspace" | "page" | "session";
+          kind: string;
+          text: string;
+          confidence: "asserted" | "observed" | "inferred";
+          source: {
+            kind: "user" | "agent" | "tool" | "skill";
+            ref?: {
               title?: string;
               url?: string;
               locator?: string;
               quote?: string;
-            }>;
-          };
-        }
-      | {
-          type: "approval.requested";
-          runId: string;
-          request: {
-            id: string;
-            title: string;
-            createdAt: string;
-            updatedAt: string;
-            input?: ApprovalResolutionDefinitionSchema0;
-            response?: ApprovalResolutionDefinitionSchema1;
-            resume?:
-              | {
-                  type: "tool";
-                  runId?: string;
-                }
-              | {
-                  type: "routine.step";
-                  routineId: string;
-                  stepId: string;
-                  runId: string;
-                  stepOutputs?: {
-                    [key: string]: ApprovalResolutionDefinitionSchema2;
-                  };
-                }
-              | {
-                  type: "kernel.native";
-                  kernelId: string;
-                  runId: string;
-                  continuation: "same-loop";
-                };
-            nativeRequestId?: string;
-            deadlineAt?: string;
-            isBlocking?: boolean;
-            autoResolutionMs?: number;
-            kind:
-              | "tool"
-              | "command"
-              | "file_change"
-              | "permission_scope"
-              | "routine_step"
-              | "memory_write"
-              | "browser_action"
-              | "computer_action";
-            reason: string;
-            status: "pending" | "approved" | "rejected" | "canceled";
-            toolId?: string;
-            capabilityId?: string;
-            skillId?: string;
-          };
-        }
-      | {
-          type: "approval.resolved";
-          runId: string;
-          request: {
-            id: string;
-            title: string;
-            createdAt: string;
-            updatedAt: string;
-            input?: ApprovalResolutionDefinitionSchema0;
-            response?: ApprovalResolutionDefinitionSchema1;
-            resume?:
-              | {
-                  type: "tool";
-                  runId?: string;
-                }
-              | {
-                  type: "routine.step";
-                  routineId: string;
-                  stepId: string;
-                  runId: string;
-                  stepOutputs?: {
-                    [key: string]: ApprovalResolutionDefinitionSchema2;
-                  };
-                }
-              | {
-                  type: "kernel.native";
-                  kernelId: string;
-                  runId: string;
-                  continuation: "same-loop";
-                };
-            nativeRequestId?: string;
-            deadlineAt?: string;
-            isBlocking?: boolean;
-            autoResolutionMs?: number;
-            kind:
-              | "tool"
-              | "command"
-              | "file_change"
-              | "permission_scope"
-              | "routine_step"
-              | "memory_write"
-              | "browser_action"
-              | "computer_action";
-            reason: string;
-            status: "pending" | "approved" | "rejected" | "canceled";
-            toolId?: string;
-            capabilityId?: string;
-            skillId?: string;
-          };
-        }
-      | {
-          type: "question.requested";
-          runId: string;
-          question: {
-            id: string;
-            title: string;
-            createdAt: string;
-            updatedAt: string;
-            input?: ApprovalResolutionDefinitionSchema0;
-            response?: ApprovalResolutionDefinitionSchema1;
-            resume?:
-              | {
-                  type: "tool";
-                  runId?: string;
-                }
-              | {
-                  type: "routine.step";
-                  routineId: string;
-                  stepId: string;
-                  runId: string;
-                  stepOutputs?: {
-                    [key: string]: ApprovalResolutionDefinitionSchema2;
-                  };
-                }
-              | {
-                  type: "kernel.native";
-                  kernelId: string;
-                  runId: string;
-                  continuation: "same-loop";
-                };
-            nativeRequestId?: string;
-            deadlineAt?: string;
-            isBlocking?: boolean;
-            autoResolutionMs?: number;
-            prompt: string;
-            status: "pending" | "answered" | "declined" | "canceled";
-            source?:
-              | {
-                  type: "kernel.native";
-                  kernelId: string;
-                }
-              | {
-                  type: "host";
-                }
-              | {
-                  type: "unknown";
-                };
-          };
-        }
-      | {
-          type: "question.answered";
-          runId: string;
-          question: {
-            id: string;
-            title: string;
-            createdAt: string;
-            updatedAt: string;
-            input?: ApprovalResolutionDefinitionSchema0;
-            response?: ApprovalResolutionDefinitionSchema1;
-            resume?:
-              | {
-                  type: "tool";
-                  runId?: string;
-                }
-              | {
-                  type: "routine.step";
-                  routineId: string;
-                  stepId: string;
-                  runId: string;
-                  stepOutputs?: {
-                    [key: string]: ApprovalResolutionDefinitionSchema2;
-                  };
-                }
-              | {
-                  type: "kernel.native";
-                  kernelId: string;
-                  runId: string;
-                  continuation: "same-loop";
-                };
-            nativeRequestId?: string;
-            deadlineAt?: string;
-            isBlocking?: boolean;
-            autoResolutionMs?: number;
-            prompt: string;
-            status: "pending" | "answered" | "declined" | "canceled";
-            source?:
-              | {
-                  type: "kernel.native";
-                  kernelId: string;
-                }
-              | {
-                  type: "host";
-                }
-              | {
-                  type: "unknown";
-                };
-          };
-        }
-      | {
-          type: "planning.updated";
-          runId: string;
-          plan: {
-            id: string;
-            title?: string;
-            text: string;
-            status?: string;
-            raw?: {
-              [key: string]: ApprovalResolutionDefinitionSchema2;
             };
-            updatedAt: string;
-            source?:
-              | {
-                  type: "kernel.native";
-                  kernelId: string;
-                }
-              | {
-                  type: "host";
-                }
-              | {
-                  type: "unknown";
-                };
           };
-        }
-      | {
-          type: "run.cancel_requested";
-          runId: string;
-          at: string;
-          reason?: string;
-        }
-      | {
-          type: "run.paused";
-          runId: string;
-          at: string;
-          reason: string;
-          approvalId?: string;
-        }
-      | {
-          type: "run.resumed";
-          runId: string;
-          at: string;
-          reason?: string;
-          approvalId?: string;
-        }
-      | {
-          type: "memory.written";
-          runId: string;
-          record: {
-            id: string;
-            scope: "user" | "workspace" | "page" | "session";
-            kind: string;
-            text: string;
-            confidence: "asserted" | "observed" | "inferred";
-            source: {
-              kind: "user" | "agent" | "tool" | "skill";
-              ref?: {
-                title?: string;
-                url?: string;
-                locator?: string;
-                quote?: string;
-              };
-            };
-            tags: Array<string>;
-            data?: {
-              [key: string]: ApprovalResolutionDefinitionSchema2;
-            };
-            createdAt: string;
-            updatedAt: string;
-            expiresAt?: string;
+          tags: Array<string>;
+          data?: {
+            [key: string]: HostOutputSharedDefinitionSchema2;
           };
-        }
-      | {
-          type: "turn.finished";
-          runId: string;
-          at: string;
-          outcome: {
-            taskState:
-              | "TASK_STATE_UNSPECIFIED"
-              | "TASK_STATE_SUBMITTED"
-              | "TASK_STATE_WORKING"
-              | "TASK_STATE_COMPLETED"
-              | "TASK_STATE_FAILED"
-              | "TASK_STATE_CANCELED"
-              | "TASK_STATE_INPUT_REQUIRED"
-              | "TASK_STATE_REJECTED"
-              | "TASK_STATE_AUTH_REQUIRED";
-            activity?: "running" | "reconnecting" | "cancel_pending" | "waiting_on_child";
-            reasonCode?: string;
-            retryable?: boolean;
-            outcomeUnknown?: boolean;
-            childRunId?: string;
-          };
-          synthetic?: boolean;
-        }
-      | {
-          type: "error";
-          runId: string;
-          message: string;
-          problem?: {
-            incidentId: string;
-            code: string;
-          };
-          diagnostics?: {
-            runtimeModelId?: string;
-            runtimeVersion?: string;
-            upstreamRequestId?: string;
-          };
-        }
-    >;
-    toolResults: Array<{
-      ok: boolean;
-      value?: ApprovalResolutionDefinitionSchema3;
-      error?: string;
-      problem?: {
-        incidentId: string;
-        code: string;
-      };
-      sources?: Array<{
-        title?: string;
-        url?: string;
-        locator?: string;
-        quote?: string;
-      }>;
-    }>;
-  };
-};
-
-export type ApprovalResolutionDefinitionSchema0 =
-  | string
-  | number
-  | boolean
-  | null
-  | Array<ApprovalResolutionDefinitionSchema0>
-  | {
-      [key: string]: ApprovalResolutionDefinitionSchema0;
-    };
-
-export type ApprovalResolutionDefinitionSchema1 =
-  | string
-  | number
-  | boolean
-  | null
-  | Array<ApprovalResolutionDefinitionSchema1>
-  | {
-      [key: string]: ApprovalResolutionDefinitionSchema1;
-    };
-
-export type ApprovalResolutionDefinitionSchema2 =
-  | string
-  | number
-  | boolean
-  | null
-  | Array<ApprovalResolutionDefinitionSchema2>
-  | {
-      [key: string]: ApprovalResolutionDefinitionSchema2;
-    };
-
-export type ApprovalResolutionDefinitionSchema3 =
-  | string
-  | number
-  | boolean
-  | null
-  | Array<ApprovalResolutionDefinitionSchema3>
-  | {
-      [key: string]: ApprovalResolutionDefinitionSchema3;
-    };
-
-export type ApprovalResolutionDefinitionSchema4 =
-  | string
-  | number
-  | boolean
-  | null
-  | Array<ApprovalResolutionDefinitionSchema4>
-  | {
-      [key: string]: ApprovalResolutionDefinitionSchema4;
-    };
-
-export type ApprovalResolutionDefinitionSchema5 =
-  | string
-  | number
-  | boolean
-  | null
-  | Array<ApprovalResolutionDefinitionSchema5>
-  | {
-      [key: string]: ApprovalResolutionDefinitionSchema5;
-    };
-
-export type ApprovalResolutionDefinitionSchema6 =
-  | string
-  | number
-  | boolean
-  | null
-  | Array<ApprovalResolutionDefinitionSchema6>
-  | {
-      [key: string]: ApprovalResolutionDefinitionSchema6;
-    };
-
-export type ApprovalResolutionDefinitionSchema7 =
-  | string
-  | number
-  | boolean
-  | null
-  | Array<ApprovalResolutionDefinitionSchema7>
-  | {
-      [key: string]: ApprovalResolutionDefinitionSchema7;
-    };
-
-export type InteractionApprovalApproveBody = {
-  /**
-   * Structured decision response or answer.
-   */
-  response?: InteractionApprovalApproveBodyDefinitionSchema0;
-};
-
-export type InteractionApprovalApproveBodyDefinitionSchema0 =
-  | string
-  | number
-  | boolean
-  | null
-  | Array<InteractionApprovalApproveBodyDefinitionSchema0>
-  | {
-      [key: string]: InteractionApprovalApproveBodyDefinitionSchema0;
-    };
-
-export type InteractionApprovalRejectBody = {
-  /**
-   * Structured decision response or answer.
-   */
-  response?: InteractionApprovalRejectBodyDefinitionSchema0;
-};
-
-export type InteractionApprovalRejectBodyDefinitionSchema0 =
-  | string
-  | number
-  | boolean
-  | null
-  | Array<InteractionApprovalRejectBodyDefinitionSchema0>
-  | {
-      [key: string]: InteractionApprovalRejectBodyDefinitionSchema0;
-    };
-
-export type InteractionApprovalCancelBody = {
-  /**
-   * Structured decision response or answer.
-   */
-  response?: InteractionApprovalCancelBodyDefinitionSchema0;
-};
-
-export type InteractionApprovalCancelBodyDefinitionSchema0 =
-  | string
-  | number
-  | boolean
-  | null
-  | Array<InteractionApprovalCancelBodyDefinitionSchema0>
-  | {
-      [key: string]: InteractionApprovalCancelBodyDefinitionSchema0;
-    };
-
-export type InteractionQuestionListResponse200 = {
-  ok: true;
-  questions: Array<{
-    id: string;
-    title: string;
-    createdAt: string;
-    updatedAt: string;
-    input?: InteractionQuestionListResponse200DefinitionSchema0;
-    response?: InteractionQuestionListResponse200DefinitionSchema1;
-    nativeRequestId?: string;
-    deadlineAt?: string;
-    isBlocking?: boolean;
-    autoResolutionMs?: number;
-    prompt: string;
-    status: "pending" | "answered" | "declined" | "canceled";
-    source?:
-      | {
-          type: "kernel.native";
-          kernelId: string;
-        }
-      | {
-          type: "host";
-        }
-      | {
-          type: "unknown";
+          createdAt: string;
+          updatedAt: string;
+          expiresAt?: string;
         };
-  }>;
+      }
+    | {
+        type: "turn.finished";
+        runId: string;
+        at: string;
+        outcome: RunLifecycle;
+        synthetic?: boolean;
+      }
+    | {
+        type: "error";
+        runId: string;
+        message: string;
+        problem?: {
+          incidentId: string;
+          code: string;
+        };
+        diagnostics?: {
+          runtimeModelId?: string;
+          runtimeVersion?: string;
+          upstreamRequestId?: string;
+        };
+      }
+  >;
+  cursor: string;
+  oldestCursor: string;
+  hasMore: boolean;
+  hasOlder: boolean;
+  historyTruncated: boolean;
+  resetRequired: boolean;
+  longPollSupported: boolean;
+  snapshot: boolean;
 };
 
-export type InteractionQuestionListResponse200DefinitionSchema0 =
-  | string
-  | number
-  | boolean
-  | null
-  | Array<InteractionQuestionListResponse200DefinitionSchema0>
-  | {
-      [key: string]: InteractionQuestionListResponse200DefinitionSchema0;
-    };
-
-export type InteractionQuestionListResponse200DefinitionSchema1 =
-  | string
-  | number
-  | boolean
-  | null
-  | Array<InteractionQuestionListResponse200DefinitionSchema1>
-  | {
-      [key: string]: InteractionQuestionListResponse200DefinitionSchema1;
-    };
+export type ApprovalResolution = {
+  ok: true;
+  alreadyResolved?: boolean;
+  questions: Array<Question>;
+  artifacts: Array<Artifact>;
+  workingState: WorkingState;
+  sessions: Array<Session>;
+  runs: Array<Run>;
+  executions: Array<Execution>;
+  approval: Approval;
+  approvals: Array<Approval>;
+  toolResult?: ToolResult;
+  routineResult?: RoutineRunResult;
+};
 
 export type QuestionResolution = {
   ok: true;
   alreadyResolved?: boolean;
-  questions: Array<{
-    id: string;
-    title: string;
-    createdAt: string;
-    updatedAt: string;
-    input?: QuestionResolutionDefinitionSchema0;
-    response?: QuestionResolutionDefinitionSchema1;
-    resume?:
-      | {
-          type: "tool";
-          runId?: string;
-        }
-      | {
-          type: "routine.step";
-          routineId: string;
-          stepId: string;
-          runId: string;
-          stepOutputs?: {
-            [key: string]: QuestionResolutionDefinitionSchema2;
-          };
-        }
-      | {
-          type: "kernel.native";
-          kernelId: string;
-          runId: string;
-          continuation: "same-loop";
-        };
-    nativeRequestId?: string;
-    deadlineAt?: string;
-    isBlocking?: boolean;
-    autoResolutionMs?: number;
-    prompt: string;
-    status: "pending" | "answered" | "declined" | "canceled";
-    source?:
-      | {
-          type: "kernel.native";
-          kernelId: string;
-        }
-      | {
-          type: "host";
-        }
-      | {
-          type: "unknown";
-        };
-  }>;
-  artifacts: Array<{
-    id: string;
-    type: string;
-    title?: string;
-    status?: string;
-    version?: number;
-    tags: Array<string>;
-    data: {
-      [key: string]: QuestionResolutionDefinitionSchema2;
-    };
-    assets?: Array<{
-      kind: "image" | "audio" | "video" | "file" | "url" | "text";
-      uri?: string;
-      path?: string;
-      title?: string;
-      mimeType?: string;
-      metadata?: {
-        [key: string]: QuestionResolutionDefinitionSchema2;
-      };
-    }>;
-    preview?: {
-      title?: string;
-      text?: string;
-      imageUri?: string;
-      mimeType?: string;
-      status?: string;
-    };
-    createdAt: string;
-    updatedAt: string;
-    sourceRefs?: Array<{
-      title?: string;
-      url?: string;
-      locator?: string;
-      quote?: string;
-    }>;
-    parentId?: string;
-    variantOf?: string;
-    derivedFrom?: Array<string>;
-    lineage?: Array<string>;
-    provenance?: {
-      [key: string]: QuestionResolutionDefinitionSchema2;
-    };
-  }>;
-  workingState: {
-    sessionId?: string;
-    taskSummary?: string;
-    activeGoal?: string;
-    selectedModel?: string;
-    activePackId?: string;
-    activeSkillId?: string;
-    pinnedArtifactIds: Array<string>;
-    workingArtifactIds: Array<string>;
-    pendingApprovalIds: Array<string>;
-    pendingQuestionIds: Array<string>;
-    activeToolCallIds: Array<string>;
-    discoveredSkillIds: Array<string>;
-    discoveredSkillNames: Array<string>;
-    expandedSkillIds: Array<string>;
-    invokedSkills: Array<{
-      skillId: string;
-      skillName: string;
-      title: string;
-      content: string;
-      contentPreview: string;
-      sourcePath: string;
-      source: "bundled" | "project" | "user" | "pack";
-      trust: "trusted" | "untrusted";
-      context: "inline" | "fork";
-      args?: string;
-      allowedTools: Array<string>;
-      model?: string;
-      effort?: string;
-      packId?: string;
-      capabilityId?: string;
-      invokedAt: string;
-      origin: "user" | "model";
-    }>;
-    loadedNestedMemoryPaths: Array<string>;
-    toolSchemaCache: {
-      [key: string]: string;
-    };
-    updatedAt: string;
-  };
-  sessions: Array<{
-    id: string;
-    title?: string;
-    activity?: "browser" | "chat" | "local" | "api" | "computer";
-    status: "active" | "idle" | "archived";
-    createdAt: string;
-    updatedAt: string;
-    activeRunId?: string;
-    latestRunId?: string;
-    runIds: Array<string>;
-    lastUserInput?: string;
-    metadata?: {
-      [key: string]: QuestionResolutionDefinitionSchema2;
-    };
-  }>;
-  runs: Array<{
-    id: string;
-    sessionId: string;
-    activity: "browser" | "chat" | "local" | "api" | "computer";
-    lifecycle: {
-      taskState:
-        | "TASK_STATE_UNSPECIFIED"
-        | "TASK_STATE_SUBMITTED"
-        | "TASK_STATE_WORKING"
-        | "TASK_STATE_COMPLETED"
-        | "TASK_STATE_FAILED"
-        | "TASK_STATE_CANCELED"
-        | "TASK_STATE_INPUT_REQUIRED"
-        | "TASK_STATE_REJECTED"
-        | "TASK_STATE_AUTH_REQUIRED";
-      activity?: "running" | "reconnecting" | "cancel_pending" | "waiting_on_child";
-      reasonCode?: string;
-      retryable?: boolean;
-      outcomeUnknown?: boolean;
-      childRunId?: string;
-    };
-    input: string;
-    createdAt: string;
-    updatedAt: string;
-    startedAt: string;
-    endedAt?: string;
-    modelId?: string;
-    summary?: string;
-    error?: string;
-    problem?: {
-      incidentId: string;
-      code: string;
-    };
-    pausedAt?: string;
-    resumedAt?: string;
-    pauseReason?: string;
-    lastApprovalId?: string;
-    lastQuestionId?: string;
-    resumeCount: number;
-    approvalIds: Array<string>;
-    questionIds: Array<string>;
-    toolIds: Array<string>;
-    eventCount: number;
-  }>;
-  executions: Array<{
-    id: string;
-    runId: string;
-    sessionId?: string;
-    kind:
-      | "loop"
-      | "model"
-      | "reasoning"
-      | "tool_call"
-      | "approval"
-      | "question"
-      | "planning"
-      | "artifact"
-      | "memory"
-      | "error";
-    /**
-     * The recorded Agent event type.
-     */
-    eventType: string;
-    title: string;
-    at: string;
-    status?: string;
-    toolId?: string;
-    approvalId?: string;
-    questionId?: string;
-    artifactId?: string;
-    data?: {
-      [key: string]: QuestionResolutionDefinitionSchema2;
-    };
-  }>;
-  question: {
-    id: string;
-    title: string;
-    createdAt: string;
-    updatedAt: string;
-    input?: QuestionResolutionDefinitionSchema0;
-    response?: QuestionResolutionDefinitionSchema1;
-    resume?:
-      | {
-          type: "tool";
-          runId?: string;
-        }
-      | {
-          type: "routine.step";
-          routineId: string;
-          stepId: string;
-          runId: string;
-          stepOutputs?: {
-            [key: string]: QuestionResolutionDefinitionSchema2;
-          };
-        }
-      | {
-          type: "kernel.native";
-          kernelId: string;
-          runId: string;
-          continuation: "same-loop";
-        };
-    nativeRequestId?: string;
-    deadlineAt?: string;
-    isBlocking?: boolean;
-    autoResolutionMs?: number;
-    prompt: string;
-    status: "pending" | "answered" | "declined" | "canceled";
-    source?:
-      | {
-          type: "kernel.native";
-          kernelId: string;
-        }
-      | {
-          type: "host";
-        }
-      | {
-          type: "unknown";
-        };
-  };
+  questions: Array<Question>;
+  artifacts: Array<Artifact>;
+  workingState: WorkingState;
+  sessions: Array<Session>;
+  runs: Array<Run>;
+  executions: Array<Execution>;
+  question: Question;
 };
-
-export type QuestionResolutionDefinitionSchema0 =
-  | string
-  | number
-  | boolean
-  | null
-  | Array<QuestionResolutionDefinitionSchema0>
-  | {
-      [key: string]: QuestionResolutionDefinitionSchema0;
-    };
-
-export type QuestionResolutionDefinitionSchema1 =
-  | string
-  | number
-  | boolean
-  | null
-  | Array<QuestionResolutionDefinitionSchema1>
-  | {
-      [key: string]: QuestionResolutionDefinitionSchema1;
-    };
-
-export type QuestionResolutionDefinitionSchema2 =
-  | string
-  | number
-  | boolean
-  | null
-  | Array<QuestionResolutionDefinitionSchema2>
-  | {
-      [key: string]: QuestionResolutionDefinitionSchema2;
-    };
-
-export type InteractionQuestionAnswerBody = {
-  /**
-   * Structured decision response or answer.
-   */
-  response?: InteractionQuestionAnswerBodyDefinitionSchema0;
-};
-
-export type InteractionQuestionAnswerBodyDefinitionSchema0 =
-  | string
-  | number
-  | boolean
-  | null
-  | Array<InteractionQuestionAnswerBodyDefinitionSchema0>
-  | {
-      [key: string]: InteractionQuestionAnswerBodyDefinitionSchema0;
-    };
-
-export type InteractionQuestionDeclineBody = {
-  /**
-   * Structured decision response or answer.
-   */
-  response?: InteractionQuestionDeclineBodyDefinitionSchema0;
-};
-
-export type InteractionQuestionDeclineBodyDefinitionSchema0 =
-  | string
-  | number
-  | boolean
-  | null
-  | Array<InteractionQuestionDeclineBodyDefinitionSchema0>
-  | {
-      [key: string]: InteractionQuestionDeclineBodyDefinitionSchema0;
-    };
-
-export type InteractionQuestionCancelBody = {
-  /**
-   * Structured decision response or answer.
-   */
-  response?: InteractionQuestionCancelBodyDefinitionSchema0;
-};
-
-export type InteractionQuestionCancelBodyDefinitionSchema0 =
-  | string
-  | number
-  | boolean
-  | null
-  | Array<InteractionQuestionCancelBodyDefinitionSchema0>
-  | {
-      [key: string]: InteractionQuestionCancelBodyDefinitionSchema0;
-    };
 
 export type ArtifactMutation = {
   ok: true;
-  artifact: {
-    id: string;
-    type: string;
-    title?: string;
-    status?: string;
-    version?: number;
-    tags: Array<string>;
-    data: {
-      [key: string]: ArtifactMutationDefinitionSchema0;
-    };
-    assets?: Array<{
-      kind: "image" | "audio" | "video" | "file" | "url" | "text";
-      uri?: string;
-      path?: string;
-      title?: string;
-      mimeType?: string;
-      metadata?: {
-        [key: string]: ArtifactMutationDefinitionSchema0;
-      };
-    }>;
-    preview?: {
-      title?: string;
-      text?: string;
-      imageUri?: string;
-      mimeType?: string;
-      status?: string;
-    };
-    createdAt: string;
-    updatedAt: string;
-    sourceRefs?: Array<{
-      title?: string;
-      url?: string;
-      locator?: string;
-      quote?: string;
-    }>;
-    parentId?: string;
-    variantOf?: string;
-    derivedFrom?: Array<string>;
-    lineage?: Array<string>;
-    provenance?: {
-      [key: string]: ArtifactMutationDefinitionSchema0;
-    };
-  };
-  artifacts: Array<{
-    id: string;
-    type: string;
-    title?: string;
-    status?: string;
-    version?: number;
-    tags: Array<string>;
-    data: {
-      [key: string]: ArtifactMutationDefinitionSchema0;
-    };
-    assets?: Array<{
-      kind: "image" | "audio" | "video" | "file" | "url" | "text";
-      uri?: string;
-      path?: string;
-      title?: string;
-      mimeType?: string;
-      metadata?: {
-        [key: string]: ArtifactMutationDefinitionSchema0;
-      };
-    }>;
-    preview?: {
-      title?: string;
-      text?: string;
-      imageUri?: string;
-      mimeType?: string;
-      status?: string;
-    };
-    createdAt: string;
-    updatedAt: string;
-    sourceRefs?: Array<{
-      title?: string;
-      url?: string;
-      locator?: string;
-      quote?: string;
-    }>;
-    parentId?: string;
-    variantOf?: string;
-    derivedFrom?: Array<string>;
-    lineage?: Array<string>;
-    provenance?: {
-      [key: string]: ArtifactMutationDefinitionSchema0;
-    };
-  }>;
+  artifact: Artifact;
+  artifacts: Array<Artifact>;
 };
-
-export type ArtifactMutationDefinitionSchema0 =
-  | string
-  | number
-  | boolean
-  | null
-  | Array<ArtifactMutationDefinitionSchema0>
-  | {
-      [key: string]: ArtifactMutationDefinitionSchema0;
-    };
-
-export type ArtifactArtifactCreateBody = {
-  id?: string;
-  type?: string;
-  title?: string;
-  status?: string;
-  version?: number;
-  tags?: Array<string>;
-  data?: {
-    [key: string]: ArtifactArtifactCreateBodyDefinitionSchema0;
-  };
-  assets?: Array<{
-    kind: "image" | "audio" | "video" | "file" | "url" | "text";
-    uri?: string;
-    path?: string;
-    title?: string;
-    mimeType?: string;
-    metadata?: {
-      [key: string]: ArtifactArtifactCreateBodyDefinitionSchema0;
-    };
-  }>;
-  preview?: {
-    title?: string;
-    text?: string;
-    imageUri?: string;
-    mimeType?: string;
-    status?: string;
-  };
-  sourceRefs?: Array<{
-    title?: string;
-    url?: string;
-    locator?: string;
-    quote?: string;
-  }>;
-  parentId?: string;
-  variantOf?: string;
-  derivedFrom?: Array<string>;
-  lineage?: Array<string>;
-  provenance?: {
-    [key: string]: ArtifactArtifactCreateBodyDefinitionSchema0;
-  };
-};
-
-export type ArtifactArtifactCreateBodyDefinitionSchema0 =
-  | string
-  | number
-  | boolean
-  | null
-  | Array<ArtifactArtifactCreateBodyDefinitionSchema0>
-  | {
-      [key: string]: ArtifactArtifactCreateBodyDefinitionSchema0;
-    };
-
-export type ArtifactArtifactGetResponse200 = {
-  ok: true;
-  artifact: {
-    id: string;
-    type: string;
-    title?: string;
-    status?: string;
-    version?: number;
-    tags: Array<string>;
-    data: {
-      [key: string]: ArtifactArtifactGetResponse200DefinitionSchema0;
-    };
-    assets?: Array<{
-      kind: "image" | "audio" | "video" | "file" | "url" | "text";
-      uri?: string;
-      path?: string;
-      title?: string;
-      mimeType?: string;
-      metadata?: {
-        [key: string]: ArtifactArtifactGetResponse200DefinitionSchema0;
-      };
-    }>;
-    preview?: {
-      title?: string;
-      text?: string;
-      imageUri?: string;
-      mimeType?: string;
-      status?: string;
-    };
-    createdAt: string;
-    updatedAt: string;
-    sourceRefs?: Array<{
-      title?: string;
-      url?: string;
-      locator?: string;
-      quote?: string;
-    }>;
-    parentId?: string;
-    variantOf?: string;
-    derivedFrom?: Array<string>;
-    lineage?: Array<string>;
-    provenance?: {
-      [key: string]: ArtifactArtifactGetResponse200DefinitionSchema0;
-    };
-  };
-};
-
-export type ArtifactArtifactGetResponse200DefinitionSchema0 =
-  | string
-  | number
-  | boolean
-  | null
-  | Array<ArtifactArtifactGetResponse200DefinitionSchema0>
-  | {
-      [key: string]: ArtifactArtifactGetResponse200DefinitionSchema0;
-    };
 
 export type AuthError = {
   ok?: false;
@@ -3274,6 +2134,86 @@ export type AppReleaseProgressResponse = {
   };
 };
 
+export type HostOutputSharedDefinitionSchema0 =
+  | string
+  | number
+  | boolean
+  | null
+  | Array<HostOutputSharedDefinitionSchema0>
+  | {
+      [key: string]: HostOutputSharedDefinitionSchema0;
+    };
+
+export type HostOutputSharedDefinitionSchema1 =
+  | string
+  | number
+  | boolean
+  | null
+  | Array<HostOutputSharedDefinitionSchema1>
+  | {
+      [key: string]: HostOutputSharedDefinitionSchema1;
+    };
+
+export type HostOutputSharedDefinitionSchema2 =
+  | string
+  | number
+  | boolean
+  | null
+  | Array<HostOutputSharedDefinitionSchema2>
+  | {
+      [key: string]: HostOutputSharedDefinitionSchema2;
+    };
+
+export type HostOutputSharedDefinitionSchema3 =
+  | string
+  | number
+  | boolean
+  | null
+  | Array<HostOutputSharedDefinitionSchema3>
+  | {
+      [key: string]: HostOutputSharedDefinitionSchema3;
+    };
+
+export type HostOutputSharedDefinitionSchema4 =
+  | string
+  | number
+  | boolean
+  | null
+  | Array<HostOutputSharedDefinitionSchema4>
+  | {
+      [key: string]: HostOutputSharedDefinitionSchema4;
+    };
+
+export type HostOutputSharedDefinitionSchema5 =
+  | string
+  | number
+  | boolean
+  | null
+  | Array<HostOutputSharedDefinitionSchema5>
+  | {
+      [key: string]: HostOutputSharedDefinitionSchema5;
+    };
+
+export type HostOutputSharedDefinitionSchema6 =
+  | string
+  | number
+  | boolean
+  | null
+  | Array<HostOutputSharedDefinitionSchema6>
+  | {
+      [key: string]: HostOutputSharedDefinitionSchema6;
+    };
+
+export type HostOutputSharedDefinitionSchema7 =
+  | string
+  | number
+  | boolean
+  | null
+  | Array<HostOutputSharedDefinitionSchema7>
+  | {
+      [key: string]: HostOutputSharedDefinitionSchema7;
+    };
+
 export type HostHostBootstrapData = {
   body?: never;
   path?: never;
@@ -3285,83 +2225,23 @@ export type HostHostBootstrapErrors = {
   /**
    * The input is invalid.
    */
-  400: {
-    ok?: false;
-    error: string;
-    code?: string;
-    message?: string;
-    contractId?: string;
-    traceId?: string;
-    incidentId?: string;
-    issues?: Array<{
-      path: string;
-      code: string;
-    }>;
-  };
+  400: HostError;
   /**
    * A valid Host session or token is required.
    */
-  401: {
-    ok?: false;
-    error: string;
-    code?: string;
-    message?: string;
-    contractId?: string;
-    traceId?: string;
-    incidentId?: string;
-    issues?: Array<{
-      path: string;
-      code: string;
-    }>;
-  };
+  401: HostError;
   /**
    * The request is not authorized.
    */
-  403: {
-    ok?: false;
-    error: string;
-    code?: string;
-    message?: string;
-    contractId?: string;
-    traceId?: string;
-    incidentId?: string;
-    issues?: Array<{
-      path: string;
-      code: string;
-    }>;
-  };
+  403: HostError;
   /**
    * The Host could not complete the operation.
    */
-  500: {
-    ok?: false;
-    error: string;
-    code?: string;
-    message?: string;
-    contractId?: string;
-    traceId?: string;
-    incidentId?: string;
-    issues?: Array<{
-      path: string;
-      code: string;
-    }>;
-  };
+  500: HostError;
   /**
    * The Host or authenticated session is temporarily unavailable.
    */
-  503: {
-    ok?: false;
-    error: string;
-    code?: string;
-    message?: string;
-    contractId?: string;
-    traceId?: string;
-    incidentId?: string;
-    issues?: Array<{
-      path: string;
-      code: string;
-    }>;
-  };
+  503: HostError;
 };
 
 export type HostHostBootstrapError = HostHostBootstrapErrors[keyof HostHostBootstrapErrors];
@@ -3414,83 +2294,23 @@ export type RunEventListErrors = {
   /**
    * The input is invalid.
    */
-  400: {
-    ok?: false;
-    error: string;
-    code?: string;
-    message?: string;
-    contractId?: string;
-    traceId?: string;
-    incidentId?: string;
-    issues?: Array<{
-      path: string;
-      code: string;
-    }>;
-  };
+  400: HostError;
   /**
    * A valid Host session or token is required.
    */
-  401: {
-    ok?: false;
-    error: string;
-    code?: string;
-    message?: string;
-    contractId?: string;
-    traceId?: string;
-    incidentId?: string;
-    issues?: Array<{
-      path: string;
-      code: string;
-    }>;
-  };
+  401: HostError;
   /**
    * The request is not authorized.
    */
-  403: {
-    ok?: false;
-    error: string;
-    code?: string;
-    message?: string;
-    contractId?: string;
-    traceId?: string;
-    incidentId?: string;
-    issues?: Array<{
-      path: string;
-      code: string;
-    }>;
-  };
+  403: HostError;
   /**
    * The Host could not complete the operation.
    */
-  500: {
-    ok?: false;
-    error: string;
-    code?: string;
-    message?: string;
-    contractId?: string;
-    traceId?: string;
-    incidentId?: string;
-    issues?: Array<{
-      path: string;
-      code: string;
-    }>;
-  };
+  500: HostError;
   /**
    * The Host or authenticated session is temporarily unavailable.
    */
-  503: {
-    ok?: false;
-    error: string;
-    code?: string;
-    message?: string;
-    contractId?: string;
-    traceId?: string;
-    incidentId?: string;
-    issues?: Array<{
-      path: string;
-      code: string;
-    }>;
-  };
+  503: HostError;
 };
 
 export type RunEventListError = RunEventListErrors[keyof RunEventListErrors];
@@ -3523,83 +2343,23 @@ export type RunRunListErrors = {
   /**
    * The input is invalid.
    */
-  400: {
-    ok?: false;
-    error: string;
-    code?: string;
-    message?: string;
-    contractId?: string;
-    traceId?: string;
-    incidentId?: string;
-    issues?: Array<{
-      path: string;
-      code: string;
-    }>;
-  };
+  400: HostError;
   /**
    * A valid Host session or token is required.
    */
-  401: {
-    ok?: false;
-    error: string;
-    code?: string;
-    message?: string;
-    contractId?: string;
-    traceId?: string;
-    incidentId?: string;
-    issues?: Array<{
-      path: string;
-      code: string;
-    }>;
-  };
+  401: HostError;
   /**
    * The request is not authorized.
    */
-  403: {
-    ok?: false;
-    error: string;
-    code?: string;
-    message?: string;
-    contractId?: string;
-    traceId?: string;
-    incidentId?: string;
-    issues?: Array<{
-      path: string;
-      code: string;
-    }>;
-  };
+  403: HostError;
   /**
    * The Host could not complete the operation.
    */
-  500: {
-    ok?: false;
-    error: string;
-    code?: string;
-    message?: string;
-    contractId?: string;
-    traceId?: string;
-    incidentId?: string;
-    issues?: Array<{
-      path: string;
-      code: string;
-    }>;
-  };
+  500: HostError;
   /**
    * The Host or authenticated session is temporarily unavailable.
    */
-  503: {
-    ok?: false;
-    error: string;
-    code?: string;
-    message?: string;
-    contractId?: string;
-    traceId?: string;
-    incidentId?: string;
-    issues?: Array<{
-      path: string;
-      code: string;
-    }>;
-  };
+  503: HostError;
 };
 
 export type RunRunListError = RunRunListErrors[keyof RunRunListErrors];
@@ -3616,50 +2376,7 @@ export type RunRunListResponses = {
       }
     | {
         ok: true;
-        runs: Array<{
-          id: string;
-          sessionId: string;
-          activity: "browser" | "chat" | "local" | "api" | "computer";
-          lifecycle: {
-            taskState:
-              | "TASK_STATE_UNSPECIFIED"
-              | "TASK_STATE_SUBMITTED"
-              | "TASK_STATE_WORKING"
-              | "TASK_STATE_COMPLETED"
-              | "TASK_STATE_FAILED"
-              | "TASK_STATE_CANCELED"
-              | "TASK_STATE_INPUT_REQUIRED"
-              | "TASK_STATE_REJECTED"
-              | "TASK_STATE_AUTH_REQUIRED";
-            activity?: "running" | "reconnecting" | "cancel_pending" | "waiting_on_child";
-            reasonCode?: string;
-            retryable?: boolean;
-            outcomeUnknown?: boolean;
-            childRunId?: string;
-          };
-          input: string;
-          createdAt: string;
-          updatedAt: string;
-          startedAt: string;
-          endedAt?: string;
-          modelId?: string;
-          summary?: string;
-          error?: string;
-          problem?: {
-            incidentId: string;
-            code: string;
-          };
-          pausedAt?: string;
-          resumedAt?: string;
-          pauseReason?: string;
-          lastApprovalId?: string;
-          lastQuestionId?: string;
-          resumeCount: number;
-          approvalIds: Array<string>;
-          questionIds: Array<string>;
-          toolIds: Array<string>;
-          eventCount: number;
-        }>;
+        runs: Array<Run>;
         revision: string;
       };
 };
@@ -3684,83 +2401,23 @@ export type RunSessionListErrors = {
   /**
    * The input is invalid.
    */
-  400: {
-    ok?: false;
-    error: string;
-    code?: string;
-    message?: string;
-    contractId?: string;
-    traceId?: string;
-    incidentId?: string;
-    issues?: Array<{
-      path: string;
-      code: string;
-    }>;
-  };
+  400: HostError;
   /**
    * A valid Host session or token is required.
    */
-  401: {
-    ok?: false;
-    error: string;
-    code?: string;
-    message?: string;
-    contractId?: string;
-    traceId?: string;
-    incidentId?: string;
-    issues?: Array<{
-      path: string;
-      code: string;
-    }>;
-  };
+  401: HostError;
   /**
    * The request is not authorized.
    */
-  403: {
-    ok?: false;
-    error: string;
-    code?: string;
-    message?: string;
-    contractId?: string;
-    traceId?: string;
-    incidentId?: string;
-    issues?: Array<{
-      path: string;
-      code: string;
-    }>;
-  };
+  403: HostError;
   /**
    * The Host could not complete the operation.
    */
-  500: {
-    ok?: false;
-    error: string;
-    code?: string;
-    message?: string;
-    contractId?: string;
-    traceId?: string;
-    incidentId?: string;
-    issues?: Array<{
-      path: string;
-      code: string;
-    }>;
-  };
+  500: HostError;
   /**
    * The Host or authenticated session is temporarily unavailable.
    */
-  503: {
-    ok?: false;
-    error: string;
-    code?: string;
-    message?: string;
-    contractId?: string;
-    traceId?: string;
-    incidentId?: string;
-    issues?: Array<{
-      path: string;
-      code: string;
-    }>;
-  };
+  503: HostError;
 };
 
 export type RunSessionListError = RunSessionListErrors[keyof RunSessionListErrors];
@@ -3769,7 +2426,10 @@ export type RunSessionListResponses = {
   /**
    * Successful response.
    */
-  200: RunSessionListResponse200;
+  200: {
+    ok: true;
+    sessions: Array<Session>;
+  };
 };
 
 export type RunSessionListResponse = RunSessionListResponses[keyof RunSessionListResponses];
@@ -3794,83 +2454,23 @@ export type RunExecutionListErrors = {
   /**
    * The input is invalid.
    */
-  400: {
-    ok?: false;
-    error: string;
-    code?: string;
-    message?: string;
-    contractId?: string;
-    traceId?: string;
-    incidentId?: string;
-    issues?: Array<{
-      path: string;
-      code: string;
-    }>;
-  };
+  400: HostError;
   /**
    * A valid Host session or token is required.
    */
-  401: {
-    ok?: false;
-    error: string;
-    code?: string;
-    message?: string;
-    contractId?: string;
-    traceId?: string;
-    incidentId?: string;
-    issues?: Array<{
-      path: string;
-      code: string;
-    }>;
-  };
+  401: HostError;
   /**
    * The request is not authorized.
    */
-  403: {
-    ok?: false;
-    error: string;
-    code?: string;
-    message?: string;
-    contractId?: string;
-    traceId?: string;
-    incidentId?: string;
-    issues?: Array<{
-      path: string;
-      code: string;
-    }>;
-  };
+  403: HostError;
   /**
    * The Host could not complete the operation.
    */
-  500: {
-    ok?: false;
-    error: string;
-    code?: string;
-    message?: string;
-    contractId?: string;
-    traceId?: string;
-    incidentId?: string;
-    issues?: Array<{
-      path: string;
-      code: string;
-    }>;
-  };
+  500: HostError;
   /**
    * The Host or authenticated session is temporarily unavailable.
    */
-  503: {
-    ok?: false;
-    error: string;
-    code?: string;
-    message?: string;
-    contractId?: string;
-    traceId?: string;
-    incidentId?: string;
-    issues?: Array<{
-      path: string;
-      code: string;
-    }>;
-  };
+  503: HostError;
 };
 
 export type RunExecutionListError = RunExecutionListErrors[keyof RunExecutionListErrors];
@@ -3879,7 +2479,17 @@ export type RunExecutionListResponses = {
   /**
    * Successful response.
    */
-  200: RunExecutionListResponse200;
+  200:
+    | {
+        ok: true;
+        unchanged: true;
+        revision: string;
+      }
+    | {
+        ok: true;
+        executions: Array<Execution>;
+        revision: string;
+      };
 };
 
 export type RunExecutionListResponse = RunExecutionListResponses[keyof RunExecutionListResponses];
@@ -3898,83 +2508,23 @@ export type RunDirectCancelErrors = {
   /**
    * The input is invalid.
    */
-  400: {
-    ok?: false;
-    error: string;
-    code?: string;
-    message?: string;
-    contractId?: string;
-    traceId?: string;
-    incidentId?: string;
-    issues?: Array<{
-      path: string;
-      code: string;
-    }>;
-  };
+  400: HostError;
   /**
    * A valid Host session or token is required.
    */
-  401: {
-    ok?: false;
-    error: string;
-    code?: string;
-    message?: string;
-    contractId?: string;
-    traceId?: string;
-    incidentId?: string;
-    issues?: Array<{
-      path: string;
-      code: string;
-    }>;
-  };
+  401: HostError;
   /**
    * The request is not authorized.
    */
-  403: {
-    ok?: false;
-    error: string;
-    code?: string;
-    message?: string;
-    contractId?: string;
-    traceId?: string;
-    incidentId?: string;
-    issues?: Array<{
-      path: string;
-      code: string;
-    }>;
-  };
+  403: HostError;
   /**
    * The Host could not complete the operation.
    */
-  500: {
-    ok?: false;
-    error: string;
-    code?: string;
-    message?: string;
-    contractId?: string;
-    traceId?: string;
-    incidentId?: string;
-    issues?: Array<{
-      path: string;
-      code: string;
-    }>;
-  };
+  500: HostError;
   /**
    * The Host or authenticated session is temporarily unavailable.
    */
-  503: {
-    ok?: false;
-    error: string;
-    code?: string;
-    message?: string;
-    contractId?: string;
-    traceId?: string;
-    incidentId?: string;
-    issues?: Array<{
-      path: string;
-      code: string;
-    }>;
-  };
+  503: HostError;
 };
 
 export type RunDirectCancelError = RunDirectCancelErrors[keyof RunDirectCancelErrors];
@@ -4006,83 +2556,23 @@ export type RunDirectGuideErrors = {
   /**
    * The input is invalid.
    */
-  400: {
-    ok?: false;
-    error: string;
-    code?: string;
-    message?: string;
-    contractId?: string;
-    traceId?: string;
-    incidentId?: string;
-    issues?: Array<{
-      path: string;
-      code: string;
-    }>;
-  };
+  400: HostError;
   /**
    * A valid Host session or token is required.
    */
-  401: {
-    ok?: false;
-    error: string;
-    code?: string;
-    message?: string;
-    contractId?: string;
-    traceId?: string;
-    incidentId?: string;
-    issues?: Array<{
-      path: string;
-      code: string;
-    }>;
-  };
+  401: HostError;
   /**
    * The request is not authorized.
    */
-  403: {
-    ok?: false;
-    error: string;
-    code?: string;
-    message?: string;
-    contractId?: string;
-    traceId?: string;
-    incidentId?: string;
-    issues?: Array<{
-      path: string;
-      code: string;
-    }>;
-  };
+  403: HostError;
   /**
    * The Host could not complete the operation.
    */
-  500: {
-    ok?: false;
-    error: string;
-    code?: string;
-    message?: string;
-    contractId?: string;
-    traceId?: string;
-    incidentId?: string;
-    issues?: Array<{
-      path: string;
-      code: string;
-    }>;
-  };
+  500: HostError;
   /**
    * The Host or authenticated session is temporarily unavailable.
    */
-  503: {
-    ok?: false;
-    error: string;
-    code?: string;
-    message?: string;
-    contractId?: string;
-    traceId?: string;
-    incidentId?: string;
-    issues?: Array<{
-      path: string;
-      code: string;
-    }>;
-  };
+  503: HostError;
 };
 
 export type RunDirectGuideError = RunDirectGuideErrors[keyof RunDirectGuideErrors];
@@ -4114,83 +2604,23 @@ export type RunDirectCompactErrors = {
   /**
    * The input is invalid.
    */
-  400: {
-    ok?: false;
-    error: string;
-    code?: string;
-    message?: string;
-    contractId?: string;
-    traceId?: string;
-    incidentId?: string;
-    issues?: Array<{
-      path: string;
-      code: string;
-    }>;
-  };
+  400: HostError;
   /**
    * A valid Host session or token is required.
    */
-  401: {
-    ok?: false;
-    error: string;
-    code?: string;
-    message?: string;
-    contractId?: string;
-    traceId?: string;
-    incidentId?: string;
-    issues?: Array<{
-      path: string;
-      code: string;
-    }>;
-  };
+  401: HostError;
   /**
    * The request is not authorized.
    */
-  403: {
-    ok?: false;
-    error: string;
-    code?: string;
-    message?: string;
-    contractId?: string;
-    traceId?: string;
-    incidentId?: string;
-    issues?: Array<{
-      path: string;
-      code: string;
-    }>;
-  };
+  403: HostError;
   /**
    * The Host could not complete the operation.
    */
-  500: {
-    ok?: false;
-    error: string;
-    code?: string;
-    message?: string;
-    contractId?: string;
-    traceId?: string;
-    incidentId?: string;
-    issues?: Array<{
-      path: string;
-      code: string;
-    }>;
-  };
+  500: HostError;
   /**
    * The Host or authenticated session is temporarily unavailable.
    */
-  503: {
-    ok?: false;
-    error: string;
-    code?: string;
-    message?: string;
-    contractId?: string;
-    traceId?: string;
-    incidentId?: string;
-    issues?: Array<{
-      path: string;
-      code: string;
-    }>;
-  };
+  503: HostError;
 };
 
 export type RunDirectCompactError = RunDirectCompactErrors[keyof RunDirectCompactErrors];
@@ -4226,83 +2656,23 @@ export type InteractionApprovalListErrors = {
   /**
    * The input is invalid.
    */
-  400: {
-    ok?: false;
-    error: string;
-    code?: string;
-    message?: string;
-    contractId?: string;
-    traceId?: string;
-    incidentId?: string;
-    issues?: Array<{
-      path: string;
-      code: string;
-    }>;
-  };
+  400: HostError;
   /**
    * A valid Host session or token is required.
    */
-  401: {
-    ok?: false;
-    error: string;
-    code?: string;
-    message?: string;
-    contractId?: string;
-    traceId?: string;
-    incidentId?: string;
-    issues?: Array<{
-      path: string;
-      code: string;
-    }>;
-  };
+  401: HostError;
   /**
    * The request is not authorized.
    */
-  403: {
-    ok?: false;
-    error: string;
-    code?: string;
-    message?: string;
-    contractId?: string;
-    traceId?: string;
-    incidentId?: string;
-    issues?: Array<{
-      path: string;
-      code: string;
-    }>;
-  };
+  403: HostError;
   /**
    * The Host could not complete the operation.
    */
-  500: {
-    ok?: false;
-    error: string;
-    code?: string;
-    message?: string;
-    contractId?: string;
-    traceId?: string;
-    incidentId?: string;
-    issues?: Array<{
-      path: string;
-      code: string;
-    }>;
-  };
+  500: HostError;
   /**
    * The Host or authenticated session is temporarily unavailable.
    */
-  503: {
-    ok?: false;
-    error: string;
-    code?: string;
-    message?: string;
-    contractId?: string;
-    traceId?: string;
-    incidentId?: string;
-    issues?: Array<{
-      path: string;
-      code: string;
-    }>;
-  };
+  503: HostError;
 };
 
 export type InteractionApprovalListError = InteractionApprovalListErrors[keyof InteractionApprovalListErrors];
@@ -4311,13 +2681,46 @@ export type InteractionApprovalListResponses = {
   /**
    * Successful response.
    */
-  200: InteractionApprovalListResponse200;
+  200: {
+    ok: true;
+    approvals: Array<{
+      id: string;
+      title: string;
+      createdAt: string;
+      updatedAt: string;
+      input?: HostOutputSharedDefinitionSchema0;
+      response?: HostOutputSharedDefinitionSchema1;
+      nativeRequestId?: string;
+      deadlineAt?: string;
+      isBlocking?: boolean;
+      autoResolutionMs?: number;
+      kind:
+        | "tool"
+        | "command"
+        | "file_change"
+        | "permission_scope"
+        | "routine_step"
+        | "memory_write"
+        | "browser_action"
+        | "computer_action";
+      reason: string;
+      status: "pending" | "approved" | "rejected" | "canceled";
+      toolId?: string;
+      capabilityId?: string;
+      skillId?: string;
+    }>;
+  };
 };
 
 export type InteractionApprovalListResponse = InteractionApprovalListResponses[keyof InteractionApprovalListResponses];
 
 export type InteractionApprovalApproveData = {
-  body: InteractionApprovalApproveBody;
+  body: {
+    /**
+     * Structured decision response or answer.
+     */
+    response?: HostInputSharedDefinitionSchema0;
+  };
   path: {
     approvalId: string;
   };
@@ -4329,83 +2732,23 @@ export type InteractionApprovalApproveErrors = {
   /**
    * The input is invalid.
    */
-  400: {
-    ok?: false;
-    error: string;
-    code?: string;
-    message?: string;
-    contractId?: string;
-    traceId?: string;
-    incidentId?: string;
-    issues?: Array<{
-      path: string;
-      code: string;
-    }>;
-  };
+  400: HostError;
   /**
    * A valid Host session or token is required.
    */
-  401: {
-    ok?: false;
-    error: string;
-    code?: string;
-    message?: string;
-    contractId?: string;
-    traceId?: string;
-    incidentId?: string;
-    issues?: Array<{
-      path: string;
-      code: string;
-    }>;
-  };
+  401: HostError;
   /**
    * The request is not authorized.
    */
-  403: {
-    ok?: false;
-    error: string;
-    code?: string;
-    message?: string;
-    contractId?: string;
-    traceId?: string;
-    incidentId?: string;
-    issues?: Array<{
-      path: string;
-      code: string;
-    }>;
-  };
+  403: HostError;
   /**
    * The Host could not complete the operation.
    */
-  500: {
-    ok?: false;
-    error: string;
-    code?: string;
-    message?: string;
-    contractId?: string;
-    traceId?: string;
-    incidentId?: string;
-    issues?: Array<{
-      path: string;
-      code: string;
-    }>;
-  };
+  500: HostError;
   /**
    * The Host or authenticated session is temporarily unavailable.
    */
-  503: {
-    ok?: false;
-    error: string;
-    code?: string;
-    message?: string;
-    contractId?: string;
-    traceId?: string;
-    incidentId?: string;
-    issues?: Array<{
-      path: string;
-      code: string;
-    }>;
-  };
+  503: HostError;
 };
 
 export type InteractionApprovalApproveError = InteractionApprovalApproveErrors[keyof InteractionApprovalApproveErrors];
@@ -4421,7 +2764,12 @@ export type InteractionApprovalApproveResponse =
   InteractionApprovalApproveResponses[keyof InteractionApprovalApproveResponses];
 
 export type InteractionApprovalRejectData = {
-  body: InteractionApprovalRejectBody;
+  body: {
+    /**
+     * Structured decision response or answer.
+     */
+    response?: HostInputSharedDefinitionSchema0;
+  };
   path: {
     approvalId: string;
   };
@@ -4433,83 +2781,23 @@ export type InteractionApprovalRejectErrors = {
   /**
    * The input is invalid.
    */
-  400: {
-    ok?: false;
-    error: string;
-    code?: string;
-    message?: string;
-    contractId?: string;
-    traceId?: string;
-    incidentId?: string;
-    issues?: Array<{
-      path: string;
-      code: string;
-    }>;
-  };
+  400: HostError;
   /**
    * A valid Host session or token is required.
    */
-  401: {
-    ok?: false;
-    error: string;
-    code?: string;
-    message?: string;
-    contractId?: string;
-    traceId?: string;
-    incidentId?: string;
-    issues?: Array<{
-      path: string;
-      code: string;
-    }>;
-  };
+  401: HostError;
   /**
    * The request is not authorized.
    */
-  403: {
-    ok?: false;
-    error: string;
-    code?: string;
-    message?: string;
-    contractId?: string;
-    traceId?: string;
-    incidentId?: string;
-    issues?: Array<{
-      path: string;
-      code: string;
-    }>;
-  };
+  403: HostError;
   /**
    * The Host could not complete the operation.
    */
-  500: {
-    ok?: false;
-    error: string;
-    code?: string;
-    message?: string;
-    contractId?: string;
-    traceId?: string;
-    incidentId?: string;
-    issues?: Array<{
-      path: string;
-      code: string;
-    }>;
-  };
+  500: HostError;
   /**
    * The Host or authenticated session is temporarily unavailable.
    */
-  503: {
-    ok?: false;
-    error: string;
-    code?: string;
-    message?: string;
-    contractId?: string;
-    traceId?: string;
-    incidentId?: string;
-    issues?: Array<{
-      path: string;
-      code: string;
-    }>;
-  };
+  503: HostError;
 };
 
 export type InteractionApprovalRejectError = InteractionApprovalRejectErrors[keyof InteractionApprovalRejectErrors];
@@ -4525,7 +2813,12 @@ export type InteractionApprovalRejectResponse =
   InteractionApprovalRejectResponses[keyof InteractionApprovalRejectResponses];
 
 export type InteractionApprovalCancelData = {
-  body: InteractionApprovalCancelBody;
+  body: {
+    /**
+     * Structured decision response or answer.
+     */
+    response?: HostInputSharedDefinitionSchema0;
+  };
   path: {
     approvalId: string;
   };
@@ -4537,83 +2830,23 @@ export type InteractionApprovalCancelErrors = {
   /**
    * The input is invalid.
    */
-  400: {
-    ok?: false;
-    error: string;
-    code?: string;
-    message?: string;
-    contractId?: string;
-    traceId?: string;
-    incidentId?: string;
-    issues?: Array<{
-      path: string;
-      code: string;
-    }>;
-  };
+  400: HostError;
   /**
    * A valid Host session or token is required.
    */
-  401: {
-    ok?: false;
-    error: string;
-    code?: string;
-    message?: string;
-    contractId?: string;
-    traceId?: string;
-    incidentId?: string;
-    issues?: Array<{
-      path: string;
-      code: string;
-    }>;
-  };
+  401: HostError;
   /**
    * The request is not authorized.
    */
-  403: {
-    ok?: false;
-    error: string;
-    code?: string;
-    message?: string;
-    contractId?: string;
-    traceId?: string;
-    incidentId?: string;
-    issues?: Array<{
-      path: string;
-      code: string;
-    }>;
-  };
+  403: HostError;
   /**
    * The Host could not complete the operation.
    */
-  500: {
-    ok?: false;
-    error: string;
-    code?: string;
-    message?: string;
-    contractId?: string;
-    traceId?: string;
-    incidentId?: string;
-    issues?: Array<{
-      path: string;
-      code: string;
-    }>;
-  };
+  500: HostError;
   /**
    * The Host or authenticated session is temporarily unavailable.
    */
-  503: {
-    ok?: false;
-    error: string;
-    code?: string;
-    message?: string;
-    contractId?: string;
-    traceId?: string;
-    incidentId?: string;
-    issues?: Array<{
-      path: string;
-      code: string;
-    }>;
-  };
+  503: HostError;
 };
 
 export type InteractionApprovalCancelError = InteractionApprovalCancelErrors[keyof InteractionApprovalCancelErrors];
@@ -4645,83 +2878,23 @@ export type InteractionQuestionListErrors = {
   /**
    * The input is invalid.
    */
-  400: {
-    ok?: false;
-    error: string;
-    code?: string;
-    message?: string;
-    contractId?: string;
-    traceId?: string;
-    incidentId?: string;
-    issues?: Array<{
-      path: string;
-      code: string;
-    }>;
-  };
+  400: HostError;
   /**
    * A valid Host session or token is required.
    */
-  401: {
-    ok?: false;
-    error: string;
-    code?: string;
-    message?: string;
-    contractId?: string;
-    traceId?: string;
-    incidentId?: string;
-    issues?: Array<{
-      path: string;
-      code: string;
-    }>;
-  };
+  401: HostError;
   /**
    * The request is not authorized.
    */
-  403: {
-    ok?: false;
-    error: string;
-    code?: string;
-    message?: string;
-    contractId?: string;
-    traceId?: string;
-    incidentId?: string;
-    issues?: Array<{
-      path: string;
-      code: string;
-    }>;
-  };
+  403: HostError;
   /**
    * The Host could not complete the operation.
    */
-  500: {
-    ok?: false;
-    error: string;
-    code?: string;
-    message?: string;
-    contractId?: string;
-    traceId?: string;
-    incidentId?: string;
-    issues?: Array<{
-      path: string;
-      code: string;
-    }>;
-  };
+  500: HostError;
   /**
    * The Host or authenticated session is temporarily unavailable.
    */
-  503: {
-    ok?: false;
-    error: string;
-    code?: string;
-    message?: string;
-    contractId?: string;
-    traceId?: string;
-    incidentId?: string;
-    issues?: Array<{
-      path: string;
-      code: string;
-    }>;
-  };
+  503: HostError;
 };
 
 export type InteractionQuestionListError = InteractionQuestionListErrors[keyof InteractionQuestionListErrors];
@@ -4730,13 +2903,45 @@ export type InteractionQuestionListResponses = {
   /**
    * Successful response.
    */
-  200: InteractionQuestionListResponse200;
+  200: {
+    ok: true;
+    questions: Array<{
+      id: string;
+      title: string;
+      createdAt: string;
+      updatedAt: string;
+      input?: HostOutputSharedDefinitionSchema0;
+      response?: HostOutputSharedDefinitionSchema1;
+      nativeRequestId?: string;
+      deadlineAt?: string;
+      isBlocking?: boolean;
+      autoResolutionMs?: number;
+      prompt: string;
+      status: "pending" | "answered" | "declined" | "canceled";
+      source?:
+        | {
+            type: "kernel.native";
+            kernelId: string;
+          }
+        | {
+            type: "host";
+          }
+        | {
+            type: "unknown";
+          };
+    }>;
+  };
 };
 
 export type InteractionQuestionListResponse = InteractionQuestionListResponses[keyof InteractionQuestionListResponses];
 
 export type InteractionQuestionAnswerData = {
-  body: InteractionQuestionAnswerBody;
+  body: {
+    /**
+     * Structured decision response or answer.
+     */
+    response?: HostInputSharedDefinitionSchema0;
+  };
   path: {
     questionId: string;
   };
@@ -4748,83 +2953,23 @@ export type InteractionQuestionAnswerErrors = {
   /**
    * The input is invalid.
    */
-  400: {
-    ok?: false;
-    error: string;
-    code?: string;
-    message?: string;
-    contractId?: string;
-    traceId?: string;
-    incidentId?: string;
-    issues?: Array<{
-      path: string;
-      code: string;
-    }>;
-  };
+  400: HostError;
   /**
    * A valid Host session or token is required.
    */
-  401: {
-    ok?: false;
-    error: string;
-    code?: string;
-    message?: string;
-    contractId?: string;
-    traceId?: string;
-    incidentId?: string;
-    issues?: Array<{
-      path: string;
-      code: string;
-    }>;
-  };
+  401: HostError;
   /**
    * The request is not authorized.
    */
-  403: {
-    ok?: false;
-    error: string;
-    code?: string;
-    message?: string;
-    contractId?: string;
-    traceId?: string;
-    incidentId?: string;
-    issues?: Array<{
-      path: string;
-      code: string;
-    }>;
-  };
+  403: HostError;
   /**
    * The Host could not complete the operation.
    */
-  500: {
-    ok?: false;
-    error: string;
-    code?: string;
-    message?: string;
-    contractId?: string;
-    traceId?: string;
-    incidentId?: string;
-    issues?: Array<{
-      path: string;
-      code: string;
-    }>;
-  };
+  500: HostError;
   /**
    * The Host or authenticated session is temporarily unavailable.
    */
-  503: {
-    ok?: false;
-    error: string;
-    code?: string;
-    message?: string;
-    contractId?: string;
-    traceId?: string;
-    incidentId?: string;
-    issues?: Array<{
-      path: string;
-      code: string;
-    }>;
-  };
+  503: HostError;
 };
 
 export type InteractionQuestionAnswerError = InteractionQuestionAnswerErrors[keyof InteractionQuestionAnswerErrors];
@@ -4840,7 +2985,12 @@ export type InteractionQuestionAnswerResponse =
   InteractionQuestionAnswerResponses[keyof InteractionQuestionAnswerResponses];
 
 export type InteractionQuestionDeclineData = {
-  body: InteractionQuestionDeclineBody;
+  body: {
+    /**
+     * Structured decision response or answer.
+     */
+    response?: HostInputSharedDefinitionSchema0;
+  };
   path: {
     questionId: string;
   };
@@ -4852,83 +3002,23 @@ export type InteractionQuestionDeclineErrors = {
   /**
    * The input is invalid.
    */
-  400: {
-    ok?: false;
-    error: string;
-    code?: string;
-    message?: string;
-    contractId?: string;
-    traceId?: string;
-    incidentId?: string;
-    issues?: Array<{
-      path: string;
-      code: string;
-    }>;
-  };
+  400: HostError;
   /**
    * A valid Host session or token is required.
    */
-  401: {
-    ok?: false;
-    error: string;
-    code?: string;
-    message?: string;
-    contractId?: string;
-    traceId?: string;
-    incidentId?: string;
-    issues?: Array<{
-      path: string;
-      code: string;
-    }>;
-  };
+  401: HostError;
   /**
    * The request is not authorized.
    */
-  403: {
-    ok?: false;
-    error: string;
-    code?: string;
-    message?: string;
-    contractId?: string;
-    traceId?: string;
-    incidentId?: string;
-    issues?: Array<{
-      path: string;
-      code: string;
-    }>;
-  };
+  403: HostError;
   /**
    * The Host could not complete the operation.
    */
-  500: {
-    ok?: false;
-    error: string;
-    code?: string;
-    message?: string;
-    contractId?: string;
-    traceId?: string;
-    incidentId?: string;
-    issues?: Array<{
-      path: string;
-      code: string;
-    }>;
-  };
+  500: HostError;
   /**
    * The Host or authenticated session is temporarily unavailable.
    */
-  503: {
-    ok?: false;
-    error: string;
-    code?: string;
-    message?: string;
-    contractId?: string;
-    traceId?: string;
-    incidentId?: string;
-    issues?: Array<{
-      path: string;
-      code: string;
-    }>;
-  };
+  503: HostError;
 };
 
 export type InteractionQuestionDeclineError = InteractionQuestionDeclineErrors[keyof InteractionQuestionDeclineErrors];
@@ -4944,7 +3034,12 @@ export type InteractionQuestionDeclineResponse =
   InteractionQuestionDeclineResponses[keyof InteractionQuestionDeclineResponses];
 
 export type InteractionQuestionCancelData = {
-  body: InteractionQuestionCancelBody;
+  body: {
+    /**
+     * Structured decision response or answer.
+     */
+    response?: HostInputSharedDefinitionSchema0;
+  };
   path: {
     questionId: string;
   };
@@ -4956,83 +3051,23 @@ export type InteractionQuestionCancelErrors = {
   /**
    * The input is invalid.
    */
-  400: {
-    ok?: false;
-    error: string;
-    code?: string;
-    message?: string;
-    contractId?: string;
-    traceId?: string;
-    incidentId?: string;
-    issues?: Array<{
-      path: string;
-      code: string;
-    }>;
-  };
+  400: HostError;
   /**
    * A valid Host session or token is required.
    */
-  401: {
-    ok?: false;
-    error: string;
-    code?: string;
-    message?: string;
-    contractId?: string;
-    traceId?: string;
-    incidentId?: string;
-    issues?: Array<{
-      path: string;
-      code: string;
-    }>;
-  };
+  401: HostError;
   /**
    * The request is not authorized.
    */
-  403: {
-    ok?: false;
-    error: string;
-    code?: string;
-    message?: string;
-    contractId?: string;
-    traceId?: string;
-    incidentId?: string;
-    issues?: Array<{
-      path: string;
-      code: string;
-    }>;
-  };
+  403: HostError;
   /**
    * The Host could not complete the operation.
    */
-  500: {
-    ok?: false;
-    error: string;
-    code?: string;
-    message?: string;
-    contractId?: string;
-    traceId?: string;
-    incidentId?: string;
-    issues?: Array<{
-      path: string;
-      code: string;
-    }>;
-  };
+  500: HostError;
   /**
    * The Host or authenticated session is temporarily unavailable.
    */
-  503: {
-    ok?: false;
-    error: string;
-    code?: string;
-    message?: string;
-    contractId?: string;
-    traceId?: string;
-    incidentId?: string;
-    issues?: Array<{
-      path: string;
-      code: string;
-    }>;
-  };
+  503: HostError;
 };
 
 export type InteractionQuestionCancelError = InteractionQuestionCancelErrors[keyof InteractionQuestionCancelErrors];
@@ -5048,7 +3083,47 @@ export type InteractionQuestionCancelResponse =
   InteractionQuestionCancelResponses[keyof InteractionQuestionCancelResponses];
 
 export type ArtifactArtifactCreateData = {
-  body: ArtifactArtifactCreateBody;
+  body: {
+    id?: string;
+    type?: string;
+    title?: string;
+    status?: string;
+    version?: number;
+    tags?: Array<string>;
+    data?: {
+      [key: string]: HostInputSharedDefinitionSchema1;
+    };
+    assets?: Array<{
+      kind: "image" | "audio" | "video" | "file" | "url" | "text";
+      uri?: string;
+      path?: string;
+      title?: string;
+      mimeType?: string;
+      metadata?: {
+        [key: string]: HostInputSharedDefinitionSchema1;
+      };
+    }>;
+    preview?: {
+      title?: string;
+      text?: string;
+      imageUri?: string;
+      mimeType?: string;
+      status?: string;
+    };
+    sourceRefs?: Array<{
+      title?: string;
+      url?: string;
+      locator?: string;
+      quote?: string;
+    }>;
+    parentId?: string;
+    variantOf?: string;
+    derivedFrom?: Array<string>;
+    lineage?: Array<string>;
+    provenance?: {
+      [key: string]: HostInputSharedDefinitionSchema1;
+    };
+  };
   path?: never;
   query?: never;
   url: "/artifacts";
@@ -5058,83 +3133,23 @@ export type ArtifactArtifactCreateErrors = {
   /**
    * The input is invalid.
    */
-  400: {
-    ok?: false;
-    error: string;
-    code?: string;
-    message?: string;
-    contractId?: string;
-    traceId?: string;
-    incidentId?: string;
-    issues?: Array<{
-      path: string;
-      code: string;
-    }>;
-  };
+  400: HostError;
   /**
    * A valid Host session or token is required.
    */
-  401: {
-    ok?: false;
-    error: string;
-    code?: string;
-    message?: string;
-    contractId?: string;
-    traceId?: string;
-    incidentId?: string;
-    issues?: Array<{
-      path: string;
-      code: string;
-    }>;
-  };
+  401: HostError;
   /**
    * The request is not authorized.
    */
-  403: {
-    ok?: false;
-    error: string;
-    code?: string;
-    message?: string;
-    contractId?: string;
-    traceId?: string;
-    incidentId?: string;
-    issues?: Array<{
-      path: string;
-      code: string;
-    }>;
-  };
+  403: HostError;
   /**
    * The Host could not complete the operation.
    */
-  500: {
-    ok?: false;
-    error: string;
-    code?: string;
-    message?: string;
-    contractId?: string;
-    traceId?: string;
-    incidentId?: string;
-    issues?: Array<{
-      path: string;
-      code: string;
-    }>;
-  };
+  500: HostError;
   /**
    * The Host or authenticated session is temporarily unavailable.
    */
-  503: {
-    ok?: false;
-    error: string;
-    code?: string;
-    message?: string;
-    contractId?: string;
-    traceId?: string;
-    incidentId?: string;
-    issues?: Array<{
-      path: string;
-      code: string;
-    }>;
-  };
+  503: HostError;
 };
 
 export type ArtifactArtifactCreateError = ArtifactArtifactCreateErrors[keyof ArtifactArtifactCreateErrors];
@@ -5161,99 +3176,27 @@ export type ArtifactArtifactGetErrors = {
   /**
    * The input is invalid.
    */
-  400: {
-    ok?: false;
-    error: string;
-    code?: string;
-    message?: string;
-    contractId?: string;
-    traceId?: string;
-    incidentId?: string;
-    issues?: Array<{
-      path: string;
-      code: string;
-    }>;
-  };
+  400: HostError;
   /**
    * A valid Host session or token is required.
    */
-  401: {
-    ok?: false;
-    error: string;
-    code?: string;
-    message?: string;
-    contractId?: string;
-    traceId?: string;
-    incidentId?: string;
-    issues?: Array<{
-      path: string;
-      code: string;
-    }>;
-  };
+  401: HostError;
   /**
    * The request is not authorized.
    */
-  403: {
-    ok?: false;
-    error: string;
-    code?: string;
-    message?: string;
-    contractId?: string;
-    traceId?: string;
-    incidentId?: string;
-    issues?: Array<{
-      path: string;
-      code: string;
-    }>;
-  };
+  403: HostError;
   /**
    * The artifact does not exist.
    */
-  404: {
-    ok?: false;
-    error: string;
-    code?: string;
-    message?: string;
-    contractId?: string;
-    traceId?: string;
-    incidentId?: string;
-    issues?: Array<{
-      path: string;
-      code: string;
-    }>;
-  };
+  404: HostError;
   /**
    * The Host could not complete the operation.
    */
-  500: {
-    ok?: false;
-    error: string;
-    code?: string;
-    message?: string;
-    contractId?: string;
-    traceId?: string;
-    incidentId?: string;
-    issues?: Array<{
-      path: string;
-      code: string;
-    }>;
-  };
+  500: HostError;
   /**
    * The Host or authenticated session is temporarily unavailable.
    */
-  503: {
-    ok?: false;
-    error: string;
-    code?: string;
-    message?: string;
-    contractId?: string;
-    traceId?: string;
-    incidentId?: string;
-    issues?: Array<{
-      path: string;
-      code: string;
-    }>;
-  };
+  503: HostError;
 };
 
 export type ArtifactArtifactGetError = ArtifactArtifactGetErrors[keyof ArtifactArtifactGetErrors];
@@ -5262,7 +3205,10 @@ export type ArtifactArtifactGetResponses = {
   /**
    * Successful response.
    */
-  200: ArtifactArtifactGetResponse200;
+  200: {
+    ok: true;
+    artifact: Artifact;
+  };
 };
 
 export type ArtifactArtifactGetResponse = ArtifactArtifactGetResponses[keyof ArtifactArtifactGetResponses];
@@ -6365,63 +4311,27 @@ export type RoomRoomListErrors = {
   /**
    * The request does not satisfy the operation contract.
    */
-  400: {
-    ok?: false;
-    error: string;
-    code?: string;
-    traceId?: string;
-    [key: string]: unknown;
-  };
+  400: RoomError;
   /**
    * A valid Bridge session or token is required.
    */
-  401: {
-    ok?: false;
-    error: string;
-    code?: string;
-    traceId?: string;
-    [key: string]: unknown;
-  };
+  401: RoomError;
   /**
    * The request origin is not allowed.
    */
-  403: {
-    ok?: false;
-    error: string;
-    code?: string;
-    traceId?: string;
-    [key: string]: unknown;
-  };
+  403: RoomError;
   /**
    * The reply parent message does not exist.
    */
-  404: {
-    ok?: false;
-    error: string;
-    code?: string;
-    traceId?: string;
-    [key: string]: unknown;
-  };
+  404: RoomError;
   /**
    * The message ID conflicts with an earlier message, or the remote conversation belongs to another account or sender.
    */
-  409: {
-    ok?: false;
-    error: string;
-    code?: string;
-    traceId?: string;
-    [key: string]: unknown;
-  };
+  409: RoomError;
   /**
    * The authenticated session is temporarily unavailable.
    */
-  503: {
-    ok?: false;
-    error: string;
-    code?: string;
-    traceId?: string;
-    [key: string]: unknown;
-  };
+  503: RoomError;
 };
 
 export type RoomRoomListError = RoomRoomListErrors[keyof RoomRoomListErrors];
@@ -6432,206 +4342,9 @@ export type RoomRoomListResponses = {
    */
   200: {
     ok: true;
-    rooms: Array<{
-      id: string;
-      kind: "group" | "direct";
-      title: string;
-      badge: string;
-      memberIds: Array<string>;
-      adminMemberIds: Array<string>;
-      updatedAt: string;
-      unread: number;
-      scope?: {
-        kind: "app";
-        appId: string;
-        role?: "default" | "group" | "direct";
-      };
-      generatedTitle?:
-        | {
-            kind: "numbered-group";
-            sequence: number;
-          }
-        | {
-            kind: "app-group";
-            appId: string;
-            sequence: number;
-          };
-      removedMemberIds?: Array<string>;
-      directMemberId?: string;
-      pinned?: boolean;
-      archived?: boolean;
-      lastReadEventSeq?: number;
-      [key: string]: unknown;
-    }>;
-    members: Array<{
-      name: string;
-      role: string;
-      kernel: string;
-      model: string;
-      color: string;
-      availableSkillIds?: Array<string>;
-      defaultSkillIds?: Array<string>;
-      requiredKernelCapabilities?: Array<
-        | "message.streamText"
-        | "turn.lifecycle"
-        | "session.lifecycle"
-        | "planning.plan"
-        | "interaction.askUser"
-        | "tools.hostTool"
-        | "tools.nativeTool"
-        | "tools.mcpServers"
-        | "tools.parallelCalls"
-        | "tool.progress"
-        | "approval.request"
-        | "control.stop"
-        | "control.steer"
-        | "session.compact"
-        | "session.goal"
-        | "auth.refresh"
-        | "sandbox.policy"
-        | "budget.limit"
-        | "diagnostics.usage"
-        | "response.speed"
-        | "media.input"
-        | "output.structured"
-        | "output.artifacts"
-        | "reasoning.nativeText"
-        | "reasoning.summary"
-        | "knowledge.skills"
-      >;
-      reasoningEffort?: "low" | "medium" | "high" | "xhigh" | "max";
-      contextTokenBudget?: number;
-      accessMode?: "default" | "auto-review" | "full-access";
-      avatarMode?: "generated" | "initials" | "upload";
-      avatarSeed?: string;
-      avatarDataUrl?: string;
-      visibility?: "private" | "public";
-      publicDescription?: string;
-      publicSkills?: Array<string>;
-      inputSpec?: string;
-      outputSpec?: string;
-      id: string;
-      employeeDefinitionId?: string;
-      displayName?: string;
-      providerId?: string;
-      displayRole?: string;
-      status: "idle" | "running" | "done" | "waiting" | "offline";
-      lastActive: string;
-      appId?: string;
-      workspaceRoot?: string;
-      storePackageId?: string;
-      toolIds?: Array<string>;
-      source?: "local" | "human" | "remote";
-      remoteAgent?: {
-        accountIssuer: string;
-        accountUserId: string;
-        serviceUrl: string;
-        matrixId: string;
-        provider: string;
-        senderAgentId: string;
-        owner: string;
-        address: string;
-      };
-      sourceLabel?: string;
-      displayPublicDescription?: string;
-      displayPublicSkills?: Array<string>;
-      displayInputSpec?: string;
-      displayOutputSpec?: string;
-      userOverrides?: Array<string>;
-      manifestDefaults?: {
-        name?: string;
-        role?: string;
-        kernel?: string;
-        model?: string;
-        color?: string;
-        availableSkillIds?: Array<string>;
-        defaultSkillIds?: Array<string>;
-        requiredKernelCapabilities?: Array<
-          | "message.streamText"
-          | "turn.lifecycle"
-          | "session.lifecycle"
-          | "planning.plan"
-          | "interaction.askUser"
-          | "tools.hostTool"
-          | "tools.nativeTool"
-          | "tools.mcpServers"
-          | "tools.parallelCalls"
-          | "tool.progress"
-          | "approval.request"
-          | "control.stop"
-          | "control.steer"
-          | "session.compact"
-          | "session.goal"
-          | "auth.refresh"
-          | "sandbox.policy"
-          | "budget.limit"
-          | "diagnostics.usage"
-          | "response.speed"
-          | "media.input"
-          | "output.structured"
-          | "output.artifacts"
-          | "reasoning.nativeText"
-          | "reasoning.summary"
-          | "knowledge.skills"
-        >;
-        reasoningEffort?: "low" | "medium" | "high" | "xhigh" | "max";
-        contextTokenBudget?: number;
-        accessMode?: "default" | "auto-review" | "full-access";
-        avatarMode?: "generated" | "initials" | "upload";
-        avatarSeed?: string;
-        avatarDataUrl?: string;
-        visibility?: "private" | "public";
-        publicDescription?: string;
-        publicSkills?: Array<string>;
-        inputSpec?: string;
-        outputSpec?: string;
-      };
-      disabled?: boolean;
-    }>;
-    messages: Array<{
-      id: string;
-      roomId: string;
-      channelSeq: number;
-      senderId: string;
-      senderName: string;
-      senderType: "user" | "agent" | "system";
-      text: string;
-      targetIds: Array<string>;
-      status: "sent" | "running" | "done" | "failed" | "interrupted";
-      createdAt: string;
-      updatedAt: string;
-      attachments?: Array<unknown>;
-      parts?: Array<{
-        [key: string]: unknown;
-      }>;
-      duration?: string;
-      runId?: string;
-      remoteTask?: {
-        contextId?: string;
-        messageId: string;
-        requestText?: string;
-        triggerMessageId: string;
-        taskId?: string;
-        inputTaskId?: string;
-        sendStarted?: boolean;
-        needsInput?: boolean;
-        pending: boolean;
-        cancelRequested?: boolean;
-        statusText?: string;
-      };
-      startedAt?: string;
-      finishedAt?: string;
-      audience?: "room" | "internal";
-      deliveryKind?: "user_direct" | "user_broadcast" | "pm_auto_route" | "agent_delegation" | "system_routine";
-      notificationEventSeq?: number;
-      inReplyToMessageId?: string;
-      rootMessageId?: string;
-      selectedFile?: {
-        path: string;
-        [key: string]: unknown;
-      };
-      [key: string]: unknown;
-    }>;
+    rooms: Array<Room>;
+    members: Array<Employee>;
+    messages: Array<RoomMessage>;
     currentEventSeq: number;
     deletedMemberIds: Array<string>;
     messagesTruncated?: boolean;
@@ -6687,63 +4400,27 @@ export type RoomRoomCreateErrors = {
   /**
    * The request does not satisfy the operation contract.
    */
-  400: {
-    ok?: false;
-    error: string;
-    code?: string;
-    traceId?: string;
-    [key: string]: unknown;
-  };
+  400: RoomError;
   /**
    * A valid Bridge session or token is required.
    */
-  401: {
-    ok?: false;
-    error: string;
-    code?: string;
-    traceId?: string;
-    [key: string]: unknown;
-  };
+  401: RoomError;
   /**
    * The request origin is not allowed.
    */
-  403: {
-    ok?: false;
-    error: string;
-    code?: string;
-    traceId?: string;
-    [key: string]: unknown;
-  };
+  403: RoomError;
   /**
    * The reply parent message does not exist.
    */
-  404: {
-    ok?: false;
-    error: string;
-    code?: string;
-    traceId?: string;
-    [key: string]: unknown;
-  };
+  404: RoomError;
   /**
    * The message ID conflicts with an earlier message, or the remote conversation belongs to another account or sender.
    */
-  409: {
-    ok?: false;
-    error: string;
-    code?: string;
-    traceId?: string;
-    [key: string]: unknown;
-  };
+  409: RoomError;
   /**
    * The authenticated session is temporarily unavailable.
    */
-  503: {
-    ok?: false;
-    error: string;
-    code?: string;
-    traceId?: string;
-    [key: string]: unknown;
-  };
+  503: RoomError;
 };
 
 export type RoomRoomCreateError = RoomRoomCreateErrors[keyof RoomRoomCreateErrors];
@@ -6754,37 +4431,7 @@ export type RoomRoomCreateResponses = {
    */
   200: {
     ok: true;
-    room: {
-      id: string;
-      kind: "group" | "direct";
-      title: string;
-      badge: string;
-      memberIds: Array<string>;
-      adminMemberIds: Array<string>;
-      updatedAt: string;
-      unread: number;
-      scope?: {
-        kind: "app";
-        appId: string;
-        role?: "default" | "group" | "direct";
-      };
-      generatedTitle?:
-        | {
-            kind: "numbered-group";
-            sequence: number;
-          }
-        | {
-            kind: "app-group";
-            appId: string;
-            sequence: number;
-          };
-      removedMemberIds?: Array<string>;
-      directMemberId?: string;
-      pinned?: boolean;
-      archived?: boolean;
-      lastReadEventSeq?: number;
-      [key: string]: unknown;
-    };
+    room: Room;
     currentEventSeq: number;
   };
 };
@@ -6821,63 +4468,27 @@ export type RoomRoomUpdateErrors = {
   /**
    * The request does not satisfy the operation contract.
    */
-  400: {
-    ok?: false;
-    error: string;
-    code?: string;
-    traceId?: string;
-    [key: string]: unknown;
-  };
+  400: RoomError;
   /**
    * A valid Bridge session or token is required.
    */
-  401: {
-    ok?: false;
-    error: string;
-    code?: string;
-    traceId?: string;
-    [key: string]: unknown;
-  };
+  401: RoomError;
   /**
    * The request origin is not allowed.
    */
-  403: {
-    ok?: false;
-    error: string;
-    code?: string;
-    traceId?: string;
-    [key: string]: unknown;
-  };
+  403: RoomError;
   /**
    * The reply parent message does not exist.
    */
-  404: {
-    ok?: false;
-    error: string;
-    code?: string;
-    traceId?: string;
-    [key: string]: unknown;
-  };
+  404: RoomError;
   /**
    * The message ID conflicts with an earlier message, or the remote conversation belongs to another account or sender.
    */
-  409: {
-    ok?: false;
-    error: string;
-    code?: string;
-    traceId?: string;
-    [key: string]: unknown;
-  };
+  409: RoomError;
   /**
    * The authenticated session is temporarily unavailable.
    */
-  503: {
-    ok?: false;
-    error: string;
-    code?: string;
-    traceId?: string;
-    [key: string]: unknown;
-  };
+  503: RoomError;
 };
 
 export type RoomRoomUpdateError = RoomRoomUpdateErrors[keyof RoomRoomUpdateErrors];
@@ -6888,37 +4499,7 @@ export type RoomRoomUpdateResponses = {
    */
   200: {
     ok: true;
-    room: {
-      id: string;
-      kind: "group" | "direct";
-      title: string;
-      badge: string;
-      memberIds: Array<string>;
-      adminMemberIds: Array<string>;
-      updatedAt: string;
-      unread: number;
-      scope?: {
-        kind: "app";
-        appId: string;
-        role?: "default" | "group" | "direct";
-      };
-      generatedTitle?:
-        | {
-            kind: "numbered-group";
-            sequence: number;
-          }
-        | {
-            kind: "app-group";
-            appId: string;
-            sequence: number;
-          };
-      removedMemberIds?: Array<string>;
-      directMemberId?: string;
-      pinned?: boolean;
-      archived?: boolean;
-      lastReadEventSeq?: number;
-      [key: string]: unknown;
-    };
+    room: Room;
     currentEventSeq: number;
   };
 };
@@ -6940,63 +4521,27 @@ export type RoomRoomReadErrors = {
   /**
    * The request does not satisfy the operation contract.
    */
-  400: {
-    ok?: false;
-    error: string;
-    code?: string;
-    traceId?: string;
-    [key: string]: unknown;
-  };
+  400: RoomError;
   /**
    * A valid Bridge session or token is required.
    */
-  401: {
-    ok?: false;
-    error: string;
-    code?: string;
-    traceId?: string;
-    [key: string]: unknown;
-  };
+  401: RoomError;
   /**
    * The request origin is not allowed.
    */
-  403: {
-    ok?: false;
-    error: string;
-    code?: string;
-    traceId?: string;
-    [key: string]: unknown;
-  };
+  403: RoomError;
   /**
    * The reply parent message does not exist.
    */
-  404: {
-    ok?: false;
-    error: string;
-    code?: string;
-    traceId?: string;
-    [key: string]: unknown;
-  };
+  404: RoomError;
   /**
    * The message ID conflicts with an earlier message, or the remote conversation belongs to another account or sender.
    */
-  409: {
-    ok?: false;
-    error: string;
-    code?: string;
-    traceId?: string;
-    [key: string]: unknown;
-  };
+  409: RoomError;
   /**
    * The authenticated session is temporarily unavailable.
    */
-  503: {
-    ok?: false;
-    error: string;
-    code?: string;
-    traceId?: string;
-    [key: string]: unknown;
-  };
+  503: RoomError;
 };
 
 export type RoomRoomReadError = RoomRoomReadErrors[keyof RoomRoomReadErrors];
@@ -7007,37 +4552,7 @@ export type RoomRoomReadResponses = {
    */
   200: {
     ok: true;
-    room: {
-      id: string;
-      kind: "group" | "direct";
-      title: string;
-      badge: string;
-      memberIds: Array<string>;
-      adminMemberIds: Array<string>;
-      updatedAt: string;
-      unread: number;
-      scope?: {
-        kind: "app";
-        appId: string;
-        role?: "default" | "group" | "direct";
-      };
-      generatedTitle?:
-        | {
-            kind: "numbered-group";
-            sequence: number;
-          }
-        | {
-            kind: "app-group";
-            appId: string;
-            sequence: number;
-          };
-      removedMemberIds?: Array<string>;
-      directMemberId?: string;
-      pinned?: boolean;
-      archived?: boolean;
-      lastReadEventSeq?: number;
-      [key: string]: unknown;
-    };
+    room: Room;
     currentEventSeq: number;
   };
 };
@@ -7061,63 +4576,27 @@ export type RoomMessageListErrors = {
   /**
    * The request does not satisfy the operation contract.
    */
-  400: {
-    ok?: false;
-    error: string;
-    code?: string;
-    traceId?: string;
-    [key: string]: unknown;
-  };
+  400: RoomError;
   /**
    * A valid Bridge session or token is required.
    */
-  401: {
-    ok?: false;
-    error: string;
-    code?: string;
-    traceId?: string;
-    [key: string]: unknown;
-  };
+  401: RoomError;
   /**
    * The request origin is not allowed.
    */
-  403: {
-    ok?: false;
-    error: string;
-    code?: string;
-    traceId?: string;
-    [key: string]: unknown;
-  };
+  403: RoomError;
   /**
    * The reply parent message does not exist.
    */
-  404: {
-    ok?: false;
-    error: string;
-    code?: string;
-    traceId?: string;
-    [key: string]: unknown;
-  };
+  404: RoomError;
   /**
    * The message ID conflicts with an earlier message, or the remote conversation belongs to another account or sender.
    */
-  409: {
-    ok?: false;
-    error: string;
-    code?: string;
-    traceId?: string;
-    [key: string]: unknown;
-  };
+  409: RoomError;
   /**
    * The authenticated session is temporarily unavailable.
    */
-  503: {
-    ok?: false;
-    error: string;
-    code?: string;
-    traceId?: string;
-    [key: string]: unknown;
-  };
+  503: RoomError;
 };
 
 export type RoomMessageListError = RoomMessageListErrors[keyof RoomMessageListErrors];
@@ -7128,50 +4607,7 @@ export type RoomMessageListResponses = {
    */
   200: {
     ok: true;
-    messages: Array<{
-      id: string;
-      roomId: string;
-      channelSeq: number;
-      senderId: string;
-      senderName: string;
-      senderType: "user" | "agent" | "system";
-      text: string;
-      targetIds: Array<string>;
-      status: "sent" | "running" | "done" | "failed" | "interrupted";
-      createdAt: string;
-      updatedAt: string;
-      attachments?: Array<unknown>;
-      parts?: Array<{
-        [key: string]: unknown;
-      }>;
-      duration?: string;
-      runId?: string;
-      remoteTask?: {
-        contextId?: string;
-        messageId: string;
-        requestText?: string;
-        triggerMessageId: string;
-        taskId?: string;
-        inputTaskId?: string;
-        sendStarted?: boolean;
-        needsInput?: boolean;
-        pending: boolean;
-        cancelRequested?: boolean;
-        statusText?: string;
-      };
-      startedAt?: string;
-      finishedAt?: string;
-      audience?: "room" | "internal";
-      deliveryKind?: "user_direct" | "user_broadcast" | "pm_auto_route" | "agent_delegation" | "system_routine";
-      notificationEventSeq?: number;
-      inReplyToMessageId?: string;
-      rootMessageId?: string;
-      selectedFile?: {
-        path: string;
-        [key: string]: unknown;
-      };
-      [key: string]: unknown;
-    }>;
+    messages: Array<RoomMessage>;
     currentEventSeq: number;
   };
 };
@@ -7225,63 +4661,27 @@ export type RoomMessageCreateErrors = {
   /**
    * The request does not satisfy the operation contract.
    */
-  400: {
-    ok?: false;
-    error: string;
-    code?: string;
-    traceId?: string;
-    [key: string]: unknown;
-  };
+  400: RoomError;
   /**
    * A valid Bridge session or token is required.
    */
-  401: {
-    ok?: false;
-    error: string;
-    code?: string;
-    traceId?: string;
-    [key: string]: unknown;
-  };
+  401: RoomError;
   /**
    * The request origin is not allowed.
    */
-  403: {
-    ok?: false;
-    error: string;
-    code?: string;
-    traceId?: string;
-    [key: string]: unknown;
-  };
+  403: RoomError;
   /**
    * The reply parent message does not exist.
    */
-  404: {
-    ok?: false;
-    error: string;
-    code?: string;
-    traceId?: string;
-    [key: string]: unknown;
-  };
+  404: RoomError;
   /**
    * The message ID conflicts with an earlier message, or the remote conversation belongs to another account or sender.
    */
-  409: {
-    ok?: false;
-    error: string;
-    code?: string;
-    traceId?: string;
-    [key: string]: unknown;
-  };
+  409: RoomError;
   /**
    * The authenticated session is temporarily unavailable.
    */
-  503: {
-    ok?: false;
-    error: string;
-    code?: string;
-    traceId?: string;
-    [key: string]: unknown;
-  };
+  503: RoomError;
 };
 
 export type RoomMessageCreateError = RoomMessageCreateErrors[keyof RoomMessageCreateErrors];
@@ -7292,125 +4692,9 @@ export type RoomMessageCreateResponses = {
    */
   200: {
     ok: true;
-    room: {
-      id: string;
-      kind: "group" | "direct";
-      title: string;
-      badge: string;
-      memberIds: Array<string>;
-      adminMemberIds: Array<string>;
-      updatedAt: string;
-      unread: number;
-      scope?: {
-        kind: "app";
-        appId: string;
-        role?: "default" | "group" | "direct";
-      };
-      generatedTitle?:
-        | {
-            kind: "numbered-group";
-            sequence: number;
-          }
-        | {
-            kind: "app-group";
-            appId: string;
-            sequence: number;
-          };
-      removedMemberIds?: Array<string>;
-      directMemberId?: string;
-      pinned?: boolean;
-      archived?: boolean;
-      lastReadEventSeq?: number;
-      [key: string]: unknown;
-    };
-    userMessage: {
-      id: string;
-      roomId: string;
-      channelSeq: number;
-      senderId: string;
-      senderName: string;
-      senderType: "user" | "agent" | "system";
-      text: string;
-      targetIds: Array<string>;
-      status: "sent" | "running" | "done" | "failed" | "interrupted";
-      createdAt: string;
-      updatedAt: string;
-      attachments?: Array<unknown>;
-      parts?: Array<{
-        [key: string]: unknown;
-      }>;
-      duration?: string;
-      runId?: string;
-      remoteTask?: {
-        contextId?: string;
-        messageId: string;
-        requestText?: string;
-        triggerMessageId: string;
-        taskId?: string;
-        inputTaskId?: string;
-        sendStarted?: boolean;
-        needsInput?: boolean;
-        pending: boolean;
-        cancelRequested?: boolean;
-        statusText?: string;
-      };
-      startedAt?: string;
-      finishedAt?: string;
-      audience?: "room" | "internal";
-      deliveryKind?: "user_direct" | "user_broadcast" | "pm_auto_route" | "agent_delegation" | "system_routine";
-      notificationEventSeq?: number;
-      inReplyToMessageId?: string;
-      rootMessageId?: string;
-      selectedFile?: {
-        path: string;
-        [key: string]: unknown;
-      };
-      [key: string]: unknown;
-    };
-    assistantMessages: Array<{
-      id: string;
-      roomId: string;
-      channelSeq: number;
-      senderId: string;
-      senderName: string;
-      senderType: "user" | "agent" | "system";
-      text: string;
-      targetIds: Array<string>;
-      status: "sent" | "running" | "done" | "failed" | "interrupted";
-      createdAt: string;
-      updatedAt: string;
-      attachments?: Array<unknown>;
-      parts?: Array<{
-        [key: string]: unknown;
-      }>;
-      duration?: string;
-      runId?: string;
-      remoteTask?: {
-        contextId?: string;
-        messageId: string;
-        requestText?: string;
-        triggerMessageId: string;
-        taskId?: string;
-        inputTaskId?: string;
-        sendStarted?: boolean;
-        needsInput?: boolean;
-        pending: boolean;
-        cancelRequested?: boolean;
-        statusText?: string;
-      };
-      startedAt?: string;
-      finishedAt?: string;
-      audience?: "room" | "internal";
-      deliveryKind?: "user_direct" | "user_broadcast" | "pm_auto_route" | "agent_delegation" | "system_routine";
-      notificationEventSeq?: number;
-      inReplyToMessageId?: string;
-      rootMessageId?: string;
-      selectedFile?: {
-        path: string;
-        [key: string]: unknown;
-      };
-      [key: string]: unknown;
-    }>;
+    room: Room;
+    userMessage: RoomMessage;
+    assistantMessages: Array<RoomMessage>;
     currentEventSeq: number;
   };
 };
@@ -7457,63 +4741,27 @@ export type RoomMessageRecordErrors = {
   /**
    * The request does not satisfy the operation contract.
    */
-  400: {
-    ok?: false;
-    error: string;
-    code?: string;
-    traceId?: string;
-    [key: string]: unknown;
-  };
+  400: RoomError;
   /**
    * A valid Bridge session or token is required.
    */
-  401: {
-    ok?: false;
-    error: string;
-    code?: string;
-    traceId?: string;
-    [key: string]: unknown;
-  };
+  401: RoomError;
   /**
    * The request origin is not allowed.
    */
-  403: {
-    ok?: false;
-    error: string;
-    code?: string;
-    traceId?: string;
-    [key: string]: unknown;
-  };
+  403: RoomError;
   /**
    * The reply parent message does not exist.
    */
-  404: {
-    ok?: false;
-    error: string;
-    code?: string;
-    traceId?: string;
-    [key: string]: unknown;
-  };
+  404: RoomError;
   /**
    * The message ID conflicts with an earlier message, or the remote conversation belongs to another account or sender.
    */
-  409: {
-    ok?: false;
-    error: string;
-    code?: string;
-    traceId?: string;
-    [key: string]: unknown;
-  };
+  409: RoomError;
   /**
    * The authenticated session is temporarily unavailable.
    */
-  503: {
-    ok?: false;
-    error: string;
-    code?: string;
-    traceId?: string;
-    [key: string]: unknown;
-  };
+  503: RoomError;
 };
 
 export type RoomMessageRecordError = RoomMessageRecordErrors[keyof RoomMessageRecordErrors];
@@ -7524,50 +4772,7 @@ export type RoomMessageRecordResponses = {
    */
   200: {
     ok: true;
-    message: {
-      id: string;
-      roomId: string;
-      channelSeq: number;
-      senderId: string;
-      senderName: string;
-      senderType: "user" | "agent" | "system";
-      text: string;
-      targetIds: Array<string>;
-      status: "sent" | "running" | "done" | "failed" | "interrupted";
-      createdAt: string;
-      updatedAt: string;
-      attachments?: Array<unknown>;
-      parts?: Array<{
-        [key: string]: unknown;
-      }>;
-      duration?: string;
-      runId?: string;
-      remoteTask?: {
-        contextId?: string;
-        messageId: string;
-        requestText?: string;
-        triggerMessageId: string;
-        taskId?: string;
-        inputTaskId?: string;
-        sendStarted?: boolean;
-        needsInput?: boolean;
-        pending: boolean;
-        cancelRequested?: boolean;
-        statusText?: string;
-      };
-      startedAt?: string;
-      finishedAt?: string;
-      audience?: "room" | "internal";
-      deliveryKind?: "user_direct" | "user_broadcast" | "pm_auto_route" | "agent_delegation" | "system_routine";
-      notificationEventSeq?: number;
-      inReplyToMessageId?: string;
-      rootMessageId?: string;
-      selectedFile?: {
-        path: string;
-        [key: string]: unknown;
-      };
-      [key: string]: unknown;
-    };
+    message: RoomMessage;
     currentEventSeq: number;
   };
 };
@@ -7588,63 +4793,27 @@ export type RoomMessageCancelErrors = {
   /**
    * The request does not satisfy the operation contract.
    */
-  400: {
-    ok?: false;
-    error: string;
-    code?: string;
-    traceId?: string;
-    [key: string]: unknown;
-  };
+  400: RoomError;
   /**
    * A valid Bridge session or token is required.
    */
-  401: {
-    ok?: false;
-    error: string;
-    code?: string;
-    traceId?: string;
-    [key: string]: unknown;
-  };
+  401: RoomError;
   /**
    * The request origin is not allowed.
    */
-  403: {
-    ok?: false;
-    error: string;
-    code?: string;
-    traceId?: string;
-    [key: string]: unknown;
-  };
+  403: RoomError;
   /**
    * The reply parent message does not exist.
    */
-  404: {
-    ok?: false;
-    error: string;
-    code?: string;
-    traceId?: string;
-    [key: string]: unknown;
-  };
+  404: RoomError;
   /**
    * The message ID conflicts with an earlier message, or the remote conversation belongs to another account or sender.
    */
-  409: {
-    ok?: false;
-    error: string;
-    code?: string;
-    traceId?: string;
-    [key: string]: unknown;
-  };
+  409: RoomError;
   /**
    * The authenticated session is temporarily unavailable.
    */
-  503: {
-    ok?: false;
-    error: string;
-    code?: string;
-    traceId?: string;
-    [key: string]: unknown;
-  };
+  503: RoomError;
 };
 
 export type RoomMessageCancelError = RoomMessageCancelErrors[keyof RoomMessageCancelErrors];
@@ -7657,50 +4826,7 @@ export type RoomMessageCancelResponses = {
     ok: true;
     cancelled: boolean;
     status?: "sent" | "running" | "done" | "failed" | "interrupted";
-    message: {
-      id: string;
-      roomId: string;
-      channelSeq: number;
-      senderId: string;
-      senderName: string;
-      senderType: "user" | "agent" | "system";
-      text: string;
-      targetIds: Array<string>;
-      status: "sent" | "running" | "done" | "failed" | "interrupted";
-      createdAt: string;
-      updatedAt: string;
-      attachments?: Array<unknown>;
-      parts?: Array<{
-        [key: string]: unknown;
-      }>;
-      duration?: string;
-      runId?: string;
-      remoteTask?: {
-        contextId?: string;
-        messageId: string;
-        requestText?: string;
-        triggerMessageId: string;
-        taskId?: string;
-        inputTaskId?: string;
-        sendStarted?: boolean;
-        needsInput?: boolean;
-        pending: boolean;
-        cancelRequested?: boolean;
-        statusText?: string;
-      };
-      startedAt?: string;
-      finishedAt?: string;
-      audience?: "room" | "internal";
-      deliveryKind?: "user_direct" | "user_broadcast" | "pm_auto_route" | "agent_delegation" | "system_routine";
-      notificationEventSeq?: number;
-      inReplyToMessageId?: string;
-      rootMessageId?: string;
-      selectedFile?: {
-        path: string;
-        [key: string]: unknown;
-      };
-      [key: string]: unknown;
-    };
+    message: RoomMessage;
     currentEventSeq: number;
   };
 };
@@ -7721,63 +4847,27 @@ export type RoomMessageDeleteErrors = {
   /**
    * The request does not satisfy the operation contract.
    */
-  400: {
-    ok?: false;
-    error: string;
-    code?: string;
-    traceId?: string;
-    [key: string]: unknown;
-  };
+  400: RoomError;
   /**
    * A valid Bridge session or token is required.
    */
-  401: {
-    ok?: false;
-    error: string;
-    code?: string;
-    traceId?: string;
-    [key: string]: unknown;
-  };
+  401: RoomError;
   /**
    * The request origin is not allowed.
    */
-  403: {
-    ok?: false;
-    error: string;
-    code?: string;
-    traceId?: string;
-    [key: string]: unknown;
-  };
+  403: RoomError;
   /**
    * The reply parent message does not exist.
    */
-  404: {
-    ok?: false;
-    error: string;
-    code?: string;
-    traceId?: string;
-    [key: string]: unknown;
-  };
+  404: RoomError;
   /**
    * The message ID conflicts with an earlier message, or the remote conversation belongs to another account or sender.
    */
-  409: {
-    ok?: false;
-    error: string;
-    code?: string;
-    traceId?: string;
-    [key: string]: unknown;
-  };
+  409: RoomError;
   /**
    * The authenticated session is temporarily unavailable.
    */
-  503: {
-    ok?: false;
-    error: string;
-    code?: string;
-    traceId?: string;
-    [key: string]: unknown;
-  };
+  503: RoomError;
 };
 
 export type RoomMessageDeleteError = RoomMessageDeleteErrors[keyof RoomMessageDeleteErrors];
@@ -7819,63 +4909,27 @@ export type RoomMessageUpdateErrors = {
   /**
    * The request does not satisfy the operation contract.
    */
-  400: {
-    ok?: false;
-    error: string;
-    code?: string;
-    traceId?: string;
-    [key: string]: unknown;
-  };
+  400: RoomError;
   /**
    * A valid Bridge session or token is required.
    */
-  401: {
-    ok?: false;
-    error: string;
-    code?: string;
-    traceId?: string;
-    [key: string]: unknown;
-  };
+  401: RoomError;
   /**
    * The request origin is not allowed.
    */
-  403: {
-    ok?: false;
-    error: string;
-    code?: string;
-    traceId?: string;
-    [key: string]: unknown;
-  };
+  403: RoomError;
   /**
    * The reply parent message does not exist.
    */
-  404: {
-    ok?: false;
-    error: string;
-    code?: string;
-    traceId?: string;
-    [key: string]: unknown;
-  };
+  404: RoomError;
   /**
    * The message ID conflicts with an earlier message, or the remote conversation belongs to another account or sender.
    */
-  409: {
-    ok?: false;
-    error: string;
-    code?: string;
-    traceId?: string;
-    [key: string]: unknown;
-  };
+  409: RoomError;
   /**
    * The authenticated session is temporarily unavailable.
    */
-  503: {
-    ok?: false;
-    error: string;
-    code?: string;
-    traceId?: string;
-    [key: string]: unknown;
-  };
+  503: RoomError;
 };
 
 export type RoomMessageUpdateError = RoomMessageUpdateErrors[keyof RoomMessageUpdateErrors];
@@ -7886,50 +4940,7 @@ export type RoomMessageUpdateResponses = {
    */
   200: {
     ok: true;
-    message: {
-      id: string;
-      roomId: string;
-      channelSeq: number;
-      senderId: string;
-      senderName: string;
-      senderType: "user" | "agent" | "system";
-      text: string;
-      targetIds: Array<string>;
-      status: "sent" | "running" | "done" | "failed" | "interrupted";
-      createdAt: string;
-      updatedAt: string;
-      attachments?: Array<unknown>;
-      parts?: Array<{
-        [key: string]: unknown;
-      }>;
-      duration?: string;
-      runId?: string;
-      remoteTask?: {
-        contextId?: string;
-        messageId: string;
-        requestText?: string;
-        triggerMessageId: string;
-        taskId?: string;
-        inputTaskId?: string;
-        sendStarted?: boolean;
-        needsInput?: boolean;
-        pending: boolean;
-        cancelRequested?: boolean;
-        statusText?: string;
-      };
-      startedAt?: string;
-      finishedAt?: string;
-      audience?: "room" | "internal";
-      deliveryKind?: "user_direct" | "user_broadcast" | "pm_auto_route" | "agent_delegation" | "system_routine";
-      notificationEventSeq?: number;
-      inReplyToMessageId?: string;
-      rootMessageId?: string;
-      selectedFile?: {
-        path: string;
-        [key: string]: unknown;
-      };
-      [key: string]: unknown;
-    };
+    message: RoomMessage;
     currentEventSeq: number;
   };
 };
@@ -7955,63 +4966,27 @@ export type RoomEventListErrors = {
   /**
    * The request does not satisfy the operation contract.
    */
-  400: {
-    ok?: false;
-    error: string;
-    code?: string;
-    traceId?: string;
-    [key: string]: unknown;
-  };
+  400: RoomError;
   /**
    * A valid Bridge session or token is required.
    */
-  401: {
-    ok?: false;
-    error: string;
-    code?: string;
-    traceId?: string;
-    [key: string]: unknown;
-  };
+  401: RoomError;
   /**
    * The request origin is not allowed.
    */
-  403: {
-    ok?: false;
-    error: string;
-    code?: string;
-    traceId?: string;
-    [key: string]: unknown;
-  };
+  403: RoomError;
   /**
    * The reply parent message does not exist.
    */
-  404: {
-    ok?: false;
-    error: string;
-    code?: string;
-    traceId?: string;
-    [key: string]: unknown;
-  };
+  404: RoomError;
   /**
    * The message ID conflicts with an earlier message, or the remote conversation belongs to another account or sender.
    */
-  409: {
-    ok?: false;
-    error: string;
-    code?: string;
-    traceId?: string;
-    [key: string]: unknown;
-  };
+  409: RoomError;
   /**
    * The authenticated session is temporarily unavailable.
    */
-  503: {
-    ok?: false;
-    error: string;
-    code?: string;
-    traceId?: string;
-    [key: string]: unknown;
-  };
+  503: RoomError;
 };
 
 export type RoomEventListError = RoomEventListErrors[keyof RoomEventListErrors];
@@ -8039,206 +5014,9 @@ export type RoomEventListResponses = {
       memberId?: string;
       createdAt: string;
       payload: {
-        room?: {
-          id: string;
-          kind: "group" | "direct";
-          title: string;
-          badge: string;
-          memberIds: Array<string>;
-          adminMemberIds: Array<string>;
-          updatedAt: string;
-          unread: number;
-          scope?: {
-            kind: "app";
-            appId: string;
-            role?: "default" | "group" | "direct";
-          };
-          generatedTitle?:
-            | {
-                kind: "numbered-group";
-                sequence: number;
-              }
-            | {
-                kind: "app-group";
-                appId: string;
-                sequence: number;
-              };
-          removedMemberIds?: Array<string>;
-          directMemberId?: string;
-          pinned?: boolean;
-          archived?: boolean;
-          lastReadEventSeq?: number;
-          [key: string]: unknown;
-        };
-        member?: {
-          name: string;
-          role: string;
-          kernel: string;
-          model: string;
-          color: string;
-          availableSkillIds?: Array<string>;
-          defaultSkillIds?: Array<string>;
-          requiredKernelCapabilities?: Array<
-            | "message.streamText"
-            | "turn.lifecycle"
-            | "session.lifecycle"
-            | "planning.plan"
-            | "interaction.askUser"
-            | "tools.hostTool"
-            | "tools.nativeTool"
-            | "tools.mcpServers"
-            | "tools.parallelCalls"
-            | "tool.progress"
-            | "approval.request"
-            | "control.stop"
-            | "control.steer"
-            | "session.compact"
-            | "session.goal"
-            | "auth.refresh"
-            | "sandbox.policy"
-            | "budget.limit"
-            | "diagnostics.usage"
-            | "response.speed"
-            | "media.input"
-            | "output.structured"
-            | "output.artifacts"
-            | "reasoning.nativeText"
-            | "reasoning.summary"
-            | "knowledge.skills"
-          >;
-          reasoningEffort?: "low" | "medium" | "high" | "xhigh" | "max";
-          contextTokenBudget?: number;
-          accessMode?: "default" | "auto-review" | "full-access";
-          avatarMode?: "generated" | "initials" | "upload";
-          avatarSeed?: string;
-          avatarDataUrl?: string;
-          visibility?: "private" | "public";
-          publicDescription?: string;
-          publicSkills?: Array<string>;
-          inputSpec?: string;
-          outputSpec?: string;
-          id: string;
-          employeeDefinitionId?: string;
-          displayName?: string;
-          providerId?: string;
-          displayRole?: string;
-          status: "idle" | "running" | "done" | "waiting" | "offline";
-          lastActive: string;
-          appId?: string;
-          workspaceRoot?: string;
-          storePackageId?: string;
-          toolIds?: Array<string>;
-          source?: "local" | "human" | "remote";
-          remoteAgent?: {
-            accountIssuer: string;
-            accountUserId: string;
-            serviceUrl: string;
-            matrixId: string;
-            provider: string;
-            senderAgentId: string;
-            owner: string;
-            address: string;
-          };
-          sourceLabel?: string;
-          displayPublicDescription?: string;
-          displayPublicSkills?: Array<string>;
-          displayInputSpec?: string;
-          displayOutputSpec?: string;
-          userOverrides?: Array<string>;
-          manifestDefaults?: {
-            name?: string;
-            role?: string;
-            kernel?: string;
-            model?: string;
-            color?: string;
-            availableSkillIds?: Array<string>;
-            defaultSkillIds?: Array<string>;
-            requiredKernelCapabilities?: Array<
-              | "message.streamText"
-              | "turn.lifecycle"
-              | "session.lifecycle"
-              | "planning.plan"
-              | "interaction.askUser"
-              | "tools.hostTool"
-              | "tools.nativeTool"
-              | "tools.mcpServers"
-              | "tools.parallelCalls"
-              | "tool.progress"
-              | "approval.request"
-              | "control.stop"
-              | "control.steer"
-              | "session.compact"
-              | "session.goal"
-              | "auth.refresh"
-              | "sandbox.policy"
-              | "budget.limit"
-              | "diagnostics.usage"
-              | "response.speed"
-              | "media.input"
-              | "output.structured"
-              | "output.artifacts"
-              | "reasoning.nativeText"
-              | "reasoning.summary"
-              | "knowledge.skills"
-            >;
-            reasoningEffort?: "low" | "medium" | "high" | "xhigh" | "max";
-            contextTokenBudget?: number;
-            accessMode?: "default" | "auto-review" | "full-access";
-            avatarMode?: "generated" | "initials" | "upload";
-            avatarSeed?: string;
-            avatarDataUrl?: string;
-            visibility?: "private" | "public";
-            publicDescription?: string;
-            publicSkills?: Array<string>;
-            inputSpec?: string;
-            outputSpec?: string;
-          };
-          disabled?: boolean;
-        };
-        message?: {
-          id: string;
-          roomId: string;
-          channelSeq: number;
-          senderId: string;
-          senderName: string;
-          senderType: "user" | "agent" | "system";
-          text: string;
-          targetIds: Array<string>;
-          status: "sent" | "running" | "done" | "failed" | "interrupted";
-          createdAt: string;
-          updatedAt: string;
-          attachments?: Array<unknown>;
-          parts?: Array<{
-            [key: string]: unknown;
-          }>;
-          duration?: string;
-          runId?: string;
-          remoteTask?: {
-            contextId?: string;
-            messageId: string;
-            requestText?: string;
-            triggerMessageId: string;
-            taskId?: string;
-            inputTaskId?: string;
-            sendStarted?: boolean;
-            needsInput?: boolean;
-            pending: boolean;
-            cancelRequested?: boolean;
-            statusText?: string;
-          };
-          startedAt?: string;
-          finishedAt?: string;
-          audience?: "room" | "internal";
-          deliveryKind?: "user_direct" | "user_broadcast" | "pm_auto_route" | "agent_delegation" | "system_routine";
-          notificationEventSeq?: number;
-          inReplyToMessageId?: string;
-          rootMessageId?: string;
-          selectedFile?: {
-            path: string;
-            [key: string]: unknown;
-          };
-          [key: string]: unknown;
-        };
+        room?: Room;
+        member?: Employee;
+        message?: RoomMessage;
         messageId?: string;
         memberId?: string;
         audience?: "room" | "internal";
@@ -8307,38 +5085,7 @@ export type RoomDirectOpenData = {
     roomId?: string;
     appId?: string;
     title?: string;
-    member?: {
-      name?: string;
-      role?: string;
-      kernel?: string;
-      model?: string;
-      color?: string;
-      availableSkillIds?: Array<string>;
-      defaultSkillIds?: Array<string>;
-      reasoningEffort?: "low" | "medium" | "high" | "xhigh" | "max";
-      contextTokenBudget?: number;
-      accessMode?: "default" | "auto-review" | "full-access";
-      avatarMode?: "generated" | "initials" | "upload";
-      avatarSeed?: string;
-      avatarDataUrl?: string;
-      visibility?: "private" | "public";
-      publicDescription?: string;
-      publicSkills?: Array<string>;
-      inputSpec?: string;
-      outputSpec?: string;
-      id: string;
-      employeeDefinitionId?: string;
-      providerId?: string;
-      status?: "idle" | "running" | "done" | "waiting" | "offline";
-      lastActive?: string;
-      appId?: string;
-      workspaceRoot?: string;
-      storePackageId?: string;
-      toolIds?: Array<string>;
-      source?: "local" | "human";
-      sourceLabel?: string;
-      disabled?: boolean;
-    };
+    member?: EmployeeWriteInput;
   };
   path?: never;
   query?: never;
@@ -8349,63 +5096,27 @@ export type RoomDirectOpenErrors = {
   /**
    * The request does not satisfy the operation contract.
    */
-  400: {
-    ok?: false;
-    error: string;
-    code?: string;
-    traceId?: string;
-    [key: string]: unknown;
-  };
+  400: RoomError;
   /**
    * A valid Bridge session or token is required.
    */
-  401: {
-    ok?: false;
-    error: string;
-    code?: string;
-    traceId?: string;
-    [key: string]: unknown;
-  };
+  401: RoomError;
   /**
    * The request origin is not allowed.
    */
-  403: {
-    ok?: false;
-    error: string;
-    code?: string;
-    traceId?: string;
-    [key: string]: unknown;
-  };
+  403: RoomError;
   /**
    * The reply parent message does not exist.
    */
-  404: {
-    ok?: false;
-    error: string;
-    code?: string;
-    traceId?: string;
-    [key: string]: unknown;
-  };
+  404: RoomError;
   /**
    * The message ID conflicts with an earlier message, or the remote conversation belongs to another account or sender.
    */
-  409: {
-    ok?: false;
-    error: string;
-    code?: string;
-    traceId?: string;
-    [key: string]: unknown;
-  };
+  409: RoomError;
   /**
    * The authenticated session is temporarily unavailable.
    */
-  503: {
-    ok?: false;
-    error: string;
-    code?: string;
-    traceId?: string;
-    [key: string]: unknown;
-  };
+  503: RoomError;
 };
 
 export type RoomDirectOpenError = RoomDirectOpenErrors[keyof RoomDirectOpenErrors];
@@ -8416,162 +5127,8 @@ export type RoomDirectOpenResponses = {
    */
   200: {
     ok: true;
-    room: {
-      id: string;
-      kind: "group" | "direct";
-      title: string;
-      badge: string;
-      memberIds: Array<string>;
-      adminMemberIds: Array<string>;
-      updatedAt: string;
-      unread: number;
-      scope?: {
-        kind: "app";
-        appId: string;
-        role?: "default" | "group" | "direct";
-      };
-      generatedTitle?:
-        | {
-            kind: "numbered-group";
-            sequence: number;
-          }
-        | {
-            kind: "app-group";
-            appId: string;
-            sequence: number;
-          };
-      removedMemberIds?: Array<string>;
-      directMemberId?: string;
-      pinned?: boolean;
-      archived?: boolean;
-      lastReadEventSeq?: number;
-      [key: string]: unknown;
-    };
-    member?: {
-      name: string;
-      role: string;
-      kernel: string;
-      model: string;
-      color: string;
-      availableSkillIds?: Array<string>;
-      defaultSkillIds?: Array<string>;
-      requiredKernelCapabilities?: Array<
-        | "message.streamText"
-        | "turn.lifecycle"
-        | "session.lifecycle"
-        | "planning.plan"
-        | "interaction.askUser"
-        | "tools.hostTool"
-        | "tools.nativeTool"
-        | "tools.mcpServers"
-        | "tools.parallelCalls"
-        | "tool.progress"
-        | "approval.request"
-        | "control.stop"
-        | "control.steer"
-        | "session.compact"
-        | "session.goal"
-        | "auth.refresh"
-        | "sandbox.policy"
-        | "budget.limit"
-        | "diagnostics.usage"
-        | "response.speed"
-        | "media.input"
-        | "output.structured"
-        | "output.artifacts"
-        | "reasoning.nativeText"
-        | "reasoning.summary"
-        | "knowledge.skills"
-      >;
-      reasoningEffort?: "low" | "medium" | "high" | "xhigh" | "max";
-      contextTokenBudget?: number;
-      accessMode?: "default" | "auto-review" | "full-access";
-      avatarMode?: "generated" | "initials" | "upload";
-      avatarSeed?: string;
-      avatarDataUrl?: string;
-      visibility?: "private" | "public";
-      publicDescription?: string;
-      publicSkills?: Array<string>;
-      inputSpec?: string;
-      outputSpec?: string;
-      id: string;
-      employeeDefinitionId?: string;
-      displayName?: string;
-      providerId?: string;
-      displayRole?: string;
-      status: "idle" | "running" | "done" | "waiting" | "offline";
-      lastActive: string;
-      appId?: string;
-      workspaceRoot?: string;
-      storePackageId?: string;
-      toolIds?: Array<string>;
-      source?: "local" | "human" | "remote";
-      remoteAgent?: {
-        accountIssuer: string;
-        accountUserId: string;
-        serviceUrl: string;
-        matrixId: string;
-        provider: string;
-        senderAgentId: string;
-        owner: string;
-        address: string;
-      };
-      sourceLabel?: string;
-      displayPublicDescription?: string;
-      displayPublicSkills?: Array<string>;
-      displayInputSpec?: string;
-      displayOutputSpec?: string;
-      userOverrides?: Array<string>;
-      manifestDefaults?: {
-        name?: string;
-        role?: string;
-        kernel?: string;
-        model?: string;
-        color?: string;
-        availableSkillIds?: Array<string>;
-        defaultSkillIds?: Array<string>;
-        requiredKernelCapabilities?: Array<
-          | "message.streamText"
-          | "turn.lifecycle"
-          | "session.lifecycle"
-          | "planning.plan"
-          | "interaction.askUser"
-          | "tools.hostTool"
-          | "tools.nativeTool"
-          | "tools.mcpServers"
-          | "tools.parallelCalls"
-          | "tool.progress"
-          | "approval.request"
-          | "control.stop"
-          | "control.steer"
-          | "session.compact"
-          | "session.goal"
-          | "auth.refresh"
-          | "sandbox.policy"
-          | "budget.limit"
-          | "diagnostics.usage"
-          | "response.speed"
-          | "media.input"
-          | "output.structured"
-          | "output.artifacts"
-          | "reasoning.nativeText"
-          | "reasoning.summary"
-          | "knowledge.skills"
-        >;
-        reasoningEffort?: "low" | "medium" | "high" | "xhigh" | "max";
-        contextTokenBudget?: number;
-        accessMode?: "default" | "auto-review" | "full-access";
-        avatarMode?: "generated" | "initials" | "upload";
-        avatarSeed?: string;
-        avatarDataUrl?: string;
-        visibility?: "private" | "public";
-        publicDescription?: string;
-        publicSkills?: Array<string>;
-        inputSpec?: string;
-        outputSpec?: string;
-      };
-      disabled?: boolean;
-    };
+    room: Room;
+    member?: Employee;
     currentEventSeq: number;
   };
 };
@@ -8579,38 +5136,7 @@ export type RoomDirectOpenResponses = {
 export type RoomDirectOpenResponse = RoomDirectOpenResponses[keyof RoomDirectOpenResponses];
 
 export type RoomMemberAddData = {
-  body: {
-    name?: string;
-    role?: string;
-    kernel?: string;
-    model?: string;
-    color?: string;
-    availableSkillIds?: Array<string>;
-    defaultSkillIds?: Array<string>;
-    reasoningEffort?: "low" | "medium" | "high" | "xhigh" | "max";
-    contextTokenBudget?: number;
-    accessMode?: "default" | "auto-review" | "full-access";
-    avatarMode?: "generated" | "initials" | "upload";
-    avatarSeed?: string;
-    avatarDataUrl?: string;
-    visibility?: "private" | "public";
-    publicDescription?: string;
-    publicSkills?: Array<string>;
-    inputSpec?: string;
-    outputSpec?: string;
-    id: string;
-    employeeDefinitionId?: string;
-    providerId?: string;
-    status?: "idle" | "running" | "done" | "waiting" | "offline";
-    lastActive?: string;
-    appId?: string;
-    workspaceRoot?: string;
-    storePackageId?: string;
-    toolIds?: Array<string>;
-    source?: "local" | "human";
-    sourceLabel?: string;
-    disabled?: boolean;
-  };
+  body: EmployeeWriteInput;
   path: {
     roomId: string;
   };
@@ -8622,63 +5148,27 @@ export type RoomMemberAddErrors = {
   /**
    * The request does not satisfy the operation contract.
    */
-  400: {
-    ok?: false;
-    error: string;
-    code?: string;
-    traceId?: string;
-    [key: string]: unknown;
-  };
+  400: RoomError;
   /**
    * A valid Bridge session or token is required.
    */
-  401: {
-    ok?: false;
-    error: string;
-    code?: string;
-    traceId?: string;
-    [key: string]: unknown;
-  };
+  401: RoomError;
   /**
    * The request origin is not allowed.
    */
-  403: {
-    ok?: false;
-    error: string;
-    code?: string;
-    traceId?: string;
-    [key: string]: unknown;
-  };
+  403: RoomError;
   /**
    * The reply parent message does not exist.
    */
-  404: {
-    ok?: false;
-    error: string;
-    code?: string;
-    traceId?: string;
-    [key: string]: unknown;
-  };
+  404: RoomError;
   /**
    * The message ID conflicts with an earlier message, or the remote conversation belongs to another account or sender.
    */
-  409: {
-    ok?: false;
-    error: string;
-    code?: string;
-    traceId?: string;
-    [key: string]: unknown;
-  };
+  409: RoomError;
   /**
    * The authenticated session is temporarily unavailable.
    */
-  503: {
-    ok?: false;
-    error: string;
-    code?: string;
-    traceId?: string;
-    [key: string]: unknown;
-  };
+  503: RoomError;
 };
 
 export type RoomMemberAddError = RoomMemberAddErrors[keyof RoomMemberAddErrors];
@@ -8689,131 +5179,7 @@ export type RoomMemberAddResponses = {
    */
   200: {
     ok: true;
-    member: {
-      name: string;
-      role: string;
-      kernel: string;
-      model: string;
-      color: string;
-      availableSkillIds?: Array<string>;
-      defaultSkillIds?: Array<string>;
-      requiredKernelCapabilities?: Array<
-        | "message.streamText"
-        | "turn.lifecycle"
-        | "session.lifecycle"
-        | "planning.plan"
-        | "interaction.askUser"
-        | "tools.hostTool"
-        | "tools.nativeTool"
-        | "tools.mcpServers"
-        | "tools.parallelCalls"
-        | "tool.progress"
-        | "approval.request"
-        | "control.stop"
-        | "control.steer"
-        | "session.compact"
-        | "session.goal"
-        | "auth.refresh"
-        | "sandbox.policy"
-        | "budget.limit"
-        | "diagnostics.usage"
-        | "response.speed"
-        | "media.input"
-        | "output.structured"
-        | "output.artifacts"
-        | "reasoning.nativeText"
-        | "reasoning.summary"
-        | "knowledge.skills"
-      >;
-      reasoningEffort?: "low" | "medium" | "high" | "xhigh" | "max";
-      contextTokenBudget?: number;
-      accessMode?: "default" | "auto-review" | "full-access";
-      avatarMode?: "generated" | "initials" | "upload";
-      avatarSeed?: string;
-      avatarDataUrl?: string;
-      visibility?: "private" | "public";
-      publicDescription?: string;
-      publicSkills?: Array<string>;
-      inputSpec?: string;
-      outputSpec?: string;
-      id: string;
-      employeeDefinitionId?: string;
-      displayName?: string;
-      providerId?: string;
-      displayRole?: string;
-      status: "idle" | "running" | "done" | "waiting" | "offline";
-      lastActive: string;
-      appId?: string;
-      workspaceRoot?: string;
-      storePackageId?: string;
-      toolIds?: Array<string>;
-      source?: "local" | "human" | "remote";
-      remoteAgent?: {
-        accountIssuer: string;
-        accountUserId: string;
-        serviceUrl: string;
-        matrixId: string;
-        provider: string;
-        senderAgentId: string;
-        owner: string;
-        address: string;
-      };
-      sourceLabel?: string;
-      displayPublicDescription?: string;
-      displayPublicSkills?: Array<string>;
-      displayInputSpec?: string;
-      displayOutputSpec?: string;
-      userOverrides?: Array<string>;
-      manifestDefaults?: {
-        name?: string;
-        role?: string;
-        kernel?: string;
-        model?: string;
-        color?: string;
-        availableSkillIds?: Array<string>;
-        defaultSkillIds?: Array<string>;
-        requiredKernelCapabilities?: Array<
-          | "message.streamText"
-          | "turn.lifecycle"
-          | "session.lifecycle"
-          | "planning.plan"
-          | "interaction.askUser"
-          | "tools.hostTool"
-          | "tools.nativeTool"
-          | "tools.mcpServers"
-          | "tools.parallelCalls"
-          | "tool.progress"
-          | "approval.request"
-          | "control.stop"
-          | "control.steer"
-          | "session.compact"
-          | "session.goal"
-          | "auth.refresh"
-          | "sandbox.policy"
-          | "budget.limit"
-          | "diagnostics.usage"
-          | "response.speed"
-          | "media.input"
-          | "output.structured"
-          | "output.artifacts"
-          | "reasoning.nativeText"
-          | "reasoning.summary"
-          | "knowledge.skills"
-        >;
-        reasoningEffort?: "low" | "medium" | "high" | "xhigh" | "max";
-        contextTokenBudget?: number;
-        accessMode?: "default" | "auto-review" | "full-access";
-        avatarMode?: "generated" | "initials" | "upload";
-        avatarSeed?: string;
-        avatarDataUrl?: string;
-        visibility?: "private" | "public";
-        publicDescription?: string;
-        publicSkills?: Array<string>;
-        inputSpec?: string;
-        outputSpec?: string;
-      };
-      disabled?: boolean;
-    };
+    member: Employee;
     currentEventSeq: number;
   };
 };
@@ -8834,63 +5200,27 @@ export type RoomMemberRemoveErrors = {
   /**
    * The request does not satisfy the operation contract.
    */
-  400: {
-    ok?: false;
-    error: string;
-    code?: string;
-    traceId?: string;
-    [key: string]: unknown;
-  };
+  400: RoomError;
   /**
    * A valid Bridge session or token is required.
    */
-  401: {
-    ok?: false;
-    error: string;
-    code?: string;
-    traceId?: string;
-    [key: string]: unknown;
-  };
+  401: RoomError;
   /**
    * The request origin is not allowed.
    */
-  403: {
-    ok?: false;
-    error: string;
-    code?: string;
-    traceId?: string;
-    [key: string]: unknown;
-  };
+  403: RoomError;
   /**
    * The reply parent message does not exist.
    */
-  404: {
-    ok?: false;
-    error: string;
-    code?: string;
-    traceId?: string;
-    [key: string]: unknown;
-  };
+  404: RoomError;
   /**
    * The message ID conflicts with an earlier message, or the remote conversation belongs to another account or sender.
    */
-  409: {
-    ok?: false;
-    error: string;
-    code?: string;
-    traceId?: string;
-    [key: string]: unknown;
-  };
+  409: RoomError;
   /**
    * The authenticated session is temporarily unavailable.
    */
-  503: {
-    ok?: false;
-    error: string;
-    code?: string;
-    traceId?: string;
-    [key: string]: unknown;
-  };
+  503: RoomError;
 };
 
 export type RoomMemberRemoveError = RoomMemberRemoveErrors[keyof RoomMemberRemoveErrors];
@@ -8901,37 +5231,7 @@ export type RoomMemberRemoveResponses = {
    */
   200: {
     ok: true;
-    room: {
-      id: string;
-      kind: "group" | "direct";
-      title: string;
-      badge: string;
-      memberIds: Array<string>;
-      adminMemberIds: Array<string>;
-      updatedAt: string;
-      unread: number;
-      scope?: {
-        kind: "app";
-        appId: string;
-        role?: "default" | "group" | "direct";
-      };
-      generatedTitle?:
-        | {
-            kind: "numbered-group";
-            sequence: number;
-          }
-        | {
-            kind: "app-group";
-            appId: string;
-            sequence: number;
-          };
-      removedMemberIds?: Array<string>;
-      directMemberId?: string;
-      pinned?: boolean;
-      archived?: boolean;
-      lastReadEventSeq?: number;
-      [key: string]: unknown;
-    };
+    room: Room;
     currentEventSeq: number;
   };
 };
@@ -8952,63 +5252,27 @@ export type RoomMemberJoinErrors = {
   /**
    * The request does not satisfy the operation contract.
    */
-  400: {
-    ok?: false;
-    error: string;
-    code?: string;
-    traceId?: string;
-    [key: string]: unknown;
-  };
+  400: RoomError;
   /**
    * A valid Bridge session or token is required.
    */
-  401: {
-    ok?: false;
-    error: string;
-    code?: string;
-    traceId?: string;
-    [key: string]: unknown;
-  };
+  401: RoomError;
   /**
    * The request origin is not allowed.
    */
-  403: {
-    ok?: false;
-    error: string;
-    code?: string;
-    traceId?: string;
-    [key: string]: unknown;
-  };
+  403: RoomError;
   /**
    * The reply parent message does not exist.
    */
-  404: {
-    ok?: false;
-    error: string;
-    code?: string;
-    traceId?: string;
-    [key: string]: unknown;
-  };
+  404: RoomError;
   /**
    * The message ID conflicts with an earlier message, or the remote conversation belongs to another account or sender.
    */
-  409: {
-    ok?: false;
-    error: string;
-    code?: string;
-    traceId?: string;
-    [key: string]: unknown;
-  };
+  409: RoomError;
   /**
    * The authenticated session is temporarily unavailable.
    */
-  503: {
-    ok?: false;
-    error: string;
-    code?: string;
-    traceId?: string;
-    [key: string]: unknown;
-  };
+  503: RoomError;
 };
 
 export type RoomMemberJoinError = RoomMemberJoinErrors[keyof RoomMemberJoinErrors];
@@ -9019,131 +5283,7 @@ export type RoomMemberJoinResponses = {
    */
   200: {
     ok: true;
-    member: {
-      name: string;
-      role: string;
-      kernel: string;
-      model: string;
-      color: string;
-      availableSkillIds?: Array<string>;
-      defaultSkillIds?: Array<string>;
-      requiredKernelCapabilities?: Array<
-        | "message.streamText"
-        | "turn.lifecycle"
-        | "session.lifecycle"
-        | "planning.plan"
-        | "interaction.askUser"
-        | "tools.hostTool"
-        | "tools.nativeTool"
-        | "tools.mcpServers"
-        | "tools.parallelCalls"
-        | "tool.progress"
-        | "approval.request"
-        | "control.stop"
-        | "control.steer"
-        | "session.compact"
-        | "session.goal"
-        | "auth.refresh"
-        | "sandbox.policy"
-        | "budget.limit"
-        | "diagnostics.usage"
-        | "response.speed"
-        | "media.input"
-        | "output.structured"
-        | "output.artifacts"
-        | "reasoning.nativeText"
-        | "reasoning.summary"
-        | "knowledge.skills"
-      >;
-      reasoningEffort?: "low" | "medium" | "high" | "xhigh" | "max";
-      contextTokenBudget?: number;
-      accessMode?: "default" | "auto-review" | "full-access";
-      avatarMode?: "generated" | "initials" | "upload";
-      avatarSeed?: string;
-      avatarDataUrl?: string;
-      visibility?: "private" | "public";
-      publicDescription?: string;
-      publicSkills?: Array<string>;
-      inputSpec?: string;
-      outputSpec?: string;
-      id: string;
-      employeeDefinitionId?: string;
-      displayName?: string;
-      providerId?: string;
-      displayRole?: string;
-      status: "idle" | "running" | "done" | "waiting" | "offline";
-      lastActive: string;
-      appId?: string;
-      workspaceRoot?: string;
-      storePackageId?: string;
-      toolIds?: Array<string>;
-      source?: "local" | "human" | "remote";
-      remoteAgent?: {
-        accountIssuer: string;
-        accountUserId: string;
-        serviceUrl: string;
-        matrixId: string;
-        provider: string;
-        senderAgentId: string;
-        owner: string;
-        address: string;
-      };
-      sourceLabel?: string;
-      displayPublicDescription?: string;
-      displayPublicSkills?: Array<string>;
-      displayInputSpec?: string;
-      displayOutputSpec?: string;
-      userOverrides?: Array<string>;
-      manifestDefaults?: {
-        name?: string;
-        role?: string;
-        kernel?: string;
-        model?: string;
-        color?: string;
-        availableSkillIds?: Array<string>;
-        defaultSkillIds?: Array<string>;
-        requiredKernelCapabilities?: Array<
-          | "message.streamText"
-          | "turn.lifecycle"
-          | "session.lifecycle"
-          | "planning.plan"
-          | "interaction.askUser"
-          | "tools.hostTool"
-          | "tools.nativeTool"
-          | "tools.mcpServers"
-          | "tools.parallelCalls"
-          | "tool.progress"
-          | "approval.request"
-          | "control.stop"
-          | "control.steer"
-          | "session.compact"
-          | "session.goal"
-          | "auth.refresh"
-          | "sandbox.policy"
-          | "budget.limit"
-          | "diagnostics.usage"
-          | "response.speed"
-          | "media.input"
-          | "output.structured"
-          | "output.artifacts"
-          | "reasoning.nativeText"
-          | "reasoning.summary"
-          | "knowledge.skills"
-        >;
-        reasoningEffort?: "low" | "medium" | "high" | "xhigh" | "max";
-        contextTokenBudget?: number;
-        accessMode?: "default" | "auto-review" | "full-access";
-        avatarMode?: "generated" | "initials" | "upload";
-        avatarSeed?: string;
-        avatarDataUrl?: string;
-        visibility?: "private" | "public";
-        publicDescription?: string;
-        publicSkills?: Array<string>;
-        inputSpec?: string;
-        outputSpec?: string;
-      };
-      disabled?: boolean;
-    };
+    member: Employee;
     currentEventSeq: number;
   };
 };
@@ -9151,38 +5291,7 @@ export type RoomMemberJoinResponses = {
 export type RoomMemberJoinResponse = RoomMemberJoinResponses[keyof RoomMemberJoinResponses];
 
 export type EmployeeEmployeeUpsertData = {
-  body: {
-    name?: string;
-    role?: string;
-    kernel?: string;
-    model?: string;
-    color?: string;
-    availableSkillIds?: Array<string>;
-    defaultSkillIds?: Array<string>;
-    reasoningEffort?: "low" | "medium" | "high" | "xhigh" | "max";
-    contextTokenBudget?: number;
-    accessMode?: "default" | "auto-review" | "full-access";
-    avatarMode?: "generated" | "initials" | "upload";
-    avatarSeed?: string;
-    avatarDataUrl?: string;
-    visibility?: "private" | "public";
-    publicDescription?: string;
-    publicSkills?: Array<string>;
-    inputSpec?: string;
-    outputSpec?: string;
-    id: string;
-    employeeDefinitionId?: string;
-    providerId?: string;
-    status?: "idle" | "running" | "done" | "waiting" | "offline";
-    lastActive?: string;
-    appId?: string;
-    workspaceRoot?: string;
-    storePackageId?: string;
-    toolIds?: Array<string>;
-    source?: "local" | "human";
-    sourceLabel?: string;
-    disabled?: boolean;
-  };
+  body: EmployeeWriteInput;
   path?: never;
   query?: never;
   url: "/rooms/members";
@@ -9192,63 +5301,27 @@ export type EmployeeEmployeeUpsertErrors = {
   /**
    * The request does not satisfy the operation contract.
    */
-  400: {
-    ok?: false;
-    error: string;
-    code?: string;
-    traceId?: string;
-    [key: string]: unknown;
-  };
+  400: RoomError;
   /**
    * A valid Bridge session or token is required.
    */
-  401: {
-    ok?: false;
-    error: string;
-    code?: string;
-    traceId?: string;
-    [key: string]: unknown;
-  };
+  401: RoomError;
   /**
    * The request origin is not allowed.
    */
-  403: {
-    ok?: false;
-    error: string;
-    code?: string;
-    traceId?: string;
-    [key: string]: unknown;
-  };
+  403: RoomError;
   /**
    * The reply parent message does not exist.
    */
-  404: {
-    ok?: false;
-    error: string;
-    code?: string;
-    traceId?: string;
-    [key: string]: unknown;
-  };
+  404: RoomError;
   /**
    * The message ID conflicts with an earlier message, or the remote conversation belongs to another account or sender.
    */
-  409: {
-    ok?: false;
-    error: string;
-    code?: string;
-    traceId?: string;
-    [key: string]: unknown;
-  };
+  409: RoomError;
   /**
    * The authenticated session is temporarily unavailable.
    */
-  503: {
-    ok?: false;
-    error: string;
-    code?: string;
-    traceId?: string;
-    [key: string]: unknown;
-  };
+  503: RoomError;
 };
 
 export type EmployeeEmployeeUpsertError = EmployeeEmployeeUpsertErrors[keyof EmployeeEmployeeUpsertErrors];
@@ -9259,131 +5332,7 @@ export type EmployeeEmployeeUpsertResponses = {
    */
   200: {
     ok: true;
-    member: {
-      name: string;
-      role: string;
-      kernel: string;
-      model: string;
-      color: string;
-      availableSkillIds?: Array<string>;
-      defaultSkillIds?: Array<string>;
-      requiredKernelCapabilities?: Array<
-        | "message.streamText"
-        | "turn.lifecycle"
-        | "session.lifecycle"
-        | "planning.plan"
-        | "interaction.askUser"
-        | "tools.hostTool"
-        | "tools.nativeTool"
-        | "tools.mcpServers"
-        | "tools.parallelCalls"
-        | "tool.progress"
-        | "approval.request"
-        | "control.stop"
-        | "control.steer"
-        | "session.compact"
-        | "session.goal"
-        | "auth.refresh"
-        | "sandbox.policy"
-        | "budget.limit"
-        | "diagnostics.usage"
-        | "response.speed"
-        | "media.input"
-        | "output.structured"
-        | "output.artifacts"
-        | "reasoning.nativeText"
-        | "reasoning.summary"
-        | "knowledge.skills"
-      >;
-      reasoningEffort?: "low" | "medium" | "high" | "xhigh" | "max";
-      contextTokenBudget?: number;
-      accessMode?: "default" | "auto-review" | "full-access";
-      avatarMode?: "generated" | "initials" | "upload";
-      avatarSeed?: string;
-      avatarDataUrl?: string;
-      visibility?: "private" | "public";
-      publicDescription?: string;
-      publicSkills?: Array<string>;
-      inputSpec?: string;
-      outputSpec?: string;
-      id: string;
-      employeeDefinitionId?: string;
-      displayName?: string;
-      providerId?: string;
-      displayRole?: string;
-      status: "idle" | "running" | "done" | "waiting" | "offline";
-      lastActive: string;
-      appId?: string;
-      workspaceRoot?: string;
-      storePackageId?: string;
-      toolIds?: Array<string>;
-      source?: "local" | "human" | "remote";
-      remoteAgent?: {
-        accountIssuer: string;
-        accountUserId: string;
-        serviceUrl: string;
-        matrixId: string;
-        provider: string;
-        senderAgentId: string;
-        owner: string;
-        address: string;
-      };
-      sourceLabel?: string;
-      displayPublicDescription?: string;
-      displayPublicSkills?: Array<string>;
-      displayInputSpec?: string;
-      displayOutputSpec?: string;
-      userOverrides?: Array<string>;
-      manifestDefaults?: {
-        name?: string;
-        role?: string;
-        kernel?: string;
-        model?: string;
-        color?: string;
-        availableSkillIds?: Array<string>;
-        defaultSkillIds?: Array<string>;
-        requiredKernelCapabilities?: Array<
-          | "message.streamText"
-          | "turn.lifecycle"
-          | "session.lifecycle"
-          | "planning.plan"
-          | "interaction.askUser"
-          | "tools.hostTool"
-          | "tools.nativeTool"
-          | "tools.mcpServers"
-          | "tools.parallelCalls"
-          | "tool.progress"
-          | "approval.request"
-          | "control.stop"
-          | "control.steer"
-          | "session.compact"
-          | "session.goal"
-          | "auth.refresh"
-          | "sandbox.policy"
-          | "budget.limit"
-          | "diagnostics.usage"
-          | "response.speed"
-          | "media.input"
-          | "output.structured"
-          | "output.artifacts"
-          | "reasoning.nativeText"
-          | "reasoning.summary"
-          | "knowledge.skills"
-        >;
-        reasoningEffort?: "low" | "medium" | "high" | "xhigh" | "max";
-        contextTokenBudget?: number;
-        accessMode?: "default" | "auto-review" | "full-access";
-        avatarMode?: "generated" | "initials" | "upload";
-        avatarSeed?: string;
-        avatarDataUrl?: string;
-        visibility?: "private" | "public";
-        publicDescription?: string;
-        publicSkills?: Array<string>;
-        inputSpec?: string;
-        outputSpec?: string;
-      };
-      disabled?: boolean;
-    };
+    member: Employee;
     currentEventSeq: number;
   };
 };
@@ -9432,63 +5381,27 @@ export type EmployeeEmployeeUpdateErrors = {
   /**
    * The request does not satisfy the operation contract.
    */
-  400: {
-    ok?: false;
-    error: string;
-    code?: string;
-    traceId?: string;
-    [key: string]: unknown;
-  };
+  400: RoomError;
   /**
    * A valid Bridge session or token is required.
    */
-  401: {
-    ok?: false;
-    error: string;
-    code?: string;
-    traceId?: string;
-    [key: string]: unknown;
-  };
+  401: RoomError;
   /**
    * The request origin is not allowed.
    */
-  403: {
-    ok?: false;
-    error: string;
-    code?: string;
-    traceId?: string;
-    [key: string]: unknown;
-  };
+  403: RoomError;
   /**
    * The reply parent message does not exist.
    */
-  404: {
-    ok?: false;
-    error: string;
-    code?: string;
-    traceId?: string;
-    [key: string]: unknown;
-  };
+  404: RoomError;
   /**
    * The message ID conflicts with an earlier message, or the remote conversation belongs to another account or sender.
    */
-  409: {
-    ok?: false;
-    error: string;
-    code?: string;
-    traceId?: string;
-    [key: string]: unknown;
-  };
+  409: RoomError;
   /**
    * The authenticated session is temporarily unavailable.
    */
-  503: {
-    ok?: false;
-    error: string;
-    code?: string;
-    traceId?: string;
-    [key: string]: unknown;
-  };
+  503: RoomError;
 };
 
 export type EmployeeEmployeeUpdateError = EmployeeEmployeeUpdateErrors[keyof EmployeeEmployeeUpdateErrors];
@@ -9499,131 +5412,7 @@ export type EmployeeEmployeeUpdateResponses = {
    */
   200: {
     ok: true;
-    member: {
-      name: string;
-      role: string;
-      kernel: string;
-      model: string;
-      color: string;
-      availableSkillIds?: Array<string>;
-      defaultSkillIds?: Array<string>;
-      requiredKernelCapabilities?: Array<
-        | "message.streamText"
-        | "turn.lifecycle"
-        | "session.lifecycle"
-        | "planning.plan"
-        | "interaction.askUser"
-        | "tools.hostTool"
-        | "tools.nativeTool"
-        | "tools.mcpServers"
-        | "tools.parallelCalls"
-        | "tool.progress"
-        | "approval.request"
-        | "control.stop"
-        | "control.steer"
-        | "session.compact"
-        | "session.goal"
-        | "auth.refresh"
-        | "sandbox.policy"
-        | "budget.limit"
-        | "diagnostics.usage"
-        | "response.speed"
-        | "media.input"
-        | "output.structured"
-        | "output.artifacts"
-        | "reasoning.nativeText"
-        | "reasoning.summary"
-        | "knowledge.skills"
-      >;
-      reasoningEffort?: "low" | "medium" | "high" | "xhigh" | "max";
-      contextTokenBudget?: number;
-      accessMode?: "default" | "auto-review" | "full-access";
-      avatarMode?: "generated" | "initials" | "upload";
-      avatarSeed?: string;
-      avatarDataUrl?: string;
-      visibility?: "private" | "public";
-      publicDescription?: string;
-      publicSkills?: Array<string>;
-      inputSpec?: string;
-      outputSpec?: string;
-      id: string;
-      employeeDefinitionId?: string;
-      displayName?: string;
-      providerId?: string;
-      displayRole?: string;
-      status: "idle" | "running" | "done" | "waiting" | "offline";
-      lastActive: string;
-      appId?: string;
-      workspaceRoot?: string;
-      storePackageId?: string;
-      toolIds?: Array<string>;
-      source?: "local" | "human" | "remote";
-      remoteAgent?: {
-        accountIssuer: string;
-        accountUserId: string;
-        serviceUrl: string;
-        matrixId: string;
-        provider: string;
-        senderAgentId: string;
-        owner: string;
-        address: string;
-      };
-      sourceLabel?: string;
-      displayPublicDescription?: string;
-      displayPublicSkills?: Array<string>;
-      displayInputSpec?: string;
-      displayOutputSpec?: string;
-      userOverrides?: Array<string>;
-      manifestDefaults?: {
-        name?: string;
-        role?: string;
-        kernel?: string;
-        model?: string;
-        color?: string;
-        availableSkillIds?: Array<string>;
-        defaultSkillIds?: Array<string>;
-        requiredKernelCapabilities?: Array<
-          | "message.streamText"
-          | "turn.lifecycle"
-          | "session.lifecycle"
-          | "planning.plan"
-          | "interaction.askUser"
-          | "tools.hostTool"
-          | "tools.nativeTool"
-          | "tools.mcpServers"
-          | "tools.parallelCalls"
-          | "tool.progress"
-          | "approval.request"
-          | "control.stop"
-          | "control.steer"
-          | "session.compact"
-          | "session.goal"
-          | "auth.refresh"
-          | "sandbox.policy"
-          | "budget.limit"
-          | "diagnostics.usage"
-          | "response.speed"
-          | "media.input"
-          | "output.structured"
-          | "output.artifacts"
-          | "reasoning.nativeText"
-          | "reasoning.summary"
-          | "knowledge.skills"
-        >;
-        reasoningEffort?: "low" | "medium" | "high" | "xhigh" | "max";
-        contextTokenBudget?: number;
-        accessMode?: "default" | "auto-review" | "full-access";
-        avatarMode?: "generated" | "initials" | "upload";
-        avatarSeed?: string;
-        avatarDataUrl?: string;
-        visibility?: "private" | "public";
-        publicDescription?: string;
-        publicSkills?: Array<string>;
-        inputSpec?: string;
-        outputSpec?: string;
-      };
-      disabled?: boolean;
-    };
+    member: Employee;
     currentEventSeq: number;
   };
 };
@@ -9643,63 +5432,27 @@ export type EmployeeEmployeeRestoreDefaultsErrors = {
   /**
    * The request does not satisfy the operation contract.
    */
-  400: {
-    ok?: false;
-    error: string;
-    code?: string;
-    traceId?: string;
-    [key: string]: unknown;
-  };
+  400: RoomError;
   /**
    * A valid Bridge session or token is required.
    */
-  401: {
-    ok?: false;
-    error: string;
-    code?: string;
-    traceId?: string;
-    [key: string]: unknown;
-  };
+  401: RoomError;
   /**
    * The request origin is not allowed.
    */
-  403: {
-    ok?: false;
-    error: string;
-    code?: string;
-    traceId?: string;
-    [key: string]: unknown;
-  };
+  403: RoomError;
   /**
    * The reply parent message does not exist.
    */
-  404: {
-    ok?: false;
-    error: string;
-    code?: string;
-    traceId?: string;
-    [key: string]: unknown;
-  };
+  404: RoomError;
   /**
    * The message ID conflicts with an earlier message, or the remote conversation belongs to another account or sender.
    */
-  409: {
-    ok?: false;
-    error: string;
-    code?: string;
-    traceId?: string;
-    [key: string]: unknown;
-  };
+  409: RoomError;
   /**
    * The authenticated session is temporarily unavailable.
    */
-  503: {
-    ok?: false;
-    error: string;
-    code?: string;
-    traceId?: string;
-    [key: string]: unknown;
-  };
+  503: RoomError;
 };
 
 export type EmployeeEmployeeRestoreDefaultsError =
@@ -9711,131 +5464,7 @@ export type EmployeeEmployeeRestoreDefaultsResponses = {
    */
   200: {
     ok: true;
-    member: {
-      name: string;
-      role: string;
-      kernel: string;
-      model: string;
-      color: string;
-      availableSkillIds?: Array<string>;
-      defaultSkillIds?: Array<string>;
-      requiredKernelCapabilities?: Array<
-        | "message.streamText"
-        | "turn.lifecycle"
-        | "session.lifecycle"
-        | "planning.plan"
-        | "interaction.askUser"
-        | "tools.hostTool"
-        | "tools.nativeTool"
-        | "tools.mcpServers"
-        | "tools.parallelCalls"
-        | "tool.progress"
-        | "approval.request"
-        | "control.stop"
-        | "control.steer"
-        | "session.compact"
-        | "session.goal"
-        | "auth.refresh"
-        | "sandbox.policy"
-        | "budget.limit"
-        | "diagnostics.usage"
-        | "response.speed"
-        | "media.input"
-        | "output.structured"
-        | "output.artifacts"
-        | "reasoning.nativeText"
-        | "reasoning.summary"
-        | "knowledge.skills"
-      >;
-      reasoningEffort?: "low" | "medium" | "high" | "xhigh" | "max";
-      contextTokenBudget?: number;
-      accessMode?: "default" | "auto-review" | "full-access";
-      avatarMode?: "generated" | "initials" | "upload";
-      avatarSeed?: string;
-      avatarDataUrl?: string;
-      visibility?: "private" | "public";
-      publicDescription?: string;
-      publicSkills?: Array<string>;
-      inputSpec?: string;
-      outputSpec?: string;
-      id: string;
-      employeeDefinitionId?: string;
-      displayName?: string;
-      providerId?: string;
-      displayRole?: string;
-      status: "idle" | "running" | "done" | "waiting" | "offline";
-      lastActive: string;
-      appId?: string;
-      workspaceRoot?: string;
-      storePackageId?: string;
-      toolIds?: Array<string>;
-      source?: "local" | "human" | "remote";
-      remoteAgent?: {
-        accountIssuer: string;
-        accountUserId: string;
-        serviceUrl: string;
-        matrixId: string;
-        provider: string;
-        senderAgentId: string;
-        owner: string;
-        address: string;
-      };
-      sourceLabel?: string;
-      displayPublicDescription?: string;
-      displayPublicSkills?: Array<string>;
-      displayInputSpec?: string;
-      displayOutputSpec?: string;
-      userOverrides?: Array<string>;
-      manifestDefaults?: {
-        name?: string;
-        role?: string;
-        kernel?: string;
-        model?: string;
-        color?: string;
-        availableSkillIds?: Array<string>;
-        defaultSkillIds?: Array<string>;
-        requiredKernelCapabilities?: Array<
-          | "message.streamText"
-          | "turn.lifecycle"
-          | "session.lifecycle"
-          | "planning.plan"
-          | "interaction.askUser"
-          | "tools.hostTool"
-          | "tools.nativeTool"
-          | "tools.mcpServers"
-          | "tools.parallelCalls"
-          | "tool.progress"
-          | "approval.request"
-          | "control.stop"
-          | "control.steer"
-          | "session.compact"
-          | "session.goal"
-          | "auth.refresh"
-          | "sandbox.policy"
-          | "budget.limit"
-          | "diagnostics.usage"
-          | "response.speed"
-          | "media.input"
-          | "output.structured"
-          | "output.artifacts"
-          | "reasoning.nativeText"
-          | "reasoning.summary"
-          | "knowledge.skills"
-        >;
-        reasoningEffort?: "low" | "medium" | "high" | "xhigh" | "max";
-        contextTokenBudget?: number;
-        accessMode?: "default" | "auto-review" | "full-access";
-        avatarMode?: "generated" | "initials" | "upload";
-        avatarSeed?: string;
-        avatarDataUrl?: string;
-        visibility?: "private" | "public";
-        publicDescription?: string;
-        publicSkills?: Array<string>;
-        inputSpec?: string;
-        outputSpec?: string;
-      };
-      disabled?: boolean;
-    };
+    member: Employee;
     currentEventSeq: number;
   };
 };

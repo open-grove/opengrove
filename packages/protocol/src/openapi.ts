@@ -5,6 +5,7 @@ import type {
   CompiledHostResponse,
 } from "./compiler.js";
 import type { HostOperationGroup } from "./operation.js";
+import type { HostSchemaDocuments } from "./schema-documents.js";
 
 type JsonSchema = Readonly<Record<string, unknown>>;
 
@@ -34,7 +35,7 @@ export function hostProtocolToOpenApi(
   options: HostOpenApiOptions = {},
 ): HostOpenApiDocument {
   const paths: Record<string, Record<string, unknown>> = {};
-  const schemas: Record<string, JsonSchema> = {};
+  const { schemas, roots } = embedSchemaDocuments(protocol.schemaDocuments);
 
   for (const operation of protocol.operations) {
     const method = operation.method.toLowerCase();
@@ -42,7 +43,7 @@ export function hostProtocolToOpenApi(
     if (pathItem[method]) {
       throw new Error(`Host operations collide at ${operation.method} ${operation.path.template}.`);
     }
-    pathItem[method] = openApiOperation(operation, schemas);
+    pathItem[method] = openApiOperation(operation, schemas, roots);
     paths[operation.path.template] = pathItem;
   }
 
@@ -65,38 +66,50 @@ export function hostProtocolToOpenApi(
   };
 }
 
-/** JSON Schema refs are rooted at their schema document; OpenAPI embeds those documents. */
-function embedSchema(schema: JsonSchema, id: string, schemas: Record<string, JsonSchema>, force = false): JsonSchema {
-  const pointer = componentPointer(id);
-  const { $defs, ...root } = schema;
-  const definitions = $defs && typeof $defs === "object" && !Array.isArray($defs) ? Object.entries($defs) : [];
-  const definitionPointers = new Map(
-    definitions.map(([name]) => [
-      `#/$defs/${name.replace(/~/gu, "~0").replace(/\//gu, "~1")}`,
-      componentPointer(`${id}.definition.${encodeURIComponent(name)}`),
+/** Keep named records and recursive definitions shared across the whole document. */
+function embedSchemaDocuments(documents: HostSchemaDocuments) {
+  const schemas: Record<string, JsonSchema> = {};
+  const rewrite = (reference: string): string => {
+    if (!reference.startsWith("opengrove-schema:")) return reference;
+    const [id, fragment = ""] = reference.slice("opengrove-schema:".length).split("#");
+    if (fragment.startsWith("/$defs/")) {
+      const [name, ...rest] = fragment.slice("/$defs/".length).split("/");
+      return componentPointer(`${id}.definition.${name}`) + (rest.length ? `/${rest.join("/")}` : "");
+    }
+    return componentPointer(id!) + fragment;
+  };
+  for (const [id, document] of Object.entries(documents.schemas)) {
+    const { $id, $schema, $defs, ...root } = document;
+    registerComponent(id, mapSchemaReferences(root, rewrite) as JsonSchema, schemas);
+    if ($defs && typeof $defs === "object" && !Array.isArray($defs)) {
+      for (const [name, definition] of Object.entries($defs)) {
+        registerComponent(`${id}.definition.${name}`, mapSchemaReferences(definition, rewrite) as JsonSchema, schemas);
+      }
+    }
+  }
+  const roots = Object.fromEntries(
+    Object.entries(documents.roots).map(([key, root]) => [
+      key,
+      root.reference ? { $ref: componentPointer(root.id) } : schemas[root.id]!,
     ]),
   );
-  let hasLocalReference = false;
-  const rewrite = (reference: string): string => {
-    if (!reference.startsWith("#")) return reference;
-    hasLocalReference = true;
-    for (const [source, destination] of definitionPointers) {
-      if (reference === source || reference.startsWith(`${source}/`))
-        return destination + reference.slice(source.length);
-    }
-    return `${pointer}${reference.slice(1)}`;
+  // Wrapper documents are kept inline; publish only components reachable from them.
+  const reachable = new Set<string>();
+  const visit = (schema: JsonSchema): void => {
+    mapSchemaReferences(schema, (reference) => {
+      const prefix = "#/components/schemas/";
+      if (!reference.startsWith(prefix)) return reference;
+      const id = reference.slice(prefix.length).split("/")[0]!.replace(/~1/gu, "/").replace(/~0/gu, "~");
+      if (reachable.has(id)) return reference;
+      const target = schemas[id];
+      if (!target) throw new Error(`Unresolved Host schema reference: ${reference}`);
+      reachable.add(id);
+      visit(target);
+      return reference;
+    });
   };
-  const rebased = mapSchemaReferences(root, rewrite) as JsonSchema;
-  if (!force && !hasLocalReference) return schema;
-  registerComponent(id, rebased, schemas);
-  for (const [name, definition] of definitions) {
-    registerComponent(
-      `${id}.definition.${encodeURIComponent(name)}`,
-      mapSchemaReferences(definition, rewrite) as JsonSchema,
-      schemas,
-    );
-  }
-  return { $ref: pointer };
+  for (const root of Object.values(roots)) visit(root);
+  return { schemas: Object.fromEntries(Object.entries(schemas).filter(([id]) => reachable.has(id))), roots };
 }
 
 function componentPointer(id: string): string {
@@ -154,18 +167,19 @@ function mapSchemaReferences(value: unknown, rewrite: (reference: string) => str
 function openApiOperation(
   operation: CompiledHostOperation,
   schemas: Record<string, JsonSchema>,
+  roots: Record<string, JsonSchema>,
 ): Readonly<Record<string, unknown>> {
   const parameters = [
-    ...openApiParameters(operation, operation.input.params, "path", schemas),
-    ...openApiParameters(operation, operation.input.query, "query", schemas),
+    ...openApiParameters(operation, operation.input.params, "path", schemas, roots),
+    ...openApiParameters(operation, operation.input.query, "query", schemas, roots),
   ];
   const responses = Object.fromEntries([
-    [String(operation.success.status), openApiResponse(operation.success, true, operation.id, schemas)],
+    [String(operation.success.status), openApiResponse(operation.success, true, operation.id, roots)],
     ...operation.additionalSuccesses.map(
-      (response) => [String(response.status), openApiResponse(response, true, operation.id, schemas)] as const,
+      (response) => [String(response.status), openApiResponse(response, true, operation.id, roots)] as const,
     ),
     ...operation.errors.map(
-      (response) => [String(response.status), openApiResponse(response, false, operation.id, schemas)] as const,
+      (response) => [String(response.status), openApiResponse(response, false, operation.id, roots)] as const,
     ),
   ]);
 
@@ -184,7 +198,7 @@ function openApiOperation(
             required: true,
             content: {
               "application/json": {
-                schema: embedSchema(operation.input.body.jsonSchema, `${operation.id}.body`, schemas),
+                schema: roots[`${operation.id}.body`],
               },
             },
           },
@@ -199,11 +213,14 @@ function openApiParameters(
   section: CompiledHostInputSection | undefined,
   location: "path" | "query",
   schemas: Record<string, JsonSchema>,
+  roots: Record<string, JsonSchema>,
 ): readonly Readonly<Record<string, unknown>>[] {
   if (!section) return [];
   const id = `${operation.id}.${section.name}`;
-  const embedded = embedSchema(section.jsonSchema, id, schemas);
-  const properties = schemaProperties(operation.id, schemas[id] ?? embedded);
+  const embedded = roots[id]!;
+  const resolved =
+    typeof embedded.$ref === "string" ? schemas[embedded.$ref.slice("#/components/schemas/".length)]! : embedded;
+  const properties = schemaProperties(operation.id, resolved);
   return section.fields.map((field) => {
     const schema = properties[field.name];
     if (!schema || typeof schema !== "object" || Array.isArray(schema)) {
@@ -225,7 +242,7 @@ function openApiResponse(
   response: CompiledHostResponse,
   success: boolean,
   operationId: string,
-  schemas: Record<string, JsonSchema>,
+  roots: Record<string, JsonSchema>,
 ): Readonly<Record<string, unknown>> {
   return {
     description: response.description ?? (success ? "Successful response." : "Error response."),
@@ -233,12 +250,7 @@ function openApiResponse(
       ? {
           content: {
             "application/json": {
-              schema: embedSchema(
-                response.jsonSchema,
-                response.schemaId ?? `${operationId}.response.${response.status}`,
-                schemas,
-                Boolean(response.schemaId),
-              ),
+              schema: roots[`${operationId}.response.${response.status}`],
             },
           },
         }

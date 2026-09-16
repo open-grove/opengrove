@@ -1,3 +1,4 @@
+import { hostSchemaRegistry } from "./schema-registry.js";
 import { z } from "zod";
 import { STANDARD_KERNEL_CAPABILITY_IDS } from "./kernel-capability-ids.js";
 import { remoteAgentBindingSchema } from "./remote-agent.js";
@@ -24,30 +25,32 @@ const memberRuntimeFields = {
   outputSpec: z.string().optional(),
 };
 
-export const roomMemberSchema = z.object({
-  ...memberRuntimeFields,
-  id: z.string(),
-  employeeDefinitionId: z.string().optional(),
-  displayName: z.string().optional(),
-  providerId: z.string().optional(),
-  displayRole: z.string().optional(),
-  status: z.enum(["idle", "running", "done", "waiting", "offline"]),
-  lastActive: z.string(),
-  appId: z.string().optional(),
-  workspaceRoot: z.string().optional(),
-  storePackageId: z.string().optional(),
-  toolIds: z.array(z.string()).optional(),
-  source: z.enum(["local", "human", "remote"]).optional(),
-  remoteAgent: remoteAgentBindingSchema.optional(),
-  sourceLabel: z.string().optional(),
-  displayPublicDescription: z.string().optional(),
-  displayPublicSkills: z.array(z.string()).optional(),
-  displayInputSpec: z.string().optional(),
-  displayOutputSpec: z.string().optional(),
-  userOverrides: z.array(z.string()).optional(),
-  manifestDefaults: z.object(memberRuntimeFields).partial().optional(),
-  disabled: z.boolean().optional(),
-});
+export const roomMemberSchema = z
+  .object({
+    ...memberRuntimeFields,
+    id: z.string(),
+    employeeDefinitionId: z.string().optional(),
+    displayName: z.string().optional(),
+    providerId: z.string().optional(),
+    displayRole: z.string().optional(),
+    status: z.enum(["idle", "running", "done", "waiting", "offline"]),
+    lastActive: z.string(),
+    appId: z.string().optional(),
+    workspaceRoot: z.string().optional(),
+    storePackageId: z.string().optional(),
+    toolIds: z.array(z.string()).optional(),
+    source: z.enum(["local", "human", "remote"]).optional(),
+    remoteAgent: remoteAgentBindingSchema.optional(),
+    sourceLabel: z.string().optional(),
+    displayPublicDescription: z.string().optional(),
+    displayPublicSkills: z.array(z.string()).optional(),
+    displayInputSpec: z.string().optional(),
+    displayOutputSpec: z.string().optional(),
+    userOverrides: z.array(z.string()).optional(),
+    manifestDefaults: z.object(memberRuntimeFields).partial().optional(),
+    disabled: z.boolean().optional(),
+  })
+  .register(hostSchemaRegistry, { id: "Employee" });
 
 // Writable Employee metadata excludes server-owned defaults and remote bindings.
 export const roomMemberInputSchema = roomMemberSchema
@@ -67,7 +70,8 @@ export const roomMemberInputSchema = roomMemberSchema
   .extend({
     id: z.string().trim().min(1),
     source: z.enum(["local", "human"]).optional(),
-  });
+  })
+  .register(hostSchemaRegistry, { id: "EmployeeWrite" });
 
 // Explicit null clears a preference; an omitted field leaves it unchanged.
 const memberInput = roomMemberInputSchema.shape;

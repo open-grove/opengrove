@@ -1,3 +1,4 @@
+import { hostSchemaRegistry } from "./schema-registry.js";
 import { z } from "zod";
 import { hostLongPollSupportSchema, roomQueryInteger, roomQueryCursor, hostQueryWaitMs } from "./compat/host-http.js";
 import { roomMemberSchema, roomMemberInputSchema } from "./room-members.js";
@@ -67,7 +68,8 @@ const roomSchema = z
     archived: z.boolean().optional(),
     lastReadEventSeq: z.number().int().nonnegative().optional(),
   })
-  .passthrough();
+  .passthrough()
+  .register(hostSchemaRegistry, { id: "Room" });
 
 const roomMessageSchema = z
   .object({
@@ -98,7 +100,8 @@ const roomMessageSchema = z
     rootMessageId: z.string().optional(),
     selectedFile: z.object({ path: z.string() }).passthrough().optional(),
   })
-  .passthrough();
+  .passthrough()
+  .register(hostSchemaRegistry, { id: "RoomMessage" });
 
 const bridgeErrorSchema = z
   .object({
@@ -107,7 +110,8 @@ const bridgeErrorSchema = z
     code: z.string().optional(),
     traceId: z.string().optional(),
   })
-  .passthrough();
+  .passthrough()
+  .register(hostSchemaRegistry, { id: "RoomError" });
 
 export const createRoomMessageOperation = defineHostOperation({
   id: "room.message.create",

@@ -1,3 +1,4 @@
+import { hostSchemaRegistry } from "./schema-registry.js";
 import { z } from "zod";
 import { type A2ATaskState, a2aTaskStateSchema } from "./task-state.js";
 
@@ -23,7 +24,8 @@ export const runLifecycleSchema = z
     if (lifecycle.childRunId && lifecycle.activity !== "waiting_on_child") {
       context.addIssue({ code: "custom", path: ["childRunId"], message: "child_run_requires_waiting_activity" });
     }
-  });
+  })
+  .register(hostSchemaRegistry, { id: "RunLifecycle" });
 
 export type RunLifecycle = z.infer<typeof runLifecycleSchema>;
 

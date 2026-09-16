@@ -1,3 +1,4 @@
+import { hostSchemaRegistry } from "./schema-registry.js";
 import { z } from "zod";
 import { activitySpaceSchema, jsonObjectSchema } from "./run-records.js";
 
@@ -8,13 +9,15 @@ export const sourceRefSchema = z.object({
   quote: z.string().optional(),
 });
 export const diagnosticProblemRefSchema = z.object({ incidentId: z.string(), code: z.string() });
-export const toolResultSchema = z.object({
-  ok: z.boolean(),
-  value: z.json().optional(),
-  error: z.string().optional(),
-  problem: diagnosticProblemRefSchema.optional(),
-  sources: z.array(sourceRefSchema).optional(),
-});
+export const toolResultSchema = z
+  .object({
+    ok: z.boolean(),
+    value: z.json().optional(),
+    error: z.string().optional(),
+    problem: diagnosticProblemRefSchema.optional(),
+    sources: z.array(sourceRefSchema).optional(),
+  })
+  .register(hostSchemaRegistry, { id: "ToolResult" });
 export const artifactAssetSchema = z.object({
   kind: z.enum(["image", "audio", "video", "file", "url", "text"]),
   uri: z.string().optional(),
@@ -30,67 +33,73 @@ export const artifactPreviewSchema = z.object({
   mimeType: z.string().optional(),
   status: z.string().optional(),
 });
-export const artifactRecordSchema = z.object({
-  id: z.string(),
-  type: z.string(),
-  title: z.string().optional(),
-  status: z.string().optional(),
-  version: z.number().optional(),
-  tags: z.array(z.string()),
-  data: jsonObjectSchema,
-  assets: z.array(artifactAssetSchema).optional(),
-  preview: artifactPreviewSchema.optional(),
-  createdAt: z.string(),
-  updatedAt: z.string(),
-  sourceRefs: z.array(sourceRefSchema).optional(),
-  parentId: z.string().optional(),
-  variantOf: z.string().optional(),
-  derivedFrom: z.array(z.string()).optional(),
-  lineage: z.array(z.string()).optional(),
-  provenance: jsonObjectSchema.optional(),
-});
+export const artifactRecordSchema = z
+  .object({
+    id: z.string(),
+    type: z.string(),
+    title: z.string().optional(),
+    status: z.string().optional(),
+    version: z.number().optional(),
+    tags: z.array(z.string()),
+    data: jsonObjectSchema,
+    assets: z.array(artifactAssetSchema).optional(),
+    preview: artifactPreviewSchema.optional(),
+    createdAt: z.string(),
+    updatedAt: z.string(),
+    sourceRefs: z.array(sourceRefSchema).optional(),
+    parentId: z.string().optional(),
+    variantOf: z.string().optional(),
+    derivedFrom: z.array(z.string()).optional(),
+    lineage: z.array(z.string()).optional(),
+    provenance: jsonObjectSchema.optional(),
+  })
+  .register(hostSchemaRegistry, { id: "Artifact" });
 export const skillSourceSchema = z.enum(["bundled", "project", "user", "pack"]);
 export const skillTrustSchema = z.enum(["trusted", "untrusted"]);
 export const skillExecutionContextSchema = z.enum(["inline", "fork"]);
-export const invokedSkillRecordSchema = z.object({
-  skillId: z.string(),
-  skillName: z.string(),
-  title: z.string(),
-  content: z.string(),
-  contentPreview: z.string(),
-  sourcePath: z.string(),
-  source: skillSourceSchema,
-  trust: skillTrustSchema,
-  context: skillExecutionContextSchema,
-  args: z.string().optional(),
-  allowedTools: z.array(z.string()),
-  model: z.string().optional(),
-  effort: z.string().optional(),
-  packId: z.string().optional(),
-  capabilityId: z.string().optional(),
-  invokedAt: z.string(),
-  origin: z.enum(["user", "model"]),
-});
-export const workingStateRecordSchema = z.object({
-  sessionId: z.string().optional(),
-  taskSummary: z.string().optional(),
-  activeGoal: z.string().optional(),
-  selectedModel: z.string().optional(),
-  activePackId: z.string().optional(),
-  activeSkillId: z.string().optional(),
-  pinnedArtifactIds: z.array(z.string()),
-  workingArtifactIds: z.array(z.string()),
-  pendingApprovalIds: z.array(z.string()),
-  pendingQuestionIds: z.array(z.string()),
-  activeToolCallIds: z.array(z.string()),
-  discoveredSkillIds: z.array(z.string()),
-  discoveredSkillNames: z.array(z.string()),
-  expandedSkillIds: z.array(z.string()),
-  invokedSkills: z.array(invokedSkillRecordSchema),
-  loadedNestedMemoryPaths: z.array(z.string()),
-  toolSchemaCache: z.record(z.string(), z.string()),
-  updatedAt: z.string(),
-});
+export const invokedSkillRecordSchema = z
+  .object({
+    skillId: z.string(),
+    skillName: z.string(),
+    title: z.string(),
+    content: z.string(),
+    contentPreview: z.string(),
+    sourcePath: z.string(),
+    source: skillSourceSchema,
+    trust: skillTrustSchema,
+    context: skillExecutionContextSchema,
+    args: z.string().optional(),
+    allowedTools: z.array(z.string()),
+    model: z.string().optional(),
+    effort: z.string().optional(),
+    packId: z.string().optional(),
+    capabilityId: z.string().optional(),
+    invokedAt: z.string(),
+    origin: z.enum(["user", "model"]),
+  })
+  .register(hostSchemaRegistry, { id: "InvokedSkill" });
+export const workingStateRecordSchema = z
+  .object({
+    sessionId: z.string().optional(),
+    taskSummary: z.string().optional(),
+    activeGoal: z.string().optional(),
+    selectedModel: z.string().optional(),
+    activePackId: z.string().optional(),
+    activeSkillId: z.string().optional(),
+    pinnedArtifactIds: z.array(z.string()),
+    workingArtifactIds: z.array(z.string()),
+    pendingApprovalIds: z.array(z.string()),
+    pendingQuestionIds: z.array(z.string()),
+    activeToolCallIds: z.array(z.string()),
+    discoveredSkillIds: z.array(z.string()),
+    discoveredSkillNames: z.array(z.string()),
+    expandedSkillIds: z.array(z.string()),
+    invokedSkills: z.array(invokedSkillRecordSchema),
+    loadedNestedMemoryPaths: z.array(z.string()),
+    toolSchemaCache: z.record(z.string(), z.string()),
+    updatedAt: z.string(),
+  })
+  .register(hostSchemaRegistry, { id: "WorkingState" });
 export const memoryScopeSchema = z.enum(["user", "workspace", "page", "session"]);
 export const memoryRecordSchema = z.object({
   id: z.string(),

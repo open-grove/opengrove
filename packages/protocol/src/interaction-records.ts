@@ -1,3 +1,4 @@
+import { hostSchemaRegistry } from "./schema-registry.js";
 import { z } from "zod";
 import { jsonObjectSchema } from "./run-records.js";
 
@@ -37,27 +38,31 @@ const interactionFields = {
   isBlocking: z.boolean().optional(),
   autoResolutionMs: z.number().optional(),
 };
-export const approvalRequestSchema = z.object({
-  ...interactionFields,
-  kind: z.enum([
-    "tool",
-    "command",
-    "file_change",
-    "permission_scope",
-    "routine_step",
-    "memory_write",
-    "browser_action",
-    "computer_action",
-  ]),
-  reason: z.string(),
-  status: approvalStatusSchema,
-  toolId: z.string().optional(),
-  capabilityId: z.string().optional(),
-  skillId: z.string().optional(),
-});
-export const questionRequestSchema = z.object({
-  ...interactionFields,
-  prompt: z.string(),
-  status: questionStatusSchema,
-  source: agentRequestSourceSchema.optional(),
-});
+export const approvalRequestSchema = z
+  .object({
+    ...interactionFields,
+    kind: z.enum([
+      "tool",
+      "command",
+      "file_change",
+      "permission_scope",
+      "routine_step",
+      "memory_write",
+      "browser_action",
+      "computer_action",
+    ]),
+    reason: z.string(),
+    status: approvalStatusSchema,
+    toolId: z.string().optional(),
+    capabilityId: z.string().optional(),
+    skillId: z.string().optional(),
+  })
+  .register(hostSchemaRegistry, { id: "Approval" });
+export const questionRequestSchema = z
+  .object({
+    ...interactionFields,
+    prompt: z.string(),
+    status: questionStatusSchema,
+    source: agentRequestSourceSchema.optional(),
+  })
+  .register(hostSchemaRegistry, { id: "Question" });

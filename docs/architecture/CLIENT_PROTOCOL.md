@@ -98,6 +98,17 @@ or execute request-time defaults and transforms while generating code.
 The compiler and compiled catalog have dedicated package entry points; runtime
 Client consumers do not load or execute the compiler.
 
+Shared records register a stable PascalCase name with `hostSchemaRegistry`
+(for example, `.register(hostSchemaRegistry, { id: "Room" })`). This is document
+metadata only: it does not change Zod validation or the standalone schemas used
+by CLI discovery. The compiler also projects the complete schema graph for
+OpenAPI, keeping input and output separate. Input components use an `Input`
+suffix because defaults, transforms, and unknown-key handling can differ from
+responses. OpenAPI emits named records once and references them with `$ref`;
+only reachable components are published. Conflicting names fail generation.
+Contract tests compare all projected requests and responses against their
+standalone schemas, including recursive JSON values.
+
 `packages/client/client-map.json` contains only the naming differences between
 the canonical catalog and the internal Client facade. `npm run
 generate:host-client` projects the compiled Protocol IR into the committed
