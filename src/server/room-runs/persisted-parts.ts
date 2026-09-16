@@ -1,3 +1,4 @@
+import { autoReviewFallbackReason } from "../../runtime-access.js";
 import { type AgentEvent, type JsonObject, type JsonValue } from "../../core.js";
 import { hostMessage } from "../../localization/host-messages.js";
 import { DEFAULT_LOCALE, type SupportedLocale } from "../../localization/locale-registry.js";
@@ -188,6 +189,19 @@ export function persistedRoomRunParts(
         break;
       }
       case "runtime.diagnostic": {
+        const reason = autoReviewFallbackReason(event);
+        if (reason !== undefined) {
+          parts.push(
+            createPersistedNotePart(
+              event.runId || fallbackRunId,
+              sequence++,
+              hostMessage(language, "room.auto_review_fallback", { reason }),
+              "warn",
+              event.data,
+            ),
+          );
+          break;
+        }
         const text = persistedRuntimeDiagnosticText(event.name);
         if (text) {
           parts.push(createPersistedNotePart(event.runId || fallbackRunId, sequence++, text, "diagnostic", event.data));

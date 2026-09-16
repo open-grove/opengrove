@@ -157,7 +157,7 @@ export class ClaudeAgentSdkRuntime implements AgentRuntime {
       this.options.modelAliases,
     );
     const cwd = this.options.cwd ?? process.cwd();
-    const permissionMode = resolveClaudePermissionMode(request.accessMode, this.options.permissionMode);
+    let permissionMode = resolveClaudePermissionMode(request.accessMode, this.options.permissionMode);
     const runtimeEnv = mergeRuntimeEnv(this.options.env, request.runtimeEnv);
     const runtimeBindingFingerprint = claudeRuntimeBindingFingerprint({
       base: this.options.runtimeBindingFingerprint,
@@ -362,16 +362,34 @@ export class ClaudeAgentSdkRuntime implements AgentRuntime {
         // Metadata is independent of permission activation; a rejected Auto request
         // must not prevent discovery. This is best-effort and never gates a turn.
         void this.refreshClaudeModelsCache(query, runtimeEnv);
+        const switchToAsk = async (cause: unknown): Promise<void> => {
+          if (request.signal?.aborted || abortController.signal.aborted) throw cause;
+          const reason = sanitizeDiagnosticText(cause instanceof Error ? cause.message : String(cause));
+          try {
+            await query.setPermissionMode("default");
+          } catch (error) {
+            if (request.signal?.aborted || abortController.signal.aborted) throw error;
+            throw new Error(
+              `runtime_access_mode_unavailable: claude_auto_review_fallback_failed: Auto: ${reason}; Ask: ${sanitizeDiagnosticText(error instanceof Error ? error.message : String(error))}`,
+              { cause: error },
+            );
+          }
+          if (request.signal?.aborted || abortController.signal.aborted) throw new Error("claude_code_aborted");
+          permissionMode = "default";
+          queue.push({
+            type: "runtime.diagnostic",
+            runId,
+            at: new Date().toISOString(),
+            name: "claude.auto_review.fallback",
+            data: { kernel: "claude-code", from: "auto-review", to: "default", reason },
+          });
+        };
         try {
           if (approvalPrompt) {
             try {
               await query.setPermissionMode("auto");
             } catch (error) {
-              if (request.signal?.aborted || abortController.signal.aborted) throw error;
-              throw new Error(
-                `runtime_access_mode_unavailable: claude_auto_review_activation_failed: ${sanitizeDiagnosticText(error instanceof Error ? error.message : String(error))}. Select Ask in this Employee's permissions to continue, or check the current Provider/account configuration.`,
-                { cause: error },
-              );
+              await switchToAsk(error);
             }
             for await (const message of claudeUserMessageStream(request.input, imageBlocks, nativeSession.sessionId)) {
               approvalPrompt.push(message);
@@ -379,17 +397,20 @@ export class ClaudeAgentSdkRuntime implements AgentRuntime {
             approvalPrompt.close();
           }
           for await (const message of query) {
+            if (
+              message.type === "system" &&
+              message.subtype === "init" &&
+              permissionMode === "auto" &&
+              message.permissionMode !== "auto"
+            ) {
+              await switchToAsk(new Error(`Claude reported ${message.permissionMode} instead of Auto`));
+            }
             for (const event of mapClaudeSdkMessage(message, {
               runId,
               state: messageState,
               hostBridge,
               onInit: (init) => {
                 rememberClaudeNativeSession(request, init.session_id, runtimeBindingFingerprint);
-                if (permissionMode === "auto" && init.permissionMode !== "auto") {
-                  throw new Error(
-                    "runtime_access_mode_unavailable: claude_auto_review_activation_failed: Claude did not activate Auto. Select Ask in this Employee's permissions to continue, or check the current Provider/account configuration.",
-                  );
-                }
                 this.rememberSessionBinding(request.context.sessionId, {
                   nativeSessionId: init.session_id,
                   cwd,

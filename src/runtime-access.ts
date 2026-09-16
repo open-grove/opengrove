@@ -19,7 +19,7 @@ export function resolveRuntimeAccessModeSelection(
       : defaultRuntimeAccessMode(kernel, nativeAutoReviewSupported);
   if (kernel === "openclaw") return "default";
   if (kernel && runtimeAccessIssue(kernel, mode) === "auto-review-unavailable") return "default";
-  // Claude support depends on the local model/account. Unknown support must not rewrite a saved choice.
+  // Unknown Claude model metadata must not rewrite a saved choice.
   return mode;
 }
 
@@ -44,4 +44,21 @@ export function assertRuntimeAccessMode(
   if (!mode || (kernel === "openclaw" && mode === "default")) return;
   const issue = runtimeAccessIssue(kernel, mode, nativeAutoReviewSupported);
   if (issue) throw new Error(`runtime_access_mode_unavailable: ${kernel}/${mode} (${issue})`);
+}
+
+/** Recognize the native acknowledgement that Auto was replaced by Ask. */
+export function autoReviewFallbackReason(event: {
+  type?: unknown;
+  name?: unknown;
+  data?: unknown;
+}): string | undefined {
+  if (event.type !== "runtime.diagnostic" || event.name !== "claude.auto_review.fallback") return undefined;
+  if (!event.data || typeof event.data !== "object" || Array.isArray(event.data)) return undefined;
+  const data = event.data as Record<string, unknown>;
+  return data.kernel === "claude-code" &&
+    data.from === "auto-review" &&
+    data.to === "default" &&
+    typeof data.reason === "string"
+    ? data.reason
+    : undefined;
 }

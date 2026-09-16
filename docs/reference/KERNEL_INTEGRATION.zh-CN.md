@@ -147,9 +147,16 @@ Claude Opus 5 和 Opus 4.8 按[原生模型要求](https://code.claude.com/docs/
 直接声明支持自动审查；DeepSeek v4 Flash 通过 Claude Agent SDK 使用 OpenGrove Provider 时也明确支持。
 这些模型没有缓存或缓存过期也可选。其他模型及别名使用 SDK 模型记录；原生默认模型
 使用 `default` 记录及其解析后的型号，支持情况未知时置灰。执行时直接开启原生模式，不等待模型列表查询；
-开启失败显示原因及恢复方法：改选请求批准，或修正服务商/账号配置；不会偷偷改动已保存的权限。
-实际模式不是 `auto` 时拒绝继续。模型资料刷新在开启操作之前启动，不等待列表返回，供选择器使用。
-Claude 执行统一使用 Agent SDK。
+开启失败或实际模式不是 `auto` 时，在同一个原生会话中请求切换到 `default`。只有收到请求批准模式的
+成功确认，才显示包含原因的提醒并继续当前任务，不会重发用户输入。员工及匹配的共享绑定会保存为
+请求批准，不新增用户覆盖标记；聊天选择器和匹配的排队消息也改为请求批准。运行期间用户新选的权限
+优先于旧任务的恢复结果。用户取消时不触发自动切换；请求批准也启用失败时，报告两次失败原因。
+模型资料刷新在开启操作之前启动，不等待列表返回。Claude 执行统一使用 Agent SDK。
+
+Auto 是否可启用不只由模型名字决定：原生设置可禁用它，Anthropic 服务端也可关闭或拒绝启用。
+这是上游的失败条件，不代表 OpenGrove Provider 已出现拒绝。当前
+[官方要求](https://code.claude.com/docs/en/permission-modes#eliminate-permission-prompts-with-auto-mode)
+列明所有套餐均可使用；OpenGrove 不按套餐名字推断账号是否可用。
 创建员工、同步内置员工、权限迁移、导入 App 和恢复 App 默认设置时，与权限选择器读取同一个
 Claude 配置目录中的缓存。自定义 `kernelPathOverrides["claude-code"].configHome` 同时用于判断
 选项是否可用和计算默认档位。
@@ -177,7 +184,7 @@ Host 的 YAML 校验。未传权限档位时保留原生审批及 YOLO 设置，
 也不评价 smart 模型的审查结果。这些权限行为已针对 Hermes `v2026.9.7` 验证。
 
 全局 PM 及各 App 内的 PM 绑定默认使用**帮我批准**，继续使用 Claude Agent SDK 和 DeepSeek v4 Flash。
-这个明确的产品默认值不依赖本机模型缓存；仍须成功启用原生 Auto 后才提交用户输入。其他新员工和聊天优先选择**帮我批准**：
+这个明确的产品默认值不依赖本机模型缓存；提交用户输入前仍须确认原生 Auto，或在失败后确认已切到请求批准。其他新员工和聊天优先选择**帮我批准**：
 Codex、Hermes 默认 auto；Claude Opus 5、Opus 4.8 和 DeepSeek v4 Flash 按上述声明默认 auto，其他 Claude SDK 模型
 需要缓存确认支持，否则新员工默认请求批准；
 Pi、Kimi、OpenCode 默认请求批准。OpenClaw 仍由 Gateway 管理，远程权限由远端决定。

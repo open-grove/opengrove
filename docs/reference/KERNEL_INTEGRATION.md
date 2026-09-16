@@ -174,10 +174,19 @@ DeepSeek v4 Flash is also declared supported through Claude Agent SDK on the Ope
 These models remain selectable with an empty or stale SDK cache. Other models and aliases use SDK model
 records; the native default uses the `default` record, including its resolved model. Unknown support
 disables the picker option. Execution directly activates the requested native mode without waiting
-for a model-catalog lookup. Activation failures are reported, and an effective mode other than
-`auto` is rejected. Model metadata refresh starts before activation and remains best-effort without
-blocking user input on a catalog response. Activation errors explain how to select Ask or correct the
-Provider/account configuration; they never silently change the saved permission. Claude execution uses the Agent SDK.
+for a model-catalog lookup. If Auto activation fails or the reported mode differs from `auto`, the
+Adapter asks the same native session to switch to `default`. Only an acknowledged Ask transition emits
+a visible warning containing the reason and continues the turn; it does not replay the user's prompt.
+The Host saves Ask for the affected Employee and matching shared bindings without creating user-override
+markers; the chat picker and matching queued messages also switch to Ask. A later user selection takes
+priority over recovery from an older turn. Cancellation never initiates fallback. If Ask cannot be enabled,
+the turn fails with both causes instead of claiming recovery. Model metadata refresh starts before activation
+and remains best-effort without blocking user input on a catalog response. Claude execution uses the Agent SDK.
+
+Auto availability is not determined solely by a model name: native settings can disable it, and Anthropic
+can disable or reject it server-side. These are upstream failure conditions, not evidence that the OpenGrove
+Provider rejects Auto. Current [native requirements](https://code.claude.com/docs/en/permission-modes#eliminate-permission-prompts-with-auto-mode)
+list all plans as eligible; OpenGrove does not infer account eligibility from a subscription label.
 Employee creation, seed synchronization, permission migration, App imports and restoring App defaults
 read this cache from the same configured Claude directory as the permission picker. A custom
 `kernelPathOverrides["claude-code"].configHome` therefore applies to both availability and defaults.
@@ -210,7 +219,7 @@ the smart reviewer's model decisions. These permissions were verified against He
 
 The global PM and its App-scoped bindings default to **Help me approve**, retaining Claude Agent SDK
 and DeepSeek v4 Flash. This explicit product default does not depend on the local model cache;
-native Auto activation must still succeed before the user prompt is submitted. Other new Employees and chats
+before submitting user input, the native session must acknowledge Auto or the Ask fallback. Other new Employees and chats
 prefer **Help me approve** when supported: Codex and Hermes use auto review; Claude Opus 5,
 Opus 4.8 and DeepSeek v4 Flash use the declared support above, while other Claude SDK models require cached support.
 Without either, a new Employee starts with Ask for approval. Pi, Kimi and OpenCode start

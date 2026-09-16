@@ -1920,6 +1920,12 @@ await writeFile(
     [],
     "runtime diagnostics remain available to Ops but must not render as chat content",
   );
+  const autoFallbackMessage = {id: "auto-fallback", role: "assistant", text: "", context: null, pending: true, parts: []};
+  applyStreamEventToMessage(autoFallbackMessage, {type: "runtime.diagnostic", runId: "auto-fallback", name: "claude.auto_review.fallback", data: {kernel: "claude-code", from: "auto-review", to: "default", reason: "auto mode disabled by settings"}});
+  assert.equal(autoFallbackMessage.pending, true, "fallback continues the current turn");
+  const fallbackNotes = normalizeMessagePartsForDisplay(autoFallbackMessage.parts);
+  assert.ok(fallbackNotes.some((part) => part.type === "note" && part.tone === "warn" && part.text.includes("Ask for approval") && part.text.includes("auto mode disabled by settings")), "Auto fallback must be a visible warning, not hidden diagnostic telemetry");
+
   const actionableErrorMessage = {
     id: "message-actionable-runtime-error",
     role: "assistant",

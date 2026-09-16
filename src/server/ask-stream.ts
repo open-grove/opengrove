@@ -1,3 +1,4 @@
+import { autoReviewFallbackReason } from "../runtime-access.js";
 import type { ServerResponse } from "node:http";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -353,6 +354,7 @@ async function executeBackgroundAskRun(state: BridgeState, run: BackgroundAskRun
 }
 
 function recordAskRunEvent(run: BackgroundAskRun, payload: BridgeAskPayload, event: AgentEvent): void {
+  if (autoReviewFallbackReason(event) !== undefined) payload.accessMode = "default";
   attachModelId([event], payload.model);
   run.events.push(event);
   if (event.type === "approval.requested") {

@@ -44,6 +44,9 @@ import { normalizeReleaseEmployee } from "../server/app-release.js";
 import { dispatchBridgeRoutes } from "../server/router.js";
 import { createBridgeRoutes } from "../server/routes/bridge-registry.js";
 import { bridgeSettingsPath } from "../server/bridge-settings-store.js";
+import { recordRoomRunEvent } from "../server/room-runs.js";
+import { persistedRoomRunParts } from "../server/room-runs/persisted-parts.js";
+import { OPENGROVE_PM_MEMBER_ID } from "../rooms/room-pm.js";
 import { createJsonStateStore } from "../storage/json-state-store.js";
 
 function context(cwd: string): AgentTurnRequest["context"] {
@@ -386,26 +389,29 @@ test("Pi full access preserves explicit native and Host tool denials", async () 
 test("Claude auto review uses native activation without a blocking model catalog lookup", async () => {
   const cwd = mkdtempSync(join(tmpdir(), "opengrove-claude-permissions-"));
   for (const scenario of ["supported", "unsupported-model", "org-denied", "wrong-effective-mode"] as const) {
-    let submitted = false;
+    let submitted = 0;
+    let queries = 0;
     let acknowledged = false;
     let closed = false;
     let selectedMode: unknown;
+    const modeChanges: string[] = [];
     let catalogStarted = false;
     const query: ClaudeAgentSdkQueryFunction = (params) => {
+      queries++;
       selectedMode = params.options?.permissionMode;
       async function* messages() {
         assert.equal(typeof params.prompt, "object");
         if (typeof params.prompt !== "string")
           for await (const _input of params.prompt) {
             assert.equal(acknowledged, true, "user input must wait for the native approval-mode acknowledgement");
-            submitted = true;
+            submitted++;
           }
         yield {
           type: "system",
           subtype: "init",
           session_id: "session",
           model: "claude-test",
-          permissionMode: scenario === "wrong-effective-mode" ? "default" : "auto",
+          permissionMode: scenario === "wrong-effective-mode" ? "default" : modeChanges.at(-1),
           claude_code_version: "test",
           tools: [],
           mcp_servers: [],
@@ -420,10 +426,11 @@ test("Claude auto review uses native activation without a blocking model catalog
           return [{ value: "claude-discovered", supportsAutoMode: true }];
         },
         setPermissionMode: async (mode: string) => {
-          assert.equal(mode, "auto");
+          modeChanges.push(mode);
           assert.equal(catalogStarted, true, "model metadata refresh starts even if Auto activation fails");
-          if (scenario === "org-denied") throw new Error("auto mode disabled by organization");
-          if (scenario === "unsupported-model") throw new Error("auto mode unavailable for this model");
+          if (mode === "auto" && scenario === "org-denied") throw new Error("auto mode disabled by settings");
+          if (mode === "auto" && scenario === "unsupported-model")
+            throw new Error("auto mode unavailable for this model");
           acknowledged = true;
         },
         close: () => {
@@ -447,17 +454,136 @@ test("Claude auto review uses native activation without a blocking model catalog
       events.push(event);
     assert.equal(selectedMode, "auto");
     assert.equal(closed, true);
-    assert.equal(submitted, scenario === "supported" || scenario === "wrong-effective-mode");
+    assert.equal(submitted, 1, "fallback must not replay user input");
+    assert.equal(queries, 1, "fallback stays in the original native session");
     assert.equal(
       events.some((event) => event.type === "error"),
-      scenario !== "supported",
+      false,
     );
-    if (scenario !== "supported") {
-      const error = events.find((event) => event.type === "error");
-      assert.ok(error?.type === "error" && error.message.includes("claude_auto_review_activation_failed"));
+    assert.deepEqual(modeChanges, scenario === "supported" ? ["auto"] : ["auto", "default"]);
+    const fallback = events.find(
+      (event) => event.type === "runtime.diagnostic" && event.name === "claude.auto_review.fallback",
+    );
+    assert.equal(Boolean(fallback), scenario !== "supported");
+    if (fallback?.type === "runtime.diagnostic") {
+      assert.equal(fallback.data.to, "default");
+      assert.equal(typeof fallback.data.reason, "string");
     }
     assert.equal(existsSync(join(cwd, scenario, "opengrove-models-cache.json")), true);
   }
+});
+
+for (const scenario of ["ask-rejected", "canceled"] as const) {
+  test(`Claude Auto fallback never claims success when ${scenario}`, async () => {
+    const cwd = mkdtempSync(join(tmpdir(), "opengrove-auto-fallback-"));
+    const controller = new AbortController();
+    const modes: string[] = [];
+    let submitted = 0;
+    const query: ClaudeAgentSdkQueryFunction = (params) =>
+      Object.assign(
+        (async function* () {
+          if (typeof params.prompt !== "string") for await (const _input of params.prompt) submitted++;
+        })(),
+        {
+          setPermissionMode: async (mode: string) => {
+            modes.push(mode);
+            if (scenario === "canceled") controller.abort();
+            throw new Error(mode === "auto" ? "auto mode disabled by settings" : "connection closed");
+          },
+          close() {},
+        },
+      ) as unknown as ReturnType<ClaudeAgentSdkQueryFunction>;
+    const runtime = new ClaudeAgentSdkRuntime({ cwd, query });
+    const events: AgentEvent[] = [];
+    for await (const event of runtime.runTurn({
+      input: "hello",
+      context: context(cwd),
+      tools: [],
+      accessMode: "auto-review",
+      signal: controller.signal,
+    }))
+      events.push(event);
+    assert.equal(submitted, 0);
+    assert.deepEqual(modes, scenario === "canceled" ? ["auto"] : ["auto", "default"]);
+    assert.equal(
+      events.some((event) => event.type === "runtime.diagnostic" && event.name === "claude.auto_review.fallback"),
+      false,
+    );
+    assert.ok(events.some((event) => event.type === "error"));
+    if (scenario === "ask-rejected")
+      assert.ok(
+        events.some(
+          (event) =>
+            event.type === "error" &&
+            event.message.includes("claude_auto_review_fallback_failed") &&
+            event.message.includes("connection closed"),
+        ),
+      );
+    rmSync(cwd, { recursive: true, force: true });
+  });
+}
+
+test("Auto fallback updates the Employee and PM bindings without inventing a user edit", async () => {
+  const cwd = mkdtempSync(join(tmpdir(), "opengrove-auto-employee-fallback-"));
+  const statePath = join(cwd, "state.sqlite");
+  const state = createBridgeState({ statePath });
+  const employee = state.app.rooms.listMembers().find((member) => member.id === OPENGROVE_PM_MEMBER_ID)!;
+  assert.equal(employee.accessMode, "auto-review");
+  const binding = { ...employee, id: "member-app-test-pm", appId: "test" };
+  state.app.rooms.upsertMember(binding);
+  const event: AgentEvent = {
+    type: "runtime.diagnostic",
+    runId: "auto-fallback-test",
+    at: new Date().toISOString(),
+    name: "claude.auto_review.fallback",
+    data: { kernel: "claude-code", from: "auto-review", to: "default", reason: "auto mode disabled by settings" },
+  };
+  const record = (captured: typeof employee) =>
+    recordRoomRunEvent({
+      state,
+      activeExecutionState: state,
+      eventSourceApp: state.app,
+      event,
+      events: [],
+      model: captured.model,
+      sessionId: "fallback-session",
+      userInput: "hello",
+      ...{ employee: captured },
+    });
+  record(binding);
+  for (const id of [employee.id, binding.id]) {
+    const saved = state.app.rooms.listMembers().find((member) => member.id === id)!;
+    assert.equal(saved.accessMode, "default");
+    assert.deepEqual(saved.userOverrides, employee.userOverrides);
+  }
+  const parts = persistedRoomRunParts([event], event.runId, "", { language: "zh-CN" });
+  assert.ok(
+    parts.some(
+      (part) =>
+        part.tone === "warn" &&
+        String(part.text).includes("请求批准") &&
+        String(part.text).includes("auto mode disabled by settings"),
+    ),
+  );
+  await state.store.close?.();
+  const restored = createBridgeState({ statePath });
+  assert.equal(restored.app.rooms.listMembers().find((member) => member.id === employee.id)?.accessMode, "default");
+  // A late event from an earlier turn must not overwrite a newer selection.
+  restored.app.rooms.patchMember(employee.id, { accessMode: "full-access" });
+  recordRoomRunEvent({
+    state: restored,
+    activeExecutionState: restored,
+    eventSourceApp: restored.app,
+    event,
+    events: [],
+    model: employee.model,
+    sessionId: "fallback-session",
+    userInput: "hello",
+    ...{ employee },
+  });
+  assert.equal(restored.app.rooms.listMembers().find((member) => member.id === employee.id)?.accessMode, "full-access");
+  await restored.store.close?.();
+  rmSync(cwd, { recursive: true, force: true });
 });
 
 for (const scenario of ["supported", "unsupported", "unverified", "missing"] as const) {

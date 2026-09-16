@@ -1,3 +1,4 @@
+import type { RoomChannelMember, RoomChannelStore } from "../rooms/channel-store.js";
 import { resolveRuntimeAccessModeSelection, runtimeAccessIssue } from "../runtime-access.js";
 import type { RuntimeAccessMode } from "../core.js";
 import { claudeAutoReviewModelIds, readClaudeModelsCache } from "../runtime/claude-models-cache.js";
@@ -27,4 +28,23 @@ export function employeeAccessModeIssue(
     mode,
     kernel === "claude-code" && claudeAutoReviewModelIds(readClaudeModelsCache(configHome)).includes(model),
   );
+}
+
+/** Persist runtime recovery separately from user overrides; stale turns cannot replace newer choices. */
+export function applyEmployeeAutoReviewFallback(rooms: RoomChannelStore, captured: RoomChannelMember): boolean {
+  if (captured.kernel !== "claude-code" || captured.source === "remote") return false;
+  const current = rooms.listMembers().find((member) => member.id === captured.id);
+  const matches = (member: RoomChannelMember) =>
+    member.source !== "remote" &&
+    member.kernel === captured.kernel &&
+    member.model === captured.model &&
+    member.providerId === captured.providerId &&
+    member.accessMode === "auto-review";
+  if (!current || !matches(current)) return false;
+  const definitionId = current.employeeDefinitionId;
+  for (const member of rooms.listMembers()) {
+    if (member.id !== current.id && (!definitionId || member.employeeDefinitionId !== definitionId)) continue;
+    if (matches(member)) rooms.patchMember(member.id, { accessMode: "default" });
+  }
+  return true;
 }

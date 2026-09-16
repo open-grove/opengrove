@@ -6,6 +6,8 @@ to draft `docs/releases/vX.Y.Z.md`.
 
 ## Unreleased
 
+- If Claude Auto cannot be enabled, switch to Ask after native confirmation, show the reason, and remember the recovered permission for later turns.
+
 - Run Claude exclusively through the Agent SDK; remove the legacy CLI mode switch, execution path and dedicated compatibility tests while retaining SDK Engine discovery and Login support.
 
 - Keep App Employee defaults independent of user edits, so restoring defaults after a restart restores the App declaration or product fallback instead of the user's last permission choice.

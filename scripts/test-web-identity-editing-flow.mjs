@@ -21,6 +21,31 @@ try {
     target: "es2022",
     outfile: bundlePath,
     nodePaths: [join(projectRoot, "node_modules")],
+    plugins: [
+      {
+        name: "thread-transport-fixture",
+        setup(plugin) {
+          plugin.onResolve({ filter: /runtime\/thread-runtime$/ }, () => ({
+            path: "thread-transport",
+            namespace: "fixture",
+          }));
+          plugin.onLoad({ filter: /.*/, namespace: "fixture" }, () => ({
+            loader: "js",
+            contents: `
+        export async function runThreadTurn(payload, handlers) {
+          window.__lastTurnMode = payload.accessMode;
+          await new Promise(resolve => {
+            window.__emitAutoFallback = () => handlers.onAgentEvent({type:"agent.event", event:{type:"runtime.diagnostic", runId:"fallback", name:"claude.auto_review.fallback", data:{kernel:"claude-code", from:"auto-review", to:"default", reason:"auto mode disabled by settings"}}});
+            window.__finishTurn = resolve;
+          });
+          return {ok:true, answer:"done", events:[]};
+        }
+        export async function attachThreadTurn() { throw new Error("unexpected replay"); }
+      `,
+          }));
+        },
+      },
+    ],
   });
   await writeFile(htmlPath, fixtureHtml(), "utf8");
 
@@ -28,6 +53,7 @@ try {
   try {
     const page = await browser.newPage({ viewport: { width: 1180, height: 860 } });
     await page.goto(pathToFileURL(htmlPath).href);
+    await testAutoFallbackChatSelection(page);
     await testEmployeePageFlow(page);
     await testEmployeeAccessKernelSwitch(page);
     await testEmployeeModelPermissionAutosave(page);
@@ -49,6 +75,34 @@ try {
   }
 } finally {
   await rm(tempDir, { recursive: true, force: true });
+}
+
+async function testAutoFallbackChatSelection(page) {
+  await renderFixture(page, "auto-fallback");
+  await page.getByRole("button", { name: "Send", exact: true }).click();
+  await page.waitForFunction(() => typeof window.__emitAutoFallback === "function");
+  await page.getByRole("button", { name: "Queue", exact: true }).click();
+  await page.evaluate(() => window.__emitAutoFallback());
+  await page.waitForFunction(() => document.querySelector("#fallback-mode")?.textContent === "default");
+  assert.match(await page.locator("#fallback-notes").textContent(), /请求批准.*auto mode disabled by settings/);
+  await page.evaluate(() => window.__finishTurn());
+  await page.waitForFunction(() => window.__lastTurnMode === "default");
+  await page.evaluate(() => window.__finishTurn());
+  await page.waitForFunction(() => document.querySelector("#fallback-running")?.textContent === "false");
+
+  await renderFixture(page, "auto-fallback");
+  await page.getByRole("button", { name: "Send", exact: true }).click();
+  await page.waitForFunction(() => typeof window.__emitAutoFallback === "function");
+  await page.getByRole("button", { name: "Full", exact: true }).click();
+  await page.waitForFunction(() => document.querySelector("#fallback-mode")?.textContent === "full-access");
+  await page.evaluate(() => window.__emitAutoFallback());
+  assert.equal(
+    await page.locator("#fallback-mode").textContent(),
+    "full-access",
+    "a late recovery must not replace a newer user selection",
+  );
+  await page.evaluate(() => window.__finishTurn());
+  await page.waitForFunction(() => document.querySelector("#fallback-running")?.textContent === "false");
 }
 
 async function testNewEmployeePermissionDefaults(page) {
@@ -490,6 +544,10 @@ async function renderFixture(page, mode) {
       document.querySelector("#identity-root")?.getAttribute("data-fixture-revision") === String(nextRevision),
     revision,
   );
+  if (mode === "auto-fallback") {
+    await page.locator("#fallback-mode").waitFor();
+    return;
+  }
   if (
     mode === "employee-page" ||
     mode === "employee-unavailable-kernel" ||
@@ -870,6 +928,9 @@ function entrySource() {
   return `
     import React from "react";
     import { createRoot } from "react-dom/client";
+    import { QueryClient } from "@tanstack/react-query";
+    import { useAppThreadRunner } from ${JSON.stringify(resolve(projectRoot, "web/src/app-thread-runner.ts"))};
+    import { translate } from ${JSON.stringify(resolve(projectRoot, "web/src/i18n.ts"))};
     import { EmployeeSettingsDialog, EmployeeSettingsSurface } from ${JSON.stringify(resolve(projectRoot, "web/src/components/rooms/employee-settings-surface.tsx"))};
     import { EmployeeDialog } from ${JSON.stringify(resolve(projectRoot, "web/src/components/rooms/employee-dialog.tsx"))};
     import { RoomMemberAvatar } from ${JSON.stringify(resolve(projectRoot, "web/src/components/rooms/member-avatar.tsx"))};
@@ -1151,6 +1212,27 @@ function entrySource() {
       ) : field;
     }
 
+    function AutoFallbackFixture() {
+      const [accessMode, setAccessMode] = React.useState("auto-review");
+      const [messages, setMessages] = React.useState([]);
+      const [queryClient] = React.useState(() => new QueryClient());
+      const counter = React.useRef(0);
+      const runner = useAppThreadRunner({
+        t: translate, queryClient, threadId: "chat", messages, threads: [], runs: [], events: [], model: "deepseek-v4-flash", kernel: "claude-code", providerId: "fixture", accessMode, setAccessMode, reasoningEffort:"medium", responseSpeed:"standard", budgetLimitUsd:null, planMode:false, goalMode:false, setSending() {},
+        appendMessageToThread(thread, role, text) {const id = "message-" + (++counter.current); setMessages(items => [...items, {id, role, text, parts:[], context:null, pending:false}]); return id;},
+        appendAssistantMessageToThread() {const id = "message-" + (++counter.current); setMessages(items => [...items, {id, role:"assistant", text:"", parts:[], context:null, pending:true}]); return id;},
+        updateThreadMessage(thread, id, update) {setMessages(items => items.map(item => {if(item.id !== id) return item; const next = structuredClone(item); update(next); return next;}));},
+      });
+      return <section>
+        <button onClick={() => void runner.runAskTurn("hello", null, [])}>Send</button>
+        <button onClick={() => setAccessMode("full-access")}>Full</button>
+        <button onClick={() => runner.queuePrompt("chat", "queued")}>Queue</button>
+        <output id="fallback-mode">{accessMode}</output>
+        <output id="fallback-running">{String(runner.activeThreadIsRunning)}</output>
+        <div id="fallback-notes">{messages.flatMap(message => message.parts).filter(part => part.type === "note" && part.tone === "warn").map(part => part.text).join(" ")}</div>
+      </section>;
+    }
+
     function FixtureCommit({ revision }) {
       React.useLayoutEffect(() => {
         rootElement.dataset.fixtureRevision = String(revision);
@@ -1187,6 +1269,9 @@ function entrySource() {
           </ConfirmProvider>
         </ToastProvider>,
       );
+      window.__emitAutoFallback = undefined;
+      window.__finishTurn = undefined;
+      if (mode === "auto-fallback") renderWithToasts(<AutoFallbackFixture />);
       if (mode === "employee-page") renderWithToasts(<EmployeeFixture dialog={false} reasoningState="default" />);
       if (mode === "employee-reasoning-kernel-switch") renderWithToasts(<EmployeeFixture dialog={false} />);
       if (mode === "employee-reasoning-loading") renderWithToasts(<EmployeeFixture dialog={false} reasoningState="loading" />);
