@@ -3,6 +3,24 @@ import { hostOperationById, type HostOperationInput, type HostOperationOutput } 
 import type { HostOperationRequest, OpenGroveRequestOptions } from "../transport.js";
 
 export const openGroveClientOperationIds = [
+  "host.host.bootstrap",
+  "run.event.list",
+  "run.run.list",
+  "run.session.list",
+  "run.execution.list",
+  "run.direct.cancel",
+  "run.direct.guide",
+  "run.direct.compact",
+  "interaction.approval.list",
+  "interaction.approval.approve",
+  "interaction.approval.reject",
+  "interaction.approval.cancel",
+  "interaction.question.list",
+  "interaction.question.answer",
+  "interaction.question.decline",
+  "interaction.question.cancel",
+  "artifact.artifact.create",
+  "artifact.artifact.get",
   "auth.email-code.create",
   "auth.session.create",
   "auth.session.get",
@@ -15,7 +33,24 @@ export const openGroveClientOperationIds = [
   "app.release.abandon",
   "app.release.keep-local",
   "app.update.schedule",
+  "room.room.list",
+  "room.room.create",
+  "room.room.update",
+  "room.room.read",
+  "room.message.list",
   "room.message.create",
+  "room.message.record",
+  "room.message.cancel",
+  "room.message.update",
+  "room.message.delete",
+  "room.event.list",
+  "room.direct.open",
+  "room.member.add",
+  "room.member.join",
+  "room.member.remove",
+  "employee.employee.upsert",
+  "employee.employee.update",
+  "employee.employee.restore-defaults",
   "network.account.inspect",
   "network.account.connect",
   "network.contact.add",
@@ -24,6 +59,259 @@ export const openGroveClientOperationIds = [
 export function bindOpenGroveClient(request: HostOperationRequest) {
   return {
     request,
+    host: {
+      discovery: {
+        bootstrap: (
+          options?: OpenGroveRequestOptions,
+        ): Promise<HostOperationOutput<(typeof hostOperationById)["host.host.bootstrap"]>> =>
+          request(hostOperationById["host.host.bootstrap"], {
+            signal: options?.signal,
+          }),
+      },
+    },
+    runs: {
+      events: {
+        list: (
+          input: HostOperationInput<(typeof hostOperationById)["run.event.list"]> = {},
+          options?: OpenGroveRequestOptions,
+        ): Promise<HostOperationOutput<(typeof hostOperationById)["run.event.list"]>> =>
+          request(hostOperationById["run.event.list"], {
+            query: {
+              beforeCursor: input.beforeCursor,
+              cursor: input.cursor,
+              limit: input.limit,
+              runId: input.runId,
+              waitMs: input.waitMs,
+            },
+            signal: options?.signal,
+          }),
+      },
+      collection: {
+        list: (
+          input: HostOperationInput<(typeof hostOperationById)["run.run.list"]> = {},
+          options?: OpenGroveRequestOptions,
+        ): Promise<HostOperationOutput<(typeof hostOperationById)["run.run.list"]>> =>
+          request(hostOperationById["run.run.list"], {
+            query: {
+              afterRevision: input.afterRevision,
+              limit: input.limit,
+              sessionId: input.sessionId,
+              taskState: input.taskState,
+            },
+            signal: options?.signal,
+          }),
+      },
+      sessions: {
+        list: (
+          input: HostOperationInput<(typeof hostOperationById)["run.session.list"]> = {},
+          options?: OpenGroveRequestOptions,
+        ): Promise<HostOperationOutput<(typeof hostOperationById)["run.session.list"]>> =>
+          request(hostOperationById["run.session.list"], {
+            query: {
+              activity: input.activity,
+              limit: input.limit,
+              status: input.status,
+            },
+            signal: options?.signal,
+          }),
+      },
+      executions: {
+        list: (
+          input: HostOperationInput<(typeof hostOperationById)["run.execution.list"]> = {},
+          options?: OpenGroveRequestOptions,
+        ): Promise<HostOperationOutput<(typeof hostOperationById)["run.execution.list"]>> =>
+          request(hostOperationById["run.execution.list"], {
+            query: {
+              afterRevision: input.afterRevision,
+              kind: input.kind,
+              limit: input.limit,
+              runId: input.runId,
+              sessionId: input.sessionId,
+            },
+            signal: options?.signal,
+          }),
+      },
+      direct: {
+        cancel: (
+          input: HostOperationInput<(typeof hostOperationById)["run.direct.cancel"]> = {},
+          options?: OpenGroveRequestOptions,
+        ): Promise<HostOperationOutput<(typeof hostOperationById)["run.direct.cancel"]>> =>
+          request(hostOperationById["run.direct.cancel"], {
+            body: {
+              runId: input.runId,
+              threadId: input.threadId,
+            },
+            signal: options?.signal,
+          }),
+        guide: (
+          input: HostOperationInput<(typeof hostOperationById)["run.direct.guide"]>,
+          options?: OpenGroveRequestOptions,
+        ): Promise<HostOperationOutput<(typeof hostOperationById)["run.direct.guide"]>> =>
+          request(hostOperationById["run.direct.guide"], {
+            body: {
+              instruction: input.instruction,
+              runId: input.runId,
+              threadId: input.threadId,
+            },
+            signal: options?.signal,
+          }),
+        compact: (
+          input: HostOperationInput<(typeof hostOperationById)["run.direct.compact"]>,
+          options?: OpenGroveRequestOptions,
+        ): Promise<HostOperationOutput<(typeof hostOperationById)["run.direct.compact"]>> =>
+          request(hostOperationById["run.direct.compact"], {
+            body: {
+              reason: input.reason,
+              threadId: input.threadId,
+            },
+            signal: options?.signal,
+          }),
+      },
+    },
+    interactions: {
+      approvals: {
+        list: (
+          input: HostOperationInput<(typeof hostOperationById)["interaction.approval.list"]> = {},
+          options?: OpenGroveRequestOptions,
+        ): Promise<HostOperationOutput<(typeof hostOperationById)["interaction.approval.list"]>> =>
+          request(hostOperationById["interaction.approval.list"], {
+            query: {
+              limit: input.limit,
+              status: input.status,
+            },
+            signal: options?.signal,
+          }),
+        approve: (
+          input: HostOperationInput<(typeof hostOperationById)["interaction.approval.approve"]>,
+          options?: OpenGroveRequestOptions,
+        ): Promise<HostOperationOutput<(typeof hostOperationById)["interaction.approval.approve"]>> =>
+          request(hostOperationById["interaction.approval.approve"], {
+            params: {
+              approvalId: input.approvalId,
+            },
+            body: {
+              response: input.response,
+            },
+            signal: options?.signal,
+          }),
+        reject: (
+          input: HostOperationInput<(typeof hostOperationById)["interaction.approval.reject"]>,
+          options?: OpenGroveRequestOptions,
+        ): Promise<HostOperationOutput<(typeof hostOperationById)["interaction.approval.reject"]>> =>
+          request(hostOperationById["interaction.approval.reject"], {
+            params: {
+              approvalId: input.approvalId,
+            },
+            body: {
+              response: input.response,
+            },
+            signal: options?.signal,
+          }),
+        cancel: (
+          input: HostOperationInput<(typeof hostOperationById)["interaction.approval.cancel"]>,
+          options?: OpenGroveRequestOptions,
+        ): Promise<HostOperationOutput<(typeof hostOperationById)["interaction.approval.cancel"]>> =>
+          request(hostOperationById["interaction.approval.cancel"], {
+            params: {
+              approvalId: input.approvalId,
+            },
+            body: {
+              response: input.response,
+            },
+            signal: options?.signal,
+          }),
+      },
+      questions: {
+        list: (
+          input: HostOperationInput<(typeof hostOperationById)["interaction.question.list"]> = {},
+          options?: OpenGroveRequestOptions,
+        ): Promise<HostOperationOutput<(typeof hostOperationById)["interaction.question.list"]>> =>
+          request(hostOperationById["interaction.question.list"], {
+            query: {
+              limit: input.limit,
+              status: input.status,
+            },
+            signal: options?.signal,
+          }),
+        answer: (
+          input: HostOperationInput<(typeof hostOperationById)["interaction.question.answer"]>,
+          options?: OpenGroveRequestOptions,
+        ): Promise<HostOperationOutput<(typeof hostOperationById)["interaction.question.answer"]>> =>
+          request(hostOperationById["interaction.question.answer"], {
+            params: {
+              questionId: input.questionId,
+            },
+            body: {
+              response: input.response,
+            },
+            signal: options?.signal,
+          }),
+        decline: (
+          input: HostOperationInput<(typeof hostOperationById)["interaction.question.decline"]>,
+          options?: OpenGroveRequestOptions,
+        ): Promise<HostOperationOutput<(typeof hostOperationById)["interaction.question.decline"]>> =>
+          request(hostOperationById["interaction.question.decline"], {
+            params: {
+              questionId: input.questionId,
+            },
+            body: {
+              response: input.response,
+            },
+            signal: options?.signal,
+          }),
+        cancel: (
+          input: HostOperationInput<(typeof hostOperationById)["interaction.question.cancel"]>,
+          options?: OpenGroveRequestOptions,
+        ): Promise<HostOperationOutput<(typeof hostOperationById)["interaction.question.cancel"]>> =>
+          request(hostOperationById["interaction.question.cancel"], {
+            params: {
+              questionId: input.questionId,
+            },
+            body: {
+              response: input.response,
+            },
+            signal: options?.signal,
+          }),
+      },
+    },
+    artifacts: {
+      collection: {
+        create: (
+          input: HostOperationInput<(typeof hostOperationById)["artifact.artifact.create"]> = {},
+          options?: OpenGroveRequestOptions,
+        ): Promise<HostOperationOutput<(typeof hostOperationById)["artifact.artifact.create"]>> =>
+          request(hostOperationById["artifact.artifact.create"], {
+            body: {
+              assets: input.assets,
+              data: input.data,
+              derivedFrom: input.derivedFrom,
+              id: input.id,
+              lineage: input.lineage,
+              parentId: input.parentId,
+              preview: input.preview,
+              provenance: input.provenance,
+              sourceRefs: input.sourceRefs,
+              status: input.status,
+              tags: input.tags,
+              title: input.title,
+              type: input.type,
+              variantOf: input.variantOf,
+              version: input.version,
+            },
+            signal: options?.signal,
+          }),
+        get: (
+          input: HostOperationInput<(typeof hostOperationById)["artifact.artifact.get"]>,
+          options?: OpenGroveRequestOptions,
+        ): Promise<HostOperationOutput<(typeof hostOperationById)["artifact.artifact.get"]>> =>
+          request(hostOperationById["artifact.artifact.get"], {
+            params: {
+              artifactId: input.artifactId,
+            },
+            signal: options?.signal,
+          }),
+      },
+    },
     auth: {
       emailCodes: {
         create: (
@@ -163,7 +451,82 @@ export function bindOpenGroveClient(request: HostOperationRequest) {
       },
     },
     rooms: {
+      collection: {
+        list: (
+          input: HostOperationInput<(typeof hostOperationById)["room.room.list"]> = {},
+          options?: OpenGroveRequestOptions,
+        ): Promise<HostOperationOutput<(typeof hostOperationById)["room.room.list"]>> =>
+          request(hostOperationById["room.room.list"], {
+            query: {
+              limit: input.limit,
+              totalLimit: input.totalLimit,
+            },
+            signal: options?.signal,
+          }),
+        create: (
+          input: HostOperationInput<(typeof hostOperationById)["room.room.create"]> = {},
+          options?: OpenGroveRequestOptions,
+        ): Promise<HostOperationOutput<(typeof hostOperationById)["room.room.create"]>> =>
+          request(hostOperationById["room.room.create"], {
+            body: {
+              adminMemberIds: input.adminMemberIds,
+              badge: input.badge,
+              generatedTitle: input.generatedTitle,
+              id: input.id,
+              memberIds: input.memberIds,
+              scope: input.scope,
+              title: input.title,
+            },
+            signal: options?.signal,
+          }),
+        update: (
+          input: HostOperationInput<(typeof hostOperationById)["room.room.update"]>,
+          options?: OpenGroveRequestOptions,
+        ): Promise<HostOperationOutput<(typeof hostOperationById)["room.room.update"]>> =>
+          request(hostOperationById["room.room.update"], {
+            params: {
+              roomId: input.roomId,
+            },
+            body: {
+              adminMemberIds: input.adminMemberIds,
+              archived: input.archived,
+              badge: input.badge,
+              generatedTitle: input.generatedTitle,
+              pinned: input.pinned,
+              title: input.title,
+            },
+            signal: options?.signal,
+          }),
+        read: (
+          input: HostOperationInput<(typeof hostOperationById)["room.room.read"]>,
+          options?: OpenGroveRequestOptions,
+        ): Promise<HostOperationOutput<(typeof hostOperationById)["room.room.read"]>> =>
+          request(hostOperationById["room.room.read"], {
+            params: {
+              roomId: input.roomId,
+            },
+            body: {
+              observedEventSeq: input.observedEventSeq,
+            },
+            signal: options?.signal,
+          }),
+      },
       messages: {
+        list: (
+          input: HostOperationInput<(typeof hostOperationById)["room.message.list"]>,
+          options?: OpenGroveRequestOptions,
+        ): Promise<HostOperationOutput<(typeof hostOperationById)["room.message.list"]>> =>
+          request(hostOperationById["room.message.list"], {
+            params: {
+              roomId: input.roomId,
+            },
+            query: {
+              afterSeq: input.afterSeq,
+              beforeSeq: input.beforeSeq,
+              limit: input.limit,
+            },
+            signal: options?.signal,
+          }),
         create: (
           input: HostOperationInput<(typeof hostOperationById)["room.message.create"]>,
           options?: OpenGroveRequestOptions,
@@ -180,6 +543,259 @@ export function bindOpenGroveClient(request: HostOperationRequest) {
               targetIds: input.targetIds,
               text: input.text,
               userMessageId: input.userMessageId,
+            },
+            signal: options?.signal,
+          }),
+        record: (
+          input: HostOperationInput<(typeof hostOperationById)["room.message.record"]>,
+          options?: OpenGroveRequestOptions,
+        ): Promise<HostOperationOutput<(typeof hostOperationById)["room.message.record"]>> =>
+          request(hostOperationById["room.message.record"], {
+            params: {
+              roomId: input.roomId,
+            },
+            body: {
+              deliveryKind: input.deliveryKind,
+              id: input.id,
+              inReplyToMessageId: input.inReplyToMessageId,
+              rootMessageId: input.rootMessageId,
+              selectedFile: input.selectedFile,
+              senderId: input.senderId,
+              senderName: input.senderName,
+              targetIds: input.targetIds,
+              text: input.text,
+            },
+            signal: options?.signal,
+          }),
+        cancel: (
+          input: HostOperationInput<(typeof hostOperationById)["room.message.cancel"]>,
+          options?: OpenGroveRequestOptions,
+        ): Promise<HostOperationOutput<(typeof hostOperationById)["room.message.cancel"]>> =>
+          request(hostOperationById["room.message.cancel"], {
+            params: {
+              messageId: input.messageId,
+              roomId: input.roomId,
+            },
+            signal: options?.signal,
+          }),
+        update: (
+          input: HostOperationInput<(typeof hostOperationById)["room.message.update"]>,
+          options?: OpenGroveRequestOptions,
+        ): Promise<HostOperationOutput<(typeof hostOperationById)["room.message.update"]>> =>
+          request(hostOperationById["room.message.update"], {
+            params: {
+              messageId: input.messageId,
+              roomId: input.roomId,
+            },
+            body: {
+              duration: input.duration,
+              finishedAt: input.finishedAt,
+              parts: input.parts,
+              runId: input.runId,
+              startedAt: input.startedAt,
+              status: input.status,
+              text: input.text,
+            },
+            signal: options?.signal,
+          }),
+        delete: (
+          input: HostOperationInput<(typeof hostOperationById)["room.message.delete"]>,
+          options?: OpenGroveRequestOptions,
+        ): Promise<HostOperationOutput<(typeof hostOperationById)["room.message.delete"]>> =>
+          request(hostOperationById["room.message.delete"], {
+            params: {
+              messageId: input.messageId,
+              roomId: input.roomId,
+            },
+            signal: options?.signal,
+          }),
+      },
+      events: {
+        list: (
+          input: HostOperationInput<(typeof hostOperationById)["room.event.list"]> = {},
+          options?: OpenGroveRequestOptions,
+        ): Promise<HostOperationOutput<(typeof hostOperationById)["room.event.list"]>> =>
+          request(hostOperationById["room.event.list"], {
+            query: {
+              afterEventSeq: input.afterEventSeq,
+              eventVersion: input.eventVersion,
+              limit: input.limit,
+              waitMs: input.waitMs,
+            },
+            signal: options?.signal,
+          }),
+      },
+      direct: {
+        open: (
+          input: HostOperationInput<(typeof hostOperationById)["room.direct.open"]>,
+          options?: OpenGroveRequestOptions,
+        ): Promise<HostOperationOutput<(typeof hostOperationById)["room.direct.open"]>> =>
+          request(hostOperationById["room.direct.open"], {
+            body: {
+              appId: input.appId,
+              member: input.member,
+              memberId: input.memberId,
+              roomId: input.roomId,
+              title: input.title,
+            },
+            signal: options?.signal,
+          }),
+      },
+      members: {
+        add: (
+          input: HostOperationInput<(typeof hostOperationById)["room.member.add"]>,
+          options?: OpenGroveRequestOptions,
+        ): Promise<HostOperationOutput<(typeof hostOperationById)["room.member.add"]>> =>
+          request(hostOperationById["room.member.add"], {
+            params: {
+              roomId: input.roomId,
+            },
+            body: {
+              accessMode: input.accessMode,
+              appId: input.appId,
+              availableSkillIds: input.availableSkillIds,
+              avatarDataUrl: input.avatarDataUrl,
+              avatarMode: input.avatarMode,
+              avatarSeed: input.avatarSeed,
+              color: input.color,
+              contextTokenBudget: input.contextTokenBudget,
+              defaultSkillIds: input.defaultSkillIds,
+              disabled: input.disabled,
+              employeeDefinitionId: input.employeeDefinitionId,
+              id: input.id,
+              inputSpec: input.inputSpec,
+              kernel: input.kernel,
+              lastActive: input.lastActive,
+              model: input.model,
+              name: input.name,
+              outputSpec: input.outputSpec,
+              providerId: input.providerId,
+              publicDescription: input.publicDescription,
+              publicSkills: input.publicSkills,
+              reasoningEffort: input.reasoningEffort,
+              role: input.role,
+              source: input.source,
+              sourceLabel: input.sourceLabel,
+              status: input.status,
+              storePackageId: input.storePackageId,
+              toolIds: input.toolIds,
+              visibility: input.visibility,
+              workspaceRoot: input.workspaceRoot,
+            },
+            signal: options?.signal,
+          }),
+        join: (
+          input: HostOperationInput<(typeof hostOperationById)["room.member.join"]>,
+          options?: OpenGroveRequestOptions,
+        ): Promise<HostOperationOutput<(typeof hostOperationById)["room.member.join"]>> =>
+          request(hostOperationById["room.member.join"], {
+            params: {
+              memberId: input.memberId,
+              roomId: input.roomId,
+            },
+            signal: options?.signal,
+          }),
+        remove: (
+          input: HostOperationInput<(typeof hostOperationById)["room.member.remove"]>,
+          options?: OpenGroveRequestOptions,
+        ): Promise<HostOperationOutput<(typeof hostOperationById)["room.member.remove"]>> =>
+          request(hostOperationById["room.member.remove"], {
+            params: {
+              memberId: input.memberId,
+              roomId: input.roomId,
+            },
+            signal: options?.signal,
+          }),
+      },
+    },
+    employees: {
+      collection: {
+        upsert: (
+          input: HostOperationInput<(typeof hostOperationById)["employee.employee.upsert"]>,
+          options?: OpenGroveRequestOptions,
+        ): Promise<HostOperationOutput<(typeof hostOperationById)["employee.employee.upsert"]>> =>
+          request(hostOperationById["employee.employee.upsert"], {
+            body: {
+              accessMode: input.accessMode,
+              appId: input.appId,
+              availableSkillIds: input.availableSkillIds,
+              avatarDataUrl: input.avatarDataUrl,
+              avatarMode: input.avatarMode,
+              avatarSeed: input.avatarSeed,
+              color: input.color,
+              contextTokenBudget: input.contextTokenBudget,
+              defaultSkillIds: input.defaultSkillIds,
+              disabled: input.disabled,
+              employeeDefinitionId: input.employeeDefinitionId,
+              id: input.id,
+              inputSpec: input.inputSpec,
+              kernel: input.kernel,
+              lastActive: input.lastActive,
+              model: input.model,
+              name: input.name,
+              outputSpec: input.outputSpec,
+              providerId: input.providerId,
+              publicDescription: input.publicDescription,
+              publicSkills: input.publicSkills,
+              reasoningEffort: input.reasoningEffort,
+              role: input.role,
+              source: input.source,
+              sourceLabel: input.sourceLabel,
+              status: input.status,
+              storePackageId: input.storePackageId,
+              toolIds: input.toolIds,
+              visibility: input.visibility,
+              workspaceRoot: input.workspaceRoot,
+            },
+            signal: options?.signal,
+          }),
+        update: (
+          input: HostOperationInput<(typeof hostOperationById)["employee.employee.update"]>,
+          options?: OpenGroveRequestOptions,
+        ): Promise<HostOperationOutput<(typeof hostOperationById)["employee.employee.update"]>> =>
+          request(hostOperationById["employee.employee.update"], {
+            params: {
+              memberId: input.memberId,
+            },
+            body: {
+              accessMode: input.accessMode,
+              appId: input.appId,
+              availableSkillIds: input.availableSkillIds,
+              avatarDataUrl: input.avatarDataUrl,
+              avatarMode: input.avatarMode,
+              avatarSeed: input.avatarSeed,
+              color: input.color,
+              contextTokenBudget: input.contextTokenBudget,
+              defaultSkillIds: input.defaultSkillIds,
+              disabled: input.disabled,
+              inputSpec: input.inputSpec,
+              kernel: input.kernel,
+              lastActive: input.lastActive,
+              model: input.model,
+              name: input.name,
+              outputSpec: input.outputSpec,
+              providerId: input.providerId,
+              publicDescription: input.publicDescription,
+              publicSkills: input.publicSkills,
+              reasoningEffort: input.reasoningEffort,
+              role: input.role,
+              source: input.source,
+              sourceLabel: input.sourceLabel,
+              status: input.status,
+              storePackageId: input.storePackageId,
+              toolIds: input.toolIds,
+              visibility: input.visibility,
+              workspaceRoot: input.workspaceRoot,
+            },
+            signal: options?.signal,
+          }),
+        restoreDefaults: (
+          input: HostOperationInput<(typeof hostOperationById)["employee.employee.restore-defaults"]>,
+          options?: OpenGroveRequestOptions,
+        ): Promise<HostOperationOutput<(typeof hostOperationById)["employee.employee.restore-defaults"]>> =>
+          request(hostOperationById["employee.employee.restore-defaults"], {
+            params: {
+              memberId: input.memberId,
             },
             signal: options?.signal,
           }),

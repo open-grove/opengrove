@@ -2,16 +2,33 @@
   "groups": {
     "app": "apps",
     "auth": "auth",
-    "room": "rooms"
+    "room": "rooms",
+    "employee": "employees",
+    "run": "runs",
+    "interaction": "interactions",
+    "artifact": "artifacts"
   },
   "resources": {
     "app.release": "releases",
     "app.update": "updates",
     "auth.email-code": "emailCodes",
     "auth.session": "session",
-    "room.message": "messages"
+    "room.message": "messages",
+    "room.room": "collection",
+    "room.event": "events",
+    "employee.employee": "collection",
+    "room.member": "members",
+    "host.host": "discovery",
+    "run.run": "collection",
+    "run.session": "sessions",
+    "run.execution": "executions",
+    "interaction.approval": "approvals",
+    "interaction.question": "questions",
+    "run.event": "events",
+    "artifact.artifact": "collection"
   },
   "operations": {
-    "app.release.keep-local": "keepLocal"
+    "app.release.keep-local": "keepLocal",
+    "employee.employee.restore-defaults": "restoreDefaults"
   }
 }

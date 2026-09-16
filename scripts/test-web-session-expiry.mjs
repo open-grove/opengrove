@@ -15,6 +15,7 @@ try {
   await build({
     stdin: {
       contents: `export { fetchJson, BridgeRequestError } from "./web/src/bridge-client";
+        export { OpenGroveClientError } from "@opengrove/client";
         export { isRoomsSessionRequiredError } from "./web/src/components/rooms/rooms-api";
         export { openAppSignInUrl } from "./web/src/compat/openapp-session";`,
       resolveDir: root,
@@ -25,9 +26,8 @@ try {
     format: "esm",
     outfile: bundle,
   });
-  const { fetchJson, BridgeRequestError, isRoomsSessionRequiredError, openAppSignInUrl } = await import(
-    pathToFileURL(bundle).href
-  );
+  const { fetchJson, BridgeRequestError, OpenGroveClientError, isRoomsSessionRequiredError, openAppSignInUrl } =
+    await import(pathToFileURL(bundle).href);
   globalThis.fetch = async () => new Response(JSON.stringify({ error: "authentication_required" }), { status: 401 });
   await assert.rejects(fetchJson("/rooms/events"), (error) => {
     assert.equal(
@@ -57,6 +57,18 @@ try {
   globalThis.window = { location: new URL("https://portal.example.test/instances/test/ui/") };
   globalThis.__OPENGROVE_API_BASE__ = "/instances/test/api";
   assert.equal(openAppSignInUrl(expired), "https://portal.example.test/");
+  for (const [status, message, code, needsSession, portal] of [
+    [401, "authentication_required", undefined, true, true],
+    [401, "session_required", undefined, true, false],
+    [401, "Please sign in", "authentication_required", true, true],
+    [401, "bridge_token_required", undefined, false, false],
+    [403, "authentication_required", undefined, false, false],
+    [503, "session_required", undefined, false, false],
+  ]) {
+    const error = new OpenGroveClientError(message, { status, code });
+    assert.equal(isRoomsSessionRequiredError(error), needsSession, `Client ${status} ${message}`);
+    assert.equal(openAppSignInUrl(error), portal ? "https://portal.example.test/" : undefined);
+  }
   for (const base of ["/api", "/instances/other/api", "https://foreign.example.test/instances/test/api"]) {
     globalThis.__OPENGROVE_API_BASE__ = base;
     assert.equal(openAppSignInUrl(expired), undefined, "only the current instance's same-origin gateway owns sign-in");
