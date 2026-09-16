@@ -1,6 +1,6 @@
 import { postJson } from "../../bridge";
 import { openGroveClient } from "../../opengrove-client";
-import { isOpenAppSessionRequiredError } from "../../compat/openapp-session";
+import { sessionRequiredCode } from "../../compat/session-required";
 import {
   normalizeClientConnectorHelpText,
   normalizeClientConnectorMessageParts,
@@ -115,7 +115,7 @@ export async function fetchRoomMessages(roomId: string, limit = 80): Promise<Roo
 }
 
 export function isRoomsSessionRequiredError(error: unknown): boolean {
-  return (error instanceof Error && error.message === "session_required") || isOpenAppSessionRequiredError(error);
+  return sessionRequiredCode(error) !== undefined;
 }
 
 export async function fetchRoomEvents(

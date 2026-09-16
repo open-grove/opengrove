@@ -869,7 +869,7 @@ export type RunEventPage = {
   hasOlder: boolean;
   historyTruncated: boolean;
   resetRequired: boolean;
-  longPollSupported: true;
+  longPollSupported: boolean;
   snapshot: boolean;
 };
 
@@ -8293,7 +8293,7 @@ export type RoomEventListResponses = {
     oldestAvailableEventSeq: number;
     hasMore: boolean;
     resetRequired: boolean;
-    longPollSupported: true;
+    longPollSupported: boolean;
   };
 };
 

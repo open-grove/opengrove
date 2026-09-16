@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { hostLongPollSupportSchema } from "./compat/host-http.js";
 import { roomMemberSchema, roomMemberInputSchema } from "./room-members.js";
 import { remoteRoomTaskSchema } from "./remote-agent.js";
 import { defineHostOperation, defineHostOperationGroup, defineHostOperationResource } from "./operation.js";
@@ -479,7 +480,7 @@ export const listRoomEventsOperation = defineHostOperation({
       oldestAvailableEventSeq: z.number().int().nonnegative(),
       hasMore: z.boolean(),
       resetRequired: z.boolean(),
-      longPollSupported: z.literal(true),
+      longPollSupported: hostLongPollSupportSchema,
     }),
   },
   errors: createRoomMessageOperation.errors,

@@ -94,7 +94,7 @@ await writeFile(
   import assert from "node:assert/strict";
   import React from "react";
   import { renderToStaticMarkup } from "react-dom/server";
-  import { applyRoomEvents, markServerRoomRead, mergeRoomsFromServerSnapshot, postServerRoomMessage, postServerRoomMessageWithReplyFallback, replaceRoomsFromServerSnapshot } from ${JSON.stringify(roomsApiImport)};
+  import { applyRoomEvents, fetchRoomEvents, markServerRoomRead, mergeRoomsFromServerSnapshot, postServerRoomMessage, postServerRoomMessageWithReplyFallback, replaceRoomsFromServerSnapshot } from ${JSON.stringify(roomsApiImport)};
   import { reconcileDeletedRoomMemberIds } from ${JSON.stringify(roomsServerSyncImport)};
   import { createRoomReadReceiptQueue } from ${JSON.stringify(roomReadReceiptsImport)};
   import { appScopedGroupUnreadCount, dedupeRoomMembers, directRoomMember, harmonizeRoomMemberAvatars, projectRoomMemberIdentity, resolveVisibleRoomFocus, selectableKernelOptions, visibleRoomUnreadCount } from ${JSON.stringify(roomsModelImport)};
@@ -3409,6 +3409,29 @@ await writeFile(
   }
 
   globalThis.__roomReplyApiTestPromise = (async () => {
+    for (const support of [true, false, undefined]) {
+      const originalFetch = globalThis.fetch;
+      let requestedUrl;
+      globalThis.fetch = async (url) => {
+        requestedUrl = new URL(String(url), "http://localhost");
+        return new Response(JSON.stringify({
+          ok: true, events: [], currentEventSeq: 42, oldestAvailableEventSeq: 1,
+          hasMore: false, resetRequired: false,
+          ...(support === undefined ? {} : { longPollSupported: support }),
+        }), { status: 200, headers: { "content-type": "application/json" } });
+      };
+      try {
+        const result = await fetchRoomEvents(41, 200, { waitMs: 25000 });
+        assert.equal(requestedUrl.searchParams.get("eventVersion"), "2");
+        assert.equal(requestedUrl.searchParams.get("afterEventSeq"), "41");
+        assert.equal(requestedUrl.searchParams.get("waitMs"), "25000");
+        assert.equal(result.longPollSupported === true, support === true,
+          "Hosts without long polling must remain eligible for periodic refresh");
+        assert.equal(result.currentEventSeq, 42);
+      } finally {
+        globalThis.fetch = originalFetch;
+      }
+    }
     {
       const originalFetch = globalThis.fetch;
       let requestedUrl = "";
@@ -3418,7 +3441,8 @@ await writeFile(
         requestedMethod = String(init?.method ?? "GET");
         return new Response(JSON.stringify({
           ok: true,
-          room: { id: "room/read receipt", unread: 0 },
+          room: { id: "room/read receipt", unread: 0, kind: "group", title: "Read receipt",
+            badge: "", memberIds: [], adminMemberIds: [], updatedAt: "2026-09-16T00:00:00.000Z" },
           currentEventSeq: 42,
         }), {
           status: 200,
@@ -3942,12 +3966,6 @@ try {
   });
   await import(pathToFileURL(bundlePath).href);
   await globalThis.__roomReplyApiTestPromise;
-  const roomsApiSource = await readFile(roomsApiImport, "utf8");
-  const fetchRoomEventsSource = roomsApiSource.slice(
-    roomsApiSource.indexOf("export async function fetchRoomEvents"),
-    roomsApiSource.indexOf("export async function postServerRoomMessage"),
-  );
-  assert.match(fetchRoomEventsSource, /params\.set\("eventVersion", "2"\)/);
   const mountedAppChatPanelSource = await readFile(mountedAppChatPanelSourcePath, "utf8");
   assert.match(
     mountedAppChatPanelSource,

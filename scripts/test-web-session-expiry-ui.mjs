@@ -89,7 +89,7 @@ async function verifyBrowserRecovery() {
       );
     } else if (url.pathname.endsWith("/rooms")) {
       if (mode === "portal-init") json(401, { error: "authentication_required" });
-      else json(200, { ok: true, rooms: [], members: [], messages: [], currentEventSeq: 10 });
+      else json(200, { ok: true, rooms: [], members: [], messages: [], deletedMemberIds: [], currentEventSeq: 10 });
     } else if (url.pathname.endsWith("/rooms/events")) {
       events += 1;
       if (mode === "portal") json(401, { error: "authentication_required" });
@@ -97,7 +97,15 @@ async function verifyBrowserRecovery() {
       else if (mode === "transient" && events === 1) json(503, { ok: false, error: "session_temporarily_unavailable" });
       else {
         successfulEvents += 1;
-        json(200, { ok: true, events: [], currentEventSeq: 10, longPollSupported: true, hasMore: false });
+        json(200, {
+          ok: true,
+          events: [],
+          currentEventSeq: 10,
+          oldestAvailableEventSeq: 1,
+          longPollSupported: true,
+          hasMore: false,
+          resetRequired: false,
+        });
       }
     } else if (url.pathname.endsWith("/auth/session")) {
       sessionChecks += 1;

@@ -1,5 +1,6 @@
 import { agentEventSchema } from "./agent-event-records.js";
 import { z } from "zod";
+import { hostLongPollSupportSchema } from "./compat/host-http.js";
 import {
   activitySpaceSchema,
   sessionStatusSchema,
@@ -154,7 +155,7 @@ export const listRunEventsOperation = defineHostOperation({
       hasOlder: z.boolean(),
       historyTruncated: z.boolean(),
       resetRequired: z.boolean(),
-      longPollSupported: z.literal(true),
+      longPollSupported: hostLongPollSupportSchema,
       snapshot: z.boolean(),
     }),
     schemaId: "RunEventPage",

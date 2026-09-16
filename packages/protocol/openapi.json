@@ -14274,8 +14274,8 @@
                       "type": "boolean"
                     },
                     "longPollSupported": {
-                      "type": "boolean",
-                      "const": true
+                      "default": false,
+                      "type": "boolean"
                     }
                   },
                   "required": [
@@ -21666,8 +21666,8 @@
             "type": "boolean"
           },
           "longPollSupported": {
-            "type": "boolean",
-            "const": true
+            "default": false,
+            "type": "boolean"
           },
           "snapshot": {
             "type": "boolean"
