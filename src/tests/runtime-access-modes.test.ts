@@ -1,4 +1,4 @@
-import { createBridgeState, saveBridgeSettings } from "../server/bridge-state.js";
+import { createBridgeState, recreateBridgeApp, saveBridgeSettings } from "../server/bridge-state.js";
 import { AcpCliRuntime } from "../runtime/acp-cli-runtime.js";
 import { PiAgentRuntime } from "../runtime/pi-runtime.js";
 import { OpenClawGatewayRuntime } from "../runtime/openclaw-gateway-runtime.js";
@@ -969,6 +969,97 @@ for (const initialSupport of [false, true]) {
         initialSupport ? "default" : "auto-review",
         "new Employees still use the current capability result",
       );
+    } finally {
+      await state.store.close?.();
+      rmSync(cwd, { recursive: true, force: true });
+    }
+  });
+}
+
+for (const declaration of ["omitted", "manifest", "store"] as const) {
+  test(`restoring App defaults ignores user edits after restart (${declaration})`, async () => {
+    const cwd = mkdtempSync(join(tmpdir(), "opengrove-app-default-permission-"));
+    const appRoot = join(cwd, "app");
+    const memberId = "member-app-defaults-writer";
+    mkdirSync(join(appRoot, "workspace"), { recursive: true });
+    writeFileSync(
+      join(appRoot, "opengrove.app.json"),
+      JSON.stringify({
+        id: "defaults",
+        title: "Defaults",
+        workspace: { path: "workspace" },
+        employees: [
+          {
+            id: "writer",
+            name: "App writer",
+            kernel: "codex",
+            model: "gpt-test",
+            ...(declaration === "manifest" ? { accessMode: "default" } : {}),
+          },
+        ],
+        ...(declaration === "store"
+          ? {
+              store: {
+                employeeDefaults: [
+                  { memberId, name: "App writer", kernel: "codex", model: "gpt-test", accessMode: "default" },
+                ],
+              },
+            }
+          : {}),
+      }),
+    );
+    const statePath = join(cwd, "state.sqlite");
+    let state = createBridgeState({ statePath });
+    const restart = async () => {
+      state.store.saveFrom(state.app);
+      saveBridgeSettings(state);
+      await state.store.close?.();
+      state = createBridgeState({ statePath });
+    };
+    const member = () => state.app.rooms.listMembers().find((value) => value.id === memberId)!;
+    try {
+      state.settings.mountedApps = [{ id: "defaults", path: appRoot, enabled: true }];
+      await restart();
+      state.app.rooms.patchMember(memberId, {
+        name: "My writer",
+        accessMode: "full-access",
+        userOverrides: ["name", "accessMode"],
+      });
+      await restart();
+      assert.equal(member().accessMode, "full-access", "ordinary startup preserves user permission");
+      assert.equal(member().manifestDefaults?.accessMode, declaration === "omitted" ? undefined : "default");
+      assert.equal(member().manifestDefaults?.name, "App writer");
+      const request = new IncomingMessage(new Socket());
+      request.method = "POST";
+      const response = new ServerResponse(request);
+      let status = 0;
+      try {
+        await dispatchBridgeRoutes(createBridgeRoutes(), {
+          traceId: "restore-default-test",
+          security: { authMode: "bridge-token", allowedOrigins: [] },
+          request,
+          response,
+          state,
+          url: new URL(`http://opengrove.test/rooms/members/${memberId}/restore-app-defaults`),
+          readJsonBody: async () => ({}),
+          sendJson: (_response, code) => {
+            status = code;
+          },
+        });
+      } finally {
+        request.destroy();
+        request.socket.destroy();
+      }
+      assert.equal(status, 200);
+      const expected = declaration === "omitted" ? "auto-review" : "default";
+      assert.equal(member().accessMode, expected);
+      assert.equal(member().name, "App writer");
+      await restart();
+      assert.equal(member().accessMode, expected, "restored defaults survive restart");
+      state.app.rooms.patchMember(memberId, { accessMode: "full-access", userOverrides: ["accessMode"] });
+      state.store.saveFrom(state.app);
+      recreateBridgeApp(state, { authoritativeEmployeeConfigAppId: "defaults" });
+      assert.equal(member().accessMode, expected, "App activation reapplies its defaults");
     } finally {
       await state.store.close?.();
       rmSync(cwd, { recursive: true, force: true });

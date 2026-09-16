@@ -211,6 +211,8 @@ with Ask for approval. OpenClaw remains Gateway-managed; remote permissions belo
 Explicit user choices survive ordinary seed synchronization and take priority over App defaults;
 compatible App declarations take priority over product defaults. App version activation and the
 explicit restore-App-defaults action can reapply the App's configuration. Ordinary synchronization
+keeps App default snapshots separate from user selections. Restoring defaults reads the App declaration;
+an omitted permission resolves to the product default instead of the user's last choice. Ordinary synchronization
 also preserves saved permissions for all product Employees, including PM, and App Employees whose App declares
 no permission mode. A refreshed or missing Claude cache can change availability and defaults for
 models without declared support, without rewriting these saved selections. Unsupported kernel combinations are still repaired.

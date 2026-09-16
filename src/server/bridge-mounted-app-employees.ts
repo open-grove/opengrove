@@ -59,10 +59,7 @@ export interface MountedAppEmployeeSummary {
   displayOutputSpec?: string;
 }
 
-export function mountedAppDefaultEmployees(
-  settings: BridgeSettings,
-  existingMembers?: ReadonlyMap<string, RoomChannelMember>,
-): RoomChannelMember[] {
+export function mountedAppDefaultEmployees(settings: BridgeSettings): RoomChannelMember[] {
   const members: RoomChannelMember[] = [];
   for (const mountedApp of settings.mountedApps ?? []) {
     if (mountedApp.enabled === false || !mountedApp.path?.trim()) continue;
@@ -85,7 +82,6 @@ export function mountedAppDefaultEmployees(
         presentation,
         manifest,
         mountedApp.appBuilderEnabled === true,
-        existingMembers,
       ),
     );
   }
@@ -134,7 +130,6 @@ function manifestDefaultEmployees(
   presentation: AppManifestPresentation,
   manifest: JsonObject,
   appBuilderEnabled: boolean,
-  existingMembers?: ReadonlyMap<string, RoomChannelMember>,
 ): RoomChannelMember[] {
   const appAgentContext = collectMountedAppAgentContext(appRoot, workspaceRoot, appId, manifest);
   const claudeConfigHome = kernelConfigHomeForRegistry(settings, "claude-code");
@@ -191,15 +186,38 @@ function manifestDefaultEmployees(
       ? member
       : {
           ...member,
-          // Resolve an omitted App default once; a refreshed cache must not reset existing Employees.
-          accessMode: normalizeEmployeeAccessMode(
-            member.kernel,
-            member.accessMode ?? existingMembers?.get(member.id)?.accessMode,
-            member.model,
-            claudeConfigHome,
-          ),
+          // Store declarations independently of the effective product permission.
+          manifestDefaults:
+            !member.employeeDefinitionId || member.manifestDefaults ? employeeManifestDefaults(member) : undefined,
+          accessMode: normalizeEmployeeAccessMode(member.kernel, member.accessMode, member.model, claudeConfigHome),
         },
   );
+}
+
+export function employeeManifestDefaults(
+  member: RoomChannelMember,
+): NonNullable<RoomChannelMember["manifestDefaults"]> {
+  return {
+    name: member.name,
+    avatarMode: member.avatarMode,
+    avatarSeed: member.avatarSeed,
+    avatarDataUrl: member.avatarDataUrl,
+    role: publicEmployeeRole(member.role),
+    kernel: member.kernel,
+    model: member.model,
+    color: member.color,
+    availableSkillIds: member.availableSkillIds,
+    defaultSkillIds: member.defaultSkillIds,
+    requiredKernelCapabilities: member.requiredKernelCapabilities,
+    reasoningEffort: member.reasoningEffort,
+    contextTokenBudget: member.contextTokenBudget,
+    accessMode: member.accessMode,
+    visibility: member.visibility,
+    publicDescription: member.publicDescription,
+    publicSkills: member.publicSkills,
+    inputSpec: member.inputSpec,
+    outputSpec: member.outputSpec,
+  };
 }
 
 function applyStoreEmployeeDefaults(
@@ -260,27 +278,7 @@ function applyStoreEmployeeDefaults(
     };
     return {
       ...configured,
-      manifestDefaults: {
-        name: configured.name,
-        avatarMode: configured.avatarMode,
-        avatarSeed: configured.avatarSeed,
-        avatarDataUrl: configured.avatarDataUrl,
-        role: publicEmployeeRole(configured.role),
-        kernel: configured.kernel,
-        model: configured.model,
-        color: configured.color,
-        availableSkillIds: configured.availableSkillIds,
-        defaultSkillIds: configured.defaultSkillIds,
-        requiredKernelCapabilities: configured.requiredKernelCapabilities,
-        reasoningEffort: configured.reasoningEffort,
-        contextTokenBudget: configured.contextTokenBudget,
-        accessMode: configured.accessMode,
-        visibility: configured.visibility,
-        publicDescription: configured.publicDescription,
-        publicSkills: configured.publicSkills,
-        inputSpec: configured.inputSpec,
-        outputSpec: configured.outputSpec,
-      },
+      manifestDefaults: employeeManifestDefaults(configured),
     };
   });
 }

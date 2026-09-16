@@ -63,6 +63,7 @@ import {
 } from "./app-version-activation-journal.js";
 import { MountedAppVersionStateStore } from "./app-version-state.js";
 import {
+  employeeManifestDefaults,
   mountedAppDefaultEmployees,
   mountedAppMemberSlug,
   providerOnlyUserOverrides,
@@ -856,7 +857,7 @@ export function recreateBridgeApp(state: BridgeState, options: RecreateBridgeApp
     claudeConfigHome,
   );
   const appSeedMembers = applyEmployeeDefinitionRuntimeToScopedSeeds(
-    mountedAppDefaultEmployees({ ...state.settings, mountedApps }, existingMembers),
+    mountedAppDefaultEmployees({ ...state.settings, mountedApps }),
     productSeedMembers,
   );
   const appSeedMemberIds = new Set(appSeedMembers.map((member) => member.id));
@@ -878,6 +879,7 @@ export function recreateBridgeApp(state: BridgeState, options: RecreateBridgeApp
       ? {
           ...existing,
           userOverrides: providerOnlyUserOverrides(existing),
+          accessMode: undefined,
         }
       : existing;
     const merged = syncMountedAppSeedMember(authoritativeExisting, member, claudeConfigHome);
@@ -1234,6 +1236,15 @@ export function syncMountedAppSeedMember(
   const overrides = new Set(userOverrides);
   const keep = <K extends keyof RoomChannelMember>(field: K): RoomChannelMember[K] =>
     overrides.has(field) ? existing[field] : seed[field];
+  // An omitted App permission follows the product default on creation/restore,
+  // while ordinary synchronization preserves the already saved selection.
+  const accessMode =
+    !overrides.has("accessMode") &&
+    seed.appId &&
+    seed.manifestDefaults &&
+    seed.manifestDefaults.accessMode === undefined
+      ? (existing.accessMode ?? seed.accessMode)
+      : keep("accessMode");
   return {
     ...seed,
     name: keep("name"),
@@ -1249,7 +1260,7 @@ export function syncMountedAppSeedMember(
     color: keep("color"),
     availableSkillIds: keep("availableSkillIds"),
     defaultSkillIds: keep("defaultSkillIds"),
-    accessMode: normalizeEmployeeAccessMode(keep("kernel"), keep("accessMode"), keep("model"), claudeConfigHome),
+    accessMode: normalizeEmployeeAccessMode(keep("kernel"), accessMode, keep("model"), claudeConfigHome),
     reasoningEffort: keep("reasoningEffort"),
     contextTokenBudget: keep("contextTokenBudget"),
     visibility: keep("visibility"),
@@ -1264,26 +1275,7 @@ export function syncMountedAppSeedMember(
     status: existing.status === "running" ? existing.status : seed.status,
     lastActive: existing.status === "running" ? existing.lastActive : seed.lastActive,
     storePackageId: existing.storePackageId ?? seed.storePackageId,
-    manifestDefaults: {
-      name: seed.name,
-      avatarMode: seed.avatarMode,
-      avatarSeed: seed.avatarSeed,
-      avatarDataUrl: seed.avatarDataUrl,
-      role: publicEmployeeRole(seed.role),
-      kernel: seed.kernel,
-      model: seed.model,
-      color: seed.color,
-      availableSkillIds: seed.availableSkillIds,
-      defaultSkillIds: seed.defaultSkillIds,
-      reasoningEffort: seed.reasoningEffort,
-      contextTokenBudget: seed.contextTokenBudget,
-      accessMode: seed.accessMode,
-      visibility: seed.visibility,
-      publicDescription: seed.publicDescription,
-      publicSkills: seed.publicSkills,
-      inputSpec: seed.inputSpec,
-      outputSpec: seed.outputSpec,
-    },
+    manifestDefaults: seed.manifestDefaults ?? employeeManifestDefaults(seed),
     userOverrides,
     disabled: false,
   };
