@@ -43,6 +43,7 @@ import {
   stripHermesTemplateTokens,
 } from "./hermes/prompt.js";
 import { prepareHermesRuntimeEnv, removeHermesRuntimeHome } from "./hermes/home-env.js";
+import { recordHermesHomeOwner } from "./hermes/home-ownership.js";
 import {
   contextBudgetDiagnostic,
   contextBudgetExceeded,
@@ -184,7 +185,7 @@ export class HermesRuntime implements AgentRuntime {
     const runtimeEnv = mergeRuntimeEnv(this.options.env, request.runtimeEnv);
     const prompt = buildHermesPrompt(request);
     const client = await this.ensureGatewayClient(runtimeEnv, request.accessMode);
-    if (request.accessMode !== "full-access") {
+    if (request.accessMode !== undefined && request.accessMode !== "full-access") {
       // Public TUI config.get (desktop contract v3+) reports the effective policy,
       // including managed configuration. Custom gateway commands use the same contract.
       const expected = hermesApprovalMode(request.accessMode);
@@ -409,7 +410,7 @@ export class HermesRuntime implements AgentRuntime {
     runtimeEnv: NodeJS.ProcessEnv | undefined,
     accessMode: AgentTurnRequest["accessMode"],
   ): Promise<StdioJsonRpcClient> {
-    const envKey = `${envFingerprint(runtimeEnv)}:${accessMode ?? "default"}`;
+    const envKey = `${envFingerprint(runtimeEnv)}:${accessMode ?? "native"}`;
     const existing = this.gatewayClientsByEnv.get(envKey);
     if (existing && !existing.isClosed()) return existing;
     if (existing) this.gatewayClientsByEnv.delete(envKey);
@@ -431,9 +432,21 @@ export class HermesRuntime implements AgentRuntime {
     }
     let client: StdioJsonRpcClient;
     try {
+      if (preparedEnv.isolatedHome) recordHermesHomeOwner(preparedEnv.isolatedHome, "launching");
       client = StdioJsonRpcClient.start({ command: launch.command, args: launch.args, cwd, env });
     } catch (error) {
       if (preparedEnv.isolatedHome) removeHermesRuntimeHome(preparedEnv.isolatedHome);
+      this.isolatedHomes.delete(envKey);
+      throw error;
+    }
+    try {
+      if (preparedEnv.isolatedHome && client.processId)
+        recordHermesHomeOwner(preparedEnv.isolatedHome, "running", client.processId);
+    } catch (error) {
+      client.addExitHandler(() => {
+        if (preparedEnv.isolatedHome) removeHermesRuntimeHome(preparedEnv.isolatedHome);
+      });
+      client.close();
       this.isolatedHomes.delete(envKey);
       throw error;
     }

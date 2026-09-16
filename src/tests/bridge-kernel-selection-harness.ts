@@ -2521,6 +2521,9 @@ async function main() {
             }),
           );
           wwBoundState.settings.employeeModelMigrationVersion = 0;
+          wwBoundState.app.rooms.restore(
+            Object.assign(wwBoundState.app.rooms.snapshot(), { employeeMigrationVersions: undefined }),
+          );
           wwBoundState.store.saveFrom(wwBoundState.app);
           recreateBridgeApp(wwBoundState);
           const repairedMember = wwBoundState.app.rooms

@@ -3,6 +3,7 @@ import {
   NATIVE_APPROVAL_PRESETS_VERSION,
 } from "./migrations/native-approval-presets-v4.js";
 import { normalizeEmployeeAccessMode } from "./employee-access-mode.js";
+import { cleanupAbandonedHermesHomes } from "../runtime/hermes/home-ownership.js";
 import { kernelConfigHomeForRegistry } from "./kernel-registry.js";
 import { existsSync, readdirSync, renameSync, statSync, writeFileSync } from "node:fs";
 import { basename, join, relative, resolve } from "node:path";
@@ -147,6 +148,7 @@ export function createBridgeState(
   options: LocalBridgeServerOptions,
   authMode: HostRuntimeAuthMode = "bridge-token",
 ): BridgeState {
+  cleanupAbandonedHermesHomes();
   const profile = normalizeOpenGroveProfile(options.profile, "local");
   let bridgeApp: BridgeState["app"] | undefined;
   const state: BridgeState = {
@@ -809,8 +811,12 @@ export function recreateBridgeApp(state: BridgeState, options: RecreateBridgeApp
     loadedState,
     mountedAppDefaultEmployees({ ...state.settings, mountedApps }),
   );
+  // Database completion wins over replaceable settings. Older databases use the
+  // legacy settings record once, then persist completion with the Employee rows.
+  const employeeMigrationVersions = state.app.rooms.getEmployeeMigrationVersions();
   const needsEmployeeModelMigration =
-    state.settings.employeeModelMigrationVersion < CURRENT_EMPLOYEE_MODEL_MIGRATION_VERSION;
+    (employeeMigrationVersions?.models ?? state.settings.employeeModelMigrationVersion) <
+    CURRENT_EMPLOYEE_MODEL_MIGRATION_VERSION;
   const legacyNativeEmployeeModelChanged = needsEmployeeModelMigration
     ? migrateLegacyNativeEmployeeModelsV1(state.app.rooms, {
         beforeApply: loadedState
@@ -820,7 +826,9 @@ export function recreateBridgeApp(state: BridgeState, options: RecreateBridgeApp
     : false;
   // Resolve legacy model IDs before deciding which Employees support native Auto.
   // Apply before seed sync so migrated choices, including unmarked Full, survive it.
-  const needsApprovalMigration = state.settings.nativeApprovalPresetsVersion < NATIVE_APPROVAL_PRESETS_VERSION;
+  const needsApprovalMigration =
+    (employeeMigrationVersions?.approvalPresets ?? state.settings.nativeApprovalPresetsVersion) <
+    NATIVE_APPROVAL_PRESETS_VERSION;
   const approvalMigrationChanged = needsApprovalMigration
     ? migrateNativeApprovalPresetsV4(
         state.app.rooms,
@@ -938,10 +946,17 @@ export function recreateBridgeApp(state: BridgeState, options: RecreateBridgeApp
     state.app.rooms.upsertMember(repaired, { emitEvent: true });
     runtimeModelRepairChanged = true;
   }
+  const employeeMigrationRecordChanged =
+    !employeeMigrationVersions || needsEmployeeModelMigration || needsApprovalMigration;
+  state.app.rooms.setEmployeeMigrationVersions({
+    models: Math.max(employeeMigrationVersions?.models ?? 0, CURRENT_EMPLOYEE_MODEL_MIGRATION_VERSION),
+    approvalPresets: Math.max(employeeMigrationVersions?.approvalPresets ?? 0, NATIVE_APPROVAL_PRESETS_VERSION),
+  });
   if (
     !options.deferPersistedStateSave &&
     rootState === state &&
-    (!hadRooms ||
+    (employeeMigrationRecordChanged ||
+      !hadRooms ||
       unscopedMigration?.changed ||
       routineAppCommandMigration.changed ||
       roomSeedChanged ||
@@ -959,7 +974,8 @@ export function recreateBridgeApp(state: BridgeState, options: RecreateBridgeApp
   if (
     !options.deferPersistedStateSave &&
     rootState === state &&
-    (needsEmployeeModelMigration || needsApprovalMigration)
+    (state.settings.employeeModelMigrationVersion !== CURRENT_EMPLOYEE_MODEL_MIGRATION_VERSION ||
+      state.settings.nativeApprovalPresetsVersion !== NATIVE_APPROVAL_PRESETS_VERSION)
   ) {
     state.settings = {
       ...state.settings,
@@ -1236,13 +1252,16 @@ export function syncMountedAppSeedMember(
   const overrides = new Set(userOverrides);
   const keep = <K extends keyof RoomChannelMember>(field: K): RoomChannelMember[K] =>
     overrides.has(field) ? existing[field] : seed[field];
-  // An omitted App permission follows the product default on creation/restore,
-  // while ordinary synchronization preserves the already saved selection.
+  // Re-reading an unchanged declaration must not undo a system migration or a
+  // saved selection. A changed declaration still owns the default unless the
+  // user overrode it. Authoritative activation clears the saved selection first.
   const accessMode =
     !overrides.has("accessMode") &&
     seed.appId &&
     seed.manifestDefaults &&
-    seed.manifestDefaults.accessMode === undefined
+    (seed.manifestDefaults.accessMode === undefined ||
+      !existing.manifestDefaults ||
+      existing.manifestDefaults.accessMode === seed.manifestDefaults.accessMode)
       ? (existing.accessMode ?? seed.accessMode)
       : keep("accessMode");
   return {

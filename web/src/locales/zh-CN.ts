@@ -257,6 +257,8 @@ export const ZH_CN = {
   "composer.accessQuestion": "应如何批准内核操作？",
   "composer.unavailableAccessLabel": "{label} · 不可用",
   "composer.accessGatewayManaged": "由 Gateway 管理",
+  "composer.autoReviewActivationFailed":
+    "当前连接未能启用自动审批，原因：{reason}。请打开该员工的设置，将权限改为“请求批准”后继续；或检查服务商、账号配置后重试自动审批。",
   "composer.autoReviewUnavailable": "此内核尚未接入原生自动审查，请选择请求批准或完全访问权限",
   "composer.autoReviewUnverified":
     "尚未确认此模型是否支持自动审批。先用请求批准或完全访问发送一条消息，会更新支持状态。",

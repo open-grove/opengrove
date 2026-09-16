@@ -19,6 +19,8 @@ import { appScopedDirectRoomId, createRoomId } from "./route-helpers.js";
 import { findDefaultAppGroupRoom } from "../../app-room-ids.js";
 import { resolveMountedAppTarget } from "../../mounted-apps.js";
 import { roomMutationErrorResponse } from "./room-mutation-errors.js";
+import { kernelConfigHomeForRegistry } from "../../kernel-registry.js";
+import { employeeAccessModeIssue } from "../../employee-access-mode.js";
 
 export async function handleListRoomsOperation(context: HostOperationRouteContext<ListRoomsOperation>): Promise<true> {
   const { response, state, sendJson } = context;
@@ -162,6 +164,18 @@ export async function handleOpenDirectRoomOperation(
   let openedMember: RoomChannelMember | undefined;
   if (!state.app.rooms.listMembers().some((member) => member.id === memberId)) {
     const sourceMember = resolveDirectRoomMemberSource(state, memberId, body.member);
+    if (
+      sourceMember &&
+      employeeAccessModeIssue(
+        sourceMember.kernel,
+        body.member?.accessMode ?? sourceMember.accessMode,
+        sourceMember.model,
+        kernelConfigHomeForRegistry(state.settings, "claude-code"),
+      )
+    ) {
+      sendJson(response, 409, { ok: false, error: "runtime_access_mode_unavailable" });
+      return true;
+    }
     if (sourceMember && sourceMember.source !== "human" && !sourceMember.disabled) {
       openedMember = state.app.rooms.upsertMember(sourceMember, { emitEvent: true });
       memberId = openedMember.id;
@@ -319,10 +333,13 @@ function resolveDirectRoomMemberSource(
   const raw = objectRecord(value);
   if (!raw) return undefined;
   try {
-    return normalizeMember({
-      ...raw,
-      id: readString(raw.id) || memberId,
-    });
+    return normalizeMember(
+      {
+        ...raw,
+        id: readString(raw.id) || memberId,
+      },
+      kernelConfigHomeForRegistry(state.settings, "claude-code"),
+    );
   } catch {
     return undefined;
   }

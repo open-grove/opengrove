@@ -1830,12 +1830,15 @@ function syncPublishedEmployeeDefaultsToLocalState(input: {
       requiredKernelCapabilities: normalizeRequiredKernelCapabilities(item.requiredKernelCapabilities),
       reasoningEffort: normalizeReasoningEffort(item.reasoningEffort),
       contextTokenBudget: positiveInteger(item.contextTokenBudget),
-      accessMode: normalizeEmployeeAccessMode(
-        stringOrUndefined(item.kernel) ?? member.kernel,
-        item.accessMode,
-        stringOrUndefined(item.model) ?? member.model,
-        claudeConfigHome,
-      ),
+      accessMode:
+        item.accessMode === undefined
+          ? undefined
+          : normalizeEmployeeAccessMode(
+              stringOrUndefined(item.kernel) ?? member.kernel,
+              item.accessMode,
+              stringOrUndefined(item.model) ?? member.model,
+              claudeConfigHome,
+            ),
       visibility: normalizeVisibility(item.visibility),
       publicDescription: stringOrUndefined(item.publicDescription),
       publicSkills: stringArray(item.publicSkills),

@@ -6,11 +6,11 @@ import { appEnvName } from "../../identity.js";
 import {
   hermesCustomProviderKey,
   normalizeHermesProviderConfig,
-  readHermesHomeConfig,
   writeHermesHomeConfig,
   type HermesProviderRuntimeConfig,
 } from "./config.js";
 import { normalizeOptionalString } from "./prompt.js";
+import { recordHermesHomeOwner } from "./home-ownership.js";
 
 export function prepareHermesRuntimeEnv(input: {
   runtimeEnv: NodeJS.ProcessEnv | undefined;
@@ -31,11 +31,10 @@ export function prepareHermesRuntimeEnv(input: {
   const explicitHome =
     normalizeOptionalString(env.HERMES_HOME) ?? normalizeOptionalString(env[appEnvName("HERMES_HOME")]);
   // The native full-access switch also covers gates that do not consult approvals.mode.
-  env.HERMES_YOLO_MODE = input.accessMode === "full-access" ? "1" : "0";
+  if (input.accessMode !== undefined) env.HERMES_YOLO_MODE = input.accessMode === "full-access" ? "1" : "0";
   const isolation = env[appEnvName("HERMES_ISOLATED_HOME")];
   if (!providerConfig && (isolation === "0" || (explicitHome && isolation !== "1"))) {
     const nativeHome = resolve(explicitHome ?? join(homedir(), ".hermes"));
-    readHermesHomeConfig(nativeHome);
     env.HERMES_HOME = nativeHome;
     return { env };
   }
@@ -44,6 +43,7 @@ export function prepareHermesRuntimeEnv(input: {
   const isolatedHome = input.isolatedHome ?? mkdtempSync(join(tmpdir(), "opengrove-hermes-"));
   if (!input.isolatedHome) {
     try {
+      recordHermesHomeOwner(isolatedHome, "preparing");
       writeHermesHomeConfig(isolatedHome, usableNativeSkillDir, providerConfig, input.accessMode, explicitHome);
     } catch (error) {
       rmSync(isolatedHome, { recursive: true, force: true });

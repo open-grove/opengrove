@@ -266,6 +266,8 @@ export const EN = {
   "composer.unavailableAccessLabel": "{label} · Unavailable",
   "composer.accessGatewayManaged": "Managed by Gateway",
   "composer.accessModeResetToAsk": "This kernel does not support auto review. Switched to ask for approval.",
+  "composer.autoReviewActivationFailed":
+    "Auto could not be enabled for the current connection: {reason}. Open this Employee's settings and select Ask to continue, or check the Provider and account configuration before retrying Auto.",
   "composer.autoReviewUnavailable":
     "Native auto review is not connected for this kernel. Choose ask for approval or full access.",
   "composer.autoReviewUnverified":

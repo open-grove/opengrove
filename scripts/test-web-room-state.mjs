@@ -100,6 +100,7 @@ await writeFile(
   import { appScopedGroupUnreadCount, dedupeRoomMembers, directRoomMember, harmonizeRoomMemberAvatars, projectRoomMemberIdentity, resolveVisibleRoomFocus, selectableKernelOptions, visibleRoomUnreadCount } from ${JSON.stringify(roomsModelImport)};
   import { agentAuthorMention, draftWithAuthorMention, resolveAutomaticPmTarget, resolveRoomTargets, roomMentionToken } from ${JSON.stringify(roomChatUtilsImport)};
   import { applyApprovalResultToMessages, applyQuestionResultToMessages, applyStreamEventToMessage, finalizeAssistantMessage, normalizeMessagePartsForDisplay } from ${JSON.stringify(messagesImport)};
+  import { formatModelCallError } from ${JSON.stringify(messagesImport)};
   import { activityItemDetailDisplay, activityItemKind, activityItemTitle, activityItemTitleTooltip, artifactCardsFromItem, buildActivityItems, buildActivityRenderNodes, editDiffFromItem, summarizeActivityItems } from ${JSON.stringify(activityModelImport)};
   import { agentOrbStateFromRun } from ${JSON.stringify(agentStatePresentationImport)};
   import { isNativeAgentCommentaryNote, processGroupsToActivityEntries, splitAssistantPartsForSurface } from ${JSON.stringify(assistantRunViewModelImport)};
@@ -608,6 +609,16 @@ await writeFile(
   assert.equal(overriddenPresentationDraft.inputSpec, "Canonical custom input");
   assert.equal(overriddenPresentationDraft.outputSpec, "Canonical custom output");
   const legacyEmployeeAfterEmptySave = createMemberFromDraft(legacyDraft, { initialMember: legacyEmployee });
+  const autoDraft = { ...legacyDraft, kernel: "claude-code", model: "supported", accessMode: "auto-review" };
+  const autoFailure = formatModelCallError("runtime_access_mode_unavailable: claude_auto_review_activation_failed: disabled by organization. Select Ask in this Employee's permissions to continue");
+  assert.match(autoFailure, /disabled by organization/);
+  assert.match(autoFailure, /请求批准|Ask/);
+  const permissionControls = { kernel: "claude-code", autoReviewModelIds: ["supported"] };
+  assert.equal(canSubmitDraft(autoDraft, true, permissionControls), true);
+  assert.equal(canSubmitDraft({ ...autoDraft, model: "unsupported" }, true, permissionControls), false,
+    "switching models cannot save an unavailable Auto selection");
+  assert.throws(() => createMemberFromDraft({ ...autoDraft, model: "unsupported" }, { runtimeControls: permissionControls }),
+    /runtime_access_mode_unavailable/);
   assert.equal(legacyEmployeeAfterEmptySave.avatarSeed, undefined, "empty save preserves the effective id-based avatar");
   assert.equal(legacyEmployeeAfterEmptySave.reasoningEffort, undefined, "empty save keeps reasoning on the kernel default");
   assert.equal(

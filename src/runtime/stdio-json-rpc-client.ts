@@ -123,6 +123,10 @@ export class StdioJsonRpcClient {
     return this.closed;
   }
 
+  get processId(): number | undefined {
+    return this.child.pid;
+  }
+
   stderr(): string {
     return this.stderrBuffer;
   }

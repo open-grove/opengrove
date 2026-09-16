@@ -15,6 +15,16 @@ const MODEL_CALL_ERROR_PLAIN_TEXTS = Object.values(dictionaries).map(
 
 export function formatModelCallError(message: string): string {
   const normalized = String(message || "").trim();
+  if (normalized.includes("claude_auto_review_activation_failed")) {
+    const reason =
+      normalized
+        .split("claude_auto_review_activation_failed:", 2)[1]
+        ?.split(". Select Ask in this Employee's permissions", 1)[0]
+        ?.trim() ?? "";
+    return translate("system.modelCallError", {
+      message: translate("composer.autoReviewActivationFailed", { reason }),
+    });
+  }
   return normalized
     ? translate("system.modelCallError", { message: normalized })
     : translate("system.modelCallErrorPlain");

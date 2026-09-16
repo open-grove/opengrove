@@ -90,6 +90,7 @@ async function main() {
   for await (const event of runtime.runTurn({
     runId,
     input: "hello hermes",
+    accessMode: "default",
     context: {
       sessionId,
       activity: "chat",

@@ -359,25 +359,37 @@ export class ClaudeAgentSdkRuntime implements AgentRuntime {
           }),
         });
 
+        // Metadata is independent of permission activation; a rejected Auto request
+        // must not prevent discovery. This is best-effort and never gates a turn.
+        void this.refreshClaudeModelsCache(query, runtimeEnv);
         try {
           if (approvalPrompt) {
-            await query.setPermissionMode("auto");
+            try {
+              await query.setPermissionMode("auto");
+            } catch (error) {
+              if (request.signal?.aborted || abortController.signal.aborted) throw error;
+              throw new Error(
+                `runtime_access_mode_unavailable: claude_auto_review_activation_failed: ${sanitizeDiagnosticText(error instanceof Error ? error.message : String(error))}. Select Ask in this Employee's permissions to continue, or check the current Provider/account configuration.`,
+                { cause: error },
+              );
+            }
             for await (const message of claudeUserMessageStream(request.input, imageBlocks, nativeSession.sessionId)) {
               approvalPrompt.push(message);
             }
             approvalPrompt.close();
           }
-          this.refreshClaudeModelsCache(query, runtimeEnv);
           for await (const message of query) {
             for (const event of mapClaudeSdkMessage(message, {
               runId,
               state: messageState,
               hostBridge,
               onInit: (init) => {
-                if (permissionMode === "auto" && init.permissionMode !== "auto") {
-                  throw new Error("runtime_access_mode_unavailable: Claude did not activate native auto review");
-                }
                 rememberClaudeNativeSession(request, init.session_id, runtimeBindingFingerprint);
+                if (permissionMode === "auto" && init.permissionMode !== "auto") {
+                  throw new Error(
+                    "runtime_access_mode_unavailable: claude_auto_review_activation_failed: Claude did not activate Auto. Select Ask in this Employee's permissions to continue, or check the current Provider/account configuration.",
+                  );
+                }
                 this.rememberSessionBinding(request.context.sessionId, {
                   nativeSessionId: init.session_id,
                   cwd,
@@ -557,21 +569,22 @@ export class ClaudeAgentSdkRuntime implements AgentRuntime {
   // them so the (synchronous) bridge can advertise per-model reasoning effort in the
   // composer. Never awaited and never throws into the turn — failures leave the bridge on
   // its static effort fallback.
-  private refreshClaudeModelsCache(query: ClaudeAgentQuery, runtimeEnv: NodeJS.ProcessEnv | undefined): void {
+  private async refreshClaudeModelsCache(
+    query: ClaudeAgentQuery,
+    runtimeEnv: NodeJS.ProcessEnv | undefined,
+  ): Promise<void> {
     if (typeof query.supportedModels !== "function") {
       return;
     }
     const configHome = runtimeEnv?.CLAUDE_CONFIG_DIR ?? this.options.env?.CLAUDE_CONFIG_DIR ?? undefined;
-    void Promise.resolve()
-      .then(() => query.supportedModels())
-      .then((models) => {
-        if (Array.isArray(models) && models.length) {
-          writeClaudeModelsCache(models, { configHome, now: new Date().toISOString() });
-        }
-      })
-      .catch(() => {
-        // Ignore — supportedModels() is optional and must never disrupt a turn.
-      });
+    try {
+      const models = await query.supportedModels();
+      if (Array.isArray(models) && models.length) {
+        writeClaudeModelsCache(models, { configHome, now: new Date().toISOString() });
+      }
+    } catch {
+      console.warn("claude_models_cache_refresh_failed");
+    }
   }
 
   private createQueryOptions(input: {

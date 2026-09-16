@@ -175,8 +175,9 @@ These models remain selectable with an empty or stale SDK cache. Other models an
 records; the native default uses the `default` record, including its resolved model. Unknown support
 disables the picker option. Execution directly activates the requested native mode without waiting
 for a model-catalog lookup. Activation failures are reported, and an effective mode other than
-`auto` is rejected. Model metadata refresh remains best-effort for the picker. Auto review requires
-the SDK; the legacy CLI path does not implement native activation acknowledgement.
+`auto` is rejected. Model metadata refresh starts before activation and remains best-effort without
+blocking user input on a catalog response. Activation errors explain how to select Ask or correct the
+Provider/account configuration; they never silently change the saved permission. Claude execution uses the Agent SDK.
 Employee creation, seed synchronization, permission migration, App imports and restoring App defaults
 read this cache from the same configured Claude directory as the permission picker. A custom
 `kernelPathOverrides["claude-code"].configHome` therefore applies to both availability and defaults.
@@ -193,8 +194,11 @@ Without a Provider override, an explicit `HERMES_HOME` / `OPENGROVE_HERMES_HOME`
 approval configuration must match the requested Ask/Auto preset; OpenGrove does not rewrite it.
 `OPENGROVE_HERMES_ISOLATED_HOME=1` requests a configuration copy instead. Provider overrides always
 use a copy. These copies are temporary: initialization failures, gateway exit and runtime shutdown
-remove them. They do not provide cross-process native session persistence. Invalid YAML and unreadable
-credentials produce actionable errors without echoing configuration contents. Approval and question
+remove them. They do not provide cross-process native session persistence. Startup also removes owned
+temporary homes whose Host and recorded gateway processes have exited; unknown ownership or an uncertain
+spawn is retained. Native homes are read by Hermes itself, without an extra Host YAML gate. Omitted presets
+retain native approval and YOLO settings, including in configuration copies. When a copy is needed, invalid
+YAML and unreadable credentials produce actionable errors without echoing configuration contents. Approval and question
 bridges support both desktop contract v7 server requests and earlier notification-based requests.
 Unanswered approvals default to rejection after five minutes; cancellation, turn completion and gateway
 exit settle pending requests. Questions remain human decisions and cancel when their turn ends.
@@ -218,17 +222,24 @@ explicit restore-App-defaults action can reapply the App's configuration.
 App default snapshots remain separate from user selections. Restoring defaults reads the App declaration;
 an omitted permission resolves to the product default instead of the user's last choice. Ordinary synchronization
 also preserves saved permissions for all product Employees, including PM, and App Employees whose App declares
-no permission mode. A refreshed or missing Claude cache can change availability and defaults for
+no permission mode or an unchanged declaration. System permission migrations never create user-override
+markers. A changed App declaration can still supply its default. A refreshed or missing Claude cache can change availability and defaults for
 models without declared support, without rewriting these saved selections. Unsupported kernel combinations are still repaired.
 A one-time v4 migration raises existing local Employees from Ask for approval to Help me approve
 where Auto is supported, including an explicitly saved Ask choice. Auto and Full access stay unchanged.
-It runs after legacy model identifiers are resolved, backs up changed state and records completion.
+It runs after legacy model identifiers are resolved, backs up changed state and records completion
+atomically with Employees in SQLite/JSON state. Missing or quarantined settings cannot skip an unapplied
+migration or repeat a completed one. Older state uses its saved settings versions until this record is established.
 Missing modes and unsupported combinations are still normalized. Subsequent permission changes,
 including switching back to Ask, survive restarts; PM's App-scoped bindings follow its global definition.
 Stored chat choices are read without being rewritten;
 an unset chat choice resolves against the selected kernel and model.
 
-Unsupported presets are disabled in the picker and rejected at execution. Switching to Pi, Kimi or
+Unsupported presets are disabled in the picker and rejected at execution. Employee saves and API writes
+also validate the selected model. A model change that leaves Auto unavailable stays unsaved until the user
+chooses a valid permission; autosave sends the corrected model and permission together. Clearing an API
+permission with `null` follows App/product defaults and removes its user-override marker.
+Switching to Pi, Kimi or
 OpenCode while auto review is selected changes the selection to ask for approval and displays a notice.
 Employee creation, updates, App imports and seed synchronization apply the same compatibility rule.
 Publishing rejects unsupported combinations. Claude's locally unverified model support is distinct

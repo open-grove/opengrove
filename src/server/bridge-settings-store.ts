@@ -1,4 +1,3 @@
-import { NATIVE_APPROVAL_PRESETS_VERSION } from "./migrations/native-approval-presets-v4.js";
 import { randomUUID } from "node:crypto";
 import { copyFileSync, existsSync, readFileSync, renameSync } from "node:fs";
 import { basename, delimiter, resolve } from "node:path";
@@ -35,7 +34,6 @@ import {
   migrateLegacyKernelProviderBindingsToModels,
 } from "./migrations/bridge-settings-v1.js";
 import { CURRENT_PROVIDER_ROUTE_MIGRATION_VERSION } from "./migrations/implicit-provider-routes-v1.js";
-import { CURRENT_EMPLOYEE_MODEL_MIGRATION_VERSION } from "./migrations/native-employee-model-v1.js";
 import { normalizeKernelPathOverrides } from "./kernel-utils.js";
 import { normalizeWorkspaceRootValue, resolveBridgeWorkspaceRoot } from "./workspace-root.js";
 import { writePrivateFileAtomically } from "../storage/private-file.js";
@@ -463,8 +461,8 @@ export function defaultBridgeSettings(): BridgeSettings {
     workspaceRoot: normalizeWorkspaceRootValue(readAppEnv("WORKSPACE_ROOT"), undefined),
     providerSetupVersion: 0,
     providerRouteMigrationVersion: CURRENT_PROVIDER_ROUTE_MIGRATION_VERSION,
-    employeeModelMigrationVersion: CURRENT_EMPLOYEE_MODEL_MIGRATION_VERSION,
-    nativeApprovalPresetsVersion: NATIVE_APPROVAL_PRESETS_VERSION,
+    employeeModelMigrationVersion: 0,
+    nativeApprovalPresetsVersion: 0,
     mountedApps: defaultMountedApps(),
     uninstalledStoreAppIds: [],
     defaultAppSync: { managedPackageKeys: [] },

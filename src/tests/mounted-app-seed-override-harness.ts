@@ -884,6 +884,7 @@ function seedMember(overrides: Partial<RoomChannelMember> = {}): RoomChannelMemb
       userOverrides: ["kernel", "model"],
       source: "local",
     });
+    legacy.app.rooms.restore(Object.assign(legacy.app.rooms.snapshot(), { employeeMigrationVersions: undefined }));
     legacy.store.saveFrom(legacy.app);
     legacy.settings.employeeModelMigrationVersion = 0;
     saveBridgeSettings(legacy);

@@ -7,8 +7,8 @@ export const NATIVE_APPROVAL_PRESETS_VERSION = 4;
  * Issue: https://github.com/open-grove/opengrove/issues/100
  * Supports: <=0.7.0 and unreleased approval migrations v1-v3. The product's one-time
  * update raises Ask to Auto for supported local Employees, including explicit Ask
- * choices, while retaining Full. Persisted overrides keep App seeds from undoing
- * the migration. The settings version gates this update; later Ask choices survive.
+ * choices, while retaining Full. System changes never create user override markers.
+ * Unchanged App declarations retain saved permissions; App updates can reapply defaults.
  * Remove when: direct upgrades from 0.7.0 move to a standalone importer.
  */
 export function migrateNativeApprovalPresetsV4(
@@ -25,17 +25,11 @@ export function migrateNativeApprovalPresetsV4(
         ? defaultMode
         : normalizeEmployeeAccessMode(member.kernel, member.accessMode, member.model, claudeConfigHome);
     const accessMode = supportsAuto && normalized === "default" ? "auto-review" : normalized;
-    const preserveSelection = supportsAuto || (member.accessMode !== undefined && accessMode !== member.accessMode);
-    const userOverrides = preserveSelection
-      ? [...new Set([...(member.userOverrides ?? []), "accessMode"])]
-      : member.userOverrides;
-    if (accessMode === member.accessMode && JSON.stringify(userOverrides) === JSON.stringify(member.userOverrides))
-      return [];
+    if (accessMode === member.accessMode) return [];
     return [
       {
         ...member,
         accessMode,
-        userOverrides,
       },
     ];
   });

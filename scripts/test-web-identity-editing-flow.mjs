@@ -30,6 +30,7 @@ try {
     await page.goto(pathToFileURL(htmlPath).href);
     await testEmployeePageFlow(page);
     await testEmployeeAccessKernelSwitch(page);
+    await testEmployeeModelPermissionAutosave(page);
     await testNewEmployeePermissionDefaults(page);
     await testEmployeeReasoningKernelSwitch(page);
     await testEmployeeReasoningCapabilityStates(page);
@@ -54,7 +55,7 @@ async function testNewEmployeePermissionDefaults(page) {
   await renderFixture(page, "employee-create");
   const surface = page.locator("#identity-root .employee-dialog-embedded");
   const access = surface.locator(".employee-dialog-field").filter({ hasText: "权限" });
-  await access.getByRole("button", { name: /请求批准/ }).waitFor();
+  await access.getByRole("button", { name: /帮我批准/ }).waitFor();
   await surface.locator(".employee-dialog-kernel-list").getByRole("button", { name: "Codex", exact: true }).click();
   await access.getByRole("button", { name: /帮我批准/ }).waitFor();
   await surface.locator(".employee-dialog-kernel-list").getByRole("button", { name: "Pi", exact: true }).click();
@@ -81,6 +82,37 @@ async function testEmployeeAccessKernelSwitch(page) {
   await access.getByRole("button").click();
   assert.equal(await page.getByRole("option", { name: /帮我批准/ }).isDisabled(), true);
   await page.keyboard.press("Escape");
+}
+
+async function testEmployeeModelPermissionAutosave(page) {
+  await renderFixture(page, "employee-page");
+  const surface = page.locator("#identity-root .contacts-employee-settings-surface");
+  await surface
+    .locator(".employee-dialog-kernel-list")
+    .getByRole("button", { name: "Claude Agent", exact: true })
+    .click();
+  await page.waitForFunction(() => window.__savedEmployeeKernel === "claude-code");
+  const previousSaves = await page.evaluate(() => window.__savedEmployeeCount);
+  const model = surface.locator(".employee-dialog-field").filter({ hasText: "模型" });
+  await model.getByRole("button").click();
+  await page.getByRole("option", { name: /Claude Custom/ }).click();
+  await surface.getByText("当前权限选择不可用，请重新选择后运行", { exact: true }).waitFor();
+  assert.equal(
+    await page.evaluate(() => window.__savedEmployeeCount),
+    previousSaves,
+    "invalid model/Auto combination stays in the draft",
+  );
+  const access = surface.locator(".employee-dialog-field").filter({ hasText: "权限" });
+  await access.getByRole("button").click();
+  await page.getByRole("option", { name: /^请求批准/ }).click();
+  await page.waitForFunction(
+    () => window.__savedEmployeeModel === "claude-custom" && window.__savedEmployeeAccessMode === "default",
+  );
+  assert.equal(
+    await page.evaluate(() => window.__savedEmployeeCount),
+    previousSaves + 1,
+    "model and repaired permission save together",
+  );
 }
 
 // ===== Employee reasoning behavior =====
@@ -913,6 +945,7 @@ function entrySource() {
       return [kernel.id, {
         kernel: kernel.id,
         source: "test-runtime",
+        autoReviewModelIds: kernel.id === "claude-code" ? ["native"] : undefined,
         models: kernel.id === "claude-code"
           ? [{ id: "native", label: "Native" }, { id: "claude-custom", label: "Claude Custom" }]
           : [{ id: "native", label: "Native" }],

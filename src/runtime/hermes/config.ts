@@ -31,7 +31,8 @@ export function writeHermesHomeConfig(
   const base = readHermesHomeConfig(sourceHome);
   const generated = configObject(yaml.load(buildHermesConfigYaml(nativeSkillDir, providerConfig, accessMode)));
   const merged = { ...base, ...generated };
-  merged.approvals = { ...configObject(base.approvals), mode: hermesApprovalMode(accessMode) };
+  if (accessMode !== undefined)
+    merged.approvals = { ...configObject(base.approvals), mode: hermesApprovalMode(accessMode) };
   mkdirSync(homeDir, { recursive: true, mode: 0o700 });
   for (const name of [".env", "auth.json"]) {
     const source = resolve(sourceHome, name);
@@ -77,9 +78,11 @@ export function buildHermesConfigYaml(
   accessMode?: RuntimeAccessMode,
 ): string {
   const lines: string[] = [];
-  lines.push("approvals:");
-  lines.push(`  mode: ${hermesApprovalMode(accessMode)}`);
-  lines.push("");
+  if (accessMode !== undefined) {
+    lines.push("approvals:");
+    lines.push(`  mode: ${hermesApprovalMode(accessMode)}`);
+    lines.push("");
+  }
   if (providerConfig) {
     const modelProvider = hermesCustomProviderKey(providerConfig.providerKey);
     lines.push("model:");

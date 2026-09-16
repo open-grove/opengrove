@@ -1,4 +1,4 @@
-import { normalizeEmployeeAccessMode } from "../../employee-access-mode.js";
+import { employeeAccessModeIssue, normalizeEmployeeAccessMode } from "../../employee-access-mode.js";
 import { kernelConfigHomeForRegistry } from "../../kernel-registry.js";
 import type {
   UpsertEmployeeOperation,
@@ -71,6 +71,17 @@ export async function handleAddRoomMemberOperation(
     state,
     normalizeMember(context.input.body, kernelConfigHomeForRegistry(state.settings, "claude-code")),
   );
+  if (
+    employeeAccessModeIssue(
+      normalizedMember.kernel,
+      context.input.body.accessMode ?? normalizedMember.accessMode,
+      normalizedMember.model,
+      kernelConfigHomeForRegistry(state.settings, "claude-code"),
+    )
+  ) {
+    sendJson(response, 409, { ok: false, error: "runtime_access_mode_unavailable" });
+    return true;
+  }
   let member: RoomChannelMember;
   try {
     member = state.app.rooms.addMember(context.input.params.roomId, normalizedMember);
@@ -115,6 +126,17 @@ export async function handleUpsertEmployeeOperation(
     context.input.body,
     kernelConfigHomeForRegistry(state.settings, "claude-code"),
   );
+  if (
+    employeeAccessModeIssue(
+      normalizedMember.kernel,
+      context.input.body.accessMode ?? normalizedMember.accessMode,
+      normalizedMember.model,
+      kernelConfigHomeForRegistry(state.settings, "claude-code"),
+    )
+  ) {
+    sendJson(response, 409, { ok: false, error: "runtime_access_mode_unavailable" });
+    return true;
+  }
   const member = state.app.rooms.upsertMember(withPreservedServerOwnedMeta(state, normalizedMember), {
     emitEvent: true,
   });
@@ -168,10 +190,17 @@ export async function handleUpdateEmployeeOperation(
     return true;
   }
   const touched = USER_OVERRIDABLE_FIELDS.filter((field) => Object.prototype.hasOwnProperty.call(patchInput, field));
+  if (existing && touched.includes("model") && isClearedModelValue(patchInput.model)) {
+    patch.model = defaultModelForEmployee(state, existing, patch.kernel ?? existing.kernel);
+  }
   if (touched.includes("kernel") || touched.includes("accessMode")) {
     patch.accessMode = normalizeEmployeeAccessMode(
       patch.kernel ?? existing?.kernel ?? "",
-      touched.includes("accessMode") ? patchInput.accessMode : existing?.accessMode,
+      touched.includes("accessMode")
+        ? patchInput.accessMode === null
+          ? existing?.manifestDefaults?.accessMode
+          : patchInput.accessMode
+        : existing?.accessMode,
       patch.model ?? existing?.model,
       kernelConfigHomeForRegistry(state.settings, "claude-code"),
     );
@@ -182,6 +211,18 @@ export async function handleUpdateEmployeeOperation(
     )
       touched.push("accessMode");
   }
+  if (
+    touched.some((field) => ["kernel", "model", "accessMode", "providerId"].includes(field)) &&
+    employeeAccessModeIssue(
+      patch.kernel ?? existing?.kernel ?? "",
+      patchInput.accessMode ?? patch.accessMode ?? existing?.accessMode,
+      patch.model ?? existing?.model ?? "",
+      kernelConfigHomeForRegistry(state.settings, "claude-code"),
+    )
+  ) {
+    sendJson(response, 409, { ok: false, error: "runtime_access_mode_unavailable" });
+    return true;
+  }
   // For seed-managed employees, non-null fields become user overrides. Clearing
   // reasoning or model means "follow App/Kernel defaults", so remove that marker
   // and immediately restore the effective default value instead.
@@ -191,6 +232,7 @@ export async function handleUpdateEmployeeOperation(
       for (const field of touched) {
         if (
           (field === "reasoningEffort" && patchInput.reasoningEffort === null) ||
+          (field === "accessMode" && patchInput.accessMode === null) ||
           (field === "model" && isClearedModelValue(patchInput.model))
         ) {
           nextOverrides.delete(field);
@@ -199,9 +241,6 @@ export async function handleUpdateEmployeeOperation(
         }
       }
       patch.userOverrides = nextOverrides.size ? [...nextOverrides] : undefined;
-    }
-    if (Object.prototype.hasOwnProperty.call(patchInput, "model") && isClearedModelValue(patchInput.model)) {
-      patch.model = defaultModelForEmployee(state, existing, patch.kernel ?? existing.kernel);
     }
   }
   const member = state.app.rooms.patchMember(memberId, patch);
