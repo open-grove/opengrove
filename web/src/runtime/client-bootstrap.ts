@@ -1,4 +1,5 @@
-import { clientBootstrapContract, type ClientBootstrap } from "@opengrove/agent-protocol";
+import type { ClientBootstrap } from "@opengrove/protocol";
+import { createOpenGroveClient, OpenGroveClientError, OpenGroveProtocolError } from "@opengrove/client";
 import type { DesktopBridgeStartupState } from "../../../src/desktop-bridge-startup-state";
 import { apiUrl } from "../api-base";
 import { readDesktopApi, readDesktopBridgeStartupState, type OpenGroveDesktopApi } from "../desktop-api";
@@ -7,29 +8,23 @@ import { translate } from "../i18n";
 let bootstrap: ClientBootstrap | undefined;
 
 export async function loadClientBootstrap(): Promise<ClientBootstrap> {
-  return requestClientBootstrap(apiUrl("/bootstrap"));
+  return requestClientBootstrap(apiUrl("/"));
 }
 
-async function requestClientBootstrap(url: string): Promise<ClientBootstrap> {
-  const response = await fetch(url, {
-    cache: "no-store",
-    credentials: "include",
-  });
-  if (!response.ok) {
-    throw new Error(translate("runtime.bootstrapRequestFailed", { status: response.status }));
-  }
-  let body: unknown;
+async function requestClientBootstrap(baseUrl: string): Promise<ClientBootstrap> {
+  const client = createOpenGroveClient({ baseUrl, credentials: "include" });
   try {
-    body = JSON.parse(await response.text());
-  } catch {
-    throw new Error(translate("runtime.bootstrapIncompatible"));
+    bootstrap = await client.host.discovery.bootstrap();
+    return bootstrap;
+  } catch (error) {
+    if (error instanceof OpenGroveClientError) {
+      throw new Error(translate("runtime.bootstrapRequestFailed", { status: error.status }), { cause: error });
+    }
+    if (error instanceof OpenGroveProtocolError) {
+      throw new Error(translate("runtime.bootstrapIncompatible"), { cause: error });
+    }
+    throw error;
   }
-  const parsed = clientBootstrapContract.response.safeParse(body);
-  if (!parsed.success) {
-    throw new Error(translate("runtime.bootstrapIncompatible"));
-  }
-  bootstrap = parsed.data;
-  return parsed.data;
 }
 
 export async function loadClientBootstrapForRuntime(
@@ -37,13 +32,9 @@ export async function loadClientBootstrapForRuntime(
 ): Promise<ClientBootstrap> {
   if (desktopApi) {
     await waitForDesktopBridgeReady(desktopApi);
-    return requestClientBootstrap(new URL("bootstrap", ensureTrailingSlash(desktopApi.apiBase)).toString());
+    return requestClientBootstrap(desktopApi.apiBase);
   }
   return loadClientBootstrap();
-}
-
-function ensureTrailingSlash(value: string): string {
-  return value.endsWith("/") ? value : `${value}/`;
 }
 
 async function waitForDesktopBridgeReady(

@@ -1,6 +1,6 @@
-import { compileHostProtocol } from "./compiler.js";
+import { compileHostProtocol, type CompiledHostProtocol } from "./compiler.js";
 import { hostOperationGroups } from "./registry.js";
 
-export const hostProtocol = compileHostProtocol(hostOperationGroups);
-export const hostContracts = hostProtocol.operations;
-export const hostContractById = hostProtocol.operationById;
+export const hostProtocol: CompiledHostProtocol<typeof hostOperationGroups> = compileHostProtocol(hostOperationGroups);
+export const hostContracts: (typeof hostProtocol)["operations"] = hostProtocol.operations;
+export const hostContractById: (typeof hostProtocol)["operationById"] = hostProtocol.operationById;

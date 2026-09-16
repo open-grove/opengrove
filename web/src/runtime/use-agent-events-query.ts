@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { EventsResponse } from "../bridge";
-import { bridgeHeaders, fetchJson } from "../bridge";
+import { openGroveClient } from "../opengrove-client";
 import { mergeAgentEventPage } from "./agent-event-sync";
 
 const EVENT_SNAPSHOT_LIMIT = 200;
@@ -81,14 +81,13 @@ async function fetchEventPage(input: {
   signal: AbortSignal;
   waitForEvents?: boolean;
 }): Promise<EventsResponse> {
-  const params = new URLSearchParams({
-    limit: String(input.cursor === undefined ? EVENT_SNAPSHOT_LIMIT : EVENT_DELTA_LIMIT),
-  });
-  if (input.cursor !== undefined) params.set("cursor", input.cursor);
-  for (const runId of input.runIds) params.append("runId", runId);
-  if (input.waitForEvents) params.set("waitMs", "25000");
-  return fetchJson<EventsResponse>(`/events?${params.toString()}`, {
-    headers: bridgeHeaders(false),
-    signal: input.signal,
-  });
+  return openGroveClient.runs.events.list(
+    {
+      limit: input.cursor === undefined ? EVENT_SNAPSHOT_LIMIT : EVENT_DELTA_LIMIT,
+      cursor: input.cursor,
+      runId: input.runIds,
+      waitMs: input.waitForEvents ? 25000 : 0,
+    },
+    { signal: input.signal },
+  );
 }

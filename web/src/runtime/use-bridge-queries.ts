@@ -1,8 +1,8 @@
+import { openGroveClient } from "../opengrove-client";
 import { authSessionRecoveryOptions } from "./auth-session-recovery";
 import { useEffect } from "react";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import type {
-  ApprovalsResponse,
   AuthSessionResponse,
   BridgeSettingsResponse,
   ClientUpdateResponse,
@@ -11,7 +11,6 @@ import type {
   InventoryResponse,
   KernelLoginsResponse,
   ProviderModelCatalogResponse,
-  QuestionsResponse,
 } from "../bridge";
 import { bridgeHeaders, fetchJson, getAppStoreCatalog, postJson } from "../bridge";
 import { APP_STORAGE_KEYS } from "../identity";
@@ -216,14 +215,14 @@ export function useBridgeQueries(input: {
 
   const approvalsQuery = useQuery({
     queryKey: ["approvals"],
-    queryFn: () => fetchJson<ApprovalsResponse>("/approvals?status=pending", { headers: bridgeHeaders(false) }),
+    queryFn: () => openGroveClient.interactions.approvals.list({ status: "pending" }),
     enabled: protectedQueriesEnabled,
     refetchOnWindowFocus: true,
   });
 
   const questionsQuery = useQuery({
     queryKey: ["questions"],
-    queryFn: () => fetchJson<QuestionsResponse>("/questions?status=pending", { headers: bridgeHeaders(false) }),
+    queryFn: () => openGroveClient.interactions.questions.list({ status: "pending" }),
     enabled: protectedQueriesEnabled,
     refetchOnWindowFocus: true,
   });
@@ -252,12 +251,8 @@ export function useBridgeQueries(input: {
     queryFn: async () => {
       const key = ["runs", "ops"] as const;
       const previous = queryClient.getQueryData<OpsRunsResponse>(key);
-      const params = new URLSearchParams({ limit: "200" });
-      if (previous?.revision) params.set("afterRevision", previous.revision);
-      const response = await fetchJson<OpsRunsResponse>(`/runs?${params.toString()}`, {
-        headers: bridgeHeaders(false),
-      });
-      return response.unchanged && previous ? { ...previous, revision: response.revision } : response;
+      const response = await openGroveClient.runs.collection.list({ limit: 200, afterRevision: previous?.revision });
+      return "unchanged" in response && previous ? { ...previous, revision: response.revision } : response;
     },
     enabled: protectedQueriesEnabled && input.contextRecordsEnabled === true,
     refetchInterval: 10_000,
@@ -269,12 +264,8 @@ export function useBridgeQueries(input: {
     queryFn: async () => {
       const key = ["executions", "ops"] as const;
       const previous = queryClient.getQueryData<OpsExecutionsResponse>(key);
-      const params = new URLSearchParams({ limit: "200" });
-      if (previous?.revision) params.set("afterRevision", previous.revision);
-      const response = await fetchJson<OpsExecutionsResponse>(`/executions?${params.toString()}`, {
-        headers: bridgeHeaders(false),
-      });
-      return response.unchanged && previous ? { ...previous, revision: response.revision } : response;
+      const response = await openGroveClient.runs.executions.list({ limit: 200, afterRevision: previous?.revision });
+      return "unchanged" in response && previous ? { ...previous, revision: response.revision } : response;
     },
     enabled: protectedQueriesEnabled && input.contextRecordsEnabled === true,
     refetchInterval: 10_000,

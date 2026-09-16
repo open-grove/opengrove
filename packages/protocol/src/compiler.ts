@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { compileHostSchemaDocuments, type HostSchemaDocuments } from "./schema-documents.js";
 import type { HostOperation, HostOperationGroup, HostOperationResponse } from "./operation.js";
 
 export type HostOperationInputSectionName = "params" | "query" | "body";
@@ -70,6 +71,7 @@ export type CompiledHostOperationById<TOperation extends HostOperation> = {
 };
 
 export type CompiledHostProtocol<TGroups extends readonly HostOperationGroup[]> = Readonly<{
+  schemaDocuments: HostSchemaDocuments;
   groups: readonly CompiledHostOperationGroup[];
   operations: readonly CompiledHostOperation<HostOperationFromGroups<TGroups>>[];
   operationById: CompiledHostOperationById<HostOperationFromGroups<TGroups>>;
@@ -126,6 +128,7 @@ export function compileHostProtocol<const TGroups extends readonly HostOperation
     compiledOperations.map((operation) => [operation.id, operation]),
   ) as CompiledHostOperationById<HostOperationFromGroups<TGroups>>;
   return {
+    schemaDocuments: compileHostSchemaDocuments(compiledOperations.map((operation) => operation.operation)),
     groups: compiledGroups,
     operations: compiledOperations as readonly CompiledHostOperation<HostOperationFromGroups<TGroups>>[],
     operationById,
