@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 const projectRoot = resolve(import.meta.dirname, "..");
-const typesPath = resolve(projectRoot, "src/kernel/capabilities/types.ts");
+const typesPath = resolve(projectRoot, "packages/protocol/src/kernel-capability-ids.ts");
 const policyPath = resolve(projectRoot, "web/src/runtime/kernel-capability-ui-policy.ts");
 const docsPath = resolve(projectRoot, "docs/reference/kernel-capability-ui-references/README.md");
 

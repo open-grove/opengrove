@@ -280,6 +280,25 @@ assert.equal(
   false,
   "a rejected PM mutation must not partially upsert the extra identity",
 );
+roomAdminStore.upsertMember(duplicateScopedPm);
+const beforeRejectedJoin = roomAdminStore.snapshot();
+assert.throws(
+  () => roomAdminStore.joinMember(appRoomAwaitingScopedPm.id, duplicateScopedPm.id),
+  /app_room_pm_scope_mismatch/,
+  "joining an existing Employee still enforces the App PM identity",
+);
+assert.deepEqual(
+  roomAdminStore.snapshot(),
+  beforeRejectedJoin,
+  "a rejected join changes neither membership nor configuration",
+);
+const foreignEmployee = { ...roomAdminWorker, id: "foreign-employee", appId: "another-app" };
+roomAdminStore.upsertMember(foreignEmployee);
+assert.throws(
+  () => roomAdminStore.joinMember(appRoomAwaitingScopedPm.id, foreignEmployee.id),
+  /cross_app_member_forbidden/,
+  "joining an existing Employee cannot cross App boundaries",
+);
 const forgedPm = {
   ...roomAdminWorker,
   id: "member-app-admin-demo-forged-pm",

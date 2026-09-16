@@ -4,6 +4,1898 @@ export type ClientOptions = {
   baseUrl: `${string}://${string}/api` | (string & {});
 };
 
+export type EmployeeWriteInput = {
+  name?: string;
+  role?: string;
+  kernel?: string;
+  model?: string;
+  color?: string;
+  availableSkillIds?: Array<string>;
+  defaultSkillIds?: Array<string>;
+  reasoningEffort?: "low" | "medium" | "high" | "xhigh" | "max";
+  contextTokenBudget?: number;
+  accessMode?: "default" | "auto-review" | "full-access";
+  avatarMode?: "generated" | "initials" | "upload";
+  avatarSeed?: string;
+  avatarDataUrl?: string;
+  visibility?: "private" | "public";
+  publicDescription?: string;
+  publicSkills?: Array<string>;
+  inputSpec?: string;
+  outputSpec?: string;
+  id: string;
+  employeeDefinitionId?: string;
+  providerId?: string;
+  status?: "idle" | "running" | "done" | "waiting" | "offline";
+  lastActive?: string;
+  appId?: string;
+  workspaceRoot?: string;
+  storePackageId?: string;
+  toolIds?: Array<string>;
+  source?: "local" | "human";
+  sourceLabel?: string;
+  disabled?: boolean;
+};
+
+export type HostInputSharedDefinitionSchema0 =
+  | string
+  | number
+  | boolean
+  | null
+  | Array<HostInputSharedDefinitionSchema0>
+  | {
+      [key: string]: HostInputSharedDefinitionSchema0;
+    };
+
+export type HostInputSharedDefinitionSchema1 =
+  | string
+  | number
+  | boolean
+  | null
+  | Array<HostInputSharedDefinitionSchema1>
+  | {
+      [key: string]: HostInputSharedDefinitionSchema1;
+    };
+
+export type HostError = {
+  ok?: false;
+  error: string;
+  code?: string;
+  message?: string;
+  contractId?: string;
+  traceId?: string;
+  incidentId?: string;
+  issues?: Array<{
+    path: string;
+    code: string;
+  }>;
+};
+
+export type RunLifecycle = {
+  taskState:
+    | "TASK_STATE_UNSPECIFIED"
+    | "TASK_STATE_SUBMITTED"
+    | "TASK_STATE_WORKING"
+    | "TASK_STATE_COMPLETED"
+    | "TASK_STATE_FAILED"
+    | "TASK_STATE_CANCELED"
+    | "TASK_STATE_INPUT_REQUIRED"
+    | "TASK_STATE_REJECTED"
+    | "TASK_STATE_AUTH_REQUIRED";
+  activity?: "running" | "reconnecting" | "cancel_pending" | "waiting_on_child";
+  reasonCode?: string;
+  retryable?: boolean;
+  outcomeUnknown?: boolean;
+  childRunId?: string;
+};
+
+export type Question = {
+  id: string;
+  title: string;
+  createdAt: string;
+  updatedAt: string;
+  input?: HostOutputSharedDefinitionSchema0;
+  response?: HostOutputSharedDefinitionSchema1;
+  resume?:
+    | {
+        type: "tool";
+        runId?: string;
+      }
+    | {
+        type: "routine.step";
+        routineId: string;
+        stepId: string;
+        runId: string;
+        stepOutputs?: {
+          [key: string]: HostOutputSharedDefinitionSchema2;
+        };
+      }
+    | {
+        type: "kernel.native";
+        kernelId: string;
+        runId: string;
+        continuation: "same-loop";
+      };
+  nativeRequestId?: string;
+  deadlineAt?: string;
+  isBlocking?: boolean;
+  autoResolutionMs?: number;
+  prompt: string;
+  status: "pending" | "answered" | "declined" | "canceled";
+  source?:
+    | {
+        type: "kernel.native";
+        kernelId: string;
+      }
+    | {
+        type: "host";
+      }
+    | {
+        type: "unknown";
+      };
+};
+
+export type Approval = {
+  id: string;
+  title: string;
+  createdAt: string;
+  updatedAt: string;
+  input?: HostOutputSharedDefinitionSchema0;
+  response?: HostOutputSharedDefinitionSchema1;
+  resume?:
+    | {
+        type: "tool";
+        runId?: string;
+      }
+    | {
+        type: "routine.step";
+        routineId: string;
+        stepId: string;
+        runId: string;
+        stepOutputs?: {
+          [key: string]: HostOutputSharedDefinitionSchema2;
+        };
+      }
+    | {
+        type: "kernel.native";
+        kernelId: string;
+        runId: string;
+        continuation: "same-loop";
+      };
+  nativeRequestId?: string;
+  deadlineAt?: string;
+  isBlocking?: boolean;
+  autoResolutionMs?: number;
+  kind:
+    | "tool"
+    | "command"
+    | "file_change"
+    | "permission_scope"
+    | "routine_step"
+    | "memory_write"
+    | "browser_action"
+    | "computer_action";
+  reason: string;
+  status: "pending" | "approved" | "rejected" | "canceled";
+  toolId?: string;
+  capabilityId?: string;
+  skillId?: string;
+};
+
+export type ToolResult = {
+  ok: boolean;
+  value?: HostOutputSharedDefinitionSchema3;
+  error?: string;
+  problem?: {
+    incidentId: string;
+    code: string;
+  };
+  sources?: Array<{
+    title?: string;
+    url?: string;
+    locator?: string;
+    quote?: string;
+  }>;
+};
+
+export type InvokedSkill = {
+  skillId: string;
+  skillName: string;
+  title: string;
+  content: string;
+  contentPreview: string;
+  sourcePath: string;
+  source: "bundled" | "project" | "user" | "pack";
+  trust: "trusted" | "untrusted";
+  context: "inline" | "fork";
+  args?: string;
+  allowedTools: Array<string>;
+  model?: string;
+  effort?: string;
+  packId?: string;
+  capabilityId?: string;
+  invokedAt: string;
+  origin: "user" | "model";
+};
+
+export type Run = {
+  id: string;
+  sessionId: string;
+  activity: "browser" | "chat" | "local" | "api" | "computer";
+  lifecycle: RunLifecycle;
+  input: string;
+  createdAt: string;
+  updatedAt: string;
+  startedAt: string;
+  endedAt?: string;
+  modelId?: string;
+  summary?: string;
+  error?: string;
+  problem?: {
+    incidentId: string;
+    code: string;
+  };
+  pausedAt?: string;
+  resumedAt?: string;
+  pauseReason?: string;
+  lastApprovalId?: string;
+  lastQuestionId?: string;
+  resumeCount: number;
+  approvalIds: Array<string>;
+  questionIds: Array<string>;
+  toolIds: Array<string>;
+  eventCount: number;
+};
+
+export type Session = {
+  id: string;
+  title?: string;
+  activity?: "browser" | "chat" | "local" | "api" | "computer";
+  status: "active" | "idle" | "archived";
+  createdAt: string;
+  updatedAt: string;
+  activeRunId?: string;
+  latestRunId?: string;
+  runIds: Array<string>;
+  lastUserInput?: string;
+  metadata?: {
+    [key: string]: HostOutputSharedDefinitionSchema2;
+  };
+};
+
+export type Execution = {
+  id: string;
+  runId: string;
+  sessionId?: string;
+  kind:
+    | "loop"
+    | "model"
+    | "reasoning"
+    | "tool_call"
+    | "approval"
+    | "question"
+    | "planning"
+    | "artifact"
+    | "memory"
+    | "error";
+  /**
+   * The recorded Agent event type.
+   */
+  eventType: string;
+  title: string;
+  at: string;
+  status?: string;
+  toolId?: string;
+  approvalId?: string;
+  questionId?: string;
+  artifactId?: string;
+  data?: {
+    [key: string]: HostOutputSharedDefinitionSchema2;
+  };
+};
+
+export type RoutineRunResult = {
+  summary: {
+    id: string;
+    routineId: string;
+    status: "running" | "succeeded" | "failed" | "paused_for_approval";
+    startedAt: string;
+    endedAt?: string;
+    eventCount: number;
+    error?: string;
+    problem?: {
+      incidentId: string;
+      code: string;
+    };
+  };
+  events: Array<
+    | {
+        type: "turn.started";
+        runId: string;
+        at: string;
+      }
+    | {
+        type: "context.assembled";
+        runId: string;
+        context: {
+          id: string;
+          createdAt: string;
+          summary: string;
+          promptBlock: string;
+          items: Array<{
+            id: string;
+            kind:
+              | "page"
+              | "selection"
+              | "attachment"
+              | "computer"
+              | "artifact"
+              | "session"
+              | "execution"
+              | "task"
+              | "knowledge"
+              | "memory"
+              | "routine"
+              | "permission"
+              | "skill";
+            title: string;
+            text: string;
+            source?: {
+              title?: string;
+              url?: string;
+              locator?: string;
+              quote?: string;
+            };
+            score?: number;
+            data?: {
+              [key: string]: HostOutputSharedDefinitionSchema2;
+            };
+          }>;
+          budget: {
+            maxItems: number;
+            usedItems: number;
+            maxCharacters: number;
+            usedCharacters: number;
+            truncated: boolean;
+          };
+        };
+      }
+    | {
+        type: "compaction.started";
+        runId: string;
+        at: string;
+        reason?: string;
+        item?: HostOutputSharedDefinitionSchema4;
+      }
+    | {
+        type: "compaction.finished";
+        runId: string;
+        at: string;
+        summary?: string;
+        item?: HostOutputSharedDefinitionSchema5;
+      }
+    | {
+        type: "model.requested";
+        runId: string;
+        request: {
+          systemPrompt: string;
+          userInput: string;
+          modelId?: string;
+          session?: {
+            provider: string;
+            sessionId: string;
+            persistent: boolean;
+            priorMessageCount: number;
+            priorMessages: Array<{
+              role: "system" | "user" | "assistant" | "tool";
+              content: string;
+              name?: string;
+            }>;
+            nativeSessionId?: string;
+          };
+          messages?: Array<{
+            role: "system" | "user" | "assistant" | "tool";
+            content: string;
+            name?: string;
+          }>;
+          context?: {
+            id: string;
+            createdAt: string;
+            summary: string;
+            promptBlock: string;
+            items: Array<{
+              id: string;
+              kind:
+                | "page"
+                | "selection"
+                | "attachment"
+                | "computer"
+                | "artifact"
+                | "session"
+                | "execution"
+                | "task"
+                | "knowledge"
+                | "memory"
+                | "routine"
+                | "permission"
+                | "skill";
+              title: string;
+              text: string;
+              source?: {
+                title?: string;
+                url?: string;
+                locator?: string;
+                quote?: string;
+              };
+              score?: number;
+              data?: {
+                [key: string]: HostOutputSharedDefinitionSchema2;
+              };
+            }>;
+            budget: {
+              maxItems: number;
+              usedItems: number;
+              maxCharacters: number;
+              usedCharacters: number;
+              truncated: boolean;
+            };
+          };
+          tools: Array<{
+            id: string;
+            title: string;
+            description: string;
+            activity: "browser" | "chat" | "local" | "api" | "computer";
+            risk: "read" | "write" | "send" | "spend" | "delete";
+            input: {
+              type: "json-schema";
+              schema: {
+                [key: string]: HostOutputSharedDefinitionSchema2;
+              };
+            };
+            output?: {
+              type: "json-schema";
+              schema: {
+                [key: string]: HostOutputSharedDefinitionSchema2;
+              };
+            };
+            permission: {
+              mode: "allow" | "ask" | "deny";
+              reason: string;
+            };
+            liveness?: {
+              cancellation: "run-signal" | "none";
+              deadlineSource: "kernel-native" | "upstream-service" | "business-rule" | "none";
+              abandonOutcome: "outcome-unknown";
+              terminalConfirmation: "tool-result";
+              cancellationGraceMs?: number;
+            };
+          }>;
+          skills: Array<{
+            id: string;
+            name: string;
+            aliases?: Array<string>;
+            title: string;
+            description: string;
+            whenToUse?: string;
+            format: "markdown-v1" | "markdown-v2";
+            entry: string;
+            skillRoot: string;
+            activities: Array<"browser" | "chat" | "local" | "api" | "computer">;
+            toolIds: Array<string>;
+            memoryHooks: Array<{
+              kind: string;
+              mode: "direct" | "propose" | "ask";
+              reason: string;
+            }>;
+            allowedTools: Array<string>;
+            argumentHint?: string;
+            arguments?: Array<string>;
+            userInvocable: boolean;
+            disableModelInvocation: boolean;
+            model?: string;
+            effort?: string;
+            context: "inline" | "fork";
+            shell?: Array<string>;
+            paths?: Array<string>;
+            hooks?: {
+              [key: string]: HostOutputSharedDefinitionSchema2;
+            };
+            source: "bundled" | "project" | "user" | "pack";
+            trust: "trusted" | "untrusted";
+            packId?: string;
+            capabilityId?: string;
+            contentLength?: number;
+            tags?: Array<string>;
+          }>;
+          packs: Array<{
+            id: string;
+            title: string;
+            description: string;
+            source: "bundled" | "project" | "user" | "pack";
+            trust: "trusted" | "untrusted";
+            rootDir: string;
+            skillIds: Array<string>;
+            toolIds: Array<string>;
+            capabilityIds: Array<string>;
+            artifactTypes: Array<string>;
+            referenceAssetDirs?: Array<string>;
+            tags?: Array<string>;
+          }>;
+          capabilities: Array<{
+            id: string;
+            title: string;
+            version: string;
+            description: string;
+            source?: {
+              kind: "native" | "wrapped-open-source" | "mcp" | "external-api" | "user-routine";
+              project?: string;
+              url?: string;
+              license?: string;
+            };
+            activities: Array<"browser" | "chat" | "local" | "api" | "computer">;
+            triggers?: Array<{
+              [key: string]: HostOutputSharedDefinitionSchema2;
+            }>;
+            tools: Array<{
+              id: string;
+              title: string;
+              description: string;
+              activity: "browser" | "chat" | "local" | "api" | "computer";
+              risk: "read" | "write" | "send" | "spend" | "delete";
+              input: {
+                type: "json-schema";
+                schema: {
+                  [key: string]: HostOutputSharedDefinitionSchema2;
+                };
+              };
+              output?: {
+                type: "json-schema";
+                schema: {
+                  [key: string]: HostOutputSharedDefinitionSchema2;
+                };
+              };
+              permission: {
+                mode: "allow" | "ask" | "deny";
+                reason: string;
+              };
+              liveness?: {
+                cancellation: "run-signal" | "none";
+                deadlineSource: "kernel-native" | "upstream-service" | "business-rule" | "none";
+                abandonOutcome: "outcome-unknown";
+                terminalConfirmation: "tool-result";
+                cancellationGraceMs?: number;
+              };
+            }>;
+            skills: Array<{
+              id: string;
+              name: string;
+              aliases?: Array<string>;
+              title: string;
+              description: string;
+              whenToUse?: string;
+              format: "markdown-v1" | "markdown-v2";
+              entry: string;
+              skillRoot: string;
+              activities: Array<"browser" | "chat" | "local" | "api" | "computer">;
+              toolIds: Array<string>;
+              memoryHooks: Array<{
+                kind: string;
+                mode: "direct" | "propose" | "ask";
+                reason: string;
+              }>;
+              allowedTools: Array<string>;
+              argumentHint?: string;
+              arguments?: Array<string>;
+              userInvocable: boolean;
+              disableModelInvocation: boolean;
+              model?: string;
+              effort?: string;
+              context: "inline" | "fork";
+              shell?: Array<string>;
+              paths?: Array<string>;
+              hooks?: {
+                [key: string]: HostOutputSharedDefinitionSchema2;
+              };
+              source: "bundled" | "project" | "user" | "pack";
+              trust: "trusted" | "untrusted";
+              packId?: string;
+              capabilityId?: string;
+              contentLength?: number;
+              tags?: Array<string>;
+            }>;
+            memoryHooks: Array<{
+              kind: string;
+              mode: "direct" | "propose" | "ask";
+              reason: string;
+            }>;
+            policy: Array<{
+              mode: "allow" | "ask" | "deny";
+              reason: string;
+              id?: string;
+              toolId?: string;
+              capabilityId?: string;
+              risk?: "read" | "write" | "send" | "spend" | "delete";
+            }>;
+            sandbox?: "read-only" | "workspace-write" | "danger-full-access";
+            evals?: Array<{
+              id: string;
+              description: string;
+              input: string;
+              expectedBehavior: string;
+            }>;
+          }>;
+        };
+      }
+    | {
+        type: "model.response";
+        runId: string;
+        response: {
+          text: string;
+          usage?: {
+            inputTokens?: number;
+            outputTokens?: number;
+            totalTokens?: number;
+            costUsd?: number;
+            latencyMs?: number;
+            contextWindowSize?: number;
+            contextUsedTokens?: number;
+            contextBreakdown?: Array<{
+              category: string;
+              tokens: number;
+            }>;
+          };
+        };
+      }
+    | {
+        type: "runtime.diagnostic";
+        runId: string;
+        at: string;
+        name: string;
+        data: {
+          [key: string]: HostOutputSharedDefinitionSchema2;
+        };
+      }
+    | {
+        type: "reasoning.started";
+        runId: string;
+        reasoning: {
+          id: string;
+          kind: "native" | "summary";
+          kernelId: string;
+        };
+      }
+    | {
+        type: "reasoning.completed";
+        runId: string;
+        reasoning: {
+          id: string;
+          kind: "native" | "summary";
+          kernelId: string;
+          text: string;
+          redacted?: boolean;
+          elapsedMs?: number;
+        };
+      }
+    | {
+        type: "assistant.delta";
+        runId: string;
+        text: string;
+      }
+    | {
+        type: "assistant.final";
+        runId: string;
+        text: string;
+        at: string;
+        source?: "runtime" | "adapter" | "fallback";
+      }
+    | {
+        type: "assistant.status";
+        runId: string;
+        text: string;
+        at: string;
+        data?: {
+          [key: string]: HostOutputSharedDefinitionSchema2;
+        };
+      }
+    | {
+        type: "skill.discovered";
+        runId: string;
+        skills: Array<{
+          id: string;
+          name: string;
+          aliases?: Array<string>;
+          title: string;
+          description: string;
+          whenToUse?: string;
+          format: "markdown-v1" | "markdown-v2";
+          entry: string;
+          skillRoot: string;
+          activities: Array<"browser" | "chat" | "local" | "api" | "computer">;
+          toolIds: Array<string>;
+          memoryHooks: Array<{
+            kind: string;
+            mode: "direct" | "propose" | "ask";
+            reason: string;
+          }>;
+          allowedTools: Array<string>;
+          argumentHint?: string;
+          arguments?: Array<string>;
+          userInvocable: boolean;
+          disableModelInvocation: boolean;
+          model?: string;
+          effort?: string;
+          context: "inline" | "fork";
+          shell?: Array<string>;
+          paths?: Array<string>;
+          hooks?: {
+            [key: string]: HostOutputSharedDefinitionSchema2;
+          };
+          source: "bundled" | "project" | "user" | "pack";
+          trust: "trusted" | "untrusted";
+          packId?: string;
+          capabilityId?: string;
+          contentLength?: number;
+          tags?: Array<string>;
+        }>;
+      }
+    | {
+        type: "skill.invoked";
+        runId: string;
+        skill: {
+          id: string;
+          name: string;
+          aliases?: Array<string>;
+          title: string;
+          description: string;
+          whenToUse?: string;
+          format: "markdown-v1" | "markdown-v2";
+          entry: string;
+          skillRoot: string;
+          activities: Array<"browser" | "chat" | "local" | "api" | "computer">;
+          toolIds: Array<string>;
+          memoryHooks: Array<{
+            kind: string;
+            mode: "direct" | "propose" | "ask";
+            reason: string;
+          }>;
+          allowedTools: Array<string>;
+          argumentHint?: string;
+          arguments?: Array<string>;
+          userInvocable: boolean;
+          disableModelInvocation: boolean;
+          model?: string;
+          effort?: string;
+          context: "inline" | "fork";
+          shell?: Array<string>;
+          paths?: Array<string>;
+          hooks?: {
+            [key: string]: HostOutputSharedDefinitionSchema2;
+          };
+          source: "bundled" | "project" | "user" | "pack";
+          trust: "trusted" | "untrusted";
+          packId?: string;
+          capabilityId?: string;
+          contentLength?: number;
+          tags?: Array<string>;
+        };
+        invocation: InvokedSkill;
+      }
+    | {
+        type: "skill.loaded";
+        runId: string;
+        skillId: string;
+        contentPreview: string;
+        allowedTools: Array<string>;
+        model?: string;
+        effort?: string;
+        context: "inline" | "fork";
+      }
+    | {
+        type: "skill.forked";
+        runId: string;
+        skillId: string;
+        forkSessionId: string;
+        status: "started" | "finished";
+        result?: string;
+      }
+    | {
+        type: "skill.cleared";
+        runId: string;
+        skillId?: string;
+        reason: string;
+      }
+    | {
+        type: "tool.started";
+        runId: string;
+        toolId: string;
+        callId?: string;
+        input: HostOutputSharedDefinitionSchema6;
+      }
+    | {
+        type: "tool.progress";
+        runId: string;
+        toolId: string;
+        callId?: string;
+        update: HostOutputSharedDefinitionSchema7;
+      }
+    | {
+        type: "tool.finished";
+        runId: string;
+        toolId: string;
+        callId?: string;
+        result: ToolResult;
+      }
+    | {
+        type: "approval.requested";
+        runId: string;
+        request: Approval;
+      }
+    | {
+        type: "approval.resolved";
+        runId: string;
+        request: Approval;
+      }
+    | {
+        type: "question.requested";
+        runId: string;
+        question: Question;
+      }
+    | {
+        type: "question.answered";
+        runId: string;
+        question: Question;
+      }
+    | {
+        type: "planning.updated";
+        runId: string;
+        plan: {
+          id: string;
+          title?: string;
+          text: string;
+          status?: string;
+          raw?: {
+            [key: string]: HostOutputSharedDefinitionSchema2;
+          };
+          updatedAt: string;
+          source?:
+            | {
+                type: "kernel.native";
+                kernelId: string;
+              }
+            | {
+                type: "host";
+              }
+            | {
+                type: "unknown";
+              };
+        };
+      }
+    | {
+        type: "run.cancel_requested";
+        runId: string;
+        at: string;
+        reason?: string;
+      }
+    | {
+        type: "run.paused";
+        runId: string;
+        at: string;
+        reason: string;
+        approvalId?: string;
+      }
+    | {
+        type: "run.resumed";
+        runId: string;
+        at: string;
+        reason?: string;
+        approvalId?: string;
+      }
+    | {
+        type: "memory.written";
+        runId: string;
+        record: {
+          id: string;
+          scope: "user" | "workspace" | "page" | "session";
+          kind: string;
+          text: string;
+          confidence: "asserted" | "observed" | "inferred";
+          source: {
+            kind: "user" | "agent" | "tool" | "skill";
+            ref?: {
+              title?: string;
+              url?: string;
+              locator?: string;
+              quote?: string;
+            };
+          };
+          tags: Array<string>;
+          data?: {
+            [key: string]: HostOutputSharedDefinitionSchema2;
+          };
+          createdAt: string;
+          updatedAt: string;
+          expiresAt?: string;
+        };
+      }
+    | {
+        type: "turn.finished";
+        runId: string;
+        at: string;
+        outcome: RunLifecycle;
+        synthetic?: boolean;
+      }
+    | {
+        type: "error";
+        runId: string;
+        message: string;
+        problem?: {
+          incidentId: string;
+          code: string;
+        };
+        diagnostics?: {
+          runtimeModelId?: string;
+          runtimeVersion?: string;
+          upstreamRequestId?: string;
+        };
+      }
+  >;
+  toolResults: Array<ToolResult>;
+};
+
+export type WorkingState = {
+  sessionId?: string;
+  taskSummary?: string;
+  activeGoal?: string;
+  selectedModel?: string;
+  activePackId?: string;
+  activeSkillId?: string;
+  pinnedArtifactIds: Array<string>;
+  workingArtifactIds: Array<string>;
+  pendingApprovalIds: Array<string>;
+  pendingQuestionIds: Array<string>;
+  activeToolCallIds: Array<string>;
+  discoveredSkillIds: Array<string>;
+  discoveredSkillNames: Array<string>;
+  expandedSkillIds: Array<string>;
+  invokedSkills: Array<InvokedSkill>;
+  loadedNestedMemoryPaths: Array<string>;
+  toolSchemaCache: {
+    [key: string]: string;
+  };
+  updatedAt: string;
+};
+
+export type Artifact = {
+  id: string;
+  type: string;
+  title?: string;
+  status?: string;
+  version?: number;
+  tags: Array<string>;
+  data: {
+    [key: string]: HostOutputSharedDefinitionSchema2;
+  };
+  assets?: Array<{
+    kind: "image" | "audio" | "video" | "file" | "url" | "text";
+    uri?: string;
+    path?: string;
+    title?: string;
+    mimeType?: string;
+    metadata?: {
+      [key: string]: HostOutputSharedDefinitionSchema2;
+    };
+  }>;
+  preview?: {
+    title?: string;
+    text?: string;
+    imageUri?: string;
+    mimeType?: string;
+    status?: string;
+  };
+  createdAt: string;
+  updatedAt: string;
+  sourceRefs?: Array<{
+    title?: string;
+    url?: string;
+    locator?: string;
+    quote?: string;
+  }>;
+  parentId?: string;
+  variantOf?: string;
+  derivedFrom?: Array<string>;
+  lineage?: Array<string>;
+  provenance?: {
+    [key: string]: HostOutputSharedDefinitionSchema2;
+  };
+};
+
+export type RoomMessage = {
+  id: string;
+  roomId: string;
+  channelSeq: number;
+  senderId: string;
+  senderName: string;
+  senderType: "user" | "agent" | "system";
+  text: string;
+  targetIds: Array<string>;
+  status: "sent" | "running" | "done" | "failed" | "interrupted";
+  createdAt: string;
+  updatedAt: string;
+  attachments?: Array<unknown>;
+  parts?: Array<{
+    [key: string]: unknown;
+  }>;
+  duration?: string;
+  runId?: string;
+  remoteTask?: {
+    contextId?: string;
+    messageId: string;
+    requestText?: string;
+    triggerMessageId: string;
+    taskId?: string;
+    inputTaskId?: string;
+    sendStarted?: boolean;
+    needsInput?: boolean;
+    pending: boolean;
+    cancelRequested?: boolean;
+    statusText?: string;
+  };
+  startedAt?: string;
+  finishedAt?: string;
+  audience?: "room" | "internal";
+  deliveryKind?: "user_direct" | "user_broadcast" | "pm_auto_route" | "agent_delegation" | "system_routine";
+  notificationEventSeq?: number;
+  inReplyToMessageId?: string;
+  rootMessageId?: string;
+  selectedFile?: {
+    path: string;
+    [key: string]: unknown;
+  };
+  [key: string]: unknown;
+};
+
+export type Employee = {
+  name: string;
+  role: string;
+  kernel: string;
+  model: string;
+  color: string;
+  availableSkillIds?: Array<string>;
+  defaultSkillIds?: Array<string>;
+  requiredKernelCapabilities?: Array<
+    | "message.streamText"
+    | "turn.lifecycle"
+    | "session.lifecycle"
+    | "planning.plan"
+    | "interaction.askUser"
+    | "tools.hostTool"
+    | "tools.nativeTool"
+    | "tools.mcpServers"
+    | "tools.parallelCalls"
+    | "tool.progress"
+    | "approval.request"
+    | "control.stop"
+    | "control.steer"
+    | "session.compact"
+    | "session.goal"
+    | "auth.refresh"
+    | "sandbox.policy"
+    | "budget.limit"
+    | "diagnostics.usage"
+    | "response.speed"
+    | "media.input"
+    | "output.structured"
+    | "output.artifacts"
+    | "reasoning.nativeText"
+    | "reasoning.summary"
+    | "knowledge.skills"
+  >;
+  reasoningEffort?: "low" | "medium" | "high" | "xhigh" | "max";
+  contextTokenBudget?: number;
+  accessMode?: "default" | "auto-review" | "full-access";
+  avatarMode?: "generated" | "initials" | "upload";
+  avatarSeed?: string;
+  avatarDataUrl?: string;
+  visibility?: "private" | "public";
+  publicDescription?: string;
+  publicSkills?: Array<string>;
+  inputSpec?: string;
+  outputSpec?: string;
+  id: string;
+  employeeDefinitionId?: string;
+  displayName?: string;
+  providerId?: string;
+  displayRole?: string;
+  status: "idle" | "running" | "done" | "waiting" | "offline";
+  lastActive: string;
+  appId?: string;
+  workspaceRoot?: string;
+  storePackageId?: string;
+  toolIds?: Array<string>;
+  source?: "local" | "human" | "remote";
+  remoteAgent?: {
+    accountIssuer: string;
+    accountUserId: string;
+    serviceUrl: string;
+    matrixId: string;
+    provider: string;
+    senderAgentId: string;
+    owner: string;
+    address: string;
+  };
+  sourceLabel?: string;
+  displayPublicDescription?: string;
+  displayPublicSkills?: Array<string>;
+  displayInputSpec?: string;
+  displayOutputSpec?: string;
+  userOverrides?: Array<string>;
+  manifestDefaults?: {
+    name?: string;
+    role?: string;
+    kernel?: string;
+    model?: string;
+    color?: string;
+    availableSkillIds?: Array<string>;
+    defaultSkillIds?: Array<string>;
+    requiredKernelCapabilities?: Array<
+      | "message.streamText"
+      | "turn.lifecycle"
+      | "session.lifecycle"
+      | "planning.plan"
+      | "interaction.askUser"
+      | "tools.hostTool"
+      | "tools.nativeTool"
+      | "tools.mcpServers"
+      | "tools.parallelCalls"
+      | "tool.progress"
+      | "approval.request"
+      | "control.stop"
+      | "control.steer"
+      | "session.compact"
+      | "session.goal"
+      | "auth.refresh"
+      | "sandbox.policy"
+      | "budget.limit"
+      | "diagnostics.usage"
+      | "response.speed"
+      | "media.input"
+      | "output.structured"
+      | "output.artifacts"
+      | "reasoning.nativeText"
+      | "reasoning.summary"
+      | "knowledge.skills"
+    >;
+    reasoningEffort?: "low" | "medium" | "high" | "xhigh" | "max";
+    contextTokenBudget?: number;
+    accessMode?: "default" | "auto-review" | "full-access";
+    avatarMode?: "generated" | "initials" | "upload";
+    avatarSeed?: string;
+    avatarDataUrl?: string;
+    visibility?: "private" | "public";
+    publicDescription?: string;
+    publicSkills?: Array<string>;
+    inputSpec?: string;
+    outputSpec?: string;
+  };
+  disabled?: boolean;
+};
+
+export type Room = {
+  id: string;
+  kind: "group" | "direct";
+  title: string;
+  badge: string;
+  memberIds: Array<string>;
+  adminMemberIds: Array<string>;
+  updatedAt: string;
+  unread: number;
+  scope?: {
+    kind: "app";
+    appId: string;
+    role?: "default" | "group" | "direct";
+  };
+  generatedTitle?:
+    | {
+        kind: "numbered-group";
+        sequence: number;
+      }
+    | {
+        kind: "app-group";
+        appId: string;
+        sequence: number;
+      };
+  removedMemberIds?: Array<string>;
+  directMemberId?: string;
+  pinned?: boolean;
+  archived?: boolean;
+  lastReadEventSeq?: number;
+  [key: string]: unknown;
+};
+
+export type RoomError = {
+  ok?: false;
+  error: string;
+  code?: string;
+  traceId?: string;
+  [key: string]: unknown;
+};
+
+export type RunEventPage = {
+  ok: true;
+  events: Array<
+    | {
+        type: "turn.started";
+        runId: string;
+        at: string;
+      }
+    | {
+        type: "context.assembled";
+        runId: string;
+        context: {
+          id: string;
+          createdAt: string;
+          summary: string;
+          promptBlock: string;
+          items: Array<{
+            id: string;
+            kind:
+              | "page"
+              | "selection"
+              | "attachment"
+              | "computer"
+              | "artifact"
+              | "session"
+              | "execution"
+              | "task"
+              | "knowledge"
+              | "memory"
+              | "routine"
+              | "permission"
+              | "skill";
+            title: string;
+            text: string;
+            source?: {
+              title?: string;
+              url?: string;
+              locator?: string;
+              quote?: string;
+            };
+            score?: number;
+            data?: {
+              [key: string]: HostOutputSharedDefinitionSchema2;
+            };
+          }>;
+          budget: {
+            maxItems: number;
+            usedItems: number;
+            maxCharacters: number;
+            usedCharacters: number;
+            truncated: boolean;
+          };
+        };
+      }
+    | {
+        type: "compaction.started";
+        runId: string;
+        at: string;
+        reason?: string;
+        item?: HostOutputSharedDefinitionSchema4;
+      }
+    | {
+        type: "compaction.finished";
+        runId: string;
+        at: string;
+        summary?: string;
+        item?: HostOutputSharedDefinitionSchema5;
+      }
+    | {
+        type: "model.requested";
+        runId: string;
+        request: {
+          systemPrompt: string;
+          userInput: string;
+          modelId?: string;
+          session?: {
+            provider: string;
+            sessionId: string;
+            persistent: boolean;
+            priorMessageCount: number;
+            priorMessages: Array<{
+              role: "system" | "user" | "assistant" | "tool";
+              content: string;
+              name?: string;
+            }>;
+            nativeSessionId?: string;
+          };
+          messages?: Array<{
+            role: "system" | "user" | "assistant" | "tool";
+            content: string;
+            name?: string;
+          }>;
+          context?: {
+            id: string;
+            createdAt: string;
+            summary: string;
+            promptBlock: string;
+            items: Array<{
+              id: string;
+              kind:
+                | "page"
+                | "selection"
+                | "attachment"
+                | "computer"
+                | "artifact"
+                | "session"
+                | "execution"
+                | "task"
+                | "knowledge"
+                | "memory"
+                | "routine"
+                | "permission"
+                | "skill";
+              title: string;
+              text: string;
+              source?: {
+                title?: string;
+                url?: string;
+                locator?: string;
+                quote?: string;
+              };
+              score?: number;
+              data?: {
+                [key: string]: HostOutputSharedDefinitionSchema2;
+              };
+            }>;
+            budget: {
+              maxItems: number;
+              usedItems: number;
+              maxCharacters: number;
+              usedCharacters: number;
+              truncated: boolean;
+            };
+          };
+          tools: Array<{
+            id: string;
+            title: string;
+            description: string;
+            activity: "browser" | "chat" | "local" | "api" | "computer";
+            risk: "read" | "write" | "send" | "spend" | "delete";
+            input: {
+              type: "json-schema";
+              schema: {
+                [key: string]: HostOutputSharedDefinitionSchema2;
+              };
+            };
+            output?: {
+              type: "json-schema";
+              schema: {
+                [key: string]: HostOutputSharedDefinitionSchema2;
+              };
+            };
+            permission: {
+              mode: "allow" | "ask" | "deny";
+              reason: string;
+            };
+            liveness?: {
+              cancellation: "run-signal" | "none";
+              deadlineSource: "kernel-native" | "upstream-service" | "business-rule" | "none";
+              abandonOutcome: "outcome-unknown";
+              terminalConfirmation: "tool-result";
+              cancellationGraceMs?: number;
+            };
+          }>;
+          skills: Array<{
+            id: string;
+            name: string;
+            aliases?: Array<string>;
+            title: string;
+            description: string;
+            whenToUse?: string;
+            format: "markdown-v1" | "markdown-v2";
+            entry: string;
+            skillRoot: string;
+            activities: Array<"browser" | "chat" | "local" | "api" | "computer">;
+            toolIds: Array<string>;
+            memoryHooks: Array<{
+              kind: string;
+              mode: "direct" | "propose" | "ask";
+              reason: string;
+            }>;
+            allowedTools: Array<string>;
+            argumentHint?: string;
+            arguments?: Array<string>;
+            userInvocable: boolean;
+            disableModelInvocation: boolean;
+            model?: string;
+            effort?: string;
+            context: "inline" | "fork";
+            shell?: Array<string>;
+            paths?: Array<string>;
+            hooks?: {
+              [key: string]: HostOutputSharedDefinitionSchema2;
+            };
+            source: "bundled" | "project" | "user" | "pack";
+            trust: "trusted" | "untrusted";
+            packId?: string;
+            capabilityId?: string;
+            contentLength?: number;
+            tags?: Array<string>;
+          }>;
+          packs: Array<{
+            id: string;
+            title: string;
+            description: string;
+            source: "bundled" | "project" | "user" | "pack";
+            trust: "trusted" | "untrusted";
+            rootDir: string;
+            skillIds: Array<string>;
+            toolIds: Array<string>;
+            capabilityIds: Array<string>;
+            artifactTypes: Array<string>;
+            referenceAssetDirs?: Array<string>;
+            tags?: Array<string>;
+          }>;
+          capabilities: Array<{
+            id: string;
+            title: string;
+            version: string;
+            description: string;
+            source?: {
+              kind: "native" | "wrapped-open-source" | "mcp" | "external-api" | "user-routine";
+              project?: string;
+              url?: string;
+              license?: string;
+            };
+            activities: Array<"browser" | "chat" | "local" | "api" | "computer">;
+            triggers?: Array<{
+              [key: string]: HostOutputSharedDefinitionSchema2;
+            }>;
+            tools: Array<{
+              id: string;
+              title: string;
+              description: string;
+              activity: "browser" | "chat" | "local" | "api" | "computer";
+              risk: "read" | "write" | "send" | "spend" | "delete";
+              input: {
+                type: "json-schema";
+                schema: {
+                  [key: string]: HostOutputSharedDefinitionSchema2;
+                };
+              };
+              output?: {
+                type: "json-schema";
+                schema: {
+                  [key: string]: HostOutputSharedDefinitionSchema2;
+                };
+              };
+              permission: {
+                mode: "allow" | "ask" | "deny";
+                reason: string;
+              };
+              liveness?: {
+                cancellation: "run-signal" | "none";
+                deadlineSource: "kernel-native" | "upstream-service" | "business-rule" | "none";
+                abandonOutcome: "outcome-unknown";
+                terminalConfirmation: "tool-result";
+                cancellationGraceMs?: number;
+              };
+            }>;
+            skills: Array<{
+              id: string;
+              name: string;
+              aliases?: Array<string>;
+              title: string;
+              description: string;
+              whenToUse?: string;
+              format: "markdown-v1" | "markdown-v2";
+              entry: string;
+              skillRoot: string;
+              activities: Array<"browser" | "chat" | "local" | "api" | "computer">;
+              toolIds: Array<string>;
+              memoryHooks: Array<{
+                kind: string;
+                mode: "direct" | "propose" | "ask";
+                reason: string;
+              }>;
+              allowedTools: Array<string>;
+              argumentHint?: string;
+              arguments?: Array<string>;
+              userInvocable: boolean;
+              disableModelInvocation: boolean;
+              model?: string;
+              effort?: string;
+              context: "inline" | "fork";
+              shell?: Array<string>;
+              paths?: Array<string>;
+              hooks?: {
+                [key: string]: HostOutputSharedDefinitionSchema2;
+              };
+              source: "bundled" | "project" | "user" | "pack";
+              trust: "trusted" | "untrusted";
+              packId?: string;
+              capabilityId?: string;
+              contentLength?: number;
+              tags?: Array<string>;
+            }>;
+            memoryHooks: Array<{
+              kind: string;
+              mode: "direct" | "propose" | "ask";
+              reason: string;
+            }>;
+            policy: Array<{
+              mode: "allow" | "ask" | "deny";
+              reason: string;
+              id?: string;
+              toolId?: string;
+              capabilityId?: string;
+              risk?: "read" | "write" | "send" | "spend" | "delete";
+            }>;
+            sandbox?: "read-only" | "workspace-write" | "danger-full-access";
+            evals?: Array<{
+              id: string;
+              description: string;
+              input: string;
+              expectedBehavior: string;
+            }>;
+          }>;
+        };
+      }
+    | {
+        type: "model.response";
+        runId: string;
+        response: {
+          text: string;
+          usage?: {
+            inputTokens?: number;
+            outputTokens?: number;
+            totalTokens?: number;
+            costUsd?: number;
+            latencyMs?: number;
+            contextWindowSize?: number;
+            contextUsedTokens?: number;
+            contextBreakdown?: Array<{
+              category: string;
+              tokens: number;
+            }>;
+          };
+        };
+      }
+    | {
+        type: "runtime.diagnostic";
+        runId: string;
+        at: string;
+        name: string;
+        data: {
+          [key: string]: HostOutputSharedDefinitionSchema2;
+        };
+      }
+    | {
+        type: "reasoning.started";
+        runId: string;
+        reasoning: {
+          id: string;
+          kind: "native" | "summary";
+          kernelId: string;
+        };
+      }
+    | {
+        type: "reasoning.completed";
+        runId: string;
+        reasoning: {
+          id: string;
+          kind: "native" | "summary";
+          kernelId: string;
+          text: string;
+          redacted?: boolean;
+          elapsedMs?: number;
+        };
+      }
+    | {
+        type: "assistant.delta";
+        runId: string;
+        text: string;
+      }
+    | {
+        type: "assistant.final";
+        runId: string;
+        text: string;
+        at: string;
+        source?: "runtime" | "adapter" | "fallback";
+      }
+    | {
+        type: "assistant.status";
+        runId: string;
+        text: string;
+        at: string;
+        data?: {
+          [key: string]: HostOutputSharedDefinitionSchema2;
+        };
+      }
+    | {
+        type: "skill.discovered";
+        runId: string;
+        skills: Array<{
+          id: string;
+          name: string;
+          aliases?: Array<string>;
+          title: string;
+          description: string;
+          whenToUse?: string;
+          format: "markdown-v1" | "markdown-v2";
+          entry: string;
+          skillRoot: string;
+          activities: Array<"browser" | "chat" | "local" | "api" | "computer">;
+          toolIds: Array<string>;
+          memoryHooks: Array<{
+            kind: string;
+            mode: "direct" | "propose" | "ask";
+            reason: string;
+          }>;
+          allowedTools: Array<string>;
+          argumentHint?: string;
+          arguments?: Array<string>;
+          userInvocable: boolean;
+          disableModelInvocation: boolean;
+          model?: string;
+          effort?: string;
+          context: "inline" | "fork";
+          shell?: Array<string>;
+          paths?: Array<string>;
+          hooks?: {
+            [key: string]: HostOutputSharedDefinitionSchema2;
+          };
+          source: "bundled" | "project" | "user" | "pack";
+          trust: "trusted" | "untrusted";
+          packId?: string;
+          capabilityId?: string;
+          contentLength?: number;
+          tags?: Array<string>;
+        }>;
+      }
+    | {
+        type: "skill.invoked";
+        runId: string;
+        skill: {
+          id: string;
+          name: string;
+          aliases?: Array<string>;
+          title: string;
+          description: string;
+          whenToUse?: string;
+          format: "markdown-v1" | "markdown-v2";
+          entry: string;
+          skillRoot: string;
+          activities: Array<"browser" | "chat" | "local" | "api" | "computer">;
+          toolIds: Array<string>;
+          memoryHooks: Array<{
+            kind: string;
+            mode: "direct" | "propose" | "ask";
+            reason: string;
+          }>;
+          allowedTools: Array<string>;
+          argumentHint?: string;
+          arguments?: Array<string>;
+          userInvocable: boolean;
+          disableModelInvocation: boolean;
+          model?: string;
+          effort?: string;
+          context: "inline" | "fork";
+          shell?: Array<string>;
+          paths?: Array<string>;
+          hooks?: {
+            [key: string]: HostOutputSharedDefinitionSchema2;
+          };
+          source: "bundled" | "project" | "user" | "pack";
+          trust: "trusted" | "untrusted";
+          packId?: string;
+          capabilityId?: string;
+          contentLength?: number;
+          tags?: Array<string>;
+        };
+        invocation: InvokedSkill;
+      }
+    | {
+        type: "skill.loaded";
+        runId: string;
+        skillId: string;
+        contentPreview: string;
+        allowedTools: Array<string>;
+        model?: string;
+        effort?: string;
+        context: "inline" | "fork";
+      }
+    | {
+        type: "skill.forked";
+        runId: string;
+        skillId: string;
+        forkSessionId: string;
+        status: "started" | "finished";
+        result?: string;
+      }
+    | {
+        type: "skill.cleared";
+        runId: string;
+        skillId?: string;
+        reason: string;
+      }
+    | {
+        type: "tool.started";
+        runId: string;
+        toolId: string;
+        callId?: string;
+        input: HostOutputSharedDefinitionSchema6;
+      }
+    | {
+        type: "tool.progress";
+        runId: string;
+        toolId: string;
+        callId?: string;
+        update: HostOutputSharedDefinitionSchema7;
+      }
+    | {
+        type: "tool.finished";
+        runId: string;
+        toolId: string;
+        callId?: string;
+        result: ToolResult;
+      }
+    | {
+        type: "approval.requested";
+        runId: string;
+        request: Approval;
+      }
+    | {
+        type: "approval.resolved";
+        runId: string;
+        request: Approval;
+      }
+    | {
+        type: "question.requested";
+        runId: string;
+        question: Question;
+      }
+    | {
+        type: "question.answered";
+        runId: string;
+        question: Question;
+      }
+    | {
+        type: "planning.updated";
+        runId: string;
+        plan: {
+          id: string;
+          title?: string;
+          text: string;
+          status?: string;
+          raw?: {
+            [key: string]: HostOutputSharedDefinitionSchema2;
+          };
+          updatedAt: string;
+          source?:
+            | {
+                type: "kernel.native";
+                kernelId: string;
+              }
+            | {
+                type: "host";
+              }
+            | {
+                type: "unknown";
+              };
+        };
+      }
+    | {
+        type: "run.cancel_requested";
+        runId: string;
+        at: string;
+        reason?: string;
+      }
+    | {
+        type: "run.paused";
+        runId: string;
+        at: string;
+        reason: string;
+        approvalId?: string;
+      }
+    | {
+        type: "run.resumed";
+        runId: string;
+        at: string;
+        reason?: string;
+        approvalId?: string;
+      }
+    | {
+        type: "memory.written";
+        runId: string;
+        record: {
+          id: string;
+          scope: "user" | "workspace" | "page" | "session";
+          kind: string;
+          text: string;
+          confidence: "asserted" | "observed" | "inferred";
+          source: {
+            kind: "user" | "agent" | "tool" | "skill";
+            ref?: {
+              title?: string;
+              url?: string;
+              locator?: string;
+              quote?: string;
+            };
+          };
+          tags: Array<string>;
+          data?: {
+            [key: string]: HostOutputSharedDefinitionSchema2;
+          };
+          createdAt: string;
+          updatedAt: string;
+          expiresAt?: string;
+        };
+      }
+    | {
+        type: "turn.finished";
+        runId: string;
+        at: string;
+        outcome: RunLifecycle;
+        synthetic?: boolean;
+      }
+    | {
+        type: "error";
+        runId: string;
+        message: string;
+        problem?: {
+          incidentId: string;
+          code: string;
+        };
+        diagnostics?: {
+          runtimeModelId?: string;
+          runtimeVersion?: string;
+          upstreamRequestId?: string;
+        };
+      }
+  >;
+  cursor: string;
+  oldestCursor: string;
+  hasMore: boolean;
+  hasOlder: boolean;
+  historyTruncated: boolean;
+  resetRequired: boolean;
+  longPollSupported: boolean;
+  snapshot: boolean;
+};
+
+export type ApprovalResolution = {
+  ok: true;
+  alreadyResolved?: boolean;
+  questions: Array<Question>;
+  artifacts: Array<Artifact>;
+  workingState: WorkingState;
+  sessions: Array<Session>;
+  runs: Array<Run>;
+  executions: Array<Execution>;
+  approval: Approval;
+  approvals: Array<Approval>;
+  toolResult?: ToolResult;
+  routineResult?: RoutineRunResult;
+};
+
+export type QuestionResolution = {
+  ok: true;
+  alreadyResolved?: boolean;
+  questions: Array<Question>;
+  artifacts: Array<Artifact>;
+  workingState: WorkingState;
+  sessions: Array<Session>;
+  runs: Array<Run>;
+  executions: Array<Execution>;
+  question: Question;
+};
+
+export type ArtifactMutation = {
+  ok: true;
+  artifact: Artifact;
+  artifacts: Array<Artifact>;
+};
+
 export type AuthError = {
   ok?: false;
   error: string;
@@ -241,6 +2133,1085 @@ export type AppReleaseProgressResponse = {
     [key: string]: unknown;
   };
 };
+
+export type HostOutputSharedDefinitionSchema0 =
+  | string
+  | number
+  | boolean
+  | null
+  | Array<HostOutputSharedDefinitionSchema0>
+  | {
+      [key: string]: HostOutputSharedDefinitionSchema0;
+    };
+
+export type HostOutputSharedDefinitionSchema1 =
+  | string
+  | number
+  | boolean
+  | null
+  | Array<HostOutputSharedDefinitionSchema1>
+  | {
+      [key: string]: HostOutputSharedDefinitionSchema1;
+    };
+
+export type HostOutputSharedDefinitionSchema2 =
+  | string
+  | number
+  | boolean
+  | null
+  | Array<HostOutputSharedDefinitionSchema2>
+  | {
+      [key: string]: HostOutputSharedDefinitionSchema2;
+    };
+
+export type HostOutputSharedDefinitionSchema3 =
+  | string
+  | number
+  | boolean
+  | null
+  | Array<HostOutputSharedDefinitionSchema3>
+  | {
+      [key: string]: HostOutputSharedDefinitionSchema3;
+    };
+
+export type HostOutputSharedDefinitionSchema4 =
+  | string
+  | number
+  | boolean
+  | null
+  | Array<HostOutputSharedDefinitionSchema4>
+  | {
+      [key: string]: HostOutputSharedDefinitionSchema4;
+    };
+
+export type HostOutputSharedDefinitionSchema5 =
+  | string
+  | number
+  | boolean
+  | null
+  | Array<HostOutputSharedDefinitionSchema5>
+  | {
+      [key: string]: HostOutputSharedDefinitionSchema5;
+    };
+
+export type HostOutputSharedDefinitionSchema6 =
+  | string
+  | number
+  | boolean
+  | null
+  | Array<HostOutputSharedDefinitionSchema6>
+  | {
+      [key: string]: HostOutputSharedDefinitionSchema6;
+    };
+
+export type HostOutputSharedDefinitionSchema7 =
+  | string
+  | number
+  | boolean
+  | null
+  | Array<HostOutputSharedDefinitionSchema7>
+  | {
+      [key: string]: HostOutputSharedDefinitionSchema7;
+    };
+
+export type HostHostBootstrapData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: "/bootstrap";
+};
+
+export type HostHostBootstrapErrors = {
+  /**
+   * The input is invalid.
+   */
+  400: HostError;
+  /**
+   * A valid Host session or token is required.
+   */
+  401: HostError;
+  /**
+   * The request is not authorized.
+   */
+  403: HostError;
+  /**
+   * The Host could not complete the operation.
+   */
+  500: HostError;
+  /**
+   * The Host or authenticated session is temporarily unavailable.
+   */
+  503: HostError;
+};
+
+export type HostHostBootstrapError = HostHostBootstrapErrors[keyof HostHostBootstrapErrors];
+
+export type HostHostBootstrapResponses = {
+  /**
+   * Successful response.
+   */
+  200: {
+    environment: {
+      preset: "local-single" | "web-single" | "test";
+      profile: "local" | "test";
+      tenancy: "single-principal";
+      execution: "local-process" | "fake";
+      workspace: "host-local" | "memory";
+      stateStore: "json" | "sqlite" | "memory";
+      blobStore: "filesystem" | "memory";
+      auth: "bridge-token" | "session";
+    };
+    auth: {
+      mode: "bridge-token" | "session";
+      tokenRequired: boolean;
+    };
+    hostId: string;
+    mcpApps: {
+      sandboxOrigin?: string;
+    };
+  };
+};
+
+export type HostHostBootstrapResponse = HostHostBootstrapResponses[keyof HostHostBootstrapResponses];
+
+export type RunEventListData = {
+  body?: never;
+  path?: never;
+  query?: {
+    beforeCursor?: string;
+    cursor?: string;
+    limit?: number | string;
+    runId?: Array<string>;
+    /**
+     * Maximum long-poll wait; capped at 25000 ms. Invalid or nonpositive values do not wait.
+     */
+    waitMs?: number | string;
+  };
+  url: "/events";
+};
+
+export type RunEventListErrors = {
+  /**
+   * The input is invalid.
+   */
+  400: HostError;
+  /**
+   * A valid Host session or token is required.
+   */
+  401: HostError;
+  /**
+   * The request is not authorized.
+   */
+  403: HostError;
+  /**
+   * The Host could not complete the operation.
+   */
+  500: HostError;
+  /**
+   * The Host or authenticated session is temporarily unavailable.
+   */
+  503: HostError;
+};
+
+export type RunEventListError = RunEventListErrors[keyof RunEventListErrors];
+
+export type RunEventListResponses = {
+  /**
+   * Successful response.
+   */
+  200: RunEventPage;
+};
+
+export type RunEventListResponse = RunEventListResponses[keyof RunEventListResponses];
+
+export type RunRunListData = {
+  body?: never;
+  path?: never;
+  query?: {
+    afterRevision?: string;
+    /**
+     * Defaults to 200; values above 1000 are capped; invalid values use the default.
+     */
+    limit?: number | string;
+    sessionId?: string;
+    taskState?: string;
+  };
+  url: "/runs";
+};
+
+export type RunRunListErrors = {
+  /**
+   * The input is invalid.
+   */
+  400: HostError;
+  /**
+   * A valid Host session or token is required.
+   */
+  401: HostError;
+  /**
+   * The request is not authorized.
+   */
+  403: HostError;
+  /**
+   * The Host could not complete the operation.
+   */
+  500: HostError;
+  /**
+   * The Host or authenticated session is temporarily unavailable.
+   */
+  503: HostError;
+};
+
+export type RunRunListError = RunRunListErrors[keyof RunRunListErrors];
+
+export type RunRunListResponses = {
+  /**
+   * Successful response.
+   */
+  200:
+    | {
+        ok: true;
+        unchanged: true;
+        revision: string;
+      }
+    | {
+        ok: true;
+        runs: Array<Run>;
+        revision: string;
+      };
+};
+
+export type RunRunListResponse = RunRunListResponses[keyof RunRunListResponses];
+
+export type RunSessionListData = {
+  body?: never;
+  path?: never;
+  query?: {
+    activity?: string;
+    /**
+     * Defaults to 100; values above 500 are capped; invalid values use the default.
+     */
+    limit?: number | string;
+    status?: string;
+  };
+  url: "/sessions";
+};
+
+export type RunSessionListErrors = {
+  /**
+   * The input is invalid.
+   */
+  400: HostError;
+  /**
+   * A valid Host session or token is required.
+   */
+  401: HostError;
+  /**
+   * The request is not authorized.
+   */
+  403: HostError;
+  /**
+   * The Host could not complete the operation.
+   */
+  500: HostError;
+  /**
+   * The Host or authenticated session is temporarily unavailable.
+   */
+  503: HostError;
+};
+
+export type RunSessionListError = RunSessionListErrors[keyof RunSessionListErrors];
+
+export type RunSessionListResponses = {
+  /**
+   * Successful response.
+   */
+  200: {
+    ok: true;
+    sessions: Array<Session>;
+  };
+};
+
+export type RunSessionListResponse = RunSessionListResponses[keyof RunSessionListResponses];
+
+export type RunExecutionListData = {
+  body?: never;
+  path?: never;
+  query?: {
+    afterRevision?: string;
+    kind?: string;
+    /**
+     * Defaults to 200; values above 1000 are capped; invalid values use the default.
+     */
+    limit?: number | string;
+    runId?: string;
+    sessionId?: string;
+  };
+  url: "/executions";
+};
+
+export type RunExecutionListErrors = {
+  /**
+   * The input is invalid.
+   */
+  400: HostError;
+  /**
+   * A valid Host session or token is required.
+   */
+  401: HostError;
+  /**
+   * The request is not authorized.
+   */
+  403: HostError;
+  /**
+   * The Host could not complete the operation.
+   */
+  500: HostError;
+  /**
+   * The Host or authenticated session is temporarily unavailable.
+   */
+  503: HostError;
+};
+
+export type RunExecutionListError = RunExecutionListErrors[keyof RunExecutionListErrors];
+
+export type RunExecutionListResponses = {
+  /**
+   * Successful response.
+   */
+  200:
+    | {
+        ok: true;
+        unchanged: true;
+        revision: string;
+      }
+    | {
+        ok: true;
+        executions: Array<Execution>;
+        revision: string;
+      };
+};
+
+export type RunExecutionListResponse = RunExecutionListResponses[keyof RunExecutionListResponses];
+
+export type RunDirectCancelData = {
+  body: {
+    runId?: string;
+    threadId?: string;
+  };
+  path?: never;
+  query?: never;
+  url: "/ask/cancel";
+};
+
+export type RunDirectCancelErrors = {
+  /**
+   * The input is invalid.
+   */
+  400: HostError;
+  /**
+   * A valid Host session or token is required.
+   */
+  401: HostError;
+  /**
+   * The request is not authorized.
+   */
+  403: HostError;
+  /**
+   * The Host could not complete the operation.
+   */
+  500: HostError;
+  /**
+   * The Host or authenticated session is temporarily unavailable.
+   */
+  503: HostError;
+};
+
+export type RunDirectCancelError = RunDirectCancelErrors[keyof RunDirectCancelErrors];
+
+export type RunDirectCancelResponses = {
+  /**
+   * Successful response.
+   */
+  200: {
+    ok: boolean;
+    cancelled: boolean;
+  };
+};
+
+export type RunDirectCancelResponse = RunDirectCancelResponses[keyof RunDirectCancelResponses];
+
+export type RunDirectGuideData = {
+  body: {
+    runId?: string;
+    threadId?: string;
+    instruction: string;
+  };
+  path?: never;
+  query?: never;
+  url: "/ask/guide";
+};
+
+export type RunDirectGuideErrors = {
+  /**
+   * The input is invalid.
+   */
+  400: HostError;
+  /**
+   * A valid Host session or token is required.
+   */
+  401: HostError;
+  /**
+   * The request is not authorized.
+   */
+  403: HostError;
+  /**
+   * The Host could not complete the operation.
+   */
+  500: HostError;
+  /**
+   * The Host or authenticated session is temporarily unavailable.
+   */
+  503: HostError;
+};
+
+export type RunDirectGuideError = RunDirectGuideErrors[keyof RunDirectGuideErrors];
+
+export type RunDirectGuideResponses = {
+  /**
+   * Successful response.
+   */
+  200: {
+    ok: boolean;
+    guided: boolean;
+    error?: string;
+  };
+};
+
+export type RunDirectGuideResponse = RunDirectGuideResponses[keyof RunDirectGuideResponses];
+
+export type RunDirectCompactData = {
+  body: {
+    threadId: string;
+    reason?: string;
+  };
+  path?: never;
+  query?: never;
+  url: "/ask/compact";
+};
+
+export type RunDirectCompactErrors = {
+  /**
+   * The input is invalid.
+   */
+  400: HostError;
+  /**
+   * A valid Host session or token is required.
+   */
+  401: HostError;
+  /**
+   * The request is not authorized.
+   */
+  403: HostError;
+  /**
+   * The Host could not complete the operation.
+   */
+  500: HostError;
+  /**
+   * The Host or authenticated session is temporarily unavailable.
+   */
+  503: HostError;
+};
+
+export type RunDirectCompactError = RunDirectCompactErrors[keyof RunDirectCompactErrors];
+
+export type RunDirectCompactResponses = {
+  /**
+   * Successful response.
+   */
+  200: {
+    ok: boolean;
+    compacted: boolean;
+    outcomeUnknown?: boolean;
+    error?: string;
+  };
+};
+
+export type RunDirectCompactResponse = RunDirectCompactResponses[keyof RunDirectCompactResponses];
+
+export type InteractionApprovalListData = {
+  body?: never;
+  path?: never;
+  query?: {
+    /**
+     * Defaults to 100; values above 500 are capped; invalid values use the default.
+     */
+    limit?: number | string;
+    status?: string;
+  };
+  url: "/approvals";
+};
+
+export type InteractionApprovalListErrors = {
+  /**
+   * The input is invalid.
+   */
+  400: HostError;
+  /**
+   * A valid Host session or token is required.
+   */
+  401: HostError;
+  /**
+   * The request is not authorized.
+   */
+  403: HostError;
+  /**
+   * The Host could not complete the operation.
+   */
+  500: HostError;
+  /**
+   * The Host or authenticated session is temporarily unavailable.
+   */
+  503: HostError;
+};
+
+export type InteractionApprovalListError = InteractionApprovalListErrors[keyof InteractionApprovalListErrors];
+
+export type InteractionApprovalListResponses = {
+  /**
+   * Successful response.
+   */
+  200: {
+    ok: true;
+    approvals: Array<{
+      id: string;
+      title: string;
+      createdAt: string;
+      updatedAt: string;
+      input?: HostOutputSharedDefinitionSchema0;
+      response?: HostOutputSharedDefinitionSchema1;
+      nativeRequestId?: string;
+      deadlineAt?: string;
+      isBlocking?: boolean;
+      autoResolutionMs?: number;
+      kind:
+        | "tool"
+        | "command"
+        | "file_change"
+        | "permission_scope"
+        | "routine_step"
+        | "memory_write"
+        | "browser_action"
+        | "computer_action";
+      reason: string;
+      status: "pending" | "approved" | "rejected" | "canceled";
+      toolId?: string;
+      capabilityId?: string;
+      skillId?: string;
+    }>;
+  };
+};
+
+export type InteractionApprovalListResponse = InteractionApprovalListResponses[keyof InteractionApprovalListResponses];
+
+export type InteractionApprovalApproveData = {
+  body: {
+    /**
+     * Structured decision response or answer.
+     */
+    response?: HostInputSharedDefinitionSchema0;
+  };
+  path: {
+    approvalId: string;
+  };
+  query?: never;
+  url: "/approvals/{approvalId}/approve";
+};
+
+export type InteractionApprovalApproveErrors = {
+  /**
+   * The input is invalid.
+   */
+  400: HostError;
+  /**
+   * A valid Host session or token is required.
+   */
+  401: HostError;
+  /**
+   * The request is not authorized.
+   */
+  403: HostError;
+  /**
+   * The Host could not complete the operation.
+   */
+  500: HostError;
+  /**
+   * The Host or authenticated session is temporarily unavailable.
+   */
+  503: HostError;
+};
+
+export type InteractionApprovalApproveError = InteractionApprovalApproveErrors[keyof InteractionApprovalApproveErrors];
+
+export type InteractionApprovalApproveResponses = {
+  /**
+   * Successful response.
+   */
+  200: ApprovalResolution;
+};
+
+export type InteractionApprovalApproveResponse =
+  InteractionApprovalApproveResponses[keyof InteractionApprovalApproveResponses];
+
+export type InteractionApprovalRejectData = {
+  body: {
+    /**
+     * Structured decision response or answer.
+     */
+    response?: HostInputSharedDefinitionSchema0;
+  };
+  path: {
+    approvalId: string;
+  };
+  query?: never;
+  url: "/approvals/{approvalId}/reject";
+};
+
+export type InteractionApprovalRejectErrors = {
+  /**
+   * The input is invalid.
+   */
+  400: HostError;
+  /**
+   * A valid Host session or token is required.
+   */
+  401: HostError;
+  /**
+   * The request is not authorized.
+   */
+  403: HostError;
+  /**
+   * The Host could not complete the operation.
+   */
+  500: HostError;
+  /**
+   * The Host or authenticated session is temporarily unavailable.
+   */
+  503: HostError;
+};
+
+export type InteractionApprovalRejectError = InteractionApprovalRejectErrors[keyof InteractionApprovalRejectErrors];
+
+export type InteractionApprovalRejectResponses = {
+  /**
+   * Successful response.
+   */
+  200: ApprovalResolution;
+};
+
+export type InteractionApprovalRejectResponse =
+  InteractionApprovalRejectResponses[keyof InteractionApprovalRejectResponses];
+
+export type InteractionApprovalCancelData = {
+  body: {
+    /**
+     * Structured decision response or answer.
+     */
+    response?: HostInputSharedDefinitionSchema0;
+  };
+  path: {
+    approvalId: string;
+  };
+  query?: never;
+  url: "/approvals/{approvalId}/cancel";
+};
+
+export type InteractionApprovalCancelErrors = {
+  /**
+   * The input is invalid.
+   */
+  400: HostError;
+  /**
+   * A valid Host session or token is required.
+   */
+  401: HostError;
+  /**
+   * The request is not authorized.
+   */
+  403: HostError;
+  /**
+   * The Host could not complete the operation.
+   */
+  500: HostError;
+  /**
+   * The Host or authenticated session is temporarily unavailable.
+   */
+  503: HostError;
+};
+
+export type InteractionApprovalCancelError = InteractionApprovalCancelErrors[keyof InteractionApprovalCancelErrors];
+
+export type InteractionApprovalCancelResponses = {
+  /**
+   * Successful response.
+   */
+  200: ApprovalResolution;
+};
+
+export type InteractionApprovalCancelResponse =
+  InteractionApprovalCancelResponses[keyof InteractionApprovalCancelResponses];
+
+export type InteractionQuestionListData = {
+  body?: never;
+  path?: never;
+  query?: {
+    /**
+     * Defaults to 100; values above 500 are capped; invalid values use the default.
+     */
+    limit?: number | string;
+    status?: string;
+  };
+  url: "/questions";
+};
+
+export type InteractionQuestionListErrors = {
+  /**
+   * The input is invalid.
+   */
+  400: HostError;
+  /**
+   * A valid Host session or token is required.
+   */
+  401: HostError;
+  /**
+   * The request is not authorized.
+   */
+  403: HostError;
+  /**
+   * The Host could not complete the operation.
+   */
+  500: HostError;
+  /**
+   * The Host or authenticated session is temporarily unavailable.
+   */
+  503: HostError;
+};
+
+export type InteractionQuestionListError = InteractionQuestionListErrors[keyof InteractionQuestionListErrors];
+
+export type InteractionQuestionListResponses = {
+  /**
+   * Successful response.
+   */
+  200: {
+    ok: true;
+    questions: Array<{
+      id: string;
+      title: string;
+      createdAt: string;
+      updatedAt: string;
+      input?: HostOutputSharedDefinitionSchema0;
+      response?: HostOutputSharedDefinitionSchema1;
+      nativeRequestId?: string;
+      deadlineAt?: string;
+      isBlocking?: boolean;
+      autoResolutionMs?: number;
+      prompt: string;
+      status: "pending" | "answered" | "declined" | "canceled";
+      source?:
+        | {
+            type: "kernel.native";
+            kernelId: string;
+          }
+        | {
+            type: "host";
+          }
+        | {
+            type: "unknown";
+          };
+    }>;
+  };
+};
+
+export type InteractionQuestionListResponse = InteractionQuestionListResponses[keyof InteractionQuestionListResponses];
+
+export type InteractionQuestionAnswerData = {
+  body: {
+    /**
+     * Structured decision response or answer.
+     */
+    response?: HostInputSharedDefinitionSchema0;
+  };
+  path: {
+    questionId: string;
+  };
+  query?: never;
+  url: "/questions/{questionId}/answer";
+};
+
+export type InteractionQuestionAnswerErrors = {
+  /**
+   * The input is invalid.
+   */
+  400: HostError;
+  /**
+   * A valid Host session or token is required.
+   */
+  401: HostError;
+  /**
+   * The request is not authorized.
+   */
+  403: HostError;
+  /**
+   * The Host could not complete the operation.
+   */
+  500: HostError;
+  /**
+   * The Host or authenticated session is temporarily unavailable.
+   */
+  503: HostError;
+};
+
+export type InteractionQuestionAnswerError = InteractionQuestionAnswerErrors[keyof InteractionQuestionAnswerErrors];
+
+export type InteractionQuestionAnswerResponses = {
+  /**
+   * Successful response.
+   */
+  200: QuestionResolution;
+};
+
+export type InteractionQuestionAnswerResponse =
+  InteractionQuestionAnswerResponses[keyof InteractionQuestionAnswerResponses];
+
+export type InteractionQuestionDeclineData = {
+  body: {
+    /**
+     * Structured decision response or answer.
+     */
+    response?: HostInputSharedDefinitionSchema0;
+  };
+  path: {
+    questionId: string;
+  };
+  query?: never;
+  url: "/questions/{questionId}/decline";
+};
+
+export type InteractionQuestionDeclineErrors = {
+  /**
+   * The input is invalid.
+   */
+  400: HostError;
+  /**
+   * A valid Host session or token is required.
+   */
+  401: HostError;
+  /**
+   * The request is not authorized.
+   */
+  403: HostError;
+  /**
+   * The Host could not complete the operation.
+   */
+  500: HostError;
+  /**
+   * The Host or authenticated session is temporarily unavailable.
+   */
+  503: HostError;
+};
+
+export type InteractionQuestionDeclineError = InteractionQuestionDeclineErrors[keyof InteractionQuestionDeclineErrors];
+
+export type InteractionQuestionDeclineResponses = {
+  /**
+   * Successful response.
+   */
+  200: QuestionResolution;
+};
+
+export type InteractionQuestionDeclineResponse =
+  InteractionQuestionDeclineResponses[keyof InteractionQuestionDeclineResponses];
+
+export type InteractionQuestionCancelData = {
+  body: {
+    /**
+     * Structured decision response or answer.
+     */
+    response?: HostInputSharedDefinitionSchema0;
+  };
+  path: {
+    questionId: string;
+  };
+  query?: never;
+  url: "/questions/{questionId}/cancel";
+};
+
+export type InteractionQuestionCancelErrors = {
+  /**
+   * The input is invalid.
+   */
+  400: HostError;
+  /**
+   * A valid Host session or token is required.
+   */
+  401: HostError;
+  /**
+   * The request is not authorized.
+   */
+  403: HostError;
+  /**
+   * The Host could not complete the operation.
+   */
+  500: HostError;
+  /**
+   * The Host or authenticated session is temporarily unavailable.
+   */
+  503: HostError;
+};
+
+export type InteractionQuestionCancelError = InteractionQuestionCancelErrors[keyof InteractionQuestionCancelErrors];
+
+export type InteractionQuestionCancelResponses = {
+  /**
+   * Successful response.
+   */
+  200: QuestionResolution;
+};
+
+export type InteractionQuestionCancelResponse =
+  InteractionQuestionCancelResponses[keyof InteractionQuestionCancelResponses];
+
+export type ArtifactArtifactCreateData = {
+  body: {
+    id?: string;
+    type?: string;
+    title?: string;
+    status?: string;
+    version?: number;
+    tags?: Array<string>;
+    data?: {
+      [key: string]: HostInputSharedDefinitionSchema1;
+    };
+    assets?: Array<{
+      kind: "image" | "audio" | "video" | "file" | "url" | "text";
+      uri?: string;
+      path?: string;
+      title?: string;
+      mimeType?: string;
+      metadata?: {
+        [key: string]: HostInputSharedDefinitionSchema1;
+      };
+    }>;
+    preview?: {
+      title?: string;
+      text?: string;
+      imageUri?: string;
+      mimeType?: string;
+      status?: string;
+    };
+    sourceRefs?: Array<{
+      title?: string;
+      url?: string;
+      locator?: string;
+      quote?: string;
+    }>;
+    parentId?: string;
+    variantOf?: string;
+    derivedFrom?: Array<string>;
+    lineage?: Array<string>;
+    provenance?: {
+      [key: string]: HostInputSharedDefinitionSchema1;
+    };
+  };
+  path?: never;
+  query?: never;
+  url: "/artifacts";
+};
+
+export type ArtifactArtifactCreateErrors = {
+  /**
+   * The input is invalid.
+   */
+  400: HostError;
+  /**
+   * A valid Host session or token is required.
+   */
+  401: HostError;
+  /**
+   * The request is not authorized.
+   */
+  403: HostError;
+  /**
+   * The Host could not complete the operation.
+   */
+  500: HostError;
+  /**
+   * The Host or authenticated session is temporarily unavailable.
+   */
+  503: HostError;
+};
+
+export type ArtifactArtifactCreateError = ArtifactArtifactCreateErrors[keyof ArtifactArtifactCreateErrors];
+
+export type ArtifactArtifactCreateResponses = {
+  /**
+   * Successful response.
+   */
+  200: ArtifactMutation;
+};
+
+export type ArtifactArtifactCreateResponse = ArtifactArtifactCreateResponses[keyof ArtifactArtifactCreateResponses];
+
+export type ArtifactArtifactGetData = {
+  body?: never;
+  path: {
+    artifactId: string;
+  };
+  query?: never;
+  url: "/artifacts/{artifactId}";
+};
+
+export type ArtifactArtifactGetErrors = {
+  /**
+   * The input is invalid.
+   */
+  400: HostError;
+  /**
+   * A valid Host session or token is required.
+   */
+  401: HostError;
+  /**
+   * The request is not authorized.
+   */
+  403: HostError;
+  /**
+   * The artifact does not exist.
+   */
+  404: HostError;
+  /**
+   * The Host could not complete the operation.
+   */
+  500: HostError;
+  /**
+   * The Host or authenticated session is temporarily unavailable.
+   */
+  503: HostError;
+};
+
+export type ArtifactArtifactGetError = ArtifactArtifactGetErrors[keyof ArtifactArtifactGetErrors];
+
+export type ArtifactArtifactGetResponses = {
+  /**
+   * Successful response.
+   */
+  200: {
+    ok: true;
+    artifact: Artifact;
+  };
+};
+
+export type ArtifactArtifactGetResponse = ArtifactArtifactGetResponses[keyof ArtifactArtifactGetResponses];
 
 export type AuthEmailCodeCreateData = {
   body: {
@@ -1320,6 +4291,329 @@ export type AppUpdateScheduleResponses = {
 
 export type AppUpdateScheduleResponse = AppUpdateScheduleResponses[keyof AppUpdateScheduleResponses];
 
+export type RoomRoomListData = {
+  body?: never;
+  path?: never;
+  query?: {
+    /**
+     * Recent messages per Room, at most 200.
+     */
+    limit?: number | string;
+    /**
+     * Total snapshot message limit, at most 1000.
+     */
+    totalLimit?: number | string;
+  };
+  url: "/rooms";
+};
+
+export type RoomRoomListErrors = {
+  /**
+   * The request does not satisfy the operation contract.
+   */
+  400: RoomError;
+  /**
+   * A valid Bridge session or token is required.
+   */
+  401: RoomError;
+  /**
+   * The request origin is not allowed.
+   */
+  403: RoomError;
+  /**
+   * The reply parent message does not exist.
+   */
+  404: RoomError;
+  /**
+   * The message ID conflicts with an earlier message, or the remote conversation belongs to another account or sender.
+   */
+  409: RoomError;
+  /**
+   * The authenticated session is temporarily unavailable.
+   */
+  503: RoomError;
+};
+
+export type RoomRoomListError = RoomRoomListErrors[keyof RoomRoomListErrors];
+
+export type RoomRoomListResponses = {
+  /**
+   * Successful response.
+   */
+  200: {
+    ok: true;
+    rooms: Array<Room>;
+    members: Array<Employee>;
+    messages: Array<RoomMessage>;
+    currentEventSeq: number;
+    deletedMemberIds: Array<string>;
+    messagesTruncated?: boolean;
+  };
+};
+
+export type RoomRoomListResponse = RoomRoomListResponses[keyof RoomRoomListResponses];
+
+export type RoomRoomCreateData = {
+  body: {
+    /**
+     * Optional caller-selected Room identifier.
+     */
+    id?: string;
+    /**
+     * Room title.
+     */
+    title?: string;
+    /**
+     * Room badge.
+     */
+    badge?: string;
+    /**
+     * Initial member identifiers.
+     */
+    memberIds?: Array<string> | null;
+    /**
+     * Members allowed to delegate work.
+     */
+    adminMemberIds?: Array<string>;
+    scope?: {
+      kind: "app";
+      appId: string;
+      role?: "default" | "group";
+    };
+    generatedTitle?:
+      | {
+          kind: "numbered-group";
+          sequence: number;
+        }
+      | {
+          kind: "app-group";
+          appId: string;
+          sequence: number;
+        };
+  };
+  path?: never;
+  query?: never;
+  url: "/rooms";
+};
+
+export type RoomRoomCreateErrors = {
+  /**
+   * The request does not satisfy the operation contract.
+   */
+  400: RoomError;
+  /**
+   * A valid Bridge session or token is required.
+   */
+  401: RoomError;
+  /**
+   * The request origin is not allowed.
+   */
+  403: RoomError;
+  /**
+   * The reply parent message does not exist.
+   */
+  404: RoomError;
+  /**
+   * The message ID conflicts with an earlier message, or the remote conversation belongs to another account or sender.
+   */
+  409: RoomError;
+  /**
+   * The authenticated session is temporarily unavailable.
+   */
+  503: RoomError;
+};
+
+export type RoomRoomCreateError = RoomRoomCreateErrors[keyof RoomRoomCreateErrors];
+
+export type RoomRoomCreateResponses = {
+  /**
+   * Successful response.
+   */
+  200: {
+    ok: true;
+    room: Room;
+    currentEventSeq: number;
+  };
+};
+
+export type RoomRoomCreateResponse = RoomRoomCreateResponses[keyof RoomRoomCreateResponses];
+
+export type RoomRoomUpdateData = {
+  body: {
+    title?: string;
+    generatedTitle?:
+      | {
+          kind: "numbered-group";
+          sequence: number;
+        }
+      | {
+          kind: "app-group";
+          appId: string;
+          sequence: number;
+        }
+      | null;
+    pinned?: boolean;
+    archived?: boolean;
+    badge?: string;
+    adminMemberIds?: Array<string>;
+  };
+  path: {
+    roomId: string;
+  };
+  query?: never;
+  url: "/rooms/{roomId}";
+};
+
+export type RoomRoomUpdateErrors = {
+  /**
+   * The request does not satisfy the operation contract.
+   */
+  400: RoomError;
+  /**
+   * A valid Bridge session or token is required.
+   */
+  401: RoomError;
+  /**
+   * The request origin is not allowed.
+   */
+  403: RoomError;
+  /**
+   * The reply parent message does not exist.
+   */
+  404: RoomError;
+  /**
+   * The message ID conflicts with an earlier message, or the remote conversation belongs to another account or sender.
+   */
+  409: RoomError;
+  /**
+   * The authenticated session is temporarily unavailable.
+   */
+  503: RoomError;
+};
+
+export type RoomRoomUpdateError = RoomRoomUpdateErrors[keyof RoomRoomUpdateErrors];
+
+export type RoomRoomUpdateResponses = {
+  /**
+   * Successful response.
+   */
+  200: {
+    ok: true;
+    room: Room;
+    currentEventSeq: number;
+  };
+};
+
+export type RoomRoomUpdateResponse = RoomRoomUpdateResponses[keyof RoomRoomUpdateResponses];
+
+export type RoomRoomReadData = {
+  body: {
+    observedEventSeq: number;
+  };
+  path: {
+    roomId: string;
+  };
+  query?: never;
+  url: "/rooms/{roomId}/read";
+};
+
+export type RoomRoomReadErrors = {
+  /**
+   * The request does not satisfy the operation contract.
+   */
+  400: RoomError;
+  /**
+   * A valid Bridge session or token is required.
+   */
+  401: RoomError;
+  /**
+   * The request origin is not allowed.
+   */
+  403: RoomError;
+  /**
+   * The reply parent message does not exist.
+   */
+  404: RoomError;
+  /**
+   * The message ID conflicts with an earlier message, or the remote conversation belongs to another account or sender.
+   */
+  409: RoomError;
+  /**
+   * The authenticated session is temporarily unavailable.
+   */
+  503: RoomError;
+};
+
+export type RoomRoomReadError = RoomRoomReadErrors[keyof RoomRoomReadErrors];
+
+export type RoomRoomReadResponses = {
+  /**
+   * Successful response.
+   */
+  200: {
+    ok: true;
+    room: Room;
+    currentEventSeq: number;
+  };
+};
+
+export type RoomRoomReadResponse = RoomRoomReadResponses[keyof RoomRoomReadResponses];
+
+export type RoomMessageListData = {
+  body?: never;
+  path: {
+    roomId: string;
+  };
+  query?: {
+    afterSeq?: number | string;
+    beforeSeq?: number | string;
+    limit?: number | string;
+  };
+  url: "/rooms/{roomId}/messages";
+};
+
+export type RoomMessageListErrors = {
+  /**
+   * The request does not satisfy the operation contract.
+   */
+  400: RoomError;
+  /**
+   * A valid Bridge session or token is required.
+   */
+  401: RoomError;
+  /**
+   * The request origin is not allowed.
+   */
+  403: RoomError;
+  /**
+   * The reply parent message does not exist.
+   */
+  404: RoomError;
+  /**
+   * The message ID conflicts with an earlier message, or the remote conversation belongs to another account or sender.
+   */
+  409: RoomError;
+  /**
+   * The authenticated session is temporarily unavailable.
+   */
+  503: RoomError;
+};
+
+export type RoomMessageListError = RoomMessageListErrors[keyof RoomMessageListErrors];
+
+export type RoomMessageListResponses = {
+  /**
+   * Successful response.
+   */
+  200: {
+    ok: true;
+    messages: Array<RoomMessage>;
+    currentEventSeq: number;
+  };
+};
+
+export type RoomMessageListResponse = RoomMessageListResponses[keyof RoomMessageListResponses];
+
 export type RoomMessageCreateData = {
   body: {
     /**
@@ -1367,63 +4661,27 @@ export type RoomMessageCreateErrors = {
   /**
    * The request does not satisfy the operation contract.
    */
-  400: {
-    ok?: false;
-    error: string;
-    code?: string;
-    traceId?: string;
-    [key: string]: unknown;
-  };
+  400: RoomError;
   /**
    * A valid Bridge session or token is required.
    */
-  401: {
-    ok?: false;
-    error: string;
-    code?: string;
-    traceId?: string;
-    [key: string]: unknown;
-  };
+  401: RoomError;
   /**
    * The request origin is not allowed.
    */
-  403: {
-    ok?: false;
-    error: string;
-    code?: string;
-    traceId?: string;
-    [key: string]: unknown;
-  };
+  403: RoomError;
   /**
    * The reply parent message does not exist.
    */
-  404: {
-    ok?: false;
-    error: string;
-    code?: string;
-    traceId?: string;
-    [key: string]: unknown;
-  };
+  404: RoomError;
   /**
    * The message ID conflicts with an earlier message, or the remote conversation belongs to another account or sender.
    */
-  409: {
-    ok?: false;
-    error: string;
-    code?: string;
-    traceId?: string;
-    [key: string]: unknown;
-  };
+  409: RoomError;
   /**
    * The authenticated session is temporarily unavailable.
    */
-  503: {
-    ok?: false;
-    error: string;
-    code?: string;
-    traceId?: string;
-    [key: string]: unknown;
-  };
+  503: RoomError;
 };
 
 export type RoomMessageCreateError = RoomMessageCreateErrors[keyof RoomMessageCreateErrors];
@@ -1434,70 +4692,785 @@ export type RoomMessageCreateResponses = {
    */
   200: {
     ok: true;
-    room: {
-      id: string;
-      kind: "group" | "direct";
-      title: string;
-      badge: string;
-      memberIds: Array<string>;
-      adminMemberIds: Array<string>;
-      updatedAt: string;
-      unread: number;
-      [key: string]: unknown;
-    };
-    userMessage: {
-      id: string;
-      roomId: string;
-      channelSeq: number;
-      senderId: string;
-      senderName: string;
-      senderType: "user" | "agent" | "system";
-      text: string;
-      targetIds: Array<string>;
-      status: "sent" | "running" | "done" | "failed" | "interrupted";
-      createdAt: string;
-      updatedAt: string;
-      attachments?: Array<unknown>;
-      parts?: Array<{
-        [key: string]: unknown;
-      }>;
-      inReplyToMessageId?: string;
-      rootMessageId?: string;
-      selectedFile?: {
-        path: string;
-        [key: string]: unknown;
-      };
-      [key: string]: unknown;
-    };
-    assistantMessages: Array<{
-      id: string;
-      roomId: string;
-      channelSeq: number;
-      senderId: string;
-      senderName: string;
-      senderType: "user" | "agent" | "system";
-      text: string;
-      targetIds: Array<string>;
-      status: "sent" | "running" | "done" | "failed" | "interrupted";
-      createdAt: string;
-      updatedAt: string;
-      attachments?: Array<unknown>;
-      parts?: Array<{
-        [key: string]: unknown;
-      }>;
-      inReplyToMessageId?: string;
-      rootMessageId?: string;
-      selectedFile?: {
-        path: string;
-        [key: string]: unknown;
-      };
-      [key: string]: unknown;
-    }>;
+    room: Room;
+    userMessage: RoomMessage;
+    assistantMessages: Array<RoomMessage>;
     currentEventSeq: number;
   };
 };
 
 export type RoomMessageCreateResponse = RoomMessageCreateResponses[keyof RoomMessageCreateResponses];
+
+export type RoomMessageRecordData = {
+  body: {
+    senderId: string;
+    senderName?: string;
+    text?: string;
+    id?: string;
+    /**
+     * Employee identifiers addressed by this recorded message.
+     */
+    targetIds?: Array<string> | null;
+    deliveryKind?: "user_direct" | "user_broadcast" | "pm_auto_route" | "agent_delegation" | "system_routine";
+    /**
+     * Parent message identifier.
+     */
+    inReplyToMessageId?: string | null;
+    /**
+     * Root message identifier.
+     */
+    rootMessageId?: string | null;
+    /**
+     * Selected local file reference; null or an empty path means no selected file.
+     */
+    selectedFile?: {
+      path: string;
+    } | null;
+  };
+  path: {
+    /**
+     * Room identifier; surrounding whitespace is ignored.
+     */
+    roomId: string;
+  };
+  query?: never;
+  url: "/rooms/{roomId}/agent-messages";
+};
+
+export type RoomMessageRecordErrors = {
+  /**
+   * The request does not satisfy the operation contract.
+   */
+  400: RoomError;
+  /**
+   * A valid Bridge session or token is required.
+   */
+  401: RoomError;
+  /**
+   * The request origin is not allowed.
+   */
+  403: RoomError;
+  /**
+   * The reply parent message does not exist.
+   */
+  404: RoomError;
+  /**
+   * The message ID conflicts with an earlier message, or the remote conversation belongs to another account or sender.
+   */
+  409: RoomError;
+  /**
+   * The authenticated session is temporarily unavailable.
+   */
+  503: RoomError;
+};
+
+export type RoomMessageRecordError = RoomMessageRecordErrors[keyof RoomMessageRecordErrors];
+
+export type RoomMessageRecordResponses = {
+  /**
+   * Successful response.
+   */
+  200: {
+    ok: true;
+    message: RoomMessage;
+    currentEventSeq: number;
+  };
+};
+
+export type RoomMessageRecordResponse = RoomMessageRecordResponses[keyof RoomMessageRecordResponses];
+
+export type RoomMessageCancelData = {
+  body?: never;
+  path: {
+    messageId: string;
+    roomId: string;
+  };
+  query?: never;
+  url: "/rooms/{roomId}/messages/{messageId}/cancel";
+};
+
+export type RoomMessageCancelErrors = {
+  /**
+   * The request does not satisfy the operation contract.
+   */
+  400: RoomError;
+  /**
+   * A valid Bridge session or token is required.
+   */
+  401: RoomError;
+  /**
+   * The request origin is not allowed.
+   */
+  403: RoomError;
+  /**
+   * The reply parent message does not exist.
+   */
+  404: RoomError;
+  /**
+   * The message ID conflicts with an earlier message, or the remote conversation belongs to another account or sender.
+   */
+  409: RoomError;
+  /**
+   * The authenticated session is temporarily unavailable.
+   */
+  503: RoomError;
+};
+
+export type RoomMessageCancelError = RoomMessageCancelErrors[keyof RoomMessageCancelErrors];
+
+export type RoomMessageCancelResponses = {
+  /**
+   * Successful response.
+   */
+  200: {
+    ok: true;
+    cancelled: boolean;
+    status?: "sent" | "running" | "done" | "failed" | "interrupted";
+    message: RoomMessage;
+    currentEventSeq: number;
+  };
+};
+
+export type RoomMessageCancelResponse = RoomMessageCancelResponses[keyof RoomMessageCancelResponses];
+
+export type RoomMessageDeleteData = {
+  body?: never;
+  path: {
+    messageId: string;
+    roomId: string;
+  };
+  query?: never;
+  url: "/rooms/{roomId}/messages/{messageId}";
+};
+
+export type RoomMessageDeleteErrors = {
+  /**
+   * The request does not satisfy the operation contract.
+   */
+  400: RoomError;
+  /**
+   * A valid Bridge session or token is required.
+   */
+  401: RoomError;
+  /**
+   * The request origin is not allowed.
+   */
+  403: RoomError;
+  /**
+   * The reply parent message does not exist.
+   */
+  404: RoomError;
+  /**
+   * The message ID conflicts with an earlier message, or the remote conversation belongs to another account or sender.
+   */
+  409: RoomError;
+  /**
+   * The authenticated session is temporarily unavailable.
+   */
+  503: RoomError;
+};
+
+export type RoomMessageDeleteError = RoomMessageDeleteErrors[keyof RoomMessageDeleteErrors];
+
+export type RoomMessageDeleteResponses = {
+  /**
+   * Successful response.
+   */
+  200: {
+    ok: true;
+    messageId: string;
+    currentEventSeq: number;
+  };
+};
+
+export type RoomMessageDeleteResponse = RoomMessageDeleteResponses[keyof RoomMessageDeleteResponses];
+
+export type RoomMessageUpdateData = {
+  body: {
+    text?: string;
+    status?: "sent" | "running" | "done" | "failed" | "interrupted";
+    runId?: string | null;
+    duration?: string | null;
+    startedAt?: string | null;
+    finishedAt?: string | null;
+    parts?: Array<{
+      [key: string]: unknown;
+    }> | null;
+  };
+  path: {
+    messageId: string;
+    roomId: string;
+  };
+  query?: never;
+  url: "/rooms/{roomId}/messages/{messageId}";
+};
+
+export type RoomMessageUpdateErrors = {
+  /**
+   * The request does not satisfy the operation contract.
+   */
+  400: RoomError;
+  /**
+   * A valid Bridge session or token is required.
+   */
+  401: RoomError;
+  /**
+   * The request origin is not allowed.
+   */
+  403: RoomError;
+  /**
+   * The reply parent message does not exist.
+   */
+  404: RoomError;
+  /**
+   * The message ID conflicts with an earlier message, or the remote conversation belongs to another account or sender.
+   */
+  409: RoomError;
+  /**
+   * The authenticated session is temporarily unavailable.
+   */
+  503: RoomError;
+};
+
+export type RoomMessageUpdateError = RoomMessageUpdateErrors[keyof RoomMessageUpdateErrors];
+
+export type RoomMessageUpdateResponses = {
+  /**
+   * Successful response.
+   */
+  200: {
+    ok: true;
+    message: RoomMessage;
+    currentEventSeq: number;
+  };
+};
+
+export type RoomMessageUpdateResponse = RoomMessageUpdateResponses[keyof RoomMessageUpdateResponses];
+
+export type RoomEventListData = {
+  body?: never;
+  path?: never;
+  query?: {
+    afterEventSeq?: number | string;
+    eventVersion?: number | string;
+    limit?: number | string;
+    /**
+     * Maximum long-poll wait; capped at 25000 ms. Invalid or nonpositive values do not wait.
+     */
+    waitMs?: number | string;
+  };
+  url: "/rooms/events";
+};
+
+export type RoomEventListErrors = {
+  /**
+   * The request does not satisfy the operation contract.
+   */
+  400: RoomError;
+  /**
+   * A valid Bridge session or token is required.
+   */
+  401: RoomError;
+  /**
+   * The request origin is not allowed.
+   */
+  403: RoomError;
+  /**
+   * The reply parent message does not exist.
+   */
+  404: RoomError;
+  /**
+   * The message ID conflicts with an earlier message, or the remote conversation belongs to another account or sender.
+   */
+  409: RoomError;
+  /**
+   * The authenticated session is temporarily unavailable.
+   */
+  503: RoomError;
+};
+
+export type RoomEventListError = RoomEventListErrors[keyof RoomEventListErrors];
+
+export type RoomEventListResponses = {
+  /**
+   * Successful response.
+   */
+  200: {
+    ok: true;
+    events: Array<{
+      schemaVersion?: 1 | 2;
+      eventSeq: number;
+      type:
+        | "room.created"
+        | "room.updated"
+        | "room.member.added"
+        | "room.member.updated"
+        | "room.member.removed"
+        | "room.message.created"
+        | "room.message.updated"
+        | "room.message.deleted";
+      roomId: string;
+      messageId?: string;
+      memberId?: string;
+      createdAt: string;
+      payload: {
+        room?: Room;
+        member?: Employee;
+        message?: RoomMessage;
+        messageId?: string;
+        memberId?: string;
+        audience?: "room" | "internal";
+        messagePatch?: {
+          set: {
+            id?: string;
+            roomId?: string;
+            channelSeq?: number;
+            senderId?: string;
+            senderName?: string;
+            senderType?: "user" | "agent" | "system";
+            text?: string;
+            targetIds?: Array<string>;
+            status?: "sent" | "running" | "done" | "failed" | "interrupted";
+            createdAt?: string;
+            updatedAt?: string;
+            attachments?: Array<unknown>;
+            parts?: Array<{
+              [key: string]: unknown;
+            }>;
+            duration?: string;
+            runId?: string;
+            remoteTask?: {
+              contextId?: string;
+              messageId: string;
+              requestText?: string;
+              triggerMessageId: string;
+              taskId?: string;
+              inputTaskId?: string;
+              sendStarted?: boolean;
+              needsInput?: boolean;
+              pending: boolean;
+              cancelRequested?: boolean;
+              statusText?: string;
+            };
+            startedAt?: string;
+            finishedAt?: string;
+            audience?: "room" | "internal";
+            deliveryKind?: "user_direct" | "user_broadcast" | "pm_auto_route" | "agent_delegation" | "system_routine";
+            notificationEventSeq?: number;
+            inReplyToMessageId?: string;
+            rootMessageId?: string;
+            selectedFile?: {
+              path: string;
+              [key: string]: unknown;
+            };
+            [key: string]: unknown;
+          };
+          unset?: Array<string>;
+        };
+      };
+    }>;
+    currentEventSeq: number;
+    oldestAvailableEventSeq: number;
+    hasMore: boolean;
+    resetRequired: boolean;
+    longPollSupported: boolean;
+  };
+};
+
+export type RoomEventListResponse = RoomEventListResponses[keyof RoomEventListResponses];
+
+export type RoomDirectOpenData = {
+  body: {
+    memberId: string;
+    roomId?: string;
+    appId?: string;
+    title?: string;
+    member?: EmployeeWriteInput;
+  };
+  path?: never;
+  query?: never;
+  url: "/rooms/dm";
+};
+
+export type RoomDirectOpenErrors = {
+  /**
+   * The request does not satisfy the operation contract.
+   */
+  400: RoomError;
+  /**
+   * A valid Bridge session or token is required.
+   */
+  401: RoomError;
+  /**
+   * The request origin is not allowed.
+   */
+  403: RoomError;
+  /**
+   * The reply parent message does not exist.
+   */
+  404: RoomError;
+  /**
+   * The message ID conflicts with an earlier message, or the remote conversation belongs to another account or sender.
+   */
+  409: RoomError;
+  /**
+   * The authenticated session is temporarily unavailable.
+   */
+  503: RoomError;
+};
+
+export type RoomDirectOpenError = RoomDirectOpenErrors[keyof RoomDirectOpenErrors];
+
+export type RoomDirectOpenResponses = {
+  /**
+   * Successful response.
+   */
+  200: {
+    ok: true;
+    room: Room;
+    member?: Employee;
+    currentEventSeq: number;
+  };
+};
+
+export type RoomDirectOpenResponse = RoomDirectOpenResponses[keyof RoomDirectOpenResponses];
+
+export type RoomMemberAddData = {
+  body: EmployeeWriteInput;
+  path: {
+    roomId: string;
+  };
+  query?: never;
+  url: "/rooms/{roomId}/members";
+};
+
+export type RoomMemberAddErrors = {
+  /**
+   * The request does not satisfy the operation contract.
+   */
+  400: RoomError;
+  /**
+   * A valid Bridge session or token is required.
+   */
+  401: RoomError;
+  /**
+   * The request origin is not allowed.
+   */
+  403: RoomError;
+  /**
+   * The reply parent message does not exist.
+   */
+  404: RoomError;
+  /**
+   * The message ID conflicts with an earlier message, or the remote conversation belongs to another account or sender.
+   */
+  409: RoomError;
+  /**
+   * The authenticated session is temporarily unavailable.
+   */
+  503: RoomError;
+};
+
+export type RoomMemberAddError = RoomMemberAddErrors[keyof RoomMemberAddErrors];
+
+export type RoomMemberAddResponses = {
+  /**
+   * Successful response.
+   */
+  200: {
+    ok: true;
+    member: Employee;
+    currentEventSeq: number;
+  };
+};
+
+export type RoomMemberAddResponse = RoomMemberAddResponses[keyof RoomMemberAddResponses];
+
+export type RoomMemberRemoveData = {
+  body?: never;
+  path: {
+    memberId: string;
+    roomId: string;
+  };
+  query?: never;
+  url: "/rooms/{roomId}/members/{memberId}";
+};
+
+export type RoomMemberRemoveErrors = {
+  /**
+   * The request does not satisfy the operation contract.
+   */
+  400: RoomError;
+  /**
+   * A valid Bridge session or token is required.
+   */
+  401: RoomError;
+  /**
+   * The request origin is not allowed.
+   */
+  403: RoomError;
+  /**
+   * The reply parent message does not exist.
+   */
+  404: RoomError;
+  /**
+   * The message ID conflicts with an earlier message, or the remote conversation belongs to another account or sender.
+   */
+  409: RoomError;
+  /**
+   * The authenticated session is temporarily unavailable.
+   */
+  503: RoomError;
+};
+
+export type RoomMemberRemoveError = RoomMemberRemoveErrors[keyof RoomMemberRemoveErrors];
+
+export type RoomMemberRemoveResponses = {
+  /**
+   * Successful response.
+   */
+  200: {
+    ok: true;
+    room: Room;
+    currentEventSeq: number;
+  };
+};
+
+export type RoomMemberRemoveResponse = RoomMemberRemoveResponses[keyof RoomMemberRemoveResponses];
+
+export type RoomMemberJoinData = {
+  body?: never;
+  path: {
+    memberId: string;
+    roomId: string;
+  };
+  query?: never;
+  url: "/rooms/{roomId}/members/{memberId}";
+};
+
+export type RoomMemberJoinErrors = {
+  /**
+   * The request does not satisfy the operation contract.
+   */
+  400: RoomError;
+  /**
+   * A valid Bridge session or token is required.
+   */
+  401: RoomError;
+  /**
+   * The request origin is not allowed.
+   */
+  403: RoomError;
+  /**
+   * The reply parent message does not exist.
+   */
+  404: RoomError;
+  /**
+   * The message ID conflicts with an earlier message, or the remote conversation belongs to another account or sender.
+   */
+  409: RoomError;
+  /**
+   * The authenticated session is temporarily unavailable.
+   */
+  503: RoomError;
+};
+
+export type RoomMemberJoinError = RoomMemberJoinErrors[keyof RoomMemberJoinErrors];
+
+export type RoomMemberJoinResponses = {
+  /**
+   * Successful response.
+   */
+  200: {
+    ok: true;
+    member: Employee;
+    currentEventSeq: number;
+  };
+};
+
+export type RoomMemberJoinResponse = RoomMemberJoinResponses[keyof RoomMemberJoinResponses];
+
+export type EmployeeEmployeeUpsertData = {
+  body: EmployeeWriteInput;
+  path?: never;
+  query?: never;
+  url: "/rooms/members";
+};
+
+export type EmployeeEmployeeUpsertErrors = {
+  /**
+   * The request does not satisfy the operation contract.
+   */
+  400: RoomError;
+  /**
+   * A valid Bridge session or token is required.
+   */
+  401: RoomError;
+  /**
+   * The request origin is not allowed.
+   */
+  403: RoomError;
+  /**
+   * The reply parent message does not exist.
+   */
+  404: RoomError;
+  /**
+   * The message ID conflicts with an earlier message, or the remote conversation belongs to another account or sender.
+   */
+  409: RoomError;
+  /**
+   * The authenticated session is temporarily unavailable.
+   */
+  503: RoomError;
+};
+
+export type EmployeeEmployeeUpsertError = EmployeeEmployeeUpsertErrors[keyof EmployeeEmployeeUpsertErrors];
+
+export type EmployeeEmployeeUpsertResponses = {
+  /**
+   * Successful response.
+   */
+  200: {
+    ok: true;
+    member: Employee;
+    currentEventSeq: number;
+  };
+};
+
+export type EmployeeEmployeeUpsertResponse = EmployeeEmployeeUpsertResponses[keyof EmployeeEmployeeUpsertResponses];
+
+export type EmployeeEmployeeUpdateData = {
+  body: {
+    name?: string | null;
+    kernel?: string | null;
+    model?: string | null;
+    providerId?: string | null;
+    role?: string | null;
+    status?: "idle" | "running" | "done" | "waiting" | "offline" | null;
+    color?: string | null;
+    lastActive?: string | null;
+    availableSkillIds?: Array<string> | null;
+    defaultSkillIds?: Array<string> | null;
+    appId?: string | null;
+    workspaceRoot?: string | null;
+    storePackageId?: string | null;
+    toolIds?: Array<string> | null;
+    accessMode?: "default" | "auto-review" | "full-access" | null;
+    reasoningEffort?: "low" | "medium" | "high" | "xhigh" | "max" | null;
+    contextTokenBudget?: number | null;
+    avatarMode?: "generated" | "initials" | "upload" | null;
+    avatarSeed?: string | null;
+    avatarDataUrl?: string | null;
+    source?: "local" | "human" | null;
+    sourceLabel?: string | null;
+    visibility?: "private" | "public" | null;
+    publicDescription?: string | null;
+    publicSkills?: Array<string> | null;
+    inputSpec?: string | null;
+    outputSpec?: string | null;
+    disabled?: boolean | null;
+  };
+  path: {
+    memberId: string;
+  };
+  query?: never;
+  url: "/rooms/members/{memberId}";
+};
+
+export type EmployeeEmployeeUpdateErrors = {
+  /**
+   * The request does not satisfy the operation contract.
+   */
+  400: RoomError;
+  /**
+   * A valid Bridge session or token is required.
+   */
+  401: RoomError;
+  /**
+   * The request origin is not allowed.
+   */
+  403: RoomError;
+  /**
+   * The reply parent message does not exist.
+   */
+  404: RoomError;
+  /**
+   * The message ID conflicts with an earlier message, or the remote conversation belongs to another account or sender.
+   */
+  409: RoomError;
+  /**
+   * The authenticated session is temporarily unavailable.
+   */
+  503: RoomError;
+};
+
+export type EmployeeEmployeeUpdateError = EmployeeEmployeeUpdateErrors[keyof EmployeeEmployeeUpdateErrors];
+
+export type EmployeeEmployeeUpdateResponses = {
+  /**
+   * Successful response.
+   */
+  200: {
+    ok: true;
+    member: Employee;
+    currentEventSeq: number;
+  };
+};
+
+export type EmployeeEmployeeUpdateResponse = EmployeeEmployeeUpdateResponses[keyof EmployeeEmployeeUpdateResponses];
+
+export type EmployeeEmployeeRestoreDefaultsData = {
+  body?: never;
+  path: {
+    memberId: string;
+  };
+  query?: never;
+  url: "/rooms/members/{memberId}/restore-app-defaults";
+};
+
+export type EmployeeEmployeeRestoreDefaultsErrors = {
+  /**
+   * The request does not satisfy the operation contract.
+   */
+  400: RoomError;
+  /**
+   * A valid Bridge session or token is required.
+   */
+  401: RoomError;
+  /**
+   * The request origin is not allowed.
+   */
+  403: RoomError;
+  /**
+   * The reply parent message does not exist.
+   */
+  404: RoomError;
+  /**
+   * The message ID conflicts with an earlier message, or the remote conversation belongs to another account or sender.
+   */
+  409: RoomError;
+  /**
+   * The authenticated session is temporarily unavailable.
+   */
+  503: RoomError;
+};
+
+export type EmployeeEmployeeRestoreDefaultsError =
+  EmployeeEmployeeRestoreDefaultsErrors[keyof EmployeeEmployeeRestoreDefaultsErrors];
+
+export type EmployeeEmployeeRestoreDefaultsResponses = {
+  /**
+   * Successful response.
+   */
+  200: {
+    ok: true;
+    member: Employee;
+    currentEventSeq: number;
+  };
+};
+
+export type EmployeeEmployeeRestoreDefaultsResponse =
+  EmployeeEmployeeRestoreDefaultsResponses[keyof EmployeeEmployeeRestoreDefaultsResponses];
 
 export type NetworkAccountInspectData = {
   body?: never;

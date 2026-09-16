@@ -1,6 +1,6 @@
-import { bridgeHeaders, fetchJson, postJson } from "../../bridge";
+import { postJson } from "../../bridge";
 import { openGroveClient } from "../../opengrove-client";
-import { isOpenAppSessionRequiredError } from "../../compat/openapp-session";
+import { sessionRequiredCode } from "../../compat/session-required";
 import {
   normalizeClientConnectorHelpText,
   normalizeClientConnectorMessageParts,
@@ -102,23 +102,17 @@ export type UpsertRoomMemberResponse = {
 };
 
 export async function fetchRoomsInit(limit = 80): Promise<RoomsInitResponse> {
-  const params = new URLSearchParams();
-  params.set("limit", String(limit));
-  const snapshot = await fetchJson<RoomsInitResponse>(`/rooms?${params.toString()}`, { headers: bridgeHeaders(false) });
+  const snapshot = await openGroveClient.rooms.collection.list({ limit });
   return normalizeRoomsInitResponse(snapshot);
 }
 
 export async function fetchRoomMessages(roomId: string, limit = 80): Promise<RoomMessage[]> {
-  const params = new URLSearchParams({ limit: String(limit) });
-  const response = await fetchJson<RoomMessagesResponse>(
-    `/rooms/${encodeURIComponent(roomId)}/messages?${params.toString()}`,
-    { headers: bridgeHeaders(false) },
-  );
-  return response.messages.map(normalizeServerRoomMessage).sort(sortRoomMessages);
+  const response = await openGroveClient.rooms.messages.list({ roomId, limit });
+  return normalizeServerRoomMessages(response.messages).sort(sortRoomMessages);
 }
 
 export function isRoomsSessionRequiredError(error: unknown): boolean {
-  return (error instanceof Error && error.message === "session_required") || isOpenAppSessionRequiredError(error);
+  return sessionRequiredCode(error) !== undefined;
 }
 
 export async function fetchRoomEvents(
@@ -126,15 +120,15 @@ export async function fetchRoomEvents(
   limit = 200,
   options: { signal?: AbortSignal; waitMs?: number } = {},
 ): Promise<RoomsEventsResponse> {
-  const params = new URLSearchParams();
-  params.set("afterEventSeq", String(afterEventSeq));
-  params.set("limit", String(limit));
-  params.set("eventVersion", "2");
-  if (options.waitMs && options.waitMs > 0) params.set("waitMs", String(options.waitMs));
-  const response = await fetchJson<RoomsEventsResponse>(`/rooms/events?${params.toString()}`, {
-    headers: bridgeHeaders(false),
-    signal: options.signal,
-  });
+  const response = await openGroveClient.rooms.events.list(
+    {
+      afterEventSeq,
+      limit,
+      eventVersion: 2,
+      waitMs: options.waitMs,
+    },
+    { signal: options.signal },
+  );
   return {
     ...response,
     events: response.events.map((event) => {
@@ -195,14 +189,8 @@ export type CancelRoomRunResponse = {
 };
 
 export async function cancelServerRoomRun(roomId: string, messageId: string): Promise<CancelRoomRunResponse> {
-  const response = await postJson<CancelRoomRunResponse>(
-    `/rooms/${encodeURIComponent(roomId)}/messages/${encodeURIComponent(messageId)}/cancel`,
-    {},
-  );
-  return {
-    ...response,
-    message: response.message ? normalizeServerRoomMessage(response.message) : undefined,
-  };
+  const response = await openGroveClient.rooms.messages.cancel({ roomId, messageId });
+  return { ...response, message: requireRoomMessage(response.message) };
 }
 
 export type DeleteRoomMessageResponse = {
@@ -212,38 +200,24 @@ export type DeleteRoomMessageResponse = {
 };
 
 export async function deleteServerRoomMessage(roomId: string, messageId: string): Promise<DeleteRoomMessageResponse> {
-  return await fetchJson<DeleteRoomMessageResponse>(
-    `/rooms/${encodeURIComponent(roomId)}/messages/${encodeURIComponent(messageId)}`,
-    {
-      method: "DELETE",
-      headers: bridgeHeaders(false),
-    },
-  );
+  return await openGroveClient.rooms.messages.delete({ roomId, messageId });
 }
 
 export async function postServerRoomAgentMessage(input: {
   roomId: string;
   text: string;
-  senderId?: string;
+  senderId: string;
   senderName?: string;
   id?: string;
 }): Promise<{ ok: true; message: ServerRoomMessage; currentEventSeq: number }> {
-  const response = await postJson<{ ok: true; message: ServerRoomMessage; currentEventSeq: number }>(
-    `/rooms/${encodeURIComponent(input.roomId)}/agent-messages`,
-    {
-      text: input.text,
-      senderId: input.senderId,
-      senderName: input.senderName,
-      id: input.id,
-    },
-  );
-  return { ...response, message: normalizeServerRoomMessage(response.message) };
+  const response = await openGroveClient.rooms.messages.record(input);
+  return { ...response, message: requireRoomMessage(response.message) };
 }
 
 export async function createServerRoom(room: Room): Promise<CreateRoomResponse> {
-  return await postJson<CreateRoomResponse>("/rooms", {
+  return await openGroveClient.rooms.collection.create({
     id: room.id,
-    scope: room.scope,
+    scope: room.scope ? { ...room.scope, role: room.scope.role === "direct" ? undefined : room.scope.role } : undefined,
     title: room.title,
     generatedTitle: room.generatedTitle,
     memberIds: room.memberIds,
@@ -261,13 +235,14 @@ export async function openServerDirectRoom(
     appTitle?: string;
   } = {},
 ): Promise<OpenDirectRoomResponse> {
-  const response = await postJson<OpenDirectRoomResponse>("/rooms/dm", {
+  const response = await openGroveClient.rooms.direct.open({
     memberId,
     roomId: input.roomId,
     title,
-    member: input.member,
+    member: input.member
+      ? { ...input.member, source: input.member.source === "remote" ? undefined : input.member.source }
+      : undefined,
     appId: input.appId,
-    appTitle: input.appTitle,
   });
   return {
     ...response,
@@ -279,19 +254,18 @@ export async function patchServerRoom(
   roomId: string,
   patch: Partial<Pick<Room, "title" | "pinned" | "badge" | "adminMemberIds">> & { archived?: boolean },
 ): Promise<void> {
-  await fetchJson(`/rooms/${encodeURIComponent(roomId)}`, {
-    method: "PATCH",
-    headers: bridgeHeaders(),
-    body: JSON.stringify(patch),
-  });
+  await openGroveClient.rooms.collection.update({ roomId, ...patch });
 }
 
 export async function markServerRoomRead(roomId: string, observedEventSeq: number): Promise<MarkRoomReadResponse> {
-  return await postJson<MarkRoomReadResponse>(`/rooms/${encodeURIComponent(roomId)}/read`, { observedEventSeq });
+  return await openGroveClient.rooms.collection.read({ roomId, observedEventSeq });
 }
 
 export async function upsertServerRoomMember(member: RoomMember): Promise<UpsertRoomMemberResponse> {
-  const response = await postJson<UpsertRoomMemberResponse>("/rooms/members", member);
+  const response = await openGroveClient.employees.collection.upsert({
+    ...member,
+    source: member.source === "remote" ? undefined : member.source,
+  });
   return {
     ...response,
     member: readMember(response.member) ?? response.member,
@@ -309,11 +283,7 @@ export async function patchServerRoomMember(
       .filter(([, value]) => options.clearUndefined || value !== undefined)
       .map(([key, value]) => [key, value === undefined ? null : value]),
   );
-  const response = await fetchJson<UpsertRoomMemberResponse>(`/rooms/members/${encodeURIComponent(memberId)}`, {
-    method: "PATCH",
-    headers: bridgeHeaders(),
-    body: JSON.stringify(wirePatch),
-  });
+  const response = await openGroveClient.employees.collection.update({ memberId, ...wirePatch });
   return {
     ...response,
     member: readMember(response.member) ?? response.member,
@@ -321,10 +291,7 @@ export async function patchServerRoomMember(
 }
 
 export async function restoreServerRoomMemberAppDefaults(memberId: string): Promise<UpsertRoomMemberResponse> {
-  const response = await postJson<UpsertRoomMemberResponse>(
-    `/rooms/members/${encodeURIComponent(memberId)}/restore-app-defaults`,
-    {},
-  );
+  const response = await openGroveClient.employees.collection.restoreDefaults({ memberId });
   return {
     ...response,
     member: readMember(response.member) ?? response.member,
@@ -332,7 +299,11 @@ export async function restoreServerRoomMemberAppDefaults(memberId: string): Prom
 }
 
 export async function addServerRoomMember(roomId: string, member: RoomMember): Promise<UpsertRoomMemberResponse> {
-  const response = await postJson<UpsertRoomMemberResponse>(`/rooms/${encodeURIComponent(roomId)}/members`, member);
+  const response = await openGroveClient.rooms.members.add({
+    roomId,
+    ...member,
+    source: member.source === "remote" ? undefined : member.source,
+  });
   return {
     ...response,
     member: readMember(response.member) ?? response.member,
@@ -351,10 +322,7 @@ export async function bindMountedAppBuilder(appId: string, roomId: string): Prom
 }
 
 export async function removeServerRoomMember(roomId: string, memberId: string): Promise<void> {
-  await fetchJson(`/rooms/${encodeURIComponent(roomId)}/members/${encodeURIComponent(memberId)}`, {
-    method: "DELETE",
-    headers: bridgeHeaders(false),
-  });
+  await openGroveClient.rooms.members.remove({ roomId, memberId });
 }
 
 export async function patchServerRoomMessage(
@@ -362,11 +330,7 @@ export async function patchServerRoomMessage(
   messageId: string,
   patch: Partial<RoomMessage>,
 ): Promise<void> {
-  await fetchJson(`/rooms/${encodeURIComponent(roomId)}/messages/${encodeURIComponent(messageId)}`, {
-    method: "PATCH",
-    headers: bridgeHeaders(),
-    body: JSON.stringify(patch),
-  });
+  await openGroveClient.rooms.messages.update({ roomId, messageId, ...patch });
 }
 
 export function roomsFromServerSnapshot(snapshot: RoomsInitResponse): Room[] {
@@ -800,6 +764,12 @@ function readMessage(value: unknown): ServerRoomMessage | null {
     : null;
 }
 
+function requireRoomMessage(value: unknown): ServerRoomMessage {
+  const message = readMessage(value);
+  if (!message) throw new Error("room_message_response_invalid");
+  return message;
+}
+
 function readPostRoomMessageResponse(value: unknown): PostRoomMessageResponse {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     throw new Error("room_message_response_invalid");
@@ -835,8 +805,10 @@ function readPostRoomMessageResponse(value: unknown): PostRoomMessageResponse {
   };
 }
 
-function normalizeRoomsInitResponse(snapshot: RoomsInitResponse): RoomsInitResponse {
-  const messages = snapshot.messages.map(normalizeServerRoomMessage);
+function normalizeRoomsInitResponse(
+  snapshot: Omit<RoomsInitResponse, "messages"> & { messages: unknown[] },
+): RoomsInitResponse {
+  const messages = normalizeServerRoomMessages(snapshot.messages);
   const runningSenderIds = new Set(
     messages
       .filter((message) => message.senderType === "agent" && message.status === "running")
@@ -849,6 +821,16 @@ function normalizeRoomsInitResponse(snapshot: RoomsInitResponse): RoomsInitRespo
     ),
     messages,
   };
+}
+
+function normalizeServerRoomMessages(values: unknown[]): ServerRoomMessage[] {
+  const messages: ServerRoomMessage[] = [];
+  for (const value of values) {
+    const message = readMessage(value);
+    if (message) messages.push(message);
+    else console.warn("room_message_display_skipped: missing message identity");
+  }
+  return messages;
 }
 
 function normalizeServerRoomMessage(message: ServerRoomMessage): ServerRoomMessage {
