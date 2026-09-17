@@ -79,7 +79,7 @@ jobs:
           [[ "$ENGINE_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+([-+][0-9A-Za-z.-]+)?$ ]]
           if [[ "$KERNEL" == hermes ]]; then [[ "$SOURCE_REVISION" =~ ^[a-f0-9]{40}$ ]]; fi
           owner="$(echo "$OWNER" | tr '[:upper:]' '[:lower:]')"
-          image="ghcr.io/${owner}/opengrove-agent-${KERNEL}"
+          image="ghcr.io/${owner}/opengrove-ci-${KERNEL}"
           tag="$ENGINE_VERSION"
           if [[ "$KERNEL" == hermes ]]; then tag="$tag-${SOURCE_REVISION:0:12}"; fi
           echo "ref=${image}:${tag}" >> "$GITHUB_OUTPUT"

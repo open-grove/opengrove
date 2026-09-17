@@ -142,7 +142,7 @@ export function verifyReleaseLiveEvidence({ evidence, run, candidateInputDigest,
     }
   }
   return {
-    kernels: required.length,
+    kernels: new Set(required.map((item) => item.kernel)).size,
     capabilities: required.reduce((count, item) => count + item.capabilities.split(",").length, 0),
     inputDigest: candidateInputDigest,
   };

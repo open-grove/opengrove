@@ -65,7 +65,17 @@ function parseArgs(argv) {
           .filter(Boolean),
       );
       index += 1;
-    } else if (["--host-version", "--kernel-version", "--runtime-mode", "--not-before"].includes(arg) && value) {
+    } else if (
+      [
+        "--host-version",
+        "--kernel-version",
+        "--runtime-mode",
+        "--not-before",
+        "--provider-kind",
+        "--provider-model",
+      ].includes(arg) &&
+      value
+    ) {
       options[arg.slice(2)] = value;
       index += 1;
     } else if (arg === "--fail-on-failed") {
@@ -256,6 +266,12 @@ function main() {
       }
     }
     if (probe.status === "passed") {
+      for (const [argument, field] of [
+        ["provider-kind", "kind"],
+        ["provider-model", "model"],
+      ])
+        if (options[argument] && probe.provider?.[field] !== options[argument])
+          errors.push(`${probe.capability}: provider ${field} does not match this job's expected identity`);
       for (const [argument, field] of [
         ["host-version", "hostVersion"],
         ["kernel-version", "kernelVersion"],

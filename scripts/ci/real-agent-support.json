@@ -52,10 +52,8 @@
         "session.compact",
         "media.input",
         "output.structured",
-        "response.speed",
         "control.steer",
-        "session.goal",
-        "reasoning.summary"
+        "session.goal"
       ],
       "case": "codex",
       "provider": {
@@ -64,6 +62,21 @@
         "model": "deepseek-flash",
         "configRevision": "1"
       }
+    },
+    {
+      "kernel": "codex",
+      "runtime_mode": "sdk",
+      "kernel_version": "codex-cli 0.154.0-alpha.6.2",
+      "capabilities": ["response.speed", "reasoning.summary"],
+      "case": "codex-native",
+      "provider": {
+        "kind": "codex-native",
+        "protocol": "codex-account",
+        "model": "gpt-5.5",
+        "configRevision": "1"
+      },
+      "required": false,
+      "deferredReason": "native_account_credentials_unavailable"
     },
     {
       "kernel": "hermes",

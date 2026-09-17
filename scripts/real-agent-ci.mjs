@@ -19,6 +19,7 @@ export function readRealAgentRequirements() {
       seen.has(item.case) ||
       !Array.isArray(item.capabilities) ||
       !item.capabilities.length ||
+      (item.required === false && !item.deferredReason) ||
       new Set(item.capabilities).size !== item.capabilities.length
     )
       throw new Error("Invalid or duplicate live support case");
@@ -45,7 +46,17 @@ export function planRealAgents(required, images, context) {
   if (!/^[a-f0-9]{64}$/.test(context?.inputDigest ?? "")) throw new Error("Live plan requires an input digest");
   const include = [];
   const unconfigured = [];
+  const deferred = [];
   for (const item of required) {
+    if (item.required === false && !["diagnostic", "exploratory"].includes(context.purpose)) {
+      deferred.push({
+        case: item.case,
+        kernel: item.kernel,
+        capabilities: item.capabilities,
+        reason: item.deferredReason,
+      });
+      continue;
+    }
     const config = images[item.case];
     if (!config) {
       unconfigured.push(item.case);
@@ -64,8 +75,20 @@ export function planRealAgents(required, images, context) {
       configRevision: config.configRevision ?? item.provider.configRevision,
     };
     if (
-      provider.kind !== "deepseek" ||
-      !/^deepseek-[a-z0-9.-]+$/.test(provider.model) ||
+      !(
+        (provider.kind === "deepseek" &&
+          /^deepseek-[a-z0-9.-]+$/.test(provider.model) &&
+          provider.protocol ===
+            (item.kernel === "claude-code"
+              ? "anthropic"
+              : item.kernel === "codex"
+                ? "openai-responses"
+                : "openai-completions")) ||
+        (provider.kind === "codex-native" &&
+          item.kernel === "codex" &&
+          provider.protocol === "codex-account" &&
+          /^gpt-[a-z0-9.-]+$/.test(provider.model))
+      ) ||
       !/^[a-zA-Z0-9._-]+$/.test(provider.configRevision)
     )
       throw new Error(`Invalid certified provider profile: ${item.case}`);
@@ -90,6 +113,7 @@ export function planRealAgents(required, images, context) {
     ...context,
     matrix: { include },
     unconfigured,
+    deferred,
   };
   plan.planDigest = identityDigest({
     purpose: plan.purpose,
@@ -97,6 +121,7 @@ export function planRealAgents(required, images, context) {
     inputDigest: plan.inputDigest,
     matrix: plan.matrix,
     unconfigured,
+    deferred,
   });
   return plan;
 }
@@ -150,7 +175,7 @@ export function summarizeRealAgentCoverage(plan, cases) {
       checkedAt: proof?.generatedAt ?? null,
       caseRunAttempt: proof?.runAttempt ?? null,
       artifactId: proof?.artifactId ?? null,
-      required: true,
+      required: item.required !== false,
       capabilities: item.capabilities.split(",").map((capability) => ({
         capability,
         status: passed && proof.capabilities?.includes(capability) ? "passed" : "not_verified",
@@ -163,6 +188,7 @@ export function summarizeRealAgentCoverage(plan, cases) {
       coverage.length > 0 &&
       coverage.every((item) => item.capabilities.every((entry) => entry.status === "passed")),
     coverage,
+    deferred: plan.deferred ?? [],
   };
 }
 export function createLiveReceipt(plan, cases, context, executionResult) {
@@ -203,6 +229,7 @@ export function realAgentInputDigest(commit) {
       "scripts/real-agent-ci.mjs",
       "scripts/run-real-agent-ci-case.mjs",
       "scripts/deepseek-ci.mjs",
+      "scripts/codex-ci.mjs",
       "scripts/ci-process.mjs",
       "scripts/check-real-runtime-evidence.mjs",
       "scripts/verify-agent-image-version.sh",
@@ -230,6 +257,7 @@ async function main() {
   if (command === "plan") {
     const selected = process.env.DISPATCH_KERNEL;
     if (selected && !required.some((item) => item.kernel === selected)) throw new Error("Unknown dispatch kernel");
+    if (selected && context.purpose === "certification") context.purpose = "diagnostic";
     const plan = planRealAgents(
       selected ? required.filter((item) => item.kernel === selected) : required,
       JSON.parse(process.env.OPENGROVE_REAL_AGENT_IMAGES || "{}"),
@@ -244,7 +272,7 @@ async function main() {
     if (process.env.GITHUB_STEP_SUMMARY)
       appendFileSync(
         process.env.GITHUB_STEP_SUMMARY,
-        `Live support plan: ${plan.matrix.include.length} configured; missing pinned images: ${plan.unconfigured.join(", ") || "none"}. Missing configuration never qualifies a release.\n`,
+        `Live support plan: ${plan.matrix.include.length} configured; missing required images: ${plan.unconfigured.join(", ") || "none"}. Deferred, unverified cases: ${plan.deferred.map((item) => item.case).join(", ") || "none"}. Missing required configuration never qualifies a release.\n`,
       );
     return;
   }
@@ -288,7 +316,7 @@ async function main() {
   if (process.env.GITHUB_STEP_SUMMARY)
     appendFileSync(
       process.env.GITHUB_STEP_SUMMARY,
-      `## Real Agent coverage\n\n${summary.coverage.map((item) => `- ${item.case}: ${item.capabilities.filter((cap) => cap.status === "passed").length}/${item.capabilities.length}; attempt ${item.caseRunAttempt}; artifact ${item.artifactId}`).join("\n")}\n\nRelease eligible: **${summary.ready && !process.env.DISPATCH_KERNEL}**\n`,
+      `## Real Agent coverage\n\n${summary.coverage.map((item) => `- ${item.case}: ${item.capabilities.filter((cap) => cap.status === "passed").length}/${item.capabilities.length}; attempt ${item.caseRunAttempt}; artifact ${item.artifactId}`).join("\n")}\n${summary.deferred.map((item) => `- ${item.case}: UNVERIFIED / deferred (${item.capabilities.join(", ")}); ${item.reason}`).join("\n")}\n\nRelease eligible: **${summary.ready && plan.purpose === "certification"}**\n`,
     );
   if (!summary.ready) throw new Error("Incomplete Real Agent coverage; inspect the plan and case diagnostics");
 }

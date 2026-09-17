@@ -2,6 +2,7 @@ import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { runCiProcess } from "./ci-process.mjs";
 import { prepareDeepSeekRuntime, startDeepSeekGateway } from "./deepseek-ci.mjs";
+import { prepareCodexAccountRuntime } from "./codex-ci.mjs";
 
 const expected = JSON.parse(process.env.CI_CASE_PLAN || "null");
 if (!expected || !/^[a-f0-9]{64}$/.test(expected.fingerprint))
@@ -35,16 +36,24 @@ const receipt = {
   runAttempt: process.env.GITHUB_RUN_ATTEMPT,
 };
 try {
-  if (expected.provider.kind !== "deepseek" || !process.env.DEEPSEEK_API_KEY)
-    throw new Error("The resolved DeepSeek profile needs DEEPSEEK_API_KEY");
-  runtimeEnv = {
-    ...process.env,
-    ...prepareDeepSeekRuntime(kernel, {
+  if (expected.provider.kind === "codex-native" && kernel === "codex") {
+    runtimeEnv = prepareCodexAccountRuntime({
       root: directory,
-      apiKey: process.env.DEEPSEEK_API_KEY,
+      authJson: process.env.CODEX_AUTH_JSON,
       model: expected.provider.model,
-    }),
-  };
+    });
+  } else {
+    if (expected.provider.kind !== "deepseek" || !process.env.DEEPSEEK_API_KEY)
+      throw new Error("The resolved DeepSeek profile needs DEEPSEEK_API_KEY");
+    runtimeEnv = {
+      ...process.env,
+      ...prepareDeepSeekRuntime(kernel, {
+        root: directory,
+        apiKey: process.env.DEEPSEEK_API_KEY,
+        model: expected.provider.model,
+      }),
+    };
+  }
   // Certified profiles have one source of configuration. Extra runtime profiles
   // must be added to the support policy before they can certify a release.
   delete runtimeEnv.CI_RUNTIME_ENVIRONMENTS;
@@ -93,6 +102,14 @@ try {
       version,
       "--runtime-mode",
       mode,
+      "--provider-kind",
+      expected.provider.kind === "codex-native" || kernel === "openclaw"
+        ? "native"
+        : kernel === "claude-code"
+          ? "anthropic-compatible"
+          : "openai-compatible",
+      "--provider-model",
+      kernel === "openclaw" ? `deepseek/${expected.provider.model}` : expected.provider.model,
     ],
     { stdio: "inherit" },
   );
@@ -114,6 +131,7 @@ try {
   writeFileSync(join(publicDir, "case-receipt.json"), `${JSON.stringify(receipt, null, 2)}\n`);
   await gateway?.stop();
   rmSync(join(directory, "deepseek"), { recursive: true, force: true });
+  rmSync(join(directory, "codex-native"), { recursive: true, force: true });
 }
 
 function failedCapabilityDiagnostics() {

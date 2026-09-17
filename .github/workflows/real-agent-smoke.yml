@@ -112,7 +112,8 @@ jobs:
       - name: Probe every required capability and verify current runtime identity
         env:
           CI_CASE_PLAN: ${{ toJSON(matrix) }}
-          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          DEEPSEEK_API_KEY: ${{ matrix.provider.kind == 'deepseek' && secrets.DEEPSEEK_API_KEY || '' }}
+          CODEX_AUTH_JSON: ${{ matrix.provider.kind == 'codex-native' && secrets.CODEX_AUTH_JSON || '' }}
         run: node scripts/run-real-agent-ci-case.mjs
       - name: Upload verified sanitized evidence
         if: always()

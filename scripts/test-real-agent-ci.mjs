@@ -3,6 +3,7 @@ import { spawnSync } from "node:child_process";
 import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { prepareCodexAccountRuntime } from "./codex-ci.mjs";
 import {
   planRealAgents,
   summarizeRealAgentCoverage,
@@ -46,7 +47,13 @@ assert.equal(summarizeRealAgentCoverage(plan, [{ ...pass, passed: false }]).read
 assert.equal(summarizeRealAgentCoverage(plan, [{ ...pass, runtimeMode: "cli" }]).ready, false);
 assert.throws(() => summarizeRealAgentCoverage(plan, [pass, pass]), /duplicate/);
 const inventory = readRealAgentRequirements();
-assert.equal(inventory.length, 7);
+assert.equal(inventory.length, 8);
+assert.equal(new Set(inventory.map((item) => item.kernel)).size, 7);
+assert.deepEqual(inventory.find((item) => item.case === "codex-native").capabilities, [
+  "response.speed",
+  "reasoning.summary",
+]);
+assert.ok(!inventory.find((item) => item.case === "codex").capabilities.includes("response.speed"));
 assert.equal(
   inventory.reduce((n, item) => n + item.capabilities.length, 0),
   85,
@@ -65,6 +72,7 @@ try {
     hostVersion: "0.7.0",
     kernelVersion: "0.85.1",
     runtimeMode: "sdk",
+    provider: { kind: "openai-compatible", model: "deepseek-flash" },
   };
   const invoke = (value) => {
     writeFileSync(file, JSON.stringify(value));
@@ -87,6 +95,10 @@ try {
         "0.85.1",
         "--runtime-mode",
         "sdk",
+        "--provider-kind",
+        "openai-compatible",
+        "--provider-model",
+        "deepseek-flash",
       ],
       { encoding: "utf8" },
     );
@@ -97,6 +109,8 @@ try {
     { kernelVersion: "0.84.0" },
     { hostVersion: "0.6.0" },
     { runtimeMode: "cli" },
+    { provider: { kind: "native", model: "deepseek-flash" } },
+    { provider: { kind: "openai-compatible", model: "another-model" } },
     { status: "skipped", reason: "missing_credentials" },
   ])
     assert.equal(invoke({ ...evidence, probes: [{ ...probe, ...change }] }).status, 1);
@@ -129,6 +143,51 @@ assert.throws(() => selectRealAgentCases([newCase, newCase], context), /duplicat
 
 const caseRoot = mkdtempSync(join(tmpdir(), "opengrove-ci-case-"));
 try {
+  const accountEnv = prepareCodexAccountRuntime({
+    root: caseRoot,
+    authJson: JSON.stringify({ tokens: { access_token: "private-test-account" } }),
+    model: "gpt-5.5",
+    env: {
+      CODEX_AUTH_JSON: "private-test-account",
+      DEEPSEEK_API_KEY: "foreign-provider",
+      OPENAI_BASE_URL: "https://other.invalid",
+      PATH: process.env.PATH,
+    },
+  });
+  assert.equal(accountEnv.CODEX_AUTH_JSON, undefined);
+  assert.equal(accountEnv.OPENAI_BASE_URL, undefined);
+  assert.equal(accountEnv.DEEPSEEK_API_KEY, undefined);
+  assert.equal(accountEnv.OPENGROVE_REAL_RUNTIME_MODEL, "gpt-5.5");
+  assert.equal(
+    JSON.parse(readFileSync(join(accountEnv.CODEX_HOME, "auth.json"))).tokens.access_token,
+    "private-test-account",
+  );
+  assert.equal(readFileSync(join(accountEnv.CODEX_HOME, "config.toml"), "utf8"), 'model = "gpt-5.5"\n');
+  assert.throws(
+    () => prepareCodexAccountRuntime({ root: caseRoot, authJson: "{}", model: "gpt-5.5" }),
+    /account profile/,
+  );
+  const nativeRequirement = inventory.find((item) => item.case === "codex-native");
+  const diagnosticContext = { ...planContext, purpose: "diagnostic" };
+  const nativePlan = planRealAgents([nativeRequirement], { "codex-native": { image } }, diagnosticContext);
+  assert.equal(nativePlan.matrix.include[0].provider.kind, "codex-native");
+  assert.throws(
+    () =>
+      planRealAgents([nativeRequirement], { "codex-native": { image, model: "deepseek-flash" } }, diagnosticContext),
+    /provider profile/,
+  );
+  const deferredPlan = planRealAgents([required[0], nativeRequirement], { pi: { image } }, planContext);
+  assert.deepEqual(deferredPlan.unconfigured, []);
+  assert.deepEqual(
+    deferredPlan.deferred.map((item) => item.case),
+    ["codex-native"],
+  );
+  const deferredReceipt = summarizeRealAgentCoverage(deferredPlan, [pass]);
+  assert.equal(deferredReceipt.ready, true, "an explicitly deferred account case is not a release blocker");
+  assert.ok(
+    !deferredReceipt.coverage.some((item) => item.case === "codex-native"),
+    "unrun capabilities must never be counted as passed",
+  );
   mkdirSync(join(caseRoot, "scripts"));
   mkdirSync(join(caseRoot, "dist/tests"), { recursive: true });
   writeFileSync(join(caseRoot, "package.json"), JSON.stringify({ type: "module", version: "0.7.0" }));
@@ -137,7 +196,7 @@ try {
     join(caseRoot, "scripts/check-real-runtime-evidence.mjs"),
   );
   const probeProgram = (status) =>
-    `import { writeFileSync } from "node:fs"; const time = new Date().toISOString(); writeFileSync(process.argv[process.argv.indexOf("--out") + 1], JSON.stringify({schemaVersion:1,generatedAt:time,probes:[{kernel:"pi",capability:"turn.lifecycle",status:${JSON.stringify(status)},checkedAt:time.slice(0,10),hostVersion:"0.7.0",kernelVersion:"0.85.1",runtimeMode:"sdk"}]}));`;
+    `import { writeFileSync } from "node:fs"; const time = new Date().toISOString(); writeFileSync(process.argv[process.argv.indexOf("--out") + 1], JSON.stringify({schemaVersion:1,generatedAt:time,probes:[{kernel:"pi",capability:"turn.lifecycle",status:${JSON.stringify(status)},checkedAt:time.slice(0,10),hostVersion:"0.7.0",kernelVersion:"0.85.1",runtimeMode:"sdk",provider:{kind:"openai-compatible",model:"deepseek-flash"}}]}));`;
   const stub = join(caseRoot, "dist/tests/kernel-capability-real-runtime-probe-runner.js");
   writeFileSync(stub, probeProgram("passed"));
   const env = {
@@ -179,6 +238,27 @@ try {
   assert.deepEqual(JSON.parse(readFileSync(receiptPath, "utf8")).failure.capabilities, [
     { capability: "turn.lifecycle", status: "failed" },
   ]);
+  env.CI_CASE_PLAN = JSON.stringify(nativePlan.matrix.include[0]);
+  env.CODEX_AUTH_JSON = JSON.stringify({ tokens: { access_token: "private-test-account" } });
+  writeFileSync(
+    stub,
+    `import {writeFileSync,readFileSync} from 'node:fs';
+    if(process.env.CODEX_AUTH_JSON || process.env.DEEPSEEK_API_KEY) throw new Error('credential environment leaked');
+    if(JSON.parse(readFileSync(process.env.CODEX_HOME+'/auth.json')).auth_mode!=='chatgpt') throw new Error('auth profile mismatch');
+    const time=new Date().toISOString();
+    writeFileSync(process.argv[process.argv.indexOf('--out')+1], JSON.stringify({schemaVersion:1,generatedAt:time,probes:${JSON.stringify(nativeRequirement.capabilities)}.map(capability=>({kernel:'codex',capability,status:'passed',checkedAt:time.slice(0,10),hostVersion:'0.7.0',kernelVersion:'codex-cli 0.154.0-alpha.6.2',runtimeMode:'sdk',provider:{kind:'native',model:process.env.OPENGROVE_REAL_RUNTIME_MODEL}}))}));`,
+  );
+  const nativeResult = invokeCase();
+  assert.equal(nativeResult.status, 0, nativeResult.stderr);
+  assert.equal(JSON.parse(readFileSync(receiptPath, "utf8")).passed, true);
+  assert.equal(existsSync(join(caseRoot, "real-agent-case/codex-native")), false);
+  assert.ok(!`${nativeResult.stdout}${nativeResult.stderr}`.includes("private-test-account"));
+  delete env.CODEX_AUTH_JSON;
+  assert.notEqual(invokeCase().status, 0);
+  const missingAccount = JSON.parse(readFileSync(receiptPath, "utf8"));
+  assert.equal(missingAccount.passed, false);
+  assert.equal(missingAccount.failure.stage, "configuration");
+  assert.ok(missingAccount.failure.capabilities.every((item) => item.status === "missing"));
 } finally {
   rmSync(caseRoot, { recursive: true, force: true });
 }

@@ -448,13 +448,13 @@ async function createAgentAdapter(
         cwd: options.cwd,
         env: { ...providerEnv, ...probeCase?.runtimeEnv },
         approvalPolicy: probeCase?.codexApprovalPolicy,
-        configuredModel,
+        configuredModel: options.model,
         providerConfig: binding ? codexProviderConfigFromProfile(binding) : undefined,
         allowServiceTier: !binding,
       }),
       providerKind,
       providerBaseUrl,
-      providerModel: configuredModel,
+      providerModel: options.model,
     };
   }
 

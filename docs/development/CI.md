@@ -76,7 +76,7 @@ or authentication routes need explicit cases and an implementation before they
 can be certified.
 
 `OPENGROVE_REAL_AGENT_IMAGES` is a repository JSON variable keyed by **case ID**
-(currently the seven Kernel IDs). Each value requires an immutable
+(the seven Kernel IDs plus `codex-native`). Each value requires an immutable
 `ghcr.io/OWNER/IMAGE@sha256:DIGEST` image and optionally overrides `kernelVersion`,
 `model` and non-sensitive `configRevision`. The default version/model comes from
 the support policy. `kernelVersion` is the complete discovery identity, not a
@@ -93,7 +93,7 @@ merely to nonempty version strings or historical defaults. Source/dependency inp
 remain conservative, but unrelated scripts and Web UI do not invalidate live
 certification. Case evidence expires after 24 hours independently of rerun time.
 
-The current certified profile uses the `DEEPSEEK_API_KEY` secret in the
+The DeepSeek profiles use the `DEEPSEEK_API_KEY` secret in the
 `opengrove-real-agent-test` environment. Model selection lives in the resolved
 plan, not a second environment override. Hidden `REAL_AGENT_RUNTIME_ENVIRONMENTS`,
 legacy Cloudflare/Pi bootstrap variables and `DEEPSEEK_MODEL` no longer override
@@ -102,6 +102,20 @@ matching runner implementation. Claude uses Anthropic; Codex uses Responses;
 other Kernels use their existing OpenAI-compatible routes. OpenClaw starts an
 owned Gateway. A working API key does not certify native-account-only features.
 
+The eight cases retain all 85 capability definitions across seven Kernels.
+Codex's `response.speed` and `reasoning.summary` belong to the separate
+`codex-native` case, using the same pinned Codex image but native account auth
+and an explicit model (`gpt-5.5` by default). Set `CODEX_AUTH_JSON` in the same
+protected environment from a dedicated test account. Only this case receives it;
+the runner writes a disposable private auth home, removes external-provider
+overrides and cleans the auth files afterward. Missing credentials fail the case.
+Raw evidence must match the planned provider kind and model before certification.
+Until a test account is available, `codex-native` is explicitly deferred by the
+reviewed support policy: **83 capabilities are required, two remain unverified**.
+Certification plans report the deferral and do not execute or count it as passing.
+A manual Codex diagnostic or exploratory run includes the deferred case. Restore
+`required: true` after provisioning and verifying the account to make it blocking.
+
 The image workflow builds six npm-based Kernels and source-pinned Hermes, verifies the actual image before
 publication, and reports a **local build digest** separately from the **published
 immutable registry reference**. Only the latter belongs in the mapping. Hermes
@@ -109,6 +123,8 @@ requires `source_revision` to name a full upstream commit and installs its froze
 Python dependency lock. Its official baked build-SHA mechanism avoids mutable
 local branch metadata in the version banner; verification checks that SHA too.
 Claude SDK selects its lockfile-installed Engine and checks its actual identity.
+New builds use `opengrove-ci-KERNEL` packages linked to this repository by the source
+label. Existing immutable image references remain reusable without rebuilding for a name change.
 No credentials belong in an image. Configure package Actions access for this
 repository before enabling the complete live gate; absent images/access or failed
 required capabilities block release. Deterministic CI success is not rollout proof.

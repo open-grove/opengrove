@@ -57,8 +57,8 @@ Nightly 不再重复 Main 的 Linux harness、完整 UI 和 Web 包测试。临�
 独立定义必测 case、模式、能力与模型接入配置。这是要求清单，不是成功证明；历史
 认证不随 CI 结果手改。新增能力或登录方式，需要明确 case 与对应实现才能认证。
 
-仓库 JSON 变量 `OPENGROVE_REAL_AGENT_IMAGES` 按 **case ID** 索引（目前为七个
-Kernel ID）。每项必须指定 `ghcr.io/OWNER/IMAGE@sha256:DIGEST`，可显式覆盖
+仓库 JSON 变量 `OPENGROVE_REAL_AGENT_IMAGES` 按 **case ID** 索引（七个 Kernel ID
+加 `codex-native`）。每项必须指定 `ghcr.io/OWNER/IMAGE@sha256:DIGEST`，可显式覆盖
 `kernelVersion`、`model`、非敏感的 `configRevision`；默认版本与模型来自支持清单。
 版本必须是完整发现身份。轮换凭据或修改外部配置时递增 `configRevision`，不得公开
 凭据或原始 secret 的哈希。配置变化会使相应计划失效。
@@ -70,16 +70,28 @@ Gateway 握手返回的版本与 CLI 显示文字不同。
 源码和依赖范围保持保守；无关脚本和 Web UI 不使真实认证失效。每项 case 从实际执行
 时间起有效 24 小时，重跑汇总不会延长它的有效期。
 
-当前认证配置使用 `opengrove-real-agent-test` environment 内的 `DEEPSEEK_API_KEY`。
+DeepSeek 配置使用 `opengrove-real-agent-test` environment 内的 `DEEPSEEK_API_KEY`。
 模型由计划指定；`REAL_AGENT_RUNTIME_ENVIRONMENTS`、旧 Cloudflare/Pi 引导变量和
 `DEEPSEEK_MODEL` 不再隐式覆盖认证配置。其他供应商应新增明确的支持配置和 runner
 实现。Claude 走 Anthropic，Codex 走 Responses，其余保留各自的 OpenAI 兼容接入；
 OpenClaw 启动独立 Gateway。API Key 可用不能证明原生账号专属能力。
 
+八个 case 保留七个 Kernel 的全部 85 项能力定义。Codex 的 `response.speed` 和
+`reasoning.summary` 单独放在 `codex-native`，复用固定 Codex 镜像，但使用原生账号
+和明确模型（默认 `gpt-5.5`）。在同一受保护 environment 配置专用测试账号的
+`CODEX_AUTH_JSON`，仅该 case 接收它。runner 写入临时私有认证目录，清除外部供应商
+覆盖项，结束后删除认证文件。缺少凭据明确失败。认证前还会核对原始证据中的供应商
+类型和模型是否与执行计划一致。
+在测试账号就绪前，支持清单明确暂缓 `codex-native`：**83 项必须通过，2 项仍未验证**。
+认证计划展示暂缓原因，不执行它，也不计为通过。手动 Codex 诊断和前瞻检查会包含该
+用例。配置并验证测试账号后，将 `required` 恢复为 `true`，重新纳入发布门禁。
+
 镜像流程支持六个 npm Kernel 和源码固定的 Hermes，发布前校验实际镜像，分别展示本地构建摘要和已发布的
 不可变仓库引用；只有后者可填入映射。Hermes 必须指定完整的 `source_revision`，按上游锁文件安装 Python 依赖，使用官方
 构建 SHA 机制避免本机分支元数据改变版本显示，并核验实际源码身份。
 Claude SDK 使用锁文件安装的 Engine 并核验身份。镜像不包含凭据。
+新构建使用 `opengrove-ci-KERNEL` 包名并通过来源标签关联本仓库；已有镜像的固定
+digest 可以继续复用，无需仅因包名迁移而重建。
 完整门禁启用前必须配置仓库对 GHCR 包的 Actions 访问权限，取得全部要求的真实成功
 记录。缺镜像、权限或能力失败都会阻断，确定性 CI 通过不能代替在线验收。
 
