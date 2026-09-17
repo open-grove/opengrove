@@ -1,3 +1,4 @@
+import { assertRuntimeAccessMode } from "../runtime-access.js";
 import { existsSync, realpathSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
@@ -103,6 +104,7 @@ export class PiAgentRuntime implements AgentRuntime {
   }
 
   async *runTurn(request: AgentTurnRequest): AsyncIterable<AgentEvent> {
+    assertRuntimeAccessMode("pi", request.accessMode);
     const runId = resolveRuntimeRunId(request.runId);
     const skills = request.skills ?? [];
     const packs = request.packs ?? [];
@@ -215,10 +217,12 @@ export class PiAgentRuntime implements AgentRuntime {
           if (!tool) {
             return { mode: "deny", reason: `Unknown tool: ${gate.toolId}` };
           }
+          const decision = evaluateToolPolicy(tool.spec, policy, gate.capabilityId);
+          if (decision.mode === "deny") return decision;
           if (request.accessMode === "full-access") {
             return { mode: "allow", reason: "OpenGrove full-access mode allows host tool execution for this turn." };
           }
-          return evaluateToolPolicy(tool.spec, policy, gate.capabilityId);
+          return decision;
         },
       };
 
@@ -323,6 +327,8 @@ function evaluatePiNativeToolPolicy(
 ): PolicyDecision {
   const spec = piNativeToolSpec(toolId);
   if (!spec) return { mode: "deny", reason: `Unknown Pi native tool: ${toolId}` };
+  const decision = evaluateToolPolicy(spec, policy);
+  if (decision.mode === "deny") return decision;
   if (accessMode === "full-access") {
     return { mode: "allow", reason: "OpenGrove full-access mode allows Pi native tool execution for this turn." };
   }
@@ -332,13 +338,7 @@ function evaluatePiNativeToolPolicy(
       reason: "Pi requested a file outside the OpenGrove workspace. Explicit approval is required.",
     };
   }
-  if (accessMode === "auto-review" && toolId !== "bash") {
-    return {
-      mode: "allow",
-      reason: "OpenGrove auto-review mode allows Pi read and file-edit tools; shell commands still require review.",
-    };
-  }
-  return evaluateToolPolicy(spec, policy);
+  return decision;
 }
 
 function piNativeFileTargetEscapesWorkspace(

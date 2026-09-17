@@ -203,6 +203,11 @@ export interface RoomChannelEvent {
   payload: Record<string, unknown>;
 }
 
+export interface EmployeeMigrationVersions {
+  models: number;
+  approvalPresets: number;
+}
+
 export interface RoomChannelSnapshot {
   version: 1;
   currentEventSeq: number;
@@ -211,6 +216,8 @@ export interface RoomChannelSnapshot {
   messages: RoomChannelMessage[];
   events: RoomChannelEvent[];
   deletedMemberIds?: string[];
+  /** Durable completion record, saved atomically with the migrated Employees. */
+  employeeMigrationVersions?: EmployeeMigrationVersions;
 }
 
 export interface RoomChannelInit {
@@ -287,6 +294,7 @@ export class RoomChannelStore {
   private deletedMemberIds = new Set<string>();
   private currentEventSeq = 0;
   private restoredWithChanges = false;
+  private employeeMigrationVersions?: EmployeeMigrationVersions;
 
   restore(snapshot: RoomChannelSnapshot | undefined): void {
     this.releaseEventWaiters();
@@ -299,6 +307,7 @@ export class RoomChannelStore {
     this.restoredWithChanges = false;
 
     const normalized = normalizeRoomChannelSnapshot(snapshot);
+    this.employeeMigrationVersions = normalized.employeeMigrationVersions;
     this.currentEventSeq = normalized.currentEventSeq;
     for (const member of normalized.members) {
       this.members.set(member.id, member);
@@ -337,7 +346,16 @@ export class RoomChannelStore {
       messages: [...this.messagesByRoom.values()].flatMap((messages) => messages.map((message) => ({ ...message }))),
       events: this.events.map((event) => ({ ...event, payload: { ...event.payload } })),
       deletedMemberIds: this.listDeletedMemberIds(),
+      employeeMigrationVersions: this.getEmployeeMigrationVersions(),
     };
+  }
+
+  getEmployeeMigrationVersions(): EmployeeMigrationVersions | undefined {
+    return this.employeeMigrationVersions ? { ...this.employeeMigrationVersions } : undefined;
+  }
+
+  setEmployeeMigrationVersions(versions: EmployeeMigrationVersions): void {
+    this.employeeMigrationVersions = { ...versions };
   }
 
   ensureOpenGroup(seedMembers: RoomChannelMember[], _systemRuntime: SystemRoomMemberRuntime = {}): boolean {

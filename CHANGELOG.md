@@ -6,6 +6,12 @@ to draft `docs/releases/vX.Y.Z.md`.
 
 ## Unreleased
 
+- If Claude Auto cannot be enabled, switch to Ask after native confirmation, show the reason, and remember the recovered permission for later turns.
+
+- Run Claude exclusively through the Agent SDK; remove the legacy CLI mode switch, execution path and dedicated compatibility tests while retaining SDK Engine discovery and Login support.
+
+- Keep App Employee defaults independent of user edits, so restoring defaults after a restart restores the App declaration or product fallback instead of the user's last permission choice.
+- **Permission update:** upgrade existing local Employees, including PM, from Ask for approval to Help me approve once where Auto is supported, even when Ask was explicitly selected. Keep existing Auto and Full access choices, back up changed state, and preserve later changes back to Ask across restarts.
 - Install App Store packages using bundled TAR/ZIP extractors, including on Windows systems without command-line archive tools.
 - Preserve underlying App Store extraction errors in local diagnostic logs and exported support bundles while keeping installation responses limited to stable error codes.
 - **Compatibility change for App packages:** archive files must be at most 1 GiB (expanded content remains limited to 1 GiB and 25,000 entries). Rebuild or split larger packages before distributing them to updated clients.

@@ -1,6 +1,12 @@
-import { copyFileSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
+import * as yaml from "js-yaml";
+import type { RuntimeAccessMode } from "../../core.js";
+import { chmodSync, copyFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { resolve } from "node:path";
+
+export function hermesApprovalMode(accessMode: RuntimeAccessMode | undefined): "manual" | "smart" | "off" {
+  return accessMode === "auto-review" ? "smart" : accessMode === "full-access" ? "off" : "manual";
+}
 
 export type HermesProviderApiMode = "chat_completions" | "codex_responses" | "anthropic_messages";
 
@@ -19,31 +25,64 @@ export function writeHermesHomeConfig(
   homeDir: string,
   nativeSkillDir: string | undefined,
   providerConfig: HermesProviderRuntimeConfig | undefined,
+  accessMode?: RuntimeAccessMode,
+  sourceHome = resolve(homedir(), ".hermes"),
 ): void {
-  mkdirSync(homeDir, { recursive: true });
-  const sourceEnv = resolve(homedir(), ".hermes", ".env");
-  if (existsSync(sourceEnv)) {
+  const base = readHermesHomeConfig(sourceHome);
+  const generated = configObject(yaml.load(buildHermesConfigYaml(nativeSkillDir, providerConfig, accessMode)));
+  const merged = { ...base, ...generated };
+  if (accessMode !== undefined)
+    merged.approvals = { ...configObject(base.approvals), mode: hermesApprovalMode(accessMode) };
+  mkdirSync(homeDir, { recursive: true, mode: 0o700 });
+  for (const name of [".env", "auth.json"]) {
+    const source = resolve(sourceHome, name);
     try {
-      copyFileSync(sourceEnv, resolve(homeDir, ".env"));
-    } catch {
-      // Ignore copy failures; Hermes can still use process env credentials.
+      copyFileSync(source, resolve(homeDir, name));
+      chmodSync(resolve(homeDir, name), 0o600);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") continue;
+      throw new Error(`hermes_credentials_unreadable: Check access to ${source}.`);
     }
   }
-  writeFileSync(resolve(homeDir, "config.yaml"), buildHermesConfigYaml(nativeSkillDir, providerConfig), "utf8");
+  writeFileSync(resolve(homeDir, "config.yaml"), yaml.dump(merged), { encoding: "utf8", mode: 0o600 });
+}
+
+export function readHermesHomeConfig(homeDir: string): Record<string, unknown> {
+  const path = resolve(homeDir, "config.yaml");
+  let text: string;
+  try {
+    text = readFileSync(path, "utf8");
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return {};
+    throw new Error(`hermes_config_unreadable: Check access to ${path}.`);
+  }
+  try {
+    const config = configObject(yaml.load(text));
+    configObject(config.approvals);
+    return config;
+  } catch {
+    // YAMLException embeds source text, which may contain provider credentials.
+    throw new Error(`hermes_config_invalid: Check ${path} formatting; config and approvals must be mappings.`);
+  }
+}
+
+function configObject(value: unknown): Record<string, unknown> {
+  if (value === undefined || value === null) return {};
+  if (typeof value !== "object" || Array.isArray(value)) throw new Error("hermes_config_must_be_mapping");
+  return value as Record<string, unknown>;
 }
 
 export function buildHermesConfigYaml(
   nativeSkillDir: string | undefined,
   providerConfig: HermesProviderRuntimeConfig | undefined,
+  accessMode?: RuntimeAccessMode,
 ): string {
   const lines: string[] = [];
-  // The isolated home does not inherit ~/.hermes/config.yaml. Pin manual mode
-  // so OpenGrove's accessMode + approval broker remains the policy authority;
-  // Hermes' default smart mode may otherwise approve a dangerous command
-  // without ever surfacing approval.request to the host.
-  lines.push("approvals:");
-  lines.push("  mode: manual");
-  lines.push("");
+  if (accessMode !== undefined) {
+    lines.push("approvals:");
+    lines.push(`  mode: ${hermesApprovalMode(accessMode)}`);
+    lines.push("");
+  }
   if (providerConfig) {
     const modelProvider = hermesCustomProviderKey(providerConfig.providerKey);
     lines.push("model:");

@@ -1,3 +1,4 @@
+import { autoReviewFallbackReason } from "../../src/runtime-access";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { QueryClient } from "@tanstack/react-query";
 import type {
@@ -103,6 +104,9 @@ export function useAppThreadRunner(input: {
   responseSpeed: ResponseSpeed;
   budgetLimitUsd: number | null;
   accessMode: RuntimeAccessMode;
+  kernel?: string;
+  providerId?: string;
+  setAccessMode(mode: RuntimeAccessMode): void;
   planMode: boolean;
   goalMode: boolean;
   setSending(sending: boolean): void;
@@ -119,6 +123,12 @@ export function useAppThreadRunner(input: {
   const [queuedInstructions, setQueuedInstructions] = useState<QueuedInstruction[]>([]);
   const queuedInstructionsRef = useRef<QueuedInstruction[]>([]);
   const runningTurnsRef = useRef(new Map<string, RunningTurn>());
+  const latestInputRef = useRef(input);
+  latestInputRef.current = input;
+  const selectionKey = JSON.stringify([input.kernel, input.model, input.providerId, input.accessMode]);
+  const selectionRef = useRef({ key: selectionKey, revision: 0 });
+  if (selectionRef.current.key !== selectionKey)
+    selectionRef.current = { key: selectionKey, revision: selectionRef.current.revision + 1 };
 
   const runningThreadSet = useMemo(() => {
     const ids = new Set(runningThreadIds);
@@ -267,8 +277,8 @@ export function useAppThreadRunner(input: {
       attachments: cloneAttachments(turnAttachments),
       requestedSkill: options.requestedSkill ? { ...options.requestedSkill } : undefined,
       model: options.model || input.model,
-      kernel: options.kernel,
-      providerId: options.providerId,
+      kernel: options.kernel ?? input.kernel,
+      providerId: options.providerId ?? input.providerId,
       appId: options.appId,
       planMode: options.planMode ?? input.planMode,
       goalMode: options.goalMode ?? input.goalMode,
@@ -295,6 +305,7 @@ export function useAppThreadRunner(input: {
       queueInstruction(turnThreadId, userPrompt, turnState);
       return;
     }
+    const selectionRevision = selectionRef.current.revision;
     input.appendMessageToThread(turnThreadId, "user", userPrompt, turnState.context);
     const assistantId = input.appendAssistantMessageToThread(turnThreadId);
     const abortController = new AbortController();
@@ -341,6 +352,28 @@ export function useAppThreadRunner(input: {
             });
           },
           onAgentEvent(runtimeEvent) {
+            if (autoReviewFallbackReason(runtimeEvent.event) !== undefined) {
+              const current = latestInputRef.current;
+              if (
+                selectionRef.current.revision === selectionRevision &&
+                current.accessMode === "auto-review" &&
+                current.kernel === turnState.kernel &&
+                current.model === turnState.model &&
+                current.providerId === turnState.providerId
+              ) {
+                current.setAccessMode("default");
+              }
+              setQueuedInstructionsSynced((items) =>
+                items.map((item) =>
+                  item.turnState.accessMode === "auto-review" &&
+                  item.turnState.kernel === turnState.kernel &&
+                  item.turnState.model === turnState.model &&
+                  item.turnState.providerId === turnState.providerId
+                    ? { ...item, turnState: { ...item.turnState, accessMode: "default" } }
+                    : item,
+                ),
+              );
+            }
             applyAgentRuntimeEventToAssistant(turnThreadId, assistantId, runtimeEvent);
           },
         },

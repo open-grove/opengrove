@@ -355,6 +355,7 @@ function persistState(
     setMeta(database, "state_version", String(state.version));
     setMeta(database, "saved_at", state.savedAt);
     setMeta(database, "room_current_event_seq", String(state.rooms.currentEventSeq));
+    setMeta(database, "employee_migration_versions", JSON.stringify(state.rooms.employeeMigrationVersions ?? null));
     for (const [key, value] of Object.entries(extraMeta)) setMeta(database, key, value);
     database.exec("COMMIT");
   } catch (error) {
@@ -528,6 +529,7 @@ function loadState(
       rooms: {
         version: 1,
         currentEventSeq: Number(readMeta(database, "room_current_event_seq") ?? "0"),
+        employeeMigrationVersions: JSON.parse(readMeta(database, "employee_migration_versions") ?? "null"),
         rooms: readCollection(database, blobs, "room_rooms"),
         members: readCollection(database, blobs, "room_members"),
         messages: readCollection(database, blobs, "room_messages"),

@@ -61,7 +61,7 @@ import {
 } from "../server/provider-model-discovery.js";
 import { normalizeCodexModelId } from "../runtime/codex/policy.js";
 import { codexResponsesChatProxyStatus } from "../runtime/codex/responses-chat-proxy.js";
-import { resolveClaudeCodeCliPath } from "../runtime/claude-code-runtime.js";
+import { resolveClaudeCodeCliPath } from "../runtime/claude-engine.js";
 import { readKernelLocalRouteProfile } from "../server/kernel-registry.js";
 import {
   activateLegacyProviderReferences,
@@ -2085,12 +2085,9 @@ async function main() {
           "kernel options must expose the Bridge Host Tools routing gate to presentation clients",
         );
       }
-      await withEnv({ [appEnvName("CLAUDE_CODE_RUNTIME")]: "cli" }, async () => {
-        const claudeCliOption = getBridgeKernelOptions(state).find((option) => option.id === "claude-code");
-        assert.equal(claudeCliOption?.integrationKind, "cli");
-        assert.equal(claudeCliOption?.hostTools, false);
-        assert.match(String(claudeCliOption?.description ?? ""), /CLI/);
-      });
+      const claudeOption = options.find((option) => option.id === "claude-code");
+      assert.equal(claudeOption?.integrationKind, "sdk");
+      assert.equal(claudeOption?.hostTools, true);
       const hermesOption = options.find((option) => option.id === "hermes");
       assert.ok(hermesOption, "settings should expose Hermes");
       assert.equal(hermesOption?.available, true);
@@ -2524,6 +2521,9 @@ async function main() {
             }),
           );
           wwBoundState.settings.employeeModelMigrationVersion = 0;
+          wwBoundState.app.rooms.restore(
+            Object.assign(wwBoundState.app.rooms.snapshot(), { employeeMigrationVersions: undefined }),
+          );
           wwBoundState.store.saveFrom(wwBoundState.app);
           recreateBridgeApp(wwBoundState);
           const repairedMember = wwBoundState.app.rooms

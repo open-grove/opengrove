@@ -6,11 +6,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createOpenGrove } from "../app/create-opengrove.js";
 import type { AgentCompactRequest, AgentEvent } from "../core.js";
-import { appEnvName } from "../identity.js";
 import { compactBackgroundAskSession, streamAskResponse } from "../server/ask-stream.js";
 import { createBridgeState, recreateBridgeApp } from "../server/bridge-state.js";
 import { LOGIN_PROVIDER_BINDING_ID, type BridgeAskPayload, type BridgeState } from "../server/bridge-types.js";
-import { createWwRetryClaudeCliFixture, createWwRetryFixture } from "./harnesses/ww-retry-fixture.js";
+import { createWwRetryClaudeEngineFixture, createWwRetryFixture } from "./harnesses/ww-retry-fixture.js";
 
 async function main() {
   await assertAskProductionOrchestrationPersistsEachEventOnce();
@@ -67,13 +66,10 @@ async function assertAskProductionOrchestrationRecoversWwCredential(): Promise<v
   const cwd = mkdtempSync(join(tmpdir(), "opengrove-ask-production-ww-retry-"));
   const state = createBridgeState({ statePath: join(cwd, "state.sqlite") });
   const ww = await createWwRetryFixture();
-  const cli = createWwRetryClaudeCliFixture(cwd);
+  const cli = createWwRetryClaudeEngineFixture(cwd);
   const model = "claude-opus-4-8";
-  const runtimeModeEnv = appEnvName("CLAUDE_CODE_RUNTIME");
-  const previousRuntimeMode = process.env[runtimeModeEnv];
 
   try {
-    process.env[runtimeModeEnv] = "cli";
     state.kernel = "claude-code";
     state.model = model;
     state.settings = {
@@ -137,8 +133,6 @@ async function assertAskProductionOrchestrationRecoversWwCredential(): Promise<v
     assert.equal(state.app.sessions.getRun(start.runId)?.lifecycle.taskState, "TASK_STATE_COMPLETED");
     assert.ok(events.some((event) => event.type === "runtime.diagnostic" && event.name === "ww.api_key.repaired"));
   } finally {
-    if (previousRuntimeMode === undefined) delete process.env[runtimeModeEnv];
-    else process.env[runtimeModeEnv] = previousRuntimeMode;
     await ww.close();
     await state.store.close?.();
     rmSync(cwd, { recursive: true, force: true });

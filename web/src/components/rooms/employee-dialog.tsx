@@ -1,3 +1,4 @@
+import { accessModeUnavailableKey, resolveAccessModeSelection } from "../../runtime/access-modes";
 import {
   useCallback,
   useEffect,
@@ -84,7 +85,9 @@ type EmployeeDraft = {
   contextTokenBudget: string;
 };
 
-export type EmployeeKernelRuntimeDraft = Pick<EmployeeDraft, "model" | "providerId" | "reasoningEffort">;
+export type EmployeeKernelRuntimeDraft = Pick<EmployeeDraft, "model" | "providerId" | "reasoningEffort" | "accessMode">;
+
+const PERMISSION_SELECTION_FIELDS = new Set<keyof RoomMember>(["kernel", "model", "providerId", "accessMode"]);
 
 export function switchEmployeeKernelRuntimeDraft(
   draftsByKernel: Record<string, EmployeeKernelRuntimeDraft>,
@@ -162,8 +165,10 @@ export function EmployeeDialog(props: EmployeeDialogProps) {
     return initialDraft;
   });
   const draftRef = useRef(draft);
+  const accessModeExplicitRef = useRef(Boolean(props.initialMember?.accessMode));
   const [submitPending, setSubmitPending] = useState(false);
   const [submitError, setSubmitError] = useState("");
+  const [accessModeNotice, setAccessModeNotice] = useState(false);
   const [draftDirty, setDraftDirty] = useState(false);
   const [internalActiveTab, setInternalActiveTab] = useState<EmployeeEditorTab>("profile");
   const [avatarPickerOpen, setAvatarPickerOpen] = useState(false);
@@ -171,6 +176,7 @@ export function EmployeeDialog(props: EmployeeDialogProps) {
   const previousInitialMemberIdRef = useRef<string | undefined>(props.initialMember?.id);
   const previousInitialMemberSignatureRef = useRef(employeeDraftSourceSignature(props.initialMember));
   const pendingAutosaveEchoesRef = useRef<RoomMember[]>([]);
+  const pendingDraftFieldsRef = useRef(new Set<keyof RoomMember>());
   const draftDirtyRef = useRef(false);
   const draftRevisionRef = useRef(0);
   const onSaveRef = useRef(props.onSave);
@@ -185,21 +191,35 @@ export function EmployeeDialog(props: EmployeeDialogProps) {
       draftRef.current = next;
       draftRevisionRef.current += 1;
       setSubmitError("");
-      if (options?.fields?.length) {
+      const invalidAccess =
+        next.kernel !== "openclaw" && Boolean(accessModeUnavailableKey(next.kernel, next.accessMode));
+      for (const field of options?.fields ?? []) pendingDraftFieldsRef.current.add(field);
+      // Keep a runtime edit (including its derived fields) together. A later,
+      // unrelated edit can save on its own while that runtime edit stays pending.
+      const editedFields = options?.fields ?? [];
+      const fieldsToSave = invalidAccess
+        ? editedFields.some((field) => PERMISSION_SELECTION_FIELDS.has(field))
+          ? []
+          : editedFields
+        : [...pendingDraftFieldsRef.current];
+      const canAutosave = Boolean(options?.fields?.length && fieldsToSave.length);
+      if (canAutosave) {
         const member = createMemberFromDraft(next, {
           initialMember: props.initialMember,
+          fields: fieldsToSave,
         });
         const patch = {} as Partial<RoomMember>;
-        for (const field of options.fields) {
+        for (const field of fieldsToSave) {
           (patch as Record<keyof RoomMember, RoomMember[keyof RoomMember] | undefined>)[field] = member[field];
+          pendingDraftFieldsRef.current.delete(field);
         }
         if (props.onDraftPatch) {
           const expectedBase = pendingAutosaveEchoesRef.current.at(-1) ?? props.initialMember ?? member;
           pendingAutosaveEchoesRef.current.push({ ...expectedBase, ...patch });
-          props.onDraftPatch(patch, { immediate: options.immediate });
+          props.onDraftPatch(patch, { immediate: options?.immediate });
         }
       }
-      const nextDirty = props.onDraftPatch && options?.fields?.length ? hadUnsubmittedDraft : true;
+      const nextDirty = props.onDraftPatch && canAutosave ? hadUnsubmittedDraft : true;
       draftDirtyRef.current = nextDirty;
       setDraftDirty(nextDirty);
       setDraft(next);
@@ -217,11 +237,13 @@ export function EmployeeDialog(props: EmployeeDialogProps) {
     previousInitialMemberIdRef.current = currentInitialMemberId;
     previousInitialMemberSignatureRef.current = currentInitialMemberSignature;
     if (!props.open) {
+      setAccessModeNotice(false);
       setSubmitPending(false);
       setDraftDirty(false);
       setAvatarPickerOpen(false);
       draftDirtyRef.current = false;
       pendingAutosaveEchoesRef.current = [];
+      pendingDraftFieldsRef.current.clear();
       return;
     }
     const autosaveEcho =
@@ -247,6 +269,7 @@ export function EmployeeDialog(props: EmployeeDialogProps) {
         [nextDraft.kernel]: employeeKernelRuntimeDraft(nextDraft),
       };
       draftRef.current = nextDraft;
+      accessModeExplicitRef.current = Boolean(props.initialMember?.accessMode);
       setDraft(nextDraft);
       setSubmitPending(false);
       setSubmitError("");
@@ -256,6 +279,7 @@ export function EmployeeDialog(props: EmployeeDialogProps) {
       draftDirtyRef.current = false;
       draftRevisionRef.current = 0;
       pendingAutosaveEchoesRef.current = [];
+      pendingDraftFieldsRef.current.clear();
     }
   }, [
     defaultKernel,
@@ -275,6 +299,11 @@ export function EmployeeDialog(props: EmployeeDialogProps) {
     props.runtimeControls,
     props.runtimeControlsByKernel,
   );
+  useEffect(() => {
+    if (editing || accessModeExplicitRef.current) return;
+    const accessMode = resolveAccessModeSelection(draft.kernel, undefined);
+    if (accessMode !== draft.accessMode) updateDraft((current) => ({ ...current, accessMode }));
+  }, [editing, draft.kernel, draft.accessMode, updateDraft]);
   const availableModelOptions = useMemo(
     () => employeeModelOptions(draft.kernel, selectedRuntimeControls, props.providers ?? []),
     [draft.kernel, props.providers, selectedRuntimeControls],
@@ -340,6 +369,9 @@ export function EmployeeDialog(props: EmployeeDialogProps) {
 
   function updateKernel(kernelId: string) {
     if (draftRef.current.kernel === kernelId) return;
+    const requestedAccessMode = kernelRuntimeDraftsRef.current[kernelId]?.accessMode ?? draftRef.current.accessMode;
+    const nextAccessMode = resolveAccessModeSelection(kernelId, requestedAccessMode);
+    setAccessModeNotice(nextAccessMode !== requestedAccessMode && kernelId !== "openclaw");
     const kernel = availableKernels.find((item) => item.id === kernelId);
     updateDraft(
       (current) => {
@@ -361,6 +393,7 @@ export function EmployeeDialog(props: EmployeeDialogProps) {
             ),
             providerId: "",
             reasoningEffort: "",
+            accessMode: nextAccessMode,
           },
         );
         kernelRuntimeDraftsRef.current = switched.draftsByKernel;
@@ -371,11 +404,12 @@ export function EmployeeDialog(props: EmployeeDialogProps) {
             : current.name,
           kernel: kernelId,
           ...switched.selection,
+          accessMode: nextAccessMode,
           role: current.role,
         };
       },
       {
-        fields: ["kernel", "model", "providerId", "reasoningEffort"],
+        fields: ["kernel", "model", "providerId", "reasoningEffort", "accessMode"],
         immediate: true,
       },
     );
@@ -383,6 +417,7 @@ export function EmployeeDialog(props: EmployeeDialogProps) {
 
   async function saveEmployeeDraft(draftToSave: EmployeeDraft, revision: number, closeAfterSave: boolean) {
     const kernel = availableKernels.find((candidate) => candidate.id === draftToSave.kernel) ?? defaultKernel;
+    if (!canSubmitDraft(draftToSave, isKernelReady(kernel))) return;
     setSubmitPending(true);
     const base = kernel ? roomMemberFromKernel(kernel, props.activeKernel, props.activeModel) : undefined;
     const member = createMemberFromDraft(draftToSave, {
@@ -624,24 +659,41 @@ export function EmployeeDialog(props: EmployeeDialogProps) {
                 <span>{t("contacts.accessTitle")}</span>
                 <RoomInlineSelect
                   value={draft.accessMode}
+                  valueLabel={draft.kernel === "openclaw" ? t("composer.accessGatewayManaged") : undefined}
                   menuSize="wide"
-                  options={MEMBER_ACCESS_PRESETS.map((preset) => ({
-                    id: preset.id,
-                    label: preset.label,
-                    description: preset.description,
-                    tone: preset.danger ? ("danger" as const) : undefined,
-                  }))}
-                  onChange={(accessMode) =>
+                  options={MEMBER_ACCESS_PRESETS.map((preset) => {
+                    const unavailable = accessModeUnavailableKey(draft.kernel, preset.id);
+                    return {
+                      id: preset.id,
+                      label: preset.label,
+                      description: unavailable ? t(unavailable) : preset.description,
+                      disabled: Boolean(unavailable),
+                      tone: preset.danger ? ("danger" as const) : undefined,
+                    };
+                  })}
+                  onChange={(accessMode) => {
+                    accessModeExplicitRef.current = true;
+                    setAccessModeNotice(false);
                     updateDraft(
                       (current) => ({
                         ...current,
                         accessMode: accessMode as RoomMemberAccessMode,
                       }),
                       { fields: ["accessMode"], immediate: true },
-                    )
-                  }
+                    );
+                  }}
                 />
               </div>
+              {accessModeNotice ? (
+                <div className="employee-dialog-warning" role="status">
+                  {t("composer.accessModeResetToAsk")}
+                </div>
+              ) : null}
+              {draft.kernel !== "openclaw" && accessModeUnavailableKey(draft.kernel, draft.accessMode) ? (
+                <div className="employee-dialog-warning" role="status">
+                  {t("composer.selectedAccessUnavailable")}
+                </div>
+              ) : null}
               {!selectedKernelReady && selectedKernel ? (
                 <div className="employee-dialog-warning">
                   {kernelUnavailableDescription(selectedKernel, t) || t("employee.kernelNotInstalledWarning")}
@@ -875,6 +927,8 @@ export function canSubmitDraft(draft: EmployeeDraft, selectedKernelReady: boolea
       draft.kernel &&
       draft.model &&
       selectedKernelReady &&
+      resolveAccessModeSelection(draft.kernel, draft.accessMode) === draft.accessMode &&
+      (draft.kernel === "openclaw" || !accessModeUnavailableKey(draft.kernel, draft.accessMode)) &&
       (draft.avatarMode !== "upload" ||
         draft.legacyInvalidAvatar ||
         isSupportedRoomMemberAvatarDataUrl(draft.avatarDataUrl)) &&
@@ -894,6 +948,9 @@ export function createDefaultDraft(
   const id = initialMember?.id || createId("employee");
   const kernelId = initialMember?.kernel || kernel?.id || activeKernel || "";
   const avatarMode = initialMember?.avatarMode ?? (initialMember?.avatarDataUrl ? "upload" : "generated");
+  const model = initialMember
+    ? normalizeRoomMemberModelForKernel(kernelId, initialMember.model)
+    : resolveDefaultModel(kernelId, activeKernel, activeModel, runtimeControls, runtimeControlsByKernel, providers);
   return {
     id,
     name: memberPresentationDraft(initialMember, "name", "displayName") || defaultEmployeeName(kernel),
@@ -902,12 +959,10 @@ export function createDefaultDraft(
     avatarDataUrl: initialMember?.avatarDataUrl ?? "",
     legacyInvalidAvatar: hasLegacyInvalidAvatar(initialMember),
     kernel: kernelId,
-    model: initialMember
-      ? normalizeRoomMemberModelForKernel(kernelId, initialMember.model)
-      : resolveDefaultModel(kernelId, activeKernel, activeModel, runtimeControls, runtimeControlsByKernel, providers),
+    model,
     providerId: initialMember?.providerId ?? "",
     reasoningEffort: employeeReasoningOverrideDraft(initialMember),
-    accessMode: initialMember?.accessMode ?? "default",
+    accessMode: resolveAccessModeSelection(kernelId, initialMember?.accessMode),
     role: memberPresentationDraft(initialMember, "role", "displayRole"),
     visibility: initialMember?.visibility ?? "private",
     publicDescription: memberPresentationDraft(initialMember, "publicDescription", "displayPublicDescription"),
@@ -941,6 +996,7 @@ function employeeKernelRuntimeDraft(draft: EmployeeDraft): EmployeeKernelRuntime
     model: draft.model,
     providerId: draft.providerId,
     reasoningEffort: draft.reasoningEffort,
+    accessMode: draft.accessMode,
   };
 }
 
@@ -957,8 +1013,19 @@ function shouldReplaceDefaultEmployeeName(currentName: string, previousKernelLab
 
 export function createMemberFromDraft(
   draft: EmployeeDraft,
-  params: { base?: RoomMember; initialMember?: RoomMember },
+  params: {
+    base?: RoomMember;
+    initialMember?: RoomMember;
+    fields?: Array<keyof RoomMember>;
+  },
 ): RoomMember {
+  if (
+    draft.kernel !== "openclaw" &&
+    (!params.fields || params.fields.some((field) => PERMISSION_SELECTION_FIELDS.has(field))) &&
+    accessModeUnavailableKey(draft.kernel, draft.accessMode)
+  ) {
+    throw new Error("runtime_access_mode_unavailable");
+  }
   const base = params.base;
   const contextTokenBudget = positiveTokenBudget(draft.contextTokenBudget);
   return {
@@ -970,7 +1037,7 @@ export function createMemberFromDraft(
     model: normalizeRoomMemberModelForKernel(draft.kernel, draft.model.trim() || base?.model || DEFAULT_MODEL_ID),
     providerId: draft.providerId || undefined,
     reasoningEffort: draft.reasoningEffort || undefined,
-    accessMode: draft.accessMode,
+    accessMode: resolveAccessModeSelection(draft.kernel, draft.accessMode),
     role: canonicalPresentationDraft(draft.role, params.initialMember?.displayRole, params.initialMember?.role),
     status: params.initialMember?.status || "waiting",
     color: params.initialMember?.color || base?.color || KERNEL_COLORS[draft.kernel] || "#64748b",

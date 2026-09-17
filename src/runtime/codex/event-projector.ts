@@ -30,6 +30,32 @@ export class CodexEventProjector {
       return false;
     }
 
+    if (
+      notification.method === "item/autoApprovalReview/started" ||
+      notification.method === "item/autoApprovalReview/completed"
+    ) {
+      const review = isJsonObject(params.review) ? params.review : {};
+      this.queue.push({
+        type: "runtime.diagnostic",
+        runId: this.runId,
+        at: new Date().toISOString(),
+        name:
+          notification.method === "item/autoApprovalReview/started"
+            ? "codex.auto_review.started"
+            : "codex.auto_review.completed",
+        data: {
+          reviewId: params.reviewId ?? null,
+          targetItemId: params.targetItemId ?? null,
+          status: review.status ?? null,
+          riskLevel: review.riskLevel ?? null,
+          decisionSource: params.decisionSource ?? null,
+          startedAtMs: params.startedAtMs ?? null,
+          completedAtMs: params.completedAtMs ?? null,
+        },
+      });
+      return false;
+    }
+
     if (notification.method === "item/agentMessage/delta") {
       const itemId = readString(params, "itemId") ?? readString(params, "id") ?? "assistant";
       const phase = readString(params, "phase") ?? this.agentMessagePhaseByItem.get(itemId);

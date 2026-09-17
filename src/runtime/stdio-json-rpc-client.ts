@@ -66,6 +66,8 @@ export class StdioJsonRpcClient {
   private readonly requestHandlers = new Set<JsonRpcRequestHandler>();
   private readonly notificationHandlers = new Set<JsonRpcNotificationHandler>();
   private readonly closeHandlers = new Set<(error: Error) => void>();
+  private readonly exitHandlers = new Set<() => void>();
+  private exited = false;
   private nextId = 1;
   private closed = false;
   private stderrBuffer = "";
@@ -91,6 +93,9 @@ export class StdioJsonRpcClient {
     });
     child.once("close", (code, signal) => {
       this.closeWithError(new Error(`json-rpc process exited: code=${code ?? "null"} signal=${signal ?? "null"}`));
+      this.exited = true;
+      for (const handler of this.exitHandlers) handler();
+      this.exitHandlers.clear();
     });
     child.stdin.on("error", (error) => {
       this.closeWithError(error instanceof Error ? error : new Error(String(error)));
@@ -116,6 +121,10 @@ export class StdioJsonRpcClient {
 
   isClosed(): boolean {
     return this.closed;
+  }
+
+  get processId(): number | undefined {
+    return this.child.pid;
   }
 
   stderr(): string {
@@ -196,6 +205,12 @@ export class StdioJsonRpcClient {
   addCloseHandler(handler: (error: Error) => void): () => void {
     this.closeHandlers.add(handler);
     return () => this.closeHandlers.delete(handler);
+  }
+
+  /** Unlike logical close, this runs after the child has stopped and its streams have closed. */
+  addExitHandler(handler: () => void): void {
+    if (this.exited) handler();
+    else this.exitHandlers.add(handler);
   }
 
   close(): void {

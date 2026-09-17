@@ -106,6 +106,7 @@ import { appStoreUpdateCount } from "./components/network/app-store-query";
 import { Dialog, DialogContent, DialogTitle } from "./components/ui/dialog";
 import { useConfirm } from "./components/ui/confirm-dialog";
 import { useToast } from "./components/ui/toast";
+import { resolveAccessModeSelection } from "./runtime/access-modes";
 import { WorkspaceInspector } from "./components/workspace/workspace-views";
 import { useUiStore, type UiProject, type UiThread } from "./store";
 import { useVoiceInput } from "./voice/use-voice-input";
@@ -534,6 +535,13 @@ export function App() {
       : (kernelOptions.find((kernel) => kernel.available) ?? activeKernelOption ?? kernelOptions[0]);
   const chatKernel = chatKernelOption?.id ?? activeKernel;
   const chatRuntimeControls = runtimeControlsForKernel(chatKernel, runtimeControls, runtimeControlsByKernel);
+  const effectiveAccessMode = resolveAccessModeSelection(chatKernel, accessMode);
+  useEffect(() => {
+    if (!chatKernel || accessMode === undefined || chatKernel === "openclaw" || effectiveAccessMode === accessMode)
+      return;
+    setAccessMode(effectiveAccessMode);
+    toast({ kind: "info", title: t("composer.accessModeResetToAsk") });
+  }, [chatKernel, accessMode, effectiveAccessMode, setAccessMode, t, toast]);
   const chatKernelCapabilityUi = useMemo(
     () => buildKernelCapabilityUiState(chatKernelOption?.capabilityReport, chatKernel),
     [chatKernelOption?.capabilityReport, chatKernel],
@@ -858,7 +866,10 @@ export function App() {
     reasoningEffort,
     responseSpeed,
     budgetLimitUsd: chatKernelCapabilityUi.canShowBudgetControls ? budgetLimitUsd : null,
-    accessMode,
+    accessMode: effectiveAccessMode,
+    kernel: chatKernel,
+    providerId: chatProviderId || undefined,
+    setAccessMode,
     planMode: effectivePlanMode,
     goalMode: effectiveGoalMode,
     setSending,
@@ -1628,7 +1639,7 @@ export function App() {
       effort={reasoningEffort}
       responseSpeed={responseSpeed}
       budgetLimitUsd={budgetLimitUsd}
-      accessMode={accessMode}
+      accessMode={effectiveAccessMode}
       modelMenuKind={modelMenuKind}
       modelMenuPlacement={modelMenuPlacement}
       planMode={planMode}

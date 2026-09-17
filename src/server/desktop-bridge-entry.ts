@@ -9,7 +9,7 @@ import {
 } from "../desktop-bridge-startup-state.js";
 import { APP_DESKTOP_UI_ORIGIN, appEnvName } from "../identity.js";
 import { commandVersion } from "../kernel/discovery.js";
-import { resolveClaudeCodeCliPath } from "../runtime/claude-code-runtime.js";
+import { resolveClaudeCodeCliPath } from "../runtime/claude-engine.js";
 import { defaultOpenGroveDataDir } from "../storage/default-data-dir.js";
 import { isStateFileLockError } from "../storage/state-file-lock.js";
 import { startLocalBridgeServer } from "./local-bridge.js";

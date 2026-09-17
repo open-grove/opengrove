@@ -1,3 +1,4 @@
+import { autoReviewFallbackReason } from "../../src/runtime-access";
 import type { JsonValue, MessagePart, NotePart, ReasoningPart, SkillPart, StoredMessage, ToolPart } from "./bridge";
 import { createClientId } from "./bridge";
 import { toolStatusFromResult } from "./format";
@@ -15,6 +16,23 @@ const MODEL_CALL_ERROR_PLAIN_TEXTS = Object.values(dictionaries).map(
 
 export function formatModelCallError(message: string): string {
   const normalized = String(message || "").trim();
+  if (normalized.includes("claude_auto_review_fallback_failed:")) {
+    return translate("system.modelCallError", {
+      message: translate("composer.autoReviewFallbackFailed", {
+        reason: normalized.split("claude_auto_review_fallback_failed:", 2)[1]?.trim() ?? "",
+      }),
+    });
+  }
+  if (normalized.includes("claude_auto_review_activation_failed")) {
+    const reason =
+      normalized
+        .split("claude_auto_review_activation_failed:", 2)[1]
+        ?.split(". Select Ask in this Employee's permissions", 1)[0]
+        ?.trim() ?? "";
+    return translate("system.modelCallError", {
+      message: translate("composer.autoReviewActivationFailed", { reason }),
+    });
+  }
   return normalized
     ? translate("system.modelCallError", { message: normalized })
     : translate("system.modelCallErrorPlain");
@@ -466,6 +484,15 @@ export function applyStreamEventToMessage(
       applyReasoningEventPart(message, recordValue(event.reasoning), "complete");
       break;
     case "runtime.diagnostic":
+      if (autoReviewFallbackReason(event) !== undefined) {
+        appendDiagnosticNotePart(
+          message,
+          translate("composer.autoReviewFallback", { reason: autoReviewFallbackReason(event)! }),
+          "warn",
+          event.data,
+        );
+        break;
+      }
       if (event.name === "turn.guided") {
         const data = recordValue(event.data);
         appendDiagnosticNotePart(

@@ -43,7 +43,7 @@ Nightly are covered by exact-SHA Main CI and the final candidate artifact gates.
 4. Curate and confirm the paired release notes using the process below, then
    add `docs/releases/vX.Y.Z.md` and `docs/releases/vX.Y.Z.zh-CN.md`.
 5. Update `CHANGELOG.md`.
-6. Run the focused checks for the changed areas.
+6. Run the focused checks for the changed areas and complete [Claude Auto acceptance](#claude-auto-acceptance).
 
 The imported baseline is deliberately valid only for the Host version named by
 `legacyHostVersion`. Imported rows bind `hostVersion`, `kernelVersion`,
@@ -51,6 +51,24 @@ and `runtimeMode`; CI can verify their schema and reproducibility but does not
 pretend to rerun a locally configured real Kernel. The real-runtime run and its
 raw receipt remain untracked local release evidence. Only the importer's
 minimal certification batch enters the repository, after human review.
+
+### Claude Auto acceptance
+
+OpenGrove offers Auto for Claude SDK without model-by-model checks in the UI or Employee lifecycle.
+Before publishing a candidate, verify every supported Claude model using the candidate's SDK/Engine
+and its supported Provider route in a disposable Workspace:
+
+- Select Auto and confirm the native session acknowledges `auto`.
+- Run a harmless, fixed tool action in that Workspace and verify native automatic review completes.
+  Confirm the same action can require a human decision under Ask; a model response alone does not
+  prove automatic review works.
+- Treat an Auto-to-Ask fallback as a failed Auto acceptance case, even if the conversation succeeds.
+- Record the candidate SHA, SDK/Engine versions, model IDs, Provider route and results in release
+  evidence. Fix a failing route or revise the supported roster before publishing; do not push model
+  discovery or cache-dependent permission checks into ordinary user operations.
+
+This is real-runtime release acceptance. Unit tests and ordinary CI do not substitute for it or use
+a developer's credentials automatically. Stored user permissions remain unchanged by this acceptance.
 
 ### Curate and confirm release notes
 
