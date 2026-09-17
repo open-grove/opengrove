@@ -25,6 +25,8 @@ export const ZH_CN = {
   "remoteAgent.addLocal": "添加本机员工",
   "remoteAgent.addressExample": "owner/agent@agents.example",
   "remoteAgent.remoteExecution": "由远端管理模型与工作区",
+  "remoteAgent.authorizationError": "云端员工授权未完成，请重试。",
+  "remoteAgent.cancelAuthorizationError": "取消尚未成功，授权仍在等待中。请重试取消。",
   "remoteAgent.authorizeTitle": "授权云端员工",
   "remoteAgent.authorizeHint": "请在浏览器中使用当前 OpenGrove 账号登录，并授权连接这个 Router。",
   "remoteAgent.authorizeOpen": "在浏览器中授权",
@@ -450,7 +452,8 @@ export const ZH_CN = {
   "settings.remoteAgents": "云端员工",
   "settings.agentRouterUrl": "云端员工服务地址（Router）",
   "settings.agentRouterPlaceholder": "https://agents.example/_agent-router/v1",
-  "settings.agentRouterHint": "仅填写你信任的服务地址，连接时会向该服务提供 OpenGrove 登录凭据。留空关闭云端员工功能。",
+  "settings.agentRouterHint":
+    "仅填写你信任的服务地址。通过账户服务授权后，将使用短期通信凭据连接；OpenGrove 登录凭据不会发送给该服务。留空关闭云端员工功能。",
   "settings.agentRouterManaged": "此地址由启动环境配置管理，请修改启动配置后重启 OpenGrove。",
   "settings.agentRouterSaveHint": "保存在本机，保存后立即生效，并断开原服务连接。",
   "settings.saveRouterAddress": "保存地址",

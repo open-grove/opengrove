@@ -5562,6 +5562,8 @@ export type NetworkAccountConnectResponses = {
     | {
         ok: true;
         authorizationUrl: string;
+        authorizationId: string;
+        expiresAt: number;
       };
 };
 
@@ -5570,7 +5572,9 @@ export type NetworkAccountConnectResponse = NetworkAccountConnectResponses[keyof
 export type NetworkAccountCancelData = {
   body?: never;
   path?: never;
-  query?: never;
+  query: {
+    authorizationId: string;
+  };
   url: "/network/account/authorization";
 };
 
@@ -5629,6 +5633,76 @@ export type NetworkAccountCancelResponses = {
 };
 
 export type NetworkAccountCancelResponse = NetworkAccountCancelResponses[keyof NetworkAccountCancelResponses];
+
+export type NetworkAccountAuthorizationData = {
+  body?: never;
+  path?: never;
+  query: {
+    authorizationId: string;
+  };
+  url: "/network/account/authorization";
+};
+
+export type NetworkAccountAuthorizationErrors = {
+  /**
+   * Error response.
+   */
+  400: {
+    error: string;
+    ok?: false;
+    [key: string]: unknown;
+  };
+  /**
+   * Error response.
+   */
+  401: {
+    error: string;
+    ok?: false;
+    [key: string]: unknown;
+  };
+  /**
+   * Error response.
+   */
+  403: {
+    error: string;
+    ok?: false;
+    [key: string]: unknown;
+  };
+  /**
+   * Error response.
+   */
+  409: {
+    error: string;
+    ok?: false;
+    [key: string]: unknown;
+  };
+  /**
+   * Error response.
+   */
+  503: {
+    error: string;
+    ok?: false;
+    [key: string]: unknown;
+  };
+};
+
+export type NetworkAccountAuthorizationError =
+  NetworkAccountAuthorizationErrors[keyof NetworkAccountAuthorizationErrors];
+
+export type NetworkAccountAuthorizationResponses = {
+  /**
+   * Successful response.
+   */
+  200: {
+    ok: true;
+    status: "pending" | "authorized" | "canceled" | "failed";
+    expiresAt: number;
+    error?: string;
+  };
+};
+
+export type NetworkAccountAuthorizationResponse =
+  NetworkAccountAuthorizationResponses[keyof NetworkAccountAuthorizationResponses];
 
 export type NetworkContactAddData = {
   body: {

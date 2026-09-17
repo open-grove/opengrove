@@ -11,6 +11,27 @@ import { validateWorkflowMemberRef, validateImportWorkflowMemberRef } from "../s
 import type { RoomChannelMessage } from "../rooms/channel-store.js";
 import { startRemoteRoomHost } from "./fixtures/remote-room-host.js";
 
+test("the initiating product session can cancel locally while WW is unavailable", async (t) => {
+  const host = await startRemoteRoomHost();
+  t.after(() => host.dispose());
+  await host.login("admin");
+  const pending = await host.request<{ authorizationUrl: string; authorizationId: string }>("/network/account", {});
+  const authorizationPath = `/network/account/authorization?authorizationId=${pending.authorizationId}`;
+  const callback = new URL(pending.authorizationUrl).searchParams.get("redirect_uri")!;
+  host.fixture.config.accountUnavailable = true;
+  const later = Date.now() + 15_000;
+  t.mock.method(Date, "now", () => later);
+  const unauthorized = await fetch(host.baseUrl + authorizationPath, {
+    method: "DELETE",
+    headers: host.headers,
+  });
+  assert.equal(unauthorized.status, 401);
+  assert.equal((await host.request<{ status: string }>(authorizationPath)).status, "pending");
+  await host.request(authorizationPath, undefined, "DELETE");
+  assert.equal((await host.request<{ status: string }>(authorizationPath)).status, "canceled");
+  await assert.rejects(fetch(callback), "cancel must close the listener without a WW round trip");
+});
+
 test("A2A exposes only local Employees and cannot send or cancel remote work", async (t) => {
   const host = await startRemoteRoomHost();
   t.after(() => host.dispose());

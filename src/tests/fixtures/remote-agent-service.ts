@@ -31,6 +31,7 @@ export async function startRemoteAgentService() {
     rejectCredentialOnce: false,
     delayCancellation: false,
     directoryUnavailable: false,
+    accountUnavailable: false,
   };
   const directoryRequests: string[] = [];
   let sequence = 0;
@@ -71,6 +72,7 @@ export async function startRemoteAgentService() {
       return send(503, { error: "service_unavailable" });
     const productToken = request.headers.authorization?.replace("Bearer ", "") ?? "";
     const user = productToken.split("-")[1] ?? "";
+    if (config.accountUnavailable && path === "/v1/users/me") return send(503, { error: "service_unavailable" });
     if (path === "/v1/users/me")
       return send(200, {
         data: {

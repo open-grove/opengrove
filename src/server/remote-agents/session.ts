@@ -1,5 +1,6 @@
 import { AgentRouterError } from "@agent-router/sdk";
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { isEnabledEnvFlag } from "../env-flags.js";
 import { readAppEnv } from "../../identity.js";
 import type { RemoteAgentBinding } from "../../rooms/remote-agent.js";
 import {
@@ -18,6 +19,16 @@ import { agentRouterConfiguration } from "./configuration.js";
 const sessions = new WeakMap<BridgeState, AgentNetworkSessions>();
 const generations = new WeakMap<BridgeState, number>();
 const authorizedSessions = new WeakMap<BridgeState, Set<string>>();
+
+/** Local lifecycle operations require a previously verified product session, even during a WW outage. */
+export function requireKnownNetworkSession(context: NetworkRouteContext): AgentNetworkSessions {
+  const fingerprint = authSessionFingerprint(readAuthTokens(context.request));
+  if (!context.security || !fingerprint || !authorizedSessions.get(context.state)?.has(fingerprint))
+    throw new AgentRouterError("not_authenticated", 401);
+  const network = sessions.get(context.state);
+  if (!network) throw new AgentRouterError("remote_authorization_canceled", 409);
+  return network;
+}
 
 /** Issued only after product authorization; object identity prevents reconstruction from request or ledger data. */
 export interface NetworkRunAuthorization {
@@ -60,7 +71,7 @@ export function networkSessionsFor(state: BridgeState): AgentNetworkSessions {
     network = new AgentNetworkSessions({
       baseUrl,
       provider: readAppEnv("AGENT_ROUTER_PROVIDER")?.trim() || "opengrove",
-      allowLocalHTTP: readAppEnv("AGENT_ROUTER_ALLOW_LOCAL_HTTP") === "1",
+      allowLocalHTTP: isEnabledEnvFlag(readAppEnv("AGENT_ROUTER_ALLOW_LOCAL_HTTP")),
     });
     sessions.set(state, network);
   }

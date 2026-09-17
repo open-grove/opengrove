@@ -493,7 +493,6 @@ const RoomMessageItem = memo(function RoomMessageItem(props: {
             <span className="room-chat-time">{formatRoomMessageTime(message.createdAt)}</span>
           </div>
         ) : null}
-        {networkAuthorization.prompt}
         {!isUser ? (
           <RoomAgentMessageBody
             answerGroups={turnGroups.answerGroups}
@@ -511,6 +510,7 @@ const RoomMessageItem = memo(function RoomMessageItem(props: {
                       try {
                         await networkAuthorization.connect();
                       } catch (error) {
+                        if (error instanceof DOMException && error.name === "AbortError") return;
                         toast?.({
                           title: t("remoteAgent.reconnectError"),
                           description: rawDiagnosticText(error instanceof Error ? error.message : String(error)),

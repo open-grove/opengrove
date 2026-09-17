@@ -7940,9 +7940,15 @@
                         "authorizationUrl": {
                           "type": "string",
                           "format": "uri"
+                        },
+                        "authorizationId": {
+                          "type": "string"
+                        },
+                        "expiresAt": {
+                          "type": "number"
                         }
                       },
-                      "required": ["ok", "authorizationUrl"],
+                      "required": ["ok", "authorizationUrl", "authorizationId", "expiresAt"],
                       "additionalProperties": false
                     }
                   ]
@@ -8059,14 +8065,182 @@
       }
     },
     "/network/account/authorization": {
+      "get": {
+        "operationId": "network.account.authorization",
+        "summary": "Read the current browser authorization attempt",
+        "description": "Read local attempt status for a previously verified product session. Does not contact WW or start a connection.",
+        "tags": ["network"],
+        "x-opengrove-group": "network",
+        "x-opengrove-resource": "account",
+        "x-opengrove-risk": "read",
+        "parameters": [
+          {
+            "name": "authorizationId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "const": true
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": ["pending", "authorized", "canceled", "failed"]
+                    },
+                    "expiresAt": {
+                      "type": "number"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["ok", "status", "expiresAt"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "ok": {
+                      "type": "boolean",
+                      "const": false
+                    }
+                  },
+                  "required": ["error"],
+                  "additionalProperties": {}
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "ok": {
+                      "type": "boolean",
+                      "const": false
+                    }
+                  },
+                  "required": ["error"],
+                  "additionalProperties": {}
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "ok": {
+                      "type": "boolean",
+                      "const": false
+                    }
+                  },
+                  "required": ["error"],
+                  "additionalProperties": {}
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Error response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "ok": {
+                      "type": "boolean",
+                      "const": false
+                    }
+                  },
+                  "required": ["error"],
+                  "additionalProperties": {}
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Error response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "ok": {
+                      "type": "boolean",
+                      "const": false
+                    }
+                  },
+                  "required": ["error"],
+                  "additionalProperties": {}
+                }
+              }
+            }
+          }
+        }
+      },
       "delete": {
         "operationId": "network.account.cancel",
         "summary": "Cancel the pending browser authorization",
-        "description": "Close the native callback listener without changing an existing connection.",
+        "description": "Cancel this attempt locally for a previously verified product session, including during WW outages. Does not change an existing connection or cancel a newer attempt.",
         "tags": ["network"],
         "x-opengrove-group": "network",
         "x-opengrove-resource": "account",
         "x-opengrove-risk": "write",
+        "parameters": [
+          {
+            "name": "authorizationId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful response.",

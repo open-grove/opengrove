@@ -3,6 +3,11 @@ import { credentialServiceUrl } from "./credentials.js";
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import * as oidc from "openid-client";
+import { oauthFailure } from "./oauth-errors.js";
+import { createWwTransport, isWwApiError } from "../ww/transport.js";
+
+const AUTHORIZATION_TIMEOUT_MS = 10 * 60_000;
+const REFRESH_AHEAD_MS = 60_000;
 
 export interface RouterAccountIdentity {
   accountIssuer: string;
@@ -13,6 +18,8 @@ interface Grant {
   accessToken: string;
   refreshToken?: string;
   expiresAt: number;
+  validationPending?: boolean;
+  refreshUncertain?: boolean;
 }
 interface Attempt {
   url: string;
@@ -20,11 +27,19 @@ interface Attempt {
   timer: ReturnType<typeof setTimeout>;
   state: string;
 }
+export interface NetworkAuthorization {
+  authorizationId: string;
+  authorizationUrl: string;
+  expiresAt: number;
+  status: "pending" | "authorized" | "canceled" | "failed";
+  error?: string;
+}
 
 /** Native authorization: primary login credentials are deliberately absent from this interface. */
 export class NetworkOAuth {
   private grant?: Grant;
   private attempt?: Attempt;
+  private authorization?: NetworkAuthorization;
   private starting?: Promise<string>;
   private renewing?: Promise<string>;
   private failure?: AgentRouterError;
@@ -59,8 +74,15 @@ export class NetworkOAuth {
     this.grant = undefined;
     if (grant) void this.revoke(grant);
   }
-  cancel(): void {
+  authorizationStatus(id?: string): NetworkAuthorization {
+    if (!this.authorization || (id !== undefined && id !== this.authorization.authorizationId))
+      throw new AgentRouterError("remote_authorization_canceled", 409);
+    return { ...this.authorization };
+  }
+  cancel(id?: string): void {
+    if (id !== undefined && id !== this.authorization?.authorizationId) return;
     this.revision++;
+    if (this.authorization?.status === "pending") this.authorization.status = "canceled";
     this.stopAttempt();
   }
   clear(): void {
@@ -82,20 +104,38 @@ export class NetworkOAuth {
   private async start(): Promise<string> {
     const revision = this.revision;
     const accountUrl = this.url(this.account.accountIssuer);
-    const metadataUrl = new URL(`${accountUrl.toString().replace(/\/$/, "")}/v1/network/configuration`);
-    metadataUrl.searchParams.set("resource", this.resource);
-    const response = await fetch(metadataUrl, {
-      redirect: "error",
-      signal: AbortSignal.any([this.lifetime.signal, AbortSignal.timeout(10_000)]),
-    });
-    if (response.status === 404) throw new AgentRouterError("remote_router_not_registered", 400);
-    if (!response.ok) throw new AgentRouterError("remote_authorization_unavailable", 503);
-    const registration = (await response.json()) as {
-      issuer?: unknown;
-      client_id?: unknown;
-      resource?: unknown;
-      scopes?: unknown;
-    };
+    const registration = await createWwTransport(accountUrl.toString(), 10_000)
+      .requestJson(
+        "/v1/network/configuration",
+        {
+          method: "GET",
+          query: { resource: this.resource },
+          signal: this.lifetime.signal,
+          redirect: "error",
+          credentials: "omit",
+        },
+        (payload) => {
+          if (!payload || typeof payload !== "object") throw new AgentRouterError("invalid_response");
+          return payload as {
+            issuer?: unknown;
+            client_id?: unknown;
+            resource?: unknown;
+            scopes?: unknown;
+          };
+        },
+      )
+      .catch((error: unknown) => {
+        this.lifetime.signal.throwIfAborted();
+        throw Object.assign(
+          new AgentRouterError(
+            isWwApiError(error) && error.status === 404
+              ? "remote_router_not_registered"
+              : "remote_authorization_unavailable",
+            isWwApiError(error) && error.status === 404 ? 400 : 503,
+          ),
+          { cause: error },
+        );
+      });
     const scopes = registration.scopes;
     const expectedClient = registration.client_id;
     if (
@@ -179,12 +219,16 @@ export class NetworkOAuth {
           this.lifetime.signal.throwIfAborted();
           if (this.attempt?.state !== state) throw new AgentRouterError("remote_oauth_required", 403);
           this.grant = received;
+          this.authorization!.status = "authorized";
           response.writeHead(200).end("Authorization complete. Return to OpenGrove.\n授权完成，请返回 OpenGrove。");
         } catch (error) {
           if (received) void this.revoke(received);
-          if (this.attempt?.state === state)
+          if (this.attempt?.state === state) {
             this.failure =
               error instanceof AgentRouterError ? error : new AgentRouterError("remote_authorization_failed", 400);
+            this.authorization!.status = "failed";
+            this.authorization!.error = this.failure.code;
+          }
           response
             .writeHead(400)
             .end("Authorization failed. Return to OpenGrove and try again.\n授权失败，请返回 OpenGrove 重试。");
@@ -222,11 +266,19 @@ export class NetworkOAuth {
       .toString();
     const timer = setTimeout(() => {
       this.failure = new AgentRouterError("remote_authorization_expired", 400);
+      this.authorization!.status = "failed";
+      this.authorization!.error = this.failure.code;
       this.stopAttempt();
-    }, 10 * 60_000);
+    }, AUTHORIZATION_TIMEOUT_MS);
     timer.unref();
     server.unref();
     this.attempt = { url, server, timer, state };
+    this.authorization = {
+      authorizationId: state,
+      authorizationUrl: url,
+      expiresAt: Date.now() + AUTHORIZATION_TIMEOUT_MS,
+      status: "pending",
+    };
     return url;
   }
   private readGrant(
@@ -235,6 +287,7 @@ export class NetworkOAuth {
   ): Grant {
     if (
       typeof tokens.expires_in !== "number" ||
+      !Number.isFinite(tokens.expires_in) ||
       tokens.expires_in <= 30 ||
       (tokens.scope !== undefined && !tokens.scope.split(" ").includes("network.connect"))
     )
@@ -255,25 +308,47 @@ export class NetworkOAuth {
     }
     const grant = this.grant;
     if (!grant) throw new AgentRouterError("remote_oauth_required", 403);
-    if (grant.expiresAt > Date.now() + 60_000) return grant.accessToken;
+    if (grant.refreshUncertain) {
+      if (grant.expiresAt > Date.now() + 30_000) return grant.accessToken;
+      // The issuer may have rotated successfully. Do not replay or revoke an unknown successor.
+      this.grant = undefined;
+      throw new AgentRouterError("remote_oauth_required", 403);
+    }
+    if (!grant.validationPending && grant.expiresAt > Date.now() + REFRESH_AHEAD_MS) return grant.accessToken;
     if (!this.renewing)
       this.renewing = (async () => {
         let next: Grant | undefined;
         try {
-          if (!grant.refreshToken) throw new AgentRouterError("remote_oauth_required", 403);
-          const tokens = await oidc.refreshTokenGrant(grant.config, grant.refreshToken);
-          next = this.readGrant(grant.config, tokens);
-          if (!next.refreshToken || next.refreshToken === grant.refreshToken)
-            throw new AgentRouterError("remote_authorization_failed", 400);
-          if (this.lifetime.signal.aborted) {
-            void this.revoke(next);
-            this.lifetime.signal.throwIfAborted();
+          if (grant.validationPending) next = grant;
+          else {
+            if (!grant.refreshToken) throw new AgentRouterError("remote_oauth_required", 403);
+            const tokens = await oidc.refreshTokenGrant(grant.config, grant.refreshToken);
+            next = this.readGrant(grant.config, tokens);
+            if (!next.refreshToken || next.refreshToken === grant.refreshToken)
+              throw new AgentRouterError("remote_authorization_failed", 400);
+            next.validationPending = true;
           }
+          this.lifetime.signal.throwIfAborted();
           await oidc.fetchUserInfo(grant.config, next.accessToken, this.account.accountUserId);
           this.lifetime.signal.throwIfAborted();
+          if (this.grant !== grant) {
+            throw new AgentRouterError("remote_oauth_required", 403);
+          }
+          next.validationPending = false;
           this.grant = next;
           return next.accessToken;
         } catch (error) {
+          const failure = await oauthFailure(error);
+          if (this.lifetime.signal.aborted || this.grant !== grant) {
+            if (next && next !== grant) void this.revoke(next);
+            this.lifetime.signal.throwIfAborted();
+            throw error;
+          }
+          if (failure !== "rejected") {
+            this.grant = next ?? grant;
+            if (!next && failure === "ambiguous") grant.refreshUncertain = true;
+            throw new AgentRouterError("remote_authorization_unavailable", 503);
+          }
           this.grant = undefined;
           void this.revoke(next ?? grant);
           throw error instanceof AgentRouterError ? error : new AgentRouterError("remote_oauth_required", 403);

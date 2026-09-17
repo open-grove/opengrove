@@ -12,6 +12,9 @@ export function routerOidcFixture(baseUrl: () => string) {
   const revoked: string[] = [];
   let sequence = 0;
   let expiresIn = 900;
+  const failures = { refresh: 0, userinfo: 0, refreshError: "temporarily_unavailable", refreshHtml: false };
+  const requests: string[] = [];
+  const registeredScopes = ["openid", "profile", "network.connect", "offline_access"];
   const encode = (value: unknown) => Buffer.from(JSON.stringify(value)).toString("base64url");
   const jwt = (claims: unknown) => {
     const value = `${encode({ alg: "EdDSA", kid: jwk.kid, typ: "JWT" })}.${encode(claims)}`;
@@ -19,6 +22,9 @@ export function routerOidcFixture(baseUrl: () => string) {
   };
   return {
     revoked,
+    failures,
+    requests,
+    registeredScopes,
     expireSoon: () => {
       expiresIn = 45;
     },
@@ -52,7 +58,7 @@ export function routerOidcFixture(baseUrl: () => string) {
           issuer,
           resource,
           client_id: "opengrove-desktop",
-          scopes: ["openid", "profile", "network.connect", "offline_access"],
+          scopes: registeredScopes,
         });
       }
       if (path === "/.well-known/openid-configuration")
@@ -79,6 +85,14 @@ export function routerOidcFixture(baseUrl: () => string) {
         return true;
       }
       if (path === "/v1/oauth/token") {
+        requests.push(body.get("grant_type") ?? "");
+        if (body.get("grant_type") === "refresh_token" && failures.refresh) {
+          if (failures.refreshHtml) {
+            response.writeHead(failures.refresh, { "content-type": "text/html" }).end("Bad gateway");
+            return true;
+          }
+          return send(failures.refresh, { error: failures.refreshError });
+        }
         const authorization = codes.get(body.get("code") ?? "");
         const previous = refreshes.get(body.get("refresh_token") ?? "");
         const client = body.get("client_id")!;
@@ -118,6 +132,7 @@ export function routerOidcFixture(baseUrl: () => string) {
         });
       }
       if (path === "/v1/oauth/userinfo") {
+        if (failures.userinfo) return send(failures.userinfo, { error: "temporarily_unavailable" });
         const token = tokens.get(request.headers.authorization?.replace("Bearer ", "") ?? "");
         if (!token || !refreshes.has(token.refresh)) return send(401, { error: "invalid_token" });
         return send(200, {

@@ -80,8 +80,13 @@ export class AgentNetworkSessions {
     if (old?.network) void this.revoke(old.network);
   }
 
-  cancelAuthorization(): void {
-    this.active?.oauth.cancel();
+  cancelAuthorization(id?: string): void {
+    this.active?.oauth.cancel(id);
+  }
+
+  authorizationStatus(id?: string) {
+    if (!this.active) throw new AgentRouterError("not_authenticated", 401);
+    return this.active.oauth.authorizationStatus(id);
   }
 
   async beginAuthorization(): Promise<string> {

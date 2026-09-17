@@ -53,6 +53,7 @@ export const openGroveClientOperationIds = [
   "employee.employee.restore-defaults",
   "network.account.inspect",
   "network.account.connect",
+  "network.account.authorization",
   "network.account.cancel",
   "network.contact.add",
 ] as const;
@@ -817,10 +818,24 @@ export function bindOpenGroveClient(request: HostOperationRequest) {
             body: {},
             signal: options?.signal,
           }),
+        authorization: (
+          input: HostOperationInput<(typeof hostOperationById)["network.account.authorization"]>,
+          options?: OpenGroveRequestOptions,
+        ): Promise<HostOperationOutput<(typeof hostOperationById)["network.account.authorization"]>> =>
+          request(hostOperationById["network.account.authorization"], {
+            query: {
+              authorizationId: input.authorizationId,
+            },
+            signal: options?.signal,
+          }),
         cancel: (
+          input: HostOperationInput<(typeof hostOperationById)["network.account.cancel"]>,
           options?: OpenGroveRequestOptions,
         ): Promise<HostOperationOutput<(typeof hostOperationById)["network.account.cancel"]>> =>
           request(hostOperationById["network.account.cancel"], {
+            query: {
+              authorizationId: input.authorizationId,
+            },
             signal: options?.signal,
           }),
       },

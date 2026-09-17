@@ -6,13 +6,14 @@ import type {
   CancelNetworkAuthorizationOperation,
   InspectNetworkAccountOperation,
   ConnectNetworkAccountOperation,
+  GetNetworkAuthorizationOperation,
 } from "#protocol";
 import {
   requireNetworkConnection,
   isNetworkOAuthRequired,
   networkProblem,
   networkSessionsFor,
-  authorizeNetworkAccount,
+  requireKnownNetworkSession,
 } from "../remote-agents/session.js";
 import type { HostOperationRouteContext } from "../router.js";
 
@@ -36,7 +37,8 @@ export async function handleConnectNetworkAccount(
     } catch (error) {
       if (!isNetworkOAuthRequired(error)) throw error;
       const authorizationUrl = await networkSessionsFor(context.state).beginAuthorization();
-      context.sendJson(context.response, 200, { ok: true, authorizationUrl });
+      const { authorizationId, expiresAt } = networkSessionsFor(context.state).authorizationStatus();
+      context.sendJson(context.response, 200, { ok: true, authorizationUrl, authorizationId, expiresAt });
       return true;
     }
     const { sender: account, authorization } = connection;
@@ -98,9 +100,23 @@ export async function handleCancelNetworkAuthorization(
   context: HostOperationRouteContext<CancelNetworkAuthorizationOperation>,
 ): Promise<true> {
   try {
-    await authorizeNetworkAccount(context);
-    networkSessionsFor(context.state).cancelAuthorization();
+    requireKnownNetworkSession(context).cancelAuthorization(context.input.query.authorizationId);
     context.sendJson(context.response, 200, { ok: true });
+  } catch (error) {
+    const problem = networkProblem(error);
+    context.sendJson(context.response, problem.status, { error: problem.error });
+  }
+  return true;
+}
+
+export async function handleGetNetworkAuthorization(
+  context: HostOperationRouteContext<GetNetworkAuthorizationOperation>,
+): Promise<true> {
+  try {
+    const { status, expiresAt, error } = requireKnownNetworkSession(context).authorizationStatus(
+      context.input.query.authorizationId,
+    );
+    context.sendJson(context.response, 200, { ok: true, status, expiresAt, ...(error ? { error } : {}) });
   } catch (error) {
     const problem = networkProblem(error);
     context.sendJson(context.response, problem.status, { error: problem.error });

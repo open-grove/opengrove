@@ -18,7 +18,7 @@ try {
     import { SettingsDialog } from ${source("web/src/components/sidebar/settings-dialog.tsx")};
     import { ToastProvider } from ${source("web/src/components/ui/toast.tsx")};
     import { ConfirmProvider } from ${source("web/src/components/ui/confirm-dialog.tsx")};
-    import { setLanguagePreference } from ${source("web/src/i18n.ts")};
+    import { setLanguagePreference, translate } from ${source("web/src/i18n.ts")};
     import ${source("web/src/styles/tokens.css")};
     import ${source("web/src/styles/reset.css")};
     import ${source("web/src/styles/primitives.css")};
@@ -27,6 +27,7 @@ try {
     window.__setLanguage = setLanguagePreference;
     window.__saved = [];
     function Fixture() {
+      const [saveError, setSaveError] = useState("");
       const [settings, setSettings] = useState({
         developerMode: false, kernel: "codex", activeKernel: "codex", activeModel: "default",
         kernels: [], agentRouterUrl: "", agentRouterManaged: false,
@@ -34,9 +35,13 @@ try {
       });
       window.__refresh = () => setSettings((value) => ({ ...value }));
       window.__manage = () => setSettings((value) => ({ ...value, agentRouterEffectiveUrl: "https://managed.example/_agent-router/v1", agentRouterManaged: true }));
-      return <SettingsDialog settings={settings} loading={false} saving={false} error="" initialSection="network"
+      return <SettingsDialog settings={settings} loading={false} saving={false} error={saveError} initialSection="network"
         onClose={() => {}} onSave={(payload, onSaved) => {
           window.__saved.push(payload);
+          if (payload.agentRouterUrl && !payload.agentRouterUrl.startsWith("https://")) {
+            setSaveError(translate("settings.invalidRouterAddress")); return;
+          }
+          setSaveError("");
           if (window.__failSave) { window.__refresh(); return; }
           const normalized = payload.agentRouterUrl === undefined ? payload : { ...payload, agentRouterUrl: payload.agentRouterUrl.replace(new RegExp("/+$"), "") };
           const next = { ...settings, ...normalized };
@@ -72,7 +77,15 @@ try {
     const save = page.getByRole("button", { name: "保存地址", exact: true });
     await expect(page.getByRole("heading", { name: "网络", exact: true })).toBeVisible();
     await expect(input).toHaveValue("");
+    await expect(page.getByRole("checkbox", { name: /内核代理/ })).toHaveCount(0);
     await expect(save).toBeDisabled();
+    await input.fill("agents.example");
+    await save.click();
+    assert.deepEqual(
+      await page.evaluate(() => window.__saved.pop()),
+      { agentRouterUrl: "agents.example" },
+      "scheme-less input reaches product validation",
+    );
     await input.fill("https://agents.example/_agent-router/v1");
     await page.evaluate(async () => {
       window.__refresh();

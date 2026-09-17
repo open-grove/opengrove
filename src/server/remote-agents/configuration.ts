@@ -1,4 +1,5 @@
 import { AgentRouterClient } from "@agent-router/sdk";
+import { isEnabledEnvFlag } from "../env-flags.js";
 import { readAppEnv } from "../../identity.js";
 import type { BridgeSettings } from "../bridge-types.js";
 
@@ -13,7 +14,7 @@ export function normalizeAgentRouterUrl(value: unknown): string | undefined {
     return new AgentRouterClient({
       baseUrl: url,
       accessToken: "",
-      allowLocalHTTP: readAppEnv("AGENT_ROUTER_ALLOW_LOCAL_HTTP") === "1",
+      allowLocalHTTP: isEnabledEnvFlag(readAppEnv("AGENT_ROUTER_ALLOW_LOCAL_HTTP")),
     }).baseUrl;
   } catch {
     return undefined;

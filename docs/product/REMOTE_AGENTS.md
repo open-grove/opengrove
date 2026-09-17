@@ -106,6 +106,30 @@ Existing contacts and pending task IDs stay in the ledger. Missing OAuth consent
 preserves accepted pending work; it does not authorize background work. Canceling
 browser authorization closes the callback listener without creating a contact.
 
+Browser authorization is owned by the application, not by a Room or message.
+Changing Rooms keeps the same pending flow. Waiting checks local attempt status
+every two seconds, without repeating account verification or connecting to WW.
+Each attempt expires after ten minutes and has its own identifier: a delayed
+cancel cannot cancel a newer attempt. A previously verified product session can
+cancel its flow locally even if WW is offline; an unrelated session cannot.
+The UI confirms cancellation only after the Host accepts it and shows failures.
+
+The client requests only `openid profile network.connect`, plus `offline_access`
+when registered. Other registered scopes are not automatically requested.
+WW authorization codes last two minutes, OAuth access tokens fifteen minutes,
+and rotating refresh tokens at most twenty-four hours without extending the
+original expiry. These are deployment policy choices, not OAuth-mandated values.
+Native public clients use S256 PKCE and the external browser's loopback callback
+as specified by [RFC 8252](https://www.rfc-editor.org/rfc/rfc8252).
+
+Temporary issuer errors do not revoke consent. If refresh succeeds but the
+subsequent identity check is unavailable, the Host retains the new credential
+and retries that check before using it. If a refresh response is lost or ambiguous,
+the Host never replays the possibly consumed refresh token: it retains an unexpired
+access token, then requires fresh consent when it can no longer safely use it.
+Explicit rejection still requires fresh authorization. Refresh-token rotation
+follows [RFC 9700](https://www.rfc-editor.org/rfc/rfc9700).
+
 The Host has one current product account, matching the existing single-principal local Host design. Stale requests from an old login cannot clear that account's network connection.
 
 Logging out or switching accounts immediately disconnects the old account's

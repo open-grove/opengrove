@@ -81,6 +81,9 @@ import type {
   InteractionQuestionListData,
   InteractionQuestionListErrors,
   InteractionQuestionListResponses,
+  NetworkAccountAuthorizationData,
+  NetworkAccountAuthorizationErrors,
+  NetworkAccountAuthorizationResponses,
   NetworkAccountCancelData,
   NetworkAccountCancelErrors,
   NetworkAccountCancelResponses,
@@ -1202,14 +1205,29 @@ export class Account extends HeyApiClient {
   /**
    * Cancel the pending browser authorization
    *
-   * Close the native callback listener without changing an existing connection.
+   * Cancel this attempt locally for a previously verified product session, including during WW outages. Does not change an existing connection or cancel a newer attempt.
    */
   public cancel<ThrowOnError extends boolean = false>(
-    options?: Options<NetworkAccountCancelData, ThrowOnError>,
+    options: Options<NetworkAccountCancelData, ThrowOnError>,
   ): RequestResult<NetworkAccountCancelResponses, NetworkAccountCancelErrors, ThrowOnError> {
-    return (options?.client ?? this.client).delete<
+    return (options.client ?? this.client).delete<
       NetworkAccountCancelResponses,
       NetworkAccountCancelErrors,
+      ThrowOnError
+    >({ url: "/network/account/authorization", ...options });
+  }
+
+  /**
+   * Read the current browser authorization attempt
+   *
+   * Read local attempt status for a previously verified product session. Does not contact WW or start a connection.
+   */
+  public authorization<ThrowOnError extends boolean = false>(
+    options: Options<NetworkAccountAuthorizationData, ThrowOnError>,
+  ): RequestResult<NetworkAccountAuthorizationResponses, NetworkAccountAuthorizationErrors, ThrowOnError> {
+    return (options.client ?? this.client).get<
+      NetworkAccountAuthorizationResponses,
+      NetworkAccountAuthorizationErrors,
       ThrowOnError
     >({ url: "/network/account/authorization", ...options });
   }

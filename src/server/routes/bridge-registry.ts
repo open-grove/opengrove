@@ -1,5 +1,6 @@
 import {
   handleCancelNetworkAuthorization,
+  handleGetNetworkAuthorization,
   handleInspectNetworkAccount,
   handleConnectNetworkAccount,
   handleAddNetworkContact,
@@ -73,6 +74,7 @@ export function createBridgeRoutes(): BridgeRoute[] {
     operationRoute(hostContractById["network.account.inspect"], handleInspectNetworkAccount),
     operationRoute(hostContractById["network.account.connect"], handleConnectNetworkAccount),
     operationRoute(hostContractById["network.account.cancel"], handleCancelNetworkAuthorization),
+    operationRoute(hostContractById["network.account.authorization"], handleGetNetworkAuthorization),
     operationRoute(hostContractById["network.contact.add"], handleAddNetworkContact),
     operationRoute(hostContractById["auth.email-code.create"], handleCreateAuthEmailCodeOperation),
     operationRoute(hostContractById["auth.session.create"], handleCreateAuthSessionOperation),

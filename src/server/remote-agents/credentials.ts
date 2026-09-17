@@ -1,5 +1,6 @@
 import { AgentRouterError } from "@agent-router/sdk";
 import { z } from "zod";
+import { createWwTransport, isWwApiError } from "../ww/transport.js";
 
 const nativeSession = z.object({
   serviceUrl: z.string(),
@@ -45,28 +46,32 @@ export async function issueNetworkSession(input: {
   now?: number;
 }): Promise<NativeNetworkSession> {
   const issuer = credentialServiceUrl(input.accountIssuer, input.allowLocalHTTP).toString().replace(/\/$/, "");
-  let response: Response;
+  let payload: unknown;
   try {
-    response = await (input.fetch ?? fetch)(`${issuer}/v1/network/sessions`, {
-      method: "POST",
-      redirect: "error",
-      credentials: "omit",
-      headers: { "content-type": "application/json", Authorization: `Bearer ${input.accessToken}` },
-      body: JSON.stringify({ serviceUrl: input.serviceUrl }),
-      signal: AbortSignal.any([input.signal, AbortSignal.timeout(15_000)]),
-    });
-  } catch {
+    payload = await createWwTransport(issuer, 15_000).requestJson(
+      "/v1/network/sessions",
+      {
+        method: "POST",
+        redirect: "error",
+        credentials: "omit",
+        accessToken: input.accessToken,
+        body: { serviceUrl: input.serviceUrl },
+        signal: input.signal,
+        fetch: input.fetch,
+      },
+      (body) => body,
+    );
+  } catch (error) {
     input.signal.throwIfAborted();
-    throw new AgentRouterError("connection_unavailable");
+    const status = isWwApiError(error) ? error.status : 503;
+    const code =
+      status === 401
+        ? "remote_oauth_required"
+        : status === 403
+          ? "remote_authorization_required"
+          : "remote_session_unavailable";
+    throw Object.assign(new AgentRouterError(code, status === 401 ? 403 : status), { cause: error });
   }
-  if (!response.ok) {
-    if (response.status === 401) throw new AgentRouterError("remote_oauth_required", 403);
-    if (response.status === 403) throw new AgentRouterError("remote_authorization_required", 403);
-    throw new AgentRouterError("remote_session_unavailable", response.status);
-  }
-  const payload: unknown = await response.json().catch(() => {
-    throw new AgentRouterError("invalid_response");
-  });
   const parsed = nativeSession.safeParse(payload);
   if (!parsed.success) throw new AgentRouterError("invalid_response");
   const session = parsed.data;

@@ -25,6 +25,9 @@ export const EN = {
   "remoteAgent.addLocal": "Add local employee",
   "remoteAgent.addressExample": "owner/agent@agents.example",
   "remoteAgent.remoteExecution": "Model and workspace managed remotely",
+  "remoteAgent.authorizationError": "Remote Agent authorization did not complete. Please try again.",
+  "remoteAgent.cancelAuthorizationError":
+    "Cancellation has not succeeded; authorization is still pending. Try canceling again.",
   "remoteAgent.authorizeTitle": "Authorize cloud agents",
   "remoteAgent.authorizeHint": "Sign in with your current OpenGrove account and authorize this Router in your browser.",
   "remoteAgent.authorizeOpen": "Open authorization page",
@@ -470,7 +473,7 @@ export const EN = {
   "settings.agentRouterUrl": "Service address (Router)",
   "settings.agentRouterPlaceholder": "https://agents.example/_agent-router/v1",
   "settings.agentRouterHint":
-    "Only use a trusted service: connecting shares your OpenGrove login credential with it. Leave empty to disable remote Agents.",
+    "Only use a trusted service. After account authorization, a short-lived communication credential connects to it. Your OpenGrove login credential is never sent to this service. Leave empty to disable remote Agents.",
   "settings.agentRouterManaged":
     "This address is managed by the startup environment. Change it there and restart OpenGrove.",
   "settings.agentRouterSaveHint":

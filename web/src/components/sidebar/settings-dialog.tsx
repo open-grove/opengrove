@@ -729,6 +729,7 @@ export function SettingsDialog(props: {
             <SettingsNetworkPanel
               t={t}
               kernelProxy={kernelProxy}
+              showKernelProxy={developerMode}
               agentRouterUrl={
                 props.settings?.agentRouterManaged ? (props.settings.agentRouterEffectiveUrl ?? "") : agentRouterUrl
               }

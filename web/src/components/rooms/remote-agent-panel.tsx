@@ -74,7 +74,6 @@ export function RemoteAgentDialog(props: {
   };
   return (
     <>
-      {network.prompt}
       <Dialog open={props.open} onOpenChange={props.onOpenChange}>
         <DialogContent className={styles["remote-agent-dialog"]}>
           <DialogTitle>{t("remoteAgent.add")}</DialogTitle>

@@ -15,6 +15,7 @@ try {
     `
     import React, { useState } from "react";
     import { createRoot } from "react-dom/client";
+    import { NetworkAuthorizationProvider } from ${source("web/src/components/rooms/network-authorization-provider.tsx")};
     import { RemoteAgentDialog } from ${source("web/src/components/rooms/remote-agent-panel.tsx")};
     import { ToastProvider } from ${source("web/src/components/ui/toast.tsx")};
     import { ConfirmProvider } from ${source("web/src/components/ui/confirm-dialog.tsx")};
@@ -35,10 +36,18 @@ try {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     window.__reloadConfiguration = () => queryClient.resetQueries({ queryKey: ["network", "configuration"] });
     window.fetch = async (url, init) => {
-      if (String(url).endsWith("/network/account/authorization")) { window.__oauthCanceled = true; return Response.json({ok:true}); }
+      if (String(url).includes("/network/account/authorization?")) {
+        if (init?.method === "DELETE") {
+          if (window.__cancelFails) return Response.json({error:"connection_unavailable"},{status:503});
+          window.__oauthCanceled = true; return Response.json({ok:true});
+        }
+        window.__polls = (window.__polls ?? 0) + 1;
+        return Response.json({ok:true,status:window.__oauthPending ? "pending" : "authorized",expiresAt:Date.now()+600000});
+      }
       if (String(url).endsWith("/network/account") && init?.method === "POST") {
+        window.__connects = (window.__connects ?? 0) + 1;
         return window.__oauthPending
-          ? Response.json({ok:true,authorizationUrl:"https://identity.example/oauth/authorize?state=fixture"})
+          ? Response.json({ok:true,authorizationUrl:"https://identity.example/oauth/authorize?state=fixture",authorizationId:"fixture",expiresAt:Date.now()+600000})
           : Response.json({ok:true,account:{id:"sender",owner:"owner",name:"client",address:"owner/client@agents.example"}});
       }
       if (String(url).endsWith("/network/account")) {
@@ -84,7 +93,7 @@ try {
       }} />;
     }
     createRoot(document.getElementById("root")).render(
-      <QueryClientProvider client={queryClient}><ToastProvider><Fixture /></ToastProvider></QueryClientProvider>
+      <QueryClientProvider client={queryClient}><ToastProvider><NetworkAuthorizationProvider><Fixture /></NetworkAuthorizationProvider></ToastProvider></QueryClientProvider>
     );
   `,
   );
@@ -158,6 +167,15 @@ try {
       beforeAuthorization,
       "contact creation waits for authorization",
     );
+    await page.evaluate(() => {
+      window.__cancelFails = true;
+    });
+    await page.getByRole("button", { name: "取消", exact: true }).last().click();
+    await expect(page.getByRole("alert")).toContainText("取消尚未成功");
+    await expect(page.getByRole("heading", { name: "授权云端员工", exact: true })).toBeVisible();
+    await page.evaluate(() => {
+      window.__cancelFails = false;
+    });
     await page.getByRole("button", { name: "取消", exact: true }).last().click();
     await expect.poll(() => page.evaluate(() => window.__oauthCanceled)).toBe(true);
     assert.equal(await page.evaluate(() => window.__calls.length), beforeAuthorization);
@@ -223,6 +241,29 @@ try {
     await stop.press("Enter");
     assert.equal(await page.evaluate(() => window.__stoppedMessage), "remote-result");
     await expect(stop).toHaveCount(0);
+    await page.evaluate(() => {
+      window.__oauthPending = true;
+      window.__oauthCanceled = false;
+      window.__connects = 0;
+      window.__polls = 0;
+      window.__showPendingFailure();
+    });
+    await page.getByRole("button", { name: "重试", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "授权云端员工", exact: true })).toBeVisible();
+    await page.evaluate(() => window.__showMenu());
+    await expect(page.getByRole("heading", { name: "授权云端员工", exact: true })).toBeVisible();
+    await expect.poll(() => page.evaluate(() => window.__polls)).toBeGreaterThan(0);
+    assert.equal(
+      await page.evaluate(() => window.__oauthCanceled),
+      false,
+      "removing the originating message must not cancel authorization",
+    );
+    assert.equal(await page.evaluate(() => window.__connects), 1, "pending status checks must not reconnect");
+    await page.evaluate(() => {
+      window.__oauthPending = false;
+    });
+    await expect(page.getByRole("heading", { name: "授权云端员工", exact: true })).toHaveCount(0);
+    assert.equal(await page.evaluate(() => window.__connects), 2, "connect once after consent completes");
     assert.deepEqual(errors, []);
   } finally {
     await browser.close();
