@@ -44,7 +44,7 @@ assert.ok(
   !JSON.stringify(shared).includes("secrets."),
   "untrusted source and package CI must not receive release or provider secrets",
 );
-assert.deepEqual(nightly.on.schedule, [{ cron: "0 2,14 * * *" }]);
+assert.deepEqual(nightly.on.schedule, [{ cron: "0 2 * * *" }]);
 
 // Validate the dependency graph, not YAML whitespace or a copied list of jobs.
 for (const file of readdirSync(resolve(root, ".github/workflows")).filter((file) => /\.ya?ml$/.test(file))) {

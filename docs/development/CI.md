@@ -11,7 +11,7 @@ copying commands between entrypoints.
 | --- | --- | --- |
 | PR / merge queue | Affected source checks, integration, UI, native filesystem behavior and packaged startup | `PR required`; every selected job succeeds |
 | Main | All deterministic source/harness/UI checks plus native platform and packaged startup | `Main CI result` for the exact commit |
-| Nightly (02:00 / 14:00 UTC), manual | Online production dependency installation, external baseline availability, real Agent coverage | Every owner succeeds, including complete runtime evidence |
+| Nightly (once daily at 02:00 UTC), manual | Online production dependency installation, external baseline availability, real Agent coverage | Every owner succeeds, including complete runtime evidence |
 | Desktop candidate, manual | Release notes, infrastructure, golden replay, verified N-1 bytes, signed artifacts, real upgrade and source/receipt identity | Full three-platform candidate and gate receipt |
 | Finalize / register / promote | Publish the same verified bytes through the authorized endpoint | Existing artifact and remote identity checks |
 
