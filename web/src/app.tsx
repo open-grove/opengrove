@@ -997,6 +997,7 @@ export function App() {
       mountedApps?: BridgeSettings["mountedApps"];
       kernelProxy?: BridgeSettings["kernelProxy"];
       appStore?: BridgeSettings["appStore"];
+      agentRouterUrl?: string;
       appUpdates?: BridgeSettings["appUpdates"];
       voice?: BridgeSettings["voice"];
       kernelPathOverrides?: BridgeSettings["kernelPathOverrides"];
@@ -1009,7 +1010,7 @@ export function App() {
         current
           ? {
               ...current,
-              settings: { ...current.settings, ...payload },
+              settings: { ...current.settings, ...payload, agentRouterUrl: current.settings.agentRouterUrl },
             }
           : current,
       );
@@ -1020,6 +1021,12 @@ export function App() {
     },
     onSuccess(result, payload) {
       queryClient.setQueryData(["settings"], result);
+      if (result.warning === "settings_state_persist_failed") {
+        toast({ kind: "info", title: t("system.settingsStatePersistFailed") });
+      }
+      if (payload.agentRouterUrl !== undefined) {
+        queryClient.invalidateQueries({ queryKey: ["network", "configuration"] });
+      }
       if (payload.appUpdates?.automatic === true) {
         scheduleAppUpdates();
       }
@@ -1040,7 +1047,13 @@ export function App() {
       if (context?.previousLanguagePreference) {
         setLanguagePreference(context.previousLanguagePreference);
       }
-      const message = systemDetail(error);
+      const code = error instanceof Error ? error.message : "";
+      const message =
+        code === "invalid_agent_router_url"
+          ? t("settings.invalidRouterAddress")
+          : code === "agent_router_managed_by_environment"
+            ? t("settings.agentRouterManaged")
+            : systemDetail(error);
       toast({ kind: "error", title: t("system.saveSettingsFailed", { message }) });
     },
   });
@@ -2446,11 +2459,14 @@ export function App() {
             onClose={() => setView(directKernelChatEnabled ? "chat" : mountedApps[0] ? "app" : "app-store")}
             onInstallKernel={(kernelId, actionId) => installKernelMutation.mutate({ kernelId, actionId })}
             onKernelLoginAction={(kernelId, action) => kernelLoginMutation.mutate({ kernelId, action })}
-            onSave={(payload) =>
-              settingsMutation.mutate({
-                ...payload,
-                systemLanguage: detectSystemLanguage(),
-              })
+            onSave={(payload, onSaved) =>
+              settingsMutation.mutate(
+                {
+                  ...payload,
+                  systemLanguage: detectSystemLanguage(),
+                },
+                { onSuccess: (result) => onSaved?.(result.settings) },
+              )
             }
             ops={{
               runs,

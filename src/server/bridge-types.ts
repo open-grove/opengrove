@@ -309,6 +309,7 @@ export interface BridgeSettings {
   appUpdates: BridgeAppUpdateSettings;
   kernelProxy: BridgeKernelProxySettings;
   appStore?: BridgeAppStoreSettings;
+  agentRouterUrl?: string;
   voice: BridgeVoiceSettings;
   kernelPathOverrides: Record<string, BridgeKernelPathOverride>;
   /** Default Provider for a concrete model, independent of the selected Kernel. */

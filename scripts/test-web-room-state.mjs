@@ -108,6 +108,7 @@ await writeFile(
   import { MessageList } from ${JSON.stringify(messageListImport)};
   import { findActiveRoomChoiceForm, roomDisplayParts, RoomMessageStream as RawRoomMessageStream } from ${JSON.stringify(roomStreamImport)};
   import { ConfirmProvider } from ${JSON.stringify(confirmDialogImport)};
+  import { NetworkAuthorizationContext } from ${JSON.stringify(join(projectRoot, "web/src/components/rooms/use-network-authorization.tsx"))};
   import { RoomComposer } from ${JSON.stringify(roomComposerImport)};
   import { roomReplyPreview } from ${JSON.stringify(roomMessageModelImport)};
   import { resolveRoomSendTargets, sendRoomText } from ${JSON.stringify(roomMessageActionsImport)};
@@ -138,7 +139,7 @@ await writeFile(
   const RoomMessageStream = (props) => React.createElement(
     ConfirmProvider,
     null,
-    React.createElement(RawRoomMessageStream, props),
+    React.createElement(NetworkAuthorizationContext.Provider, { value: { connect: async () => { throw new Error("static rendering cannot authorize"); } } }, React.createElement(RawRoomMessageStream, props)),
   );
 
   assert.equal(formatUnreadCount(0), null, "zero unread items must not render a badge");

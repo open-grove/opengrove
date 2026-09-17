@@ -1252,7 +1252,10 @@ function entrySource() {
     import React from "react";
     import { createRoot } from "react-dom/client";
     import { MessageList } from ${JSON.stringify(messageListPath)};
-    import { RoomMessageStream } from ${JSON.stringify(roomMessageStreamPath)};
+    import { RoomMessageStream as RoomMessageStreamContent } from ${JSON.stringify(roomMessageStreamPath)};
+    import { NetworkAuthorizationProvider } from ${JSON.stringify(join(projectRoot, "web/src/components/rooms/network-authorization-provider.tsx"))};
+    import { ToastProvider } from ${JSON.stringify(join(projectRoot, "web/src/components/ui/toast.tsx"))};
+    const RoomMessageStream = (props) => <ToastProvider><NetworkAuthorizationProvider><RoomMessageStreamContent {...props} /></NetworkAuthorizationProvider></ToastProvider>;
     import { ConfirmProvider } from ${JSON.stringify(resolve(projectRoot, "web/src/components/ui/confirm-dialog.tsx"))};
     import { ThreadTextBlock } from ${JSON.stringify(messageMarkdownPath)};
     import { Disclosure } from ${JSON.stringify(resolve(projectRoot, "web/src/components/chat/disclosure.tsx"))};

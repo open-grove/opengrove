@@ -14,6 +14,7 @@ import {
   authorizeNetworkAccount,
   networkProblem,
   requireNetworkConnection,
+  isNetworkOAuthRequired,
   type NetworkRunAuthorization,
 } from "../../remote-agents/session.js";
 import { findRoomPmMember } from "../../room-delegation.js";
@@ -133,7 +134,14 @@ export async function handleCreateRoomMessageOperation(
   } else {
     for (const target of remoteTargets) {
       try {
-        networkAuthorization = (await requireNetworkConnection(context, target.remoteAgent)).authorization;
+        try {
+          networkAuthorization = (await requireNetworkConnection(context, target.remoteAgent)).authorization;
+        } catch (error) {
+          if (!isNetworkOAuthRequired(error)) throw error;
+          // Keep this explicitly requested message so Retry can open browser authorization.
+          // Product and per-run authority are still required; no background grant is issued.
+          networkAuthorization = await authorizeNetworkAccount(context);
+        }
       } catch (error) {
         const problem = networkProblem(error);
         sendJson(response, problem.status, { ok: false, error: problem.error });

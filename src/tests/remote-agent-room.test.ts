@@ -4,11 +4,36 @@ import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { startRemoteRoomHost } from "./fixtures/remote-room-host.js";
 import type { RoomChannelMember, RoomChannelMessage } from "../rooms/channel-store.js";
+import { remoteFailureText } from "../server/remote-agents/execution.js";
+
+test("remote authorization failures explain the required recovery instead of a generic connection failure", () => {
+  const cases = [
+    ["remote_router_not_registered", /not registered.*administrator/i],
+    ["remote_authorization_unavailable", /authorization service.*unavailable/i],
+    ["remote_authorization_failed", /authorization failed/i],
+    ["remote_authorization_expired", /authorization.*expired/i],
+    ["remote_authorization_canceled", /authorization.*canceled/i],
+    ["remote_session_unavailable", /communication credential.*unavailable/i],
+  ] as const;
+  for (const [code, message] of cases) assert.match(remoteFailureText(code, "en"), message);
+});
+
+test("an unregistered Router reports an operator action and does not leave an endless pending retry", async (t) => {
+  const { host, send } = await connectedHost(t);
+  host.fixture.config.sessionError = "remote_router_not_registered";
+  host.fixture.config.rejectCredentialOnce = true;
+  await send("unregistered", "hello");
+  const failed = await host.waitMessage("unregistered", (message) => message.status === "failed");
+  assert.match(failed.remoteTask?.statusText ?? "", /administrator.*configure/);
+  assert.equal(failed.remoteTask?.pending, false);
+  assert.equal(host.sendCalls().length, 0);
+});
 
 async function connectedHost(t: TestContext) {
   const host = await startRemoteRoomHost();
   t.after(() => host.dispose());
   await host.login("admin");
+  await host.connect();
   const { memberId } = await host.request<{ memberId: string }>("/network/contacts", { address: host.fixture.address });
   await host.request("/rooms/dm", { memberId, roomId: "conversation" });
   const send = (id: string, text: string, extra = {}, roomId = "conversation") =>
@@ -42,7 +67,7 @@ test("network configuration is read-only and account connection requires a verif
   assert.equal(restricted.status, 403);
   await host.login("admin");
   host.fixture.config.rejectExternalOnce = true;
-  const result = await host.request<{ account: { owner: string } }>("/network/account", {});
+  const result = await host.connect();
   assert.match(result.account.owner, /^@admin:/);
   assert.equal(host.fixture.exchanges.length, 2);
   assert.notEqual(host.fixture.exchanges[0]?.accessToken, host.fixture.exchanges[1]?.accessToken);
@@ -116,7 +141,7 @@ test("restart recovers known and uncertain tasks while the recipient directory i
   );
   host.fixture.tasks.detached!.status.state = "TASK_STATE_COMPLETED";
   host.fixture.tasks.detached!.artifacts = [{ parts: [{ text: "Finished while closed." }] }];
-  await host.request("/network/account", {});
+  await host.connect();
   assert.equal((await host.waitMessage("detached", (m) => m.status === "done")).text, "Finished while closed.");
   await send("uncertain", "RECOVER");
   const failed = await host.waitMessage("uncertain", (m) => m.status === "failed");
@@ -127,7 +152,7 @@ test("restart recovers known and uncertain tasks while the recipient directory i
   const snapshot = await host.request<{ members: RoomChannelMember[]; messages: RoomChannelMessage[] }>("/rooms");
   assert.equal(snapshot.members.find((m) => m.id === memberId)?.disabled, false);
   assert.equal(snapshot.messages.find((m) => m.id === "uncertain")?.remoteTask?.messageId, "uncertain");
-  await host.request("/network/account", {});
+  await host.connect();
   assert.equal((await host.waitMessage("uncertain", (m) => m.status === "done")).text, "reply:RECOVER");
   const calls = host.sendCalls().filter((c) => c.params.message?.messageId === "uncertain");
   assert.equal(calls.length, 2);
@@ -162,9 +187,9 @@ test("logout and account switching preserve pending work without allowing anothe
   await host.request("/rooms/conversation/messages/pending/cancel", {});
   await host.waitMessage("pending", (m) => m.remoteTask?.pending === false);
   const snapshot = JSON.stringify(await host.request("/rooms"));
-  assert.equal(snapshot.includes("ars_"), false);
+  assert.equal(snapshot.includes("matrix_"), false);
   assert.equal(snapshot.includes("product-admin-"), false);
-  assert.equal(readFileSync(join(host.directory, "state.sqlite")).includes(Buffer.from("ars_")), false);
+  assert.equal(readFileSync(join(host.directory, "state.sqlite")).includes(Buffer.from("matrix_")), false);
 });
 
 test("Stop abandons an unsent group message while offline and prevents later recovery", async (t) => {
@@ -172,6 +197,7 @@ test("Stop abandons an unsent group message while offline and prevents later rec
   await host.request("/rooms", { id: "offline", title: "Offline group", memberIds: [memberId] });
   host.fixture.config.routerUnavailable = true;
   await host.restart();
+  await host.authorize();
   await send("unsent", "Do not deliver after I stop.", {}, "offline");
   const failed = await host.waitMessage("unsent", (message) => message.status === "failed");
   assert.equal(failed.remoteTask?.pending, true);
@@ -184,7 +210,7 @@ test("Stop abandons an unsent group message while offline and prevents later rec
   host.fixture.config.routerUnavailable = false;
   await host.request("/auth/logout", {});
   await host.login("admin");
-  await host.request("/network/account", {});
+  await host.connect();
   await send("after-stop", "The connection works.");
   await host.waitMessage("after-stop", (message) => message.status === "done");
   assert.deepEqual(
@@ -207,7 +233,7 @@ test("Stop works after logout without borrowing the old account's Router session
   assert.equal(host.fixture.calls.filter((call) => call.method === "CancelTask").length, 0);
   assert.equal(host.fixture.tasks["logged-out"]?.status.state, "TASK_STATE_WORKING");
   await host.login("admin");
-  await host.request("/network/account", {});
+  await host.connect();
   await send("authorized-probe", "The connection works.");
   await host.waitMessage("authorized-probe", (message) => message.status === "done");
   const current = (
@@ -230,7 +256,7 @@ test("Stop never resends a submission whose receipt was lost", async (t) => {
   );
   assert.equal(stopped.message.remoteTask?.pending, false);
   assert.equal(stopped.message.remoteTask?.statusText, "Stopped retrying. The remote task may still be running.");
-  await host.request("/network/account", {});
+  await host.connect();
   await send("receipt-probe", "Still connected.");
   await host.waitMessage("receipt-probe", (message) => message.status === "done");
   assert.equal(host.sendCalls().filter((call) => call.params.message?.messageId === "lost-receipt").length, 1);
@@ -250,7 +276,7 @@ test("Stop leaves an unconfirmed remote cancellation stopped locally", async (t)
   assert.equal(stopped.message.remoteTask?.statusText, "Stopped retrying. The remote task may still be running.");
   assert.equal(host.fixture.tasks["slow-cancel"]?.status.state, "TASK_STATE_WORKING");
   assert.equal(host.fixture.calls.filter((call) => call.method === "CancelTask").length, 1);
-  await host.request("/network/account", {});
+  await host.connect();
   await send("cancel-probe", "Still connected.");
   await host.waitMessage("cancel-probe", (message) => message.status === "done");
   const current = (
@@ -269,6 +295,7 @@ test("Stop during connection prevents a late exchange from sending the queued me
   });
   try {
     await host.restart();
+    await host.authorize();
     const exchanges = host.fixture.exchanges.length;
     await send("connecting-stop", "Must never be delivered.", {}, "connecting");
     await host.waitMessage("connecting-stop", () => host.fixture.exchanges.length > exchanges);
@@ -304,6 +331,7 @@ test("a recovery already waiting for a connection cannot restart stopped work", 
       host.fixture.calls.filter((call) => call.method === "GetTask" && call.params.id === "task-recovering-stop")
         .length;
     const gets = getCalls();
+    await host.authorize();
     await host.request("/auth/session");
     await host.waitMessage("recovering-stop", () => host.fixture.exchanges.length > exchanges);
     const stopping = host.request<{ message: RoomChannelMessage }>(
@@ -359,10 +387,24 @@ test("renewal, changed sender and malformed responses have explicit outcomes", a
   }
   await host.restart();
   host.fixture.config.changedSender = true;
+  await host.authorize();
   const changed = await fetch(host.baseUrl + "/rooms/conversation/messages", {
     method: "POST",
     headers: { ...host.headers, cookie: host.cookies },
     body: JSON.stringify({ text: "do not send", targetIds: [memberId] }),
   });
   assert.equal(changed.status, 409);
+});
+
+test("a new direct message after restart offers OAuth Retry without losing its text", async (t) => {
+  const { host, send } = await connectedHost(t);
+  await host.restart();
+  await send("authorize-after-restart", "Keep this request while I authorize.");
+  const pending = await host.waitMessage("authorize-after-restart", (message) => message.status === "failed");
+  assert.equal(pending.remoteTask?.pending, true);
+  assert.equal(host.sendCalls().length, 0);
+  await host.connect();
+  await host.waitMessage("authorize-after-restart", (message) => message.status === "done");
+  assert.equal(host.sendCalls().length, 1);
+  assert.equal(host.sendCalls()[0]!.params.message?.messageId, "authorize-after-restart");
 });

@@ -5549,18 +5549,160 @@ export type NetworkAccountConnectResponses = {
   /**
    * Successful response.
    */
-  200: {
-    ok: true;
-    account: {
-      id: string;
-      owner: string;
-      address: string;
-      name: string;
-    };
-  };
+  200:
+    | {
+        ok: true;
+        account: {
+          id: string;
+          owner: string;
+          address: string;
+          name: string;
+        };
+      }
+    | {
+        ok: true;
+        authorizationUrl: string;
+        authorizationId: string;
+        expiresAt: number;
+      };
 };
 
 export type NetworkAccountConnectResponse = NetworkAccountConnectResponses[keyof NetworkAccountConnectResponses];
+
+export type NetworkAccountCancelData = {
+  body?: never;
+  path?: never;
+  query: {
+    authorizationId: string;
+  };
+  url: "/network/account/authorization";
+};
+
+export type NetworkAccountCancelErrors = {
+  /**
+   * Error response.
+   */
+  400: {
+    error: string;
+    ok?: false;
+    [key: string]: unknown;
+  };
+  /**
+   * Error response.
+   */
+  401: {
+    error: string;
+    ok?: false;
+    [key: string]: unknown;
+  };
+  /**
+   * Error response.
+   */
+  403: {
+    error: string;
+    ok?: false;
+    [key: string]: unknown;
+  };
+  /**
+   * Error response.
+   */
+  409: {
+    error: string;
+    ok?: false;
+    [key: string]: unknown;
+  };
+  /**
+   * Error response.
+   */
+  503: {
+    error: string;
+    ok?: false;
+    [key: string]: unknown;
+  };
+};
+
+export type NetworkAccountCancelError = NetworkAccountCancelErrors[keyof NetworkAccountCancelErrors];
+
+export type NetworkAccountCancelResponses = {
+  /**
+   * Successful response.
+   */
+  200: {
+    ok: true;
+  };
+};
+
+export type NetworkAccountCancelResponse = NetworkAccountCancelResponses[keyof NetworkAccountCancelResponses];
+
+export type NetworkAccountAuthorizationData = {
+  body?: never;
+  path?: never;
+  query: {
+    authorizationId: string;
+  };
+  url: "/network/account/authorization";
+};
+
+export type NetworkAccountAuthorizationErrors = {
+  /**
+   * Error response.
+   */
+  400: {
+    error: string;
+    ok?: false;
+    [key: string]: unknown;
+  };
+  /**
+   * Error response.
+   */
+  401: {
+    error: string;
+    ok?: false;
+    [key: string]: unknown;
+  };
+  /**
+   * Error response.
+   */
+  403: {
+    error: string;
+    ok?: false;
+    [key: string]: unknown;
+  };
+  /**
+   * Error response.
+   */
+  409: {
+    error: string;
+    ok?: false;
+    [key: string]: unknown;
+  };
+  /**
+   * Error response.
+   */
+  503: {
+    error: string;
+    ok?: false;
+    [key: string]: unknown;
+  };
+};
+
+export type NetworkAccountAuthorizationError =
+  NetworkAccountAuthorizationErrors[keyof NetworkAccountAuthorizationErrors];
+
+export type NetworkAccountAuthorizationResponses = {
+  /**
+   * Successful response.
+   */
+  200: {
+    ok: true;
+    status: "pending" | "authorized" | "canceled" | "failed";
+    expiresAt: number;
+    error?: string;
+  };
+};
+
+export type NetworkAccountAuthorizationResponse =
+  NetworkAccountAuthorizationResponses[keyof NetworkAccountAuthorizationResponses];
 
 export type NetworkContactAddData = {
   body: {
