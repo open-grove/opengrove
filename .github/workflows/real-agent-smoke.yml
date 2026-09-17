@@ -110,11 +110,20 @@ jobs:
           echo "SDK-bundled Claude Engine $actual_version selected"
 
       - name: Probe every required capability and verify current runtime identity
+        shell: bash
         env:
           CI_CASE_PLAN: ${{ toJSON(matrix) }}
           DEEPSEEK_API_KEY: ${{ matrix.provider.kind == 'deepseek' && secrets.DEEPSEEK_API_KEY || '' }}
           CODEX_AUTH_JSON: ${{ matrix.provider.kind == 'codex-native' && secrets.CODEX_AUTH_JSON || '' }}
-        run: node scripts/run-real-agent-ci-case.mjs
+        run: |
+          set -euo pipefail
+          if [ "${{ matrix.kernel }}" = claude-code ] && [ "$(id -u)" = 0 ]; then
+            # Claude rejects full-access tool execution as root. Keep setup as
+            # root, but run the isolated probe under the image's regular user.
+            install -d -o node -g node "$RUNNER_TEMP/real-agent-case"
+            exec runuser --user node -- node scripts/run-real-agent-ci-case.mjs
+          fi
+          exec node scripts/run-real-agent-ci-case.mjs
       - name: Upload verified sanitized evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

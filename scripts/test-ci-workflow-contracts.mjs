@@ -73,6 +73,10 @@ assert.ok(!nightly.jobs.harness && !nightly.jobs["browser-ui"] && !nightly.jobs[
 const live = workflow("real-agent-smoke.yml");
 const probeStep = live.jobs.smoke.steps.find((step) => step.env?.CI_CASE_PLAN);
 assert.ok(probeStep);
+assert.ok(
+  probeStep.run.includes("runuser --user node -- node scripts/run-real-agent-ci-case.mjs"),
+  "Claude's full-access probes must run as a regular user, matching its CLI permission contract",
+);
 assert.equal(live.jobs.smoke.environment, "opengrove-real-agent-test");
 assert.ok(probeStep.env.DEEPSEEK_API_KEY);
 assert.ok(

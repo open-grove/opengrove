@@ -646,23 +646,29 @@ async function collectProbeTurn(input: {
         if (seedError) throw new Error(`pi_compaction_seed_failed:${seedError}`);
       }
     }
-    if (input.probeCase.kind === "compact" && input.kernel === "claude-code") {
-      for (let seedIndex = 1; seedIndex <= 3; seedIndex += 1) {
+    if (input.probeCase.kind === "compact" && (input.kernel === "claude-code" || input.kernel === "kimi")) {
+      // Seed earlier turns directly: shell output can be truncated or retained,
+      // leaving too little removable history to verify native token reduction.
+      const seedCount = input.kernel === "kimi" ? 2 : 3;
+      const paddingLines = input.kernel === "kimi" ? 400 : 40;
+      for (let seedIndex = 1; seedIndex <= seedCount; seedIndex += 1) {
         const seedEvents: AgentEvent[] = [];
         const seedRequest: AgentTurnRequest = {
           ...request,
           runId: `${request.runId}_seed_${seedIndex}`,
           input: [
-            `OpenGrove Claude Code compaction seed turn ${seedIndex}.`,
+            `OpenGrove ${input.kernel} compaction seed turn ${seedIndex}.`,
             `Reference id: ${input.probeCase.marker}`,
-            "Keep this disposable history in the native session until the following /compact probe.\n".repeat(40),
+            "Keep this disposable history in the native session until the following /compact probe.\n".repeat(
+              paddingLines,
+            ),
             "Reply in one short sentence and include the reference id.",
           ].join("\n"),
           signal: controller.signal,
         };
         for await (const event of input.runtime.runTurn(seedRequest)) seedEvents.push(event);
         const seedError = firstErrorMessage(seedEvents);
-        if (seedError) throw new Error(`claude_compaction_seed_failed:${seedError}`);
+        if (seedError) throw new Error(`${input.kernel}_compaction_seed_failed:${seedError}`);
       }
     }
     for await (const event of input.runtime.runTurn({ ...request, signal: controller.signal })) {
@@ -1079,20 +1085,6 @@ function createProbeCase(kind: ProbeCaseKind, kernel: BridgeKernelId, options: R
 
   if (kind === "compact") {
     if (usesDirectCompactProbe(kernel)) {
-      if (kernel === "kimi") {
-        return {
-          kind,
-          marker,
-          accessMode: "full-access",
-          input: [
-            base,
-            "Use the native shell tool exactly once to run: python3 -c \"print('OG_COMPACTION_PADDING\\n' * 3000)\"",
-            "Read the output but do not repeat it in the answer; this disposable tool result creates native history that compaction can remove.",
-            "After the tool finishes, answer in one short sentence and include the reference id.",
-            "OpenGrove will then call the native compact API directly and verify that the context token count decreases.",
-          ].join("\n"),
-        };
-      }
       return {
         kind,
         marker,
