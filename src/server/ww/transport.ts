@@ -459,6 +459,7 @@ function mapWwError(
   result.status = mapped.status;
   result.code = code;
   result.publicCode = mapped.publicCode;
+  if (typeof input === "string" && /^[a-z][a-z0-9_]{0,127}$/.test(input)) result.remoteCode = input;
   result.requestId = stringValue(error.request_id) || envelopeRequestId;
   result.retryAfter = retryAfter;
   return result;

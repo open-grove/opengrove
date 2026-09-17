@@ -101,6 +101,15 @@ Host requests them from WW and renews OAuth directly with WW using a rotating
 refresh token. WW grants last at most 24 hours and require a live parent account
 session. Main product-token renewal remains with product auth.
 
+WW returns the native credential's remaining lifetime as `expiresIn` (seconds,
+at most 120), after provisioning completes. Host counts this from the request
+start using a monotonic clock and renews with thirty seconds remaining. It does
+not compare WW's `expiresAt` timestamp against the desktop clock. Network delay
+cannot extend the usable lifetime, and responses too late to use are revoked.
+The current Host and WW integration must be upgraded together for this response
+contract. Relative token lifetimes follow the approach of
+[RFC 6749 §5.1](https://www.rfc-editor.org/rfc/rfc6749#section-5.1).
+
 After Host restart, select **Retry** and complete browser authorization again.
 Existing contacts and pending task IDs stay in the ledger. Missing OAuth consent
 preserves accepted pending work; it does not authorize background work. Canceling

@@ -4,6 +4,30 @@ import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { startRemoteRoomHost } from "./fixtures/remote-room-host.js";
 import type { RoomChannelMember, RoomChannelMessage } from "../rooms/channel-store.js";
+import { remoteFailureText } from "../server/remote-agents/execution.js";
+
+test("remote authorization failures explain the required recovery instead of a generic connection failure", () => {
+  const cases = [
+    ["remote_router_not_registered", /not registered.*administrator/i],
+    ["remote_authorization_unavailable", /authorization service.*unavailable/i],
+    ["remote_authorization_failed", /authorization failed/i],
+    ["remote_authorization_expired", /authorization.*expired/i],
+    ["remote_authorization_canceled", /authorization.*canceled/i],
+    ["remote_session_unavailable", /communication credential.*unavailable/i],
+  ] as const;
+  for (const [code, message] of cases) assert.match(remoteFailureText(code, "en"), message);
+});
+
+test("an unregistered Router reports an operator action and does not leave an endless pending retry", async (t) => {
+  const { host, send } = await connectedHost(t);
+  host.fixture.config.sessionError = "remote_router_not_registered";
+  host.fixture.config.rejectCredentialOnce = true;
+  await send("unregistered", "hello");
+  const failed = await host.waitMessage("unregistered", (message) => message.status === "failed");
+  assert.match(failed.remoteTask?.statusText ?? "", /administrator.*configure/);
+  assert.equal(failed.remoteTask?.pending, false);
+  assert.equal(host.sendCalls().length, 0);
+});
 
 async function connectedHost(t: TestContext) {
   const host = await startRemoteRoomHost();

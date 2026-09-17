@@ -1,6 +1,6 @@
 import { useNetworkAuthorization } from "./use-network-authorization";
 import { useEffect, useState } from "react";
-import { OpenGroveClientError } from "@opengrove/client";
+import { remoteAgentErrorText } from "./remote-agent-errors";
 import { rawDiagnosticText, useI18n } from "../../i18n";
 import { openGroveClient } from "../../opengrove-client";
 import { Dialog, DialogContent, DialogTitle } from "../ui/dialog";
@@ -42,22 +42,7 @@ export function RemoteAgentDialog(props: {
       setName("");
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") return;
-      const code = error instanceof OpenGroveClientError ? (error.code ?? error.message) : undefined;
-      setError(
-        code === "not_authenticated" || code === "external_session_invalid"
-          ? t("remoteAgent.loginRequired")
-          : code === "remote_router_not_registered"
-            ? t("remoteAgent.routerNotRegistered")
-            : code === "external_role_required"
-              ? t("remoteAgent.adminRequired")
-              : code === "remote_not_configured" || code === "invalid_service_url"
-                ? t("remoteAgent.notConfigured")
-                : code === "invalid_agent_address"
-                  ? t("remoteAgent.invalidAddress")
-                  : code === "remote_account_changed"
-                    ? t("remoteAgent.accountChanged")
-                    : t("remoteAgent.addError"),
-      );
+      setError(remoteAgentErrorText(error, t, t("remoteAgent.addError")));
       return;
     } finally {
       setBusy(false);

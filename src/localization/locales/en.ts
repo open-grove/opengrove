@@ -2,6 +2,17 @@ export const EN_HOST_MESSAGES = {
   "remote.authorization_required":
     "This task is not authorized to use remote Agents. Check your administrator login and connection, then send a new message from Rooms.",
   "remote.oauth_required": "Select Retry to authorize this Router in your browser. Your request is saved.",
+  "remote.router_not_registered":
+    "This Router is not registered with the account service. Ask its administrator to configure it, then send a new message.",
+  "remote.authorization_unavailable":
+    "The authorization service is temporarily unavailable. Retry when it recovers; your request is saved.",
+  "remote.authorization_failed": "Authorization failed. Select Retry and authorize with the current OpenGrove account.",
+  "remote.authorization_expired": "The browser authorization attempt expired. Select Retry to start a new attempt.",
+  "remote.authorization_canceled": "Browser authorization was canceled. Select Retry when you want to authorize again.",
+  "remote.session_unavailable":
+    "A communication credential is temporarily unavailable. Retry when the account service recovers.",
+  "remote.account_provisioning_failed":
+    "The account service could not prepare your communication identity. Contact its administrator.",
   "remote.login_required": "Sign in to OpenGrove again, then select Retry to resume the saved request.",
   "remote.admin_required": "Remote Agents require an OpenGrove administrator account. The pending task is preserved.",
   "remote.account_changed":

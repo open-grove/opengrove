@@ -3,6 +3,108 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { parseTask, taskStatusText, taskText } from "@agent-router/sdk";
 import { AgentNetworkSessions } from "../server/remote-agents/client.js";
+import {
+  credentialServiceUrl,
+  issueNetworkSession,
+  revokeNetworkSession,
+} from "../server/remote-agents/credentials.js";
+
+test("development credential endpoints accept the same loopback hosts as Router settings", () => {
+  for (const host of ["127.0.0.1", "localhost", "[::1]"]) {
+    const url = `http://${host}:8080`;
+    assert.equal(credentialServiceUrl(url, true).origin, url);
+    assert.throws(() => credentialServiceUrl(url), /remote_authorization_unavailable/);
+  }
+  for (const url of ["http://example.com", "http://localhost.example", "http://192.168.1.1"]) {
+    assert.throws(() => credentialServiceUrl(url, true), /remote_authorization_unavailable/);
+  }
+});
+
+test("native logout uses the validated, normalized homeserver base URL", async () => {
+  const session = await issueNetworkSession({
+    accountIssuer: "https://accounts.example",
+    serviceUrl: "https://agents.example/_agent-router/v1",
+    accessToken: "oauth-credential",
+    signal: new AbortController().signal,
+    fetch: async () => Response.json({ ...sessionResponse("a"), homeserverUrl: "https://MATRIX.example:443/proxy/" }),
+  });
+  let logoutUrl: string | undefined;
+  await revokeNetworkSession(session, async (url) => {
+    logoutUrl = String(url);
+    return new Response(null, { status: 204 });
+  });
+  assert.equal(logoutUrl, "https://matrix.example/proxy/_matrix/client/v3/logout");
+});
+
+test("native credential renewal tolerates host clock skew without extending the two-minute lifetime", async (t) => {
+  const fixture = await startRemoteAgentService();
+  t.after(() => fixture.close());
+  for (const offset of [-300_000, -6000, 6000, 300_000]) {
+    await t.test(`host clock offset ${offset}ms`, async () => {
+      let now = Date.now() + offset;
+      let exchanges = 0;
+      const network = new AgentNetworkSessions({
+        baseUrl: "https://agents.example/_agent-router/v1",
+        provider: "opengrove",
+        allowLocalHTTP: true,
+        now: () => now,
+        fetch: async (url) => {
+          if (String(url).endsWith("/_matrix/client/v3/logout")) return new Response(null, { status: 204 });
+          exchanges++;
+          return Response.json({ ...sessionResponse("a"), expiresIn: 120 });
+        },
+      });
+      network.observe({ accountIssuer: fixture.baseUrl, accountUserId: "a" });
+      await fixture.oauth.authorize(await network.beginAuthorization(), "a");
+      await network.connect();
+      now += 89_000;
+      await network.connect();
+      assert.equal(exchanges, 1, "clock skew must not force early renewal");
+      now += 2000;
+      await network.connect();
+      assert.equal(exchanges, 2, "renew before the original credential expires");
+      await network.clear();
+    });
+  }
+});
+
+test("credential responses cannot extend their lifetime through network delay or invalid TTLs", async (t) => {
+  for (const expiresIn of [0, 121, "120", null]) {
+    await assert.rejects(
+      issueNetworkSession({
+        accountIssuer: "https://accounts.example",
+        serviceUrl: "https://agents.example/_agent-router/v1",
+        accessToken: "oauth-credential",
+        signal: new AbortController().signal,
+        fetch: async () => Response.json({ ...sessionResponse("a"), expiresIn }),
+      }),
+      /invalid_response/,
+    );
+  }
+  const fixture = await startRemoteAgentService();
+  t.after(() => fixture.close());
+  let now = 0;
+  let revocations = 0;
+  const network = new AgentNetworkSessions({
+    baseUrl: "https://agents.example/_agent-router/v1",
+    provider: "opengrove",
+    allowLocalHTTP: true,
+    now: () => now,
+    fetch: async (url) => {
+      if (String(url).endsWith("/_matrix/client/v3/logout")) {
+        revocations++;
+        return new Response(null, { status: 204 });
+      }
+      now += 35_000;
+      return Response.json({ ...sessionResponse("a"), expiresIn: 60 });
+    },
+  });
+  network.observe({ accountIssuer: fixture.baseUrl, accountUserId: "a" });
+  await fixture.oauth.authorize(await network.beginAuthorization(), "a");
+  await assert.rejects(network.connect(), /remote_session_unavailable/);
+  assert.equal(revocations, 1, "a delayed credential is revoked rather than installed");
+  await network.clear();
+});
 
 test("SDK progress and completion labels never become an Agent reply", () => {
   for (const state of ["TASK_STATE_SUBMITTED", "TASK_STATE_WORKING", "TASK_STATE_COMPLETED"]) {
@@ -65,6 +167,7 @@ test("SDK sessions bootstrap once, renew with the same account and reject a chan
         homeserverUrl: "https://matrix.example",
         accessToken: `matrix_${exchanges.length}`,
         expiresAt: new Date(now + 120_000).toISOString(),
+        expiresIn: 120,
         owner: "@owner-a:agents.example",
         agent: {
           id: senderId,
@@ -209,6 +312,7 @@ function sessionResponse(account: string) {
     homeserverUrl: "https://matrix.example",
     accessToken: `matrix_${account}`,
     expiresAt: new Date(Date.now() + 120_000).toISOString(),
+    expiresIn: 120,
     owner: `@${account}:agents.example`,
     agent: {
       id: `sender-${account}`,

@@ -4,6 +4,7 @@ import { rawDiagnosticText, useI18n } from "../../i18n";
 import { Dialog, DialogContent, DialogTitle } from "../ui/dialog";
 import { useToast } from "../ui/toast";
 import { NetworkAuthorizationContext } from "./use-network-authorization";
+import { remoteAgentErrorText } from "./remote-agent-errors";
 import styles from "./remote-agent-panel.module.css";
 
 interface PendingAuthorization {
@@ -109,7 +110,11 @@ export function NetworkAuthorizationProvider({ children }: { children: ReactNode
           toast({
             kind: "error",
             title: t("remoteAgent.authorizationError"),
-            description: rawDiagnosticText(error instanceof Error ? error.message : String(error)),
+            description: remoteAgentErrorText(
+              error,
+              t,
+              rawDiagnosticText(error instanceof Error ? error.message : String(error)),
+            ),
           });
         throw error;
       } finally {

@@ -26,6 +26,14 @@ export const EN = {
   "remoteAgent.addressExample": "owner/agent@agents.example",
   "remoteAgent.remoteExecution": "Model and workspace managed remotely",
   "remoteAgent.authorizationError": "Remote Agent authorization did not complete. Please try again.",
+  "remoteAgent.authorizationUnavailable":
+    "The authorization service is temporarily unavailable. Try again when it recovers.",
+  "remoteAgent.authorizationExpired": "This authorization attempt expired. Start a new authorization attempt.",
+  "remoteAgent.authorizationCanceled": "Authorization was canceled. You can start again when ready.",
+  "remoteAgent.sessionUnavailable":
+    "A communication credential is temporarily unavailable. Try again when the account service recovers.",
+  "remoteAgent.accountProvisioningFailed":
+    "The account service could not prepare your communication identity. Contact its administrator.",
   "remoteAgent.cancelAuthorizationError":
     "Cancellation has not succeeded; authorization is still pending. Try canceling again.",
   "remoteAgent.authorizeTitle": "Authorize cloud agents",

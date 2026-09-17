@@ -12,6 +12,39 @@ import { disposeBridgeKernelWorkers } from "../server/kernel-lifecycle.js";
 import { handleSettingsRoute } from "../server/routes/settings.js";
 import { networkSessionsFor } from "../server/remote-agents/session.js";
 
+test("a committed runtime rebuild advances migration versions with its settings and state", async (t) => {
+  const directory = mkdtempSync(join(tmpdir(), "opengrove-settings-migrations-"));
+  const state = createBridgeState({ statePath: join(directory, "state.sqlite") });
+  t.after(async () => {
+    await disposeBridgeKernelWorkers(state);
+    await state.store.close?.();
+    rmSync(directory, { recursive: true, force: true });
+  });
+  state.settings = { ...state.settings, employeeModelMigrationVersion: 0, nativeApprovalPresetsVersion: 0 };
+  state.app.rooms.setEmployeeMigrationVersions({ models: 0, approvalPresets: 0 });
+  state.store.saveFrom(state.app);
+  saveBridgeSettings(state);
+  let status: number | undefined;
+  await handleSettingsRoute({
+    request: { method: "PATCH" } as never,
+    response: {} as never,
+    url: new URL("http://opengrove.test/settings"),
+    state,
+    readJsonBody: async () => ({ kernelProxy: { ...state.settings.kernelProxy, noProxy: "migration-test.invalid" } }),
+    sendJson: (_response, code) => {
+      status = code;
+    },
+  });
+  assert.equal(status, 200);
+  assert.equal(state.settings.employeeModelMigrationVersion, 1);
+  assert.equal(state.settings.nativeApprovalPresetsVersion, 4);
+  const saved = JSON.parse(readFileSync(bridgeSettingsPath(state), "utf8"));
+  assert.equal(saved.employeeModelMigrationVersion, 1);
+  assert.equal(saved.nativeApprovalPresetsVersion, 4);
+  state.store.loadInto(state.app);
+  assert.deepEqual(state.app.rooms.getEmployeeMigrationVersions(), { models: 1, approvalPresets: 4 });
+});
+
 for (const restartRequired of [false, true]) {
   test(`a committed settings change reports later state persistence failure, restart=${restartRequired}`, async (t) => {
     const directory = mkdtempSync(join(tmpdir(), "opengrove-settings-commit-"));
@@ -81,7 +114,14 @@ for (const restartRequired of [false, true]) {
       await state.store.close?.();
       rmSync(directory, { recursive: true, force: true });
     });
-    state.settings = { ...state.settings, languagePreference: "zh-CN", agentRouterUrl: "https://old.example" };
+    state.settings = {
+      ...state.settings,
+      languagePreference: "zh-CN",
+      agentRouterUrl: "https://old.example",
+      employeeModelMigrationVersion: 0,
+      nativeApprovalPresetsVersion: 0,
+    };
+    state.app.rooms.setEmployeeMigrationVersions({ models: 0, approvalPresets: 0 });
     const oldNetwork = networkSessionsFor(state);
     state.app.rooms.createRoom({
       id: "numbered",
@@ -123,6 +163,8 @@ for (const restartRequired of [false, true]) {
     }
     assert.ok(rejected || responses.some((status) => status >= 400));
     assert.equal(state.settings.languagePreference, "zh-CN");
+    assert.equal(state.settings.employeeModelMigrationVersion, 0);
+    assert.equal(state.settings.nativeApprovalPresetsVersion, 0);
     assert.equal(state.settings.agentRouterUrl, "https://old.example");
     assert.equal(networkSessionsFor(state), oldNetwork, "a rejected change keeps the previous service session");
     assert.equal(state.app.rooms.getRoom("numbered")?.title, "新群聊 6");

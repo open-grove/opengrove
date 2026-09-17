@@ -46,6 +46,7 @@ try {
       }
       if (String(url).endsWith("/network/account") && init?.method === "POST") {
         window.__connects = (window.__connects ?? 0) + 1;
+        if (window.__connectError) return Response.json({error:window.__connectError},{status:400});
         return window.__oauthPending
           ? Response.json({ok:true,authorizationUrl:"https://identity.example/oauth/authorize?state=fixture",authorizationId:"fixture",expiresAt:Date.now()+600000})
           : Response.json({ok:true,account:{id:"sender",owner:"owner",name:"client",address:"owner/client@agents.example"}});
@@ -264,6 +265,14 @@ try {
     });
     await expect(page.getByRole("heading", { name: "授权云端员工", exact: true })).toHaveCount(0);
     assert.equal(await page.evaluate(() => window.__connects), 2, "connect once after consent completes");
+    await page.evaluate(() => {
+      window.__connectError = "remote_router_not_registered";
+      window.__showPendingFailure();
+    });
+    await page.getByRole("button", { name: "重试", exact: true }).click();
+    await expect(page.getByRole("alert").filter({ hasText: "暂时无法重连" })).toContainText(
+      "账号服务尚未登记这个 Router，请联系它的管理员。",
+    );
     assert.deepEqual(errors, []);
   } finally {
     await browser.close();

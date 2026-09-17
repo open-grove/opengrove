@@ -3,6 +3,13 @@ import type { EN_HOST_MESSAGES } from "./en.js";
 export const ZH_CN_HOST_MESSAGES = {
   "remote.authorization_required": "此任务未获准调用云端员工。请检查管理员登录和网络连接，再在对话中重新发送消息。",
   "remote.oauth_required": "请点击重试，在浏览器中授权连接云端员工。请求已保存。",
+  "remote.router_not_registered": "此 Router 尚未在账号服务注册。请联系管理员完成配置后重新发送消息。",
+  "remote.authorization_unavailable": "授权服务暂时不可用，请在服务恢复后重试。请求已保存。",
+  "remote.authorization_failed": "授权失败。请点击重试，使用当前 OpenGrove 账号重新授权。",
+  "remote.authorization_expired": "本次浏览器授权已超时，请点击重试重新发起授权。",
+  "remote.authorization_canceled": "浏览器授权已取消，需要连接时请点击重试。",
+  "remote.session_unavailable": "暂时无法取得通信凭据，请在账号服务恢复后重试。",
+  "remote.account_provisioning_failed": "账号服务未能创建通信身份，请联系它的管理员。",
   "remote.login_required": "请重新登录 OpenGrove，然后点击重试以恢复已保存的请求。",
   "remote.admin_required": "云端员工需要 OpenGrove 管理员账号，待恢复任务已保留。",
   "remote.account_changed": "此对话属于另一个 OpenGrove 账号，请登录原账号后恢复。",

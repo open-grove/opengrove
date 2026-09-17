@@ -37,7 +37,7 @@ export class AgentNetworkSessions {
   private readonly now: () => number;
   constructor(private readonly options: Omit<ClientOptions, "accessToken"> & { provider: string; now?: () => number }) {
     this.bootstrap = new AgentRouterClient({ ...options, accessToken: "" });
-    this.now = options.now ?? Date.now;
+    this.now = options.now ?? (() => performance.now());
   }
 
   get generation(): number {
@@ -105,7 +105,7 @@ export class AgentNetworkSessions {
 
   private async session(account: AccountSession): Promise<NativeNetworkSession> {
     this.assertActive(account);
-    if (account.network && Date.parse(account.network.expiresAt) > this.now() + 30_000) return account.network;
+    if (account.network && account.network.usableUntil > this.now() + 30_000) return account.network;
     if (!account.exchange) {
       account.exchange = account.oauth
         .accessToken()
@@ -125,7 +125,10 @@ export class AgentNetworkSessions {
             await this.revoke(session);
             throw new AgentRouterError("remote_account_changed", 409);
           }
-          if (Date.parse(session.expiresAt) <= this.now() + 30_000) throw new AgentRouterError("invalid_response");
+          if (session.usableUntil <= this.now() + 30_000) {
+            await this.revoke(session);
+            throw new AgentRouterError("remote_session_unavailable", 503);
+          }
           if (
             account.network &&
             (account.network.owner !== session.owner || account.network.agent.id !== session.agent.id)
@@ -203,7 +206,7 @@ export class AgentNetworkSessions {
             if (attempt > 0 || !(error instanceof AgentRouterError) || error.code !== "account_session_invalid")
               throw error;
             this.assertActive(account);
-            if (account.network) account.network = { ...account.network, expiresAt: new Date(0).toISOString() };
+            if (account.network) account.network = { ...account.network, usableUntil: 0 };
             await this.session(account);
           }
         }

@@ -525,6 +525,16 @@ export async function handleSettingsRoute(options: {
       // Validate the new runtime without committing derived state or events.
       recreateBridgeApp(state, { agentStateSnapshot: previousSnapshot, deferPersistedStateSave: true });
       clearRemovedProviderEmployeeOverrides(state, removedProviderIds);
+      // The deferred rebuild records migrations with its Employees. Commit the
+      // matching settings metadata only after validation, together with the draft.
+      const migrations = state.app.rooms.getEmployeeMigrationVersions();
+      if (migrations) {
+        state.settings = {
+          ...state.settings,
+          employeeModelMigrationVersion: migrations.models,
+          nativeApprovalPresetsVersion: migrations.approvalPresets,
+        };
+      }
     }
     // Atomic settings replacement is the commit point for both save paths.
     saveBridgeSettings(state);

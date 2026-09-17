@@ -26,6 +26,7 @@ export async function startRemoteAgentService() {
     exchangeGate: undefined as Promise<void> | undefined,
     routerUnavailable: false,
     rejectExchange: false,
+    sessionError: "",
     rejectExternalOnce: false,
     changedSender: false,
     rejectCredentialOnce: false,
@@ -47,6 +48,7 @@ export async function startRemoteAgentService() {
       homeserverUrl: baseUrl,
       accessToken,
       expiresAt: new Date(Date.now() + 120_000).toISOString(),
+      expiresIn: 120,
       owner: `@${owner}:${host}`,
       agent: {
         id: sender,
@@ -112,6 +114,7 @@ export async function startRemoteAgentService() {
       return send(200, { policyKey: "standard", assignmentSource: "default", apps: [] });
     if (path === "/v1/app-store/packages") return send(200, { packages: [] });
     if (path === "/v1/network/sessions") {
+      if (config.sessionError) return send(400, { error: config.sessionError });
       const target = nativeServices.get(body.serviceUrl!);
       if (!target) return send(400, { error: "remote_router_not_registered" });
       if (target.unavailable()) return send(503, { error: "remote_session_unavailable" });

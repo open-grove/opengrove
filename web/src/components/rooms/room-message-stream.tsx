@@ -1,4 +1,5 @@
 import { useNetworkAuthorization } from "./use-network-authorization";
+import { remoteAgentErrorText } from "./remote-agent-errors";
 import {
   Fragment,
   memo,
@@ -513,7 +514,11 @@ const RoomMessageItem = memo(function RoomMessageItem(props: {
                         if (error instanceof DOMException && error.name === "AbortError") return;
                         toast?.({
                           title: t("remoteAgent.reconnectError"),
-                          description: rawDiagnosticText(error instanceof Error ? error.message : String(error)),
+                          description: remoteAgentErrorText(
+                            error,
+                            t,
+                            rawDiagnosticText(error instanceof Error ? error.message : String(error)),
+                          ),
                           kind: "error",
                         });
                       } finally {

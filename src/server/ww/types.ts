@@ -15,6 +15,7 @@ export interface WwApiError extends Error {
   status: number;
   code?: number;
   publicCode: string;
+  remoteCode?: string;
   requestId?: string;
   retryAfter?: number;
 }
