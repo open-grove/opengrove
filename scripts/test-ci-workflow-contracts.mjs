@@ -221,7 +221,6 @@ function planRealAgentMatrix(overrides) {
         AUTO_RUN_ENABLED: "false",
         DISPATCH_KERNEL: "",
         DISPATCH_VERSION: "",
-        DISPATCH_MODE: "",
         IS_FORK: "false",
         PR_AUTHOR: "maintainer",
         ...overrides,
@@ -244,13 +243,12 @@ function planRealAgentMatrix(overrides) {
 assert.deepEqual(planRealAgentMatrix({}), { run: "false", matrix: { include: [] } });
 assert.deepEqual(
   planRealAgentMatrix({ AUTO_RUN_ENABLED: "true" }).matrix.include.map((entry) => entry.case),
-  ["claude-sdk", "claude-cli", "opencode"],
+  ["claude-sdk", "opencode"],
   "manual Nightly should use the opted-in full matrix without dispatch-specific inputs",
 );
 const manualPlan = planRealAgentMatrix({
   DISPATCH_KERNEL: "claude-code",
   DISPATCH_VERSION: "2.1.220",
-  DISPATCH_MODE: "sdk",
 });
 assert.equal(manualPlan.run, "true");
 assert.deepEqual(manualPlan.matrix.include, [
@@ -259,7 +257,6 @@ assert.deepEqual(manualPlan.matrix.include, [
     kernel: "claude-code",
     image: "claude-code",
     engine_version: "2.1.220",
-    runtime_mode: "sdk",
     capabilities: "message.streamText,turn.lifecycle,session.lifecycle,diagnostics.usage,planning.plan",
   },
 ]);

@@ -26,6 +26,10 @@ files under [`src/kernel/adapters/`](../../src/kernel/adapters/).
 
 ## Choose the narrowest transport
 
+Claude runs exclusively through the Agent SDK. The old `OPENGROVE_CLAUDE_CODE_RUNTIME`
+switch has no effect. Engine discovery and `OPENGROVE_CLAUDE_CLI_PATH` remain available
+because the SDK launches the Claude Engine and native Login commands use that executable.
+
 Prefer the Kernel's supported programmatic boundary:
 
 | Shape | Current reference |
@@ -139,6 +143,120 @@ Support is adapter-specific:
   one. Do not claim elicitation support for a text-only fallback.
 - Rejection, timeout, cancellation, and process exit must all terminate without
   leaving a pending run or approval.
+
+## Three permission presets
+
+Employees (including the global PM and App-scoped PM bindings) and chat share exactly three
+choices: **Ask for approval** (`default`), **Help me approve** (`auto-review`), and **Full access**
+(`full-access`). Presets do not change App scope, Workspace, tool visibility, or administrator
+identity. Kernels approve native tools; Host tools continue to enforce App policy.
+
+| Kernel | Ask for approval | Help me approve | Full access |
+| --- | --- | --- | --- |
+| Codex | `workspace-write` + `on-request` + reviewer `user` | Same sandbox and policy; reviewer `auto_review` | `danger-full-access` + `never` |
+| Claude Agent SDK | `default` | `auto`; await native `setPermissionMode` before sending user input | `bypassPermissions` + `allowDangerouslySkipPermissions` |
+| Hermes | `approvals.mode: manual` | `approvals.mode: smart` | `HERMES_YOLO_MODE=1`; isolated configuration also sets `approvals.mode: off` |
+| OpenCode | Allow reads, ask for other operations, retain explicit deny rules | Unavailable | Allow ordinary operations, retaining explicit denials in supplied configuration |
+| Kimi | Human ACP approval | Unavailable | Select `allow_once` for ordinary ACP permission requests; questions still need an answer |
+| Pi | Host policy and native tool hooks | Unavailable | Allow ordinary tools, retaining explicit denials |
+| OpenClaw | Gateway-managed | Unavailable | Unavailable until per-employee control is connected |
+
+Both restricted Codex presets disable sandbox network access. Outside-Workspace writes and
+network escalation use native approval. Calls that omit `accessMode` retain the existing configured
+approval/sandbox policy, with `danger-full-access` / `never` as the unconfigured fallback. For omitted
+presets, network access remains owned by native configuration: neither thread config nor turn config
+overrides it. Claude calls without a preset retain the configured mode, falling back to
+`bypassPermissions`. These API fallbacks are separate from the product's explicit default selections.
+Neither `on-failure` nor Claude `acceptEdits` is auto review.
+OpenGrove treats Auto as a Claude SDK permission preset for its supported model roster, just as it does
+for Codex and Hermes. The picker, Employee defaults, migrations and API validation do not consult model
+IDs or cached support flags. Verify supported Claude models through the shipping SDK and Provider route
+during [release acceptance](../development/RELEASE_PROCESS.md#claude-auto-acceptance).
+Execution sets the requested native permission mode; this acknowledgement is not a capability probe.
+If Auto activation fails or the reported mode differs from `auto`, the
+Adapter asks the same native session to switch to `default`. Only an acknowledged Ask transition emits
+a visible warning containing the reason and continues the turn; it does not replay the user's prompt.
+The Host saves Ask for the affected Employee and matching shared bindings without creating user-override
+markers; the chat picker and matching queued messages also switch to Ask. A later user selection takes
+priority over recovery from an older turn. Cancellation never initiates fallback. If Ask cannot be enabled,
+the turn fails with both causes instead of claiming recovery. Model metadata refresh starts before activation
+and remains best-effort without blocking user input on a catalog response. Claude execution uses the Agent SDK.
+
+An actual activation failure (for example, native settings disabling Auto) is reported through the
+runtime recovery above. It does not change the product's model support policy. The configured Claude
+directory still owns native settings and the model/reasoning catalog cache; that cache has no authority
+over permission selection or Employee defaults.
+
+Hermes separates processes by environment and preset. Generated configuration copies preserve user
+denials and auxiliary reviewer settings. Full access uses the native YOLO switch, including for
+native gates that do not consult `approvals.mode`; native hard blocks and explicit denials still apply.
+Ask and auto review verify the effective mode through the public `config.get` RPC (desktop contract
+v3+), including for custom gateway commands. An unavailable RPC or mismatched mode stops before
+submitting a prompt and explains how to update Hermes or align its configuration.
+
+Without a Provider override, an explicit `HERMES_HOME` / `OPENGROVE_HERMES_HOME`, or
+`OPENGROVE_HERMES_ISOLATED_HOME=0`, uses the native directory and retains its data. That directory's
+approval configuration must match the requested Ask/Auto preset; OpenGrove does not rewrite it.
+`OPENGROVE_HERMES_ISOLATED_HOME=1` requests a configuration copy instead. Provider overrides always
+use a copy. These copies are temporary: initialization failures, gateway exit and runtime shutdown
+remove them. They do not provide cross-process native session persistence. Startup also removes owned
+temporary homes whose Host and recorded gateway processes have exited; unknown ownership or an uncertain
+spawn is retained. Native homes are read by Hermes itself, without an extra Host YAML gate. Omitted presets
+retain native approval and YOLO settings, including in configuration copies. When a copy is needed, invalid
+YAML and unreadable credentials produce actionable errors without echoing configuration contents. Approval and question
+bridges support both desktop contract v7 server requests and earlier notification-based requests.
+Unanswered approvals default to rejection after five minutes; cancellation, turn completion and gateway
+exit settle pending requests. Questions remain human decisions and cancel when their turn ends.
+
+After `npm run build:server`, run `node scripts/certify-hermes-permissions.mjs [hermes-command]` to verify
+the three native configuration modes, Full access, manual rejection and explicit deny rules with disposable
+homes. This contract check makes no model requests and executes no tool commands; it does not assess
+the smart reviewer's model decisions. These permissions were verified against Hermes `v2026.9.7`.
+
+The global PM and its App-scoped bindings default to **Help me approve**, retaining Claude Agent SDK
+and DeepSeek v4 Flash. This explicit product default does not depend on the local model cache;
+before submitting user input, the native session must acknowledge Auto or the Ask fallback. Other new Employees and chats
+prefer **Help me approve** for Codex, Hermes and Claude SDK, independently of model metadata.
+Pi, Kimi and OpenCode start
+with Ask for approval. OpenClaw remains Gateway-managed; remote permissions belong to the remote owner.
+
+Explicit user choices survive ordinary seed synchronization and take priority over App defaults;
+compatible App declarations take priority over product defaults. App version activation and the
+explicit restore-App-defaults action can reapply the App's configuration.
+App default snapshots remain separate from user selections. Restoring defaults reads the App declaration;
+an omitted permission resolves to the product default instead of the user's last choice. Ordinary synchronization
+also preserves saved permissions for all product Employees, including PM, and App Employees whose App declares
+no permission mode or an unchanged declaration. System permission migrations never create user-override
+markers. A changed App declaration can still supply its default. Refreshing or losing Claude model
+metadata cannot change either saved permissions or new Employee defaults. Unsupported kernel combinations are still repaired.
+A one-time v4 migration raises existing local Employees from Ask for approval to Help me approve
+where Auto is supported, including an explicitly saved Ask choice. Auto and Full access stay unchanged.
+It runs after legacy model identifiers are resolved, backs up changed state and records completion
+atomically with Employees in SQLite/JSON state. Missing or quarantined settings cannot skip an unapplied
+migration or repeat a completed one. Older state uses its saved settings versions until this record is established.
+Missing modes and unsupported combinations are still normalized. Subsequent permission changes,
+including switching back to Ask, survive restarts; PM's App-scoped bindings follow its global definition.
+Stored chat choices are read without being rewritten;
+an unset chat choice resolves against the selected kernel.
+
+Unrecognized permission values in App declarations or stored Employee records normalize to Ask;
+only an omitted value follows the product default. Writable HTTP fields retain their enum validation.
+
+Unsupported Kernel presets are disabled in the picker and rejected at execution. Employee saves and API
+writes use that same Kernel rule. Changing a Claude model or Provider never invalidates Auto or blocks
+an edit. Unrelated Employee fields save independently of pending permission edits.
+Clearing an API
+permission with `null` follows App/product defaults and removes its user-override marker.
+Within an Employee editing session, each Kernel remembers its model, Provider, reasoning and permission
+selection. Returning to a Kernel restores those selections, including an explicit Ask or Full choice.
+For a Kernel not yet visited, an incompatible Auto selection changes to Ask and displays a notice.
+Employee creation, updates, App imports and seed synchronization apply the same compatibility rule.
+Publishing rejects unsupported Kernel/preset combinations. Claude Auto declarations do not depend on a local cache.
+
+Parameter contract tests: [`runtime-access-modes.test.ts`](../../src/tests/runtime-access-modes.test.ts).
+Protocol references: [Codex desktop presets](https://learn.chatgpt.com/docs/sandboxing),
+[Claude SDK permissions](https://code.claude.com/docs/en/agent-sdk/permissions),
+[Hermes approval implementation](https://github.com/NousResearch/hermes-agent/blob/main/tools/approval.py).
 
 ## Diagnostics and privacy
 

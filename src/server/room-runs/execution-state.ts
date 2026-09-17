@@ -337,6 +337,7 @@ function roomExecutionStateKey(
 ): string {
   return JSON.stringify({
     kernel: target.kernel,
+    accessMode: target.accessMode ?? "default",
     providerId,
     ...(runtimeModel ? { runtimeModel } : {}),
     workspaceRoot,

@@ -1,3 +1,9 @@
+import {
+  migrateNativeApprovalPresetsV4,
+  NATIVE_APPROVAL_PRESETS_VERSION,
+} from "./migrations/native-approval-presets-v4.js";
+import { normalizeEmployeeAccessMode } from "./employee-access-mode.js";
+import { cleanupAbandonedHermesHomes } from "../runtime/hermes/home-ownership.js";
 import { existsSync, readdirSync, renameSync, statSync, writeFileSync } from "node:fs";
 import { basename, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -57,6 +63,7 @@ import {
 } from "./app-version-activation-journal.js";
 import { MountedAppVersionStateStore } from "./app-version-state.js";
 import {
+  employeeManifestDefaults,
   mountedAppDefaultEmployees,
   mountedAppMemberSlug,
   providerOnlyUserOverrides,
@@ -140,6 +147,7 @@ export function createBridgeState(
   options: LocalBridgeServerOptions,
   authMode: HostRuntimeAuthMode = "bridge-token",
 ): BridgeState {
+  cleanupAbandonedHermesHomes();
   const profile = normalizeOpenGroveProfile(options.profile, "local");
   let bridgeApp: BridgeState["app"] | undefined;
   const state: BridgeState = {
@@ -801,14 +809,31 @@ export function recreateBridgeApp(state: BridgeState, options: RecreateBridgeApp
     loadedState,
     mountedAppDefaultEmployees({ ...state.settings, mountedApps }),
   );
+  // Database completion wins over replaceable settings. Older databases use the
+  // legacy settings record once, then persist completion with the Employee rows.
+  const employeeMigrationVersions = state.app.rooms.getEmployeeMigrationVersions();
   const needsEmployeeModelMigration =
-    state.settings.employeeModelMigrationVersion < CURRENT_EMPLOYEE_MODEL_MIGRATION_VERSION;
+    (employeeMigrationVersions?.models ?? state.settings.employeeModelMigrationVersion) <
+    CURRENT_EMPLOYEE_MODEL_MIGRATION_VERSION;
   const legacyNativeEmployeeModelChanged = needsEmployeeModelMigration
     ? migrateLegacyNativeEmployeeModelsV1(state.app.rooms, {
         beforeApply: loadedState
           ? () => backupLocalStateBeforeMigration(state.store.path, loadedState, "native-employee-model-v1")
           : undefined,
       })
+    : false;
+  // Resolve legacy model IDs before deciding which Employees support native Auto.
+  // Apply before seed sync so migrated choices, including unmarked Full, survive it.
+  const needsApprovalMigration =
+    (employeeMigrationVersions?.approvalPresets ?? state.settings.nativeApprovalPresetsVersion) <
+    NATIVE_APPROVAL_PRESETS_VERSION;
+  const approvalMigrationChanged = needsApprovalMigration
+    ? migrateNativeApprovalPresetsV4(
+        state.app.rooms,
+        loadedState
+          ? () => backupLocalStateBeforeMigration(state.store.path, loadedState, "native-approval-presets-v4")
+          : undefined,
+      )
     : false;
   const routineAppCommandMigration = migrateRoutineAppCommandIdsV1(state, {
     beforeApply: loadedState
@@ -858,6 +883,7 @@ export function recreateBridgeApp(state: BridgeState, options: RecreateBridgeApp
       ? {
           ...existing,
           userOverrides: providerOnlyUserOverrides(existing),
+          accessMode: undefined,
         }
       : existing;
     const merged = syncMountedAppSeedMember(authoritativeExisting, member);
@@ -916,10 +942,17 @@ export function recreateBridgeApp(state: BridgeState, options: RecreateBridgeApp
     state.app.rooms.upsertMember(repaired, { emitEvent: true });
     runtimeModelRepairChanged = true;
   }
+  const employeeMigrationRecordChanged =
+    !employeeMigrationVersions || needsEmployeeModelMigration || needsApprovalMigration;
+  state.app.rooms.setEmployeeMigrationVersions({
+    models: Math.max(employeeMigrationVersions?.models ?? 0, CURRENT_EMPLOYEE_MODEL_MIGRATION_VERSION),
+    approvalPresets: Math.max(employeeMigrationVersions?.approvalPresets ?? 0, NATIVE_APPROVAL_PRESETS_VERSION),
+  });
   if (
     !options.deferPersistedStateSave &&
     rootState === state &&
-    (!hadRooms ||
+    (employeeMigrationRecordChanged ||
+      !hadRooms ||
       unscopedMigration?.changed ||
       routineAppCommandMigration.changed ||
       roomSeedChanged ||
@@ -928,15 +961,22 @@ export function recreateBridgeApp(state: BridgeState, options: RecreateBridgeApp
       appGroupConsistencyChanged ||
       numberedGroupPresentationChanged ||
       runtimeModelRepairChanged ||
+      approvalMigrationChanged ||
       legacyNativeEmployeeModelChanged ||
       legacyEmployeeProviderRouteChanged)
   ) {
     state.store.saveFrom(state.app);
   }
-  if (!options.deferPersistedStateSave && rootState === state && needsEmployeeModelMigration) {
+  if (
+    !options.deferPersistedStateSave &&
+    rootState === state &&
+    (state.settings.employeeModelMigrationVersion !== CURRENT_EMPLOYEE_MODEL_MIGRATION_VERSION ||
+      state.settings.nativeApprovalPresetsVersion !== NATIVE_APPROVAL_PRESETS_VERSION)
+  ) {
     state.settings = {
       ...state.settings,
       employeeModelMigrationVersion: CURRENT_EMPLOYEE_MODEL_MIGRATION_VERSION,
+      nativeApprovalPresetsVersion: NATIVE_APPROVAL_PRESETS_VERSION,
     };
     saveBridgeSettings(state);
   }
@@ -1063,7 +1103,8 @@ function backupLocalStateBeforeMigration(
     | "app-member-identities-v1"
     | "kernel-native-resume-v1"
     | "routine-app-command-id-v1"
-    | "native-employee-model-v1",
+    | "native-employee-model-v1"
+    | "native-approval-presets-v4",
 ): void {
   if (!statePath) return;
   const backupPath = `${statePath}.before-${step}.json`;
@@ -1203,6 +1244,18 @@ export function syncMountedAppSeedMember(existing: RoomChannelMember, seed: Room
   const overrides = new Set(userOverrides);
   const keep = <K extends keyof RoomChannelMember>(field: K): RoomChannelMember[K] =>
     overrides.has(field) ? existing[field] : seed[field];
+  // Re-reading an unchanged declaration must not undo a system migration or a
+  // saved selection. A changed declaration still owns the default unless the
+  // user overrode it. Authoritative activation clears the saved selection first.
+  const accessMode =
+    !overrides.has("accessMode") &&
+    seed.appId &&
+    seed.manifestDefaults &&
+    (seed.manifestDefaults.accessMode === undefined ||
+      !existing.manifestDefaults ||
+      existing.manifestDefaults.accessMode === seed.manifestDefaults.accessMode)
+      ? (existing.accessMode ?? seed.accessMode)
+      : keep("accessMode");
   return {
     ...seed,
     name: keep("name"),
@@ -1218,7 +1271,7 @@ export function syncMountedAppSeedMember(existing: RoomChannelMember, seed: Room
     color: keep("color"),
     availableSkillIds: keep("availableSkillIds"),
     defaultSkillIds: keep("defaultSkillIds"),
-    accessMode: keep("accessMode"),
+    accessMode: normalizeEmployeeAccessMode(keep("kernel"), accessMode),
     reasoningEffort: keep("reasoningEffort"),
     contextTokenBudget: keep("contextTokenBudget"),
     visibility: keep("visibility"),
@@ -1233,26 +1286,7 @@ export function syncMountedAppSeedMember(existing: RoomChannelMember, seed: Room
     status: existing.status === "running" ? existing.status : seed.status,
     lastActive: existing.status === "running" ? existing.lastActive : seed.lastActive,
     storePackageId: existing.storePackageId ?? seed.storePackageId,
-    manifestDefaults: {
-      name: seed.name,
-      avatarMode: seed.avatarMode,
-      avatarSeed: seed.avatarSeed,
-      avatarDataUrl: seed.avatarDataUrl,
-      role: publicEmployeeRole(seed.role),
-      kernel: seed.kernel,
-      model: seed.model,
-      color: seed.color,
-      availableSkillIds: seed.availableSkillIds,
-      defaultSkillIds: seed.defaultSkillIds,
-      reasoningEffort: seed.reasoningEffort,
-      contextTokenBudget: seed.contextTokenBudget,
-      accessMode: seed.accessMode,
-      visibility: seed.visibility,
-      publicDescription: seed.publicDescription,
-      publicSkills: seed.publicSkills,
-      inputSpec: seed.inputSpec,
-      outputSpec: seed.outputSpec,
-    },
+    manifestDefaults: seed.manifestDefaults ?? employeeManifestDefaults(seed),
     userOverrides,
     disabled: false,
   };
@@ -1306,7 +1340,12 @@ export function syncProductDefaultSeedMembers(
 ): RoomChannelMember[] {
   return seedMembers.map((seed) => {
     const existing = existingMembers.get(seed.id);
-    if (existing) return syncMountedAppSeedMember(existing, seed);
+    if (existing) {
+      const merged = syncMountedAppSeedMember(existing, seed);
+      // Defaults apply to new Employees; upgrades use the one-time migration.
+      merged.accessMode = normalizeEmployeeAccessMode(merged.kernel, existing.accessMode);
+      return merged;
+    }
     if (seed.id !== OPENGROVE_PM_MEMBER_ID) return seed;
     return migrateLegacyScopedPmRuntime(existingMembers, seed);
   });

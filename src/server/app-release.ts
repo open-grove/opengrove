@@ -1,4 +1,5 @@
 import { normalizeAppStorePackageKey } from "../app-store-package-identity.js";
+import { runtimeAccessIssue } from "../runtime-access.js";
 import { normalizeAppIconValue } from "../app-icons/icon-value.js";
 import { assertAppReleaseEligibility, validateAppRoot } from "../app-builder/cli.js";
 import type { OpenGroveAppManifest } from "../app-builder/manifest.js";
@@ -463,6 +464,11 @@ export function normalizeReleaseEmployee(input: Record<string, unknown>): AppRel
   const accessMode = ["default", "auto-review", "full-access"].includes(access)
     ? (access as RoomChannelMember["accessMode"])
     : undefined;
+  const kernel = boundedRequiredString(input.kernel, "app_store_release_kernel_required", 120);
+  const accessIssue = accessMode ? runtimeAccessIssue(kernel, accessMode) : undefined;
+  if (accessIssue === "auto-review-unavailable" || (accessIssue === "gateway-managed" && accessMode !== "default")) {
+    throw new AppReleaseValidationError(`runtime_access_mode_unavailable: ${kernel}/${accessMode}`, [], 400);
+  }
   const contextTokenBudget = Number(input.contextTokenBudget);
   if (input.contextTokenBudget !== undefined && (!Number.isInteger(contextTokenBudget) || contextTokenBudget <= 0)) {
     throw new AppReleaseValidationError("app_store_release_context_budget_invalid", [], 400);
@@ -494,7 +500,7 @@ export function normalizeReleaseEmployee(input: Record<string, unknown>): AppRel
     ...(avatarSeed ? { avatarSeed } : {}),
     ...(avatarDataUrl ? { avatarDataUrl } : {}),
     role: boundedString(input.role, "app_store_release_employee_role_invalid", 40_000),
-    kernel: boundedRequiredString(input.kernel, "app_store_release_kernel_required", 120),
+    kernel,
     model: boundedRequiredString(input.model, "app_store_release_model_required", 240),
     ...(reasoningEffort ? { reasoningEffort } : {}),
     ...(input.contextTokenBudget !== undefined ? { contextTokenBudget } : {}),

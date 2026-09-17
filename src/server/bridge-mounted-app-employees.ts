@@ -1,3 +1,4 @@
+import { normalizeEmployeeAccessMode } from "./employee-access-mode.js";
 import { existsSync, readFileSync, readdirSync, realpathSync, statSync } from "node:fs";
 import { basename, join, relative, resolve, sep } from "node:path";
 import type { JsonObject } from "../core.js";
@@ -177,7 +178,43 @@ function manifestDefaultEmployees(
       }),
     );
   }
-  return applyStoreEmployeeDefaults(appEmployees, manifest);
+  return applyStoreEmployeeDefaults(appEmployees, manifest).map((member) =>
+    member.employeeDefinitionId === OPENGROVE_PM_MEMBER_ID
+      ? member
+      : {
+          ...member,
+          // Store declarations independently of the effective product permission.
+          manifestDefaults:
+            !member.employeeDefinitionId || member.manifestDefaults ? employeeManifestDefaults(member) : undefined,
+          accessMode: normalizeEmployeeAccessMode(member.kernel, member.accessMode),
+        },
+  );
+}
+
+export function employeeManifestDefaults(
+  member: RoomChannelMember,
+): NonNullable<RoomChannelMember["manifestDefaults"]> {
+  return {
+    name: member.name,
+    avatarMode: member.avatarMode,
+    avatarSeed: member.avatarSeed,
+    avatarDataUrl: member.avatarDataUrl,
+    role: publicEmployeeRole(member.role),
+    kernel: member.kernel,
+    model: member.model,
+    color: member.color,
+    availableSkillIds: member.availableSkillIds,
+    defaultSkillIds: member.defaultSkillIds,
+    requiredKernelCapabilities: member.requiredKernelCapabilities,
+    reasoningEffort: member.reasoningEffort,
+    contextTokenBudget: member.contextTokenBudget,
+    accessMode: member.accessMode,
+    visibility: member.visibility,
+    publicDescription: member.publicDescription,
+    publicSkills: member.publicSkills,
+    inputSpec: member.inputSpec,
+    outputSpec: member.outputSpec,
+  };
 }
 
 function applyStoreEmployeeDefaults(members: RoomChannelMember[], manifest: JsonObject): RoomChannelMember[] {
@@ -193,8 +230,12 @@ function applyStoreEmployeeDefaults(members: RoomChannelMember[], manifest: Json
     const roleLead = typeof override.role === "string" ? override.role.trim() : undefined;
     const reasoningEffort = normalizeReasoningEffort(override.reasoningEffort);
     const contextTokenBudget = positiveInteger(override.contextTokenBudget);
-    const accessMode = normalizeAccessMode(override.accessMode);
     const configuredKernel = stringOrUndefined(override.kernel) ?? member.kernel;
+    const requestedAccessMode = override.accessMode ?? member.accessMode;
+    const accessMode =
+      requestedAccessMode === undefined
+        ? undefined
+        : normalizeEmployeeAccessMode(configuredKernel, requestedAccessMode);
     const configuredModel = stringOrUndefined(override.model);
     const configured: RoomChannelMember = {
       ...member,
@@ -225,27 +266,7 @@ function applyStoreEmployeeDefaults(members: RoomChannelMember[], manifest: Json
     };
     return {
       ...configured,
-      manifestDefaults: {
-        name: configured.name,
-        avatarMode: configured.avatarMode,
-        avatarSeed: configured.avatarSeed,
-        avatarDataUrl: configured.avatarDataUrl,
-        role: publicEmployeeRole(configured.role),
-        kernel: configured.kernel,
-        model: configured.model,
-        color: configured.color,
-        availableSkillIds: configured.availableSkillIds,
-        defaultSkillIds: configured.defaultSkillIds,
-        requiredKernelCapabilities: configured.requiredKernelCapabilities,
-        reasoningEffort: configured.reasoningEffort,
-        contextTokenBudget: configured.contextTokenBudget,
-        accessMode: configured.accessMode,
-        visibility: configured.visibility,
-        publicDescription: configured.publicDescription,
-        publicSkills: configured.publicSkills,
-        inputSpec: configured.inputSpec,
-        outputSpec: configured.outputSpec,
-      },
+      manifestDefaults: employeeManifestDefaults(configured),
     };
   });
 }
@@ -280,7 +301,7 @@ export function employeeManifestDefaultsPatch(
     requiredKernelCapabilities: defaults.requiredKernelCapabilities,
     reasoningEffort: defaults.reasoningEffort,
     contextTokenBudget: defaults.contextTokenBudget,
-    accessMode: defaults.accessMode,
+    accessMode: normalizeEmployeeAccessMode(defaults.kernel ?? member.kernel, defaults.accessMode),
     visibility: defaults.visibility ?? member.visibility,
     publicDescription: defaults.publicDescription,
     publicSkills: defaults.publicSkills,
@@ -378,7 +399,7 @@ function normalizeManifestEmployee(
     requiredKernelCapabilities: normalizeRequiredKernelCapabilities(input.requiredKernelCapabilities),
     appId,
     workspaceRoot: employeeWorkspaceRoot,
-    accessMode: normalizeAccessMode(input.accessMode),
+    accessMode: input.accessMode === undefined ? undefined : normalizeEmployeeAccessMode(kernel, input.accessMode),
     reasoningEffort: normalizeReasoningEffort(input.reasoningEffort) ?? defaultEmployeeReasoningEffort(),
     contextTokenBudget: positiveInteger(input.contextTokenBudget),
     source: "local",
@@ -462,7 +483,6 @@ function createAppBuilderMember(input: {
     defaultSkillIds: skillIds,
     appId: input.appId,
     workspaceRoot: input.workspaceRoot,
-    accessMode: "default",
     reasoningEffort: defaultEmployeeReasoningEffort(),
     source: "local",
     sourceLabel: `${input.appDisplayTitle} App`,
@@ -843,10 +863,6 @@ function stringOrUndefined(value: unknown): string | undefined {
 
 function normalizeVisibility(value: unknown): "private" | "public" | undefined {
   return value === "public" || value === "private" ? value : undefined;
-}
-
-function normalizeAccessMode(value: unknown): RoomChannelMember["accessMode"] {
-  return value === "default" || value === "auto-review" || value === "full-access" ? value : undefined;
 }
 
 function normalizeReasoningEffort(value: unknown): RoomChannelMember["reasoningEffort"] {

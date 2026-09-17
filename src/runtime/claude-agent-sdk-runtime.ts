@@ -41,7 +41,6 @@ import {
 } from "./claude-bedrock-env.js";
 import { writeClaudeModelsCache } from "./claude-models-cache.js";
 import { normalizeClaudeRuntimeModelId, resolveClaudeRuntimeModel } from "./claude-model-normalize.js";
-import type { ClaudeCodeRuntimeOptions } from "./claude-code-runtime.js";
 import { runWithNativeSessionLock } from "./native-session-lock.js";
 import { imageAttachmentsWithDataUrl } from "./media-input.js";
 import { contextBudgetDiagnostic, resolveContextTokenBudget } from "./context-token-budget.js";
@@ -57,8 +56,16 @@ export type ClaudeAgentSdkQueryFunction = (params: {
   options?: ClaudeAgentSdkOptions;
 }) => ClaudeAgentQuery;
 
-export interface ClaudeAgentSdkRuntimeOptions extends Omit<ClaudeCodeRuntimeOptions, "cliPath"> {
+export interface ClaudeAgentSdkRuntimeOptions {
   cliPath?: string;
+  cwd?: string;
+  permissionMode?: ClaudePermissionMode;
+  configuredBaseUrl?: string;
+  configuredAuthToken?: string;
+  configuredModel?: string;
+  runtimeBindingFingerprint?: string;
+  modelAliases?: Record<string, string>;
+  env?: NodeJS.ProcessEnv;
   query?: ClaudeAgentSdkQueryFunction;
 }
 
@@ -150,7 +157,7 @@ export class ClaudeAgentSdkRuntime implements AgentRuntime {
       this.options.modelAliases,
     );
     const cwd = this.options.cwd ?? process.cwd();
-    const permissionMode = resolveClaudePermissionMode(request.accessMode, this.options.permissionMode);
+    let permissionMode = resolveClaudePermissionMode(request.accessMode, this.options.permissionMode);
     const runtimeEnv = mergeRuntimeEnv(this.options.env, request.runtimeEnv);
     const runtimeBindingFingerprint = claudeRuntimeBindingFingerprint({
       base: this.options.runtimeBindingFingerprint,
@@ -327,10 +334,14 @@ export class ClaudeAgentSdkRuntime implements AgentRuntime {
     let contextUsageRequested = false;
     try {
       await runWithNativeSessionLock("claude-code", nativeSession.sessionId, async () => {
+        // Submit user input after Claude acknowledges the requested permission mode.
+        const approvalPrompt = permissionMode === "auto" ? new AsyncEventQueue<SDKUserMessage>() : undefined;
         const query = (this.options.query ?? claudeQuery)({
-          prompt: imageBlocks.length
-            ? claudeUserMessageStream(request.input, imageBlocks, nativeSession.sessionId)
-            : request.input,
+          prompt:
+            approvalPrompt ??
+            (imageBlocks.length
+              ? claudeUserMessageStream(request.input, imageBlocks, nativeSession.sessionId)
+              : request.input),
           options: this.createQueryOptions({
             request,
             cwd,
@@ -348,10 +359,52 @@ export class ClaudeAgentSdkRuntime implements AgentRuntime {
           }),
         });
 
-        this.refreshClaudeModelsCache(query, runtimeEnv);
-
+        // Metadata is independent of permission activation; a rejected Auto request
+        // must not prevent discovery. This is best-effort and never gates a turn.
+        void this.refreshClaudeModelsCache(query, runtimeEnv);
+        const switchToAsk = async (cause: unknown): Promise<void> => {
+          if (request.signal?.aborted || abortController.signal.aborted) throw cause;
+          const reason = sanitizeDiagnosticText(cause instanceof Error ? cause.message : String(cause));
+          try {
+            await query.setPermissionMode("default");
+          } catch (error) {
+            if (request.signal?.aborted || abortController.signal.aborted) throw error;
+            throw new Error(
+              `runtime_access_mode_unavailable: claude_auto_review_fallback_failed: Auto: ${reason}; Ask: ${sanitizeDiagnosticText(error instanceof Error ? error.message : String(error))}`,
+              { cause: error },
+            );
+          }
+          if (request.signal?.aborted || abortController.signal.aborted) throw new Error("claude_code_aborted");
+          permissionMode = "default";
+          queue.push({
+            type: "runtime.diagnostic",
+            runId,
+            at: new Date().toISOString(),
+            name: "claude.auto_review.fallback",
+            data: { kernel: "claude-code", from: "auto-review", to: "default", reason },
+          });
+        };
         try {
+          if (approvalPrompt) {
+            try {
+              await query.setPermissionMode("auto");
+            } catch (error) {
+              await switchToAsk(error);
+            }
+            for await (const message of claudeUserMessageStream(request.input, imageBlocks, nativeSession.sessionId)) {
+              approvalPrompt.push(message);
+            }
+            approvalPrompt.close();
+          }
           for await (const message of query) {
+            if (
+              message.type === "system" &&
+              message.subtype === "init" &&
+              permissionMode === "auto" &&
+              message.permissionMode !== "auto"
+            ) {
+              await switchToAsk(new Error(`Claude reported ${message.permissionMode} instead of Auto`));
+            }
             for (const event of mapClaudeSdkMessage(message, {
               runId,
               state: messageState,
@@ -379,6 +432,7 @@ export class ClaudeAgentSdkRuntime implements AgentRuntime {
             currentContextUsage = await readClaudeCurrentContextUsage(query);
           }
         } finally {
+          approvalPrompt?.close();
           query.close();
         }
       });
@@ -536,21 +590,22 @@ export class ClaudeAgentSdkRuntime implements AgentRuntime {
   // them so the (synchronous) bridge can advertise per-model reasoning effort in the
   // composer. Never awaited and never throws into the turn — failures leave the bridge on
   // its static effort fallback.
-  private refreshClaudeModelsCache(query: ClaudeAgentQuery, runtimeEnv: NodeJS.ProcessEnv | undefined): void {
+  private async refreshClaudeModelsCache(
+    query: ClaudeAgentQuery,
+    runtimeEnv: NodeJS.ProcessEnv | undefined,
+  ): Promise<void> {
     if (typeof query.supportedModels !== "function") {
       return;
     }
     const configHome = runtimeEnv?.CLAUDE_CONFIG_DIR ?? this.options.env?.CLAUDE_CONFIG_DIR ?? undefined;
-    void Promise.resolve()
-      .then(() => query.supportedModels())
-      .then((models) => {
-        if (Array.isArray(models) && models.length) {
-          writeClaudeModelsCache(models, { configHome, now: new Date().toISOString() });
-        }
-      })
-      .catch(() => {
-        // Ignore — supportedModels() is optional and must never disrupt a turn.
-      });
+    try {
+      const models = await query.supportedModels();
+      if (Array.isArray(models) && models.length) {
+        writeClaudeModelsCache(models, { configHome, now: new Date().toISOString() });
+      }
+    } catch {
+      console.warn("claude_models_cache_refresh_failed");
+    }
   }
 
   private createQueryOptions(input: {
@@ -1671,7 +1726,7 @@ function resolveClaudePermissionMode(
     case "default":
       return "default";
     case "auto-review":
-      return "acceptEdits";
+      return "auto";
     case "full-access":
       return "bypassPermissions";
     default:

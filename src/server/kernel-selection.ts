@@ -40,7 +40,7 @@ import {
 } from "./kernel-utils.js";
 import { resolveBridgeWorkspaceRoot } from "./workspace-root.js";
 import { bridgeDataPath } from "./storage-paths.js";
-import { resolveClaudeCodeCliPath } from "../runtime/claude-code-runtime.js";
+import { resolveClaudeCodeCliPath } from "../runtime/claude-engine.js";
 import { resolveCodexCommandPath } from "../runtime/codex-runtime.js";
 import { resolveHermesCommandPath } from "../runtime/hermes-runtime.js";
 import { hostMessage } from "../localization/host-messages.js";

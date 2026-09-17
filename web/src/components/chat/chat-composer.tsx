@@ -1,3 +1,4 @@
+import { accessModeUnavailableKey } from "../../runtime/access-modes";
 import {
   useRef,
   useState,
@@ -364,6 +365,9 @@ export function ChatComposer(props: ChatComposerProps) {
             />
             <div className={clsx("opengrove-composer-controls", styles.controls)}>
               <ComposerAccessPicker
+                kernel={props.activeKernel}
+                model={props.model}
+                runtimeControls={props.runtimeControls}
                 accessMode={props.accessMode}
                 open={props.modelMenuKind === "access"}
                 placement={props.modelMenuPlacement}
@@ -857,6 +861,9 @@ function ComposerAttachmentBar(props: {
 }
 
 function ComposerAccessPicker(props: {
+  kernel?: string;
+  model: string;
+  runtimeControls?: RuntimeControls;
   accessMode: RuntimeAccessMode;
   open: boolean;
   placement: "up" | "down";
@@ -865,6 +872,7 @@ function ComposerAccessPicker(props: {
 }) {
   const { t } = useI18n();
   const activePreset = ACCESS_PRESETS.find((item) => item.id === props.accessMode) ?? ACCESS_PRESETS[0]!;
+  const activeIssue = accessModeUnavailableKey(props.kernel, props.accessMode);
   return (
     <div className={clsx("opengrove-model-picker opengrove-access-picker", styles.modelPicker)}>
       <MotionPopover
@@ -888,7 +896,13 @@ function ComposerAccessPicker(props: {
             data-danger={activePreset.danger ? "true" : "false"}
           >
             <ProductIcon name="shield" size={15} />
-            <span className={clsx("opengrove-model-label", styles.modelLabel)}>{t(activePreset.labelKey)}</span>
+            <span className={clsx("opengrove-model-label", styles.modelLabel)}>
+              {props.kernel === "openclaw"
+                ? t("composer.accessGatewayManaged")
+                : activeIssue
+                  ? t("composer.unavailableAccessLabel", { label: t(activePreset.labelKey) })
+                  : t(activePreset.labelKey)}
+            </span>
             <span className="opengrove-chevron" aria-hidden="true"></span>
           </button>
         }
@@ -898,6 +912,7 @@ function ComposerAccessPicker(props: {
         </div>
         {ACCESS_PRESETS.map((item) => {
           const OptionIcon = item.icon;
+          const unavailable = accessModeUnavailableKey(props.kernel, item.id);
           return (
             <button
               key={item.id}
@@ -908,6 +923,8 @@ function ComposerAccessPicker(props: {
                 styles.accessOption,
               )}
               type="button"
+              role="option"
+              disabled={Boolean(unavailable)}
               aria-selected={item.id === activePreset.id}
               data-danger={item.danger ? "true" : "false"}
               onClick={() => props.onSetAccessMode(item.id)}
@@ -918,7 +935,7 @@ function ComposerAccessPicker(props: {
               <span className={clsx("opengrove-model-option-name", styles.optionName)}>
                 {t(item.labelKey)}
                 <span className={clsx("opengrove-model-option-description", styles.optionDescription)}>
-                  {t(item.descriptionKey)}
+                  {t(unavailable ?? item.descriptionKey)}
                 </span>
               </span>
               <span className={clsx("opengrove-model-option-check", styles.optionCheck)} aria-hidden="true">

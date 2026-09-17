@@ -24,6 +24,7 @@ import type {
   KnowledgeRevision,
 } from "../knowledge/types.js";
 import type { RoomChannelEvent, RoomChannelSnapshot } from "../rooms/channel-store.js";
+import { normalizeEmployeeMigrationVersions } from "../rooms/channel-normalize.js";
 import {
   closeInterruptedRoomRunParts,
   interruptRoomRunMessage,
@@ -617,6 +618,7 @@ function normalizeRoomChannelState(
     // restores. Dropping one without the other would force avoidable resets.
     events: Array.isArray(object.events) ? (object.events as RoomChannelSnapshot["events"]) : [],
     deletedMemberIds: Array.isArray(object.deletedMemberIds) ? object.deletedMemberIds.map(String).filter(Boolean) : [],
+    employeeMigrationVersions: normalizeEmployeeMigrationVersions(object.employeeMigrationVersions),
   };
 }
 

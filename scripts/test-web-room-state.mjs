@@ -100,6 +100,7 @@ await writeFile(
   import { appScopedGroupUnreadCount, dedupeRoomMembers, directRoomMember, harmonizeRoomMemberAvatars, projectRoomMemberIdentity, resolveVisibleRoomFocus, selectableKernelOptions, visibleRoomUnreadCount } from ${JSON.stringify(roomsModelImport)};
   import { agentAuthorMention, draftWithAuthorMention, resolveAutomaticPmTarget, resolveRoomTargets, roomMentionToken } from ${JSON.stringify(roomChatUtilsImport)};
   import { applyApprovalResultToMessages, applyQuestionResultToMessages, applyStreamEventToMessage, finalizeAssistantMessage, normalizeMessagePartsForDisplay } from ${JSON.stringify(messagesImport)};
+  import { formatModelCallError } from ${JSON.stringify(messagesImport)};
   import { activityItemDetailDisplay, activityItemKind, activityItemTitle, activityItemTitleTooltip, artifactCardsFromItem, buildActivityItems, buildActivityRenderNodes, editDiffFromItem, summarizeActivityItems } from ${JSON.stringify(activityModelImport)};
   import { agentOrbStateFromRun } from ${JSON.stringify(agentStatePresentationImport)};
   import { isNativeAgentCommentaryNote, processGroupsToActivityEntries, splitAssistantPartsForSurface } from ${JSON.stringify(assistantRunViewModelImport)};
@@ -116,9 +117,10 @@ await writeFile(
   import { mergeHydratedRoomMessages } from ${JSON.stringify(roomMessageHydrationImport)};
   import { APP_EMPLOYEE_OVERRIDE_FIELD_ITEMS, appEmployeeOverrideFields, appEmployeeOverrideItems, buildContactSkillOptions, canEditEmployeeRuntime, contactKernelSubline, effectiveMemberAvailableSkillIds, effectiveMemberSkillIds, visibleEmployeeDefinitions } from ${JSON.stringify(contactsModelImport)};
   import { canSubmitDraft, createDefaultDraft, createMemberFromDraft } from ${JSON.stringify(employeeDialogImport)};
+  import { accessModeUnavailableKey, resolveAccessModeSelection } from ${JSON.stringify(join(projectRoot, "web/src/runtime/access-modes.ts"))};
   import { ROOM_MEMBER_AVATAR_MAX_BYTES } from ${JSON.stringify(avatarDataUrlImport)};
   import { applyMountedAppEmployeeDefaults, canArchiveMountedAppGroup, filterMountedAppSharedMembers, restorableMountedAppMembers, restoreMountedAppMember, shouldEnsureMountedAppDefaultGroup } from ${JSON.stringify(mountedAppChatPanelImport)};
-  import { latestContextUsage } from ${JSON.stringify(uiModelImport)};
+  import { latestContextUsage, readStoredAccessMode } from ${JSON.stringify(uiModelImport)};
   import { mergeAgentEventPage } from ${JSON.stringify(agentEventSyncImport)};
   import { useUiStore } from ${JSON.stringify(storeImport)};
 
@@ -533,6 +535,25 @@ await writeFile(
     color: "#64748b",
     lastActive: "now",
   };
+  const previousStorage = window.localStorage;
+  for (const selected of [null, "default", "auto-review", "full-access"]) {
+    window.localStorage = { getItem: () => selected, setItem: () => { throw new Error("Reading preferences must not rewrite them"); } };
+    assert.equal(readStoredAccessMode(), selected ?? undefined);
+  }
+  window.localStorage = previousStorage;
+  for (const kernel of ["codex", "hermes", "claude-code"])
+    assert.equal(resolveAccessModeSelection(kernel, undefined), "auto-review");
+  for (const kernel of ["pi", "kimi", "opencode", "openclaw"])
+    assert.equal(resolveAccessModeSelection(kernel, undefined), "default");
+  assert.equal(accessModeUnavailableKey("claude-code", "auto-review"), undefined);
+  for (const mode of ["default", "full-access"])
+    assert.equal(resolveAccessModeSelection("claude-code", mode), mode);
+  const newClaudeDraft = createDefaultDraft(
+    { id: "claude-code", label: "Claude", available: true }, "claude-code", "claude-code-default",
+    { kernel: "claude-code", models: [{ id: "claude-code-default", label: "Default" }] }, undefined, undefined,
+  );
+  assert.equal(newClaudeDraft.accessMode, "auto-review");
+
   const legacyDraft = createDefaultDraft(
     { id: "codex", label: "Codex", available: true },
     "codex",
@@ -582,6 +603,17 @@ await writeFile(
   assert.equal(overriddenPresentationDraft.inputSpec, "Canonical custom input");
   assert.equal(overriddenPresentationDraft.outputSpec, "Canonical custom output");
   const legacyEmployeeAfterEmptySave = createMemberFromDraft(legacyDraft, { initialMember: legacyEmployee });
+  const autoDraft = { ...legacyDraft, kernel: "claude-code", model: "supported", accessMode: "auto-review" };
+  const autoFailure = formatModelCallError("runtime_access_mode_unavailable: claude_auto_review_activation_failed: disabled by organization. Select Ask in this Employee's permissions to continue");
+  assert.match(autoFailure, /disabled by organization/);
+  assert.match(autoFailure, /请求批准|Ask/);
+  for (const model of ["claude-opus-5", "claude-opus-4-8", "deepseek-v4-flash", "custom-model"]) {
+    const draft = { ...autoDraft, model };
+    assert.equal(canSubmitDraft(draft, true), true, "Claude Auto never waits for model metadata");
+    assert.equal(createMemberFromDraft(draft, {}).accessMode, "auto-review");
+  }
+  assert.equal(canSubmitDraft({ ...autoDraft, kernel: "pi" }, true), false);
+  assert.throws(() => createMemberFromDraft({ ...autoDraft, kernel: "pi" }, {}), /runtime_access_mode_unavailable/);
   assert.equal(legacyEmployeeAfterEmptySave.avatarSeed, undefined, "empty save preserves the effective id-based avatar");
   assert.equal(legacyEmployeeAfterEmptySave.reasoningEffort, undefined, "empty save keeps reasoning on the kernel default");
   assert.equal(
@@ -1883,6 +1915,12 @@ await writeFile(
     [],
     "runtime diagnostics remain available to Ops but must not render as chat content",
   );
+  const autoFallbackMessage = {id: "auto-fallback", role: "assistant", text: "", context: null, pending: true, parts: []};
+  applyStreamEventToMessage(autoFallbackMessage, {type: "runtime.diagnostic", runId: "auto-fallback", name: "claude.auto_review.fallback", data: {kernel: "claude-code", from: "auto-review", to: "default", reason: "auto mode disabled by settings"}});
+  assert.equal(autoFallbackMessage.pending, true, "fallback continues the current turn");
+  const fallbackNotes = normalizeMessagePartsForDisplay(autoFallbackMessage.parts);
+  assert.ok(fallbackNotes.some((part) => part.type === "note" && part.tone === "warn" && part.text.includes("Ask for approval") && part.text.includes("auto mode disabled by settings")), "Auto fallback must be a visible warning, not hidden diagnostic telemetry");
+
   const actionableErrorMessage = {
     id: "message-actionable-runtime-error",
     role: "assistant",

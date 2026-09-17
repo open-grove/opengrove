@@ -158,6 +158,7 @@ async function main() {
     gatewayCommand: process.execPath,
     gatewayArgs: [fakeHermesGateway],
     cwd,
+    env: { HERMES_HOME: join(cwd, "hermes-source"), OPENGROVE_HERMES_ISOLATED_HOME: "1" },
   });
   const app = createOpenGrove({
     cwd,

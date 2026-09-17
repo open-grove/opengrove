@@ -71,6 +71,7 @@ export const ZH_CN_HOST_MESSAGES = {
   "room.app_group_title": "{appTitle} 群组",
   "room.app_group_title_sequence": "{appTitle} 群组 {sequence}",
   "room.compaction_finished": "上下文已自动压缩",
+  "room.auto_review_fallback": "“帮我审批”启用失败，已切换为“请求批准”并继续。原因：{reason}",
   "room.compaction_started": "正在自动压缩上下文",
   "room.delegate_employee": "委派员工",
   "room.delegation_failed": "委派任务未能启动。",

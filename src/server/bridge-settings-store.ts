@@ -34,7 +34,6 @@ import {
   migrateLegacyKernelProviderBindingsToModels,
 } from "./migrations/bridge-settings-v1.js";
 import { CURRENT_PROVIDER_ROUTE_MIGRATION_VERSION } from "./migrations/implicit-provider-routes-v1.js";
-import { CURRENT_EMPLOYEE_MODEL_MIGRATION_VERSION } from "./migrations/native-employee-model-v1.js";
 import { normalizeKernelPathOverrides } from "./kernel-utils.js";
 import { normalizeWorkspaceRootValue, resolveBridgeWorkspaceRoot } from "./workspace-root.js";
 import { writePrivateFileAtomically } from "../storage/private-file.js";
@@ -150,6 +149,7 @@ export function normalizeBridgeSettingsPatch(input: unknown, base: BridgeSetting
     providerSetupVersion: numberOrUndefined(source.providerSetupVersion) ?? base.providerSetupVersion,
     providerRouteMigrationVersion: base.providerRouteMigrationVersion,
     employeeModelMigrationVersion: base.employeeModelMigrationVersion,
+    nativeApprovalPresetsVersion: base.nativeApprovalPresetsVersion,
     mountedApps,
     uninstalledStoreAppIds,
     defaultAppSync: normalizeDefaultAppSyncSettings(source.defaultAppSync, base.defaultAppSync),
@@ -403,6 +403,7 @@ export function loadBridgeSettings(state: BridgeState): BridgeSettings {
     providerSetupVersion: numberOrUndefined(parsed.providerSetupVersion) ?? defaults.providerSetupVersion,
     providerRouteMigrationVersion: numberOrUndefined(parsed.providerRouteMigrationVersion) ?? 0,
     employeeModelMigrationVersion: numberOrUndefined(parsed.employeeModelMigrationVersion) ?? 0,
+    nativeApprovalPresetsVersion: numberOrUndefined(parsed.nativeApprovalPresetsVersion) ?? 0,
     mountedApps,
     uninstalledStoreAppIds,
     defaultAppSync: normalizeDefaultAppSyncSettings(parsed.defaultAppSync, defaults.defaultAppSync),
@@ -478,7 +479,8 @@ export function defaultBridgeSettings(): BridgeSettings {
     workspaceRoot: normalizeWorkspaceRootValue(readAppEnv("WORKSPACE_ROOT"), undefined),
     providerSetupVersion: 0,
     providerRouteMigrationVersion: CURRENT_PROVIDER_ROUTE_MIGRATION_VERSION,
-    employeeModelMigrationVersion: CURRENT_EMPLOYEE_MODEL_MIGRATION_VERSION,
+    employeeModelMigrationVersion: 0,
+    nativeApprovalPresetsVersion: 0,
     mountedApps: defaultMountedApps(),
     uninstalledStoreAppIds: [],
     defaultAppSync: { managedPackageKeys: [] },

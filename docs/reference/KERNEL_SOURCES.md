@@ -23,6 +23,12 @@ Pi 0.85.1, OpenCode 1.18.29, Kimi Code 0.41.0, Hermes 0.21.1
 capability certifications retain their own versions; a Provider transport check
 does not certify every capability of a newer runtime.
 
+Hermes permission presets separately use the public TUI `config.get` contract and
+native `HERMES_YOLO_MODE`, checked against [`v2026.9.7`](https://github.com/NousResearch/hermes-agent/tree/v2026.9.7).
+`scripts/certify-hermes-permissions.mjs` checks native configuration and approval gates
+without a model call. Ask and auto review require desktop contract v3 or newer;
+the adapter does not import Hermes private approval helpers.
+
 Pi uses the public 0.85.1 AgentHarness and AgentLane contracts for durable
 turns, native tools, cancellation recovery and compaction. This upgrade starts
 fresh native sessions for the former adapter's hashed session IDs. Old files

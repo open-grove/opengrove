@@ -74,7 +74,7 @@ const expectedFullGroupSizes = {
   "rooms-routines": 23,
   "apps-knowledge": 16,
   "app-lifecycle": 21,
-  "kernels-providers": 30,
+  "kernels-providers": 29,
   "web-desktop": 21,
   "release-contracts": 1,
 };
@@ -103,7 +103,7 @@ for (const [groupName, expectedSize] of Object.entries(expectedFullGroupSizes)) 
   groupedLabels.push(...harnessGroups[groupName].map((task) => task.id));
 }
 
-assert.equal(harnessInventory.length, 122, "the canonical deterministic harness inventory must not shrink silently");
+assert.equal(harnessInventory.length, 121, "the canonical deterministic harness inventory must not shrink silently");
 assert.equal(
   harnessGroups.full,
   harnessInventory,
@@ -114,10 +114,14 @@ assert.equal(
   harnessInventory.length,
   "every harness id must be unique",
 );
-assert.equal(harnessGroups.integration.length, 42, "the affected-integration subset must not shrink silently");
+assert.equal(harnessGroups.integration.length, 43, "the affected-integration subset must not shrink silently");
+assert.ok(
+  harnessGroups.integration.some((task) => task.id === "ww-provider-provisioning"),
+  "PR integration checks must cover model/provider edits during account provisioning",
+);
 assert.equal(
   new Set(harnessGroups.integration.map((task) => task.id)).size,
-  42,
+  43,
   "the integration subset must not execute a canonical harness twice",
 );
 assert.equal(new Set(groupedLabels).size, groupedLabels.length, "a full harness must have exactly one owner group");
@@ -153,7 +157,7 @@ assert.deepEqual(
 );
 
 const windowsTasks = harnessTasksForPlatform(harnessGroups.integration, "win32");
-assert.equal(windowsTasks.length, 39);
+assert.equal(windowsTasks.length, 40);
 assert.ok(windowsTasks.some((task) => task.id === "app-release-windows-build-boundary"));
 assert.deepEqual(
   harnessGroups.integration.filter((task) => !windowsTasks.includes(task)).map((task) => task.id),
@@ -161,7 +165,7 @@ assert.deepEqual(
 );
 for (const platform of ["darwin", "linux"]) {
   const selected = harnessTasksForPlatform(harnessGroups.integration, platform);
-  assert.equal(selected.length, 41);
+  assert.equal(selected.length, 42);
   assert.deepEqual(
     harnessGroups.integration.filter((task) => !selected.includes(task)).map((task) => task.id),
     ["app-release-windows-build-boundary"],
