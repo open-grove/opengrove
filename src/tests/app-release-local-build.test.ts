@@ -28,6 +28,7 @@ import {
   prepareMountedAppReleaseBuild,
   runAppReleaseBuildRecipe,
   saveMountedAppReleasePrebuildDraft,
+  saveMountedAppReleasePrebuildDraftWithRevision,
 } from "../server/app-release-local-build.js";
 import type { MountedAppReleaseDraft } from "../server/app-release.js";
 import { extractAppStoreAppArchive } from "../server/app-store.js";
@@ -1378,3 +1379,42 @@ async function assertBuildFixtureRejected(appRoot: string, expected: RegExp, tim
     expected,
   );
 }
+
+releaseBuildTest("source save point manifest survives the complete release build", async () => {
+  const mounted = mountedBuildFixture();
+  const extractedRoot = mkdtempSync(join(tmpdir(), "opengrove-source-manifest-build-"));
+  try {
+    const path = join(mounted.appRoot, "opengrove.app.json");
+    const manifest = JSON.parse(readFileSync(path, "utf8"));
+    manifest.runtimeEnv = {
+      providerKeys: [{ providerId: "frozen-provider", env: { apiKey: "APP_PROVIDER_KEY" }, required: false }],
+    };
+    writeFileSync(path, JSON.stringify(manifest));
+    const prebuild = await saveMountedAppReleasePrebuildDraftWithRevision({
+      state: mounted.state,
+      target: mounted.target,
+      submission: {},
+      draftStore: mounted.draftStore,
+    });
+    await prepareMountedAppReleaseBuild({
+      state: mounted.state,
+      target: mounted.target,
+      release: mounted.release,
+      packageKey: "opengrove.local-build-app",
+      draftStore: mounted.draftStore,
+      prebuildDraft: prebuild.draft,
+      installFence: prebuild.installFence,
+      workingCopyFence: prebuild.workingCopyFence,
+      timeoutMs: 10_000,
+    });
+    const archivePath = mounted.draftStore.archivePath(mounted.target.localAppId);
+    assert.ok(archivePath);
+    extractAppStoreAppArchive({ archivePath, targetRoot: join(extractedRoot, "app") });
+    const builtManifest = JSON.parse(readFileSync(join(extractedRoot, "app", "opengrove.app.json"), "utf8"));
+    assert.equal(builtManifest.runtimeEnv?.providerKeys?.[0]?.providerId, "frozen-provider");
+    assert.equal(readFileSync(join(extractedRoot, "app", "ui", "index.html"), "utf8"), "fresh UI\n");
+  } finally {
+    mounted.dispose();
+    rmSync(extractedRoot, { recursive: true, force: true });
+  }
+});

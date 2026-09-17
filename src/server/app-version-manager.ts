@@ -44,6 +44,16 @@ import {
   type AppVersionActivationJournal,
 } from "./app-version-activation-journal.js";
 import type { AppStoreFormalVersion } from "./app-store-registry.js";
+import {
+  AppRevisionStore,
+  appRevisionWorkspacePath,
+  isAppRevisionUnavailableError,
+  isManagedAppRevisionWorkingCopy,
+  removeManagedAppRevisionCheckpoint,
+  restoreManagedAppRevisionCheckpoint,
+  type AppRevisionRecoveryCheckpoint,
+  type AppSavePoint,
+} from "./app-revision-store.js";
 import { cancelRoomAssistantRun, hasActiveRoomRunController } from "./room-runs.js";
 
 export interface MountedAppVersionStatus {
@@ -56,11 +66,16 @@ export interface MountedAppVersionStatus {
   savedContentDigest?: string;
   hasUnsavedChanges: boolean;
   workingDigestError?: string;
+  sourceSavePoint?: AppSavePoint;
+  sourceChangedFileCount?: number;
+  sourceStatusError?: string;
+  sourceStatusPath?: string;
 }
 
 export interface FormalAppVersionActivationResult {
   install: AppStoreInstallResult;
   versionState: MountedAppVersionState;
+  sourceSavePoint?: AppSavePoint;
 }
 
 export interface LocalDraftAppVersionActivationResult {
@@ -68,7 +83,7 @@ export interface LocalDraftAppVersionActivationResult {
   versionState: MountedAppVersionState;
 }
 
-export function activateImportedFormalAppVersion(input: {
+export async function activateImportedFormalAppVersion(input: {
   state: BridgeState;
   localAppId: string;
   prepared: PreparedAppStorePackageInstall;
@@ -76,14 +91,48 @@ export function activateImportedFormalAppVersion(input: {
   versionStore: MountedAppVersionStateStore;
   activateBridgeApp?: (state: BridgeState, options?: RecreateBridgeAppOptions) => void;
   persistBridgeSettings?: (state: BridgeState) => void;
-}): FormalAppVersionActivationResult {
+}): Promise<FormalAppVersionActivationResult> {
   const activateBridgeApp = input.activateBridgeApp ?? recreateBridgeApp;
   const persistBridgeSettings = input.persistBridgeSettings ?? saveBridgeSettings;
-  const previousSettings = structuredClone(input.state.settings);
-  const previousAgentState = snapshotPersistedAgentState(input.state.app, { compactVolatile: false });
+  let previousSettings = structuredClone(input.state.settings);
+  let previousAgentState = snapshotPersistedAgentState(input.state.app, { compactVolatile: false });
   const previousVersionState = input.versionStore.read(input.localAppId);
+  const revisionsRoot = join(appStoreDataRoot(input.state), "app-revisions");
+  const revisions = new AppRevisionStore(revisionsRoot);
+  let previousSourceSavePoint: AppSavePoint | undefined;
+  let previousSourceRevision: AppRevisionRecoveryCheckpoint | undefined;
+  const previousTarget = resolveMountedAppTarget(input.state, input.localAppId);
+  if (previousTarget) {
+    try {
+      const previousRevision = await revisions.inspect({
+        localAppId: input.localAppId,
+        appRoot: previousTarget.appRoot,
+        workspacePath: appRevisionWorkspacePath(previousTarget.manifest),
+      });
+      previousSourceSavePoint = {
+        commitSha: previousRevision.commitSha,
+        savedAt: previousRevision.savedAt,
+      };
+      previousSourceRevision = await revisions.captureRecoveryCheckpoint({
+        localAppId: input.localAppId,
+        appRoot: previousTarget.appRoot,
+        workspacePath: appRevisionWorkspacePath(previousTarget.manifest),
+      });
+    } catch (error) {
+      if (!isAppRevisionUnavailableError(error)) throw error;
+    }
+  }
   let updatedInstall: UpdatedAppStorePackageInstall | undefined;
   let activationJournal: AppVersionActivationJournal | undefined;
+  let sourceSavePoint: AppSavePoint | undefined;
+  let runtimeCommitted = false;
+  let activated:
+    | {
+        install: AppStoreInstallResult;
+        versionState: MountedAppVersionState;
+        activeTarget: MountedAppTarget;
+      }
+    | undefined;
 
   try {
     activationJournal = beginAppVersionActivationJournal({
@@ -95,11 +144,12 @@ export function activateImportedFormalAppVersion(input: {
       previousUninstalledStoreAppIds: previousSettings.uninstalledStoreAppIds,
       previousAgentState,
       previousVersionState,
+      ...(previousSourceRevision ? { previousSourceRevision } : {}),
     });
-    const persistedAgentState = persistCapturedAgentState(input.state, previousAgentState);
+    const candidateSettings = structuredClone(input.state.settings);
     const install: AppStoreInstallResult = activatePreparedAppStorePackageInstall({
       prepared: input.prepared,
-      settings: input.state.settings,
+      settings: candidateSettings,
       backupEnabled: true,
       onUpdatedAppRootCreated: (created) => {
         updatedInstall = created;
@@ -108,13 +158,38 @@ export function activateImportedFormalAppVersion(input: {
     if (!install.appRoot || !install.mountedApp) {
       throw new Error("app_version_formal_target_invalid");
     }
+    const activeTarget = resolveMountedAppTarget({ ...input.state, settings: candidateSettings }, input.localAppId);
+    if (!activeTarget) throw new Error("app_version_formal_target_invalid");
+    if (
+      previousSourceSavePoint ||
+      isManagedAppRevisionWorkingCopy({
+        revisionsRoot,
+        localAppId: input.localAppId,
+        appRoot: activeTarget.appRoot,
+      })
+    ) {
+      sourceSavePoint = await revisions.saveIfChanged({
+        localAppId: input.localAppId,
+        appRoot: activeTarget.appRoot,
+        workspacePath: appRevisionWorkspacePath(activeTarget.manifest),
+        message: `Activate OpenGrove App Store version ${input.selectedVersion.version}`,
+      });
+    }
+    // Publish the mount only after async source work finishes. Capture the latest
+    // runtime so rollback cannot erase another App's successful activation.
+    previousSettings = structuredClone(input.state.settings);
+    previousAgentState = snapshotPersistedAgentState(input.state.app, { compactVolatile: false });
+    const persistedAgentState = persistCapturedAgentState(input.state, previousAgentState);
+    const nextMount = install.mountedApp;
+    input.state.settings.mountedApps = input.state.settings.mountedApps.map((mount) =>
+      mount.id === input.localAppId ? { ...mount, ...nextMount } : mount,
+    );
+    runtimeCommitted = true;
     activateBridgeApp(input.state, {
       authoritativeEmployeeConfigAppId: install.appId,
       deferPersistedStateSave: true,
       agentStateSnapshot: persistedAgentState,
     });
-    const activeTarget = resolveMountedAppTarget(input.state, input.localAppId);
-    if (!activeTarget) throw new Error("app_version_formal_target_invalid");
     const versionState = input.versionStore.write({
       localAppId: input.localAppId,
       activeContent: "formal",
@@ -125,34 +200,90 @@ export function activateImportedFormalAppVersion(input: {
     persistBridgeSettings(input.state);
     activationJournal = commitAppVersionActivationJournal(activationJournal);
     if (updatedInstall) commitUpdatedAppStorePackageInstall(updatedInstall);
-    if (finalizeFormalProgramActivation(updatedInstall)) {
-      removeAppVersionActivationJournal(activationJournal);
-      activationJournal = undefined;
-    }
-    return { install, versionState };
+    activated = { install, versionState, activeTarget };
   } catch (error) {
+    // A busy/rejected journal means this transaction never touched the active App.
+    if (!activationJournal) {
+      if (previousSourceRevision)
+        removeManagedAppRevisionCheckpoint({
+          revisionsRoot,
+          localAppId: input.localAppId,
+          checkpoint: previousSourceRevision,
+        });
+      throw error;
+    }
     let activationError: unknown = error;
     let rollbackCompleted = false;
     try {
       rollbackFormalProgramActivation(input.state, updatedInstall);
       input.versionStore.restore(input.localAppId, previousVersionState);
-      input.state.settings = previousSettings;
-      activateBridgeApp(input.state, {
-        deferPersistedStateSave: true,
-        agentStateSnapshot: previousAgentState,
-      });
-      restorePersistedAgentState(input.state.app, previousAgentState);
-      input.state.store.saveFrom(input.state.app);
-      persistBridgeSettings(input.state);
+      if (previousSourceRevision && previousTarget) {
+        restoreManagedAppRevisionCheckpoint({
+          revisionsRoot,
+          localAppId: input.localAppId,
+          appRoot: previousTarget.appRoot,
+          checkpoint: previousSourceRevision,
+        });
+      }
+      if (runtimeCommitted) {
+        input.state.settings = previousSettings;
+        activateBridgeApp(input.state, {
+          deferPersistedStateSave: true,
+          agentStateSnapshot: previousAgentState,
+        });
+        restorePersistedAgentState(input.state.app, previousAgentState);
+        input.state.store.saveFrom(input.state.app);
+        persistBridgeSettings(input.state);
+      }
       rollbackCompleted = true;
     } catch (rollbackError) {
       activationError = new AggregateError([error, rollbackError], "app_version_activation_state_rollback_failed");
     }
     if (rollbackCompleted && activationJournal) {
       removeAppVersionActivationJournal(activationJournal);
+      activationJournal = undefined;
+    }
+    if (rollbackCompleted && previousSourceRevision) {
+      removeManagedAppRevisionCheckpoint({
+        revisionsRoot,
+        localAppId: input.localAppId,
+        checkpoint: previousSourceRevision,
+      });
     }
     throw activationError;
   }
+  // Persistence and the activation journal have committed. Cleanup can be retried,
+  // but must never undo the authoritative generation after its predecessor is gone.
+  if (activationJournal && finalizeFormalProgramActivation(updatedInstall)) {
+    try {
+      if (previousSourceRevision) {
+        removeManagedAppRevisionCheckpoint({
+          revisionsRoot,
+          localAppId: input.localAppId,
+          checkpoint: previousSourceRevision,
+        });
+      }
+    } catch (error) {
+      // Unreferenced checkpoints are retried by startup pruning.
+      console.warn("app_version_activation_cleanup_deferred", {
+        localAppId: input.localAppId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+    try {
+      removeAppVersionActivationJournal(activationJournal);
+    } catch (error) {
+      console.warn("app_version_activation_journal_cleanup_deferred", {
+        localAppId: input.localAppId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+  return {
+    install: activated.install,
+    versionState: activated.versionState,
+    ...(sourceSavePoint ? { sourceSavePoint } : {}),
+  };
 }
 
 export function activatePreparedLocalAppDraft(input: {

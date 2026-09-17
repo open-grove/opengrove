@@ -80,6 +80,11 @@ function isPreContentIdentityRecord(value: unknown, localAppId: string): value i
     (record.appId === undefined || (typeof record.appId === "string" && Boolean(record.appId.trim()))) &&
     (record.contentDigest === undefined || /^[a-f0-9]{64}$/.test(record.contentDigest)) &&
     (record.workingContentDigest === undefined || /^[a-f0-9]{64}$/.test(record.workingContentDigest)) &&
+    (record.savePoint === undefined ||
+      (typeof record.savePoint === "object" &&
+        record.savePoint !== null &&
+        /^[a-f0-9]{40}$/.test(record.savePoint.commitSha) &&
+        validCanonicalDate(record.savePoint.savedAt))) &&
     typeof record.savedAt === "string" &&
     typeof record.archiveFile === "string" &&
     /^archives\/[a-f0-9]{64}\.tgz$/.test(record.archiveFile) &&
@@ -89,6 +94,11 @@ function isPreContentIdentityRecord(value: unknown, localAppId: string): value i
     Array.isArray(record.employees) &&
     validateAppStoreEmployeeDefaults(record.employees).length === 0
   );
+}
+
+function validCanonicalDate(value: unknown): boolean {
+  if (typeof value !== "string" || Number.isNaN(Date.parse(value))) return false;
+  return new Date(value).toISOString() === value;
 }
 
 function stringValue(value: unknown): string {

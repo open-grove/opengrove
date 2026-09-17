@@ -62,6 +62,9 @@ export function formatAppStoreInstallError(error: string, t: TranslationFn = tra
     return t("appStore.errSourceConflict");
   if (error === "app_install_evidence_unreadable") return t("appStore.errEvidenceUnreadable");
   if (error === "app_store_update_not_safe") return t("appStore.errUpdateNotSafe");
+  if (error === "app_store_update_external_git_worktree_requires_manual_relocation")
+    return t("appStore.errExternalWorktreeRelocation");
+  if (error === "app_store_install_in_progress") return t("appStore.errInstallInProgress");
   if (error === "app_store_host_update_required") return t("appStore.errHostUpdateRequired");
   if (error === "app_store_package_id_required") return t("appStore.errPackageIdRequired");
   if (error === "app_store_publish_target_changed") return t("appStore.errPublishTargetChanged");

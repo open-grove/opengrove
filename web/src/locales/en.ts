@@ -1945,6 +1945,9 @@ export const EN = {
   "appStore.version.none": "None",
   "appStore.version.unsaved": "Unsaved changes",
   "appStore.version.saved": "Saved",
+  "appStore.version.sourceSavedAt": "Source saved · {time}",
+  "appStore.version.sourceNeedsAttention": "Source needs attention · {path}",
+  "appStore.version.unknownSourcePath": "Unknown path",
   "appStore.version.registryUnavailable":
     "The formal version catalog is temporarily unavailable. Your local draft is still retained.",
   "appStore.version.localDraft": "My local draft",
@@ -2254,6 +2257,9 @@ export const EN = {
     "A local App with the same name but a different source already exists; OpenGrove will not overwrite it to protect local data",
   "appStore.errEvidenceUnreadable":
     "The local install record is corrupted or unreadable; OpenGrove stopped overwriting to protect local data. Check file permissions or reinstall",
+  "appStore.errExternalWorktreeRelocation":
+    "This App uses an external Git worktree. Relocate its repository before switching versions; the current App is unchanged.",
+  "appStore.errInstallInProgress": "This App is being installed. Wait for it to finish before trying again.",
   "appStore.errUpdateNotSafe":
     "This mount uses a custom path or alias, or is in an abnormal state; the App Store cannot update it automatically",
   "appStore.errHostUpdateRequired": "This App requires a newer OpenGrove release; update OpenGrove first",

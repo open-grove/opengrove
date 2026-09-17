@@ -52,6 +52,16 @@ import {
 } from "./app-store-archive.js";
 import { readAppStorePackageInstallMarker } from "./app-store-install-marker.js";
 import { appStorePackageInstallSafetyError, inspectAppStoreMountedPackageState } from "./app-store-runtime-state.js";
+import {
+  type AppRevisionTarget,
+  AppRevisionStore,
+  attachManagedAppRevisionWorkingCopy,
+  isManagedAppRevisionWorkingCopy,
+  managedAppRevisionGitDirectory,
+  restoreManagedAppRevisionCheckpoint,
+  removeManagedAppRevisionCheckpoint,
+  type AppRevisionRecoveryCheckpoint,
+} from "./app-revision-store.js";
 import { employeeManifestDefaultsPatch } from "./bridge-mounted-app-employees.js";
 import { clearMountedAppUninstallMarkers } from "./bridge-settings-store.js";
 import {
@@ -285,6 +295,15 @@ export interface UpdatedAppStorePackageInstall {
   previousAppRoot: string;
   workspaceRoot: string;
   programsRoot: string;
+}
+
+export interface AppStoreRevisionInstallRollback {
+  revisionsRoot: string;
+  target: AppRevisionTarget;
+  repositoryCreated: boolean;
+  previousCommitSha?: string;
+  checkpoint?: AppRevisionRecoveryCheckpoint;
+  releaseInstallLock?(): void;
 }
 
 export interface PreparedAppStorePackageInstall {
@@ -639,15 +658,61 @@ function appStoreRelinkResult(
   };
 }
 
-export function installAppStorePackage(input: {
+const activeAppStoreInstalls = new Set<string>();
+
+export async function installAppStorePackage(
+  input: AppStorePackageInstallInput,
+): Promise<AppStoreInstallResult | undefined> {
+  const item = findAppStorePackage(input.packageId, input.storeRoot);
+  if (!item) return undefined;
+  const key = `${resolve(input.storeRoot)}:${item.appId}`;
+  if (activeAppStoreInstalls.has(key)) throw new Error("app_store_install_in_progress");
+  activeAppStoreInstalls.add(key);
+  let released = false;
+  const releaseInstallLock = () => {
+    if (released) return;
+    released = true;
+    activeAppStoreInstalls.delete(key);
+  };
+  const onRevisionSavePointCreated = input.onRevisionSavePointCreated;
+  let handedOff = false;
+  try {
+    const result = await installAppStorePackageExclusive({
+      ...input,
+      ...(onRevisionSavePointCreated
+        ? {
+            onRevisionSavePointCreated: (rollback) => {
+              rollback.releaseInstallLock = releaseInstallLock;
+              onRevisionSavePointCreated(rollback);
+              handedOff = true;
+            },
+          }
+        : {}),
+    });
+    if (!handedOff) releaseInstallLock();
+    return result;
+  } catch (error) {
+    releaseInstallLock();
+    throw error;
+  }
+}
+
+interface AppStorePackageInstallInput {
   packageId: string;
   settings: BridgeSettings;
   state?: BridgeState;
   backupEnabled?: boolean;
   storeRoot: string;
+  revisions?: Pick<AppRevisionStore, "saveIfChanged">;
   onFreshAppRootCreated?(install: FreshAppStorePackageInstall): void;
   onUpdatedAppRootCreated?(install: UpdatedAppStorePackageInstall): void;
-}): AppStoreInstallResult | undefined {
+  onRevisionSavePointCreated?(rollback: AppStoreRevisionInstallRollback): void;
+  onBeforeMountCommit?(): void;
+}
+
+async function installAppStorePackageExclusive(
+  input: AppStorePackageInstallInput,
+): Promise<AppStoreInstallResult | undefined> {
   const item = findAppStorePackage(input.packageId, input.storeRoot);
   if (!item) return undefined;
   if (item.publishKind === "employee") {
@@ -665,6 +730,9 @@ export function installAppStorePackage(input: {
   });
   if (installSafetyError) throw new Error(installSafetyError);
   const installed = ensureImportedPackageInstalled(item, input.settings, input.storeRoot);
+  let revisionGitDirectory: string | undefined;
+  let revisionRepositoryExisted = false;
+  let revisionRollback: AppStoreRevisionInstallRollback | undefined;
   try {
     const manifest = requireAppManifest(installed.appRoot, "app_store_package_manifest_invalid");
     const appId = stringOrUndefined(manifest.id) ?? item.appId;
@@ -689,9 +757,8 @@ export function installAppStorePackage(input: {
     } else {
       mountedApps.push(mountedApp);
     }
-    input.settings.mountedApps = mountedApps;
-    clearMountedAppUninstallMarkers(input.settings, [appId, item.appId]);
-    const runtimeState = inspectAppStoreMountedPackageState(item, input.settings, {
+    const candidateSettings = { ...input.settings, mountedApps };
+    const runtimeState = inspectAppStoreMountedPackageState(item, candidateSettings, {
       appStoreRoot: defaultAppStoreRoot(),
       programsRoot: currentAppStoreProgramsRoot(input.storeRoot),
     });
@@ -709,6 +776,36 @@ export function installAppStorePackage(input: {
       ...(runtimeState.openableAppId ? { openableAppId: runtimeState.openableAppId } : {}),
       ...(runtimeState.openIssue ? { openIssue: runtimeState.openIssue } : {}),
     };
+    const workspacePath =
+      stringOrUndefined(recordValue(manifest.ui).workspace) ||
+      stringOrUndefined(recordValue(manifest.workspace).path) ||
+      "workspace";
+    const revisionsRoot = join(input.storeRoot, "app-revisions");
+    const revisionTarget: AppRevisionTarget = {
+      localAppId: mountedApp.id,
+      appRoot: installed.appRoot,
+      workspacePath,
+    };
+    revisionGitDirectory = managedAppRevisionGitDirectory(revisionsRoot, mountedApp.id);
+    revisionRepositoryExisted = Boolean(readPathEntry(revisionGitDirectory));
+    const revisionStore = new AppRevisionStore(revisionsRoot);
+    const previousSavePoint = await revisionStore.ensureWorkingCopy(revisionTarget);
+    revisionRollback = {
+      revisionsRoot,
+      target: revisionTarget,
+      repositoryCreated: !revisionRepositoryExisted,
+      ...(revisionRepositoryExisted
+        ? {
+            previousCommitSha: previousSavePoint.commitSha,
+            checkpoint: await revisionStore.captureRecoveryCheckpoint(revisionTarget),
+          }
+        : {}),
+    };
+    await (input.revisions ?? revisionStore).saveIfChanged({
+      ...revisionTarget,
+      message: `Install OpenGrove App Store version ${item.version}`,
+    });
+    input.onRevisionSavePointCreated?.(revisionRollback);
     if (installed.createdFresh) {
       input.onFreshAppRootCreated?.({
         packageId: item.id,
@@ -721,10 +818,105 @@ export function installAppStorePackage(input: {
     } else if (installed.updateInstall) {
       input.onUpdatedAppRootCreated?.(installed.updateInstall);
     }
+    // Async source work is complete. Merge only this mount into the latest settings;
+    // another App or a settings edit may have committed while the save point was pending.
+    input.onBeforeMountCommit?.();
+    const currentSettings = input.state?.settings ?? input.settings;
+    const currentIndex = currentSettings.mountedApps.findIndex((candidate) => candidate.id === appId);
+    if (currentIndex < 0) currentSettings.mountedApps = [...currentSettings.mountedApps, mountedApp];
+    else
+      currentSettings.mountedApps = currentSettings.mountedApps.map((candidate, index) =>
+        index === currentIndex ? { ...candidate, ...mountedApp } : candidate,
+      );
+    clearMountedAppUninstallMarkers(currentSettings, [appId, item.appId]);
+    if (!input.onRevisionSavePointCreated) finalizeAppStoreRevisionInstall(revisionRollback);
     return result;
   } catch (error) {
-    if (installed.createdFresh) rollbackFreshImportedPackageInstall(item, installed, input.storeRoot);
+    const rollbackErrors: unknown[] = [];
+    try {
+      if (revisionRollback) rollbackAppStoreRevisionInstall(revisionRollback);
+    } catch (rollbackError) {
+      rollbackErrors.push(rollbackError);
+    }
+    try {
+      if (installed.createdFresh) {
+        rollbackFreshImportedPackageInstall(item, installed, input.storeRoot);
+      } else if (installed.updateInstall) {
+        rollbackUpdatedAppStorePackageInstall({ ...installed.updateInstall, storeRoot: input.storeRoot });
+      }
+    } catch (rollbackError) {
+      rollbackErrors.push(rollbackError);
+    }
+    if (!revisionRollback && revisionGitDirectory && !revisionRepositoryExisted) {
+      try {
+        rmSync(revisionGitDirectory, { recursive: true, force: true });
+      } catch (rollbackError) {
+        rollbackErrors.push(rollbackError);
+      }
+    }
+    if (rollbackErrors.length > 0) {
+      throw new AggregateError([error, ...rollbackErrors], "app_store_revision_install_rollback_failed");
+    }
     throw error;
+  }
+}
+
+/** Restore only the Apps owned by this transaction, preserving unrelated settings. */
+export function restoreAppStoreMountSettings(
+  settings: BridgeSettings,
+  previous: Pick<BridgeSettings, "mountedApps" | "uninstalledStoreAppIds">,
+  appIds: ReadonlySet<string>,
+): void {
+  settings.mountedApps = [
+    ...settings.mountedApps.filter((mount) => !appIds.has(mount.id)),
+    ...structuredClone(previous.mountedApps.filter((mount) => appIds.has(mount.id))),
+  ];
+  settings.uninstalledStoreAppIds = [
+    ...settings.uninstalledStoreAppIds.filter((id) => !appIds.has(id)),
+    ...previous.uninstalledStoreAppIds.filter((id) => appIds.has(id)),
+  ];
+}
+
+export function rollbackAppStoreRevisionInstall(rollback: AppStoreRevisionInstallRollback): void {
+  try {
+    restoreAppStoreRevisionInstall(rollback);
+  } finally {
+    rollback.releaseInstallLock?.();
+  }
+}
+
+function restoreAppStoreRevisionInstall(rollback: AppStoreRevisionInstallRollback): void {
+  if (rollback.repositoryCreated) {
+    rmSync(managedAppRevisionGitDirectory(rollback.revisionsRoot, rollback.target.localAppId), {
+      recursive: true,
+      force: true,
+    });
+    return;
+  }
+  if (!rollback.checkpoint) throw new Error("app_store_revision_rollback_save_point_missing");
+  restoreManagedAppRevisionCheckpoint({
+    revisionsRoot: rollback.revisionsRoot,
+    localAppId: rollback.target.localAppId,
+    appRoot: rollback.target.appRoot,
+    checkpoint: rollback.checkpoint,
+  });
+  finalizeAppStoreRevisionInstall(rollback);
+}
+
+export function finalizeAppStoreRevisionInstall(rollback: AppStoreRevisionInstallRollback): void {
+  rollback.releaseInstallLock?.();
+  if (!rollback.checkpoint) return;
+  try {
+    removeManagedAppRevisionCheckpoint({
+      revisionsRoot: rollback.revisionsRoot,
+      localAppId: rollback.target.localAppId,
+      checkpoint: rollback.checkpoint,
+    });
+  } catch (error) {
+    console.warn("app_store_revision_cleanup_deferred", {
+      localAppId: rollback.target.localAppId,
+      error: error instanceof Error ? error.message : String(error),
+    });
   }
 }
 
@@ -866,6 +1058,7 @@ export function activatePreparedAppStorePackageInstall(input: {
       workspaceRoot,
       nextWorkspaceRelativePath: preparedState.nextWorkspaceRelativePath,
       previousAppRoot: input.prepared.appRoot,
+      ...(previousMount?.id ? { localAppId: previousMount.id } : {}),
       ...(preparedState.adoptTargetSnapshot ? { adoptTargetSnapshot: preparedState.adoptTargetSnapshot } : {}),
     });
     updateInstall = {
@@ -2808,6 +3001,7 @@ function ensureImportedPackageInstalled(
         workspaceContainerRoot,
         workspaceRoot,
         nextWorkspaceRelativePath,
+        ...(previousMount?.id ? { localAppId: previousMount.id } : {}),
         ...(previousAppEntry && previousAppRoot ? { previousAppRoot } : {}),
       });
     } catch (error) {
@@ -2973,6 +3167,7 @@ function installSideBySideAppProgram(input: {
   workspaceContainerRoot: string;
   workspaceRoot: string;
   nextWorkspaceRelativePath: string;
+  localAppId?: string;
   previousAppRoot?: string;
   adoptTargetSnapshot?: AppStorePublishTargetSnapshot;
 }): string {
@@ -3008,7 +3203,25 @@ function installSideBySideAppProgram(input: {
       }
       // Preserve the local repository only after the active target and
       // Workspace binding have passed their final serialized validation.
-      copyPreviousProgramGit(input.previousAppRoot, stagedAppRoot);
+      const previousGit = input.previousAppRoot ? readPathEntry(join(input.previousAppRoot, ".git")) : undefined;
+      const useManagedRevision =
+        input.localAppId &&
+        (!previousGit ||
+          (input.previousAppRoot &&
+            isManagedAppRevisionWorkingCopy({
+              revisionsRoot: join(input.storeRoot, "app-revisions"),
+              localAppId: input.localAppId,
+              appRoot: input.previousAppRoot,
+            })));
+      const revisionReattached =
+        useManagedRevision && input.localAppId
+          ? attachManagedAppRevisionWorkingCopy({
+              revisionsRoot: join(input.storeRoot, "app-revisions"),
+              localAppId: input.localAppId,
+              appRoot: stagedAppRoot,
+            })
+          : false;
+      if (!revisionReattached) copyPreviousProgramGit(input.previousAppRoot, stagedAppRoot);
       mkdirSync(input.workspaceRoot, { recursive: true });
       const createdWorkspaceEntry = readPathEntry(input.workspaceRoot);
       if (!createdWorkspaceEntry?.isDirectory() || createdWorkspaceEntry.isSymbolicLink()) {
@@ -3037,6 +3250,9 @@ function copyPreviousProgramGit(previousAppRoot: string | undefined, stagedAppRo
     readPathEntry(join(stagedAppRoot, ".git"))
   ) {
     throw new Error("app_store_update_git_invalid");
+  }
+  if (previousGitEntry.isFile()) {
+    throw new Error("app_store_update_external_git_worktree_requires_manual_relocation");
   }
   cpSync(previousGitRoot, join(stagedAppRoot, ".git"), {
     recursive: previousGitEntry.isDirectory(),
