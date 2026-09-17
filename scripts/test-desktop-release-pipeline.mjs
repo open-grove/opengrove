@@ -42,6 +42,7 @@ import {
   historicalDesktopRuntimeForbiddenPackagePrefixes,
   historicalDesktopRuntimePackageFiles,
   requiredDesktopRuntimePackageFiles,
+  requiredDesktopRuntimeDependencyFiles,
 } from "./desktop-package-inventory.mjs";
 import { desktopAsarLookupPath, normalizeDesktopAsarPath } from "./desktop-asar-path.mjs";
 import { containsPossibleDesktopPackageSecret } from "./desktop-package-secret-scan.mjs";
@@ -1655,7 +1656,6 @@ function testDesktopPackageInventory() {
     "node_modules/tar/LICENSE.md",
     "node_modules/minipass/LICENSE.md",
     "node_modules/minizlib/LICENSE",
-    "node_modules/tar/node_modules/chownr/LICENSE.md",
     "node_modules/yallist/LICENSE.md",
     "node_modules/@isaacs/fs-minipass/LICENSE",
   ]) {
@@ -1665,6 +1665,27 @@ function testDesktopPackageInventory() {
       `${path} must be required in desktop artifacts`,
     );
   }
+  const dependencyProblems = (packagedFiles) =>
+    desktopPackageInventoryProblems({
+      sourceFiles: [],
+      packagedFiles,
+      resourceFiles: ["app-update.yml"],
+      requiredPackageDependencies: requiredDesktopRuntimeDependencyFiles,
+    });
+  for (const location of ["node_modules/chownr", "node_modules/tar/node_modules/chownr"]) {
+    assert.deepEqual(dependencyProblems([`${location}/package.json`, `${location}/LICENSE.md`]), []);
+    assert.match(dependencyProblems([`${location}/package.json`]).join("\n"), /chownr\/LICENSE.md/);
+  }
+  assert.match(dependencyProblems([]).join("\n"), /chownr\/LICENSE.md/);
+  assert.match(
+    dependencyProblems([
+      "node_modules/chownr/package.json",
+      "node_modules/chownr/LICENSE.md",
+      "node_modules/tar/node_modules/chownr/package.json",
+    ]).join("\n"),
+    /chownr\/LICENSE.md/,
+    "a hoisted license cannot mask the active nested package's missing license",
+  );
   for (const name of ["tar", "adm-zip"]) {
     assert.ok(packageJson.dependencies[name], `${name} must ship as a production dependency`);
   }

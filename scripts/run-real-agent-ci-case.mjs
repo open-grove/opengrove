@@ -11,6 +11,7 @@ const directory = join(process.env.RUNNER_TEMP, "real-agent-case");
 const rawFile = join(directory, "probe.json");
 const publicDir = join(directory, "sanitized");
 rmSync(publicDir, { recursive: true, force: true });
+rmSync(rawFile, { force: true });
 mkdirSync(publicDir, { recursive: true });
 let runtimeEnv;
 const startedAt = new Date().toISOString();
@@ -105,6 +106,7 @@ try {
     stage,
     reason: error.timedOut ? "timeout" : "case_failed",
     exitCode: Number.isInteger(error.exitCode) ? error.exitCode : null,
+    capabilities: failedCapabilityDiagnostics(),
   };
   process.exitCode = 1;
 } finally {
@@ -112,6 +114,24 @@ try {
   writeFileSync(join(publicDir, "case-receipt.json"), `${JSON.stringify(receipt, null, 2)}\n`);
   await gateway?.stop();
   rmSync(join(directory, "deepseek"), { recursive: true, force: true });
+}
+
+function failedCapabilityDiagnostics() {
+  let probes = [];
+  try {
+    const raw = JSON.parse(readFileSync(rawFile, "utf8"));
+    if (Array.isArray(raw.probes)) probes = raw.probes;
+  } catch {
+    // Non-critical diagnostics: a crash may leave no parseable probe file.
+    console.warn("[case-diagnostics] probe results unavailable");
+  }
+  // Only policy-owned IDs and fixed status enums may leave an unverified file.
+  // No free-form reason, model output, URL or environment value is copied.
+  return capabilities.split(",").map((capability) => {
+    const matches = probes.filter((probe) => probe?.kernel === kernel && probe?.capability === capability);
+    const status = matches.length === 1 ? matches[0].status : undefined;
+    return { capability, status: ["passed", "failed", "skipped"].includes(status) ? status : "missing" };
+  });
 }
 
 async function run(command, args, options) {

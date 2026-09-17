@@ -176,6 +176,9 @@ try {
     "failed diagnostics must supersede any earlier success",
   );
   assert.equal(existsSync(join(caseRoot, "real-agent-case/deepseek")), false);
+  assert.deepEqual(JSON.parse(readFileSync(receiptPath, "utf8")).failure.capabilities, [
+    { capability: "turn.lifecycle", status: "failed" },
+  ]);
 } finally {
   rmSync(caseRoot, { recursive: true, force: true });
 }

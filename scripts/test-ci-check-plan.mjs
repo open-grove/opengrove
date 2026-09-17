@@ -9,6 +9,12 @@ assert.deepEqual(
 assert.deepEqual(docs.platforms, []);
 assert.deepEqual(docs.packages, []);
 assert.equal(docs.checks[0].preparation, "node", "documentation must not install or build the application");
+assert.equal(
+  createCiCheckPlan("pull_request", ["src/server/workspace-store.ts"]).checks.find((check) => check.id === "server")
+    .preparation,
+  "server",
+  "server security checks resolve the packaged #protocol runtime and need built server inputs",
+);
 const skill = createCiCheckPlan("pull_request", ["src/skills/bundled/opengrove-developer-mode-guard/SKILL.md"]);
 assert.ok(
   skill.checks.some((check) => check.id === "integration"),

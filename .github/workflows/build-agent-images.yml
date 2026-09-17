@@ -117,7 +117,7 @@ jobs:
           if [[ "$KERNEL" == claude-code ]]; then command=claude; fi
           version="$(docker run --rm "$IMAGE" "$command" --version | head -n1)"
           test -n "$version"
-          echo "kernel_version=$version" >> "$GITHUB_OUTPUT"
+          echo "cli_version=$version" >> "$GITHUB_OUTPUT"
 
       - name: Publish verified image
         if: inputs.publish
@@ -149,13 +149,14 @@ jobs:
         if: success()
         env:
           KERNEL: ${{ inputs.kernel }}
-          KERNEL_VERSION: ${{ steps.identity.outputs.kernel_version }}
+          CLI_VERSION: ${{ steps.identity.outputs.cli_version }}
+          ENGINE_VERSION: ${{ inputs.engine_version }}
           SOURCE_REVISION: ${{ inputs.source_revision }}
           REGISTRY_REFERENCE: ${{ steps.publish.outputs.reference }}
         run: |
           node --input-type=module - <<'JS'
           import { writeFileSync } from 'node:fs';
-          writeFileSync(process.env.RUNNER_TEMP + '/agent-image.json', JSON.stringify({schemaVersion:1, kernel:process.env.KERNEL, kernelVersion:process.env.KERNEL_VERSION, sourceRevision:process.env.SOURCE_REVISION || null, image:process.env.REGISTRY_REFERENCE || null}, null, 2));
+          writeFileSync(process.env.RUNNER_TEMP + '/agent-image.json', JSON.stringify({schemaVersion:1, kernel:process.env.KERNEL, engineVersion:process.env.ENGINE_VERSION, cliVersion:process.env.CLI_VERSION, sourceRevision:process.env.SOURCE_REVISION || null, image:process.env.REGISTRY_REFERENCE || null}, null, 2));
           JS
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:

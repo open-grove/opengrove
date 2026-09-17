@@ -21,7 +21,7 @@ export function createCiCheckPlan(event, paths) {
       checks.push({
         id,
         command,
-        preparation: "dependencies",
+        preparation: id === "server" ? "server" : "dependencies",
         browser: [
           "integration",
           "browser-ui",

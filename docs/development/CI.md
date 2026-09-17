@@ -81,7 +81,9 @@ can be certified.
 `model` and non-sensitive `configRevision`. The default version/model comes from
 the support policy. `kernelVersion` is the complete discovery identity, not a
 semver prefix. Bump `configRevision` when rotating credentials or changing external
-configuration without a model/image change. Never publish credentials or hashes of
+configuration without a model/image change. Image receipts record `cliVersion` separately:
+OpenClaw's Gateway handshake identity, for example, differs from its CLI banner.
+Never publish credentials or hashes of
 raw secrets. A changed configuration invalidates the corresponding plan.
 
 The plan artifact freezes each case's source-input digest, policy, mode, version,

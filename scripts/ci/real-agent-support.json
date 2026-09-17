@@ -68,7 +68,7 @@
     {
       "kernel": "hermes",
       "runtime_mode": "acp",
-      "kernel_version": "Hermes Agent v0.21.1 (2026.9.7) · upstream 5eb99eb2 · local 2237be35 (+30500 carried commits)",
+      "kernel_version": "Hermes Agent v0.21.1 (2026.9.7) · upstream 2237be35",
       "capabilities": [
         "tools.nativeTool",
         "approval.request",

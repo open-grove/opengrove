@@ -62,6 +62,8 @@ Kernel ID）。每项必须指定 `ghcr.io/OWNER/IMAGE@sha256:DIGEST`，可显�
 `kernelVersion`、`model`、非敏感的 `configRevision`；默认版本与模型来自支持清单。
 版本必须是完整发现身份。轮换凭据或修改外部配置时递增 `configRevision`，不得公开
 凭据或原始 secret 的哈希。配置变化会使相应计划失效。
+镜像回执单独记录 `cliVersion`，不能直接当作所有运行模式的发现身份；例如 OpenClaw
+Gateway 握手返回的版本与 CLI 显示文字不同。
 
 执行计划固定源码输入摘要、测试策略、case、模式、版本、镜像、供应商、协议、模型和
 配置代次。测试按这份计划执行，汇总与发布再次核对，不能只验证版本非空。
