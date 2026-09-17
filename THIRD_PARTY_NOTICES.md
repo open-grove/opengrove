@@ -224,3 +224,36 @@ Source: https://github.com/anomalyco/models.dev
 `vendor/agent-router-sdk-0.1.4.tgz` includes its LICENSE; npm verifies the
 distribution checksum recorded in `package-lock.json`. The Host imports only
 the package public entry point.
+
+## App Store archive libraries
+
+OpenGrove bundles the following production dependencies to extract App Store
+archives inside the Host. The original license files, including upstream
+copyright and permission notices, are retained at the listed paths in desktop
+distributions and required by the desktop artifact inventory gate.
+
+| Package | Version | License | Bundled license file |
+| --- | --- | --- | --- |
+| `tar` | 7.5.22 | Blue Oak Model License 1.0.0 | `node_modules/tar/LICENSE.md` |
+| `adm-zip` | 0.6.1 | MIT | `node_modules/adm-zip/LICENSE` |
+| `minipass` | 7.1.3 | Blue Oak Model License 1.0.0 | `node_modules/minipass/LICENSE.md` |
+| `minizlib` | 3.1.0 | MIT | `node_modules/minizlib/LICENSE` |
+| `chownr` | 3.0.0 | Blue Oak Model License 1.0.0 | `node_modules/tar/node_modules/chownr/LICENSE.md` |
+| `yallist` | 5.0.0 | Blue Oak Model License 1.0.0 | `node_modules/yallist/LICENSE.md` |
+| `@isaacs/fs-minipass` | 4.0.1 | ISC | `node_modules/@isaacs/fs-minipass/LICENSE` |
+
+`minizlib` includes copyright (c) 2017-2023 Isaac Z. Schlueter and
+Contributors, Node.js contributors, and Joyent, Inc. and other Node contributors.
+`@isaacs/fs-minipass` includes copyright (c) Isaac Z. Schlueter and Contributors.
+Their complete copyright, permission and warranty notices are preserved in the
+original bundled license files above.
+
+Sources:
+
+- https://github.com/isaacs/node-tar
+- https://github.com/cthackers/adm-zip
+- https://github.com/isaacs/minipass
+- https://github.com/isaacs/minizlib
+- https://github.com/isaacs/chownr
+- https://github.com/isaacs/yallist
+- https://github.com/npm/fs-minipass
