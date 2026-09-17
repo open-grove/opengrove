@@ -18,9 +18,13 @@ copying commands between entrypoints.
 Documentation-only paths run link checks with Node alone: no application install
 or build. Markdown under runtime skills, prompts or fixtures is product input.
 Unknown/unavailable diffs select conservative coverage. PR harness selection is
-the union of baseline integration and changed module owners; Main runs every
-owner. `src/tests/*-harness.ts` must have an inventory entry, and duplicate
-same-environment execution entries fail the inventory contract. Windows aliases
+the union of baseline integration, changed module owners and harness `inputs`;
+Main runs every owner. Inputs declare exact files or directory prefixes ending
+in `/`, independently of shard ownership. Cross-owner Web harnesses conservatively
+declare `web/` to cover shared UI, styles and runtime dependencies, selecting those
+tests without adding their entire backend owner groups. `src/tests/*-harness.ts`
+must have an inventory entry, and duplicate same-environment execution entries
+fail the inventory contract. Windows aliases
 and native jobs consume the same records. Node unit tests own their `*.test.js`
 files; static Server checks do not repeat the Host contract unit test.
 

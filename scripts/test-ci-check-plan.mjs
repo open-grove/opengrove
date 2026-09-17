@@ -31,6 +31,42 @@ for (const [path, task] of [
   assert.equal(new Set(tasks).size, tasks.length, "the Linux execution plan must not duplicate harnesses");
 }
 
+const crossOwnerWebCases = [
+  ["web/src/components/apps/mounted-app-chat-panel.tsx", "web-mounted-app-group-deletion"],
+  ["web/src/components/network/app-store-publish-page.tsx", "web-app-store-publish-page"],
+  ["web/src/components/network/app-store-publish-page.tsx", "web-app-release-recovery"],
+  ["web/src/components/network/app-version-management-page.tsx", "web-app-version-management"],
+  ["web/src/runtime/account-profile-store.ts", "web-account-profile-storage"],
+  ["web/src/runtime/kernel-capability-ui-policy.ts", "kernel-capability-ui-policy"],
+  ["web/src/messages.ts", "agent-output-resolver"],
+];
+for (const event of ["pull_request", "merge_group"]) {
+  for (const [path, task] of crossOwnerWebCases) {
+    const plan = createCiCheckPlan(event, [path]);
+    const tasks = plan.checks.flatMap((check) => check.tasks ?? []);
+    assert.ok(tasks.includes(task), `${event}: ${path} must select ${task} across owner boundaries`);
+    assert.ok(!tasks.includes("state-file-lock"), "Web inputs must not select the entire storage owner");
+    assert.ok(!tasks.includes("app-release-coordinator"), "Web inputs must not select the entire lifecycle owner");
+    assert.ok(!tasks.includes("hermes-runtime"), "Web inputs must not select the entire kernel owner");
+  }
+  for (const path of [
+    "web/src/components/ui/confirm-dialog.tsx",
+    "web/src/styles.css",
+    "web/src/i18n.ts",
+    "web/src/components/rooms/rooms-shared-state.ts",
+  ]) {
+    const tasks = createCiCheckPlan(event, [path]).checks.flatMap((check) => check.tasks ?? []);
+    for (const [, task] of crossOwnerWebCases)
+      assert.ok(tasks.includes(task), `${event}: shared Web input ${path} must retain ${task}`);
+  }
+  const mixed = createCiCheckPlan(event, [
+    ...crossOwnerWebCases.map(([path]) => path),
+    "scripts/test-web-mounted-app-group-deletion.mjs",
+    "src/server/app-store.ts",
+  ]).checks.flatMap((check) => check.tasks ?? []);
+  assert.equal(new Set(mixed).size, mixed.length, "owner, baseline and input matches must execute each task once");
+}
+
 for (const event of ["push", "workflow_dispatch"]) {
   const main = createCiCheckPlan(event, []);
   assert.ok(main.checks.some((check) => check.id === "harness-state-storage"));

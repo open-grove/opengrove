@@ -16,8 +16,11 @@
 
 普通文档路径只用 Node 检查链接，不安装应用依赖、不构建。运行时技能、提示词和
 fixture 中的 Markdown 属于产品输入。范围未知或 diff 不可用时保守执行。
-PR 的 harness 集合是“基础集成检查 + 受影响模块的测试归属”的并集，Main 执行全部
-归属。`src/tests/*-harness.ts` 必须登记，同一环境的重复执行项会被清单检查拒绝。
+PR 的 harness 集合是“基础集成检查 + 受影响模块的测试归属 + harness 的 `inputs`”
+的并集，Main 执行全部归属。`inputs` 独立声明受影响的文件或以 `/` 结尾的目录前缀，
+不改变分片归属。跨 owner 的 Web harness 保守声明 `web/`，覆盖共享 UI、样式和
+运行时依赖，只补选这些测试，不扩大到它们所属的整个后端测试组。
+`src/tests/*-harness.ts` 必须登记，同一环境的重复执行项会被清单检查拒绝。
 Windows 开发命令和原生 job 共用同一份记录；Node 单测负责 `*.test.js`，Server
 静态检查不再重复执行 Host 契约单测。
 

@@ -3,6 +3,7 @@ import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
+  affectedHarnesses,
   harnessGroups,
   harnessInventory,
   harnessOwners,
@@ -172,7 +173,9 @@ for (const task of harnessGroups.full) {
   assert.deepEqual(
     Object.keys(task).filter(
       (field) =>
-        !["id", "path", "owner", "suite", "isolation", "platforms", "network", "timeoutMs", "build"].includes(field),
+        !["id", "path", "owner", "suite", "isolation", "platforms", "network", "timeoutMs", "build", "inputs"].includes(
+          field,
+        ),
     ),
     [],
     `${task.id} should use only the reviewed, non-redundant inventory fields`,
@@ -181,6 +184,17 @@ for (const task of harnessGroups.full) {
     ? task.path.replace(/^dist\/tests\//u, "src/tests/").replace(/\.js$/u, ".ts")
     : task.path;
   assert.equal(existsSync(resolve(projectRoot, sourcePath)), true, `${task.id} should reference a tracked test source`);
+  for (const input of task.inputs ?? [])
+    assert.ok(existsSync(resolve(projectRoot, input)), `${task.id} declares a missing input: ${input}`);
+  // Catch newly added literal Web dependencies even when the harness belongs
+  // to a backend shard. Shared/transitive Web inputs have separate planner cases.
+  for (const [, input] of readFileSync(resolve(projectRoot, sourcePath), "utf8").matchAll(
+    /["'](web\/src(?:\/[^"'\s]+)?)["']/gu,
+  ))
+    assert.ok(
+      affectedHarnesses([input], false).some((selected) => selected.id === task.id),
+      `${task.id} reads ${input}, which must select that harness independently of its owner`,
+    );
 }
 
 assert.deepEqual(

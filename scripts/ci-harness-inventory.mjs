@@ -18,8 +18,10 @@ export const integrationSuites = [
   "state-migrations",
 ];
 
-// One canonical record per executable harness. `owner` assigns the Main/Nightly
-// shard; `suite` preserves the smaller affected-integration subsets used by PRs.
+// One canonical record per executable harness. `owner` assigns the Main shard;
+// `suite` preserves PR integration baselines. `inputs` adds cross-owner affected
+// paths (exact files or directory prefixes ending in /). Web inputs stay broad
+// because these harnesses also consume shared components, styles and runtime code.
 export const harnessInventory = [
   task("package-contents", "scripts/test-package-contents.mjs", "kernels-providers", {
     suite: "packed-runtime",
@@ -44,8 +46,12 @@ export const harnessInventory = [
   task("withdrawal-route", "dist/tests/withdrawal-route-harness.js", "kernels-providers"),
 
   task("web-remote-agent-ui", "scripts/test-web-remote-agent-ui.mjs", "web-desktop"),
-  task("web-mounted-app-group-deletion", "scripts/test-web-mounted-app-group-deletion.mjs", "apps-knowledge"),
-  task("web-account-profile-storage", "scripts/test-web-account-profile-storage.mjs", "state-storage"),
+  task("web-mounted-app-group-deletion", "scripts/test-web-mounted-app-group-deletion.mjs", "apps-knowledge", {
+    inputs: ["web/"],
+  }),
+  task("web-account-profile-storage", "scripts/test-web-account-profile-storage.mjs", "state-storage", {
+    inputs: ["web/"],
+  }),
   task("web-development-proxy", "scripts/test-web-development-proxy.mjs", "web-desktop"),
   task("safe-json", "dist/tests/safe-json-harness.js", "state-storage"),
   task("policy", "dist/tests/policy-harness.js", "state-storage"),
@@ -103,12 +109,16 @@ export const harnessInventory = [
     "kernels-providers",
   ),
   task("pi-story-seed-business-e2e", "dist/tests/pi-story-seed-business-e2e-harness.js", "kernels-providers"),
-  task("kernel-capability-ui-policy", "scripts/test-kernel-capability-ui-policy.mjs", "kernels-providers"),
+  task("kernel-capability-ui-policy", "scripts/test-kernel-capability-ui-policy.mjs", "kernels-providers", {
+    inputs: ["web/"],
+  }),
   task("hermes-runtime", "dist/tests/hermes-runtime-harness.js", "kernels-providers"),
   task("kernel-extension", "dist/tests/kernel-extension-harness.js", "kernels-providers"),
   task("acp-cli-runtime", "dist/tests/acp-cli-runtime-harness.js", "kernels-providers"),
   task("openclaw-gateway-runtime", "dist/tests/openclaw-gateway-runtime-harness.js", "kernels-providers"),
-  task("agent-output-resolver", "dist/tests/agent-output-resolver-harness.js", "kernels-providers"),
+  task("agent-output-resolver", "dist/tests/agent-output-resolver-harness.js", "kernels-providers", {
+    inputs: ["web/"],
+  }),
   task("bridge-kernel-selection", "dist/tests/bridge-kernel-selection-harness.js", "kernels-providers", {
     suite: "critical",
   }),
@@ -207,12 +217,15 @@ export const harnessInventory = [
   }),
   task("web-app-store-publish-page", "scripts/test-web-app-store-publish-page.mjs", "app-lifecycle", {
     suite: "critical",
+    inputs: ["web/"],
   }),
   task("web-app-release-recovery", "scripts/test-web-app-release-recovery.mjs", "app-lifecycle", {
     suite: "critical",
+    inputs: ["web/"],
   }),
   task("web-app-version-management", "scripts/test-web-app-version-management.mjs", "app-lifecycle", {
     suite: "critical",
+    inputs: ["web/"],
   }),
   task("packaged-inventory", "dist/tests/packaged-inventory-harness.js", "app-lifecycle", {
     suite: "server-inventory",
@@ -274,7 +287,7 @@ export function nativePlatformTasks(platform) {
   ).filter((entry, index, all) => all.findIndex((other) => other.id === entry.id) === index);
 }
 
-// Unknown/shared inputs select every owner. Narrow mappings are only for established boundaries.
+// Unknown inputs select every owner. Known boundaries also include declared cross-owner inputs.
 export function affectedHarnesses(paths, includeIntegration) {
   const owners = new Set(paths.length ? [] : harnessOwners);
   for (const path of paths) {
@@ -299,7 +312,13 @@ export function affectedHarnesses(paths, includeIntegration) {
     else for (const owner of harnessOwners) owners.add(owner);
   }
   return harnessInventory.filter(
-    (entry) => !entry.network && (owners.has(entry.owner) || (includeIntegration && entry.suite)),
+    (entry) =>
+      !entry.network &&
+      (owners.has(entry.owner) ||
+        (includeIntegration && entry.suite) ||
+        entry.inputs?.some((input) =>
+          paths.some((path) => path === input || (input.endsWith("/") && path.startsWith(input))),
+        )),
   );
 }
 
@@ -333,6 +352,14 @@ function validateInventory(inventory) {
     if (ids.has(entry.id)) throw new Error(`Duplicate harness id: ${entry.id}`);
     ids.add(entry.id);
     if (!harnessOwners.includes(entry.owner)) throw new Error(`Unknown harness owner for ${entry.id}: ${entry.owner}`);
+    if (
+      entry.inputs &&
+      (!Array.isArray(entry.inputs) ||
+        !entry.inputs.length ||
+        entry.inputs.some((input) => typeof input !== "string" || !input) ||
+        new Set(entry.inputs).size !== entry.inputs.length)
+    )
+      throw new Error(`Invalid harness inputs for ${entry.id}`);
     if (entry.suite && !integrationSuites.includes(entry.suite)) {
       throw new Error(`Unknown integration suite for ${entry.id}: ${entry.suite}`);
     }
