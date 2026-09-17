@@ -1,5 +1,6 @@
 import { AgentRouterError } from "@agent-router/sdk";
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { isEnabledEnvFlag } from "../env-flags.js";
 import { readAppEnv } from "../../identity.js";
 import type { RemoteAgentBinding } from "../../rooms/remote-agent.js";
 import {
@@ -13,21 +14,36 @@ import {
 import type { BridgeState } from "../bridge-types.js";
 import { readWwProviderLocalState, wwProviderAccountMatches } from "../ww-provider-local-state.js";
 import { AgentNetworkSessions, type NetworkConnection } from "./client.js";
+import { agentRouterConfiguration } from "./configuration.js";
 
 const sessions = new WeakMap<BridgeState, AgentNetworkSessions>();
 const generations = new WeakMap<BridgeState, number>();
 const authorizedSessions = new WeakMap<BridgeState, Set<string>>();
+
+/** Local lifecycle operations require a previously verified product session, even during a WW outage. */
+export function requireKnownNetworkSession(context: NetworkRouteContext): AgentNetworkSessions {
+  const fingerprint = authSessionFingerprint(readAuthTokens(context.request));
+  if (!context.security || !fingerprint || !authorizedSessions.get(context.state)?.has(fingerprint))
+    throw new AgentRouterError("not_authenticated", 401);
+  const network = sessions.get(context.state);
+  if (!network) throw new AgentRouterError("remote_authorization_canceled", 409);
+  return network;
+}
 
 /** Issued only after product authorization; object identity prevents reconstruction from request or ledger data. */
 export interface NetworkRunAuthorization {
   readonly accountIssuer: string;
   readonly accountUserId: string;
 }
-const runAuthorizations = new WeakMap<NetworkRunAuthorization, { state: BridgeState; generation: number }>();
+const runAuthorizations = new WeakMap<
+  NetworkRunAuthorization,
+  { state: BridgeState; network: AgentNetworkSessions; generation: number }
+>();
 
 function issueNetworkRunAuthorization(state: BridgeState, session: BridgeRuntimeAuthSession): NetworkRunAuthorization {
   const authorization = Object.freeze({ accountIssuer: session.auth.baseUrl, accountUserId: session.auth.userId });
-  runAuthorizations.set(authorization, { state, generation: networkSessionsFor(state).generation });
+  const network = networkSessionsFor(state);
+  runAuthorizations.set(authorization, { state, network, generation: network.generation });
   return authorization;
 }
 
@@ -39,7 +55,8 @@ export function assertNetworkRunAuthorized(
   const issued = authorization && runAuthorizations.get(authorization);
   if (!issued || issued.state !== state) throw new AgentRouterError("remote_authorization_required", 403);
   if (
-    issued.generation !== networkSessionsFor(state).generation ||
+    issued.network !== sessions.get(state) ||
+    issued.generation !== issued.network.generation ||
     (binding &&
       (binding.accountIssuer !== authorization.accountIssuer || binding.accountUserId !== authorization.accountUserId))
   )
@@ -49,12 +66,12 @@ export function assertNetworkRunAuthorized(
 export function networkSessionsFor(state: BridgeState): AgentNetworkSessions {
   let network = sessions.get(state);
   if (!network) {
-    const baseUrl = readAppEnv("AGENT_ROUTER_URL")?.trim();
+    const baseUrl = agentRouterConfiguration(state.settings).url;
     if (!baseUrl) throw new AgentRouterError("remote_not_configured", 503);
     network = new AgentNetworkSessions({
       baseUrl,
       provider: readAppEnv("AGENT_ROUTER_PROVIDER")?.trim() || "opengrove",
-      allowLocalHTTP: readAppEnv("AGENT_ROUTER_ALLOW_LOCAL_HTTP") === "1",
+      allowLocalHTTP: isEnabledEnvFlag(readAppEnv("AGENT_ROUTER_ALLOW_LOCAL_HTTP")),
     });
     sessions.set(state, network);
   }
@@ -65,6 +82,12 @@ export async function clearNetworkSession(state: BridgeState, reason = "not_auth
   generations.set(state, networkSessionGeneration(state) + 1);
   authorizedSessions.delete(state);
   await sessions.get(state)?.clear(reason);
+}
+
+/** Drop the old service client as well as its credentials. Clearing aborts synchronously. */
+export function resetNetworkConfiguration(state: BridgeState): void {
+  void clearNetworkSession(state, "remote_service_changed");
+  sessions.delete(state);
 }
 
 /** Logout clears only communication state authorized by this existing product session. No remote auth lookup. */
@@ -81,12 +104,11 @@ export function updateNetworkProductSession(
 ): NetworkRunAuthorization | undefined {
   if (generation !== undefined && networkSessionGeneration(state) !== generation) return undefined;
   const network =
-    sessions.get(state) ?? (readAppEnv("AGENT_ROUTER_URL")?.trim() ? networkSessionsFor(state) : undefined);
+    sessions.get(state) ?? (agentRouterConfiguration(state.settings).url ? networkSessionsFor(state) : undefined);
   if (!network) return undefined;
   const product = {
     accountIssuer: session.auth.baseUrl,
     accountUserId: session.auth.userId,
-    accessToken: session.auth.accessToken,
   };
   if (!network.matches(product) || !isCurrentHostAccount(state, session)) return undefined;
   if (!bridgeSessionUserHasRole(session.user, "admin")) {
@@ -96,7 +118,6 @@ export function updateNetworkProductSession(
   network.observe({
     accountIssuer: session.auth.baseUrl,
     accountUserId: session.auth.userId,
-    accessToken: session.auth.accessToken,
   });
   rememberAuthorizedSession(state, request);
   return issueNetworkRunAuthorization(state, session);
@@ -140,7 +161,6 @@ export async function authorizeNetworkAccount(
     {
       accountIssuer: auth.session.auth.baseUrl,
       accountUserId: auth.session.auth.userId,
-      accessToken: auth.session.auth.accessToken,
     },
     generation,
   );
@@ -155,16 +175,10 @@ export async function requireNetworkConnection(
   if (!context.security) throw new AgentRouterError("not_authenticated", 401);
   const network = networkSessionsFor(context.state);
   const generation = network.generation;
-  for (let attempt = 0; ; attempt++) {
-    const authorization = await authorizeNetworkAccount(context, { generation, forceRefresh: attempt > 0 });
-    try {
-      const connection = await network.connect(binding);
-      assertNetworkRunAuthorized(context.state, authorization, binding);
-      return { ...connection, authorization };
-    } catch (error) {
-      if (attempt > 0 || !(error instanceof AgentRouterError) || error.code !== "external_session_invalid") throw error;
-    }
-  }
+  const authorization = await authorizeNetworkAccount(context, { generation });
+  const connection = await network.connect(binding);
+  assertNetworkRunAuthorized(context.state, authorization, binding);
+  return { ...connection, authorization };
 }
 
 function rememberAuthorizedSession(state: BridgeState, request: IncomingMessage): void {
@@ -193,4 +207,8 @@ function isCurrentHostAccount(state: BridgeState, session: BridgeRuntimeAuthSess
     !readWwProviderLocalState(state).ownerUserId ||
     wwProviderAccountMatches(state, { issuer: session.auth.baseUrl, userId: session.auth.userId })
   );
+}
+
+export function isNetworkOAuthRequired(error: unknown): boolean {
+  return error instanceof AgentRouterError && error.code === "remote_oauth_required";
 }

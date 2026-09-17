@@ -298,7 +298,7 @@
     "publish:desktop-release": "node scripts/publish-desktop-release.mjs",
     "control:desktop-release": "node scripts/control-desktop-release.mjs",
     "prepack": "npm run build",
-    "test:remote-agents": "npm run build:server && node --test dist/tests/agent-network-sessions.test.js dist/tests/remote-agent-room.test.js dist/tests/remote-agent-groups.test.js dist/tests/remote-agent-isolation.test.js dist/tests/remote-agent-authorization.test.js dist/tests/remote-room-restore.test.js dist/tests/host-openapi.test.js && node scripts/test-web-remote-agent-ui.mjs",
+    "test:remote-agents": "npm run build:server && node --test dist/tests/agent-router-settings.test.js dist/tests/agent-network-sessions.test.js dist/tests/router-oauth.test.js dist/tests/remote-agent-room.test.js dist/tests/remote-agent-groups.test.js dist/tests/remote-agent-isolation.test.js dist/tests/remote-agent-authorization.test.js dist/tests/remote-room-restore.test.js dist/tests/host-openapi.test.js && node scripts/test-web-remote-agent-ui.mjs && node scripts/test-web-router-settings.mjs",
     "test:web-compact-layout": "node scripts/test-web-compact-layout.mjs && node scripts/test-web-adaptive-workbench.mjs"
   },
   "bundleDependencies": [
@@ -319,6 +319,7 @@
     "cross-spawn": "^7.0.6",
     "electron-updater": "^6.8.9",
     "js-yaml": "^4.3.2",
+    "openid-client": "^6.8.8",
     "tar": "7.5.22",
     "undici": "7.29.0",
     "zod": "^4.5.4"

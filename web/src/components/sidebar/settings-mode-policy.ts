@@ -7,6 +7,7 @@ const STANDARD_SETTINGS_SECTION_IDS = new Set<SettingsSectionId>([
   "appearance",
   "desktop",
   "updates",
+  "network",
 ]);
 
 export function isSettingsSectionVisible(sectionId: SettingsSectionId, developerMode: boolean): boolean {

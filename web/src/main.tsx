@@ -2,6 +2,7 @@ import React, { type ErrorInfo, type ReactNode } from "react";
 import ReactDOM from "react-dom/client";
 import type { Root } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { NetworkAuthorizationProvider } from "./components/rooms/network-authorization-provider";
 import { createBrowserRouter } from "react-router";
 import { RouterProvider } from "react-router/dom";
 import "./styles.css";
@@ -101,7 +102,9 @@ function renderWithProviders(root: Root, content: ReactNode) {
         <QueryClientProvider client={queryClient}>
           <TooltipProvider>
             <ToastProvider>
-              <ConfirmProvider>{content}</ConfirmProvider>
+              <NetworkAuthorizationProvider>
+                <ConfirmProvider>{content}</ConfirmProvider>
+              </NetworkAuthorizationProvider>
             </ToastProvider>
           </TooltipProvider>
         </QueryClientProvider>

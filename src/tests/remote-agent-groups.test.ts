@@ -7,6 +7,7 @@ test("cloud employees receive explicit group replies without unrelated history a
   const host = await startRemoteRoomHost();
   try {
     await host.login("admin");
+    await host.connect();
     const { memberId } = await host.request<{ memberId: string }>("/network/contacts", {
       address: host.fixture.address,
       name: "Cloud coder",
@@ -62,6 +63,7 @@ test("a rejected group message preserves the remote conversation after signing i
   const host = await startRemoteRoomHost();
   try {
     await host.login("admin");
+    await host.connect();
     const { memberId } = await host.request<{ memberId: string }>("/network/contacts", {
       address: host.fixture.address,
     });
@@ -79,6 +81,7 @@ test("a rejected group message preserves the remote conversation after signing i
     assert.equal(host.sendCalls().length, 1);
 
     await host.login("admin");
+    await host.connect();
     await post("recall-next", "recall");
     const next = await host.waitMessage("recall-next", (message) => message.status === "done");
     assert.equal(next.remoteTask?.contextId, "context-remember-first");
@@ -98,6 +101,7 @@ test("read-only Rooms requests neither reconnect nor replay pending remote work"
   const host = await startRemoteRoomHost();
   try {
     await host.login("admin");
+    await host.connect();
     const { memberId } = await host.request<{ memberId: string }>("/network/contacts", {
       address: host.fixture.address,
     });
@@ -115,7 +119,7 @@ test("read-only Rooms requests neither reconnect nor replay pending remote work"
       await host.request("/rooms/recovery/messages");
     }
     assert.deepEqual([host.fixture.calls.length, host.fixture.exchanges.length], before);
-    await host.request("/network/account", {});
+    await host.connect();
     const recovered = await host.waitMessage("uncertain", (message) => message.status === "done");
     assert.equal(recovered.text, "reply:RECOVER");
   } finally {
@@ -129,6 +133,7 @@ test("an old account's read request cannot disconnect the current local Host own
     await host.login("regular");
     const oldCookies = host.cookies;
     await host.login("admin");
+    await host.connect();
     const { memberId } = await host.request<{ memberId: string }>("/network/contacts", {
       address: host.fixture.address,
     });

@@ -32,7 +32,13 @@ interface WwRetryRequestOptions {
 }
 
 interface WwJsonRequestOptions {
-  method: "GET";
+  method: "GET" | "POST";
+  body?: unknown;
+  query?: Record<string, string>;
+  signal?: AbortSignal;
+  fetch?: typeof fetch;
+  redirect?: RequestRedirect;
+  credentials?: RequestCredentials;
   accessToken?: string;
   headers?: Record<string, string>;
   timeoutMs?: number;
@@ -258,13 +264,19 @@ async function requestWwJson<T>(
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), normalizeRequestTimeoutMs(options.timeoutMs));
   try {
-    const response = await fetch(withBasePath(baseUrl, path), {
+    const url = new URL(withBasePath(baseUrl, path));
+    for (const [key, value] of Object.entries(options.query ?? {})) url.searchParams.set(key, value);
+    const response = await (options.fetch ?? fetch)(url, {
       method: options.method,
       headers: {
+        ...(options.body === undefined ? {} : { "content-type": "application/json" }),
         ...(options.accessToken ? { authorization: `Bearer ${options.accessToken}` } : {}),
         ...options.headers,
       },
-      signal: controller.signal,
+      body: options.body === undefined ? undefined : JSON.stringify(options.body),
+      signal: options.signal ? AbortSignal.any([controller.signal, options.signal]) : controller.signal,
+      redirect: options.redirect,
+      credentials: options.credentials,
     });
     const body = await response.json().catch((error) => {
       if (controller.signal.aborted) throw error;
@@ -272,15 +284,25 @@ async function requestWwJson<T>(
     });
     if (!response.ok) {
       const envelope = record(body);
-      throw mapWwError(
-        response.status,
-        envelope.error,
-        parseRetryAfter(response.headers.get("Retry-After")),
-        stringValue(envelope.request_id) || undefined,
+      throw attachResponseDiagnostics(
+        mapWwError(
+          response.status,
+          envelope.error,
+          parseRetryAfter(response.headers.get("Retry-After")),
+          stringValue(envelope.request_id) || undefined,
+        ),
+        [buildHttpResponseDiagnostic(response, body, options.method, path, "http_error")],
       );
     }
-    return mapResponse(body);
+    try {
+      return mapResponse(body);
+    } catch (error) {
+      throw attachResponseDiagnostics(error, [
+        buildHttpResponseDiagnostic(response, body, options.method, path, "invalid_json"),
+      ]);
+    }
   } catch (error) {
+    options.signal?.throwIfAborted();
     if (controller.signal.aborted) throw new Error("ww_request_timeout");
     throw error;
   } finally {
@@ -299,7 +321,7 @@ function isRetryableWwRequestError(error: unknown): boolean {
   return error.status === 408 || error.status === 425 || error.status === 429 || error.status >= 500;
 }
 
-function isWwApiError(error: unknown): error is WwApiError {
+export function isWwApiError(error: unknown): error is WwApiError {
   return (
     error instanceof Error &&
     typeof (error as Partial<WwApiError>).status === "number" &&
@@ -437,6 +459,7 @@ function mapWwError(
   result.status = mapped.status;
   result.code = code;
   result.publicCode = mapped.publicCode;
+  if (typeof input === "string" && /^[a-z][a-z0-9_]{0,127}$/.test(input)) result.remoteCode = input;
   result.requestId = stringValue(error.request_id) || envelopeRequestId;
   result.retryAfter = retryAfter;
   return result;

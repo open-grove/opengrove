@@ -257,3 +257,7 @@ Sources:
 - https://github.com/isaacs/chownr
 - https://github.com/isaacs/yallist
 - https://github.com/npm/fs-minipass
+
+`openid-client` is distributed under the MIT license and provides native OIDC
+code/PKCE exchange, signed identity validation, refresh, revocation and UserInfo.
+Its source and license are available at https://github.com/panva/openid-client.

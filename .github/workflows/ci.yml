@@ -261,6 +261,10 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run test:ui
+      - name: Test browser authorization and Router settings
+        run: |
+          node scripts/test-web-remote-agent-ui.mjs
+          node scripts/test-web-router-settings.mjs
       - name: Upload browser diagnostics
         if: failure()
         uses: actions/upload-artifact@v4
