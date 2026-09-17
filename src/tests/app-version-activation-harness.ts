@@ -1,11 +1,25 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import nodeFs from "node:fs";
+import git from "isomorphic-git";
+import { syncBuiltinESMExports } from "node:module";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  renameSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { appEnvName } from "../identity.js";
 import {
   appStoreDataRoot,
+  activatePreparedAppStorePackageInstall,
   captureAppStorePublishTarget,
   disposePreparedAppStorePackageInstall,
   importAppStorePackage,
@@ -21,6 +35,7 @@ import {
   activeMountedAppRuns,
   forceStopMountedAppRuns,
 } from "../server/app-version-manager.js";
+import { AppRevisionStore, managedAppRevisionGitDirectory } from "../server/app-revision-store.js";
 import { MountedAppVersionStateStore, selectedFormalVersionFromMarker } from "../server/app-version-state.js";
 import { resolveMountedAppTarget } from "../server/mounted-apps.js";
 import { LocalAppDraftStore } from "../server/local-app-drafts.js";
@@ -191,6 +206,25 @@ try {
     selectedVersion: selectedFormalVersionFromMarker(readAppStorePackageInstallMarker(appRoot)),
   });
 
+  await git.init({ fs: nodeFs, dir: appRoot, defaultBranch: "local-work" });
+  await git.add({ fs: nodeFs, dir: appRoot, filepath: "program.txt" });
+  await git.commit({
+    fs: nodeFs,
+    dir: appRoot,
+    message: "User history",
+    author: { name: "User", email: "user@example.invalid" },
+  });
+  await git.setConfig({
+    fs: nodeFs,
+    dir: appRoot,
+    path: "remote.origin.url",
+    value: "https://example.invalid/user/app.git",
+  });
+  await new AppRevisionStore(join(appStoreDataRoot(state), "app-revisions")).ensureWorkingCopy({
+    localAppId: "local-versioned-app",
+    appRoot,
+    workspacePath: "workspace",
+  });
   const preparedV2 = prepareAppStorePackageInstall({
     packageId: imported.id,
     settings: state.settings,
@@ -208,7 +242,39 @@ try {
     false,
     "formal preparation must not create transaction trees beside a potentially cross-volume legacy App",
   );
-  const activation = activateImportedFormalAppVersion({
+  // An external gitdir file may be a linked worktree. A generation move must not
+  // copy its pointer and silently replace the shared repository connection.
+  const preparedWorktreeSwitch = prepareAppStorePackageInstall({
+    packageId: imported.id,
+    settings: state.settings,
+    storeRoot: appStoreDataRoot(state),
+    adoptTargetSnapshot: captureAppStorePublishTarget(appRoot),
+  });
+  assert.ok(preparedWorktreeSwitch);
+  const externalGitRoot = join(tempRoot, "external-worktree-git");
+  renameSync(join(appRoot, ".git"), externalGitRoot);
+  writeFileSync(join(appRoot, ".git"), `gitdir: ${externalGitRoot}\n`);
+  writeFileSync(join(externalGitRoot, "gitdir"), `${join(appRoot, ".git")}\n`);
+  try {
+    assert.throws(
+      () =>
+        activatePreparedAppStorePackageInstall({
+          prepared: preparedWorktreeSwitch,
+          settings: structuredClone(state.settings),
+          backupEnabled: true,
+        }),
+      /app_store_update_external_git_worktree_requires_manual_relocation/,
+    );
+    assert.equal(readFileSync(join(appRoot, ".git"), "utf8"), `gitdir: ${externalGitRoot}\n`);
+    assert.equal(readFileSync(join(externalGitRoot, "gitdir"), "utf8"), `${join(appRoot, ".git")}\n`);
+    assert.equal(readFileSync(join(externalGitRoot, "HEAD"), "utf8"), "ref: refs/heads/local-work\n");
+  } finally {
+    disposePreparedAppStorePackageInstall(preparedWorktreeSwitch);
+    rmSync(join(appRoot, ".git"));
+    rmSync(join(externalGitRoot, "gitdir"));
+    renameSync(externalGitRoot, join(appRoot, ".git"));
+  }
+  const activation = await activateImportedFormalAppVersion({
     state,
     localAppId: "local-versioned-app",
     prepared: preparedV2,
@@ -321,8 +387,8 @@ try {
     adoptTargetSnapshot: captureAppStorePublishTarget(activeProgramRoot()),
   });
   assert.ok(preparedV3);
-  assert.throws(
-    () =>
+  await assert.rejects(
+    async () =>
       activateImportedFormalAppVersion({
         state,
         localAppId: "local-versioned-app",
@@ -749,8 +815,57 @@ try {
     false,
     "saving the live working tree as the one local draft must clear the dirty gate",
   );
+  assert.equal(
+    savedDraftStatus.data.status.sourceSavePoint.commitSha,
+    savedDraft.data.draft.savePoint.commitSha,
+    "version management must expose the current local source save point without a system Git dependency",
+  );
+  assert.equal(savedDraftStatus.data.status.sourceChangedFileCount, 0);
+
+  if (process.platform !== "win32") {
+    const linkedProgramPath = join(activeProgramRoot(), "linked-program.txt");
+    symlinkSync("program.txt", linkedProgramPath);
+    try {
+      const linkedSourceStatus = await callAppsRoute(state, "/apps/versioned-app/versions", "GET");
+      assert.equal(linkedSourceStatus.status, 200, JSON.stringify(linkedSourceStatus.data));
+      assert.equal(linkedSourceStatus.data.status.sourceStatusError, "app_revision_symlink_not_supported");
+      assert.equal(linkedSourceStatus.data.status.sourceStatusPath, "linked-program.txt");
+
+      const linkedSourceSave = await callAppsRoute(state, "/apps/versioned-app/draft", "PUT", {
+        app: preparedDraft.data.release.app,
+        employees: preparedDraft.data.release.employees,
+      });
+      assert.equal(linkedSourceSave.status, 422, JSON.stringify(linkedSourceSave.data));
+      assert.equal(linkedSourceSave.data.error, "app_revision_symlink_not_supported");
+      assert.equal(linkedSourceSave.data.path, "linked-program.txt");
+    } finally {
+      rmSync(linkedProgramPath, { force: true });
+    }
+  }
+
+  const revisionGitDirectory = managedAppRevisionGitDirectory(
+    join(appStoreDataRoot(state), "app-revisions"),
+    "local-versioned-app",
+  );
+  const revisionHeadPath = join(revisionGitDirectory, "HEAD");
+  const revisionHead = readFileSync(revisionHeadPath, "utf8");
+  try {
+    writeFileSync(revisionHeadPath, "ref: refs/heads/missing-save-point\n", "utf8");
+    const corruptedRevisionStatus = await callAppsRoute(state, "/apps/versioned-app/versions", "GET");
+    assert.equal(
+      corruptedRevisionStatus.status,
+      500,
+      "a damaged source-save-point repository must be diagnosed instead of silently hiding revision status",
+    );
+  } finally {
+    writeFileSync(revisionHeadPath, revisionHead, "utf8");
+  }
 
   writeFileSync(join(activeProgramRoot(), "program.txt"), "unsaved after draft save\n", "utf8");
+  const dirtySourceStatus = await callAppsRoute(state, "/apps/versioned-app/versions", "GET");
+  assert.equal(dirtySourceStatus.status, 200);
+  assert.equal(dirtySourceStatus.data.status.hasUnsavedChanges, true);
+  assert.equal(dirtySourceStatus.data.status.sourceChangedFileCount, 1);
   state.app.rooms.patchMember("member-app-versioned-app-worker", {
     contextTokenBudget: 64_000,
     userOverrides: ["contextTokenBudget"],
@@ -807,13 +922,109 @@ try {
   );
 
   globalThis.fetch = registryFetch;
-  const switchedFromDraftToV2 = await callAppsRoute(state, "/apps/versioned-app/versions/switch", "POST", {
-    target: {
-      kind: "formal",
-      version: "2.0.0",
-      archiveSha256: v2Archive.archiveSha256,
-    },
+  const revisionHeadBeforeFailedFormalSwitch = readFileSync(revisionHeadPath, "utf8");
+  try {
+    rmSync(revisionHeadPath);
+    mkdirSync(revisionHeadPath);
+    const failedFormalSwitch = await callAppsRoute(state, "/apps/versioned-app/versions/switch", "POST", {
+      target: {
+        kind: "formal",
+        version: "2.0.0",
+        archiveSha256: v2Archive.archiveSha256,
+      },
+    });
+    assert.equal(failedFormalSwitch.status, 502);
+    assert.equal(
+      versionStore.read("local-versioned-app")?.activeContent,
+      "local-draft",
+      "a source save-point failure must roll back the formal version switch",
+    );
+    assert.equal(
+      readFileSync(join(activeProgramRoot(), "program.txt"), "utf8"),
+      "saved local draft\n",
+      "a source save-point failure must leave the previously active draft mounted",
+    );
+  } finally {
+    rmSync(revisionHeadPath, { recursive: true });
+    writeFileSync(revisionHeadPath, revisionHeadBeforeFailedFormalSwitch, "utf8");
+  }
+  const targetBeforePersistFailure = resolveMountedAppTarget(state, "local-versioned-app");
+  assert.ok(targetBeforePersistFailure);
+  const revisionStore = new AppRevisionStore(dirname(revisionGitDirectory));
+  const revisionBeforePersistFailure = await revisionStore.inspect({
+    localAppId: targetBeforePersistFailure.localAppId,
+    appRoot: targetBeforePersistFailure.appRoot,
+    workspacePath: "workspace",
   });
+  const preparedPersistFailure = prepareAppStorePackageInstall({
+    packageId: imported.id,
+    settings: state.settings,
+    storeRoot: appStoreDataRoot(state),
+    adoptTargetSnapshot: captureAppStorePublishTarget(activeProgramRoot()),
+  });
+  assert.ok(preparedPersistFailure);
+  let persistAttempts = 0;
+  await assert.rejects(
+    () =>
+      activateImportedFormalAppVersion({
+        state,
+        localAppId: "local-versioned-app",
+        prepared: preparedPersistFailure,
+        selectedVersion: {
+          packageKey: "team.versioned-app",
+          version: "2.0.0",
+          archiveSha256: v2Archive.archiveSha256,
+          releaseCommitSha: "2".repeat(40),
+        },
+        versionStore,
+        persistBridgeSettings: () => {
+          persistAttempts += 1;
+          if (persistAttempts === 1) throw new Error("injected_settings_persist_failure");
+        },
+      }),
+    /injected_settings_persist_failure/,
+  );
+  disposePreparedAppStorePackageInstall(preparedPersistFailure);
+  assert.equal(persistAttempts, 2, "formal activation failure must persist the restored settings");
+  assert.equal(versionStore.read("local-versioned-app")?.activeContent, "local-draft");
+  assert.equal(readFileSync(join(activeProgramRoot(), "program.txt"), "utf8"), "saved local draft\n");
+  const targetAfterPersistFailure = resolveMountedAppTarget(state, "local-versioned-app");
+  assert.ok(targetAfterPersistFailure);
+  const revisionAfterPersistFailure = await revisionStore.inspect({
+    localAppId: targetAfterPersistFailure.localAppId,
+    appRoot: targetAfterPersistFailure.appRoot,
+    workspacePath: "workspace",
+  });
+  assert.equal(
+    revisionAfterPersistFailure.commitSha,
+    revisionBeforePersistFailure.commitSha,
+    "a post-save-point activation failure must restore the previous revision HEAD",
+  );
+  assert.equal(
+    revisionAfterPersistFailure.dirty,
+    revisionBeforePersistFailure.dirty,
+    "rolling back revision metadata must preserve the pre-activation dirty truth",
+  );
+  const originalRmSync = nodeFs.rmSync;
+  let checkpointCleanupFailures = 0;
+  nodeFs.rmSync = (path, options) => {
+    if (checkpointCleanupFailures === 0 && String(path).includes("opengrove-recovery") && options?.recursive) {
+      checkpointCleanupFailures += 1;
+      throw Object.assign(new Error("injected_checkpoint_cleanup_failure"), { code: "EPERM" });
+    }
+    return originalRmSync(path, options);
+  };
+  syncBuiltinESMExports();
+  let switchedFromDraftToV2: Awaited<ReturnType<typeof callAppsRoute>>;
+  try {
+    switchedFromDraftToV2 = await callAppsRoute(state, "/apps/versioned-app/versions/switch", "POST", {
+      target: { kind: "formal", version: "2.0.0", archiveSha256: v2Archive.archiveSha256 },
+    });
+  } finally {
+    nodeFs.rmSync = originalRmSync;
+    syncBuiltinESMExports();
+  }
+  assert.equal(checkpointCleanupFailures, 1, "the regression must reach post-commit checkpoint cleanup");
   assert.equal(switchedFromDraftToV2.status, 200, JSON.stringify(switchedFromDraftToV2.data));
   assert.equal(switchedFromDraftToV2.data.status.activeContent, "formal");
   assert.equal(switchedFromDraftToV2.data.status.selectedVersion.version, "2.0.0");
@@ -824,7 +1035,22 @@ try {
   );
   assert.equal(readFileSync(join(activeProgramRoot(), "program.txt"), "utf8"), "formal v2\n");
   assert.equal(readFileSync(join(appRoot, "workspace", "keep.md"), "utf8"), "business data\n");
-  assert.equal(readFileSync(join(activeProgramRoot(), ".git", "HEAD"), "utf8"), "ref: refs/heads/local-work\n");
+  assert.equal(
+    readFileSync(join(activeProgramRoot(), ".git", "HEAD"), "utf8"),
+    "ref: refs/heads/local-work\n",
+    "formal activation must preserve the external repository branch",
+  );
+  assert.equal(
+    (
+      await new AppRevisionStore(join(appStoreDataRoot(state), "app-revisions")).inspect({
+        localAppId: "local-versioned-app",
+        appRoot: activeProgramRoot(),
+        workspacePath: "workspace",
+      })
+    ).dirty,
+    false,
+    "formal activation must advance the managed source baseline to the exact installed package",
+  );
   assert.deepEqual(
     (await callAppsRoute(state, "/apps/versioned-app/draft", "GET")).data.draft.publishBase,
     savedDraft.data.draft.publishBase,
@@ -931,6 +1157,10 @@ try {
   assert.equal(readFileSync(join(activeProgramRoot(), "program.txt"), "utf8"), "formal v2\n");
   assert.equal(readFileSync(join(appRoot, "workspace", "keep.md"), "utf8"), "business data\n");
   assert.equal(readFileSync(join(activeProgramRoot(), ".git", "HEAD"), "utf8"), "ref: refs/heads/local-work\n");
+  assert.equal(
+    await git.getConfig({ fs: nodeFs, dir: activeProgramRoot(), path: "remote.origin.url" }),
+    "https://example.invalid/user/app.git",
+  );
   assert.equal(transactionalVersionStore.read("local-versioned-app")?.activeContent, "formal");
   assert.equal(transactionalVersionStore.read("local-versioned-app")?.selectedVersion?.version, "2.0.0");
   const workerAfterDraftRollback = state.app.rooms

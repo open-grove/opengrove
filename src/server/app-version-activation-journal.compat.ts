@@ -21,3 +21,27 @@ export function normalizeActivationJournalAgentState(value: unknown): PersistedA
   }
   return normalizePersistedAgentState(record);
 }
+
+/**
+ * OpenGrove 0.6.6 Dev initially wrote schema v1 activation journals before
+ * source-revision recovery became part of the transaction contract.
+ * Supports: schema v1 journals with no trustworthy source checkpoint.
+ * Remove when: OpenGrove 0.7.0 no longer accepts 0.6.6 Dev activation journals.
+ */
+export function normalizeLegacyAppVersionActivationJournal(
+  value: Record<string, unknown>,
+): Record<string, unknown> | undefined {
+  if (value.schemaVersion !== 1) return undefined;
+  const candidate: Record<string, unknown> = {
+    ...value,
+    schemaVersion: 2,
+    ...(value.kind === "formal"
+      ? {
+          previousSourceRevisionState: "repository-unavailable",
+          legacySourceRevisionUnavailable: true,
+        }
+      : {}),
+  };
+  delete candidate.previousSourceRevision;
+  return candidate;
+}

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { WorkspaceDirectoryResponse } from "./bridge";
+import type { AppSavePoint } from "./bridge-settings-types";
 import { postJson } from "./bridge";
 import type { AppBuilderRequest } from "./components/apps/app-create-wizard";
 import { readDesktopApi } from "./desktop-api";
@@ -173,6 +174,7 @@ interface AppCreateResponse {
   title?: string;
   appRoot?: string;
   mode?: "scaffolded" | "imported";
+  savePoint?: AppSavePoint;
   error?: string;
   issues?: string[];
 }
