@@ -2,7 +2,6 @@ import { spawn } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { createCodexKernelAdapter, createOpenGrove } from "../dist/index.js";
-import { resolveClaudeCodeCliPath } from "../dist/runtime/claude-code-runtime.js";
 import { resolveCodexCommandPath } from "../dist/runtime/codex-runtime.js";
 
 const ROOT = process.cwd();
@@ -11,9 +10,7 @@ const OUT_DIR = resolve(ROOT, "data", "kernel-flow-runs", RUN_ID);
 mkdirSync(OUT_DIR, { recursive: true });
 
 const CODEX_BIN = resolveCodexCommandPath();
-const CLAUDE_BIN = resolveClaudeCodeCliPath(ROOT);
 if (!CODEX_BIN) throw new Error("Product kernel discovery could not resolve Codex.");
-if (!CLAUDE_BIN) throw new Error("Product kernel discovery could not resolve the Claude Agent runtime.");
 
 const summaries = [];
 
@@ -196,61 +193,6 @@ async function runPaCodexScenario(name, input, options = {}) {
   });
 }
 
-await runCommandScenario("claude-normal", CLAUDE_BIN, [
-  "-p",
-  "--verbose",
-  "--output-format",
-  "stream-json",
-  "--permission-mode",
-  "bypassPermissions",
-  "--",
-  "只回答 OK-CLAUDE-NORMAL，不要调用工具。",
-]);
-
-await runCommandScenario(
-  "claude-bash-tool-default-permission-timeout",
-  CLAUDE_BIN,
-  [
-    "-p",
-    "--verbose",
-    "--output-format",
-    "stream-json",
-    "--permission-mode",
-    "default",
-    "--tools",
-    "Bash",
-    "--",
-    "请调用 Bash 工具执行 pwd，然后用一句话告诉我结果。",
-  ],
-  { timeoutMs: 25_000 },
-);
-
-await runCommandScenario("claude-bash-tool-bypass", CLAUDE_BIN, [
-  "-p",
-  "--verbose",
-  "--output-format",
-  "stream-json",
-  "--permission-mode",
-  "bypassPermissions",
-  "--tools",
-  "Bash",
-  "--",
-  "请调用 Bash 工具执行 pwd，然后用一句话告诉我结果。",
-]);
-
-await runCommandScenario("claude-user-question", CLAUDE_BIN, [
-  "-p",
-  "--verbose",
-  "--output-format",
-  "stream-json",
-  "--permission-mode",
-  "bypassPermissions",
-  "--tools",
-  "AskUserQuestion",
-  "--",
-  "请必须调用 AskUserQuestion 工具，问用户选择 A 或 B；不要自己回答。",
-]);
-
 await runCommandScenario("codex-exec-tool", CODEX_BIN, [
   "exec",
   "--json",
@@ -320,7 +262,6 @@ const report = [
   ]),
   "## Notes",
   "",
-  "- Claude Code `AskUserQuestion` appears as a native tool call in stream-json, but in non-interactive `--print` mode it returns a tool error instead of opening an interactive UI.",
   "- Codex `exec --json` exposes native thread/turn/item events. OpenGrove Codex adapter translates app-server notifications into OpenGrove `AgentEvent` records.",
   "- Compaction did not naturally trigger in these short runs. OpenGrove has `compaction.started` / `compaction.finished` event handling, but a real trigger needs a long/high-pressure context or a native compact action.",
   "",

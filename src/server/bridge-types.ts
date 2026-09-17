@@ -302,6 +302,7 @@ export interface BridgeSettings {
   providerRouteMigrationVersion: number;
   /** One-time compatibility boundary for blank/native Employee models persisted by OpenGrove <=0.6.4. */
   employeeModelMigrationVersion: number;
+  nativeApprovalPresetsVersion: number;
   mountedApps: BridgeMountedAppSettings[];
   uninstalledStoreAppIds: string[];
   defaultAppSync: BridgeDefaultAppSyncSettings;

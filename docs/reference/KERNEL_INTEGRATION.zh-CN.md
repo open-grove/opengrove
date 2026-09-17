@@ -22,6 +22,10 @@
 [`src/kernel/adapter.ts`](../../src/kernel/adapter.ts) 与
 [`src/kernel/adapters/`](../../src/kernel/adapters/) 下的 Kernel-specific 文件。
 
+Claude 统一通过 Agent SDK 运行，旧 `OPENGROVE_CLAUDE_CODE_RUNTIME` 开关不再生效。
+SDK 仍会启动 Claude 引擎，原生 Login 命令也需要该程序，因此保留引擎查找和
+`OPENGROVE_CLAUDE_CLI_PATH` 路径配置。
+
 ## 选择最窄 transport
 
 优先使用 Kernel 官方支持的 programmatic boundary：
@@ -120,6 +124,100 @@ Fingerprint 变化时不得静默复用不兼容的 native transcript。
 - Native permission request 必须等 OpenGrove approval 决定，同一 native turn 才能继续。
 - 协议有结构化 elicitation 时才声明 question 支持，不得把文本 fallback 冒充原生能力。
 - 拒绝、超时、取消和进程退出都必须正常收尾，不得留下 pending run/approval。
+
+## 三档权限
+
+员工（包括全局 PM 和 App 内绑定的 PM）与聊天共用三个选择：**请求批准**（`default`）、
+**帮我批准**（`auto-review`）、**完全访问权限**（`full-access`）。档位选择不改变员工的
+App、Workspace、工具可见范围或管理员身份。原生工具由内核审批；Host 工具仍执行 App 的策略。
+
+| Kernel | 请求批准 | 帮我批准 | 完全访问权限 |
+| --- | --- | --- | --- |
+| Codex | `workspace-write` + `on-request` + reviewer `user` | 同样的沙箱与策略，reviewer `auto_review` | `danger-full-access` + `never` |
+| Claude Agent SDK | `default` | `auto`，发送任务前等待原生 `setPermissionMode` 成功 | `bypassPermissions` + `allowDangerouslySkipPermissions` |
+| Hermes | `approvals.mode: manual` | `approvals.mode: smart` | `HERMES_YOLO_MODE=1`；隔离配置同时设置 `approvals.mode: off` |
+| OpenCode | 读取允许，其余默认询问；保留显式 deny | 不可用 | 普通操作允许；保留传入配置中的显式 deny |
+| Kimi | ACP 请求交给用户决定 | 不可用 | 对普通 ACP 权限请求选择 `allow_once`；问题仍交给用户 |
+| Pi | Host 工具策略与原生工具 hook 询问 | 不可用 | 允许普通工具操作；明确拒绝规则继续生效 |
+| OpenClaw | 由 Gateway 管理 | 不可用 | 不可用，尚未接通员工级权限控制 |
+
+Codex 前两档都关闭沙箱内网络访问，写入 Workspace 之外或联网需要走原生审批。
+`on-failure` 和 Claude `acceptEdits` 都不代表“帮我批准”。
+在 OpenGrove 支持的模型范围内，Claude SDK 与 Codex、Hermes 一样统一提供 Auto。
+选择器、员工默认值、迁移和 API 校验不再读取模型 ID 或缓存中的 Auto 标记。
+模型兼容性在[发版验收](../development/RELEASE_PROCESS.zh-CN.md#claude-auto-验收)时，
+用待发布的 SDK 和支持的 Provider 路由统一验证。执行时设置原生权限模式，等待设置成功，
+这一步不是能力探测；
+开启失败或实际模式不是 `auto` 时，在同一个原生会话中请求切换到 `default`。只有收到请求批准模式的
+成功确认，才显示包含原因的提醒并继续当前任务，不会重发用户输入。员工及匹配的共享绑定会保存为
+请求批准，不新增用户覆盖标记；聊天选择器和匹配的排队消息也改为请求批准。运行期间用户新选的权限
+优先于旧任务的恢复结果。用户取消时不触发自动切换；请求批准也启用失败时，报告两次失败原因。
+模型资料刷新在开启操作之前启动，不等待列表返回。Claude 执行统一使用 Agent SDK。
+
+实际启用失败（例如原生设置禁用了 Auto）按上述恢复流程提示，不改写产品的模型支持规则。
+配置的 Claude 目录仍用于原生设置、模型列表和思考档位缓存；这些缓存不再决定权限选择或员工默认值。
+
+Hermes 按环境与档位隔离进程，生成配置副本时保留用户的 deny 与辅助审查模型配置。
+完全访问使用原生 YOLO 开关，覆盖那些不读取 `approvals.mode` 的审批入口；原生硬性阻止与用户明确
+禁止的规则仍然生效。请求批准和自动审查通过公开 `config.get` RPC（desktop contract v3+）核对有效
+模式，自定义 gateway 命令也需要通过。接口不可用或模式不一致时，在提交用户输入前停止，并说明如何
+更新 Hermes 或调整配置。
+
+没有 Provider 覆盖时，显式 `HERMES_HOME` / `OPENGROVE_HERMES_HOME`，或
+`OPENGROVE_HERMES_ISOLATED_HOME=0` 会使用原生目录、保留其中的数据。该目录的审批配置须与员工
+选择的请求批准/自动审查档位一致，OpenGrove 不改写它。设置 `OPENGROVE_HERMES_ISOLATED_HOME=1`
+则使用配置副本；Provider 覆盖始终使用副本。副本是临时的，初始化失败、gateway 退出及运行时关闭时
+都会清理，不提供跨进程的原生会话持久化。启动时也会清理已记录归属、且 Host 与 gateway 进程均已
+退出的临时副本；归属不明或无法确认启动结果时保留。原生目录交给 Hermes 自行读取，不额外套用
+Host 的 YAML 校验。未传权限档位时保留原生审批及 YOLO 设置，生成副本时也遵循此规则。
+需要生成副本时，YAML 损坏或凭据不可读会给出明确错误，不回显配置正文。
+阻塞审批和用户问题分别接入，兼容 desktop contract v7 的 server request 与此前的通知协议。
+未回答的审批默认五分钟后拒绝；取消、回合结束和 gateway 退出会结束等待中的请求。
+用户问题仍需人工回答，所属回合结束时取消。
+
+执行 `npm run build:server` 后，可运行 `node scripts/certify-hermes-permissions.mjs [hermes-command]`，
+用临时目录验证三档原生配置、完全访问、人工拒绝及用户禁止规则。该契约检查不调用模型、不执行工具命令，
+也不评价 smart 模型的审查结果。这些权限行为已针对 Hermes `v2026.9.7` 验证。
+
+全局 PM 及各 App 内的 PM 绑定默认使用**帮我批准**，继续使用 Claude Agent SDK 和 DeepSeek v4 Flash。
+这个明确的产品默认值不依赖本机模型缓存；提交用户输入前仍须确认原生 Auto，或在失败后确认已切到请求批准。其他新员工和聊天优先选择**帮我批准**：
+Codex、Hermes 和 Claude SDK 默认 Auto，不依赖模型资料；
+Pi、Kimi、OpenCode 默认请求批准。OpenClaw 仍由 Gateway 管理，远程权限由远端决定。
+
+普通 seed 同步中，用户明确选择优先于 App 声明，兼容的 App 声明优先于产品默认值。
+App 版本激活和主动恢复 App 默认设置可以重新应用 App 配置。普通同步也保留所有内置员工（包括 PM）已保存的权限；
+App 默认快照与用户当前选择分开保存。恢复默认读取 App 声明；App 未声明权限时采用产品默认值，不采用用户上次选择。
+App 没有声明权限档位或声明未改变时，保留该 App 员工已保存的权限。系统迁移不产生“用户修改过”的
+标记；App 声明发生变化时仍可应用新默认。Claude 模型资料刷新或丢失不影响已保存权限或
+新员工默认权限；内核不支持的组合仍会修正。
+v4 迁移只执行一次：对支持 Auto 的本地员工，将请求批准升为帮我批准，包括用户明确保存的请求批准；
+已有的帮我批准和完全访问保持不变。迁移先转换旧模型标识，在修改前备份状态，并把完成标记与员工数据
+一起原子保存到 SQLite/JSON。设置文件缺失或损坏不会跳过尚未执行的迁移，也不会重复已完成的迁移；
+旧数据首次建立该记录时沿用设置中已保存的迁移版本。
+缺失权限和不支持的组合仍会归一化。
+迁移后用户再改回请求批准，重启也会保留；App 内的 PM 绑定跟随全局 PM。
+聊天读取已有选择时不改写；没有选择时根据当前内核决定默认档位。
+
+App 声明或已存员工记录中无法识别的权限值统一归一化为请求批准；只有省略权限才使用产品默认值。
+HTTP 写入字段仍保留枚举校验。
+
+内核不支持的档位在选择器中禁用、运行入口拒绝，员工保存和 API 写入使用同一条内核规则。
+Claude 切换模型或 Provider 不会让 Auto 失效，也不会阻止保存；其他员工字段独立于待保存的权限修改。
+API 传入权限 `null`
+表示恢复跟随 App/产品默认，并移除用户覆盖标记。同一次员工编辑中，各内核分别记住模型、Provider、
+思考强度和权限；切回时恢复原来的选择，包括用户明确选过的请求批准或完全访问。
+首次切到尚未访问过的内核时，不兼容的 Auto 才会改为请求批准并显示提示。
+员工创建、更新、App 导入和 seed 同步使用同一条兼容规则；发布时拒绝不支持的组合。
+Claude Auto 的 App 声明不依赖本机缓存。
+
+Codex 三档的映射与未指定档位的调用分开：没有传 `accessMode` 时保留原有审批和沙箱配置，
+没有其他配置时仍回落到 `danger-full-access` / `never`；未传档位时，线程和每轮执行均不覆盖原生网络配置。
+Claude 未传档位时保留已有配置，无配置则回落到 `bypassPermissions`。这些 API 兜底与产品默认选择分开。
+
+参数契约回归：[`runtime-access-modes.test.ts`](../../src/tests/runtime-access-modes.test.ts)。
+协议依据：[Codex desktop 预设](https://learn.chatgpt.com/docs/sandboxing)、
+[Claude SDK 权限](https://code.claude.com/docs/en/agent-sdk/permissions)、
+[Hermes 审批实现](https://github.com/NousResearch/hermes-agent/blob/main/tools/approval.py)。
 
 ## 诊断与隐私
 

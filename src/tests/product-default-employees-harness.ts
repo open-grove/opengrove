@@ -162,6 +162,7 @@ assert.equal(pm.employeeDefinitionId, OPENGROVE_PM_MEMBER_ID);
 assert.equal(pm.name, "PM");
 assert.equal(pm.kernel, "claude-code", "PM must use the product Kernel");
 assert.equal(pm.model, "deepseek-v4-flash", "PM must use its concrete product model default");
+assert.equal(pm.accessMode, "auto-review", "PM should use native auto review without changing its model");
 assert.deepEqual(pm.defaultSkillIds, [PM_AGENT_SKILL_NAME]);
 assert.deepEqual(pm.availableSkillIds, [PM_AGENT_SKILL_NAME]);
 assert.match(pm.role, /没有指定 App 时/);

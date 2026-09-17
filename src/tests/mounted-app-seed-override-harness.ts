@@ -49,12 +49,36 @@ function seedMember(overrides: Partial<RoomChannelMember> = {}): RoomChannelMemb
     avatarDataUrl: "data:image/png;base64,logical-employee-avatar",
     kernel: "codex",
     model: "gpt-5.6",
+    accessMode: "default",
     userOverrides: ["avatarDataUrl", "kernel", "model"],
   };
   const merged = syncProductDefaultSeedMembers(new Map([[storedAppBuilder.id, storedAppBuilder]]), seed);
   const appBuilder = merged.find((member) => member.id === "app-builder");
   assert.equal(appBuilder?.kernel, "codex", "saved App Builder kernel survives product re-seeding");
   assert.equal(appBuilder?.model, "gpt-5.6", "saved App Builder model survives product re-seeding");
+  assert.equal(appBuilder?.accessMode, "default", "a saved permission default survives product re-seeding");
+  for (const accessMode of ["default", "full-access"] as const) {
+    const explicit = {
+      ...storedAppBuilder,
+      accessMode,
+      userOverrides: [...storedAppBuilder.userOverrides!, "accessMode"],
+    };
+    const saved = syncProductDefaultSeedMembers(new Map([[explicit.id, explicit]]), seed);
+    assert.equal(saved.find((member) => member.id === explicit.id)?.accessMode, accessMode);
+  }
+  const pmSeed = seed.find((member) => member.id === OPENGROVE_PM_MEMBER_ID)!;
+  const updatedPmSeed = { ...pmSeed, accessMode: "default" as const };
+  assert.equal(
+    syncProductDefaultSeedMembers(new Map([[pmSeed.id, pmSeed]]), [updatedPmSeed])[0]?.accessMode,
+    "auto-review",
+    "PM keeps its saved permission when product defaults change",
+  );
+  const customizedPm = { ...pmSeed, accessMode: "full-access" as const, userOverrides: ["accessMode"] };
+  assert.equal(
+    syncProductDefaultSeedMembers(new Map([[pmSeed.id, customizedPm]]), [updatedPmSeed])[0]?.accessMode,
+    "full-access",
+    "PM product updates preserve user permission choices",
+  );
 
   const scopedSeed: RoomChannelMember = {
     ...appBuilderSeed,
@@ -272,12 +296,12 @@ function seedMember(overrides: Partial<RoomChannelMember> = {}): RoomChannelMemb
 }
 
 // 4b) accessMode/reasoningEffort/contextTokenBudget follow the manifest seed when NOT overridden,
-//     even if the existing member happens to carry different values.
+//     even if the existing member happens to carry different values; unsupported modes are repaired.
 {
   const existing = seedMember({ accessMode: "full-access", reasoningEffort: "xhigh", contextTokenBudget: 90_000 });
   const seed = seedMember({ accessMode: "auto-review", reasoningEffort: "low", contextTokenBudget: 150_000 });
   const merged = syncMountedAppSeedMember(existing, seed);
-  assert.equal(merged.accessMode, "auto-review", "un-overridden accessMode follows manifest seed");
+  assert.equal(merged.accessMode, "default", "OpenCode cannot inherit an unsupported auto-review seed");
   assert.equal(merged.reasoningEffort, "low", "un-overridden reasoningEffort follows manifest seed");
   assert.equal(merged.contextTokenBudget, 150_000, "un-overridden contextTokenBudget follows manifest seed");
 }
@@ -398,6 +422,7 @@ function seedMember(overrides: Partial<RoomChannelMember> = {}): RoomChannelMemb
       name: "Worker",
       kernel: "claude-code",
       model: "claude-code-default",
+      accessMode: "auto-review",
       reasoningEffort: "high",
       role: "Work",
       status: "idle",
@@ -426,10 +451,15 @@ function seedMember(overrides: Partial<RoomChannelMember> = {}): RoomChannelMemb
     assert.equal(handled, true);
     assert.equal(calls[0]?.status, 200);
     assert.equal(calls[0]?.data.member.kernel, "pi");
+    assert.equal(
+      calls[0]?.data.member.accessMode,
+      "default",
+      "a kernel-only PATCH repairs the previous auto selection",
+    );
     assert.equal(calls[0]?.data.member.reasoningEffort, undefined);
     assert.deepEqual(
       calls[0]?.data.member.userOverrides,
-      ["kernel"],
+      ["kernel", "accessMode"],
       "clearing reasoning while switching Kernels must restore inherited defaults instead of recording a user choice",
     );
 
@@ -854,6 +884,7 @@ function seedMember(overrides: Partial<RoomChannelMember> = {}): RoomChannelMemb
       userOverrides: ["kernel", "model"],
       source: "local",
     });
+    legacy.app.rooms.restore(Object.assign(legacy.app.rooms.snapshot(), { employeeMigrationVersions: undefined }));
     legacy.store.saveFrom(legacy.app);
     legacy.settings.employeeModelMigrationVersion = 0;
     saveBridgeSettings(legacy);

@@ -95,7 +95,7 @@ jobs:
         run: bash scripts/verify-agent-image-version.sh "${{ matrix.kernel }}"
 
       - name: Select SDK-bundled Claude Engine
-        if: matrix.kernel == 'claude-code' && matrix.runtime_mode == 'sdk'
+        if: matrix.kernel == 'claude-code'
         shell: bash
         run: |
           set -euo pipefail

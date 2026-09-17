@@ -4119,14 +4119,24 @@ try {
     mkdirSync(join(recoveryAppRoot, "workspace"), { recursive: true });
     writeFileSync(
       join(recoveryAppRoot, "opengrove.app.json"),
-      JSON.stringify({
-        id: recoveryAppId,
-        title: `Legacy Recovery ${suffix}`,
-        version: "0.1.0",
-        ui: { surface: "file-workbench", workspace: "workspace" },
-        workspace: { path: "workspace" },
-        store: { packageKey: `harness.${recoveryAppId}` },
-      }),
+      JSON.stringify(
+        {
+          id: recoveryAppId,
+          title: `Legacy Recovery ${suffix}`,
+          version: "0.1.0",
+          ui: { surface: "file-workbench", workspace: "workspace" },
+          workspace: { path: "workspace" },
+          employees: [{ id: "writer", kernel: "codex", model: "gpt-test" }],
+          store: {
+            packageKey: `harness.${recoveryAppId}`,
+            employeeDefaults: [
+              { memberId: `member-app-${recoveryAppId}-writer`, name: "Writer", kernel: "codex", model: "gpt-test" },
+            ],
+          },
+        },
+        null,
+        2,
+      ) + "\n",
       "utf8",
     );
     writeFileSync(join(recoveryAppRoot, "source.txt"), "published source\n", "utf8");
@@ -4141,6 +4151,7 @@ try {
         title: `Legacy Recovery ${suffix}`,
       },
     ];
+    recreateBridgeApp(recoveryState);
     const recoveryArchive = packAppStoreArchive({ appRoot: recoveryAppRoot });
     const idempotencyKey = `og-app-publish-${(targetChanged ? "b" : "a").repeat(64)}`;
     prepareAppStorePublishRecovery({
@@ -4151,6 +4162,7 @@ try {
       archive: recoveryArchive,
       packageKey: `harness.${recoveryAppId}`,
       visibility: "restricted",
+      releaseManifest: JSON.parse(readFileSync(join(recoveryAppRoot, "opengrove.app.json"), "utf8")),
     });
     markAppStorePublishRecoveryPublished({
       state: recoveryState,
@@ -4183,6 +4195,18 @@ try {
     });
     assert.equal(recoveryCatalogCalls[0]?.status, 200);
     assert.equal(recoveryCatalogCalls[0]?.data.publishRecovery.recovered, targetChanged ? 0 : 1);
+    if (!targetChanged) {
+      const writer = recoveryState.app.rooms
+        .listMembers()
+        .find((member) => member.id === `member-app-${recoveryAppId}-writer`);
+      assert.ok(writer);
+      assert.equal(writer.accessMode, "auto-review");
+      assert.equal(
+        writer.manifestDefaults?.accessMode,
+        undefined,
+        "publish recovery preserves omitted permissions in the App declaration",
+      );
+    }
     assert.equal(recoveryCatalogCalls[0]?.data.publishRecovery.failed, targetChanged ? 1 : 0);
     assert.equal(existsSync(join(recoveryAppRoot, ".opengrove-store-package.json")), !targetChanged);
     if (targetChanged) {

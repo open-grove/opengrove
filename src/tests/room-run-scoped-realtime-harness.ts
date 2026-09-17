@@ -4,7 +4,6 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createOpenGrove, type OpenGroveApp } from "../app/create-opengrove.js";
 import type { AgentEvent, AgentRuntime, ApprovalResume } from "../core.js";
-import { appEnvName } from "../identity.js";
 import { resolveApproval } from "../server/approval-actions.js";
 import { createBridgeState } from "../server/bridge-state.js";
 import type { BridgeState } from "../server/bridge-types.js";
@@ -13,7 +12,7 @@ import { recordRoomRunEvent, scheduleRoomAssistantRuns } from "../server/room-ru
 import { activeBridgeRunExecutionState, registerActiveBridgeRun } from "../server/active-runs.js";
 import { roomExecutionState } from "../server/room-runs/execution-state.js";
 import { consumeWwRetryableTurnAttempt } from "../server/ww-provider-recovery.js";
-import { createWwRetryClaudeCliFixture, createWwRetryFixture } from "./harnesses/ww-retry-fixture.js";
+import { createWwRetryClaudeEngineFixture, createWwRetryFixture } from "./harnesses/ww-retry-fixture.js";
 import {
   clearActiveRoomRunExecutionState,
   hasActiveRoomRunController,
@@ -41,12 +40,9 @@ async function assertRoomProductionOrchestrationRecoversWwCredential(): Promise<
   const directory = mkdtempSync(join(tmpdir(), "opengrove-room-production-ww-retry-"));
   const state = createBridgeState({ statePath: join(directory, "state.sqlite") });
   const ww = await createWwRetryFixture();
-  const cli = createWwRetryClaudeCliFixture(directory);
+  const cli = createWwRetryClaudeEngineFixture(directory);
   const model = "claude-opus-4-8";
-  const runtimeModeEnv = appEnvName("CLAUDE_CODE_RUNTIME");
-  const previousRuntimeMode = process.env[runtimeModeEnv];
   try {
-    process.env[runtimeModeEnv] = "cli";
     state.settings = {
       ...state.settings,
       customProviders: [ww.provider(model)],
@@ -134,8 +130,6 @@ async function assertRoomProductionOrchestrationRecoversWwCredential(): Promise<
     assert.ok(completed);
     assert.equal(state.app.sessions.getRun(completed.runId)?.lifecycle.taskState, "TASK_STATE_COMPLETED");
   } finally {
-    if (previousRuntimeMode === undefined) delete process.env[runtimeModeEnv];
-    else process.env[runtimeModeEnv] = previousRuntimeMode;
     await ww.close();
     await state.store.close?.();
     rmSync(directory, { recursive: true, force: true });

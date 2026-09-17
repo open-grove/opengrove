@@ -83,6 +83,8 @@ export const EN_HOST_MESSAGES = {
   "room.app_group_title": "{appTitle} group",
   "room.app_group_title_sequence": "{appTitle} group {sequence}",
   "room.compaction_finished": "Context compacted automatically",
+  "room.auto_review_fallback":
+    "Auto could not be enabled. Switched to Ask for approval and continued. Reason: {reason}",
   "room.compaction_started": "Compacting context automatically",
   "room.delegate_employee": "Delegate employee",
   "room.delegation_failed": "The delegated task could not be started.",

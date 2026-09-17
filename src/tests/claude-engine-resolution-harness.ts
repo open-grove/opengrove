@@ -3,16 +3,16 @@ import { chmodSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { appEnvName } from "../identity.js";
-import { createClaudeCodeKernelAdapter, resolveClaudeCodeRuntimeMode } from "../kernel/adapters/claude-code.js";
+import { createClaudeCodeKernelAdapter } from "../kernel/adapters/claude-code.js";
 import {
   resolveBundledClaudeEngine,
   resolveClaudeCodeCliPath,
   resolveClaudeCodeCliPathDetailed,
-} from "../runtime/claude-code-runtime.js";
+} from "../runtime/claude-engine.js";
 import { withEnv } from "./env.js";
 
 async function main() {
-  const root = mkdtempSync(join(tmpdir(), "opengrove-claude-cli-resolution-"));
+  const root = mkdtempSync(join(tmpdir(), "opengrove-claude-engine-resolution-"));
 
   assertBundledPackageNames(root);
   assertBundledMissingIsSilent();
@@ -21,33 +21,17 @@ async function main() {
   await assertResolverPriority(root);
   await assertRuntimeCapabilityBoundary(root);
 
-  console.log("claude-code-cli-resolution-harness ok");
+  console.log("claude-engine-resolution-harness ok");
 }
 
 async function assertRuntimeCapabilityBoundary(root: string) {
-  await withEnv(
-    {
-      [appEnvName("CLAUDE_CODE_RUNTIME")]: "cli",
-    },
-    () => {
-      assert.equal(resolveClaudeCodeRuntimeMode(), "cli");
-      const adapter = createClaudeCodeKernelAdapter({ cliPath: "/bin/echo", cwd: root });
-      assert.equal(adapter.capabilities.hostTools, false);
-      assert.equal(adapter.capabilities.elicitation, false);
-    },
-  );
-
-  await withEnv(
-    {
-      [appEnvName("CLAUDE_CODE_RUNTIME")]: "sdk",
-    },
-    () => {
-      assert.equal(resolveClaudeCodeRuntimeMode(), "sdk");
-      const adapter = createClaudeCodeKernelAdapter({ cliPath: "/bin/echo", cwd: root });
-      assert.equal(adapter.capabilities.hostTools, true);
-      assert.equal(adapter.capabilities.elicitation, true);
-    },
-  );
+  await withEnv({ [appEnvName("CLAUDE_CODE_RUNTIME")]: "cli" }, () => {
+    const adapter = createClaudeCodeKernelAdapter({ cliPath: "/bin/echo", cwd: root });
+    assert.equal(adapter.contract.labels.integrationMode, "sdk", "obsolete settings cannot select the removed CLI");
+    assert.equal(adapter.capabilities.hostTools, true);
+    assert.equal(adapter.capabilities.elicitation, true);
+    assert.equal(adapter.capabilities.compaction, true);
+  });
 }
 
 function assertBundledPackageNames(root: string) {

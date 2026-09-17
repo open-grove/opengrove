@@ -131,7 +131,7 @@ try {
     await page.getByLabel(/版本说明/).fill("调整员工安装默认值");
     await page.getByLabel(/上下文窗口/).fill("120000");
     await page.locator(".employee-dialog-field").filter({ hasText: "权限" }).getByRole("button").click();
-    await page.getByRole("option", { name: /自动审查/ }).click();
+    await page.getByRole("option", { name: /帮我批准/ }).click();
     await page.getByLabel("员工名称").fill("发布版架构师");
     await page.getByLabel("员工名称").press("Enter");
     await page.getByRole("button", { name: "保存本机草稿" }).click();
@@ -859,6 +859,9 @@ function entrySource(path, toast, confirm, globalStyles, appStoreStyles) {
           localDraft={localDraft}
           publishProgress={publishProgress}
           publishRecoveryBlocked={publishProgress?.state === "registry-ready"}
+          runtimeControlsByKernel={{
+            "claude-code": { kernel: "claude-code" },
+          }}
           providers={[{
             id: "ww",
             name: "WW",

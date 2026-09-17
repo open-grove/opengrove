@@ -21,6 +21,31 @@ try {
     target: "es2022",
     outfile: bundlePath,
     nodePaths: [join(projectRoot, "node_modules")],
+    plugins: [
+      {
+        name: "thread-transport-fixture",
+        setup(plugin) {
+          plugin.onResolve({ filter: /runtime\/thread-runtime$/ }, () => ({
+            path: "thread-transport",
+            namespace: "fixture",
+          }));
+          plugin.onLoad({ filter: /.*/, namespace: "fixture" }, () => ({
+            loader: "js",
+            contents: `
+        export async function runThreadTurn(payload, handlers) {
+          window.__lastTurnMode = payload.accessMode;
+          await new Promise(resolve => {
+            window.__emitAutoFallback = () => handlers.onAgentEvent({type:"agent.event", event:{type:"runtime.diagnostic", runId:"fallback", name:"claude.auto_review.fallback", data:{kernel:"claude-code", from:"auto-review", to:"default", reason:"auto mode disabled by settings"}}});
+            window.__finishTurn = resolve;
+          });
+          return {ok:true, answer:"done", events:[]};
+        }
+        export async function attachThreadTurn() { throw new Error("unexpected replay"); }
+      `,
+          }));
+        },
+      },
+    ],
   });
   await writeFile(htmlPath, fixtureHtml(), "utf8");
 
@@ -28,7 +53,12 @@ try {
   try {
     const page = await browser.newPage({ viewport: { width: 1180, height: 860 } });
     await page.goto(pathToFileURL(htmlPath).href);
+    await testEmployeeAutosaveWithoutPermissionMetadata(page);
+    await testAutoFallbackChatSelection(page);
     await testEmployeePageFlow(page);
+    await testEmployeeAccessKernelSwitch(page);
+    await testEmployeeModelPermissionAutosave(page);
+    await testNewEmployeePermissionDefaults(page);
     await testEmployeeReasoningKernelSwitch(page);
     await testEmployeeReasoningCapabilityStates(page);
     await testEmployeeReasoningServerDefault(page);
@@ -46,6 +76,141 @@ try {
   }
 } finally {
   await rm(tempDir, { recursive: true, force: true });
+}
+
+async function testAutoFallbackChatSelection(page) {
+  await renderFixture(page, "auto-fallback");
+  await page.getByRole("button", { name: "Send", exact: true }).click();
+  await page.waitForFunction(() => typeof window.__emitAutoFallback === "function");
+  await page.getByRole("button", { name: "Queue", exact: true }).click();
+  await page.evaluate(() => window.__emitAutoFallback());
+  await page.waitForFunction(() => document.querySelector("#fallback-mode")?.textContent === "default");
+  assert.match(await page.locator("#fallback-notes").textContent(), /请求批准.*auto mode disabled by settings/);
+  await page.evaluate(() => window.__finishTurn());
+  await page.waitForFunction(() => window.__lastTurnMode === "default");
+  await page.evaluate(() => window.__finishTurn());
+  await page.waitForFunction(() => document.querySelector("#fallback-running")?.textContent === "false");
+
+  await renderFixture(page, "auto-fallback");
+  await page.getByRole("button", { name: "Send", exact: true }).click();
+  await page.waitForFunction(() => typeof window.__emitAutoFallback === "function");
+  await page.getByRole("button", { name: "Full", exact: true }).click();
+  await page.waitForFunction(() => document.querySelector("#fallback-mode")?.textContent === "full-access");
+  await page.evaluate(() => window.__emitAutoFallback());
+  assert.equal(
+    await page.locator("#fallback-mode").textContent(),
+    "full-access",
+    "a late recovery must not replace a newer user selection",
+  );
+  await page.evaluate(() => window.__finishTurn());
+  await page.waitForFunction(() => document.querySelector("#fallback-running")?.textContent === "false");
+}
+
+async function testNewEmployeePermissionDefaults(page) {
+  await renderFixture(page, "employee-create");
+  const surface = page.locator("#identity-root .employee-dialog-embedded");
+  const access = surface.locator(".employee-dialog-field").filter({ hasText: "权限" });
+  await access.getByRole("button", { name: /帮我批准/ }).waitFor();
+  await surface.locator(".employee-dialog-kernel-list").getByRole("button", { name: "Codex", exact: true }).click();
+  await access.getByRole("button", { name: /帮我批准/ }).waitFor();
+  await surface.locator(".employee-dialog-kernel-list").getByRole("button", { name: "Pi", exact: true }).click();
+  await access.getByRole("button", { name: /请求批准/ }).waitFor();
+  await access.getByRole("button").click();
+  await page.getByRole("option", { name: /^完全访问/ }).click();
+  await surface.locator(".employee-dialog-kernel-list").getByRole("button", { name: "Codex", exact: true }).click();
+  await access.getByRole("button", { name: /帮我批准/ }).waitFor();
+  await surface.locator(".employee-dialog-kernel-list").getByRole("button", { name: "Pi", exact: true }).click();
+  await access.getByRole("button", { name: /完全访问/ }).waitFor();
+}
+
+async function testEmployeeAccessKernelSwitch(page) {
+  await renderFixture(page, "employee-reasoning-kernel-switch");
+  const surface = page.locator("#identity-root .contacts-employee-settings-surface");
+  const access = surface.locator(".employee-dialog-field").filter({ hasText: "权限" });
+  assert.match(await access.getByRole("button").innerText(), /帮我批准/);
+  await access.getByRole("button").click();
+  await page.getByRole("option", { name: /帮我批准/ }).click();
+  await surface.locator(".employee-dialog-kernel-list").getByRole("button", { name: "Pi", exact: true }).click();
+  await page.waitForFunction(
+    () => window.__savedEmployeeKernel === "pi" && window.__savedEmployeeAccessMode === "default",
+  );
+  assert.match(await access.getByRole("button").innerText(), /请求批准/);
+  assert.match(await surface.getByRole("status").innerText(), /已改为请求批准/);
+  await access.getByRole("button").click();
+  assert.equal(await page.getByRole("option", { name: /帮我批准/ }).isDisabled(), true);
+  await page.keyboard.press("Escape");
+  const kernels = surface.locator(".employee-dialog-kernel-list");
+  await kernels.getByRole("button", { name: "Claude Agent", exact: true }).click();
+  await access.getByRole("button", { name: /帮我批准/ }).waitFor({ timeout: 5000 });
+  await page.waitForFunction(
+    () => window.__savedEmployeeKernel === "claude-code" && window.__savedEmployeeAccessMode === "auto-review",
+  );
+  assert.equal(await surface.getByText(/已改为请求批准/).count(), 0, "restoring Auto is not an Ask downgrade");
+
+  await access.getByRole("button").click();
+  await page.getByRole("option", { name: /^请求批准/ }).click();
+  await page.waitForFunction(() => window.__savedEmployeeAccessMode === "default");
+  await kernels.getByRole("button", { name: "OpenCode", exact: true }).click();
+  await kernels.getByRole("button", { name: "Claude Agent", exact: true }).click();
+  await access.getByRole("button", { name: /请求批准/ }).waitFor();
+  await page.waitForFunction(
+    () => window.__savedEmployeeKernel === "claude-code" && window.__savedEmployeeAccessMode === "default",
+  );
+}
+
+async function testEmployeeModelPermissionAutosave(page) {
+  await renderFixture(page, "employee-page");
+  const surface = page.locator("#identity-root .contacts-employee-settings-surface");
+  await surface
+    .locator(".employee-dialog-kernel-list")
+    .getByRole("button", { name: "Claude Agent", exact: true })
+    .click();
+  await page.waitForFunction(() => window.__savedEmployeeKernel === "claude-code");
+  const previousSaves = await page.evaluate(() => window.__savedEmployeeCount);
+  const model = surface.locator(".employee-dialog-field").filter({ hasText: "模型" });
+  await model.getByRole("button").click();
+  await page.getByRole("option", { name: /Claude Custom/ }).click();
+  await page.waitForFunction(
+    () => window.__savedEmployeeModel === "claude-custom" && window.__savedEmployeeAccessMode === "auto-review",
+  );
+  assert.equal(
+    await page.evaluate(() => window.__savedEmployeeCount),
+    previousSaves + 1,
+    "changing model preserves saved Auto even when the catalog has no support metadata",
+  );
+  const access = surface.locator(".employee-dialog-field").filter({ hasText: "权限" });
+  await access.getByRole("button").click();
+  await page.getByRole("option", { name: /^请求批准/ }).click();
+  await page.waitForFunction(
+    () => window.__savedEmployeeModel === "claude-custom" && window.__savedEmployeeAccessMode === "default",
+  );
+  assert.equal(
+    await page.evaluate(() => window.__savedEmployeeCount),
+    previousSaves + 2,
+    "the user can still change the saved preset to Ask",
+  );
+}
+
+async function testEmployeeAutosaveWithoutPermissionMetadata(page) {
+  await renderFixture(page, "employee-access-loading");
+  const surface = page.locator("#identity-root .contacts-employee-settings-surface");
+  const budget = surface.getByRole("spinbutton", { name: "上下文窗口（tokens）" });
+  await budget.fill("777000");
+  await surface.getByRole("button", { name: "职责与协作", exact: true }).click();
+  await page.waitForFunction(() => window.__savedEmployeeContextTokenBudget === 777000, undefined, { timeout: 5000 });
+  const role = surface.locator(".employee-dialog-responsibility-textarea");
+  await role.fill("加载权限资料期间修改的职责");
+  await surface.getByRole("button", { name: "返回员工概览" }).click();
+  await page.waitForFunction(() => window.__savedEmployeeRole === "加载权限资料期间修改的职责", undefined, {
+    timeout: 5000,
+  });
+  assert.equal(
+    await page.evaluate(() => window.__savedEmployeeAccessMode),
+    "auto-review",
+    "unrelated edits must not change saved Auto while metadata is loading",
+  );
+  await surface.getByRole("button", { name: "职责与协作", exact: true }).click();
+  assert.equal(await role.inputValue(), "加载权限资料期间修改的职责", "navigation must retain saved edits");
 }
 
 // ===== Employee reasoning behavior =====
@@ -423,8 +588,13 @@ async function renderFixture(page, mode) {
       document.querySelector("#identity-root")?.getAttribute("data-fixture-revision") === String(nextRevision),
     revision,
   );
+  if (mode === "auto-fallback") {
+    await page.locator("#fallback-mode").waitFor();
+    return;
+  }
   if (
     mode === "employee-page" ||
+    mode === "employee-access-loading" ||
     mode === "employee-unavailable-kernel" ||
     mode === "employee-reasoning-kernel-switch" ||
     mode === "employee-reasoning-loading" ||
@@ -435,7 +605,7 @@ async function renderFixture(page, mode) {
     mode === "employee-reasoning-app-default-incompatible"
   ) {
     await page.locator("#identity-root .contacts-employee-settings-surface").waitFor();
-  } else if (mode === "employee-autosave-external-merge") {
+  } else if (mode === "employee-autosave-external-merge" || mode === "employee-create") {
     await page.locator("#identity-root .employee-dialog-embedded").waitFor();
   } else if (mode === "employee-dialog") {
     await page.getByRole("dialog", { name: "员工资料与运行设置" }).waitFor();
@@ -803,6 +973,9 @@ function entrySource() {
   return `
     import React from "react";
     import { createRoot } from "react-dom/client";
+    import { QueryClient } from "@tanstack/react-query";
+    import { useAppThreadRunner } from ${JSON.stringify(resolve(projectRoot, "web/src/app-thread-runner.ts"))};
+    import { translate } from ${JSON.stringify(resolve(projectRoot, "web/src/i18n.ts"))};
     import { EmployeeSettingsDialog, EmployeeSettingsSurface } from ${JSON.stringify(resolve(projectRoot, "web/src/components/rooms/employee-settings-surface.tsx"))};
     import { EmployeeDialog } from ${JSON.stringify(resolve(projectRoot, "web/src/components/rooms/employee-dialog.tsx"))};
     import { RoomMemberAvatar } from ${JSON.stringify(resolve(projectRoot, "web/src/components/rooms/member-avatar.tsx"))};
@@ -888,7 +1061,7 @@ function entrySource() {
       }];
     }));
 
-    function EmployeeFixture({ dialog, unavailableKernel = false, reasoningState = "supported" }) {
+    function EmployeeFixture({ dialog, unavailableKernel = false, reasoningState = "supported", accessMode }) {
       const usesReasoningFixture = reasoningState !== "default";
       const unavailableMember = { ...initialMember, kernel: "openclaw" };
       const appReasoningDefault = reasoningState === "app-default"
@@ -903,6 +1076,7 @@ function entrySource() {
         kernel: "claude-code",
         model: "claude-custom",
         providerId: "claude-provider",
+        accessMode,
         reasoningEffort: userReasoningOverride ? "high" : appReasoningDefault,
         manifestDefaults: {
           ...initialMember.manifestDefaults,
@@ -933,7 +1107,9 @@ function entrySource() {
           await new Promise((resolve) => { window.__releaseEmployeeSave = resolve; });
         }
         window.__savedEmployeeName = nextMember.name;
+        window.__savedEmployeeRole = nextMember.role;
         window.__savedEmployeeKernel = nextMember.kernel;
+        window.__savedEmployeeAccessMode = nextMember.accessMode;
         window.__savedEmployeeModel = nextMember.model;
         window.__savedEmployeeProviderId = nextMember.providerId;
         window.__savedEmployeeReasoningEffort = nextMember.reasoningEffort;
@@ -1012,6 +1188,24 @@ function entrySource() {
       );
     }
 
+    function EmployeeCreateFixture() {
+      return (
+        <EmployeeDialog
+          embedded
+          open
+          activeTab="runtime"
+          activeKernel="claude-code"
+          activeModel="native"
+          runtimeControlsByKernel={runtimeControlsByKernel}
+          kernelOptions={kernelOptions}
+          providers={[]}
+          modelProviderBindings={[]}
+          onOpenChange={() => undefined}
+          onCreate={() => undefined}
+        />
+      );
+    }
+
     function EmployeeAutosaveEchoFixture() {
       const [member, setMember] = React.useState({
         ...initialMember,
@@ -1064,6 +1258,27 @@ function entrySource() {
       ) : field;
     }
 
+    function AutoFallbackFixture() {
+      const [accessMode, setAccessMode] = React.useState("auto-review");
+      const [messages, setMessages] = React.useState([]);
+      const [queryClient] = React.useState(() => new QueryClient());
+      const counter = React.useRef(0);
+      const runner = useAppThreadRunner({
+        t: translate, queryClient, threadId: "chat", messages, threads: [], runs: [], events: [], model: "deepseek-v4-flash", kernel: "claude-code", providerId: "fixture", accessMode, setAccessMode, reasoningEffort:"medium", responseSpeed:"standard", budgetLimitUsd:null, planMode:false, goalMode:false, setSending() {},
+        appendMessageToThread(thread, role, text) {const id = "message-" + (++counter.current); setMessages(items => [...items, {id, role, text, parts:[], context:null, pending:false}]); return id;},
+        appendAssistantMessageToThread() {const id = "message-" + (++counter.current); setMessages(items => [...items, {id, role:"assistant", text:"", parts:[], context:null, pending:true}]); return id;},
+        updateThreadMessage(thread, id, update) {setMessages(items => items.map(item => {if(item.id !== id) return item; const next = structuredClone(item); update(next); return next;}));},
+      });
+      return <section>
+        <button onClick={() => void runner.runAskTurn("hello", null, [])}>Send</button>
+        <button onClick={() => setAccessMode("full-access")}>Full</button>
+        <button onClick={() => runner.queuePrompt("chat", "queued")}>Queue</button>
+        <output id="fallback-mode">{accessMode}</output>
+        <output id="fallback-running">{String(runner.activeThreadIsRunning)}</output>
+        <div id="fallback-notes">{messages.flatMap(message => message.parts).filter(part => part.type === "note" && part.tone === "warn").map(part => part.text).join(" ")}</div>
+      </section>;
+    }
+
     function FixtureCommit({ revision }) {
       React.useLayoutEffect(() => {
         rootElement.dataset.fixtureRevision = String(revision);
@@ -1100,7 +1315,11 @@ function entrySource() {
           </ConfirmProvider>
         </ToastProvider>,
       );
+      window.__emitAutoFallback = undefined;
+      window.__finishTurn = undefined;
+      if (mode === "auto-fallback") renderWithToasts(<AutoFallbackFixture />);
       if (mode === "employee-page") renderWithToasts(<EmployeeFixture dialog={false} reasoningState="default" />);
+      if (mode === "employee-access-loading") renderWithToasts(<EmployeeFixture dialog={false} reasoningState="loading" accessMode="auto-review" />);
       if (mode === "employee-reasoning-kernel-switch") renderWithToasts(<EmployeeFixture dialog={false} />);
       if (mode === "employee-reasoning-loading") renderWithToasts(<EmployeeFixture dialog={false} reasoningState="loading" />);
       if (mode === "employee-reasoning-unsupported") renderWithToasts(<EmployeeFixture dialog={false} reasoningState="unsupported" />);
@@ -1109,6 +1328,7 @@ function entrySource() {
       if (mode === "employee-reasoning-user-override") renderWithToasts(<EmployeeFixture dialog={false} reasoningState="user-override" />);
       if (mode === "employee-reasoning-app-default-incompatible") renderWithToasts(<EmployeeFixture dialog={false} reasoningState="app-default-incompatible" />);
       if (mode === "employee-autosave-external-merge") renderWithToasts(<EmployeeAutosaveEchoFixture />);
+      if (mode === "employee-create") renderWithToasts(<EmployeeCreateFixture />);
       if (mode === "employee-unavailable-kernel") renderWithToasts(<EmployeeFixture dialog={false} unavailableKernel reasoningState="default" />);
       if (mode === "employee-dialog") renderWithToasts(<EmployeeFixture dialog reasoningState="default" />);
       if (mode === "app-page") renderWithToasts(<AppFixture dialog={false} />);

@@ -23,7 +23,7 @@ export function useAppPersistentUiState(activeView: string) {
   const [reasoningEffort, setReasoningEffortState] = useState<ReasoningEffort>(() => readStoredReasoningEffort());
   const [responseSpeed, setResponseSpeedState] = useState<ResponseSpeed>(() => readStoredResponseSpeed());
   const [budgetLimitUsd, setBudgetLimitUsdState] = useState<number | null>(() => readStoredBudgetLimitUsd());
-  const [accessMode, setAccessModeState] = useState<RuntimeAccessMode>(() => readStoredAccessMode());
+  const [accessMode, setAccessModeState] = useState<RuntimeAccessMode | undefined>(() => readStoredAccessMode());
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [sidebarRevealArmed, setSidebarRevealArmed] = useState(true);
 
@@ -51,10 +51,10 @@ export function useAppPersistentUiState(activeView: string) {
     }
   }, [activeView, setRoomsAppView]);
 
-  function setAccessMode(value: RuntimeAccessMode) {
+  const setAccessMode = useCallback((value: RuntimeAccessMode) => {
     setAccessModeState(value);
     window.localStorage.setItem(APP_STORAGE_KEYS.accessMode, value);
-  }
+  }, []);
 
   function setReasoningEffort(value: ReasoningEffort) {
     setReasoningEffortState(value);

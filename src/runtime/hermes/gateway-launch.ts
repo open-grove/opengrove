@@ -48,7 +48,16 @@ export function resolveHermesTuiGatewayLaunch(options: HermesGatewayLaunchOption
 function hermesPythonGatewayLaunch(python: string): HermesGatewayLaunch {
   return {
     command: python,
-    args: ["-u", "-m", "tui_gateway.entry"],
+    args: [
+      "-u",
+      "-c",
+      [
+        "import runpy",
+        "import hermes_bootstrap",
+        "hermes_bootstrap.harden_import_path()",
+        "runpy.run_module('tui_gateway.entry', run_name='__main__')",
+      ].join("\n"),
+    ],
     pythonSourceRoot: inferHermesPythonSourceRoot(python),
   };
 }

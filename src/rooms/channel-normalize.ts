@@ -12,10 +12,12 @@ import type {
   RoomMemberStatus,
   RoomMessageStatus,
   RoomMessageDeliveryKind,
+  EmployeeMigrationVersions,
 } from "./channel-store.js";
 import { normalizedRoomMemberAvatarDataUrl } from "./avatar-data-url.js";
 import { normalizeModelForKernelDisplay } from "../server/kernel-registry.js";
 import { normalizeRequiredKernelCapabilities } from "../kernel/capabilities/requirements.js";
+import { resolveRuntimeAccessModeSelection } from "../runtime-access.js";
 
 const GROVE_ROOM_ID = "room-open-group";
 
@@ -41,7 +43,24 @@ export function normalizeRoomChannelSnapshot(input: unknown): RoomChannelSnapsho
     messages,
     events,
     deletedMemberIds: uniqueIds(Array.isArray(object.deletedMemberIds) ? object.deletedMemberIds : []),
+    employeeMigrationVersions: normalizeEmployeeMigrationVersions(object.employeeMigrationVersions),
   };
+}
+
+export function normalizeEmployeeMigrationVersions(input: unknown): EmployeeMigrationVersions | undefined {
+  const value = objectRecord(input);
+  if (!value) return undefined;
+  const { models, approvalPresets } = value;
+  if (
+    typeof models !== "number" ||
+    !Number.isSafeInteger(models) ||
+    models < 0 ||
+    typeof approvalPresets !== "number" ||
+    !Number.isSafeInteger(approvalPresets) ||
+    approvalPresets < 0
+  )
+    return undefined;
+  return { models, approvalPresets };
 }
 
 function normalizeRoom(input: Partial<RoomChannelRoom>): RoomChannelRoom | undefined {
@@ -151,7 +170,7 @@ function normalizeContextTokenBudget(value: unknown): number | undefined {
 }
 
 function normalizeMemberAccessMode(value: unknown): RoomChannelMember["accessMode"] {
-  return value === "default" || value === "auto-review" || value === "full-access" ? value : undefined;
+  return value === undefined ? undefined : resolveRuntimeAccessModeSelection(undefined, value);
 }
 
 function normalizeMemberReasoningEffort(value: unknown): RoomChannelMember["reasoningEffort"] {

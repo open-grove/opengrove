@@ -1,3 +1,5 @@
+import { autoReviewFallbackReason } from "../runtime-access.js";
+import { applyEmployeeAutoReviewFallback } from "./employee-access-mode.js";
 import { executeRemoteRoomRun } from "./remote-agents/execution.js";
 import {
   assertNetworkRunAuthorized,
@@ -20,7 +22,7 @@ import { isRetryableDiagnosticError, type DiagnosticFacts } from "../diagnostics
 import { safeDiagnosticErrorCode } from "../diagnostics/redaction.js";
 import type { RoomLedgerCapability } from "#agent-protocol";
 import type { BrowserPageSnapshot } from "../environment/browser-adapter.js";
-import type { RoomChannelMessage } from "../rooms/channel-store.js";
+import type { RoomChannelMessage, RoomChannelMember } from "../rooms/channel-store.js";
 import { sessionHistoryModeForCapabilities } from "../kernel/session-history-mode.js";
 import { BRIDGE_KERNEL_IDS, type BridgeKernelId, type BridgeState } from "./bridge-types.js";
 import { resolveMountedAppCliEnv } from "./app-cli-env.js";
@@ -231,7 +233,9 @@ async function executeRoomRun(state: BridgeState, input: RoomRunExecutionInput):
                 requiredSkillNames,
                 sessionInstructions: envelope.sessionInstructions,
                 hostContextPromptBlock: [envelope.turnInstructions, cliEnvironmentContext].filter(Boolean).join("\n\n"),
-                accessMode: target.accessMode,
+                accessMode: events.some((event) => autoReviewFallbackReason(event) !== undefined)
+                  ? "default"
+                  : target.accessMode,
                 dynamicToolsMode: "always",
                 responseSpeed: roomRunResponseSpeed(),
                 contextTokenBudget: target.contextTokenBudget,
@@ -256,6 +260,7 @@ async function executeRoomRun(state: BridgeState, input: RoomRunExecutionInput):
                   model,
                   sessionId,
                   userInput,
+                  employee: input.target,
                 }),
             }),
         ),
@@ -407,6 +412,7 @@ export function recordRoomRunEvent(input: {
   model: string;
   sessionId: string;
   userInput: string;
+  employee?: RoomChannelMember;
 }): void {
   if (input.event.type === "turn.finished") {
     const finalEvent = createAssistantFinalEvent(input.events, {
@@ -428,7 +434,12 @@ function persistRoomRunEvent(input: {
   model: string;
   sessionId: string;
   userInput: string;
+  employee?: RoomChannelMember;
 }): void {
+  const permissionChanged =
+    input.employee && autoReviewFallbackReason(input.event) !== undefined
+      ? applyEmployeeAutoReviewFallback(input.state.app.rooms, input.employee)
+      : false;
   attachModelId([input.event], input.model);
   input.events.push(input.event);
   const producerRun = input.eventSourceApp.sessions.getRun(input.event.runId);
@@ -459,7 +470,7 @@ function persistRoomRunEvent(input: {
   }
   const checkpointPolicy =
     input.state.eventCheckpointPolicy ?? (input.state.eventCheckpointPolicy = createAgentEventCheckpointPolicy());
-  if (checkpointPolicy.shouldCheckpoint(input.event)) {
+  if (permissionChanged || checkpointPolicy.shouldCheckpoint(input.event)) {
     input.state.store?.saveFrom(input.state.app);
   }
 }
