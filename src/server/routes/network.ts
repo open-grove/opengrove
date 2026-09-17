@@ -1,18 +1,29 @@
-import { readAppEnv } from "../../identity.js";
+import { agentRouterConfiguration } from "../remote-agents/configuration.js";
 import { resumeRemoteRoomRuns } from "../room-runs.js";
 import { createHash } from "node:crypto";
 import type {
   AddNetworkContactOperation,
+  CancelNetworkAuthorizationOperation,
   InspectNetworkAccountOperation,
   ConnectNetworkAccountOperation,
+  GetNetworkAuthorizationOperation,
 } from "#protocol";
-import { requireNetworkConnection, networkProblem } from "../remote-agents/session.js";
+import {
+  requireNetworkConnection,
+  isNetworkOAuthRequired,
+  networkProblem,
+  networkSessionsFor,
+  requireKnownNetworkSession,
+} from "../remote-agents/session.js";
 import type { HostOperationRouteContext } from "../router.js";
 
 export async function handleInspectNetworkAccount(
   context: HostOperationRouteContext<InspectNetworkAccountOperation>,
 ): Promise<true> {
-  context.sendJson(context.response, 200, { ok: true, configured: Boolean(readAppEnv("AGENT_ROUTER_URL")?.trim()) });
+  context.sendJson(context.response, 200, {
+    ok: true,
+    configured: Boolean(agentRouterConfiguration(context.state.settings).url),
+  });
   return true;
 }
 
@@ -20,7 +31,17 @@ export async function handleConnectNetworkAccount(
   context: HostOperationRouteContext<ConnectNetworkAccountOperation>,
 ): Promise<true> {
   try {
-    const { sender: account, authorization } = await requireNetworkConnection(context);
+    let connection;
+    try {
+      connection = await requireNetworkConnection(context);
+    } catch (error) {
+      if (!isNetworkOAuthRequired(error)) throw error;
+      const authorizationUrl = await networkSessionsFor(context.state).beginAuthorization();
+      const { authorizationId, expiresAt } = networkSessionsFor(context.state).authorizationStatus();
+      context.sendJson(context.response, 200, { ok: true, authorizationUrl, authorizationId, expiresAt });
+      return true;
+    }
+    const { sender: account, authorization } = connection;
     await resumeRemoteRoomRuns(context.state, authorization);
     context.sendJson(context.response, 200, { ok: true, account });
   } catch (error) {
@@ -68,6 +89,34 @@ export async function handleAddNetworkContact(
       context.state.store.saveFrom(context.state.app);
     }
     context.sendJson(context.response, 200, { ok: true, memberId: id });
+  } catch (error) {
+    const problem = networkProblem(error);
+    context.sendJson(context.response, problem.status, { error: problem.error });
+  }
+  return true;
+}
+
+export async function handleCancelNetworkAuthorization(
+  context: HostOperationRouteContext<CancelNetworkAuthorizationOperation>,
+): Promise<true> {
+  try {
+    requireKnownNetworkSession(context).cancelAuthorization(context.input.query.authorizationId);
+    context.sendJson(context.response, 200, { ok: true });
+  } catch (error) {
+    const problem = networkProblem(error);
+    context.sendJson(context.response, problem.status, { error: problem.error });
+  }
+  return true;
+}
+
+export async function handleGetNetworkAuthorization(
+  context: HostOperationRouteContext<GetNetworkAuthorizationOperation>,
+): Promise<true> {
+  try {
+    const { status, expiresAt, error } = requireKnownNetworkSession(context).authorizationStatus(
+      context.input.query.authorizationId,
+    );
+    context.sendJson(context.response, 200, { ok: true, status, expiresAt, ...(error ? { error } : {}) });
   } catch (error) {
     const problem = networkProblem(error);
     context.sendJson(context.response, problem.status, { error: problem.error });

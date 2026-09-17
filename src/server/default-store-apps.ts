@@ -18,6 +18,10 @@ import {
   installedAppStoreAppRefs,
   readAppStorePackageInstallMarker,
   rollbackFreshAppStorePackageInstall,
+  rollbackAppStoreRevisionInstall,
+  restoreAppStoreMountSettings,
+  finalizeAppStoreRevisionInstall,
+  type AppStoreRevisionInstallRollback,
   rollbackUpdatedAppStorePackageInstall,
   type UpdatedAppStorePackageInstall,
 } from "./app-store.js";
@@ -227,10 +231,10 @@ export async function ensureDefaultStoreAppsInstalledAfterAuth(input: {
   if (installPolicy.assignmentSource) result.assignmentSource = installPolicy.assignmentSource;
 
   const previousSettings = structuredClone(input.state.settings);
-  const previousAgentState = snapshotPersistedAgentState(input.state.app, { compactVolatile: false });
   const managedPackageKeys = new Set(input.state.settings.defaultAppSync.managedPackageKeys);
   const freshInstalls: FreshAppStorePackageInstall[] = [];
   const updatedInstalls: UpdatedAppStorePackageInstall[] = [];
+  const revisionRollbacks: AppStoreRevisionInstallRollback[] = [];
   const changedAppIds = new Set<string>();
 
   for (const policy of installPolicy.apps) {
@@ -314,12 +318,19 @@ export async function ensureDefaultStoreAppsInstalledAfterAuth(input: {
       );
       if (!imported) throw new Error("app_store_package_not_found");
       if (input.state.app) input.state.store.saveFrom(input.state.app);
-      const install = installAppStorePackage({
+      const install = await installAppStorePackage({
         packageId: imported.id,
         settings: input.state.settings,
         state: input.state,
         backupEnabled: true,
         storeRoot: appStoreDataRoot(input.state),
+        onBeforeMountCommit: () => {
+          // Refresh this App's rollback state after download/source awaits.
+          restoreAppStoreMountSettings(previousSettings, input.state.settings, new Set([appId]));
+        },
+        onRevisionSavePointCreated: (rollback) => {
+          revisionRollbacks.push(rollback);
+        },
         onFreshAppRootCreated: (created) => {
           freshInstalls.push(created);
         },
@@ -371,6 +382,7 @@ export async function ensureDefaultStoreAppsInstalledAfterAuth(input: {
     }
     return result;
   }
+  const previousAgentState = snapshotPersistedAgentState(input.state.app, { compactVolatile: false });
   try {
     activateBridgeApp(input.state, changedAppIds);
     input.state.store.saveFrom(input.state.app);
@@ -378,6 +390,13 @@ export async function ensureDefaultStoreAppsInstalledAfterAuth(input: {
     for (const install of updatedInstalls) commitUpdatedAppStorePackageInstall(install);
   } catch (error) {
     let activationError: unknown = error;
+    for (const rollback of revisionRollbacks.reverse()) {
+      try {
+        rollbackAppStoreRevisionInstall(rollback);
+      } catch (rollbackError) {
+        activationError = new AggregateError([activationError, rollbackError], "default_app_revision_rollback_failed");
+      }
+    }
     for (const install of updatedInstalls.reverse()) {
       try {
         rollbackUpdatedAppStorePackageInstall({ ...install, storeRoot: appStoreDataRoot(input.state) });
@@ -392,7 +411,8 @@ export async function ensureDefaultStoreAppsInstalledAfterAuth(input: {
         activationError = new AggregateError([activationError, rollbackError], "default_app_install_rollback_failed");
       }
     }
-    input.state.settings = previousSettings;
+    restoreAppStoreMountSettings(input.state.settings, previousSettings, changedAppIds);
+    input.state.settings.defaultAppSync = previousSettings.defaultAppSync;
     try {
       activateBridgeApp(input.state, new Set());
       restorePersistedAgentState(input.state.app, previousAgentState);
@@ -416,6 +436,7 @@ export async function ensureDefaultStoreAppsInstalledAfterAuth(input: {
     return result;
   }
 
+  for (const rollback of revisionRollbacks) finalizeAppStoreRevisionInstall(rollback);
   for (const install of freshInstalls) {
     try {
       finalizeFreshAppStorePackageInstall(install);

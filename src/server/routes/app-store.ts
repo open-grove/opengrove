@@ -10,6 +10,7 @@ import { restorePersistedAgentState, snapshotPersistedAgentState } from "../../s
 import { queueAppReadinessReport } from "../app-readiness.js";
 import {
   type AppStorePackageRecord,
+  type AppStoreRevisionInstallRollback,
   appStoreArchitectureSummary,
   appStoreDataRoot,
   commitUpdatedAppStorePackageInstall,
@@ -34,6 +35,9 @@ import {
   repairMissingAppStorePackage,
   resolveAppStoreArchive,
   rollbackFreshAppStorePackageInstall,
+  rollbackAppStoreRevisionInstall,
+  restoreAppStoreMountSettings,
+  finalizeAppStoreRevisionInstall,
   rollbackUpdatedAppStorePackageInstall,
   trashSeparatedStoreManagedAppInstallation,
   trashStoreManagedAppRoot,
@@ -464,11 +468,12 @@ export async function handleAppStoreRoute(options: {
       sendJson(response, 409, { ok: false, error: importedSafetyError });
       return true;
     }
-    const previousSettings = normalizeBridgeSettingsPatch(state.settings, state.settings);
-    const previousAgentState = snapshotPersistedAgentState(state.app, { compactVolatile: false });
+    let previousSettings = normalizeBridgeSettingsPatch(state.settings, state.settings);
+    let previousAgentState = snapshotPersistedAgentState(state.app, { compactVolatile: false });
     let install;
     let freshInstall: FreshAppStorePackageInstall | undefined;
     let updatedInstall: UpdatedAppStorePackageInstall | undefined;
+    let revisionInstallRollback: AppStoreRevisionInstallRollback | undefined;
     let previousFormalVersionState:
       | {
           localAppId: string;
@@ -478,7 +483,7 @@ export async function handleAppStoreRoute(options: {
       | undefined;
     try {
       state.store.saveFrom(state.app);
-      install = installAppStorePackage({
+      install = await installAppStorePackage({
         packageId,
         settings: state.settings,
         state,
@@ -489,6 +494,12 @@ export async function handleAppStoreRoute(options: {
         },
         onUpdatedAppRootCreated: (created) => {
           updatedInstall = created;
+        },
+        onRevisionSavePointCreated: (rollback) => {
+          revisionInstallRollback = rollback;
+        },
+        onBeforeMountCommit: () => {
+          previousSettings = normalizeBridgeSettingsPatch(state.settings, state.settings);
         },
       });
     } catch (error) {
@@ -516,6 +527,9 @@ export async function handleAppStoreRoute(options: {
         packageId,
       });
       return true;
+    }
+    if (item?.publishKind !== "employee") {
+      previousAgentState = snapshotPersistedAgentState(state.app, { compactVolatile: false });
     }
     try {
       activateBridgeApp(state, {
@@ -553,8 +567,30 @@ export async function handleAppStoreRoute(options: {
         });
       }
     } catch (error) {
-      let activationError = rollbackInstallProgramAfterActivationFailure(state, freshInstall, updatedInstall, error);
-      state.settings = previousSettings;
+      let activationError: unknown = error;
+      if (revisionInstallRollback) {
+        try {
+          rollbackAppStoreRevisionInstall(revisionInstallRollback);
+        } catch (rollbackError) {
+          activationError = new AggregateError(
+            [activationError, rollbackError],
+            "app_store_revision_activation_rollback_failed",
+          );
+        }
+      }
+      activationError = rollbackInstallProgramAfterActivationFailure(
+        state,
+        freshInstall,
+        updatedInstall,
+        activationError,
+      );
+      if (item?.publishKind === "employee") state.settings = previousSettings;
+      else
+        restoreAppStoreMountSettings(
+          state.settings,
+          previousSettings,
+          new Set([install.mountedApp?.id || install.appId]),
+        );
       try {
         if (previousFormalVersionState) {
           previousFormalVersionState.store.restore(
@@ -585,6 +621,7 @@ export async function handleAppStoreRoute(options: {
       });
       return true;
     }
+    if (revisionInstallRollback) finalizeAppStoreRevisionInstall(revisionInstallRollback);
     if (freshInstall) {
       try {
         finalizeFreshAppStorePackageInstall(freshInstall);
@@ -985,6 +1022,8 @@ function installResidualCleanupState(
 function appStoreInstallErrorStatus(error: unknown): number {
   const message = error instanceof Error ? error.message : String(error);
   return new Set([
+    "app_store_install_in_progress",
+    "app_store_update_external_git_worktree_requires_manual_relocation",
     "app_store_repair_required",
     "app_store_relink_required",
     "app_store_source_conflict",

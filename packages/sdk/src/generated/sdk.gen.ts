@@ -81,6 +81,12 @@ import type {
   InteractionQuestionListData,
   InteractionQuestionListErrors,
   InteractionQuestionListResponses,
+  NetworkAccountAuthorizationData,
+  NetworkAccountAuthorizationErrors,
+  NetworkAccountAuthorizationResponses,
+  NetworkAccountCancelData,
+  NetworkAccountCancelErrors,
+  NetworkAccountCancelResponses,
   NetworkAccountConnectData,
   NetworkAccountConnectErrors,
   NetworkAccountConnectResponses,
@@ -1177,7 +1183,7 @@ export class Account extends HeyApiClient {
   /**
    * Connect the signed-in admin's Agent network account
    *
-   * Exchange the current OpenGrove login at the operator's trusted Agent Router node and return public sender identity. Requires admin; credentials remain in Host memory.
+   * Start native OIDC authorization or connect with the existing scoped grant. The main login token never reaches Router. Requires admin; credentials remain in Host memory.
    */
   public connect<ThrowOnError extends boolean = false>(
     options: Options<NetworkAccountConnectData, ThrowOnError>,
@@ -1194,6 +1200,36 @@ export class Account extends HeyApiClient {
         ...options.headers,
       },
     });
+  }
+
+  /**
+   * Cancel the pending browser authorization
+   *
+   * Cancel this attempt locally for a previously verified product session, including during WW outages. Does not change an existing connection or cancel a newer attempt.
+   */
+  public cancel<ThrowOnError extends boolean = false>(
+    options: Options<NetworkAccountCancelData, ThrowOnError>,
+  ): RequestResult<NetworkAccountCancelResponses, NetworkAccountCancelErrors, ThrowOnError> {
+    return (options.client ?? this.client).delete<
+      NetworkAccountCancelResponses,
+      NetworkAccountCancelErrors,
+      ThrowOnError
+    >({ url: "/network/account/authorization", ...options });
+  }
+
+  /**
+   * Read the current browser authorization attempt
+   *
+   * Read local attempt status for a previously verified product session. Does not contact WW or start a connection.
+   */
+  public authorization<ThrowOnError extends boolean = false>(
+    options: Options<NetworkAccountAuthorizationData, ThrowOnError>,
+  ): RequestResult<NetworkAccountAuthorizationResponses, NetworkAccountAuthorizationErrors, ThrowOnError> {
+    return (options.client ?? this.client).get<
+      NetworkAccountAuthorizationResponses,
+      NetworkAccountAuthorizationErrors,
+      ThrowOnError
+    >({ url: "/network/account/authorization", ...options });
   }
 }
 

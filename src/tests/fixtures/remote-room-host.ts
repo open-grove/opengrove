@@ -72,7 +72,28 @@ export async function startRemoteRoomHost() {
     return result as T;
   }
   const sendCalls = () => fixture.calls.filter((call) => call.method === "SendMessage");
-  const login = (user: string) => request("/auth/login", { email: `${user}@example.test`, code: "123456" });
+  let currentUser = "";
+  const login = async (user: string) => {
+    const result = await request("/auth/login", { email: `${user}@example.test`, code: "123456" });
+    currentUser = user;
+    return result;
+  };
+  async function authorize(): Promise<void> {
+    const result = await request<{ authorizationUrl?: string }>("/network/account", {});
+    if (result.authorizationUrl) await fixture.oauth.authorize(result.authorizationUrl, currentUser);
+  }
+  async function connect(): Promise<{ account: { owner: string } }> {
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const result = await request<{ authorizationUrl?: string; account?: { owner: string } }>("/network/account", {});
+      if (result.authorizationUrl) {
+        await fixture.oauth.authorize(result.authorizationUrl, currentUser);
+        continue;
+      }
+      assert.ok(result.account);
+      return { account: result.account };
+    }
+    throw new Error("fixture authorization did not complete");
+  }
   async function waitMessage(id: string, predicate: (message: RoomChannelMessage) => boolean) {
     let observed: RoomChannelMessage | undefined;
     for (let attempt = 0; attempt < 160; attempt++) {
@@ -98,6 +119,8 @@ export async function startRemoteRoomHost() {
     fixture,
     request,
     login,
+    connect,
+    authorize,
     waitMessage,
     sendCalls,
     get baseUrl() {

@@ -7,9 +7,11 @@ test("group submission does not wait for a stalled Router exchange", { timeout: 
   const host = await startRemoteRoomHost();
   t.after(() => host.dispose());
   await host.login("admin");
+  await host.connect();
   const { memberId } = await host.request<{ memberId: string }>("/network/contacts", { address: host.fixture.address });
   await host.request("/rooms", { id: "group", title: "Shared conversation", memberIds: [memberId] });
   await host.restart();
+  await host.authorize();
   let release!: () => void;
   host.fixture.config.exchangeGate = new Promise<void>((resolve) => {
     release = resolve;
@@ -71,6 +73,7 @@ test("stale and anonymous logout requests cannot revoke the current communicatio
   await host.login("regular");
   const oldCookies = host.cookies;
   await host.login("admin");
+  await host.connect();
   const { memberId } = await host.request<{ memberId: string }>("/network/contacts", {
     address: host.fixture.address,
   });

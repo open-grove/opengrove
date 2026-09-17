@@ -46,6 +46,7 @@ export const harnessInventory = [
   task("withdrawal-route", "dist/tests/withdrawal-route-harness.js", "kernels-providers"),
 
   task("web-remote-agent-ui", "scripts/test-web-remote-agent-ui.mjs", "web-desktop"),
+  task("web-router-settings", "scripts/test-web-router-settings.mjs", "web-desktop"),
   task("web-mounted-app-group-deletion", "scripts/test-web-mounted-app-group-deletion.mjs", "apps-knowledge", {
     inputs: ["web/"],
   }),
@@ -171,6 +172,13 @@ export const harnessInventory = [
   task("web-team-auth", "scripts/test-web-team-auth.mjs", "web-desktop"),
 
   task("rooms-store", "dist/tests/rooms-store-harness.js", "rooms-routines", { suite: "critical" }),
+  task("app-revision-store", "dist/tests/app-revision-store.test.js", "app-lifecycle", { suite: "critical" }),
+  task("app-release-source-save-point", "dist/tests/app-release-source-save-point.test.js", "app-lifecycle", {
+    suite: "critical",
+  }),
+  task("app-store-concurrent-install", "dist/tests/app-store-concurrent-install.test.js", "app-lifecycle", {
+    suite: "critical",
+  }),
   task("local-app-draft", "dist/tests/local-app-draft-harness.js", "app-lifecycle", { suite: "critical" }),
   task("app-program-activation-recovery", "dist/tests/app-program-activation-recovery-harness.js", "app-lifecycle", {
     suite: "critical",

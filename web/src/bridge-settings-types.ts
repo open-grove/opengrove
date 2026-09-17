@@ -213,6 +213,9 @@ export interface BridgeSettings {
   kernelPathOverrides?: Record<string, KernelPathOverride>;
   kernelProxy: KernelProxySettings;
   appStore?: AppStoreSettings;
+  agentRouterUrl?: string;
+  agentRouterEffectiveUrl?: string;
+  agentRouterManaged?: boolean;
   appUpdates?: AppUpdateSettings;
   voice?: VoiceSettings;
   settingsPath?: string;
@@ -438,12 +441,18 @@ export interface LocalAppDraftSummary {
   contentDigest: string;
   workingContentDigest: string;
   employees: AppReleaseEmployeeDefaults[];
+  savePoint?: AppSavePoint;
   publishBase?: {
     packageKey?: string;
     version?: string;
     releaseCommitSha?: string;
     archiveSha256?: string;
   };
+}
+
+export interface AppSavePoint {
+  commitSha: string;
+  savedAt: string;
 }
 
 export interface LocalAppDraftResponse {
@@ -490,6 +499,10 @@ export interface MountedAppVersionStatus {
   savedContentDigest?: string;
   hasUnsavedChanges: boolean;
   workingDigestError?: string;
+  sourceSavePoint?: AppSavePoint;
+  sourceChangedFileCount?: number;
+  sourceStatusError?: string;
+  sourceStatusPath?: string;
 }
 
 export interface MountedAppVersionsResponse {
@@ -668,6 +681,8 @@ export interface ModelProviderBinding {
 
 export interface BridgeSettingsResponse {
   ok: boolean;
+  degraded?: boolean;
+  warning?: "settings_state_persist_failed";
   kernelDiscoveryPending?: boolean;
   restarted?: boolean;
   settings: BridgeSettings;

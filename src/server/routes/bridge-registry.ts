@@ -1,4 +1,10 @@
-import { handleInspectNetworkAccount, handleConnectNetworkAccount, handleAddNetworkContact } from "./network.js";
+import {
+  handleCancelNetworkAuthorization,
+  handleGetNetworkAuthorization,
+  handleInspectNetworkAccount,
+  handleConnectNetworkAccount,
+  handleAddNetworkContact,
+} from "./network.js";
 import type { BridgeRoute, BridgeRouteContext } from "../router.js";
 import { hostContractById } from "#protocol/compiled";
 import { handleA2ARoute } from "./a2a.js";
@@ -67,6 +73,8 @@ export function createBridgeRoutes(): BridgeRoute[] {
     ...createHealthRoutes(),
     operationRoute(hostContractById["network.account.inspect"], handleInspectNetworkAccount),
     operationRoute(hostContractById["network.account.connect"], handleConnectNetworkAccount),
+    operationRoute(hostContractById["network.account.cancel"], handleCancelNetworkAuthorization),
+    operationRoute(hostContractById["network.account.authorization"], handleGetNetworkAuthorization),
     operationRoute(hostContractById["network.contact.add"], handleAddNetworkContact),
     operationRoute(hostContractById["auth.email-code.create"], handleCreateAuthEmailCodeOperation),
     operationRoute(hostContractById["auth.session.create"], handleCreateAuthSessionOperation),

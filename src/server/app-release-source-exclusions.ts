@@ -29,15 +29,14 @@ export function appReleaseSourcePathExcluded(path: string, workspacePath: string
   const normalized = path.toLowerCase();
   const workspace = workspacePath.toLowerCase();
   if (normalized === workspace || normalized.startsWith(`${workspace}/`)) return true;
-  if (APP_RELEASE_SOURCE_EXCLUDED_FILES.has(normalized) || normalized.startsWith(".opengrove-store-package.json.")) {
-    return true;
-  }
   const segments = normalized.split("/");
   if (segments.some((segment) => APP_RELEASE_SOURCE_EXCLUDED_DIRECTORY_SEGMENTS.has(segment))) {
     return true;
   }
   const fileName = segments.at(-1) ?? "";
   return (
+    APP_RELEASE_SOURCE_EXCLUDED_FILES.has(fileName) ||
+    fileName.startsWith(".opengrove-store-package.json.") ||
     fileName.startsWith(".env.") ||
     /^(?:auth|credentials?|cookies?|sessions?|tokens?)(?:\.(?:json|ya?ml|toml|ini|db|sqlite3?))?$/i.test(fileName)
   );

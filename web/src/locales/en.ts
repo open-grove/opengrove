@@ -15,7 +15,7 @@ export const EN = {
   "remoteAgent.addHint": "Use your OpenGrove administrator account to add an Agent address and chat here.",
   "remoteAgent.loginRequired": "Sign in to OpenGrove with an administrator account, then try again.",
   "remoteAgent.adminRequired": "Only OpenGrove administrators can add and chat with remote Agents.",
-  "remoteAgent.notConfigured": "Remote Agents are not configured for this installation. Contact your administrator.",
+  "remoteAgent.notConfigured": "Configure a trusted service address in Settings → Network to add remote Agents.",
   "remoteAgent.configurationLoading": "Checking availability…",
   "remoteAgent.configurationError": "Could not check availability. Select this item to retry.",
   "rooms.cancelFailed": "Could not confirm stopping this task. It may still be running. Please try again.",
@@ -25,6 +25,23 @@ export const EN = {
   "remoteAgent.addLocal": "Add local employee",
   "remoteAgent.addressExample": "owner/agent@agents.example",
   "remoteAgent.remoteExecution": "Model and workspace managed remotely",
+  "remoteAgent.authorizationError": "Remote Agent authorization did not complete. Please try again.",
+  "remoteAgent.authorizationUnavailable":
+    "The authorization service is temporarily unavailable. Try again when it recovers.",
+  "remoteAgent.authorizationExpired": "This authorization attempt expired. Start a new authorization attempt.",
+  "remoteAgent.authorizationCanceled": "Authorization was canceled. You can start again when ready.",
+  "remoteAgent.sessionUnavailable":
+    "A communication credential is temporarily unavailable. Try again when the account service recovers.",
+  "remoteAgent.accountProvisioningFailed":
+    "The account service could not prepare your communication identity. Contact its administrator.",
+  "remoteAgent.cancelAuthorizationError":
+    "Cancellation has not succeeded; authorization is still pending. Try canceling again.",
+  "remoteAgent.authorizeTitle": "Authorize cloud agents",
+  "remoteAgent.authorizeHint": "Sign in with your current OpenGrove account and authorize this Router in your browser.",
+  "remoteAgent.authorizeOpen": "Open authorization page",
+  "remoteAgent.authorizeWaiting": "This window will continue automatically after authorization.",
+  "remoteAgent.routerNotRegistered":
+    "This Router has not been registered with the account service. Contact its operator.",
   "remoteAgent.add": "Add remote Agent",
   "remoteAgent.address": "Agent address",
   "remoteAgent.name": "Display name (optional)",
@@ -341,7 +358,7 @@ export const EN = {
   "settings.mountedApps": "Apps",
   "settings.extensions": "Extensions",
   "settings.voice": "Voice",
-  "settings.network": "Proxy",
+  "settings.network": "Network",
   "settings.desktop": "Desktop",
   "settings.updates": "Software Update",
   "settings.appearance": "Appearance",
@@ -471,7 +488,20 @@ export const EN = {
   "settings.extensionSourcePath": "Source path",
   "settings.voiceDescription":
     "Choose the speech-to-text provider. The main UI only shows the microphone; provider choice lives here.",
-  "settings.networkDescription": "Configure the HTTP/HTTPS proxy used by kernels and install commands.",
+  "settings.networkDescription":
+    "Configure the remote Agent service and the proxy used by kernels and install commands.",
+  "settings.remoteAgents": "Remote Agents",
+  "settings.agentRouterUrl": "Service address (Router)",
+  "settings.agentRouterPlaceholder": "https://agents.example/_agent-router/v1",
+  "settings.agentRouterHint":
+    "Only use a trusted service. After account authorization, a short-lived communication credential connects to it. Your OpenGrove login credential is never sent to this service. Leave empty to disable remote Agents.",
+  "settings.agentRouterManaged":
+    "This address is managed by the startup environment. Change it there and restart OpenGrove.",
+  "settings.agentRouterSaveHint":
+    "Saved on this device. Changes take effect immediately and disconnect the previous service.",
+  "settings.saveRouterAddress": "Save address",
+  "settings.invalidRouterAddress":
+    "Enter a valid HTTPS service URL without credentials, query parameters or a fragment.",
   "settings.notConfigured": "Not configured",
   "settings.providerList": "Provider list",
   "settings.reusableProviders": "Providers",
@@ -676,6 +706,8 @@ export const EN = {
   "settings.languageEnglish": "English",
   "settings.saveFailed": "Failed to save settings",
   "system.saveSettingsFailed": "Failed to save settings: {message}",
+  "system.settingsStatePersistFailed":
+    "Settings were saved, but some related workspace changes could not be saved and may be lost after restart. See diagnostics for details.",
   "system.chooseWorkspaceFailed": "Failed to choose working directory: {message}",
   "system.chooseWorkspaceBridgeOutdated":
     "Failed to choose a working directory: restart OpenGrove so the local bridge can use the folder picker.",
@@ -1945,6 +1977,9 @@ export const EN = {
   "appStore.version.none": "None",
   "appStore.version.unsaved": "Unsaved changes",
   "appStore.version.saved": "Saved",
+  "appStore.version.sourceSavedAt": "Source saved · {time}",
+  "appStore.version.sourceNeedsAttention": "Source needs attention · {path}",
+  "appStore.version.unknownSourcePath": "Unknown path",
   "appStore.version.registryUnavailable":
     "The formal version catalog is temporarily unavailable. Your local draft is still retained.",
   "appStore.version.localDraft": "My local draft",
@@ -2254,6 +2289,9 @@ export const EN = {
     "A local App with the same name but a different source already exists; OpenGrove will not overwrite it to protect local data",
   "appStore.errEvidenceUnreadable":
     "The local install record is corrupted or unreadable; OpenGrove stopped overwriting to protect local data. Check file permissions or reinstall",
+  "appStore.errExternalWorktreeRelocation":
+    "This App uses an external Git worktree. Relocate its repository before switching versions; the current App is unchanged.",
+  "appStore.errInstallInProgress": "This App is being installed. Wait for it to finish before trying again.",
   "appStore.errUpdateNotSafe":
     "This mount uses a custom path or alias, or is in an abnormal state; the App Store cannot update it automatically",
   "appStore.errHostUpdateRequired": "This App requires a newer OpenGrove release; update OpenGrove first",

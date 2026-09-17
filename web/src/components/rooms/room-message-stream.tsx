@@ -1,4 +1,5 @@
-import { openGroveClient } from "../../opengrove-client";
+import { useNetworkAuthorization } from "./use-network-authorization";
+import { remoteAgentErrorText } from "./remote-agent-errors";
 import {
   Fragment,
   memo,
@@ -228,6 +229,7 @@ const RoomMessageItem = memo(function RoomMessageItem(props: {
   const [overflowMenuOpen, setOverflowMenuOpen] = useState(false);
   const [exportingDiagnostics, setExportingDiagnostics] = useState(false);
   const [reconnecting, setReconnecting] = useState(false);
+  const networkAuthorization = useNetworkAuthorization();
   const contentRef = useRef<HTMLDivElement | null>(null);
   const toolbarRef = useRef<HTMLDivElement | null>(null);
   const [toolbarPlacement, setToolbarPlacement] = useState<RoomMessageToolbarPlacement>("right");
@@ -507,11 +509,16 @@ const RoomMessageItem = memo(function RoomMessageItem(props: {
                     onRetry: async () => {
                       setReconnecting(true);
                       try {
-                        await openGroveClient.network.account.connect();
+                        await networkAuthorization.connect();
                       } catch (error) {
+                        if (error instanceof DOMException && error.name === "AbortError") return;
                         toast?.({
                           title: t("remoteAgent.reconnectError"),
-                          description: rawDiagnosticText(error instanceof Error ? error.message : String(error)),
+                          description: remoteAgentErrorText(
+                            error,
+                            t,
+                            rawDiagnosticText(error instanceof Error ? error.message : String(error)),
+                          ),
                           kind: "error",
                         });
                       } finally {

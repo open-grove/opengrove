@@ -16,6 +16,7 @@ import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "nod
 import { isDeepStrictEqual } from "node:util";
 import type { JsonObject } from "../core.js";
 import type { AppReleaseEmployeeDefaults } from "./app-release.js";
+import type { AppSavePoint } from "./app-revision-store.js";
 import { appCandidateContentDigest } from "./app-content-digest.js";
 import {
   extractAppStoreAppArchive,
@@ -45,6 +46,8 @@ export interface LocalAppDraftPublishBase {
   archiveSha256?: string;
 }
 
+export type LocalAppDraftSavePoint = AppSavePoint;
+
 export interface LocalAppDraftSummary {
   schemaVersion: 1;
   localAppId: string;
@@ -55,6 +58,7 @@ export interface LocalAppDraftSummary {
   contentDigest: string;
   workingContentDigest: string;
   employees: AppReleaseEmployeeDefaults[];
+  savePoint?: LocalAppDraftSavePoint;
   publishBase?: LocalAppDraftPublishBase;
 }
 
@@ -136,6 +140,7 @@ export class LocalAppDraftStore {
     appId: string;
     archive: AppStoreArchive;
     employees: AppReleaseEmployeeDefaults[];
+    savePoint?: LocalAppDraftSavePoint;
     workingContentDigest?: string;
     publishBase?: LocalAppDraftPublishBase;
     expectedPrevious?: LocalAppDraftSummary;
@@ -236,6 +241,7 @@ export class LocalAppDraftStore {
     appId: string;
     archive: AppStoreArchive;
     employees: AppReleaseEmployeeDefaults[];
+    savePoint?: LocalAppDraftSavePoint;
     workingContentDigest?: string;
     publishBase?: LocalAppDraftPublishBase;
   }): LocalAppDraftSummary {
@@ -276,6 +282,7 @@ export class LocalAppDraftStore {
       contentDigest,
       workingContentDigest,
       employees: input.employees.map((employee) => ({ ...employee })),
+      ...(input.savePoint ? { savePoint: { ...input.savePoint } } : {}),
       ...(input.publishBase ? { publishBase: { ...input.publishBase } } : {}),
     };
     writePrivateFileAtomically(
@@ -720,6 +727,7 @@ function publicDraftSummary(record: LocalAppDraftRecord): LocalAppDraftSummary {
     contentDigest: record.contentDigest,
     workingContentDigest: record.workingContentDigest,
     employees: record.employees.map((employee) => ({ ...employee })),
+    ...(record.savePoint ? { savePoint: { ...record.savePoint } } : {}),
     ...(record.publishBase ? { publishBase: { ...record.publishBase } } : {}),
   });
 }
@@ -728,6 +736,7 @@ function cloneDraftSummary(draft: LocalAppDraftSummary): LocalAppDraftSummary {
   return {
     ...draft,
     employees: draft.employees.map((employee) => ({ ...employee })),
+    ...(draft.savePoint ? { savePoint: { ...draft.savePoint } } : {}),
     ...(draft.publishBase ? { publishBase: { ...draft.publishBase } } : {}),
   };
 }

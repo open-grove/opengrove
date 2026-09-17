@@ -53,6 +53,13 @@ try {
       1,
       "an incompatible formal version must state the exact minimum Host release number",
     );
+    const localChangesOverview = page.locator(".app-store-version-overview-item").filter({ hasText: "本机修改" });
+    assert.equal(
+      await localChangesOverview.getByText(/源码已保存/u).count(),
+      1,
+      "machine-only files excluded from source history must not be shown as unsaved source edits",
+    );
+    assert.equal(await localChangesOverview.getAttribute("data-tone"), "success");
 
     await page.locator("button:not(:disabled)", { hasText: "切换到此版本" }).click();
     await page.getByRole("heading", { name: "检测到未保存的本机修改" }).waitFor();
@@ -247,6 +254,11 @@ function entrySource(component, globalStyles, appStoreStyles) {
       workingDigest: "f".repeat(64),
       savedContentDigest: "a".repeat(64),
       hasUnsavedChanges: true,
+      sourceSavePoint: {
+        commitSha: "9".repeat(40),
+        savedAt: "2026-07-29T09:30:00.000Z",
+      },
+      sourceChangedFileCount: 0,
     };
     let currentStatus = initialStatus;
     let hasActiveRuns = true;

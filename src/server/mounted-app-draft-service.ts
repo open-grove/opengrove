@@ -1,5 +1,7 @@
 import type { OpenGroveAppManifest } from "../app-builder/manifest.js";
 import { normalizeAppIconValue } from "../app-icons/icon-value.js";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   AppReleaseValidationError,
@@ -10,6 +12,7 @@ import {
   type MountedAppReleaseDraft,
 } from "./app-release.js";
 import { appCandidateContentDigest } from "./app-content-digest.js";
+import { AppRevisionStore, appRevisionTarget, type AppRevisionTarget } from "./app-revision-store.js";
 import { appStoreDataRoot, packAppStoreArchive, readAppStorePackageInstallMarker } from "./app-store.js";
 import { mountedAppWorkingDigest } from "./app-version-manager.js";
 import {
@@ -18,11 +21,20 @@ import {
   type SelectedFormalAppVersion,
 } from "./app-version-state.js";
 import type { BridgeState } from "./bridge-types.js";
-import { LocalAppDraftStore, type LocalAppDraftPublishBase, type LocalAppDraftSummary } from "./local-app-drafts.js";
-import type { MountedAppTarget } from "./mounted-apps.js";
+import {
+  LocalAppDraftStore,
+  type LocalAppDraftPublishBase,
+  type LocalAppDraftSavePoint,
+  type LocalAppDraftSummary,
+} from "./local-app-drafts.js";
+import { readMountedAppManifest, type MountedAppTarget } from "./mounted-apps.js";
 
 export function localAppDraftStore(state: BridgeState): LocalAppDraftStore {
   return new LocalAppDraftStore(join(appStoreDataRoot(state), "local-drafts"));
+}
+
+export function appRevisionStore(state: BridgeState): AppRevisionStore {
+  return new AppRevisionStore(join(appStoreDataRoot(state), "app-revisions"));
 }
 
 export function saveMountedAppDraft(input: {
@@ -35,15 +47,18 @@ export function saveMountedAppDraft(input: {
   publishBase?: LocalAppDraftPublishBase;
   expectedPrevious?: LocalAppDraftSummary;
   appRootOverride?: string;
+  workingContentDigestOverride?: string;
+  manifestOverride?: OpenGroveAppManifest;
+  savePoint?: LocalAppDraftSavePoint;
 }): LocalAppDraftSummary {
   const body = record(input.submission);
   const effectiveEmployees = mountedAppEffectiveEmployeeDefaults(input.state, input.target.id);
   const employees = localAppDraftEmployees(body.employees, effectiveEmployees);
-  const workingContentDigest = mountedAppWorkingDigest(input.state, input.target);
+  const workingContentDigest = input.workingContentDigestOverride ?? mountedAppWorkingDigest(input.state, input.target);
   if (input.expectedWorkingContentDigest !== undefined && workingContentDigest !== input.expectedWorkingContentDigest) {
     throw new AppReleaseValidationError("local_app_draft_working_copy_changed", [], 409);
   }
-  const sourceManifest = structuredClone(input.target.manifest) as OpenGroveAppManifest;
+  const sourceManifest = structuredClone(input.manifestOverride ?? input.target.manifest) as OpenGroveAppManifest;
   applyLocalAppDraftIdentity(sourceManifest, body.app);
   sourceManifest.store = {
     ...sourceManifest.store,
@@ -55,7 +70,10 @@ export function saveMountedAppDraft(input: {
     allowSetup: true,
     purpose: "local-draft",
   });
-  if (mountedAppWorkingDigest(input.state, input.target) !== workingContentDigest) {
+  if (
+    input.workingContentDigestOverride === undefined &&
+    mountedAppWorkingDigest(input.state, input.target) !== workingContentDigest
+  ) {
     throw new AppReleaseValidationError("local_app_draft_working_copy_changed", [], 409);
   }
   const store = input.store ?? localAppDraftStore(input.state);
@@ -96,9 +114,55 @@ export function saveMountedAppDraft(input: {
     archive,
     employees,
     workingContentDigest,
+    ...(input.savePoint ? { savePoint: input.savePoint } : {}),
     ...(publishBase ? { publishBase } : {}),
     ...(input.expectedPrevious ? { expectedPrevious: input.expectedPrevious } : {}),
   });
+}
+
+export async function saveMountedAppDraftWithRevision(input: {
+  state: BridgeState;
+  target: MountedAppTarget;
+  submission?: unknown;
+  store?: LocalAppDraftStore;
+  revisions?: AppRevisionStore;
+  packArchive?: typeof packAppStoreArchive;
+}): Promise<LocalAppDraftSummary> {
+  const revisionTarget = mountedAppRevisionTarget(input.target);
+  const revisions = input.revisions ?? appRevisionStore(input.state);
+  const savePoint = await revisions.saveIfChanged({
+    ...revisionTarget,
+    message: "Save OpenGrove local draft",
+  });
+  const materializationRoot = mkdtempSync(join(tmpdir(), "opengrove-draft-save-point-"));
+  const sourceRoot = join(materializationRoot, "app");
+  try {
+    await revisions.materialize({
+      ...revisionTarget,
+      commitSha: savePoint.commitSha,
+      targetRoot: sourceRoot,
+    });
+    const manifestRead = readMountedAppManifest(sourceRoot);
+    if (!manifestRead.manifest) throw new Error("app_revision_manifest_invalid");
+    const snapshotTarget: MountedAppTarget = {
+      ...input.target,
+      appRoot: sourceRoot,
+      manifest: manifestRead.manifest,
+    };
+    return saveMountedAppDraft({
+      state: input.state,
+      target: input.target,
+      submission: input.submission,
+      ...(input.store ? { store: input.store } : {}),
+      ...(input.packArchive ? { packArchive: input.packArchive } : {}),
+      appRootOverride: sourceRoot,
+      manifestOverride: manifestRead.manifest as OpenGroveAppManifest,
+      workingContentDigestOverride: mountedAppWorkingDigest(input.state, snapshotTarget),
+      savePoint,
+    });
+  } finally {
+    rmSync(materializationRoot, { recursive: true, force: true });
+  }
 }
 
 export function saveMountedAppDraftForRelease(input: {
@@ -110,6 +174,8 @@ export function saveMountedAppDraftForRelease(input: {
   publishBase?: LocalAppDraftPublishBase;
   expectedPrevious?: LocalAppDraftSummary;
   appRootOverride?: string;
+  workingContentDigestOverride?: string;
+  savePoint?: LocalAppDraftSavePoint;
 }): LocalAppDraftSummary {
   return saveMountedAppDraft({
     state: input.state,
@@ -125,6 +191,16 @@ export function saveMountedAppDraftForRelease(input: {
     ...(input.publishBase ? { publishBase: input.publishBase } : {}),
     ...(input.expectedPrevious ? { expectedPrevious: input.expectedPrevious } : {}),
     ...(input.appRootOverride ? { appRootOverride: input.appRootOverride } : {}),
+    ...(input.workingContentDigestOverride ? { workingContentDigestOverride: input.workingContentDigestOverride } : {}),
+    ...(input.savePoint ? { savePoint: input.savePoint } : {}),
+  });
+}
+
+export function mountedAppRevisionTarget(target: MountedAppTarget): AppRevisionTarget {
+  return appRevisionTarget({
+    localAppId: target.localAppId,
+    appRoot: target.appRoot,
+    manifest: target.manifest,
   });
 }
 

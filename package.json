@@ -174,6 +174,7 @@
     "test:room-collaboration": "npm run build:server && node dist/tests/rooms-store-harness.js && node dist/tests/room-run-scheduler-harness.js && node dist/tests/room-run-envelope-harness.js && node dist/tests/room-user-reply-harness.js && node dist/tests/room-delegation-harness.js && node dist/tests/room-run-history-mode-harness.js && node dist/tests/room-agent-runtime-fingerprint-harness.js && node dist/tests/rooms-route-targeting-harness.js && node dist/tests/pm-agent-seed-harness.js && node dist/tests/routine-scheduler-harness.js && node dist/tests/claude-engine-resolution-harness.js && node dist/tests/claude-agent-sdk-runtime-harness.js && npm run check:web-room-state",
     "test:app-pack": "npm run build:server && node dist/tests/app-pack-publish-harness.js",
     "test:app-create": "npm run build:server && node dist/tests/app-create-route-harness.js",
+    "test:app-revisions": "npm run build:server && node --test dist/tests/app-revision-store.test.js dist/tests/app-release-source-save-point.test.js dist/tests/app-store-concurrent-install.test.js",
     "test:mcp-app": "npm --prefix examples/mcp-app-basic run build && npm run build:server && npm run test:web-mcp-app-sandbox-path && npm run test:web-mcp-app-open-link && node dist/tests/mcp-app-harness.js && node dist/tests/mcp-app-media-cache-harness.js && node dist/tests/raw-file-range-harness.js && node scripts/test-mcp-app-sandbox.mjs",
     "test:app-setup-shell": "npm --prefix examples/mcp-app-basic run build && npm run build:server && npm run build:web && npm run test:app-setup-shell:built",
     "test:app-setup-shell:built": "node scripts/test-web-app-setup-shell-model.mjs && node scripts/test-web-app-setup-shell.mjs",
@@ -264,7 +265,7 @@
     "restart:desktop-dev": "node scripts/restart-desktop-dev.mjs",
     "restart:desktop-dev:test": "node --env-file-if-exists=.env.local scripts/restart-desktop-dev.mjs --profile test",
     "test:app-release": "npm run build:server && npm run test:app-release:built && npm run test:web-app-release-progress-model && npm run check:web-app-store-publish-page && npm run check:web-app-release-recovery",
-    "test:app-release:built": "npm run test:app-release:local-build:built && node dist/tests/app-release-source-snapshot-harness.js && node dist/tests/app-release-journal-client-harness.js && node dist/tests/app-release-coordinator-harness.js && node dist/tests/app-release-registry-migration-harness.js && node dist/tests/app-release-apply-harness.js",
+    "test:app-release:built": "npm run test:app-release:local-build:built && node --test dist/tests/app-revision-store.test.js dist/tests/app-release-source-save-point.test.js && node dist/tests/app-release-source-snapshot-harness.js && node dist/tests/app-release-journal-client-harness.js && node dist/tests/app-release-coordinator-harness.js && node dist/tests/app-release-registry-migration-harness.js && node dist/tests/app-release-apply-harness.js",
     "test:app-release:local-build:built": "node --test dist/tests/app-release-build-contract.test.js dist/tests/app-release-local-build.test.js",
     "test:web-app-release-progress-model": "node scripts/test-web-app-release-progress-model.mjs",
     "test:app-version-activation": "npm run build:server && node dist/tests/app-version-activation-harness.js",
@@ -298,7 +299,7 @@
     "publish:desktop-release": "node scripts/publish-desktop-release.mjs",
     "control:desktop-release": "node scripts/control-desktop-release.mjs",
     "prepack": "npm run build",
-    "test:remote-agents": "npm run build:server && node --test dist/tests/agent-network-sessions.test.js dist/tests/remote-agent-room.test.js dist/tests/remote-agent-groups.test.js dist/tests/remote-agent-isolation.test.js dist/tests/remote-agent-authorization.test.js dist/tests/remote-room-restore.test.js dist/tests/host-openapi.test.js && node scripts/test-web-remote-agent-ui.mjs",
+    "test:remote-agents": "npm run build:server && node --test dist/tests/agent-router-settings.test.js dist/tests/agent-network-sessions.test.js dist/tests/router-oauth.test.js dist/tests/remote-agent-room.test.js dist/tests/remote-agent-groups.test.js dist/tests/remote-agent-isolation.test.js dist/tests/remote-agent-authorization.test.js dist/tests/remote-room-restore.test.js dist/tests/host-openapi.test.js && node scripts/test-web-remote-agent-ui.mjs && node scripts/test-web-router-settings.mjs",
     "test:web-compact-layout": "node scripts/test-web-compact-layout.mjs && node scripts/test-web-adaptive-workbench.mjs"
   },
   "bundleDependencies": [
@@ -319,7 +320,9 @@
     "cross-spawn": "^7.0.6",
     "electron-updater": "^6.8.9",
     "js-yaml": "^4.3.2",
+    "openid-client": "^6.8.8",
     "tar": "7.5.22",
+    "isomorphic-git": "^1.41.9",
     "undici": "7.29.0",
     "zod": "^4.5.4"
   },

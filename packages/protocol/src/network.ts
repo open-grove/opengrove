@@ -20,14 +20,59 @@ export const connectNetworkAccountOperation = defineHostOperation({
   id: "network.account.connect",
   summary: "Connect the signed-in admin's Agent network account",
   description:
-    "Exchange the current OpenGrove login at the operator's trusted Agent Router node and return public sender identity. Requires admin; credentials remain in Host memory.",
+    "Start native OIDC authorization or connect with the existing scoped grant. The main login token never reaches Router. Requires admin; credentials remain in Host memory.",
   method: "POST",
   path: "/network/account",
   risk: "write",
   body: z.object({}).strict(),
-  success: { status: 200, body: z.object({ ok: z.literal(true), account }) },
+  success: {
+    status: 200,
+    body: z.union([
+      z.object({ ok: z.literal(true), account }),
+      z.object({
+        ok: z.literal(true),
+        authorizationUrl: z.string().url(),
+        authorizationId: z.string(),
+        expiresAt: z.number(),
+      }),
+    ]),
+  },
   errors,
 });
+export const getNetworkAuthorizationOperation = defineHostOperation({
+  id: "network.account.authorization",
+  summary: "Read the current browser authorization attempt",
+  description:
+    "Read local attempt status for a previously verified product session. Does not contact WW or start a connection.",
+  method: "GET",
+  path: "/network/account/authorization",
+  query: z.object({ authorizationId: z.string().min(1).max(256) }),
+  risk: "read",
+  success: {
+    status: 200,
+    body: z.object({
+      ok: z.literal(true),
+      status: z.enum(["pending", "authorized", "canceled", "failed"]),
+      expiresAt: z.number(),
+      error: z.string().optional(),
+    }),
+  },
+  errors,
+});
+export type GetNetworkAuthorizationOperation = typeof getNetworkAuthorizationOperation;
+export const cancelNetworkAuthorizationOperation = defineHostOperation({
+  id: "network.account.cancel",
+  summary: "Cancel the pending browser authorization",
+  description:
+    "Cancel this attempt locally for a previously verified product session, including during WW outages. Does not change an existing connection or cancel a newer attempt.",
+  method: "DELETE",
+  path: "/network/account/authorization",
+  query: z.object({ authorizationId: z.string().min(1).max(256) }),
+  risk: "write",
+  success: { status: 200, body: z.object({ ok: z.literal(true) }) },
+  errors,
+});
+export type CancelNetworkAuthorizationOperation = typeof cancelNetworkAuthorizationOperation;
 export const addNetworkContactOperation = defineHostOperation({
   id: "network.contact.add",
   summary: "Add a remote Agent to Contacts",
@@ -52,7 +97,12 @@ export const networkOperationGroup = defineHostOperationGroup({
       id: "account",
       title: "Accounts",
       description: "Communication identity for the current OpenGrove admin account.",
-      operations: [inspectNetworkAccountOperation, connectNetworkAccountOperation],
+      operations: [
+        inspectNetworkAccountOperation,
+        connectNetworkAccountOperation,
+        getNetworkAuthorizationOperation,
+        cancelNetworkAuthorizationOperation,
+      ],
     }),
     defineHostOperationResource({
       id: "contact",
