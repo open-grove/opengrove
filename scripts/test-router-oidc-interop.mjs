@@ -62,6 +62,7 @@ const service = new ManagedService(
     }),
   },
 );
+const existingSender = await service.create(owner, "client");
 const managed = createManagedApp(service);
 server.on("request", async (request, response) => {
   const path = new URL(request.url, origin).pathname;
@@ -183,6 +184,7 @@ try {
   await authorize(await network.beginAuthorization());
   const connection = await network.connect();
   assert.equal(connection.binding.owner, owner, "legacy native owner survives migration");
+  assert.equal(connection.sender.id, existingSender.id, "the pre-existing sender survives migration");
   const agents = await connection.request(({ client }) => client.agents());
   assert.equal(agents[0].id, connection.sender.id);
   assert.ok(routerTokens.length > 0 && oauthTokens.length === 1);
@@ -210,6 +212,8 @@ try {
   assert.equal(renewed.binding.owner, connection.binding.owner);
   assert.equal(renewed.sender.id, connection.sender.id);
   await network.clear();
+  for (let attempt = 0; nativeTokens.size && attempt < 100; attempt++) await delay(10);
+  assert.equal(nativeTokens.size, 0, "logout revokes native credentials at the homeserver");
   console.log(
     "PASS: WW PKCE + native-client registration + product-owned identity integration + unchanged Router + OAuth never reaches Router + bounded revocation + stable owner/sender + Router works during WW outage",
   );
