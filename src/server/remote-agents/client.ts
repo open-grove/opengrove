@@ -1,11 +1,6 @@
-import {
-  AgentRouterClient,
-  AgentRouterError,
-  type Agent,
-  type ClientOptions,
-  type NetworkSession,
-} from "@agent-router/sdk";
-import { RouterOAuth } from "./oauth.js";
+import { AgentRouterClient, AgentRouterError, type Agent, type ClientOptions } from "@agent-router/sdk";
+import { NetworkOAuth } from "./oauth.js";
+import { issueNetworkSession, revokeNetworkSession, type NativeNetworkSession } from "./credentials.js";
 import type { AccountRemoteAgentBinding, RemoteAgentBinding } from "../../rooms/remote-agent.js";
 
 export interface NetworkProductAccount {
@@ -15,10 +10,10 @@ export interface NetworkProductAccount {
 
 interface AccountSession {
   product: NetworkProductAccount;
-  oauth: RouterOAuth;
+  oauth: NetworkOAuth;
   lifetime: AbortController;
-  network?: NetworkSession;
-  exchange?: Promise<NetworkSession>;
+  network?: NativeNetworkSession;
+  exchange?: Promise<NativeNetworkSession>;
 }
 
 type NetworkIdentity = Omit<AccountRemoteAgentBinding, "address" | "matrixId">;
@@ -70,7 +65,7 @@ export class AgentNetworkSessions {
       this.active = {
         product: { ...product },
         lifetime: new AbortController(),
-        oauth: new RouterOAuth(product, this.bootstrap.baseUrl, this.options.allowLocalHTTP),
+        oauth: new NetworkOAuth(product, this.bootstrap.baseUrl, this.options.allowLocalHTTP),
       };
     }
   }
@@ -94,17 +89,8 @@ export class AgentNetworkSessions {
     return this.active.oauth.begin();
   }
 
-  private async revoke(session: NetworkSession): Promise<void> {
-    try {
-      await new AgentRouterClient({
-        ...this.options,
-        baseUrl: session.serviceUrl,
-        accessToken: session.accessToken,
-        timeoutMs: 3000,
-      }).revokeSession();
-    } catch {
-      console.warn("remote_session_revocation_unavailable");
-    }
+  private async revoke(session: NativeNetworkSession): Promise<void> {
+    await revokeNetworkSession(session, this.options.fetch);
   }
 
   private assertActive(account: AccountSession): void {
@@ -112,17 +98,22 @@ export class AgentNetworkSessions {
     if (this.active !== account) throw new AgentRouterError("remote_account_changed", 409);
   }
 
-  private async session(account: AccountSession): Promise<NetworkSession> {
+  private async session(account: AccountSession): Promise<NativeNetworkSession> {
     this.assertActive(account);
     if (account.network && Date.parse(account.network.expiresAt) > this.now() + 30_000) return account.network;
     if (!account.exchange) {
       account.exchange = account.oauth
         .accessToken()
         .then((accessToken) =>
-          this.bootstrap.exchange(
-            { provider: this.options.provider, accessToken },
-            { signal: account.lifetime.signal },
-          ),
+          issueNetworkSession({
+            accountIssuer: account.product.accountIssuer,
+            serviceUrl: this.bootstrap.baseUrl,
+            accessToken,
+            signal: account.lifetime.signal,
+            allowLocalHTTP: this.options.allowLocalHTTP,
+            fetch: this.options.fetch,
+            now: this.now(),
+          }),
         )
         .then(async (session) => {
           if (this.active !== account || account.lifetime.signal.aborted) {
@@ -137,11 +128,13 @@ export class AgentNetworkSessions {
             await this.revoke(session);
             throw new AgentRouterError("remote_sender_changed", 409);
           }
+          const previous = account.network;
           account.network = session;
+          if (previous) void this.revoke(previous);
           return session;
         })
         .catch((error: unknown) => {
-          if (error instanceof AgentRouterError && error.code === "external_session_invalid") {
+          if (error instanceof AgentRouterError && error.code === "remote_oauth_required") {
             account.oauth.invalidate();
             throw new AgentRouterError("remote_oauth_required", 403);
           }

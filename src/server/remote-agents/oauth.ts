@@ -1,5 +1,5 @@
 import { AgentRouterError } from "@agent-router/sdk";
-import { createHash } from "node:crypto";
+import { credentialServiceUrl } from "./credentials.js";
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import * as oidc from "openid-client";
@@ -22,7 +22,7 @@ interface Attempt {
 }
 
 /** Native authorization: primary login credentials are deliberately absent from this interface. */
-export class RouterOAuth {
+export class NetworkOAuth {
   private grant?: Grant;
   private attempt?: Attempt;
   private starting?: Promise<string>;
@@ -37,16 +37,9 @@ export class RouterOAuth {
   ) {}
 
   private url(raw: string): URL {
-    const url = new URL(raw);
-    if (
-      url.username ||
-      url.password ||
-      /[?#]/.test(raw) ||
-      (url.protocol !== "https:" && !(this.allowLocalHTTP && url.protocol === "http:" && url.hostname === "127.0.0.1"))
-    )
-      throw new AgentRouterError("remote_authorization_unavailable", 503);
-    return url;
+    return credentialServiceUrl(raw, this.allowLocalHTTP);
   }
+
   private stopAttempt(): void {
     if (!this.attempt) return;
     clearTimeout(this.attempt.timer);
@@ -89,7 +82,7 @@ export class RouterOAuth {
   private async start(): Promise<string> {
     const revision = this.revision;
     const accountUrl = this.url(this.account.accountIssuer);
-    const metadataUrl = new URL(`${accountUrl.toString().replace(/\/$/, "")}/v1/oauth/router-client`);
+    const metadataUrl = new URL(`${accountUrl.toString().replace(/\/$/, "")}/v1/network/configuration`);
     metadataUrl.searchParams.set("resource", this.resource);
     const response = await fetch(metadataUrl, {
       redirect: "error",
@@ -104,16 +97,19 @@ export class RouterOAuth {
       scopes?: unknown;
     };
     const scopes = registration.scopes;
-    const expectedClient = `router-${createHash("sha256").update(this.resource).digest("hex")}`;
+    const expectedClient = registration.client_id;
     if (
       typeof registration.issuer !== "string" ||
-      registration.client_id !== expectedClient ||
+      typeof expectedClient !== "string" ||
+      !expectedClient ||
+      expectedClient.length > 160 ||
       registration.resource !== this.resource ||
       !Array.isArray(scopes) ||
-      !["openid", "profile", "router.connect"].every((scope) => scopes.includes(scope))
+      !["openid", "profile", "network.connect"].every((scope) => scopes.includes(scope))
     )
       throw new AgentRouterError("remote_authorization_unavailable", 503);
     const issuer = this.url(registration.issuer);
+    if (issuer.origin !== accountUrl.origin) throw new AgentRouterError("remote_authorization_unavailable", 503);
     const config = await oidc.discovery(
       issuer,
       expectedClient,
@@ -215,8 +211,8 @@ export class RouterOAuth {
       .buildAuthorizationUrl(config, {
         redirect_uri: redirect,
         scope: scopes.includes("offline_access")
-          ? "openid profile router.connect offline_access"
-          : "openid profile router.connect",
+          ? "openid profile network.connect offline_access"
+          : "openid profile network.connect",
         code_challenge: challenge,
         code_challenge_method: "S256",
         state,
@@ -240,7 +236,7 @@ export class RouterOAuth {
     if (
       typeof tokens.expires_in !== "number" ||
       tokens.expires_in <= 30 ||
-      (tokens.scope !== undefined && !tokens.scope.split(" ").includes("router.connect"))
+      (tokens.scope !== undefined && !tokens.scope.split(" ").includes("network.connect"))
     )
       throw new AgentRouterError("remote_authorization_failed", 400);
     return {

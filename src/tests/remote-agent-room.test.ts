@@ -163,9 +163,9 @@ test("logout and account switching preserve pending work without allowing anothe
   await host.request("/rooms/conversation/messages/pending/cancel", {});
   await host.waitMessage("pending", (m) => m.remoteTask?.pending === false);
   const snapshot = JSON.stringify(await host.request("/rooms"));
-  assert.equal(snapshot.includes("ars_"), false);
+  assert.equal(snapshot.includes("matrix_"), false);
   assert.equal(snapshot.includes("product-admin-"), false);
-  assert.equal(readFileSync(join(host.directory, "state.sqlite")).includes(Buffer.from("ars_")), false);
+  assert.equal(readFileSync(join(host.directory, "state.sqlite")).includes(Buffer.from("matrix_")), false);
 });
 
 test("Stop abandons an unsent group message while offline and prevents later recovery", async (t) => {

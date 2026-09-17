@@ -56,12 +56,15 @@ test("SDK sessions bootstrap once, renew with the same account and reject a chan
     allowLocalHTTP: true,
     now: () => now,
     fetch: async (_url, init) => {
-      if (init?.method === "DELETE") return new Response(null, { status: 204 });
+      if (String(_url).endsWith("/_matrix/client/v3/logout")) return new Response(null, { status: 204 });
+      assert.equal(String(_url), `${fixture.baseUrl}/v1/network/sessions`);
+      assert.match(new Headers(init?.headers).get("Authorization")!, /^Bearer oauth-/);
       exchanges.push(JSON.parse(String(init?.body)));
       return Response.json({
         serviceUrl: "https://agents.example/_agent-router/v1",
-        accessToken: `ars_${exchanges.length}`,
-        expiresAt: new Date(now + 600_000).toISOString(),
+        homeserverUrl: "https://matrix.example",
+        accessToken: `matrix_${exchanges.length}`,
+        expiresAt: new Date(now + 120_000).toISOString(),
         owner: "@owner-a:agents.example",
         agent: {
           id: senderId,
@@ -78,16 +81,16 @@ test("SDK sessions bootstrap once, renew with the same account and reject a chan
   const [first, concurrent] = await Promise.all([network.connect(), network.connect()]);
   assert.equal(first.sender.id, "sender-a");
   assert.deepEqual(first.sender, concurrent.sender);
-  assert.deepEqual(exchanges, [{ provider: "opengrove", accessToken: "oauth-user-a-1" }]);
+  assert.deepEqual(exchanges, [{ serviceUrl: "https://agents.example/_agent-router/v1" }]);
   network.observe({
     accountIssuer: fixture.baseUrl,
     accountUserId: "user-a",
   });
-  now += 580_000;
+  now += 100_000;
   await network.connect(first.binding);
-  assert.deepEqual(exchanges[1], { provider: "opengrove", accessToken: "oauth-user-a-1" });
+  assert.deepEqual(exchanges[1], { serviceUrl: "https://agents.example/_agent-router/v1" });
   senderId = "sender-changed";
-  now += 580_000;
+  now += 100_000;
   await assert.rejects(network.connect(first.binding), /remote_sender_changed/);
 });
 
@@ -104,8 +107,8 @@ test("logout aborts bound requests and a late exchange cannot install credential
     baseUrl: "https://agents.example/_agent-router/v1",
     provider: "opengrove",
     allowLocalHTTP: true,
-    fetch: async (_url, init) => {
-      if (init?.method === "DELETE") {
+    fetch: async (_url) => {
+      if (String(_url).endsWith("/_matrix/client/v3/logout")) {
         revocations++;
         return new Response(null, { status: 204 });
       }
@@ -155,7 +158,8 @@ test("SDK credential rejection renews once; uncertain submissions remain the Roo
     allowLocalHTTP: true,
     fetch: async (url, init) => {
       const headers = new Headers(init?.headers);
-      if (String(url).endsWith("/auth/exchange")) {
+      if (String(url).endsWith("/_matrix/client/v3/logout")) return new Response(null, { status: 204 });
+      if (String(url).endsWith("/v1/network/sessions")) {
         exchanges++;
         return Response.json(sessionResponse("a"));
       }
@@ -172,7 +176,7 @@ test("SDK credential rejection renews once; uncertain submissions remain the Roo
         });
       }
       assert.equal(new URL(String(url)).hostname, "agents.example");
-      assert.equal(headers.get("Authorization"), "Bearer ars_a");
+      assert.equal(headers.get("Authorization"), "Bearer matrix_a");
       assert.equal(init?.redirect, "error");
       sends++;
       if (sends === 1) return Response.json({ error: "account_session_invalid" }, { status: 401 });
@@ -202,8 +206,9 @@ test("SDK credential rejection renews once; uncertain submissions remain the Roo
 function sessionResponse(account: string) {
   return {
     serviceUrl: "https://agents.example/_agent-router/v1",
-    accessToken: `ars_${account}`,
-    expiresAt: new Date(Date.now() + 600_000).toISOString(),
+    homeserverUrl: "https://matrix.example",
+    accessToken: `matrix_${account}`,
+    expiresAt: new Date(Date.now() + 120_000).toISOString(),
     owner: `@${account}:agents.example`,
     agent: {
       id: `sender-${account}`,

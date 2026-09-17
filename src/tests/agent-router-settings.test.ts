@@ -242,7 +242,9 @@ test("changing the Router revokes the old session and keeps conversations bound 
   assert.equal(host.sendCalls().length, 1);
   assert.equal(other.calls.length, 0);
   await host.connect();
-  assert.equal(other.exchanges.length, 1, "explicit connection uses the newly selected Router");
+  assert.equal(other.exchanges.length, 0, "the selected Router never receives OAuth");
+  assert.equal(host.fixture.exchanges.length, 2, "WW issues credentials for the selected Router");
+  assert.equal(other.nativeSessions.length, 1, "explicit connection uses the selected native service");
   assert.equal(host.fixture.revoked.length, 1, "old communication credentials were revoked");
   await host.request("/settings", { agentRouterUrl: "" }, "PATCH");
   assert.deepEqual(await host.request("/network/account"), { ok: true, configured: false });

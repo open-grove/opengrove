@@ -4,6 +4,8 @@ import { once } from "node:events";
 import { createServer } from "node:http";
 import type { Task } from "@agent-router/sdk";
 
+const nativeServices = new Map<string, { issue: (owner: string) => unknown; unavailable: () => boolean }>();
+
 /** HTTP contract fixture derived only from the SDK's packaged public client. */
 export async function startRemoteAgentService() {
   const calls: Array<{
@@ -19,6 +21,7 @@ export async function startRemoteAgentService() {
   const memories: Record<string, string> = {};
   const credentials = new Map<string, string>();
   const revoked: string[] = [];
+  const nativeSessions: string[] = [];
   const config = {
     exchangeGate: undefined as Promise<void> | undefined,
     routerUnavailable: false,
@@ -33,6 +36,26 @@ export async function startRemoteAgentService() {
   let sequence = 0;
   let baseUrl = "";
   let host = "";
+  const issueNative = (owner: string) => {
+    const sender = config.changedSender ? "changed" : `sender-${owner}`;
+    const accessToken = `matrix_${++sequence}`;
+    credentials.set(accessToken, sender);
+    nativeSessions.push(accessToken);
+    return {
+      serviceUrl: `${baseUrl}/_agent-router/v1`,
+      homeserverUrl: baseUrl,
+      accessToken,
+      expiresAt: new Date(Date.now() + 120_000).toISOString(),
+      owner: `@${owner}:${host}`,
+      agent: {
+        id: sender,
+        owner: `@${owner}:${host}`,
+        name: "client",
+        address: `${owner}/client@${host}`,
+        matrixId: `@${sender}:${host}`,
+      },
+    };
+  };
   const oauth = routerOidcFixture(() => baseUrl);
   const server = createServer(async (request, response) => {
     const path = new URL(request.url ?? "/", baseUrl).pathname;
@@ -86,40 +109,34 @@ export async function startRemoteAgentService() {
     if (path === "/v1/app-store/install-policy")
       return send(200, { policyKey: "standard", assignmentSource: "default", apps: [] });
     if (path === "/v1/app-store/packages") return send(200, { packages: [] });
-    if (path === "/_agent-router/v1/auth/exchange") {
-      assert.equal(request.headers.authorization, undefined);
-      exchanges.push({ provider: body.provider!, accessToken: body.accessToken! });
+    if (path === "/v1/network/sessions") {
+      const target = nativeServices.get(body.serviceUrl!);
+      if (!target) return send(400, { error: "remote_router_not_registered" });
+      if (target.unavailable()) return send(503, { error: "remote_session_unavailable" });
+      const delegated = productToken;
+      exchanges.push({ provider: "opengrove", accessToken: delegated });
       await config.exchangeGate;
       if (config.rejectExternalOnce) {
         config.rejectExternalOnce = false;
-        return send(401, { error: "external_session_invalid" });
+        return send(401, { error: "remote_oauth_required" });
       }
-      if (config.rejectExchange) return send(403, { error: "external_role_required" });
-      if (!body.accessToken?.startsWith("oauth-")) return send(401, { error: "external_session_invalid" });
-      const owner = body.accessToken?.split("-")[1];
-      const sender = config.changedSender ? "changed" : `sender-${owner}`;
-      const accessToken = `ars_${++sequence}`;
-      credentials.set(accessToken, sender);
-      return send(200, {
-        serviceUrl: `${baseUrl}/_agent-router/v1`,
-        accessToken,
-        expiresAt: new Date(Date.now() + 600_000).toISOString(),
-        owner: `@${owner}:${host}`,
-        agent: {
-          id: sender,
-          owner: `@${owner}:${host}`,
-          name: "client",
-          address: `${owner}/client@${host}`,
-          matrixId: `@${sender}:${host}`,
-        },
-      });
+      if (config.rejectExchange) return send(403, { error: "remote_authorization_required" });
+      if (!delegated.startsWith("oauth-")) return send(401, { error: "remote_oauth_required" });
+      return send(200, target.issue(delegated.split("-")[1]!));
     }
-    if (path === "/_agent-router/v1/auth/session" && request.method === "DELETE") {
+
+    if (path === "/_matrix/client/v3/logout" && request.method === "POST") {
       revoked.push(productToken);
       credentials.delete(productToken);
       response.writeHead(204);
       response.end();
       return;
+    }
+    if (
+      path.startsWith("/_agent-router/") &&
+      (raw.includes("oauth-") || productToken.startsWith("oauth-") || productToken.startsWith("product-"))
+    ) {
+      return send(401, { error: "product_credential_reached_router" });
     }
     if (path === "/_agent-router/v1/directory") {
       directoryRequests.push(request.url!);
@@ -227,7 +244,12 @@ export async function startRemoteAgentService() {
   assert.ok(address && typeof address !== "string");
   host = `127.0.0.1:${address.port}`;
   baseUrl = `http://${host}`;
+  nativeServices.set(`${baseUrl}/_agent-router/v1`, {
+    issue: issueNative,
+    unavailable: () => config.routerUnavailable,
+  });
   return {
+    nativeSessions,
     oauth,
     baseUrl,
     serviceUrl: `${baseUrl}/_agent-router/v1`,
@@ -238,6 +260,9 @@ export async function startRemoteAgentService() {
     revoked,
     config,
     directoryRequests,
-    close: () => new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve()))),
+    close: () => {
+      nativeServices.delete(`${baseUrl}/_agent-router/v1`);
+      return new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
+    },
   };
 }

@@ -32,7 +32,12 @@ export function routerOidcFixture(baseUrl: () => string) {
       const issuer = baseUrl(),
         url = new URL(request.url!, issuer),
         path = url.pathname;
-      if (!path.startsWith("/v1/oauth/") && path !== "/.well-known/openid-configuration" && path !== "/oauth/authorize")
+      if (
+        !path.startsWith("/v1/oauth/") &&
+        path !== "/.well-known/openid-configuration" &&
+        path !== "/oauth/authorize" &&
+        path !== "/v1/network/configuration"
+      )
         return false;
       const send = (status: number, value: unknown) => {
         response
@@ -41,13 +46,13 @@ export function routerOidcFixture(baseUrl: () => string) {
         return true;
       };
       const body = new URLSearchParams(raw);
-      if (path === "/v1/oauth/router-client") {
+      if (path === "/v1/network/configuration") {
         const resource = url.searchParams.get("resource")!;
         return send(200, {
           issuer,
           resource,
-          client_id: `router-${createHash("sha256").update(resource).digest("hex")}`,
-          scopes: ["openid", "profile", "router.connect", "offline_access"],
+          client_id: "opengrove-desktop",
+          scopes: ["openid", "profile", "network.connect", "offline_access"],
         });
       }
       if (path === "/.well-known/openid-configuration")
@@ -101,7 +106,7 @@ export function routerOidcFixture(baseUrl: () => string) {
           refresh_token: refresh,
           token_type: "Bearer",
           expires_in: expiresIn,
-          scope: "openid profile router.connect offline_access",
+          scope: "openid profile network.connect offline_access",
           id_token: jwt({
             iss: issuer,
             aud: client,
@@ -118,7 +123,7 @@ export function routerOidcFixture(baseUrl: () => string) {
         return send(200, {
           sub: token.user,
           client_id: token.client,
-          scope: "openid profile router.connect",
+          scope: "openid profile network.connect",
           roles: ["admin"],
         });
       }

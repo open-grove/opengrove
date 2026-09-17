@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { RouterOAuth } from "../server/remote-agents/oauth.js";
+import { NetworkOAuth } from "../server/remote-agents/oauth.js";
 import { startRemoteAgentService } from "./fixtures/remote-agent-service.js";
 
 test("native authorization validates state, binds the current account and renews only at WW", async (t) => {
   const fixture = await startRemoteAgentService();
-  const oauth = new RouterOAuth({ accountIssuer: fixture.baseUrl, accountUserId: "admin" }, fixture.serviceUrl, true);
+  const oauth = new NetworkOAuth({ accountIssuer: fixture.baseUrl, accountUserId: "admin" }, fixture.serviceUrl, true);
   t.after(async () => {
     oauth.clear();
     await fixture.close();
@@ -32,7 +32,7 @@ test("native authorization validates state, binds the current account and renews
 
 test("cancel closes the loopback listener and a fresh attempt uses new state", async (t) => {
   const fixture = await startRemoteAgentService();
-  const oauth = new RouterOAuth({ accountIssuer: fixture.baseUrl, accountUserId: "admin" }, fixture.serviceUrl, true);
+  const oauth = new NetworkOAuth({ accountIssuer: fixture.baseUrl, accountUserId: "admin" }, fixture.serviceUrl, true);
   t.after(async () => {
     oauth.clear();
     await fixture.close();
@@ -49,7 +49,7 @@ test("cancel closes the loopback listener and a fresh attempt uses new state", a
 
 test("authorizing another browser account cannot adopt the current local account", async (t) => {
   const fixture = await startRemoteAgentService();
-  const oauth = new RouterOAuth({ accountIssuer: fixture.baseUrl, accountUserId: "admin" }, fixture.serviceUrl, true);
+  const oauth = new NetworkOAuth({ accountIssuer: fixture.baseUrl, accountUserId: "admin" }, fixture.serviceUrl, true);
   t.after(async () => {
     oauth.clear();
     await fixture.close();
