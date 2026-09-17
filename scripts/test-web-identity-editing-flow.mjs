@@ -118,11 +118,13 @@ async function testNewEmployeePermissionDefaults(page) {
   await access.getByRole("button").click();
   await page.getByRole("option", { name: /^完全访问/ }).click();
   await surface.locator(".employee-dialog-kernel-list").getByRole("button", { name: "Codex", exact: true }).click();
+  await access.getByRole("button", { name: /帮我批准/ }).waitFor();
+  await surface.locator(".employee-dialog-kernel-list").getByRole("button", { name: "Pi", exact: true }).click();
   await access.getByRole("button", { name: /完全访问/ }).waitFor();
 }
 
 async function testEmployeeAccessKernelSwitch(page) {
-  await renderFixture(page, "employee-page");
+  await renderFixture(page, "employee-reasoning-kernel-switch");
   const surface = page.locator("#identity-root .contacts-employee-settings-surface");
   const access = surface.locator(".employee-dialog-field").filter({ hasText: "权限" });
   assert.match(await access.getByRole("button").innerText(), /帮我批准/);
@@ -137,6 +139,23 @@ async function testEmployeeAccessKernelSwitch(page) {
   await access.getByRole("button").click();
   assert.equal(await page.getByRole("option", { name: /帮我批准/ }).isDisabled(), true);
   await page.keyboard.press("Escape");
+  const kernels = surface.locator(".employee-dialog-kernel-list");
+  await kernels.getByRole("button", { name: "Claude Agent", exact: true }).click();
+  await access.getByRole("button", { name: /帮我批准/ }).waitFor({ timeout: 5000 });
+  await page.waitForFunction(
+    () => window.__savedEmployeeKernel === "claude-code" && window.__savedEmployeeAccessMode === "auto-review",
+  );
+  assert.equal(await surface.getByText(/已改为请求批准/).count(), 0, "restoring Auto is not an Ask downgrade");
+
+  await access.getByRole("button").click();
+  await page.getByRole("option", { name: /^请求批准/ }).click();
+  await page.waitForFunction(() => window.__savedEmployeeAccessMode === "default");
+  await kernels.getByRole("button", { name: "OpenCode", exact: true }).click();
+  await kernels.getByRole("button", { name: "Claude Agent", exact: true }).click();
+  await access.getByRole("button", { name: /请求批准/ }).waitFor();
+  await page.waitForFunction(
+    () => window.__savedEmployeeKernel === "claude-code" && window.__savedEmployeeAccessMode === "default",
+  );
 }
 
 async function testEmployeeModelPermissionAutosave(page) {

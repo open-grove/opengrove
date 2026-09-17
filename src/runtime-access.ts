@@ -9,10 +9,13 @@ export function resolveRuntimeAccessModeSelection(
   kernel: string | undefined,
   requested: unknown,
 ): "default" | "auto-review" | "full-access" {
+  // Only omission selects a product default; malformed declarations fall back to Ask.
   const mode =
-    requested === "default" || requested === "auto-review" || requested === "full-access"
-      ? requested
-      : defaultRuntimeAccessMode(kernel);
+    requested === undefined
+      ? defaultRuntimeAccessMode(kernel)
+      : requested === "default" || requested === "auto-review" || requested === "full-access"
+        ? requested
+        : "default";
   if (kernel === "openclaw") return "default";
   if (kernel && runtimeAccessIssue(kernel, mode) === "auto-review-unavailable") return "default";
   return mode;

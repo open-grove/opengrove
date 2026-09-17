@@ -12,7 +12,7 @@ import { openCodeConfigContentForAccessMode } from "../kernel/adapters/opencode.
 import { HermesRuntime } from "../runtime/hermes-runtime.js";
 import { prepareHermesRuntimeEnv } from "../runtime/hermes/home-env.js";
 import { writeFakeHermesGateway } from "./harnesses/fake-hermes-gateway.js";
-import { RoomChannelStore } from "../rooms/channel-store.js";
+import { RoomChannelStore, type RoomChannelMember } from "../rooms/channel-store.js";
 import { migrateNativeApprovalPresetsV4 } from "../server/migrations/native-approval-presets-v4.js";
 import assert from "node:assert/strict";
 import {
@@ -41,7 +41,7 @@ import { normalizeEmployeeAccessMode } from "../server/employee-access-mode.js";
 import { normalizeReleaseEmployee } from "../server/app-release.js";
 import { dispatchBridgeRoutes } from "../server/router.js";
 import { createBridgeRoutes } from "../server/routes/bridge-registry.js";
-import { bridgeSettingsPath } from "../server/bridge-settings-store.js";
+import { bridgeSettingsPath, defaultBridgeSettings } from "../server/bridge-settings-store.js";
 import { recordRoomRunEvent } from "../server/room-runs.js";
 import { persistedRoomRunParts } from "../server/room-runs/persisted-parts.js";
 import { OPENGROVE_PM_MEMBER_ID } from "../rooms/room-pm.js";
@@ -675,6 +675,49 @@ test("Claude permissions use the kernel default without model metadata", () => {
   assert.equal(normalizeEmployeeAccessMode("claude-code", "full-access"), "full-access");
 });
 
+test("unrecognized App permissions resolve to Ask instead of the kernel default", () => {
+  const appRoot = mkdtempSync(join(tmpdir(), "opengrove-invalid-permissions-"));
+  const invalidModes = ["ask", "read-only", "auto", "", false, 123, {}, null];
+  try {
+    mkdirSync(join(appRoot, "workspace"));
+    writeFileSync(
+      join(appRoot, "opengrove.app.json"),
+      JSON.stringify({
+        id: "invalid-permissions",
+        title: "Invalid permissions",
+        workspace: { path: "workspace" },
+        employees: [
+          ...invalidModes.map((accessMode, index) => ({
+            id: `writer${index}`,
+            kernel: "claude-code",
+            model: "deepseek-v4-flash",
+            accessMode,
+          })),
+          { id: "omitted", kernel: "claude-code", model: "deepseek-v4-flash" },
+        ],
+      }),
+    );
+    const members = mountedAppDefaultEmployees({
+      ...defaultBridgeSettings(),
+      mountedApps: [{ id: "invalid-permissions", path: appRoot, enabled: true }],
+    });
+    for (const [index, invalid] of invalidModes.entries()) {
+      const member = members.find((candidate) => candidate.id === `member-app-invalid-permissions-writer${index}`);
+      assert.equal(member?.accessMode, "default", JSON.stringify(invalid));
+      assert.equal(member?.manifestDefaults?.accessMode, "default");
+      for (const kernel of ["codex", "claude-code", "hermes"])
+        assert.equal(normalizeEmployeeAccessMode(kernel, invalid), "default", `${kernel}: ${JSON.stringify(invalid)}`);
+    }
+    assert.equal(
+      members.find((member) => member.id === "member-app-invalid-permissions-omitted")?.accessMode,
+      "auto-review",
+      "omitting a permission still uses the product default",
+    );
+  } finally {
+    rmSync(appRoot, { recursive: true, force: true });
+  }
+});
+
 test("Hermes presets use separate native homes, preserve denials and still ask user questions", async () => {
   const cwd = mkdtempSync(join(tmpdir(), "opengrove-hermes-presets-"));
   const sourceHome = join(cwd, "source");
@@ -847,6 +890,26 @@ for (const ending of ["timeout", "gateway-close"] as const) {
     }
   });
 }
+
+test("stored malformed permissions resolve to Ask instead of becoming unset", () => {
+  const rooms = new RoomChannelStore();
+  for (const kernel of ["codex", "claude-code", "hermes"])
+    for (const mode of ["ask", "read-only", "auto"]) {
+      rooms.upsertMember({
+        id: `${kernel}-${mode}`,
+        name: mode,
+        kernel,
+        model: "test-model",
+        role: "",
+        status: "idle",
+        color: "",
+        lastActive: "",
+        // Malformed persisted data can predate current write-boundary validation.
+        accessMode: mode as RoomChannelMember["accessMode"],
+      });
+    }
+  for (const member of rooms.listMembers()) assert.equal(member.accessMode, "default", member.id);
+});
 
 test("upgrading raises supported Ask to Auto, preserves Full and repairs unsupported modes", () => {
   const rooms = new RoomChannelStore();

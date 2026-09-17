@@ -239,13 +239,17 @@ including switching back to Ask, survive restarts; PM's App-scoped bindings foll
 Stored chat choices are read without being rewritten;
 an unset chat choice resolves against the selected kernel.
 
+Unrecognized permission values in App declarations or stored Employee records normalize to Ask;
+only an omitted value follows the product default. Writable HTTP fields retain their enum validation.
+
 Unsupported Kernel presets are disabled in the picker and rejected at execution. Employee saves and API
 writes use that same Kernel rule. Changing a Claude model or Provider never invalidates Auto or blocks
 an edit. Unrelated Employee fields save independently of pending permission edits.
 Clearing an API
 permission with `null` follows App/product defaults and removes its user-override marker.
-Switching to Pi, Kimi or
-OpenCode while auto review is selected changes the selection to ask for approval and displays a notice.
+Within an Employee editing session, each Kernel remembers its model, Provider, reasoning and permission
+selection. Returning to a Kernel restores those selections, including an explicit Ask or Full choice.
+For a Kernel not yet visited, an incompatible Auto selection changes to Ask and displays a notice.
 Employee creation, updates, App imports and seed synchronization apply the same compatibility rule.
 Publishing rejects unsupported Kernel/preset combinations. Claude Auto declarations do not depend on a local cache.
 

@@ -3,7 +3,7 @@ import { resolveRuntimeAccessModeSelection, runtimeAccessIssue } from "../runtim
 import type { RuntimeAccessMode } from "../core.js";
 
 export function normalizeEmployeeAccessMode(kernel: string, requested: unknown) {
-  const accessMode = resolveRuntimeAccessModeSelection(kernel, requested ?? undefined);
+  const accessMode = resolveRuntimeAccessModeSelection(kernel, requested);
   if (typeof requested === "string" && requested !== accessMode) {
     console.warn("employee_access_mode_normalized", { kernel, requested, accessMode });
   }

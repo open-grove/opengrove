@@ -815,21 +815,21 @@ function entrySource() {
       const firstSwitch = switchEmployeeKernelRuntimeDraft(
         {},
         "claude-code",
-        { model: "deepseek-v4-flash", providerId: "ww", reasoningEffort: "high" },
+        { model: "deepseek-v4-flash", providerId: "ww", reasoningEffort: "high", accessMode: "auto-review" },
         "codex",
-        { model: "gpt-5.5", providerId: "", reasoningEffort: "medium" },
+        { model: "gpt-5.5", providerId: "", reasoningEffort: "medium", accessMode: "full-access" },
       );
       const switchedBack = switchEmployeeKernelRuntimeDraft(
         firstSwitch.draftsByKernel,
         "codex",
         firstSwitch.selection,
         "claude-code",
-        { model: "claude-opus-4-8", providerId: "", reasoningEffort: "" },
+        { model: "claude-opus-4-8", providerId: "", reasoningEffort: "", accessMode: "default" },
       );
       assert.deepEqual(
         switchedBack.selection,
-        { model: "deepseek-v4-flash", providerId: "ww", reasoningEffort: "high" },
-        "Switching back to a Kernel must restore its model, Provider, and reasoning draft",
+        { model: "deepseek-v4-flash", providerId: "ww", reasoningEffort: "high", accessMode: "auto-review" },
+        "Switching back to a Kernel must restore its model, Provider, reasoning and permission draft",
       );
       assert.equal(
         isKernelDefaultModelOption("claude-code", { id: "claude-code-default", label: "Follow Claude config" }, { source: "claude-code-defaults" }),
