@@ -650,7 +650,10 @@ async function collectProbeTurn(input: {
       // Seed earlier turns directly: shell output can be truncated or retained,
       // leaving too little removable history to verify native token reduction.
       const seedCount = input.kernel === "kimi" ? 2 : 3;
-      const paddingLines = input.kernel === "kimi" ? 400 : 40;
+      // Kimi 0.41 preserves up to 20,000 user-input tokens during compaction.
+      // Two 800-line seeds exceed that retained-input budget (~34,000 tokens).
+      // https://github.com/MoonshotAI/kimi-code/blob/%40moonshot-ai%2Fkimi-code%400.41.0/packages/agent-core-v2/src/agent/contextMemory/compactionHandoff.ts
+      const paddingLines = input.kernel === "kimi" ? 800 : 40;
       for (let seedIndex = 1; seedIndex <= seedCount; seedIndex += 1) {
         const seedEvents: AgentEvent[] = [];
         const seedRequest: AgentTurnRequest = {
