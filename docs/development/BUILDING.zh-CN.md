@@ -389,6 +389,21 @@ lsof -nP -iTCP:5173 -sTCP:LISTEN
 Windows PowerShell 可使用 `Get-Process -Id 12345` 和
 `Get-NetTCPConnection -State Listen -LocalPort 37371,5173` 查看对应信息。
 
+### 诊断事件长轮询
+
+运行 `npm run diagnose:event-long-poll`，自动重建后端并运行带计时输出的独立
+inventory 测试。测试使用临时数据，退出时清理。JSON 汇总记录事件到达、响应校验、
+SQLite 调用和事件循环延迟；断言失败时返回非零退出码。
+
+如需只延迟测试客户端收到触发用 PATCH 响应的时间：
+
+```bash
+npm run diagnose:event-long-poll -- --delay-mutation-response-ms=1600
+```
+
+事件响应仍须满足原有的 1000 毫秒上限。这个实验用于确认触发请求的响应延迟不会
+混入事件投递计时，不能据此判定历史超时的原因。
+
 ## 针对性验证
 
 按改动范围选择检查，无需为文档补充运行完整发布测试：

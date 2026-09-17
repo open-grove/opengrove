@@ -1,6 +1,7 @@
 import { execFileSync } from "node:child_process";
 import { dirname, join, resolve } from "node:path";
-import { clientBootstrapContract } from "#agent-protocol";
+import type { GetHostBootstrapOperation } from "#protocol";
+import { hostContractById } from "#protocol/compiled";
 import { DIAGNOSTIC_RUN_WINDOW, sanitizeDiagnosticProblemRef } from "../../diagnostics/problem-schema.js";
 import { createDiagnosticBundle } from "../../diagnostics/diagnostic-bundle.js";
 import { createRunDiagnosticBundle, RunDiagnosticBundleError } from "../../diagnostics/run-diagnostic-bundle.js";
@@ -11,8 +12,8 @@ import { buildContextRecords } from "../trajectory.js";
 import { scanExtensionInventory } from "../../extensions/scanner.js";
 import { problemRecordsRoot } from "../problem-records.js";
 import { bridgeDataDirectory } from "../storage-paths.js";
-import type { BridgeRoute, BridgeRouteContext } from "../router.js";
-import { route } from "./registry-utils.js";
+import type { BridgeRoute, BridgeRouteContext, HostOperationRouteContext } from "../router.js";
+import { route, operationRoute } from "./registry-utils.js";
 import { getClientBootstrap } from "../client-bootstrap.js";
 import { readClientReleaseNumber, readInstalledPackageVersion, readPackageVersion } from "../client-release.js";
 import { presentArtifactSummaries } from "../artifact-presentation.js";
@@ -32,14 +33,14 @@ export function createCoreRoutes(): BridgeRoute[] {
   return [...createHealthRoutes(), ...createInventoryRoutes()];
 }
 
-function handleBootstrapRoute(context: BridgeRouteContext): boolean {
+function handleBootstrapRoute(context: HostOperationRouteContext<GetHostBootstrapOperation>): true {
   context.sendJson(context.response, 200, getClientBootstrap(context.state, context.security));
   return true;
 }
 
 export function createHealthRoutes(): BridgeRoute[] {
   return [
-    route("bootstrap", "GET", "/bootstrap", handleBootstrapRoute, clientBootstrapContract),
+    operationRoute(hostContractById["host.host.bootstrap"], handleBootstrapRoute),
     route("health", "GET", "/health", handleHealthRoute),
     route("capabilities", "GET", "/capabilities", handleCapabilitiesRoute),
   ];

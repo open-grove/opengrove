@@ -1,3 +1,4 @@
+import { openGroveClient } from "../../opengrove-client";
 import { useCallback, useState } from "react";
 import { apiUrl } from "../../api-base";
 import { getJson, postJson, type ArtifactRecord } from "../../bridge";
@@ -31,12 +32,6 @@ interface MountedAppFileResponse {
 interface KnowledgeFileResponse {
   ok: boolean;
   file?: KnowledgePreviewableFile;
-  error?: string;
-}
-
-interface ArtifactResponse {
-  ok: boolean;
-  artifact?: ArtifactRecord;
   error?: string;
 }
 
@@ -162,7 +157,7 @@ async function readResourceFile(resource: ChatResourceRef): Promise<PreviewableF
     return normalizeKnowledgeFile(resource, response.file);
   }
   if (resource.origin === "artifact" && resource.path) {
-    const response = await getJson<ArtifactResponse>(`/artifacts/${encodeURIComponent(resource.path)}`);
+    const response = await openGroveClient.artifacts.collection.get({ artifactId: resource.path });
     return normalizeArtifactFile(resource, response.artifact);
   }
   return undefined;

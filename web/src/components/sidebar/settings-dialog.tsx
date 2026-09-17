@@ -408,11 +408,7 @@ export function SettingsDialog(props: {
     const provider = providers.find((item) => item.id === providerId);
     if (!provider) return;
     const next = customProvidersAfterEnabledChange(customProviders, provider, enabled);
-    const nextModelBindings = enabled
-      ? modelProviderBindings
-      : modelProviderBindings.filter((binding) => binding.providerId !== providerId);
     setCustomProviders(next);
-    setModelProviderBindings(nextModelBindings);
     setProviders((current) =>
       current.map((item) =>
         item.id === providerId
@@ -431,10 +427,8 @@ export function SettingsDialog(props: {
           : item,
       ),
     );
-    saveSettings({
-      customProviders: next,
-      modelProviderBindings: nextModelBindings,
-    });
+    // Keep model choices while unavailable so re-enabling restores the same routes.
+    saveSettings({ customProviders: next });
   };
 
   const deleteProviderProfile = (providerId: string) => {

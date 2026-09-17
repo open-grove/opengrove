@@ -32,6 +32,7 @@ import {
 import { saveBridgeSettings } from "../bridge-state.js";
 import type { BridgeState } from "../bridge-types.js";
 import { readClientReleaseNumber, readPackageVersion } from "../client-release.js";
+import { readClientActivitySystemInfo } from "../client-activity-system-info.js";
 import { scheduleDefaultStoreAppsInstalledAfterAuth } from "../default-store-apps.js";
 import { record, stringValue } from "../http-utils.js";
 import {
@@ -1114,6 +1115,7 @@ async function handleClientActivity(
       {
         surface: "desktop",
         operatingSystem: currentOperatingSystem(),
+        ...readClientActivitySystemInfo(),
         architecture: currentArchitecture(),
         clientVersion,
         ...(clientReleaseNumber === undefined ? {} : { clientReleaseNumber }),

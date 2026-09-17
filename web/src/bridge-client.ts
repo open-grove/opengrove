@@ -1,7 +1,4 @@
 import {
-  askCancelContract,
-  askCompactContract,
-  askGuideContract,
   bridgeContractIssues,
   type BridgeContractRequest,
   type BridgeContractResponse,
@@ -996,7 +993,7 @@ export async function cancelAskStream(query: {
   runId?: string;
   threadId?: string;
 }): Promise<{ ok: boolean; cancelled: boolean }> {
-  return postContractJson(askCancelContract, "/ask/cancel", query);
+  return openGroveClient.runs.direct.cancel(query);
 }
 
 export async function guideAskStream(payload: {
@@ -1004,14 +1001,14 @@ export async function guideAskStream(payload: {
   threadId?: string;
   instruction: string;
 }): Promise<{ ok: boolean; guided: boolean; error?: string }> {
-  return postContractJson(askGuideContract, "/ask/guide", payload);
+  return openGroveClient.runs.direct.guide(payload);
 }
 
 export async function compactAskSession(payload: {
   threadId: string;
   reason?: string;
 }): Promise<{ ok: boolean; compacted: boolean; error?: string; outcomeUnknown?: boolean }> {
-  return postContractJson(askCompactContract, "/ask/compact", payload);
+  return openGroveClient.runs.direct.compact(payload);
 }
 
 async function readAskStreamResponse(

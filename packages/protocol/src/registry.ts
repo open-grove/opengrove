@@ -2,12 +2,25 @@ import type { HostOperation, HostOperationGroup } from "./operation.js";
 import { authOperationGroup } from "./auth.js";
 import { appOperationGroup } from "./apps.js";
 import { networkOperationGroup } from "./network.js";
+import { employeeOperationGroup } from "./employees.js";
 import { roomOperationGroup } from "./rooms.js";
 
+import { hostOperationGroup } from "./host.js";
+import { runOperationGroup } from "./runs.js";
+
+import { interactionOperationGroup } from "./interactions.js";
+
+import { artifactOperationGroup } from "./artifacts.js";
+
 export const hostOperationGroups = [
+  hostOperationGroup,
+  runOperationGroup,
+  interactionOperationGroup,
+  artifactOperationGroup,
   authOperationGroup,
   appOperationGroup,
   roomOperationGroup,
+  employeeOperationGroup,
   networkOperationGroup,
 ] as const satisfies readonly HostOperationGroup[];
 
