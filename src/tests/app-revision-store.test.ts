@@ -289,50 +289,58 @@ test("ignored source files do not make the working copy dirty or enter a save po
   }
 });
 
-test("linked Git worktrees keep their real repository and index untouched", async () => {
-  const root = mkdtempSync(join(tmpdir(), "opengrove-app-revision-worktree-"));
-  const repositoryRoot = join(root, "repository");
-  const appRoot = join(root, "app-worktree");
-  const materializedRoot = join(root, "materialized-worktree");
-  try {
-    mkdirSync(join(repositoryRoot, "ui"), { recursive: true });
-    writeFileSync(join(repositoryRoot, "opengrove.app.json"), '{"id":"linked-worktree","version":"0.1.0"}\n', "utf8");
-    writeFileSync(join(repositoryRoot, "ui", "index.html"), "committed\n", "utf8");
-    runGit(repositoryRoot, "init", "--quiet", "--initial-branch=main");
-    runGit(repositoryRoot, "config", "user.name", "Worktree Author");
-    runGit(repositoryRoot, "config", "user.email", "worktree@example.com");
-    runGit(repositoryRoot, "add", ".");
-    runGit(repositoryRoot, "commit", "--quiet", "--message", "Worktree base");
-    runGit(repositoryRoot, "worktree", "add", "--quiet", "-b", "app-work", appRoot);
+for (const useCaseAlias of [false, true]) {
+  test(`linked Git worktrees keep their real repository and index untouched (case alias: ${useCaseAlias})`, async (t) => {
+    const root = mkdtempSync(join(tmpdir(), "opengrove-app-revision-worktree-"));
+    const repositoryRoot = join(root, "repository");
+    const appRoot = join(root, "app-worktree");
+    const materializedRoot = join(root, "materialized-worktree");
+    try {
+      mkdirSync(join(repositoryRoot, "ui"), { recursive: true });
+      writeFileSync(join(repositoryRoot, "opengrove.app.json"), '{"id":"linked-worktree","version":"0.1.0"}\n', "utf8");
+      writeFileSync(join(repositoryRoot, "ui", "index.html"), "committed\n", "utf8");
+      runGit(repositoryRoot, "init", "--quiet", "--initial-branch=main");
+      runGit(repositoryRoot, "config", "user.name", "Worktree Author");
+      runGit(repositoryRoot, "config", "user.email", "worktree@example.com");
+      runGit(repositoryRoot, "add", ".");
+      runGit(repositoryRoot, "commit", "--quiet", "--message", "Worktree base");
+      runGit(repositoryRoot, "worktree", "add", "--quiet", "-b", "app-work", appRoot);
 
-    writeFileSync(join(appRoot, "ui", "index.html"), "staged worktree edit\n", "utf8");
-    runGit(appRoot, "add", "ui/index.html");
-    const headBefore = runGit(appRoot, "rev-parse", "HEAD");
-    const statusBefore = runGit(appRoot, "status", "--porcelain=v1");
-    const store = new AppRevisionStore(join(root, "opengrove-revisions"));
-    const savePoint = await store.ensureWorkingCopy({
-      localAppId: "local-linked-worktree",
-      appRoot,
-      workspacePath: "workspace",
-    });
+      const targetAppRoot = useCaseAlias ? join(root, "APP-WORKTREE") : appRoot;
+      if (!existsSync(targetAppRoot)) {
+        t.skip("the filesystem distinguishes path case");
+        return;
+      }
 
-    assert.match(savePoint.commitSha, /^[a-f0-9]{40}$/u);
-    assert.equal(runGit(appRoot, "rev-parse", "HEAD"), headBefore);
-    assert.equal(runGit(appRoot, "status", "--porcelain=v1"), statusBefore);
-    assert.equal(runGit(repositoryRoot, "fsck", "--full"), "");
+      writeFileSync(join(appRoot, "ui", "index.html"), "staged worktree edit\n", "utf8");
+      runGit(appRoot, "add", "ui/index.html");
+      const headBefore = runGit(appRoot, "rev-parse", "HEAD");
+      const statusBefore = runGit(appRoot, "status", "--porcelain=v1");
+      const store = new AppRevisionStore(join(root, "opengrove-revisions"));
+      const savePoint = await store.ensureWorkingCopy({
+        localAppId: "local-linked-worktree",
+        appRoot: targetAppRoot,
+        workspacePath: "workspace",
+      });
 
-    await store.materialize({
-      localAppId: "local-linked-worktree",
-      appRoot,
-      workspacePath: "workspace",
-      commitSha: savePoint.commitSha,
-      targetRoot: materializedRoot,
-    });
-    assert.equal(readFileSync(join(materializedRoot, "ui", "index.html"), "utf8"), "staged worktree edit\n");
-  } finally {
-    rmSync(root, { recursive: true, force: true });
-  }
-});
+      assert.match(savePoint.commitSha, /^[a-f0-9]{40}$/u);
+      assert.equal(runGit(appRoot, "rev-parse", "HEAD"), headBefore);
+      assert.equal(runGit(appRoot, "status", "--porcelain=v1"), statusBefore);
+      assert.equal(runGit(repositoryRoot, "fsck", "--full"), "");
+
+      await store.materialize({
+        localAppId: "local-linked-worktree",
+        appRoot,
+        workspacePath: "workspace",
+        commitSha: savePoint.commitSha,
+        targetRoot: materializedRoot,
+      });
+      assert.equal(readFileSync(join(materializedRoot, "ui", "index.html"), "utf8"), "staged worktree edit\n");
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+}
 
 test("a relocated linked worktree reattaches to its managed OpenGrove save points", async () => {
   const root = mkdtempSync(join(tmpdir(), "opengrove-app-revision-worktree-reattach-"));
@@ -365,9 +373,9 @@ test("a relocated linked worktree reattaches to its managed OpenGrove save point
       workspacePath: "workspace",
     });
     assert.equal(reattached.commitSha, first.commitSha);
-    assert.match(
+    assert.equal(
       readFileSync(join(activatedRoot, ".git"), "utf8"),
-      /^gitdir: .+\/opengrove-revisions\/[a-f0-9]{64}\.git\n$/u,
+      `gitdir: ${managedAppRevisionGitDirectory(revisionsRoot, "local-linked-reattach")}\n`,
       "the activated program must point at OpenGrove save points instead of a stale external worktree gitdir",
     );
     assert.equal(runGit(repositoryRoot, "fsck", "--full"), "");
@@ -376,7 +384,9 @@ test("a relocated linked worktree reattaches to its managed OpenGrove save point
   }
 });
 
-test("executable-bit changes create a restorable save point", async () => {
+test("executable-bit changes create a restorable save point", {
+  skip: process.platform === "win32" && "Windows chmod does not implement POSIX executable bits",
+}, async () => {
   const root = mkdtempSync(join(tmpdir(), "opengrove-app-revision-mode-"));
   const appRoot = join(root, "app");
   const materializedRoot = join(root, "materialized-mode");

@@ -25,6 +25,7 @@ const appRoot = join(appsRoot, "versioned-app");
 const statePath = join(tempRoot, "state.sqlite");
 const previousUserData = process.env[appEnvName("USER_DATA_DIR")];
 const previousAppsDir = process.env[appEnvName("APP_STORE_APPS_DIR")];
+let state: ReturnType<typeof createBridgeState> | undefined;
 
 try {
   process.env[appEnvName("USER_DATA_DIR")] = join(tempRoot, "user-data");
@@ -33,7 +34,7 @@ try {
   writeFileSync(join(appRoot, "workspace", "keep.md"), "business data\n", "utf8");
   await git.init({ fs, dir: appRoot, defaultBranch: "main" });
 
-  let state = createBridgeState({ statePath });
+  state = createBridgeState({ statePath });
   state.settings.mountedApps = [
     {
       id: "local-versioned-app",
@@ -212,6 +213,7 @@ try {
 
   process.stdout.write("app version startup recovery harness passed\n");
 } finally {
+  await state?.store.close?.();
   if (previousUserData === undefined) delete process.env[appEnvName("USER_DATA_DIR")];
   else process.env[appEnvName("USER_DATA_DIR")] = previousUserData;
   if (previousAppsDir === undefined) delete process.env[appEnvName("APP_STORE_APPS_DIR")];
