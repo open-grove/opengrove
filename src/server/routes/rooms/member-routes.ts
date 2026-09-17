@@ -1,5 +1,4 @@
 import { employeeAccessModeIssue, normalizeEmployeeAccessMode } from "../../employee-access-mode.js";
-import { kernelConfigHomeForRegistry } from "../../kernel-registry.js";
 import type {
   UpsertEmployeeOperation,
   UpdateEmployeeOperation,
@@ -67,19 +66,8 @@ export async function handleAddRoomMemberOperation(
   context: HostOperationRouteContext<AddRoomMemberOperation>,
 ): Promise<true> {
   const { response, state, sendJson } = context;
-  const normalizedMember = withPreservedServerOwnedMeta(
-    state,
-    normalizeMember(context.input.body, kernelConfigHomeForRegistry(state.settings, "claude-code")),
-  );
-  if (
-    employeeAccessModeIssue(
-      normalizedMember.kernel,
-      context.input.body.accessMode ?? normalizedMember.accessMode,
-      normalizedMember.model,
-      kernelConfigHomeForRegistry(state.settings, "claude-code"),
-      state.app.rooms.listMembers().find((member) => member.id === normalizedMember.id),
-    )
-  ) {
+  const normalizedMember = withPreservedServerOwnedMeta(state, normalizeMember(context.input.body));
+  if (employeeAccessModeIssue(normalizedMember.kernel, context.input.body.accessMode ?? normalizedMember.accessMode)) {
     sendJson(response, 409, { ok: false, error: "runtime_access_mode_unavailable" });
     return true;
   }
@@ -123,19 +111,8 @@ export async function handleUpsertEmployeeOperation(
   context: HostOperationRouteContext<UpsertEmployeeOperation>,
 ): Promise<true> {
   const { response, state, sendJson } = context;
-  const normalizedMember = normalizeMember(
-    context.input.body,
-    kernelConfigHomeForRegistry(state.settings, "claude-code"),
-  );
-  if (
-    employeeAccessModeIssue(
-      normalizedMember.kernel,
-      context.input.body.accessMode ?? normalizedMember.accessMode,
-      normalizedMember.model,
-      kernelConfigHomeForRegistry(state.settings, "claude-code"),
-      state.app.rooms.listMembers().find((member) => member.id === normalizedMember.id),
-    )
-  ) {
+  const normalizedMember = normalizeMember(context.input.body);
+  if (employeeAccessModeIssue(normalizedMember.kernel, context.input.body.accessMode ?? normalizedMember.accessMode)) {
     sendJson(response, 409, { ok: false, error: "runtime_access_mode_unavailable" });
     return true;
   }
@@ -163,11 +140,7 @@ export async function handleRestoreEmployeeDefaultsOperation(
   }
   const member = state.app.rooms.patchMember(
     memberId,
-    employeeManifestDefaultsPatch(
-      existing,
-      existing.manifestDefaults,
-      kernelConfigHomeForRegistry(state.settings, "claude-code"),
-    ),
+    employeeManifestDefaultsPatch(existing, existing.manifestDefaults),
   );
   state.store.saveFrom(state.app);
   sendJson(response, 200, { ok: true, member, currentEventSeq: state.app.rooms.snapshot().currentEventSeq });
@@ -203,8 +176,6 @@ export async function handleUpdateEmployeeOperation(
           ? existing?.manifestDefaults?.accessMode
           : patchInput.accessMode
         : existing?.accessMode,
-      patch.model ?? existing?.model,
-      kernelConfigHomeForRegistry(state.settings, "claude-code"),
     );
     if (
       existing?.accessMode !== undefined &&
@@ -218,9 +189,6 @@ export async function handleUpdateEmployeeOperation(
     employeeAccessModeIssue(
       patch.kernel ?? existing?.kernel ?? "",
       patchInput.accessMode ?? patch.accessMode ?? existing?.accessMode,
-      patch.model ?? existing?.model ?? "",
-      kernelConfigHomeForRegistry(state.settings, "claude-code"),
-      existing,
     )
   ) {
     sendJson(response, 409, { ok: false, error: "runtime_access_mode_unavailable" });

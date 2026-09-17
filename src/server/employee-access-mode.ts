@@ -1,14 +1,9 @@
 import type { RoomChannelMember, RoomChannelStore } from "../rooms/channel-store.js";
-import { resolveRuntimeAccessModeSelection, runtimeAccessSelectionIssue } from "../runtime-access.js";
+import { resolveRuntimeAccessModeSelection, runtimeAccessIssue } from "../runtime-access.js";
 import type { RuntimeAccessMode } from "../core.js";
-import { claudeAutoReviewModelIds, readClaudeModelsCache } from "../runtime/claude-models-cache.js";
 
-export function normalizeEmployeeAccessMode(kernel: string, requested: unknown, model?: string, configHome?: string) {
-  const supported =
-    kernel === "claude-code" &&
-    requested == null &&
-    claudeAutoReviewModelIds(readClaudeModelsCache(configHome)).includes(model || "claude-code-default");
-  const accessMode = resolveRuntimeAccessModeSelection(kernel, requested ?? undefined, supported);
+export function normalizeEmployeeAccessMode(kernel: string, requested: unknown) {
+  const accessMode = resolveRuntimeAccessModeSelection(kernel, requested ?? undefined);
   if (typeof requested === "string" && requested !== accessMode) {
     console.warn("employee_access_mode_normalized", { kernel, requested, accessMode });
   }
@@ -16,20 +11,9 @@ export function normalizeEmployeeAccessMode(kernel: string, requested: unknown, 
 }
 
 /** Validate a new selection at write boundaries without rewriting saved preferences. */
-export function employeeAccessModeIssue(
-  kernel: string,
-  mode: RuntimeAccessMode | undefined,
-  model: string,
-  configHome?: string,
-  saved?: Pick<RoomChannelMember, "kernel" | "accessMode">,
-) {
+export function employeeAccessModeIssue(kernel: string, mode: RuntimeAccessMode | undefined) {
   if (!mode || mode === "default") return undefined;
-  return runtimeAccessSelectionIssue(
-    kernel,
-    mode,
-    kernel === "claude-code" && claudeAutoReviewModelIds(readClaudeModelsCache(configHome)).includes(model),
-    saved,
-  );
+  return runtimeAccessIssue(kernel, mode);
 }
 
 /** Persist runtime recovery separately from user overrides; stale turns cannot replace newer choices. */

@@ -162,8 +162,6 @@ export interface BridgeRuntimeControlOption {
 }
 
 export interface BridgeRuntimeControls {
-  /** Model IDs explicitly reported by the native SDK as supporting auto mode. */
-  autoReviewModelIds?: string[];
   kernel: BridgeKernelId;
   source: string;
   models: BridgeRuntimeControlOption[];

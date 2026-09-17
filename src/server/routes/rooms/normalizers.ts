@@ -10,7 +10,7 @@ import { resolveHostLanguageSettings } from "../../language-preference.js";
 import { hostMessage } from "../../../localization/host-messages.js";
 import { productDefaultModelForKernel } from "../../product-employee-defaults.js";
 
-export function normalizeMember(input: Record<string, unknown>, claudeConfigHome?: string): RoomChannelMember {
+export function normalizeMember(input: Record<string, unknown>): RoomChannelMember {
   const id = readString(input.id);
   if (!id) throw new Error("member_id_required");
   const kernel = readString(input.kernel) || id;
@@ -31,12 +31,7 @@ export function normalizeMember(input: Record<string, unknown>, claudeConfigHome
     workspaceRoot: readOptionalString(input.workspaceRoot),
     storePackageId: readOptionalString(input.storePackageId),
     toolIds: readStringArray(input.toolIds),
-    accessMode: normalizeEmployeeAccessMode(
-      kernel,
-      input.accessMode,
-      normalizeWritableEmployeeModel(kernel, readString(input.model)),
-      claudeConfigHome,
-    ),
+    accessMode: normalizeEmployeeAccessMode(kernel, input.accessMode),
     reasoningEffort: readMemberReasoningEffort(input.reasoningEffort),
     contextTokenBudget: readOptionalContextTokenBudget(input.contextTokenBudget),
     avatarMode: readMemberAvatarMode(input.avatarMode),

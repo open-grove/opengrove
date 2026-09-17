@@ -872,7 +872,7 @@ function ComposerAccessPicker(props: {
 }) {
   const { t } = useI18n();
   const activePreset = ACCESS_PRESETS.find((item) => item.id === props.accessMode) ?? ACCESS_PRESETS[0]!;
-  const activeIssue = accessModeUnavailableKey(props.kernel, props.accessMode, props.model, props.runtimeControls);
+  const activeIssue = accessModeUnavailableKey(props.kernel, props.accessMode);
   return (
     <div className={clsx("opengrove-model-picker opengrove-access-picker", styles.modelPicker)}>
       <MotionPopover
@@ -912,7 +912,7 @@ function ComposerAccessPicker(props: {
         </div>
         {ACCESS_PRESETS.map((item) => {
           const OptionIcon = item.icon;
-          const unavailable = accessModeUnavailableKey(props.kernel, item.id, props.model, props.runtimeControls);
+          const unavailable = accessModeUnavailableKey(props.kernel, item.id);
           return (
             <button
               key={item.id}

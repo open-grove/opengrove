@@ -19,7 +19,6 @@ import { appScopedDirectRoomId, createRoomId } from "./route-helpers.js";
 import { findDefaultAppGroupRoom } from "../../app-room-ids.js";
 import { resolveMountedAppTarget } from "../../mounted-apps.js";
 import { roomMutationErrorResponse } from "./room-mutation-errors.js";
-import { kernelConfigHomeForRegistry } from "../../kernel-registry.js";
 import { employeeAccessModeIssue } from "../../employee-access-mode.js";
 
 export async function handleListRoomsOperation(context: HostOperationRouteContext<ListRoomsOperation>): Promise<true> {
@@ -166,12 +165,7 @@ export async function handleOpenDirectRoomOperation(
     const sourceMember = resolveDirectRoomMemberSource(state, memberId, body.member);
     if (
       sourceMember &&
-      employeeAccessModeIssue(
-        sourceMember.kernel,
-        body.member?.accessMode ?? sourceMember.accessMode,
-        sourceMember.model,
-        kernelConfigHomeForRegistry(state.settings, "claude-code"),
-      )
+      employeeAccessModeIssue(sourceMember.kernel, body.member?.accessMode ?? sourceMember.accessMode)
     ) {
       sendJson(response, 409, { ok: false, error: "runtime_access_mode_unavailable" });
       return true;
@@ -333,13 +327,10 @@ function resolveDirectRoomMemberSource(
   const raw = objectRecord(value);
   if (!raw) return undefined;
   try {
-    return normalizeMember(
-      {
-        ...raw,
-        id: readString(raw.id) || memberId,
-      },
-      kernelConfigHomeForRegistry(state.settings, "claude-code"),
-    );
+    return normalizeMember({
+      ...raw,
+      id: readString(raw.id) || memberId,
+    });
   } catch {
     return undefined;
   }

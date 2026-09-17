@@ -1032,7 +1032,6 @@ function entrySource() {
       return [kernel.id, {
         kernel: kernel.id,
         source: "test-runtime",
-        autoReviewModelIds: kernel.id === "claude-code" ? ["native"] : undefined,
         models: kernel.id === "claude-code"
           ? [{ id: "native", label: "Native" }, { id: "claude-custom", label: "Claude Custom" }]
           : [{ id: "native", label: "Native" }],

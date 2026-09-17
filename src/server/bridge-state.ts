@@ -4,7 +4,6 @@ import {
 } from "./migrations/native-approval-presets-v4.js";
 import { normalizeEmployeeAccessMode } from "./employee-access-mode.js";
 import { cleanupAbandonedHermesHomes } from "../runtime/hermes/home-ownership.js";
-import { kernelConfigHomeForRegistry } from "./kernel-registry.js";
 import { existsSync, readdirSync, renameSync, statSync, writeFileSync } from "node:fs";
 import { basename, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -633,7 +632,6 @@ export interface RecreateBridgeAppOptions {
 
 export function recreateBridgeApp(state: BridgeState, options: RecreateBridgeAppOptions = {}): void {
   state.initializedMountedApps = undefined;
-  const claudeConfigHome = kernelConfigHomeForRegistry(state.settings, "claude-code");
   const rootState = rootBridgeState(state);
   const previousApp = state.appInitialized ? state.app : undefined;
   const hotRebuild = previousApp !== undefined;
@@ -835,7 +833,6 @@ export function recreateBridgeApp(state: BridgeState, options: RecreateBridgeApp
         loadedState
           ? () => backupLocalStateBeforeMigration(state.store.path, loadedState, "native-approval-presets-v4")
           : undefined,
-        claudeConfigHome,
       )
     : false;
   const routineAppCommandMigration = migrateRoutineAppCommandIdsV1(state, {
@@ -861,8 +858,7 @@ export function recreateBridgeApp(state: BridgeState, options: RecreateBridgeApp
   const deletedMemberIds = new Set(state.app.rooms.listDeletedMemberIds());
   const productSeedMembers = syncProductDefaultSeedMembers(
     existingMembers,
-    productDefaultEmployees(resolveHostLanguageSettings(state.settings), claudeConfigHome),
-    claudeConfigHome,
+    productDefaultEmployees(resolveHostLanguageSettings(state.settings)),
   );
   const appSeedMembers = applyEmployeeDefinitionRuntimeToScopedSeeds(
     mountedAppDefaultEmployees({ ...state.settings, mountedApps }),
@@ -890,7 +886,7 @@ export function recreateBridgeApp(state: BridgeState, options: RecreateBridgeApp
           accessMode: undefined,
         }
       : existing;
-    const merged = syncMountedAppSeedMember(authoritativeExisting, member, claudeConfigHome);
+    const merged = syncMountedAppSeedMember(authoritativeExisting, member);
     if (JSON.stringify(merged) !== JSON.stringify(existing)) {
       state.app.rooms.upsertMember(merged, { emitEvent: true });
       appSeedSyncChanged = true;
@@ -1231,11 +1227,7 @@ export function validateWorkflowFlowApprovalForBridgeState(
     : `flow_approval_not_found:${flowApproval.flowId}/${flowApproval.stepId}`;
 }
 
-export function syncMountedAppSeedMember(
-  existing: RoomChannelMember,
-  seed: RoomChannelMember,
-  claudeConfigHome?: string,
-): RoomChannelMember {
+export function syncMountedAppSeedMember(existing: RoomChannelMember, seed: RoomChannelMember): RoomChannelMember {
   // User-edited fields survive ordinary manifest re-seeding; the App Store update
   // boundary removes App-owned markers but retains the local Provider route before
   // calling this merge. A role override replaces only the public lead while fresh
@@ -1279,7 +1271,7 @@ export function syncMountedAppSeedMember(
     color: keep("color"),
     availableSkillIds: keep("availableSkillIds"),
     defaultSkillIds: keep("defaultSkillIds"),
-    accessMode: normalizeEmployeeAccessMode(keep("kernel"), accessMode, keep("model"), claudeConfigHome),
+    accessMode: normalizeEmployeeAccessMode(keep("kernel"), accessMode),
     reasoningEffort: keep("reasoningEffort"),
     contextTokenBudget: keep("contextTokenBudget"),
     visibility: keep("visibility"),
@@ -1302,10 +1294,7 @@ export function syncMountedAppSeedMember(
 
 export function syncMountedAppMemberPresentations(state: BridgeState): boolean {
   const seedMembers = [
-    ...productDefaultEmployees(
-      resolveHostLanguageSettings(state.settings),
-      kernelConfigHomeForRegistry(state.settings, "claude-code"),
-    ),
+    ...productDefaultEmployees(resolveHostLanguageSettings(state.settings)),
     ...mountedAppDefaultEmployees({
       ...state.settings,
       mountedApps: effectiveMountedApps(state),
@@ -1348,19 +1337,13 @@ export function syncMountedAppMemberPresentations(state: BridgeState): boolean {
 export function syncProductDefaultSeedMembers(
   existingMembers: ReadonlyMap<string, RoomChannelMember>,
   seedMembers: RoomChannelMember[],
-  claudeConfigHome?: string,
 ): RoomChannelMember[] {
   return seedMembers.map((seed) => {
     const existing = existingMembers.get(seed.id);
     if (existing) {
-      const merged = syncMountedAppSeedMember(existing, seed, claudeConfigHome);
+      const merged = syncMountedAppSeedMember(existing, seed);
       // Defaults apply to new Employees; upgrades use the one-time migration.
-      merged.accessMode = normalizeEmployeeAccessMode(
-        merged.kernel,
-        existing.accessMode,
-        merged.model,
-        claudeConfigHome,
-      );
+      merged.accessMode = normalizeEmployeeAccessMode(merged.kernel, existing.accessMode);
       return merged;
     }
     if (seed.id !== OPENGROVE_PM_MEMBER_ID) return seed;

@@ -143,23 +143,19 @@ App、Workspace、工具可见范围或管理员身份。原生工具由内核�
 
 Codex 前两档都关闭沙箱内网络访问，写入 Workspace 之外或联网需要走原生审批。
 `on-failure` 和 Claude `acceptEdits` 都不代表“帮我批准”。
-Claude Opus 5 和 Opus 4.8 按[原生模型要求](https://code.claude.com/docs/en/permission-modes#eliminate-permission-prompts-with-auto-mode)
-直接声明支持自动审查；DeepSeek v4 Flash 通过 Claude Agent SDK 使用 OpenGrove Provider 时也明确支持。
-这些模型没有缓存或缓存过期也可选。其他模型及别名使用 SDK 模型记录；原生默认模型
-使用 `default` 记录及其解析后的型号，支持情况未知时置灰。执行时直接开启原生模式，不等待模型列表查询；
+在 OpenGrove 支持的模型范围内，Claude SDK 与 Codex、Hermes 一样统一提供 Auto。
+选择器、员工默认值、迁移和 API 校验不再读取模型 ID 或缓存中的 Auto 标记。
+模型兼容性在[发版验收](../development/RELEASE_PROCESS.zh-CN.md#claude-auto-验收)时，
+用待发布的 SDK 和支持的 Provider 路由统一验证。执行时设置原生权限模式，等待设置成功，
+这一步不是能力探测；
 开启失败或实际模式不是 `auto` 时，在同一个原生会话中请求切换到 `default`。只有收到请求批准模式的
 成功确认，才显示包含原因的提醒并继续当前任务，不会重发用户输入。员工及匹配的共享绑定会保存为
 请求批准，不新增用户覆盖标记；聊天选择器和匹配的排队消息也改为请求批准。运行期间用户新选的权限
 优先于旧任务的恢复结果。用户取消时不触发自动切换；请求批准也启用失败时，报告两次失败原因。
 模型资料刷新在开启操作之前启动，不等待列表返回。Claude 执行统一使用 Agent SDK。
 
-Auto 是否可启用不只由模型名字决定：原生设置可禁用它，Anthropic 服务端也可关闭或拒绝启用。
-这是上游的失败条件，不代表 OpenGrove Provider 已出现拒绝。当前
-[官方要求](https://code.claude.com/docs/en/permission-modes#eliminate-permission-prompts-with-auto-mode)
-列明所有套餐均可使用；OpenGrove 不按套餐名字推断账号是否可用。
-创建员工、同步内置员工、权限迁移、导入 App 和恢复 App 默认设置时，与权限选择器读取同一个
-Claude 配置目录中的缓存。自定义 `kernelPathOverrides["claude-code"].configHome` 同时用于判断
-选项是否可用和计算默认档位。
+实际启用失败（例如原生设置禁用了 Auto）按上述恢复流程提示，不改写产品的模型支持规则。
+配置的 Claude 目录仍用于原生设置、模型列表和思考档位缓存；这些缓存不再决定权限选择或员工默认值。
 
 Hermes 按环境与档位隔离进程，生成配置副本时保留用户的 deny 与辅助审查模型配置。
 完全访问使用原生 YOLO 开关，覆盖那些不读取 `approvals.mode` 的审批入口；原生硬性阻止与用户明确
@@ -185,35 +181,33 @@ Host 的 YAML 校验。未传权限档位时保留原生审批及 YOLO 设置，
 
 全局 PM 及各 App 内的 PM 绑定默认使用**帮我批准**，继续使用 Claude Agent SDK 和 DeepSeek v4 Flash。
 这个明确的产品默认值不依赖本机模型缓存；提交用户输入前仍须确认原生 Auto，或在失败后确认已切到请求批准。其他新员工和聊天优先选择**帮我批准**：
-Codex、Hermes 默认 auto；Claude Opus 5、Opus 4.8 和 DeepSeek v4 Flash 按上述声明默认 auto，其他 Claude SDK 模型
-需要缓存确认支持，否则新员工默认请求批准；
+Codex、Hermes 和 Claude SDK 默认 Auto，不依赖模型资料；
 Pi、Kimi、OpenCode 默认请求批准。OpenClaw 仍由 Gateway 管理，远程权限由远端决定。
 
 普通 seed 同步中，用户明确选择优先于 App 声明，兼容的 App 声明优先于产品默认值。
 App 版本激活和主动恢复 App 默认设置可以重新应用 App 配置。普通同步也保留所有内置员工（包括 PM）已保存的权限；
 App 默认快照与用户当前选择分开保存。恢复默认读取 App 声明；App 未声明权限时采用产品默认值，不采用用户上次选择。
 App 没有声明权限档位或声明未改变时，保留该 App 员工已保存的权限。系统迁移不产生“用户修改过”的
-标记；App 声明发生变化时仍可应用新默认。对没有支持声明的模型，Claude 缓存刷新或丢失
-可能影响选项是否可用、以及新员工的默认档位，不改写已有选择；内核不支持的组合仍会修正。
+标记；App 声明发生变化时仍可应用新默认。Claude 模型资料刷新或丢失不影响已保存权限或
+新员工默认权限；内核不支持的组合仍会修正。
 v4 迁移只执行一次：对支持 Auto 的本地员工，将请求批准升为帮我批准，包括用户明确保存的请求批准；
 已有的帮我批准和完全访问保持不变。迁移先转换旧模型标识，在修改前备份状态，并把完成标记与员工数据
 一起原子保存到 SQLite/JSON。设置文件缺失或损坏不会跳过尚未执行的迁移，也不会重复已完成的迁移；
 旧数据首次建立该记录时沿用设置中已保存的迁移版本。
 缺失权限和不支持的组合仍会归一化。
 迁移后用户再改回请求批准，重启也会保留；App 内的 PM 绑定跟随全局 PM。
-聊天读取已有选择时不改写；没有选择时根据当前内核和模型决定默认档位。
+聊天读取已有选择时不改写；没有选择时根据当前内核决定默认档位。
 
-不支持的档位在选择器中禁用、运行入口拒绝。员工保存和 API 写入同时核对所选模型；切换模型后若
-Auto 不可用，修改先留在草稿中，待用户选择有效权限后，将模型和权限一起保存。API 传入权限 `null`
+内核不支持的档位在选择器中禁用、运行入口拒绝，员工保存和 API 写入使用同一条内核规则。
+Claude 切换模型或 Provider 不会让 Auto 失效，也不会阻止保存；其他员工字段独立于待保存的权限修改。
+API 传入权限 `null`
 表示恢复跟随 App/产品默认，并移除用户覆盖标记。从 auto 切换到 Pi、Kimi 或 OpenCode 时，自动改为
 请求批准并显示提示。员工创建、更新、App 导入和 seed 同步使用同一条兼容规则；发布时拒绝不支持的组合。
-Claude 本机尚未确认模型支持，与内核本身不支持不同，不因此拒绝可移植 App 的权限声明。
+Claude Auto 的 App 声明不依赖本机缓存。
 
 Codex 三档的映射与未指定档位的调用分开：没有传 `accessMode` 时保留原有审批和沙箱配置，
 没有其他配置时仍回落到 `danger-full-access` / `never`；未传档位时，线程和每轮执行均不覆盖原生网络配置。
 Claude 未传档位时保留已有配置，无配置则回落到 `bypassPermissions`。这些 API 兜底与产品默认选择分开。
-Claude 原生默认模型根据 SDK 的 `default` 记录判断；首次没有缓存时，
-需通过普通运行刷新模型支持信息。
 
 参数契约回归：[`runtime-access-modes.test.ts`](../../src/tests/runtime-access-modes.test.ts)。
 协议依据：[Codex desktop 预设](https://learn.chatgpt.com/docs/sandboxing)、

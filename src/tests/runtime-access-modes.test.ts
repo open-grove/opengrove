@@ -8,7 +8,6 @@ import { AcpCliRuntime } from "../runtime/acp-cli-runtime.js";
 import { PiAgentRuntime } from "../runtime/pi-runtime.js";
 import { OpenClawGatewayRuntime } from "../runtime/openclaw-gateway-runtime.js";
 import { ClaudeAgentSdkRuntime, type ClaudeAgentSdkQueryFunction } from "../runtime/claude-agent-sdk-runtime.js";
-import { buildClaudeCodeRuntimeControls } from "../kernel/adapters/claude-code.js";
 import { openCodeConfigContentForAccessMode } from "../kernel/adapters/opencode.js";
 import { HermesRuntime } from "../runtime/hermes-runtime.js";
 import { prepareHermesRuntimeEnv } from "../runtime/hermes/home-env.js";
@@ -39,7 +38,6 @@ import { resolveCodexApprovalPolicy, resolveCodexSandboxMode } from "../runtime/
 import { normalizeMember as normalizeEmployee } from "../server/routes/rooms/normalizers.js";
 import { mountedAppDefaultEmployees } from "../server/bridge-mounted-app-employees.js";
 import { normalizeEmployeeAccessMode } from "../server/employee-access-mode.js";
-import { writeClaudeModelsCache } from "../runtime/claude-models-cache.js";
 import { normalizeReleaseEmployee } from "../server/app-release.js";
 import { dispatchBridgeRoutes } from "../server/router.js";
 import { createBridgeRoutes } from "../server/routes/bridge-registry.js";
@@ -670,32 +668,11 @@ for (const scenario of ["supported", "unsupported", "unverified", "missing"] as 
   });
 }
 
-test("Opus and DeepSeek v4 Flash advertise auto review and default to it without cached support", () => {
-  const configHome = mkdtempSync(join(tmpdir(), "opengrove-known-claude-permissions-"));
-  try {
-    for (const support of [undefined, false, true]) {
-      if (support !== undefined) {
-        writeClaudeModelsCache(
-          ["claude-opus-5", "claude-opus-4-8", "deepseek-v4-flash"].map((value) => ({
-            value,
-            supportsAutoMode: support,
-          })),
-          { configHome, now: "2026-09-15T00:00:00Z" },
-        );
-      }
-      const controls = buildClaudeCodeRuntimeControls(configHome, undefined);
-      assert.deepEqual(controls.autoReviewModelIds, ["claude-opus-5", "claude-opus-4-8", "deepseek-v4-flash"]);
-      for (const model of ["claude-opus-5", "claude-opus-4-8", "deepseek-v4-flash"]) {
-        assert.equal(normalizeEmployeeAccessMode("claude-code", undefined, model, configHome), "auto-review");
-        assert.equal(normalizeEmployeeAccessMode("claude-code", "default", model, configHome), "default");
-      }
-      assert.equal(controls.autoReviewModelIds.includes("claude-code-default"), false);
-      assert.equal(normalizeEmployeeAccessMode("claude-code", undefined, "claude-custom", configHome), "default");
-      assert.equal(normalizeEmployeeAccessMode("claude-code", undefined, "deepseek-v4-pro", configHome), "default");
-    }
-  } finally {
-    rmSync(configHome, { recursive: true, force: true });
-  }
+test("Claude permissions use the kernel default without model metadata", () => {
+  assert.equal(normalizeEmployeeAccessMode("claude-code", undefined), "auto-review");
+  assert.equal(normalizeEmployeeAccessMode("claude-code", "auto-review"), "auto-review");
+  assert.equal(normalizeEmployeeAccessMode("claude-code", "default"), "default");
+  assert.equal(normalizeEmployeeAccessMode("claude-code", "full-access"), "full-access");
 });
 
 test("Hermes presets use separate native homes, preserve denials and still ask user questions", async () => {
@@ -897,7 +874,7 @@ test("upgrading raises supported Ask to Auto, preserves Full and repairs unsuppo
   for (const member of rooms.listMembers()) {
     const original = member.id.slice(member.kernel.length + 1);
     const unsupportedAuto = original === "auto-review" && ["pi", "kimi", "opencode"].includes(member.kernel);
-    const supportsAuto = ["codex", "hermes"].includes(member.kernel);
+    const supportsAuto = ["codex", "claude-code", "hermes"].includes(member.kernel);
     const expected =
       supportsAuto && ["unset", "default"].includes(original)
         ? "auto-review"
@@ -942,33 +919,29 @@ test("a migrated App permission survives unchanged defaults without taking owner
   assert.equal(updated.accessMode, "full-access", "a changed App declaration still owns its default");
 });
 
-test("permission migration respects Claude Auto support without a model cache", () => {
-  const configHome = mkdtempSync(join(tmpdir(), "opengrove-claude-migration-"));
+test("permission migration uses Claude kernel support independently of the model", () => {
   const rooms = new RoomChannelStore();
-  try {
-    for (const model of ["claude-opus-5", "claude-opus-4-8", "deepseek-v4-flash"])
-      for (const accessMode of ["default", "auto-review", "full-access"] as const)
-        rooms.upsertMember({
-          id: `${model}-${accessMode}`,
-          name: model,
-          kernel: "claude-code",
-          model,
-          role: "",
-          status: "idle",
-          color: "",
-          lastActive: "",
-          accessMode,
-          userOverrides: ["accessMode"],
-        });
-    migrateNativeApprovalPresetsV4(rooms, undefined, configHome);
-    for (const model of ["claude-opus-5", "claude-opus-4-8", "deepseek-v4-flash"]) {
-      const members = new Map(rooms.listMembers().map((member) => [member.id, member]));
-      assert.equal(members.get(`${model}-default`)?.accessMode, "auto-review");
-      assert.equal(members.get(`${model}-auto-review`)?.accessMode, "auto-review");
-      assert.equal(members.get(`${model}-full-access`)?.accessMode, "full-access");
-    }
-  } finally {
-    rmSync(configHome, { recursive: true, force: true });
+  const models = ["claude-opus-5", "claude-opus-4-8", "deepseek-v4-flash", "claude-custom"];
+  for (const model of models)
+    for (const accessMode of ["default", "auto-review", "full-access"] as const)
+      rooms.upsertMember({
+        id: `${model}-${accessMode}`,
+        name: model,
+        kernel: "claude-code",
+        model,
+        role: "",
+        status: "idle",
+        color: "",
+        lastActive: "",
+        accessMode,
+        userOverrides: ["accessMode"],
+      });
+  migrateNativeApprovalPresetsV4(rooms);
+  const members = new Map(rooms.listMembers().map((member) => [member.id, member]));
+  for (const model of models) {
+    assert.equal(members.get(`${model}-default`)?.accessMode, "auto-review");
+    assert.equal(members.get(`${model}-auto-review`)?.accessMode, "auto-review");
+    assert.equal(members.get(`${model}-full-access`)?.accessMode, "full-access");
   }
 });
 
@@ -1185,11 +1158,16 @@ for (const initialSupport of [false, true]) {
     const configHome = join(cwd, "claude");
     const statePath = join(cwd, "state.sqlite");
     const appRoot = join(cwd, "app");
-    const writeSupport = (supportsAutoMode: boolean) =>
-      writeClaudeModelsCache(
-        ["deepseek-v4-flash", "claude-custom"].map((value) => ({ value, supportsAutoMode })),
-        { configHome, now: "2026-09-15T00:00:00Z" },
+    const writeSupport = (supportsAutoMode: boolean) => {
+      mkdirSync(configHome, { recursive: true });
+      writeFileSync(
+        join(configHome, "opengrove-models-cache.json"),
+        JSON.stringify({
+          updatedAt: "2026-09-15T00:00:00Z",
+          models: ["deepseek-v4-flash", "claude-custom"].map((id) => ({ id, supportsAutoMode })),
+        }),
       );
+    };
     writeSupport(initialSupport);
     mkdirSync(join(appRoot, "workspace"), { recursive: true });
     const manifest = {
@@ -1239,7 +1217,13 @@ for (const initialSupport of [false, true]) {
         );
         assert.equal(stable.length, 5);
         for (const member of stable) {
-          assert.equal(member.accessMode, expected, member.id);
+          assert.equal(
+            member.accessMode,
+            ["member-app-cache-drift-writer", "member-app-cache-drift-store"].includes(member.id)
+              ? "auto-review"
+              : expected,
+            member.id,
+          );
           assert.equal(
             member.userOverrides?.includes("accessMode") ?? false,
             false,
@@ -1259,10 +1243,6 @@ for (const initialSupport of [false, true]) {
         if (support === undefined) rmSync(join(configHome, "opengrove-models-cache.json"));
         else writeSupport(support);
         await restart();
-        assert.equal(
-          buildClaudeCodeRuntimeControls(configHome, undefined).autoReviewModelIds?.includes("claude-custom"),
-          support === true,
-        );
         assertSavedPermissions();
       }
       writeSupport(!initialSupport);
@@ -1273,8 +1253,8 @@ for (const initialSupport of [false, true]) {
       assertSavedPermissions("default");
       assert.equal(
         state.app.rooms.listMembers().find((member) => member.id === "member-app-cache-drift-fresh")?.accessMode,
-        initialSupport ? "default" : "auto-review",
-        "new Employees still use the current capability result",
+        "auto-review",
+        "new Claude Employees use the kernel default regardless of metadata",
       );
     } finally {
       await state.store.close?.();
@@ -1375,18 +1355,24 @@ for (const declaration of ["omitted", "manifest", "store"] as const) {
 }
 
 for (const configuredSupport of [true, false]) {
-  test(`Claude employee lifecycle uses the configured cache (${configuredSupport}) instead of the ambient cache`, async () => {
+  test(`Claude employee lifecycle ignores conflicting permission caches (${configuredSupport})`, async () => {
     const cwd = mkdtempSync(join(tmpdir(), "opengrove-configured-claude-permissions-"));
     const configuredHome = join(cwd, "configured-claude");
     const ambientHome = join(cwd, "ambient-claude");
     const previousHome = process.env.CLAUDE_CONFIG_DIR;
-    const models = (supported: boolean) => [
-      { value: "default", supportsAutoMode: supported },
-      { value: "deepseek-v4-flash", supportsAutoMode: supported },
-      { value: "claude-custom", supportsAutoMode: supported },
-    ];
-    writeClaudeModelsCache(models(configuredSupport), { configHome: configuredHome, now: "2026-09-15T00:00:00Z" });
-    writeClaudeModelsCache(models(!configuredSupport), { configHome: ambientHome, now: "2026-09-15T00:00:00Z" });
+    for (const [home, supportsAutoMode] of [
+      [configuredHome, configuredSupport],
+      [ambientHome, !configuredSupport],
+    ] as const) {
+      mkdirSync(home, { recursive: true });
+      writeFileSync(
+        join(home, "opengrove-models-cache.json"),
+        JSON.stringify({
+          updatedAt: "2026-09-15T00:00:00Z",
+          models: ["default", "deepseek-v4-flash", "claude-custom"].map((id) => ({ id, supportsAutoMode })),
+        }),
+      );
+    }
     process.env.CLAUDE_CONFIG_DIR = ambientHome;
     const statePath = join(cwd, "state.sqlite");
     let state = createBridgeState({ statePath });
@@ -1405,17 +1391,11 @@ for (const configuredSupport of [true, false]) {
       state.store.saveFrom(state.app);
       await state.store.close?.();
       state = createBridgeState({ statePath });
-      const controls = buildClaudeCodeRuntimeControls(configuredHome, undefined);
-      assert.equal(controls.autoReviewModelIds?.includes("claude-code-default"), configuredSupport);
       for (const id of ["grove-guide", "app-builder", "configuration-migration"]) {
-        assert.equal(
-          state.app.rooms.listMembers().find((member) => member.id === id)?.accessMode,
-          id !== "configuration-migration" || configuredSupport ? "auto-review" : "default",
-          id,
-        );
+        assert.equal(state.app.rooms.listMembers().find((member) => member.id === id)?.accessMode, "auto-review", id);
       }
       assert.equal(state.app.rooms.listMembers().find((member) => member.id === "pm")?.accessMode, "auto-review");
-      const expected = configuredSupport ? "auto-review" : "default";
+      const expected = "auto-review";
       const mutateMember = async (
         path: string,
         method: string,
@@ -1476,14 +1456,14 @@ for (const configuredSupport of [true, false]) {
         "/rooms/members",
         "POST",
         {
-          id: "invalid-auto",
+          id: "explicit-auto",
           kernel: "claude-code",
           model: "claude-custom",
           accessMode: "auto-review",
         },
-        configuredSupport ? 200 : 409,
+        200,
       );
-      if (!configuredSupport) assert.equal(memberById("invalid-auto"), undefined);
+      assert.equal(memberById("explicit-auto").accessMode, "auto-review");
       state.app.rooms.patchMember("grove-guide", { model: "claude-custom", accessMode: undefined });
       await mutateMember("/rooms/members/grove-guide", "PATCH", { kernel: "claude-code", model: null });
       assert.equal(
@@ -1695,24 +1675,4 @@ test("Claude explicit presets and omitted permission defaults use distinct nativ
     assert.equal(selectedMode, nativeMode);
     assert.equal(skipAllowed, nativeMode === "bypassPermissions" ? true : undefined);
   }
-});
-
-test("Unlisted Claude models use cached support or resolve to a declared model", () => {
-  const configHome = mkdtempSync(join(tmpdir(), "opengrove-claude-default-permissions-"));
-  assert.equal(normalizeEmployeeAccessMode("claude-code", undefined, "claude-code-default", configHome), "default");
-  writeClaudeModelsCache(
-    [
-      { value: "default", supportsAutoMode: true },
-      { value: "supported", resolvedModel: "resolved-supported", supportsAutoMode: true },
-      { value: "known-alias", resolvedModel: "claude-opus-5", supportsAutoMode: false },
-      { value: "unsupported", supportsAutoMode: false },
-    ],
-    { configHome, now: "2026-09-15T00:00:00Z" },
-  );
-  for (const model of ["claude-code-default", "supported", "resolved-supported", "known-alias"])
-    assert.equal(normalizeEmployeeAccessMode("claude-code", undefined, model, configHome), "auto-review");
-  for (const model of ["unsupported", "deepseek-test"])
-    assert.equal(normalizeEmployeeAccessMode("claude-code", undefined, model, configHome), "default");
-  assert.equal(normalizeEmployeeAccessMode("claude-code", "full-access", "supported", configHome), "full-access");
-  assert.equal(normalizeEmployeeAccessMode("claude-code", "default", "supported", configHome), "default");
 });

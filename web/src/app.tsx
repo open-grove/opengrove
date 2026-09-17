@@ -535,7 +535,7 @@ export function App() {
       : (kernelOptions.find((kernel) => kernel.available) ?? activeKernelOption ?? kernelOptions[0]);
   const chatKernel = chatKernelOption?.id ?? activeKernel;
   const chatRuntimeControls = runtimeControlsForKernel(chatKernel, runtimeControls, runtimeControlsByKernel);
-  const effectiveAccessMode = resolveAccessModeSelection(chatKernel, accessMode, model, chatRuntimeControls);
+  const effectiveAccessMode = resolveAccessModeSelection(chatKernel, accessMode);
   useEffect(() => {
     if (!chatKernel || accessMode === undefined || chatKernel === "openclaw" || effectiveAccessMode === accessMode)
       return;

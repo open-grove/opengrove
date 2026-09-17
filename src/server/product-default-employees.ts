@@ -19,11 +19,8 @@ export { GROVE_GUIDE_MEMBER_ID, GROVE_GUIDE_SKILL_NAME };
 
 const GROVE_GUIDE_WELCOME_MESSAGE_ID = "opengrove-newcomer-guide-welcome-v1";
 
-export function productDefaultEmployees(
-  language: SupportedLocale = DEFAULT_LOCALE,
-  claudeConfigHome?: string,
-): RoomChannelMember[] {
-  const employees = [groveGuideEmployee(claudeConfigHome), appBuilderEmployee(claudeConfigHome), pmEmployee()];
+export function productDefaultEmployees(language: SupportedLocale = DEFAULT_LOCALE): RoomChannelMember[] {
+  const employees = [groveGuideEmployee(), appBuilderEmployee(), pmEmployee()];
   return localizedValue(PRODUCT_EMPLOYEE_PRESENTERS, language)(employees);
 }
 
@@ -110,7 +107,7 @@ function withEnglishProductPresentation(member: RoomChannelMember): RoomChannelM
   return member;
 }
 
-function groveGuideEmployee(claudeConfigHome?: string): RoomChannelMember {
+function groveGuideEmployee(): RoomChannelMember {
   const runtime = PRODUCT_EMPLOYEE_RUNTIME_DEFAULTS[GROVE_GUIDE_MEMBER_ID];
   return {
     id: GROVE_GUIDE_MEMBER_ID,
@@ -123,7 +120,7 @@ function groveGuideEmployee(claudeConfigHome?: string): RoomChannelMember {
     lastActive: "已配置",
     availableSkillIds: [GROVE_GUIDE_SKILL_NAME],
     defaultSkillIds: [GROVE_GUIDE_SKILL_NAME],
-    accessMode: normalizeEmployeeAccessMode(runtime.kernel, undefined, runtime.model, claudeConfigHome),
+    accessMode: normalizeEmployeeAccessMode(runtime.kernel, undefined),
     reasoningEffort: "medium",
     source: "local",
     sourceLabel: "OpenGrove",
@@ -135,7 +132,7 @@ function groveGuideEmployee(claudeConfigHome?: string): RoomChannelMember {
   };
 }
 
-function appBuilderEmployee(claudeConfigHome?: string): RoomChannelMember {
+function appBuilderEmployee(): RoomChannelMember {
   const runtime = PRODUCT_EMPLOYEE_RUNTIME_DEFAULTS[OPENGROVE_APP_BUILDER_MEMBER_ID];
   return {
     id: OPENGROVE_APP_BUILDER_MEMBER_ID,
@@ -156,7 +153,7 @@ function appBuilderEmployee(claudeConfigHome?: string): RoomChannelMember {
     availableSkillIds: [OPENGROVE_APP_BUILDER_SKILL_NAME],
     defaultSkillIds: [OPENGROVE_APP_BUILDER_SKILL_NAME],
     toolIds: ["opengrove.app.import"],
-    accessMode: normalizeEmployeeAccessMode(runtime.kernel, undefined, runtime.model, claudeConfigHome),
+    accessMode: normalizeEmployeeAccessMode(runtime.kernel, undefined),
     reasoningEffort: "medium",
     source: "local",
     sourceLabel: "OpenGrove",

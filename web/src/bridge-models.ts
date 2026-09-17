@@ -50,8 +50,6 @@ export interface RuntimeControlOption {
   metadata?: { reasoning?: boolean; reasoningEfforts?: string[] };
 }
 export interface RuntimeControls {
-  /** Model IDs explicitly reported by the native SDK as supporting auto mode. */
-  autoReviewModelIds?: string[];
   kernel: KernelPreference;
   source: string;
   models: RuntimeControlOption[];

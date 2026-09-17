@@ -11,19 +11,13 @@ export const NATIVE_APPROVAL_PRESETS_VERSION = 4;
  * Unchanged App declarations retain saved permissions; App updates can reapply defaults.
  * Remove when: direct upgrades from 0.7.0 move to a standalone importer.
  */
-export function migrateNativeApprovalPresetsV4(
-  rooms: RoomChannelStore,
-  beforeApply?: () => void,
-  claudeConfigHome?: string,
-): boolean {
+export function migrateNativeApprovalPresetsV4(rooms: RoomChannelStore, beforeApply?: () => void): boolean {
   const patches = rooms.listMembers().flatMap((member) => {
     if (member.source === "remote" || !isBridgeKernelId(member.kernel)) return [];
-    const defaultMode = normalizeEmployeeAccessMode(member.kernel, undefined, member.model, claudeConfigHome);
+    const defaultMode = normalizeEmployeeAccessMode(member.kernel, undefined);
     const supportsAuto = defaultMode === "auto-review";
     const normalized =
-      member.accessMode === undefined
-        ? defaultMode
-        : normalizeEmployeeAccessMode(member.kernel, member.accessMode, member.model, claudeConfigHome);
+      member.accessMode === undefined ? defaultMode : normalizeEmployeeAccessMode(member.kernel, member.accessMode);
     const accessMode = supportsAuto && normalized === "default" ? "auto-review" : normalized;
     if (accessMode === member.accessMode) return [];
     return [

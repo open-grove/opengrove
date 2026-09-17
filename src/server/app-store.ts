@@ -1,5 +1,4 @@
 import { normalizeEmployeeAccessMode } from "./employee-access-mode.js";
-import { kernelConfigHomeForRegistry } from "./kernel-registry.js";
 import { createHash, randomUUID } from "node:crypto";
 import {
   cpSync,
@@ -1803,7 +1802,6 @@ function syncPublishedEmployeeDefaultsToLocalState(input: {
   employeeOverridePatches?: AppStorePublishRecoveryRecord["employeeOverridePatches"];
 }): void {
   const employeeDefaults = recordArray(recordValue(recordValue(input.releaseManifest).store).employeeDefaults);
-  const claudeConfigHome = kernelConfigHomeForRegistry(input.state.settings, "claude-code");
   const currentMembers = new Map(input.state.app.rooms.listMembers().map((member) => [member.id, member]));
   const overridesByMemberId = new Map(
     input.employeeOverridePatches?.map((patch) => [patch.memberId, patch.userOverrides]) ?? [],
@@ -1833,12 +1831,7 @@ function syncPublishedEmployeeDefaultsToLocalState(input: {
       accessMode:
         item.accessMode === undefined
           ? undefined
-          : normalizeEmployeeAccessMode(
-              stringOrUndefined(item.kernel) ?? member.kernel,
-              item.accessMode,
-              stringOrUndefined(item.model) ?? member.model,
-              claudeConfigHome,
-            ),
+          : normalizeEmployeeAccessMode(stringOrUndefined(item.kernel) ?? member.kernel, item.accessMode),
       visibility: normalizeVisibility(item.visibility),
       publicDescription: stringOrUndefined(item.publicDescription),
       publicSkills: stringArray(item.publicSkills),
@@ -1848,7 +1841,7 @@ function syncPublishedEmployeeDefaultsToLocalState(input: {
     input.state.app.rooms.patchMember(
       member.id,
       input.applyValues
-        ? employeeManifestDefaultsPatch(member, defaults, claudeConfigHome)
+        ? employeeManifestDefaultsPatch(member, defaults)
         : {
             manifestDefaults: { ...defaults },
             ...(overridesByMemberId.has(member.id)

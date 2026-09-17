@@ -860,7 +860,7 @@ function entrySource(path, toast, confirm, globalStyles, appStoreStyles) {
           publishProgress={publishProgress}
           publishRecoveryBlocked={publishProgress?.state === "registry-ready"}
           runtimeControlsByKernel={{
-            "claude-code": { kernel: "claude-code", autoReviewModelIds: ["deepseek-v4-pro"] },
+            "claude-code": { kernel: "claude-code" },
           }}
           providers={[{
             id: "ww",

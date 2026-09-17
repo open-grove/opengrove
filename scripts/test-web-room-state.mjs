@@ -117,7 +117,6 @@ await writeFile(
   import { APP_EMPLOYEE_OVERRIDE_FIELD_ITEMS, appEmployeeOverrideFields, appEmployeeOverrideItems, buildContactSkillOptions, canEditEmployeeRuntime, contactKernelSubline, effectiveMemberAvailableSkillIds, effectiveMemberSkillIds, visibleEmployeeDefinitions } from ${JSON.stringify(contactsModelImport)};
   import { canSubmitDraft, createDefaultDraft, createMemberFromDraft } from ${JSON.stringify(employeeDialogImport)};
   import { accessModeUnavailableKey, resolveAccessModeSelection } from ${JSON.stringify(join(projectRoot, "web/src/runtime/access-modes.ts"))};
-  import { claudeAutoReviewModelIds } from ${JSON.stringify(join(projectRoot, "src/runtime/claude-models-cache.ts"))};
   import { ROOM_MEMBER_AVATAR_MAX_BYTES } from ${JSON.stringify(avatarDataUrlImport)};
   import { applyMountedAppEmployeeDefaults, canArchiveMountedAppGroup, filterMountedAppSharedMembers, restorableMountedAppMembers, restoreMountedAppMember, shouldEnsureMountedAppDefaultGroup } from ${JSON.stringify(mountedAppChatPanelImport)};
   import { latestContextUsage, readStoredAccessMode } from ${JSON.stringify(uiModelImport)};
@@ -541,22 +540,16 @@ await writeFile(
     assert.equal(readStoredAccessMode(), selected ?? undefined);
   }
   window.localStorage = previousStorage;
-  for (const kernel of ["codex", "hermes"])
-    assert.equal(resolveAccessModeSelection(kernel, undefined, "native"), "auto-review");
-  for (const kernel of ["pi", "kimi", "opencode", "claude-code", "openclaw"])
-    assert.equal(resolveAccessModeSelection(kernel, undefined, "native"), "default");
-  const claudeAutoControls = { kernel: "claude-code", autoReviewModelIds: ["claude-code-default"] };
-  assert.equal(resolveAccessModeSelection("claude-code", undefined, "claude-code-default", claudeAutoControls), "auto-review");
-  assert.equal(resolveAccessModeSelection("claude-code", undefined, "other-model", claudeAutoControls), "default");
-  const coldClaudeControls = { kernel: "claude-code", autoReviewModelIds: claudeAutoReviewModelIds([]) };
-  assert.equal(accessModeUnavailableKey("claude-code", "auto-review", "deepseek-v4-flash", coldClaudeControls), undefined);
-  assert.equal(resolveAccessModeSelection("claude-code", undefined, "deepseek-v4-flash", coldClaudeControls), "auto-review");
-  assert.equal(resolveAccessModeSelection("claude-code", "default", "deepseek-v4-flash", coldClaudeControls), "default");
+  for (const kernel of ["codex", "hermes", "claude-code"])
+    assert.equal(resolveAccessModeSelection(kernel, undefined), "auto-review");
+  for (const kernel of ["pi", "kimi", "opencode", "openclaw"])
+    assert.equal(resolveAccessModeSelection(kernel, undefined), "default");
+  assert.equal(accessModeUnavailableKey("claude-code", "auto-review"), undefined);
   for (const mode of ["default", "full-access"])
-    assert.equal(resolveAccessModeSelection("codex", mode, "native"), mode);
+    assert.equal(resolveAccessModeSelection("claude-code", mode), mode);
   const newClaudeDraft = createDefaultDraft(
     { id: "claude-code", label: "Claude", available: true }, "claude-code", "claude-code-default",
-    { ...claudeAutoControls, models: [{ id: "claude-code-default", label: "Default" }] }, undefined, undefined,
+    { kernel: "claude-code", models: [{ id: "claude-code-default", label: "Default" }] }, undefined, undefined,
   );
   assert.equal(newClaudeDraft.accessMode, "auto-review");
 
@@ -613,21 +606,13 @@ await writeFile(
   const autoFailure = formatModelCallError("runtime_access_mode_unavailable: claude_auto_review_activation_failed: disabled by organization. Select Ask in this Employee's permissions to continue");
   assert.match(autoFailure, /disabled by organization/);
   assert.match(autoFailure, /请求批准|Ask/);
-  const permissionControls = { kernel: "claude-code", autoReviewModelIds: ["supported"] };
-  assert.equal(canSubmitDraft(autoDraft, true, permissionControls), true);
-  assert.equal(canSubmitDraft({ ...autoDraft, model: "unsupported" }, true, permissionControls), false,
-    "switching models cannot save an unavailable Auto selection");
-  assert.throws(() => createMemberFromDraft({ ...autoDraft, model: "unsupported" }, { runtimeControls: permissionControls }),
-    /runtime_access_mode_unavailable/);
-  const savedAuto = { ...legacyEmployee, kernel: "claude-code", model: "supported", accessMode: "auto-review" };
-  const editedSavedAuto = { ...autoDraft, model: "unknown", role: "Updated role" };
-  assert.equal(canSubmitDraft(editedSavedAuto, true, undefined, savedAuto), true,
-    "missing metadata must not block editing an already saved Auto employee");
-  assert.equal(createMemberFromDraft(editedSavedAuto, { initialMember: savedAuto }).accessMode, "auto-review");
-  assert.equal(createMemberFromDraft(editedSavedAuto, { fields: ["role"] }).role, "Updated role",
-    "an unrelated field can be serialized without approving a pending permission selection");
-  assert.throws(() => createMemberFromDraft(editedSavedAuto, { fields: ["model"] }), /runtime_access_mode_unavailable/,
-    "new unverified Auto selections still require a valid permission before saving runtime fields");
+  for (const model of ["claude-opus-5", "claude-opus-4-8", "deepseek-v4-flash", "custom-model"]) {
+    const draft = { ...autoDraft, model };
+    assert.equal(canSubmitDraft(draft, true), true, "Claude Auto never waits for model metadata");
+    assert.equal(createMemberFromDraft(draft, {}).accessMode, "auto-review");
+  }
+  assert.equal(canSubmitDraft({ ...autoDraft, kernel: "pi" }, true), false);
+  assert.throws(() => createMemberFromDraft({ ...autoDraft, kernel: "pi" }, {}), /runtime_access_mode_unavailable/);
   assert.equal(legacyEmployeeAfterEmptySave.avatarSeed, undefined, "empty save preserves the effective id-based avatar");
   assert.equal(legacyEmployeeAfterEmptySave.reasoningEffort, undefined, "empty save keeps reasoning on the kernel default");
   assert.equal(

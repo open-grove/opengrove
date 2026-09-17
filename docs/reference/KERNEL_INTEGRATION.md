@@ -168,13 +168,12 @@ presets, network access remains owned by native configuration: neither thread co
 overrides it. Claude calls without a preset retain the configured mode, falling back to
 `bypassPermissions`. These API fallbacks are separate from the product's explicit default selections.
 Neither `on-failure` nor Claude `acceptEdits` is auto review.
-Claude Opus 5 and Opus 4.8 are declared to support auto review, matching the
-[native model requirements](https://code.claude.com/docs/en/permission-modes#eliminate-permission-prompts-with-auto-mode).
-DeepSeek v4 Flash is also declared supported through Claude Agent SDK on the OpenGrove Provider.
-These models remain selectable with an empty or stale SDK cache. Other models and aliases use SDK model
-records; the native default uses the `default` record, including its resolved model. Unknown support
-disables the picker option. Execution directly activates the requested native mode without waiting
-for a model-catalog lookup. If Auto activation fails or the reported mode differs from `auto`, the
+OpenGrove treats Auto as a Claude SDK permission preset for its supported model roster, just as it does
+for Codex and Hermes. The picker, Employee defaults, migrations and API validation do not consult model
+IDs or cached support flags. Verify supported Claude models through the shipping SDK and Provider route
+during [release acceptance](../development/RELEASE_PROCESS.md#claude-auto-acceptance).
+Execution sets the requested native permission mode; this acknowledgement is not a capability probe.
+If Auto activation fails or the reported mode differs from `auto`, the
 Adapter asks the same native session to switch to `default`. Only an acknowledged Ask transition emits
 a visible warning containing the reason and continues the turn; it does not replay the user's prompt.
 The Host saves Ask for the affected Employee and matching shared bindings without creating user-override
@@ -183,13 +182,10 @@ priority over recovery from an older turn. Cancellation never initiates fallback
 the turn fails with both causes instead of claiming recovery. Model metadata refresh starts before activation
 and remains best-effort without blocking user input on a catalog response. Claude execution uses the Agent SDK.
 
-Auto availability is not determined solely by a model name: native settings can disable it, and Anthropic
-can disable or reject it server-side. These are upstream failure conditions, not evidence that the OpenGrove
-Provider rejects Auto. Current [native requirements](https://code.claude.com/docs/en/permission-modes#eliminate-permission-prompts-with-auto-mode)
-list all plans as eligible; OpenGrove does not infer account eligibility from a subscription label.
-Employee creation, seed synchronization, permission migration, App imports and restoring App defaults
-read this cache from the same configured Claude directory as the permission picker. A custom
-`kernelPathOverrides["claude-code"].configHome` therefore applies to both availability and defaults.
+An actual activation failure (for example, native settings disabling Auto) is reported through the
+runtime recovery above. It does not change the product's model support policy. The configured Claude
+directory still owns native settings and the model/reasoning catalog cache; that cache has no authority
+over permission selection or Employee defaults.
 
 Hermes separates processes by environment and preset. Generated configuration copies preserve user
 denials and auxiliary reviewer settings. Full access uses the native YOLO switch, including for
@@ -220,9 +216,8 @@ the smart reviewer's model decisions. These permissions were verified against He
 The global PM and its App-scoped bindings default to **Help me approve**, retaining Claude Agent SDK
 and DeepSeek v4 Flash. This explicit product default does not depend on the local model cache;
 before submitting user input, the native session must acknowledge Auto or the Ask fallback. Other new Employees and chats
-prefer **Help me approve** when supported: Codex and Hermes use auto review; Claude Opus 5,
-Opus 4.8 and DeepSeek v4 Flash use the declared support above, while other Claude SDK models require cached support.
-Without either, a new Employee starts with Ask for approval. Pi, Kimi and OpenCode start
+prefer **Help me approve** for Codex, Hermes and Claude SDK, independently of model metadata.
+Pi, Kimi and OpenCode start
 with Ask for approval. OpenClaw remains Gateway-managed; remote permissions belong to the remote owner.
 
 Explicit user choices survive ordinary seed synchronization and take priority over App defaults;
@@ -232,8 +227,8 @@ App default snapshots remain separate from user selections. Restoring defaults r
 an omitted permission resolves to the product default instead of the user's last choice. Ordinary synchronization
 also preserves saved permissions for all product Employees, including PM, and App Employees whose App declares
 no permission mode or an unchanged declaration. System permission migrations never create user-override
-markers. A changed App declaration can still supply its default. A refreshed or missing Claude cache can change availability and defaults for
-models without declared support, without rewriting these saved selections. Unsupported kernel combinations are still repaired.
+markers. A changed App declaration can still supply its default. Refreshing or losing Claude model
+metadata cannot change either saved permissions or new Employee defaults. Unsupported kernel combinations are still repaired.
 A one-time v4 migration raises existing local Employees from Ask for approval to Help me approve
 where Auto is supported, including an explicitly saved Ask choice. Auto and Full access stay unchanged.
 It runs after legacy model identifiers are resolved, backs up changed state and records completion
@@ -242,20 +237,17 @@ migration or repeat a completed one. Older state uses its saved settings version
 Missing modes and unsupported combinations are still normalized. Subsequent permission changes,
 including switching back to Ask, survive restarts; PM's App-scoped bindings follow its global definition.
 Stored chat choices are read without being rewritten;
-an unset chat choice resolves against the selected kernel and model.
+an unset chat choice resolves against the selected kernel.
 
-Unsupported presets are disabled in the picker and rejected at execution. New Employee permission choices
-also validate the selected model. Missing Claude metadata does not invalidate an already saved Auto choice:
-model and Provider edits preserve it, and native activation still confirms Auto or switches to Ask at runtime.
-Unrelated Employee fields save independently of pending permission edits or loading model metadata.
-A new unverified Auto choice stays in the draft until a valid permission is selected; autosave then sends
-the pending runtime fields together. Clearing an API
+Unsupported Kernel presets are disabled in the picker and rejected at execution. Employee saves and API
+writes use that same Kernel rule. Changing a Claude model or Provider never invalidates Auto or blocks
+an edit. Unrelated Employee fields save independently of pending permission edits.
+Clearing an API
 permission with `null` follows App/product defaults and removes its user-override marker.
 Switching to Pi, Kimi or
 OpenCode while auto review is selected changes the selection to ask for approval and displays a notice.
 Employee creation, updates, App imports and seed synchronization apply the same compatibility rule.
-Publishing rejects unsupported combinations. Claude's locally unverified model support is distinct
-from a Kernel that cannot support auto review and does not invalidate a portable App declaration.
+Publishing rejects unsupported Kernel/preset combinations. Claude Auto declarations do not depend on a local cache.
 
 Parameter contract tests: [`runtime-access-modes.test.ts`](../../src/tests/runtime-access-modes.test.ts).
 Protocol references: [Codex desktop presets](https://learn.chatgpt.com/docs/sandboxing),

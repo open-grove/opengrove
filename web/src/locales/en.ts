@@ -273,8 +273,6 @@ export const EN = {
     "Auto could not be enabled for the current connection: {reason}. Open this Employee's settings and select Ask to continue, or check the Provider and account configuration before retrying Auto.",
   "composer.autoReviewUnavailable":
     "Native auto review is not connected for this kernel. Choose ask for approval or full access.",
-  "composer.autoReviewUnverified":
-    "Auto review support has not been confirmed for this model. Send a message with ask for approval or full access to refresh it.",
   "composer.selectedAccessUnavailable":
     "This permission selection is unavailable. Select a supported mode before running.",
   "composer.defaultAccess": "Ask for approval",
