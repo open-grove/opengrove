@@ -219,21 +219,23 @@ export async function executeRemoteRoomRun(state: BridgeState, input: RoomRunExe
 }
 
 export function remoteFailureText(code: string, locale: Parameters<typeof hostMessage>[0]): string {
-  return code === "remote_authorization_required"
-    ? hostMessage(locale, "remote.authorization_required")
-    : code === "remote_text_only"
-      ? hostMessage(locale, "remote.text_only")
-      : code === "not_authenticated" || code === "external_session_invalid"
-        ? hostMessage(locale, "remote.login_required")
-        : code === "external_role_required"
-          ? hostMessage(locale, "remote.admin_required")
-          : code === "remote_account_changed"
-            ? hostMessage(locale, "remote.account_changed")
-            : code === "invalid_response"
-              ? hostMessage(locale, "remote.invalid_response")
-              : code === "remote_sender_changed" || code === "remote_service_changed"
-                ? hostMessage(locale, "remote.sender_changed")
-                : code === "remote_message_too_large"
-                  ? hostMessage(locale, "remote.message_too_large")
-                  : hostMessage(locale, "remote.connection_unavailable");
+  return code === "remote_oauth_required"
+    ? hostMessage(locale, "remote.oauth_required")
+    : code === "remote_authorization_required"
+      ? hostMessage(locale, "remote.authorization_required")
+      : code === "remote_text_only"
+        ? hostMessage(locale, "remote.text_only")
+        : code === "not_authenticated" || code === "external_session_invalid"
+          ? hostMessage(locale, "remote.login_required")
+          : code === "external_role_required"
+            ? hostMessage(locale, "remote.admin_required")
+            : code === "remote_account_changed"
+              ? hostMessage(locale, "remote.account_changed")
+              : code === "invalid_response"
+                ? hostMessage(locale, "remote.invalid_response")
+                : code === "remote_sender_changed" || code === "remote_service_changed"
+                  ? hostMessage(locale, "remote.sender_changed")
+                  : code === "remote_message_too_large"
+                    ? hostMessage(locale, "remote.message_too_large")
+                    : hostMessage(locale, "remote.connection_unavailable");
 }

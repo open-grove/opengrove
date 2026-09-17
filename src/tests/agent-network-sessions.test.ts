@@ -1,3 +1,4 @@
+import { startRemoteAgentService } from "./fixtures/remote-agent-service.js";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { parseTask, taskStatusText, taskText } from "@agent-router/sdk";
@@ -43,13 +44,16 @@ test("SDK input and auth questions fall back to artifact or Agent history conten
   }
 });
 
-test("SDK sessions bootstrap once, renew with the same account and reject a changed sender", async () => {
+test("SDK sessions bootstrap once, renew with the same account and reject a changed sender", async (t) => {
+  const fixture = await startRemoteAgentService();
+  t.after(() => fixture.close());
   let now = Date.now();
   const exchanges: unknown[] = [];
   let senderId = "sender-a";
   const network = new AgentNetworkSessions({
     baseUrl: "https://agents.example/_agent-router/v1",
     provider: "opengrove",
+    allowLocalHTTP: true,
     now: () => now,
     fetch: async (_url, init) => {
       if (init?.method === "DELETE") return new Response(null, { status: 204 });
@@ -69,25 +73,27 @@ test("SDK sessions bootstrap once, renew with the same account and reject a chan
       });
     },
   });
-  network.observe({ accountIssuer: "https://account.example", accountUserId: "user-a", accessToken: "product-a" });
+  network.observe({ accountIssuer: fixture.baseUrl, accountUserId: "user-a" });
+  await fixture.oauth.authorize(await network.beginAuthorization(), "user-a");
   const [first, concurrent] = await Promise.all([network.connect(), network.connect()]);
   assert.equal(first.sender.id, "sender-a");
   assert.deepEqual(first.sender, concurrent.sender);
-  assert.deepEqual(exchanges, [{ provider: "opengrove", accessToken: "product-a" }]);
+  assert.deepEqual(exchanges, [{ provider: "opengrove", accessToken: "oauth-user-a-1" }]);
   network.observe({
-    accountIssuer: "https://account.example",
+    accountIssuer: fixture.baseUrl,
     accountUserId: "user-a",
-    accessToken: "product-a-renewed",
   });
   now += 580_000;
   await network.connect(first.binding);
-  assert.deepEqual(exchanges[1], { provider: "opengrove", accessToken: "product-a-renewed" });
+  assert.deepEqual(exchanges[1], { provider: "opengrove", accessToken: "oauth-user-a-1" });
   senderId = "sender-changed";
   now += 580_000;
   await assert.rejects(network.connect(first.binding), /remote_sender_changed/);
 });
 
-test("logout aborts bound requests and a late exchange cannot install credentials into another account", async () => {
+test("logout aborts bound requests and a late exchange cannot install credentials into another account", async (t) => {
+  const fixture = await startRemoteAgentService();
+  t.after(() => fixture.close());
   let resolveFirst!: (response: Response) => void;
   const firstResponse = new Promise<Response>((resolve) => {
     resolveFirst = resolve;
@@ -97,6 +103,7 @@ test("logout aborts bound requests and a late exchange cannot install credential
   const network = new AgentNetworkSessions({
     baseUrl: "https://agents.example/_agent-router/v1",
     provider: "opengrove",
+    allowLocalHTTP: true,
     fetch: async (_url, init) => {
       if (init?.method === "DELETE") {
         revocations++;
@@ -106,23 +113,22 @@ test("logout aborts bound requests and a late exchange cannot install credential
       return requests === 1 ? firstResponse : Response.json(sessionResponse("b"));
     },
   });
-  network.observe({ accountIssuer: "https://account.example", accountUserId: "a", accessToken: "product-a" });
+  network.observe({ accountIssuer: fixture.baseUrl, accountUserId: "a" });
+  await fixture.oauth.authorize(await network.beginAuthorization(), "a");
   const generation = network.generation;
   const old = network.connect();
   const rejected = assert.rejects(old, /remote_account_changed/);
+  await new Promise((resolve) => setImmediate(resolve));
   await network.clear("remote_account_changed");
-  network.observe({ accountIssuer: "https://account.example", accountUserId: "b", accessToken: "product-b" });
+  network.observe({ accountIssuer: fixture.baseUrl, accountUserId: "b" });
   resolveFirst(Response.json(sessionResponse("a")));
   await rejected;
   assert.equal(revocations, 1);
   assert.throws(
-    () =>
-      network.observe(
-        { accountIssuer: "https://account.example", accountUserId: "a", accessToken: "product-a" },
-        generation,
-      ),
+    () => network.observe({ accountIssuer: fixture.baseUrl, accountUserId: "a" }, generation),
     /remote_account_changed/,
   );
+  await fixture.oauth.authorize(await network.beginAuthorization(), "b");
   const current = await network.connect();
   assert.equal(current.sender.id, "sender-b");
   await assert.rejects(network.connect({ ...current.binding, accountUserId: "a" }), /remote_account_changed/);
@@ -137,13 +143,16 @@ test("logout aborts bound requests and a late exchange cannot install credential
   assert.equal(requests, 2);
 });
 
-test("SDK credential rejection renews once; uncertain submissions remain the Room ledger's responsibility", async () => {
+test("SDK credential rejection renews once; uncertain submissions remain the Room ledger's responsibility", async (t) => {
+  const fixture = await startRemoteAgentService();
+  t.after(() => fixture.close());
   let exchanges = 0;
   let sends = 0;
   let directoryReads = 0;
   const network = new AgentNetworkSessions({
     baseUrl: "https://agents.example/_agent-router/v1",
     provider: "opengrove",
+    allowLocalHTTP: true,
     fetch: async (url, init) => {
       const headers = new Headers(init?.headers);
       if (String(url).endsWith("/auth/exchange")) {
@@ -170,7 +179,8 @@ test("SDK credential rejection renews once; uncertain submissions remain the Roo
       throw new Error("uncertain delivery");
     },
   });
-  network.observe({ accountIssuer: "https://account.example", accountUserId: "a", accessToken: "product-a" });
+  network.observe({ accountIssuer: fixture.baseUrl, accountUserId: "a" });
+  await fixture.oauth.authorize(await network.beginAuthorization(), "a");
   const connection = await network.connect();
   await assert.rejects(
     connection.request(({ client, sender, signal }) =>

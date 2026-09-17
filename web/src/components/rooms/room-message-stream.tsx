@@ -1,4 +1,4 @@
-import { openGroveClient } from "../../opengrove-client";
+import { useNetworkAuthorization } from "./use-network-authorization";
 import {
   Fragment,
   memo,
@@ -228,6 +228,7 @@ const RoomMessageItem = memo(function RoomMessageItem(props: {
   const [overflowMenuOpen, setOverflowMenuOpen] = useState(false);
   const [exportingDiagnostics, setExportingDiagnostics] = useState(false);
   const [reconnecting, setReconnecting] = useState(false);
+  const networkAuthorization = useNetworkAuthorization();
   const contentRef = useRef<HTMLDivElement | null>(null);
   const toolbarRef = useRef<HTMLDivElement | null>(null);
   const [toolbarPlacement, setToolbarPlacement] = useState<RoomMessageToolbarPlacement>("right");
@@ -492,6 +493,7 @@ const RoomMessageItem = memo(function RoomMessageItem(props: {
             <span className="room-chat-time">{formatRoomMessageTime(message.createdAt)}</span>
           </div>
         ) : null}
+        {networkAuthorization.prompt}
         {!isUser ? (
           <RoomAgentMessageBody
             answerGroups={turnGroups.answerGroups}
@@ -507,7 +509,7 @@ const RoomMessageItem = memo(function RoomMessageItem(props: {
                     onRetry: async () => {
                       setReconnecting(true);
                       try {
-                        await openGroveClient.network.account.connect();
+                        await networkAuthorization.connect();
                       } catch (error) {
                         toast?.({
                           title: t("remoteAgent.reconnectError"),

@@ -1,3 +1,4 @@
+import { routerOidcFixture } from "./router-oidc.js";
 import assert from "node:assert/strict";
 import { once } from "node:events";
 import { createServer } from "node:http";
@@ -32,10 +33,12 @@ export async function startRemoteAgentService() {
   let sequence = 0;
   let baseUrl = "";
   let host = "";
+  const oauth = routerOidcFixture(() => baseUrl);
   const server = createServer(async (request, response) => {
     const path = new URL(request.url ?? "/", baseUrl).pathname;
     let raw = "";
     for await (const chunk of request) raw += String(chunk);
+    if (oauth.handle(request, response, raw)) return;
     const body = (raw ? JSON.parse(raw) : {}) as Record<string, string>;
     const send = (status: number, value: unknown) => {
       response.writeHead(status, { "content-type": "application/json" });
@@ -92,6 +95,7 @@ export async function startRemoteAgentService() {
         return send(401, { error: "external_session_invalid" });
       }
       if (config.rejectExchange) return send(403, { error: "external_role_required" });
+      if (!body.accessToken?.startsWith("oauth-")) return send(401, { error: "external_session_invalid" });
       const owner = body.accessToken?.split("-")[1];
       const sender = config.changedSender ? "changed" : `sender-${owner}`;
       const accessToken = `ars_${++sequence}`;
@@ -224,6 +228,7 @@ export async function startRemoteAgentService() {
   host = `127.0.0.1:${address.port}`;
   baseUrl = `http://${host}`;
   return {
+    oauth,
     baseUrl,
     serviceUrl: `${baseUrl}/_agent-router/v1`,
     address: `owner/coder@${host}`,

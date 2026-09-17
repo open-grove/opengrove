@@ -3,10 +3,17 @@ import { resumeRemoteRoomRuns } from "../room-runs.js";
 import { createHash } from "node:crypto";
 import type {
   AddNetworkContactOperation,
+  CancelNetworkAuthorizationOperation,
   InspectNetworkAccountOperation,
   ConnectNetworkAccountOperation,
 } from "#protocol";
-import { requireNetworkConnection, networkProblem } from "../remote-agents/session.js";
+import {
+  requireNetworkConnection,
+  isNetworkOAuthRequired,
+  networkProblem,
+  networkSessionsFor,
+  authorizeNetworkAccount,
+} from "../remote-agents/session.js";
 import type { HostOperationRouteContext } from "../router.js";
 
 export async function handleInspectNetworkAccount(
@@ -23,7 +30,16 @@ export async function handleConnectNetworkAccount(
   context: HostOperationRouteContext<ConnectNetworkAccountOperation>,
 ): Promise<true> {
   try {
-    const { sender: account, authorization } = await requireNetworkConnection(context);
+    let connection;
+    try {
+      connection = await requireNetworkConnection(context);
+    } catch (error) {
+      if (!isNetworkOAuthRequired(error)) throw error;
+      const authorizationUrl = await networkSessionsFor(context.state).beginAuthorization();
+      context.sendJson(context.response, 200, { ok: true, authorizationUrl });
+      return true;
+    }
+    const { sender: account, authorization } = connection;
     await resumeRemoteRoomRuns(context.state, authorization);
     context.sendJson(context.response, 200, { ok: true, account });
   } catch (error) {
@@ -71,6 +87,20 @@ export async function handleAddNetworkContact(
       context.state.store.saveFrom(context.state.app);
     }
     context.sendJson(context.response, 200, { ok: true, memberId: id });
+  } catch (error) {
+    const problem = networkProblem(error);
+    context.sendJson(context.response, problem.status, { error: problem.error });
+  }
+  return true;
+}
+
+export async function handleCancelNetworkAuthorization(
+  context: HostOperationRouteContext<CancelNetworkAuthorizationOperation>,
+): Promise<true> {
+  try {
+    await authorizeNetworkAccount(context);
+    networkSessionsFor(context.state).cancelAuthorization();
+    context.sendJson(context.response, 200, { ok: true });
   } catch (error) {
     const problem = networkProblem(error);
     context.sendJson(context.response, problem.status, { error: problem.error });

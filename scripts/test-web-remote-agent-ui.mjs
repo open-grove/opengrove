@@ -35,6 +35,12 @@ try {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     window.__reloadConfiguration = () => queryClient.resetQueries({ queryKey: ["network", "configuration"] });
     window.fetch = async (url, init) => {
+      if (String(url).endsWith("/network/account/authorization")) { window.__oauthCanceled = true; return Response.json({ok:true}); }
+      if (String(url).endsWith("/network/account") && init?.method === "POST") {
+        return window.__oauthPending
+          ? Response.json({ok:true,authorizationUrl:"https://identity.example/oauth/authorize?state=fixture"})
+          : Response.json({ok:true,account:{id:"sender",owner:"owner",name:"client",address:"owner/client@agents.example"}});
+      }
       if (String(url).endsWith("/network/account")) {
         await window.__configurationGate;
         return window.__configurationMode === "error"
@@ -138,8 +144,28 @@ try {
     await page.screenshot({ path: join(root, ".artifacts/remote-agent-ui.png") });
     await page.evaluate(() => {
       window.__errorCode = "";
+      window.__oauthPending = true;
     });
+    const beforeAuthorization = await page.evaluate(() => window.__calls.length);
     await page.getByRole("button", { name: "添加云端员工", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "授权云端员工", exact: true })).toBeVisible();
+    await expect(page.getByRole("link", { name: "在浏览器中授权" })).toHaveAttribute(
+      "href",
+      /^https:\/\/identity\.example\/oauth\/authorize/,
+    );
+    assert.equal(
+      await page.evaluate(() => window.__calls.length),
+      beforeAuthorization,
+      "contact creation waits for authorization",
+    );
+    await page.getByRole("button", { name: "取消", exact: true }).last().click();
+    await expect.poll(() => page.evaluate(() => window.__oauthCanceled)).toBe(true);
+    assert.equal(await page.evaluate(() => window.__calls.length), beforeAuthorization);
+    await page.getByRole("button", { name: "添加云端员工", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "授权云端员工", exact: true })).toBeVisible();
+    await page.evaluate(() => {
+      window.__oauthPending = false;
+    });
     await expect(page.getByRole("dialog")).toHaveCount(0);
     assert.equal(await page.evaluate(() => window.__added), "remote-test");
     await page.evaluate(() => {

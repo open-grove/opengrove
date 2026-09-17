@@ -5,16 +5,17 @@ import {
   type ClientOptions,
   type NetworkSession,
 } from "@agent-router/sdk";
+import { RouterOAuth } from "./oauth.js";
 import type { AccountRemoteAgentBinding, RemoteAgentBinding } from "../../rooms/remote-agent.js";
 
 export interface NetworkProductAccount {
   accountIssuer: string;
   accountUserId: string;
-  accessToken: string;
 }
 
 interface AccountSession {
   product: NetworkProductAccount;
+  oauth: RouterOAuth;
   lifetime: AbortController;
   network?: NetworkSession;
   exchange?: Promise<NetworkSession>;
@@ -33,7 +34,7 @@ export interface NetworkConnection {
   request<T>(operation: (request: NetworkRequest) => Promise<T>): Promise<T>;
 }
 
-/** Owns only in-memory communication sessions; product-token renewal stays with WW auth. */
+/** Owns only in-memory communication sessions; OAuth renewal goes directly to WW. */
 export class AgentNetworkSessions {
   private active?: AccountSession;
   private revision = 0;
@@ -66,7 +67,11 @@ export class AgentNetworkSessions {
         throw new AgentRouterError("remote_account_changed", 409);
       this.active.product = { ...product };
     } else {
-      this.active = { product: { ...product }, lifetime: new AbortController() };
+      this.active = {
+        product: { ...product },
+        lifetime: new AbortController(),
+        oauth: new RouterOAuth(product, this.bootstrap.baseUrl, this.options.allowLocalHTTP),
+      };
     }
   }
 
@@ -74,9 +79,19 @@ export class AgentNetworkSessions {
     const old = this.active;
     this.active = undefined;
     this.revision++;
+    old?.oauth.clear();
     old?.lifetime.abort(new AgentRouterError(reason, 401));
     // Clear locally before waiting for the best-effort remote revocation.
     if (old?.network) void this.revoke(old.network);
+  }
+
+  cancelAuthorization(): void {
+    this.active?.oauth.cancel();
+  }
+
+  async beginAuthorization(): Promise<string> {
+    if (!this.active) throw new AgentRouterError("not_authenticated", 401);
+    return this.active.oauth.begin();
   }
 
   private async revoke(session: NetworkSession): Promise<void> {
@@ -101,10 +116,13 @@ export class AgentNetworkSessions {
     this.assertActive(account);
     if (account.network && Date.parse(account.network.expiresAt) > this.now() + 30_000) return account.network;
     if (!account.exchange) {
-      account.exchange = this.bootstrap
-        .exchange(
-          { provider: this.options.provider, accessToken: account.product.accessToken },
-          { signal: account.lifetime.signal },
+      account.exchange = account.oauth
+        .accessToken()
+        .then((accessToken) =>
+          this.bootstrap.exchange(
+            { provider: this.options.provider, accessToken },
+            { signal: account.lifetime.signal },
+          ),
         )
         .then(async (session) => {
           if (this.active !== account || account.lifetime.signal.aborted) {
@@ -121,6 +139,13 @@ export class AgentNetworkSessions {
           }
           account.network = session;
           return session;
+        })
+        .catch((error: unknown) => {
+          if (error instanceof AgentRouterError && error.code === "external_session_invalid") {
+            account.oauth.invalidate();
+            throw new AgentRouterError("remote_oauth_required", 403);
+          }
+          throw error;
         })
         .finally(() => {
           account.exchange = undefined;

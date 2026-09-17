@@ -25,6 +25,12 @@ export const EN = {
   "remoteAgent.addLocal": "Add local employee",
   "remoteAgent.addressExample": "owner/agent@agents.example",
   "remoteAgent.remoteExecution": "Model and workspace managed remotely",
+  "remoteAgent.authorizeTitle": "Authorize cloud agents",
+  "remoteAgent.authorizeHint": "Sign in with your current OpenGrove account and authorize this Router in your browser.",
+  "remoteAgent.authorizeOpen": "Open authorization page",
+  "remoteAgent.authorizeWaiting": "This window will continue automatically after authorization.",
+  "remoteAgent.routerNotRegistered":
+    "This Router has not been registered with the account service. Contact its operator.",
   "remoteAgent.add": "Add remote Agent",
   "remoteAgent.address": "Agent address",
   "remoteAgent.name": "Display name (optional)",

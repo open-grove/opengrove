@@ -98,7 +98,6 @@ export function updateNetworkProductSession(
   const product = {
     accountIssuer: session.auth.baseUrl,
     accountUserId: session.auth.userId,
-    accessToken: session.auth.accessToken,
   };
   if (!network.matches(product) || !isCurrentHostAccount(state, session)) return undefined;
   if (!bridgeSessionUserHasRole(session.user, "admin")) {
@@ -108,7 +107,6 @@ export function updateNetworkProductSession(
   network.observe({
     accountIssuer: session.auth.baseUrl,
     accountUserId: session.auth.userId,
-    accessToken: session.auth.accessToken,
   });
   rememberAuthorizedSession(state, request);
   return issueNetworkRunAuthorization(state, session);
@@ -152,7 +150,6 @@ export async function authorizeNetworkAccount(
     {
       accountIssuer: auth.session.auth.baseUrl,
       accountUserId: auth.session.auth.userId,
-      accessToken: auth.session.auth.accessToken,
     },
     generation,
   );
@@ -167,16 +164,10 @@ export async function requireNetworkConnection(
   if (!context.security) throw new AgentRouterError("not_authenticated", 401);
   const network = networkSessionsFor(context.state);
   const generation = network.generation;
-  for (let attempt = 0; ; attempt++) {
-    const authorization = await authorizeNetworkAccount(context, { generation, forceRefresh: attempt > 0 });
-    try {
-      const connection = await network.connect(binding);
-      assertNetworkRunAuthorized(context.state, authorization, binding);
-      return { ...connection, authorization };
-    } catch (error) {
-      if (attempt > 0 || !(error instanceof AgentRouterError) || error.code !== "external_session_invalid") throw error;
-    }
-  }
+  const authorization = await authorizeNetworkAccount(context, { generation });
+  const connection = await network.connect(binding);
+  assertNetworkRunAuthorized(context.state, authorization, binding);
+  return { ...connection, authorization };
 }
 
 function rememberAuthorizedSession(state: BridgeState, request: IncomingMessage): void {
@@ -205,4 +196,8 @@ function isCurrentHostAccount(state: BridgeState, session: BridgeRuntimeAuthSess
     !readWwProviderLocalState(state).ownerUserId ||
     wwProviderAccountMatches(state, { issuer: session.auth.baseUrl, userId: session.auth.userId })
   );
+}
+
+export function isNetworkOAuthRequired(error: unknown): boolean {
+  return error instanceof AgentRouterError && error.code === "remote_oauth_required";
 }

@@ -81,6 +81,9 @@ import type {
   InteractionQuestionListData,
   InteractionQuestionListErrors,
   InteractionQuestionListResponses,
+  NetworkAccountCancelData,
+  NetworkAccountCancelErrors,
+  NetworkAccountCancelResponses,
   NetworkAccountConnectData,
   NetworkAccountConnectErrors,
   NetworkAccountConnectResponses,
@@ -1177,7 +1180,7 @@ export class Account extends HeyApiClient {
   /**
    * Connect the signed-in admin's Agent network account
    *
-   * Exchange the current OpenGrove login at the operator's trusted Agent Router node and return public sender identity. Requires admin; credentials remain in Host memory.
+   * Start native OIDC authorization or connect with the existing scoped grant. The main login token never reaches Router. Requires admin; credentials remain in Host memory.
    */
   public connect<ThrowOnError extends boolean = false>(
     options: Options<NetworkAccountConnectData, ThrowOnError>,
@@ -1194,6 +1197,21 @@ export class Account extends HeyApiClient {
         ...options.headers,
       },
     });
+  }
+
+  /**
+   * Cancel the pending browser authorization
+   *
+   * Close the native callback listener without changing an existing connection.
+   */
+  public cancel<ThrowOnError extends boolean = false>(
+    options?: Options<NetworkAccountCancelData, ThrowOnError>,
+  ): RequestResult<NetworkAccountCancelResponses, NetworkAccountCancelErrors, ThrowOnError> {
+    return (options?.client ?? this.client).delete<
+      NetworkAccountCancelResponses,
+      NetworkAccountCancelErrors,
+      ThrowOnError
+    >({ url: "/network/account/authorization", ...options });
   }
 }
 

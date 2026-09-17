@@ -9,16 +9,20 @@ manages its execution environment, model, context, and permissions.
 1. Sign in to OpenGrove with an account whose backend roles include `admin`.
 2. In **Contacts** or **Messages**, open **+**, select **Add remote Agent**,
    and enter the employee's address and an optional local display name.
-3. Select **Send message** to open the existing Rooms interface. Direct
+3. Open the browser authorization page, use the same OpenGrove account and
+   approve access for the selected Router. The dialog continues automatically.
+4. Select **Send message** to open the existing Rooms interface. Direct
    and group conversations support text, mentions, replies, execution status, and Stop.
-4. Continue in the same conversation to reuse its remote context. **New
+5. Continue in the same conversation to reuse its remote context. **New
    conversation** creates a new Room and context while retaining earlier history.
 
-The Host uses `@agent-router/sdk` to exchange the existing OpenGrove login for a
-short-lived communication session. No CLI installation, Matrix login, local
-profile, or manual sender selection is needed. Both the Host and the trusted node
-check admin eligibility against the account backend. A desktop Bridge token alone
-cannot authorize a communication session.
+The Host uses native Authorization Code + S256 PKCE against WW's existing OIDC
+service. It verifies signed identity, nonce and account subject, then gives
+`@agent-router/sdk` only a scoped Router access token. The primary OpenGrove
+login and OAuth refresh token never reach Router. Both Host and Router check
+admin eligibility; a desktop Bridge token alone cannot authorize communication.
+The browser callback listens temporarily on 127.0.0.1; this native flow requires
+the browser and Host on the same computer.
 
 Each remote Room run also requires an in-memory authorization issued after that
 product-account check. It is bound to the Host and current login generation;
@@ -55,15 +59,20 @@ OPENGROVE_AGENT_ROUTER_PROVIDER=opengrove
 ```
 
 The provider name defaults to `opengrove`. The service URL has no implicit default:
-this node will receive the OpenGrove access token, so it must be explicitly
-trusted by the person configuring this installation. A nonempty environment URL
-takes precedence over the saved setting and appears read-only in Settings. URLs
-must use HTTPS without embedded credentials, query parameters, or fragments.
-This is installation configuration, not per-user
-communication-account setup, and it is never taken from a contact's address.
-The node must configure that provider against the existing Cloud account
-`GET /v1/users/me` endpoint with `subjectPath: ["data", "user_id"]`,
-`rolesPath: ["data", "roles"]`, and `requiredRoles: ["admin"]`. These deployment-specific mappings belong to the operator configuration; the Router SDK is product-independent. OpenGrove does not configure or deploy nodes.
+users explicitly select the service. A nonempty environment URL takes precedence
+over the saved setting and appears read-only in Settings. URLs must use HTTPS
+without credentials, query or fragments. The setting belongs to this installation
+and is never taken from a contact's address.
+
+WW must register the exact Router URL as a native OAuth client and an independent
+resource verifier. Host resolves that registration from the trusted WW endpoint
+`/v1/oauth/router-client?resource=...`, including issuer and client ID. An unknown
+Router gets an explicit registration error. It cannot nominate an issuer or
+receive a primary account token. Router uses private-key-authenticated
+introspection and requires the exact resource audience, client, issuer,
+`router.connect`, expiry and `admin` role. Preserve Router's existing account
+namespace when migrating to keep owners and contacts. See the SDK's bundled
+`CONFIGURATION.md` and WW's Router registration guide for deployment details.
 For isolated local HTTP tests only, `OPENGROVE_AGENT_ROUTER_ALLOW_LOCAL_HTTP=1`
 permits loopback addresses. Other HTTP endpoints remain prohibited.
 
@@ -80,18 +89,21 @@ and the UI explains that the settings were saved; it does not report a rollback.
 The new service configuration takes effect, and restarting reapplies the settings
 to workspace presentation.
 
-SDK 0.1.4 is supplied as the original distribution archive under `vendor/`,
+SDK 0.2.0 is supplied as the original distribution archive under `vendor/`,
 with its checksum pinned in the npm lockfile. It is not yet a registry release.
 
 ## Account and credential lifetime
 
-The Host keeps communication tokens in memory and renews the ten-minute session
-before expiration with the current login token for the same captured account.
-OpenGrove's normal auth flow owns product-token refresh; remote requests can
-refresh through that flow while returning updated cookies to the caller.
-Background observation never consumes a one-time product refresh token. If the
-product login is no longer usable, the pending task is preserved until the user
-restores their login or selects **Retry** in execution status.
+The Host keeps OAuth and Router credentials in memory. Router sessions last at
+most ten minutes and never outlive their OAuth access token. Host renews scoped
+access directly with WW using a rotating refresh token; it never renews through
+Router. WW grants last at most 24 hours and require a live parent account session.
+Main product-token renewal remains with product auth.
+
+After Host restart, select **Retry** and complete browser authorization again.
+Existing contacts and pending task IDs stay in the ledger. Missing OAuth consent
+preserves accepted pending work; it does not authorize background work. Canceling
+browser authorization closes the callback listener without creating a contact.
 
 The Host has one current product account, matching the existing single-principal local Host design. Stale requests from an old login cannot clear that account's network connection.
 
@@ -100,8 +112,8 @@ requests, clears local communication credentials, and attempts remote session
 revocation. The ledger stores only public account/sender identity, the configured
 node/provider, recipient address and resolved Matrix ID, and task metadata. Requests and renewals must
 match that binding; another account, node, or sender cannot adopt the conversation.
-Role removal prevents subsequent exchange; the node may accept an already-issued
-token until its expiry or revocation, as documented by the SDK.
+Router introspects every authenticated request, so central revocation and role
+removal block the next request. Issuer unavailability fails closed.
 
 Malformed remote bindings disable only the affected contact. Malformed task metadata interrupts only that reply; local contacts and conversation history still load. Unshipped CLI bindings are not supported.
 
@@ -110,7 +122,7 @@ Malformed remote bindings disable only the affected contact. Malformed task meta
 Contacts persist the SDK `resolve` result as an address and Matrix ID pair. All
 task operations pass it as `resolvedTarget` and use the trusted home gateway;
 existing conversations keep working if the recipient directory is unavailable.
-Resolving a new address makes an unauthenticated outbound HTTPS directory request to the host named in that address. Product and network tokens are sent only to the configured trusted home node, never to that directory.
+Resolving a new address makes an unauthenticated outbound HTTPS directory request to the host named in that address. Scoped Router and network tokens are sent only to the configured home node, never to that directory.
 A newly resolved recipient identity creates a separate contact, so a pending
 task never silently changes recipient.
 

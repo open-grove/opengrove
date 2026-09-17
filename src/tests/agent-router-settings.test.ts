@@ -220,6 +220,7 @@ test("changing the Router revokes the old session and keeps conversations bound 
   delete process.env.OPENGROVE_AGENT_ROUTER_URL;
   await host.request("/settings", { agentRouterUrl: host.fixture.serviceUrl }, "PATCH");
   await host.login("admin");
+  await host.connect();
   const { memberId } = await host.request<{ memberId: string }>("/network/contacts", { address: host.fixture.address });
   await host.request("/rooms/dm", { memberId, roomId: "router-settings" });
   await host.request("/rooms/router-settings/messages", {
@@ -240,7 +241,7 @@ test("changing the Router revokes the old session and keeps conversations bound 
   assert.deepEqual(await changed.json(), { ok: false, error: "remote_service_changed" });
   assert.equal(host.sendCalls().length, 1);
   assert.equal(other.calls.length, 0);
-  await host.request("/network/account", {});
+  await host.connect();
   assert.equal(other.exchanges.length, 1, "explicit connection uses the newly selected Router");
   assert.equal(host.fixture.revoked.length, 1, "old communication credentials were revoked");
   await host.request("/settings", { agentRouterUrl: "" }, "PATCH");
@@ -260,6 +261,7 @@ test("an exchange already in flight cannot authorize contact creation after a se
   delete process.env.OPENGROVE_AGENT_ROUTER_URL;
   await host.request("/settings", { agentRouterUrl: host.fixture.serviceUrl }, "PATCH");
   await host.login("admin");
+  await host.authorize();
   let release!: () => void;
   host.fixture.config.exchangeGate = new Promise<void>((resolve) => {
     release = resolve;

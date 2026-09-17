@@ -15,6 +15,7 @@ test("A2A exposes only local Employees and cannot send or cancel remote work", a
   const host = await startRemoteRoomHost();
   t.after(() => host.dispose());
   await host.login("admin");
+  await host.connect();
   const { memberId } = await host.request<{ memberId: string }>("/network/contacts", {
     address: host.fixture.address,
   });
@@ -65,7 +66,7 @@ test("A2A exposes only local Employees and cannot send or cancel remote work", a
     /\bRetry\b|重试/,
     "a rejected message has no recovery action",
   );
-  await host.request("/network/account", {});
+  await host.connect();
   assert.equal(host.sendCalls().length, 0, "a later authorized reconnect must not replay an unauthorized message");
 
   await host.request("/rooms/authorized/messages", {
@@ -105,8 +106,8 @@ test("a cached admin connection does not authorize background work", async (t) =
   network.observe({
     accountIssuer: host.fixture.baseUrl,
     accountUserId: "admin",
-    accessToken: "product-admin-fixture",
   });
+  await host.fixture.oauth.authorize(await network.beginAuthorization(), "admin");
   const connection = await network.connect();
   const resolved = await connection.request(({ client }) => client.resolve(host.fixture.address));
   const remote = state.app.rooms.upsertMember({

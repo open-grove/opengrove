@@ -1,6 +1,7 @@
 export const EN_HOST_MESSAGES = {
   "remote.authorization_required":
     "This task is not authorized to use remote Agents. Check your administrator login and connection, then send a new message from Rooms.",
+  "remote.oauth_required": "Select Retry to authorize this Router in your browser. Your request is saved.",
   "remote.login_required": "Sign in to OpenGrove again, then select Retry to resume the saved request.",
   "remote.admin_required": "Remote Agents require an OpenGrove administrator account. The pending task is preserved.",
   "remote.account_changed":
