@@ -12,6 +12,7 @@ import {
   historicalDesktopRuntimeForbiddenPackagePrefixes,
   historicalDesktopRuntimePackageFiles,
   requiredDesktopRuntimePackageFiles,
+  requiredDesktopRuntimeDependencyFiles,
 } from "./desktop-package-inventory.mjs";
 import { desktopAsarLookupPath, normalizeDesktopAsarPath } from "./desktop-asar-path.mjs";
 import { removeTemporaryTree } from "./temporary-cleanup.mjs";
@@ -117,6 +118,7 @@ function verifyPackageInventory(resourcesDir, target, verificationOptions) {
     resourceFiles,
     appUpdateConfig,
     requiredPackageFiles: historicalReplay ? historicalDesktopRuntimePackageFiles : requiredDesktopRuntimePackageFiles,
+    requiredPackageDependencies: historicalReplay ? [] : requiredDesktopRuntimeDependencyFiles,
     forbiddenPackagePrefixes: historicalReplay
       ? historicalDesktopRuntimeForbiddenPackagePrefixes
       : forbiddenDesktopRuntimePackagePrefixes,

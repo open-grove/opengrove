@@ -13,10 +13,13 @@ export const requiredDesktopRuntimePackageFiles = [
   "node_modules/tar/LICENSE.md",
   "node_modules/minipass/LICENSE.md",
   "node_modules/minizlib/LICENSE",
-  "node_modules/tar/node_modules/chownr/LICENSE.md",
   "node_modules/yallist/LICENSE.md",
   "node_modules/@isaacs/fs-minipass/LICENSE",
   "node_modules/yaml/dist/doc/directives.js",
+];
+
+export const requiredDesktopRuntimeDependencyFiles = [
+  { from: "node_modules/tar", name: "chownr", files: ["LICENSE.md"] },
 ];
 
 // Keep the immutable v0.6.0 golden artifact contract explicit instead of
@@ -64,6 +67,7 @@ export function desktopPackageInventoryProblems({
   resourceFiles,
   appUpdateConfig,
   requiredPackageFiles = [],
+  requiredPackageDependencies = [],
   forbiddenPackagePrefixes = [],
 }) {
   const packaged = new Set(packagedFiles.map(normalizeArchivePath));
@@ -73,6 +77,20 @@ export function desktopPackageInventoryProblems({
     .filter((path) => !packaged.has(path))
     .sort();
   const problems = [];
+  for (const dependency of requiredPackageDependencies) {
+    // electron-builder hoists the production graph independently of npm's
+    // development tree. Check the package tar actually resolves, including
+    // nested-package precedence, instead of freezing the source install path.
+    const candidates = [`${dependency.from}/node_modules/${dependency.name}`, `node_modules/${dependency.name}`];
+    const location = candidates.find((path) => packaged.has(`${path}/package.json`));
+    for (const file of dependency.files) {
+      if (!location || !packaged.has(`${location}/${file}`)) {
+        problems.push(
+          `required dependency file missing from app.asar: ${dependency.from} -> ${dependency.name}/${file}`,
+        );
+      }
+    }
+  }
   const missingRequiredPackageFiles = requiredPackageFiles
     .map(normalizeArchivePath)
     .filter((path) => !packaged.has(path));

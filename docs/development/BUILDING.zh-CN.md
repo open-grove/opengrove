@@ -1,5 +1,7 @@
 # 从源码构建 OpenGrove
 
+[CI 职责与配置](CI.zh-CN.md)
+
 本文覆盖源码安装、Desktop 与 Web 启动、编译、本地打包和验证。
 所有命令均在仓库根目录执行。先按目标选择入口，再阅读对应流程；
 正式桌面发布使用独立的[发布流程](RELEASE_PROCESS.zh-CN.md)。

@@ -11,7 +11,11 @@ export default defineConfig({
     timeout: 10_000,
   },
   reporter: process.env.CI
-    ? [["line"], ["html", { open: "never", outputFolder: "test-results/playwright-report" }]]
+    ? [
+        ["line"],
+        ["json", { outputFile: "test-results/playwright-results.json" }],
+        ["html", { open: "never", outputFolder: "test-results/playwright-report" }],
+      ]
     : "list",
   outputDir: "test-results/playwright",
   use: {

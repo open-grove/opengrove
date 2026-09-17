@@ -1,8 +1,17 @@
 name: Finalize desktop release candidate
+run-name: ${{ inputs.orchestration_id && format('OpenGrove {0} / finalize [{1}]', inputs.orchestration_tag, inputs.orchestration_id) || format('OpenGrove finalize {0}', inputs.tag) }}
 
 on:
   workflow_dispatch:
     inputs:
+      orchestration_id:
+        description: Pipeline correlation ID (leave empty for a standalone run)
+        required: false
+        type: string
+      orchestration_tag:
+        description: Pipeline release tag (leave empty for a standalone run)
+        required: false
+        type: string
       candidate_run_id:
         description: Successful Desktop release candidate Actions run ID
         required: true
@@ -31,7 +40,7 @@ jobs:
     environment: desktop-release
     steps:
       - name: Check out trusted finalizer
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: main
           fetch-depth: 0

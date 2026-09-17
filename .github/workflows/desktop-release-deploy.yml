@@ -1,8 +1,17 @@
 name: Deploy gated desktop release
+run-name: ${{ inputs.orchestration_id && format('OpenGrove {0} / register [{1}]', inputs.orchestration_tag, inputs.orchestration_id) || format('OpenGrove register {0}', inputs.tag) }}
 
 on:
   workflow_dispatch:
     inputs:
+      orchestration_id:
+        description: Pipeline correlation ID (leave empty for a standalone run)
+        required: false
+        type: string
+      orchestration_tag:
+        description: Pipeline release tag (leave empty for a standalone run)
+        required: false
+        type: string
       candidate_run_id:
         description: Successful Desktop release candidate Actions run ID
         required: true
@@ -41,7 +50,7 @@ jobs:
       CLIENT_RELEASES_URL: ${{ vars.OPENGROVE_CLIENT_RELEASES_URL }}
     steps:
       - name: Check out trusted deployment workflow
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: main
           fetch-depth: 0
@@ -51,7 +60,7 @@ jobs:
         run: echo "RELEASE_TIMING_FILE=$RUNNER_TEMP/desktop-release-deploy-timing.json" >> "$GITHUB_ENV"
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 24
           cache: npm
@@ -210,7 +219,7 @@ jobs:
 
       - name: Upload deployment timing
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: desktop-release-deploy-${{ inputs.tag }}-${{ github.run_id }}-timing
           if-no-files-found: warn

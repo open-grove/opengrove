@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
+  affectedHarnesses,
   harnessGroups,
   harnessInventory,
   harnessOwners,
@@ -70,11 +71,11 @@ assert.equal(
 );
 
 const expectedFullGroupSizes = {
-  "state-storage": 10,
+  "state-storage": 11,
   "rooms-routines": 23,
-  "apps-knowledge": 16,
+  "apps-knowledge": 21,
   "app-lifecycle": 24,
-  "kernels-providers": 29,
+  "kernels-providers": 35,
   "web-desktop": 21,
   "release-contracts": 1,
 };
@@ -103,10 +104,10 @@ for (const [groupName, expectedSize] of Object.entries(expectedFullGroupSizes)) 
   groupedLabels.push(...harnessGroups[groupName].map((task) => task.id));
 }
 
-assert.equal(harnessInventory.length, 124, "the canonical deterministic harness inventory must not shrink silently");
-assert.equal(
+assert.equal(harnessInventory.length, 137, "the canonical deterministic harness inventory must not shrink silently");
+assert.deepEqual(
   harnessGroups.full,
-  harnessInventory,
+  harnessInventory.filter((task) => !task.network),
   "the full group should be the canonical inventory, not a second list",
 );
 assert.equal(
@@ -137,7 +138,7 @@ assert.deepEqual(
 );
 assert.deepEqual(
   new Set(harnessGroups.integration),
-  new Set(integrationSuites.flatMap((suite) => harnessGroups[suite])),
+  new Set(integrationSuites.flatMap((suite) => harnessGroups[suite]).filter((task) => !task.network)),
   "integration should be derived from the named subsets without another task list",
 );
 
@@ -174,7 +175,12 @@ for (const platform of ["darwin", "linux"]) {
 
 for (const task of harnessGroups.full) {
   assert.deepEqual(
-    Object.keys(task).filter((field) => !["id", "path", "owner", "suite", "isolation", "platforms"].includes(field)),
+    Object.keys(task).filter(
+      (field) =>
+        !["id", "path", "owner", "suite", "isolation", "platforms", "network", "timeoutMs", "build", "inputs"].includes(
+          field,
+        ),
+    ),
     [],
     `${task.id} should use only the reviewed, non-redundant inventory fields`,
   );
@@ -182,6 +188,38 @@ for (const task of harnessGroups.full) {
     ? task.path.replace(/^dist\/tests\//u, "src/tests/").replace(/\.js$/u, ".ts")
     : task.path;
   assert.equal(existsSync(resolve(projectRoot, sourcePath)), true, `${task.id} should reference a tracked test source`);
+  for (const input of task.inputs ?? [])
+    assert.ok(existsSync(resolve(projectRoot, input)), `${task.id} declares a missing input: ${input}`);
+  // Catch newly added literal Web dependencies even when the harness belongs
+  // to a backend shard. Shared/transitive Web inputs have separate planner cases.
+  for (const [, input] of readFileSync(resolve(projectRoot, sourcePath), "utf8").matchAll(
+    /["'](web\/src(?:\/[^"'\s]+)?)["']/gu,
+  ))
+    assert.ok(
+      affectedHarnesses([input], false).some((selected) => selected.id === task.id),
+      `${task.id} reads ${input}, which must select that harness independently of its owner`,
+    );
 }
 
+assert.deepEqual(
+  harnessGroups.network.map((task) => task.id),
+  ["packed-runtime"],
+);
+assert.ok(!harnessGroups.full.some((task) => task.network));
 console.log("CI suite ownership harness ok");
+
+assert.ok(
+  !harnessInventory.some((task) => task.id === "desktop-dev-processes"),
+  "desktop process checks belong to the desktop contract owner",
+);
+assert.ok(packageJson.scripts["check:desktop-dev-runtime"].includes("scripts/test-desktop-dev-processes.mjs"));
+
+for (const file of readdirSync(resolve(projectRoot, "src/tests")).filter((file) => file.endsWith("-harness.ts"))) {
+  const path = `dist/tests/${file.replace(/\.ts$/u, ".js")}`;
+  assert.ok(
+    harnessInventory.some((task) => task.path === path),
+    `${file} has no CI owner`,
+  );
+}
+const executionKeys = harnessGroups.full.map((task) => `${task.path}:${task.isolation ?? "default"}`);
+assert.equal(new Set(executionKeys).size, executionKeys.length, "same-environment harnesses must have one owner");

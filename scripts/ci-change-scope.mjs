@@ -17,6 +17,7 @@ const CODE_SCOPE_KEYS = [
 const CONSERVATIVE_PATHS = new Set([
   ".github/workflows/ci.yml",
   ".github/workflows/main-ci.yml",
+  ".github/workflows/ci-checks.yml",
   ".github/workflows/nightly.yml",
   "package.json",
   "package-lock.json",
@@ -29,6 +30,7 @@ const CONSERVATIVE_PATHS = new Set([
 const WINDOWS_MEDIA_CLEANUP_PATHS = new Set([
   ".github/workflows/ci.yml",
   ".github/workflows/main-ci.yml",
+  ".github/workflows/ci-checks.yml",
   ".github/workflows/nightly.yml",
   "package.json",
   "package-lock.json",
@@ -44,6 +46,7 @@ const WINDOWS_MEDIA_CLEANUP_PATHS = new Set([
 const WINDOWS_APP_STORE_PATHS = new Set([
   ".github/workflows/ci.yml",
   ".github/workflows/main-ci.yml",
+  ".github/workflows/ci-checks.yml",
   ".github/workflows/nightly.yml",
   "package.json",
   "package-lock.json",
@@ -99,7 +102,12 @@ function classifyPath(path, result) {
 
   result.base = true;
 
-  if (CONSERVATIVE_PATHS.has(path)) {
+  if (
+    CONSERVATIVE_PATHS.has(path) ||
+    path.startsWith(".github/actions/") ||
+    path.startsWith("scripts/ci-") ||
+    path.startsWith("scripts/run-ci-")
+  ) {
     enableEveryCodeScope(result);
   } else if (startsWithAny(path, SHARED_PROTOCOL_PATHS)) {
     enableScopes(result, [
@@ -142,8 +150,15 @@ function classifyPath(path, result) {
   }
 }
 
-function isDocumentationOnlyPath(path) {
-  return !path.startsWith("docs/releases/") && path !== "CHANGELOG.md" && /\.(?:md|mdx|markdown)$/iu.test(path);
+export function isDocumentationOnlyPath(path) {
+  const markdown = /\.(?:md|mdx|markdown)$/iu.test(path);
+  return (
+    markdown &&
+    ((path.startsWith("docs/") && !path.startsWith("docs/releases/")) ||
+      /^(?:README(?:\.[a-z-]+)?|AGENTS|CONTEXT|PROJECT_OVERVIEW|CONTRIBUTING|SECURITY|CODE_OF_CONDUCT|SUPPORT|THIRD_PARTY_NOTICES)\.md$/iu.test(
+        path,
+      ))
+  );
 }
 
 function isReleasePath(path) {

@@ -1,16 +1,16 @@
-import { spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync, mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { harnessGroups, harnessTasksForPlatform } from "./ci-harness-inventory.mjs";
+import { harnessGroups, harnessInventory, nativeTasks, harnessTasksForPlatform } from "./ci-harness-inventory.mjs";
+
+import { runCiProcess } from "./ci-process.mjs";
 
 export { harnessGroups } from "./ci-harness-inventory.mjs";
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
-function runGroup(groupName) {
-  const tasks = harnessGroups[groupName];
+export async function runHarnessTasks(tasks, groupName) {
   if (!tasks) {
     console.error(`Unknown harness group: ${groupName || "(missing)"}`);
     console.error(`Available groups: ${Object.keys(harnessGroups).join(", ")}`);
@@ -25,7 +25,12 @@ function runGroup(groupName) {
       `[harness] SKIP ${task.id} (runs on ${task.platforms.join(", ")}; current platform is ${process.platform})`,
     );
   }
-  const missing = selected.filter((task) => !existsSync(resolve(projectRoot, task.path)));
+  const missing = selected.filter(
+    (task) =>
+      !(task.path.startsWith("--")
+        ? (task.args ?? []).every((path) => existsSync(resolve(projectRoot, path)))
+        : existsSync(resolve(projectRoot, task.path))),
+  );
   if (missing.length) {
     console.error(`Harness group ${groupName} has missing built inputs:`);
     for (const task of missing) console.error(`- ${task.id}: ${task.path}`);
@@ -34,34 +39,49 @@ function runGroup(groupName) {
   }
 
   const failures = [];
+  const results = skipped.map((task) => ({ id: task.id, status: "skipped", reason: "platform" }));
   for (const task of selected) {
     const startedAt = Date.now();
     console.log(`[harness] START ${task.id}`);
     const cleanHomeRoot =
       task.isolation === "clean-home" ? mkdtempSync(join(tmpdir(), "opengrove-clean-home-")) : undefined;
     try {
-      const result = spawnSync(process.execPath, [resolve(projectRoot, task.path)], {
-        cwd: projectRoot,
-        env: cleanHomeRoot ? cleanHomeEnvironment(cleanHomeRoot) : process.env,
-        stdio: "inherit",
-      });
+      const result = await runCiProcess(
+        process.execPath,
+        [task.path.startsWith("--") ? task.path : resolve(projectRoot, task.path), ...(task.args ?? [])],
+        {
+          timeoutMs: task.timeoutMs,
+          cwd: projectRoot,
+          env: cleanHomeRoot ? cleanHomeEnvironment(cleanHomeRoot) : process.env,
+          stdio: "inherit",
+        },
+      );
       const durationMs = Date.now() - startedAt;
-      if (result.status !== 0) {
+      const passed = result.status === 0 && !result.timedOut && !result.interrupted;
+      results.push({ id: task.id, ...result, passed });
+      if (!passed) {
         failures.push({
           id: task.id,
           status: result.status,
           signal: result.signal,
-          error: result.error?.message,
+          error: result.timedOut ? "timeout" : result.interrupted ? "cancelled" : result.error,
           durationMs,
         });
       } else {
         console.log(`[harness] PASS ${task.id} (${formatDuration(durationMs)})`);
       }
+      if (result.interrupted) break;
     } finally {
       if (cleanHomeRoot) rmSync(cleanHomeRoot, { recursive: true, force: true });
     }
   }
 
+  const reportPath = resolve(process.env.CI_TASK_REPORT ?? `test-results/ci/${groupName}.json`);
+  mkdirSync(dirname(reportPath), { recursive: true });
+  writeFileSync(
+    reportPath,
+    `${JSON.stringify({ schemaVersion: 1, group: groupName, platform: process.platform, node: process.version, results }, null, 2)}\n`,
+  );
   if (failures.length) {
     console.error("Harness failures:");
     for (const failure of failures) {
@@ -94,5 +114,11 @@ function cleanHomeEnvironment(homeRoot) {
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
-  runGroup(process.argv[2]);
+  const groupName = process.argv[2];
+  const ids = groupName === "--tasks" ? (process.argv[3] ?? "").split(",") : null;
+  const inventory = [...harnessInventory, ...nativeTasks];
+  if (ids && (new Set(ids).size !== ids.length || ids.some((id) => !inventory.some((task) => task.id === id))))
+    throw new Error("Unknown or duplicate CI task id");
+  const tasks = ids ? ids.map((id) => inventory.find((task) => task.id === id)) : harnessGroups[groupName];
+  await runHarnessTasks(tasks, ids ? "selected" : groupName);
 }

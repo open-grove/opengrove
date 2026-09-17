@@ -25,9 +25,32 @@ never rebuild an installer.
   Failing closed is intentional; do not drop localized notes to work around an
   older release-control service.
 
-Nightly evidence proves the additional platform and live-provider health of a
-recent ancestor, not necessarily the exact candidate SHA. Commits after that
-Nightly are covered by exact-SHA Main CI and the final candidate artifact gates.
+Nightly owns external services, online production installation and baseline
+availability. Release eligibility also downloads its complete Real Agent coverage
+artifact, verifies run/attempt identity and compares tracked runtime input digests.
+A recent ancestor is reusable only when those inputs are unchanged; otherwise run
+Nightly again. Native platform and unsigned installed-startup checks belong to
+exact-SHA Main CI. See [CI ownership and configuration](CI.md).
+
+## Continue to an authorized endpoint
+
+`desktop-release-pipeline.yml` dispatches the existing candidate, finalizer,
+deployment and control workflows in order. It accepts an exact authorized `ref`
+SHA and an explicit `stop_after`: `candidate`, `finalize`, `register` or `promote`.
+The default is `candidate`; **stop before registration** means `finalize`.
+Nothing is dispatched by a normal Main push. Release notes and version preparation
+must already be complete before starting the pipeline.
+
+The pipeline derives the version and client release number from that SHA, records
+child run IDs immediately, and uploads `release-progress-<run-id>-<attempt>` even
+when a stage fails. To resume, dispatch it with the same SHA and the original
+`resume_run_id`, explicitly selecting the newly authorized endpoint. It first loads the latest persisted progress and verifies its candidate SHA,
+version and release number. Separate pipeline runs use the same identity for the
+same candidate. It then verifies existing child workflow identities and conclusions and reuses successful runs.
+A failed child is not automatically redispatched: fix the cause, rerun that child
+when appropriate, then resume. Ambiguous identities fail closed. Each stage keeps
+its existing environment, permissions, exact-byte checks and remote verification.
+The pipeline neither rebuilds finalized bytes nor promotes past its endpoint.
 
 ## Prepare a candidate
 
@@ -47,10 +70,11 @@ Nightly are covered by exact-SHA Main CI and the final candidate artifact gates.
 
 The imported baseline is deliberately valid only for the Host version named by
 `legacyHostVersion`. Imported rows bind `hostVersion`, `kernelVersion`,
-and `runtimeMode`; CI can verify their schema and reproducibility but does not
-pretend to rerun a locally configured real Kernel. The real-runtime run and its
-raw receipt remain untracked local release evidence. Only the importer's
-minimal certification batch enters the repository, after human review.
+and `runtimeMode`. CI verifies their schema and reproducibility, then requires
+fresh probes for every certified pair from configured test images and providers.
+Local raw receipts remain untracked. Only the importer's minimal certification
+batch enters the repository after review; historical rows cannot substitute for
+the Nightly coverage artifact.
 
 ### Claude Auto acceptance
 
@@ -137,10 +161,10 @@ against the authorized candidate commit:
 npm run release:readiness
 ```
 
-That command checks release notes, release configuration and workflow
-contracts, and the npm package manifest. It intentionally does not repeat the
-full harness, complete Browser UI suite, Web package integration, or
-cross-platform regression already owned by Main CI and Nightly.
+That command checks release-mode notes and the npm package manifest. Release
+configuration and workflow contract tests already passed in exact-SHA Main CI.
+Candidate-only infrastructure, signing, baseline and installer gates remain
+separate prerequisites; source harness, UI and web-package checks are not repeated.
 
 To catch deterministic source and release-metadata failures before starting a
 cloud candidate, you may optionally run:
@@ -228,9 +252,9 @@ current diagnostic logs remain intact.
 
 Record the candidate SHA, client and operating-system versions, filesystem,
 test paths, before-and-after checksums, and the result, identifying whether the
-execution used a local machine or a GitHub runner. Nightly's cross-platform jobs
-run `npm run check:desktop-rebuildable-cleanup` and upload
-`storage-cleanup-<platform>-<run-id>` receipts; Windows verifies NTFS and Junction
+execution used a local machine or a GitHub runner. PR/Main's native platform jobs
+run the cleanup acceptance and upload
+`storage-cleanup-<platform>-<run-attempt>` receipts; Windows verifies NTFS and Junction
 types. This evidence covers filesystem cleanup behavior, not installation or UI
 acceptance on a physical device. If an item was not run, say so in the release
 record; mocks, static checks, or unrelated passing tests are not substitutes.

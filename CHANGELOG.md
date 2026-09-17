@@ -6,6 +6,7 @@ to draft `docs/releases/vX.Y.Z.md`.
 
 ## Unreleased
 
+- Verify desktop installation and startup on native Windows/macOS runners before release, and reject incomplete runtime evidence or unavailable upgrade inputs earlier.
 - If Claude Auto cannot be enabled, switch to Ask after native confirmation, show the reason, and remember the recovered permission for later turns.
 
 - Run Claude exclusively through the Agent SDK; remove the legacy CLI mode switch, execution path and dedicated compatibility tests while retaining SDK Engine discovery and Login support.

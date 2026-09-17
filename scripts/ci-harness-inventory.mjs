@@ -18,13 +18,41 @@ export const integrationSuites = [
   "state-migrations",
 ];
 
-// One canonical record per executable harness. `owner` assigns the Main/Nightly
-// shard; `suite` preserves the smaller affected-integration subsets used by PRs.
+// One canonical record per executable harness. `owner` assigns the Main shard;
+// `suite` preserves PR integration baselines. `inputs` adds cross-owner affected
+// paths (exact files or directory prefixes ending in /). Web inputs stay broad
+// because these harnesses also consume shared components, styles and runtime code.
 export const harnessInventory = [
+  task("package-contents", "scripts/test-package-contents.mjs", "kernels-providers", {
+    suite: "packed-runtime",
+    build: true,
+  }),
+  task("app-create-route", "dist/tests/app-create-route-harness.js", "apps-knowledge"),
+  task("app-pack-publish", "dist/tests/app-pack-publish-harness.js", "apps-knowledge"),
+  task("claude-bedrock-env", "dist/tests/claude-bedrock-env-harness.js", "kernels-providers"),
+  task("client-bootstrap", "dist/tests/client-bootstrap-harness.js", "state-storage"),
+  task("diagnostic-bundle-server", "dist/tests/diagnostic-bundle-server-harness.js", "web-desktop"),
+  task("extension-manager", "dist/tests/extension-manager-harness.js", "apps-knowledge"),
+  task(
+    "kernel-capability-contract-evidence",
+    "dist/tests/kernel-capability-contract-evidence-harness.js",
+    "kernels-providers",
+  ),
+  task("kernel-event-contract", "dist/tests/kernel-event-contract-harness.js", "kernels-providers"),
+  task("kernel-login", "dist/tests/kernel-login-harness.js", "kernels-providers"),
+  task("mcp-app", "dist/tests/mcp-app-harness.js", "apps-knowledge"),
+  task("mcp-app-media-cache", "dist/tests/mcp-app-media-cache-harness.js", "apps-knowledge"),
+  task("runtime-environment", "dist/tests/runtime-environment-harness.js", "kernels-providers"),
+  task("withdrawal-route", "dist/tests/withdrawal-route-harness.js", "kernels-providers"),
+
   task("web-remote-agent-ui", "scripts/test-web-remote-agent-ui.mjs", "web-desktop"),
   task("web-router-settings", "scripts/test-web-router-settings.mjs", "web-desktop"),
-  task("web-mounted-app-group-deletion", "scripts/test-web-mounted-app-group-deletion.mjs", "apps-knowledge"),
-  task("web-account-profile-storage", "scripts/test-web-account-profile-storage.mjs", "state-storage"),
+  task("web-mounted-app-group-deletion", "scripts/test-web-mounted-app-group-deletion.mjs", "apps-knowledge", {
+    inputs: ["web/"],
+  }),
+  task("web-account-profile-storage", "scripts/test-web-account-profile-storage.mjs", "state-storage", {
+    inputs: ["web/"],
+  }),
   task("web-development-proxy", "scripts/test-web-development-proxy.mjs", "web-desktop"),
   task("safe-json", "dist/tests/safe-json-harness.js", "state-storage"),
   task("policy", "dist/tests/policy-harness.js", "state-storage"),
@@ -64,7 +92,6 @@ export const harnessInventory = [
   task("app-builder", "dist/tests/app-builder-harness.js", "apps-knowledge"),
   task("app-store", "dist/tests/app-store-harness.js", "apps-knowledge", { suite: "critical" }),
   task("kernel-command-path", "dist/tests/kernel-command-path-harness.js", "kernels-providers"),
-  task("desktop-dev-processes", "scripts/test-desktop-dev-processes.mjs", "web-desktop"),
   task("codex-app-server-client", "dist/tests/codex-app-server-client-harness.js", "kernels-providers"),
   task("codex-event-projector", "dist/tests/codex-event-projector-harness.js", "kernels-providers"),
   task("generic-cli-runtime", "dist/tests/generic-cli-runtime-harness.js", "kernels-providers"),
@@ -82,12 +109,16 @@ export const harnessInventory = [
     "kernels-providers",
   ),
   task("pi-story-seed-business-e2e", "dist/tests/pi-story-seed-business-e2e-harness.js", "kernels-providers"),
-  task("kernel-capability-ui-policy", "scripts/test-kernel-capability-ui-policy.mjs", "kernels-providers"),
+  task("kernel-capability-ui-policy", "scripts/test-kernel-capability-ui-policy.mjs", "kernels-providers", {
+    inputs: ["web/"],
+  }),
   task("hermes-runtime", "dist/tests/hermes-runtime-harness.js", "kernels-providers"),
   task("kernel-extension", "dist/tests/kernel-extension-harness.js", "kernels-providers"),
   task("acp-cli-runtime", "dist/tests/acp-cli-runtime-harness.js", "kernels-providers"),
   task("openclaw-gateway-runtime", "dist/tests/openclaw-gateway-runtime-harness.js", "kernels-providers"),
-  task("agent-output-resolver", "dist/tests/agent-output-resolver-harness.js", "kernels-providers"),
+  task("agent-output-resolver", "dist/tests/agent-output-resolver-harness.js", "kernels-providers", {
+    inputs: ["web/"],
+  }),
   task("bridge-kernel-selection", "dist/tests/bridge-kernel-selection-harness.js", "kernels-providers", {
     suite: "critical",
   }),
@@ -195,12 +226,15 @@ export const harnessInventory = [
   }),
   task("web-app-store-publish-page", "scripts/test-web-app-store-publish-page.mjs", "app-lifecycle", {
     suite: "critical",
+    inputs: ["web/"],
   }),
   task("web-app-release-recovery", "scripts/test-web-app-release-recovery.mjs", "app-lifecycle", {
     suite: "critical",
+    inputs: ["web/"],
   }),
   task("web-app-version-management", "scripts/test-web-app-version-management.mjs", "app-lifecycle", {
     suite: "critical",
+    inputs: ["web/"],
   }),
   task("packaged-inventory", "dist/tests/packaged-inventory-harness.js", "app-lifecycle", {
     suite: "server-inventory",
@@ -216,23 +250,105 @@ export const harnessInventory = [
     suite: "clean-home",
     isolation: "clean-home",
   }),
-  task("packed-runtime", "scripts/test-packed-runtime.mjs", "kernels-providers", { suite: "packed-runtime" }),
+  task("packed-runtime", "scripts/test-packed-runtime.mjs", "kernels-providers", {
+    suite: "packed-runtime",
+    network: true,
+  }),
   task("raw-file-range", "dist/tests/raw-file-range-harness.js", "web-desktop", { suite: "media-streaming" }),
 ];
 
+// Shared native regressions are executable records, also used by developer aliases.
+export const nativeTasks = [
+  { id: "desktop-cleanup", path: "scripts/test-desktop-rebuildable-cleanup.mjs" },
+  ...[
+    [
+      "windows-discovery",
+      "--test",
+      "dist/tests/codex-windows-discovery.test.js",
+      "dist/tests/windows-discovery-cache.test.js",
+      "dist/tests/windows-command-probe.test.js",
+      "dist/tests/windows-system-terminal.test.js",
+    ],
+    ["windows-archive", "--test", "dist/tests/app-store-archive.test.js"],
+    ["windows-state-lock", "scripts/test-desktop-state-lock-recovery.mjs"],
+    ["windows-state-ownership", "scripts/test-state-ownership.mjs"],
+    ["windows-bridge-supervisor", "scripts/test-bridge-supervisor-lifecycle.mjs"],
+    ["windows-process-start", "scripts/test-process-started-at.mjs"],
+  ].map(([id, path, ...args]) => ({ id, path, args, platforms: ["win32"] })),
+].map((entry) => ({ ...entry, timeoutMs: 300_000 }));
+
+export function nativePlatformTasks(platform) {
+  const ids = new Set([
+    "kernel-login",
+    "state-file-lock",
+    "sqlite-state-store",
+    "desktop-bridge",
+    "app-store",
+    "app-version-activation",
+  ]);
+  return harnessTasksForPlatform(
+    [
+      ...nativeTasks,
+      ...harnessInventory.filter((entry) => entry.suite && !entry.network),
+      ...(platform === "win32" ? harnessInventory.filter((entry) => ids.has(entry.id)) : []),
+    ],
+    platform,
+  ).filter((entry, index, all) => all.findIndex((other) => other.id === entry.id) === index);
+}
+
+// Unknown inputs select every owner. Known boundaries also include declared cross-owner inputs.
+export function affectedHarnesses(paths, includeIntegration) {
+  const owners = new Set(paths.length ? [] : harnessOwners);
+  for (const path of paths) {
+    const direct = harnessInventory.find(
+      (entry) => entry.path === path || entry.path.replace(/^dist\//u, "src/").replace(/\.js$/u, ".ts") === path,
+    );
+    if (direct) {
+      owners.add(direct.owner);
+      continue;
+    }
+    if (/^src\/(?:kernel|runtime)\//u.test(path) || /^docker\/agents\//u.test(path)) owners.add("kernels-providers");
+    else if (/^src\/(?:skills|knowledge|packs)\//u.test(path)) owners.add("apps-knowledge");
+    else if (/^src\/(?:rooms|routines)\//u.test(path) || /^src\/server\/(?:room-|routine-)/u.test(path))
+      owners.add("rooms-routines");
+    else if (/^src\/server\/app-/u.test(path) || path.startsWith("src/app-builder/")) {
+      owners.add("app-lifecycle");
+      owners.add("apps-knowledge");
+    } else if (/^(?:web|desktop|extension)\//u.test(path) || /^scripts\/.*(?:web|desktop)/u.test(path))
+      owners.add("web-desktop");
+    else if (/^docs\/releases\//u.test(path) || path === "CHANGELOG.md" || /release/.test(path))
+      owners.add("release-contracts");
+    else for (const owner of harnessOwners) owners.add(owner);
+  }
+  return harnessInventory.filter(
+    (entry) =>
+      !entry.network &&
+      (owners.has(entry.owner) ||
+        (includeIntegration && entry.suite) ||
+        entry.inputs?.some((input) =>
+          paths.some((path) => path === input || (input.endsWith("/") && path.startsWith(input))),
+        )),
+  );
+}
+
 validateInventory(harnessInventory);
+
+const deterministicInventory = harnessInventory.filter((task) => !task.network);
 
 export const harnessGroups = {
   ...Object.fromEntries(
     integrationSuites.map((suite) => [suite, harnessInventory.filter((task) => task.suite === suite)]),
   ),
-  integration: harnessInventory.filter((task) => task.suite),
-  ...Object.fromEntries(harnessOwners.map((owner) => [owner, harnessInventory.filter((task) => task.owner === owner)])),
-  full: harnessInventory,
+  integration: deterministicInventory.filter((task) => task.suite),
+  ...Object.fromEntries(
+    harnessOwners.map((owner) => [owner, deterministicInventory.filter((task) => task.owner === owner)]),
+  ),
+  full: deterministicInventory,
+  network: harnessInventory.filter((task) => task.network),
 };
 
 function task(id, path, owner, options = {}) {
-  return { id, path, owner, ...options };
+  return { id, path, owner, timeoutMs: 300_000, ...options };
 }
 
 export function harnessTasksForPlatform(tasks, platform) {
@@ -245,6 +361,14 @@ function validateInventory(inventory) {
     if (ids.has(entry.id)) throw new Error(`Duplicate harness id: ${entry.id}`);
     ids.add(entry.id);
     if (!harnessOwners.includes(entry.owner)) throw new Error(`Unknown harness owner for ${entry.id}: ${entry.owner}`);
+    if (
+      entry.inputs &&
+      (!Array.isArray(entry.inputs) ||
+        !entry.inputs.length ||
+        entry.inputs.some((input) => typeof input !== "string" || !input) ||
+        new Set(entry.inputs).size !== entry.inputs.length)
+    )
+      throw new Error(`Invalid harness inputs for ${entry.id}`);
     if (entry.suite && !integrationSuites.includes(entry.suite)) {
       throw new Error(`Unknown integration suite for ${entry.id}: ${entry.suite}`);
     }

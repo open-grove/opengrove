@@ -1,273 +1,115 @@
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { readFileSync, readdirSync } from "node:fs";
+import { resolve } from "node:path";
+import { load } from "js-yaml";
 
-const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const prWorkflow = readFileSync(resolve(projectRoot, ".github/workflows/ci.yml"), "utf8");
-const mainWorkflow = readFileSync(resolve(projectRoot, ".github/workflows/main-ci.yml"), "utf8");
-const nightlyWorkflow = readFileSync(resolve(projectRoot, ".github/workflows/nightly.yml"), "utf8");
-const realAgentWorkflow = readFileSync(resolve(projectRoot, ".github/workflows/real-agent-smoke.yml"), "utf8");
-const releaseProcess = readFileSync(resolve(projectRoot, "docs/development/RELEASE_PROCESS.md"), "utf8");
-const releaseProcessZh = readFileSync(resolve(projectRoot, "docs/development/RELEASE_PROCESS.zh-CN.md"), "utf8");
+const root = resolve(import.meta.dirname, "..");
+const workflow = (name) => load(readFileSync(resolve(root, ".github/workflows", name), "utf8"));
+const pr = workflow("ci.yml");
+const main = workflow("main-ci.yml");
+const shared = workflow("ci-checks.yml");
+const nightly = workflow("nightly.yml");
 
-assert.match(prWorkflow, /^name: CI$/mu);
-assert.match(
-  prWorkflow,
-  /^  pull_request:\n  merge_group:$/mu,
-  "PR CI should validate pull requests and merge queue groups",
-);
-assert.doesNotMatch(prWorkflow, /^  push:/mu, "pushes to main belong to the separate Main CI workflow");
-
-for (const output of [
-  "docs_only",
-  "base",
-  "server",
-  "web",
-  "desktop",
-  "kernel",
-  "release",
-  "unit",
-  "integration",
-  "web_packaging",
-  "browser_ui",
-  "real_agent",
-  "windows_media_cleanup",
-  "windows_app_store",
+assert.deepEqual(Object.keys(pr.on), ["pull_request", "merge_group"]);
+assert.deepEqual(main.on.push.branches, ["main"]);
+assert.equal(main.concurrency["cancel-in-progress"], true);
+for (const [entry, resultId, resultName] of [
+  [pr, "required", "PR required"],
+  [main, "result", "Main CI result"],
 ]) {
-  assert.match(prWorkflow, new RegExp(`^      ${output}:`, "mu"), `PR CI should expose the ${output} scope`);
+  assert.equal(entry.jobs.checks.uses, "./.github/workflows/ci-checks.yml");
+  const result = entry.jobs[resultId];
+  assert.equal(result.name, resultName);
+  assert.equal(result.if, "always()");
+  assert.equal(result.needs, "checks");
+  assert.ok(result.steps.some((step) => step.run === "node scripts/check-ci-results.mjs"));
 }
-
-const expectedDependencies = [
-  "scope",
-  "docs",
-  "base",
-  "server",
-  "web",
-  "desktop",
-  "release-contracts",
-  "unit",
-  "integration",
-  "kernel",
-  "web-packaging",
-  "browser-ui",
-  "desktop-protocol",
-  "state-ownership-windows",
-  "media-streaming-windows",
-  "app-store-windows",
-  "real-agent",
-];
-const requiredSection = prWorkflow.slice(prWorkflow.indexOf("  required:\n"));
-const dependencyBlock = /\n    needs:\n((?:      - [^\n]+\n)+)/u.exec(requiredSection)?.[1];
-assert.ok(dependencyBlock, "PR required should declare its dependency list");
+assert.deepEqual(Object.keys(shared.on), ["workflow_call"]);
+assert.deepEqual(shared.permissions, { contents: "read" });
+assert.equal(shared.jobs.result.if, "always()");
 assert.deepEqual(
-  dependencyBlock
-    .trim()
-    .split("\n")
-    .map((line) => line.replace(/^\s*-\s*/u, "")),
-  expectedDependencies,
-  "PR required should own every conditional PR result",
+  new Set(shared.jobs.result.needs),
+  new Set(Object.keys(shared.jobs).filter((name) => name !== "result")),
 );
-assert.match(requiredSection, /^    name: PR required$/mu);
-assert.match(requiredSection, /^    if: always\(\)$/mu);
-assert.match(requiredSection, /^          CI_JOB_EXPECTATIONS: \|$/mu);
-for (const [job, output] of [
-  ["docs", "docs_only"],
-  ["base", "base"],
-  ["server", "server"],
-  ["web", "web"],
-  ["desktop", "desktop"],
-  ["release-contracts", "release"],
-  ["unit", "unit"],
-  ["integration", "integration"],
-  ["kernel", "kernel"],
-  ["web-packaging", "web_packaging"],
-  ["browser-ui", "browser_ui"],
-  ["media-streaming-windows", "windows_media_cleanup"],
-  ["app-store-windows", "windows_app_store"],
-  ["real-agent", "real_agent"],
-]) {
-  assert.match(
-    requiredSection,
-    new RegExp(`${job}=\\$\\{\\{ needs\\.scope\\.outputs\\.${output}`, "u"),
-    `PR required should bind ${job} to the ${output} scope output`,
-  );
+const resultStep = shared.jobs.result.steps.find((step) => step.env?.CI_JOB_EXPECTATIONS);
+for (const name of ["checks", "platforms", "packages"]) {
+  assert.ok(resultStep.env.CI_JOB_EXPECTATIONS.includes(`${name}=`));
+  assert.ok(shared.jobs[name].if.includes(`has_${name}`));
+  assert.ok(shared.jobs[name].strategy.matrix.includes(`outputs.${name}`));
 }
-assert.match(requiredSection, /run: node scripts\/check-ci-results\.mjs/u);
-assert.match(
-  prWorkflow,
-  /state-ownership-windows:\n    name: State ownership recovery \(Windows\)\n    needs: scope\n    if: needs.scope.outputs.server == 'true' \|\| needs.scope.outputs.desktop == 'true'/u,
+assert.ok(shared.jobs.platforms.steps.some((step) => step.run === "node scripts/run-ci-platform.mjs"));
+assert.ok(shared.jobs.platforms.steps.some((step) => step.env?.OPENGROVE_STORAGE_ACCEPTANCE_RECEIPT));
+assert.ok(shared.jobs.packages.steps.some((step) => step.run?.includes("scripts/run-ci-desktop-package.mjs")));
+assert.ok(
+  !JSON.stringify(shared).includes("secrets."),
+  "untrusted source and package CI must not receive release or provider secrets",
 );
-assert.match(
-  requiredSection,
-  /state-ownership-windows=\$\{\{ \(needs.scope.outputs.server == 'true' \|\| needs.scope.outputs.desktop == 'true'\) && 'success' \|\| 'skipped' \}\}/u,
-);
-assert.match(mainWorkflow, /command: test:windows:state-ownership/u);
-assert.match(prWorkflow, /^  real-agent:\n    name: Real Agent contracts$/mu);
-assert.match(prWorkflow, /^    uses: \.\/\.github\/workflows\/real-agent-smoke\.yml$/mu);
-assert.match(prWorkflow, /^    secrets: inherit$/mu);
+assert.deepEqual(nightly.on.schedule, [{ cron: "0 2 * * *" }]);
 
-assert.match(mainWorkflow, /^name: Main CI$/mu);
-assert.match(mainWorkflow, /^  push:\n    branches:\n      - main$/mu);
-assert.match(mainWorkflow, /^  workflow_dispatch:$/mu);
-assert.match(mainWorkflow, /^  cancel-in-progress: true$/mu, "a newer main tip should supersede obsolete Main CI work");
-for (const command of [
-  "check:static:base",
-  "check:static:server",
-  "check:web",
-  "check:desktop",
-  "check:static:release",
-]) {
-  assert.match(mainWorkflow, new RegExp(`command: ${command}`, "u"), `Main CI should schedule ${command}`);
-}
-assert.match(mainWorkflow, /npm run \$\{\{ matrix\.command \}\}/u);
-for (const groupName of [
-  "state-storage",
-  "rooms-routines",
-  "apps-knowledge",
-  "app-lifecycle",
-  "kernels-providers",
-  "web-desktop",
-  "release-contracts",
-]) {
-  assert.match(
-    mainWorkflow,
-    new RegExp(`group: ${groupName}`, "u"),
-    `Main CI should run the ${groupName} harness group`,
-  );
-}
-assert.match(mainWorkflow, /^    name: Main CI result$/mu);
-assert.match(mainWorkflow, /CI_JOB_RESULTS: \$\{\{ toJSON\(needs\) \}\}/u);
-
-assert.match(nightlyWorkflow, /^name: Nightly$/mu);
-assert.match(nightlyWorkflow, /cron: "0 2,14 \* \* \*"/u, "Nightly should run twice daily");
-assert.match(nightlyWorkflow, /^  workflow_dispatch:$/mu);
-assert.match(nightlyWorkflow, /^  real-agent:\n    name: Real Agent matrix$/mu);
-assert.match(nightlyWorkflow, /uses: \.\/\.github\/workflows\/real-agent-smoke\.yml/u);
-assert.match(nightlyWorkflow, /platform: \[macos-latest, windows-latest\]/u);
-const platformIntegration = nightlyWorkflow.slice(
-  nightlyWorkflow.indexOf("  cross-platform-integration:\n"),
-  nightlyWorkflow.indexOf("  browser-ui:\n"),
-);
-const windowsOwnership = prWorkflow.slice(
-  prWorkflow.indexOf("  state-ownership-windows:\n"),
-  prWorkflow.indexOf("  media-streaming-windows:\n"),
-);
-assert.match(windowsOwnership, /run: npm run check:desktop-rebuildable-cleanup/u);
-assert.match(platformIntegration, /run: npm run check:desktop-rebuildable-cleanup/u);
-assert.match(platformIntegration, /OPENGROVE_STORAGE_ACCEPTANCE_RECEIPT:/u);
-assert.match(platformIntegration, /name: storage-cleanup-\$\{\{ matrix.platform \}\}-\$\{\{ github.run_id \}\}/u);
-assert.doesNotMatch(
-  nightlyWorkflow,
-  /platform: \[ubuntu-latest, macos-latest, windows-latest\]/u,
-  "Nightly should not repeat the integration subset after the Linux full harness already ran it",
-);
-assert.doesNotMatch(
-  nightlyWorkflow,
-  /runner\.os == 'Linux'|Install Chromium and Linux dependencies/u,
-  "the macOS/Windows matrix should not retain unreachable Linux setup",
-);
-assert.match(nightlyWorkflow, /^    name: Nightly result$/mu);
-
-assert.match(realAgentWorkflow, /^  workflow_call:$/mu);
-assert.doesNotMatch(
-  realAgentWorkflow,
-  /^  pull_request:/mu,
-  "Real Agent PR runs should be owned by CI so PR required can wait for them without duplicate probes",
-);
-assert.match(realAgentWorkflow, /^  push:\n    branches:\n      - main\n    paths:$/mu);
-assert.doesNotMatch(
-  realAgentWorkflow,
-  /^  schedule:/mu,
-  "Nightly should be the only owner of the scheduled live matrix",
-);
-for (const path of [
-  "src/kernel/**",
-  "src/runtime/**",
-  "src/server/kernel-*.ts",
-  "src/tests/*kernel*",
-  "src/tests/*runtime*",
-  "packages/agent-protocol/**",
-  "docker/agents/**",
-]) {
-  assert.match(realAgentWorkflow, new RegExp(`- "${path.replaceAll("*", "\\*")}"`, "u"));
-}
-assert.match(realAgentWorkflow, /github\.event_name == 'push' && github\.ref/u);
-assert.match(realAgentWorkflow, /cancel-in-progress: .*github\.event_name == 'push'/u);
-assert.match(
-  realAgentWorkflow,
-  /AUTO_RUN_ENABLED: \$\{\{ vars\.OPENGROVE_REAL_AGENT_SMOKE_ENABLED \}\}/u,
-  "automatic real-agent probes should require an explicit repository opt-in",
-);
-assert.match(
-  realAgentWorkflow,
-  /if \[\[ "\$AUTO_RUN_ENABLED" != "true" \]\]; then/u,
-  "public mirrors should skip credential-backed real-agent probes by default",
-);
-
-// A reusable workflow inherits its caller's event name, including a manual Nightly dispatch.
-const matrixScript = /        run: \|\n((?:          [^\n]*\n|\n)+)/u.exec(realAgentWorkflow)?.[1];
-assert.ok(matrixScript, "real-agent matrix planner must have an executable shell body");
-function planRealAgentMatrix(overrides) {
-  const root = mkdtempSync(join(tmpdir(), "opengrove-real-agent-plan-"));
-  const output = join(root, "output");
-  try {
-    execFileSync("bash", ["-c", matrixScript.replace(/^          /gmu, "")], {
-      env: {
-        ...process.env,
-        EVENT: "workflow_dispatch",
-        AUTO_RUN_ENABLED: "false",
-        DISPATCH_KERNEL: "",
-        DISPATCH_VERSION: "",
-        IS_FORK: "false",
-        PR_AUTHOR: "maintainer",
-        ...overrides,
-        GITHUB_OUTPUT: output,
-        GITHUB_STEP_SUMMARY: join(root, "summary"),
-      },
-      stdio: "pipe",
-    });
-    const values = Object.fromEntries(
-      readFileSync(output, "utf8")
-        .trim()
-        .split("\n")
-        .map((line) => [line.slice(0, line.indexOf("=")), line.slice(line.indexOf("=") + 1)]),
-    );
-    return { run: values.run, matrix: JSON.parse(values.matrix) };
-  } finally {
-    rmSync(root, { recursive: true, force: true });
+// Validate the dependency graph, not YAML whitespace or a copied list of jobs.
+for (const file of readdirSync(resolve(root, ".github/workflows")).filter((file) => /\.ya?ml$/.test(file))) {
+  const value = workflow(file);
+  for (const [id, job] of Object.entries(value.jobs)) {
+    for (const step of job.steps ?? [])
+      if (step.uses && !step.uses.startsWith("./"))
+        assert.match(step.uses, /@[a-f0-9]{40}$/u, `${file}: external actions must have immutable commits`);
+    for (const dependency of typeof job.needs === "string" ? [job.needs] : (job.needs ?? [])) {
+      assert.ok(value.jobs[dependency], `${file}: ${id} depends on missing ${dependency}`);
+      assert.notEqual(id, dependency);
+    }
+    if (job.uses?.startsWith("./")) {
+      assert.doesNotThrow(() => readFileSync(resolve(root, job.uses)), `${file}: missing reusable workflow`);
+    }
   }
 }
-assert.deepEqual(planRealAgentMatrix({}), { run: "false", matrix: { include: [] } });
-assert.deepEqual(
-  planRealAgentMatrix({ AUTO_RUN_ENABLED: "true" }).matrix.include.map((entry) => entry.case),
-  ["claude-sdk", "opencode"],
-  "manual Nightly should use the opted-in full matrix without dispatch-specific inputs",
+console.log("CI workflow contract harness ok");
+
+assert.equal(
+  shared.jobs.checks.container,
+  undefined,
+  "permission and process cleanup tests require the standard Linux user/init environment",
 );
-const manualPlan = planRealAgentMatrix({
-  DISPATCH_KERNEL: "claude-code",
-  DISPATCH_VERSION: "2.1.220",
-});
-assert.equal(manualPlan.run, "true");
-assert.deepEqual(manualPlan.matrix.include, [
-  {
-    case: "claude-sdk",
-    kernel: "claude-code",
-    image: "claude-code",
-    engine_version: "2.1.220",
-    capabilities: "message.streamText,turn.lifecycle,session.lifecycle,diagnostics.usage,planning.plan",
-  },
+assert.ok(!nightly.jobs.harness && !nightly.jobs["browser-ui"] && !nightly.jobs["web-package"]);
+const live = workflow("real-agent-smoke.yml");
+const probeStep = live.jobs.smoke.steps.find((step) => step.env?.CI_CASE_PLAN);
+assert.ok(probeStep);
+assert.ok(
+  probeStep.run.includes("runuser --user node -- node scripts/run-real-agent-ci-case.mjs"),
+  "Claude's full-access probes must run as a regular user, matching its CLI permission contract",
+);
+assert.equal(live.jobs.smoke.environment, "opengrove-real-agent-test");
+assert.ok(probeStep.env.DEEPSEEK_API_KEY);
+assert.ok(
+  !probeStep.env.CI_RUNTIME_ENVIRONMENTS,
+  "certification must execute the resolved profile without hidden overrides",
+);
+assert.ok(
+  nightly.jobs.result.steps.some((step) => step.run?.includes("real-agent-ci.mjs summarize")),
+  "the final Nightly job must reissue evidence after a partial rerun",
+);
+assert.ok(nightly.jobs.result.steps.some((step) => step.with?.name?.startsWith("nightly-release-evidence-")));
+assert.equal(shared.jobs.checks.steps.find((step) => step.run === "npm ci").if, "matrix.preparation != 'node'");
+assert.equal(shared.jobs.checks.steps.find((step) => step.uses?.startsWith("actions/upload-artifact@")).if, "always()");
+assert.ok(live.jobs.coverage.steps.some((step) => step.run?.includes("real-agent-ci.mjs summarize")));
+assert.ok(
+  !live.on.push && !live.on.pull_request,
+  "Nightly owns live service health; PR source checks must not require secrets",
+);
+const pipeline = workflow("desktop-release-pipeline.yml");
+assert.deepEqual(Object.keys(pipeline.on), ["workflow_dispatch"]);
+assert.equal(pipeline.on.workflow_dispatch.inputs.stop_after.default, "candidate");
+assert.deepEqual(pipeline.on.workflow_dispatch.inputs.stop_after.options, [
+  "candidate",
+  "finalize",
+  "register",
+  "promote",
 ]);
 
-for (const [name, document] of [
-  ["English", releaseProcess],
-  ["Chinese", releaseProcessZh],
-]) {
-  assert.match(document, /Main CI/u, `${name} release docs should require exact-SHA Main CI evidence`);
-  assert.match(document, /Nightly/u, `${name} release docs should explain recent ancestor Nightly evidence`);
-  assert.match(document, /<current-main-commit>/u, `${name} release docs should dispatch the current main tip`);
-}
-
-console.log("CI workflow contract harness ok");
+const imageBuild = workflow("build-agent-images.yml");
+const imageSteps = imageBuild.jobs.build.steps;
+const publishIndex = imageSteps.findIndex((step) => step.id === "publish");
+const verifyIndex = imageSteps.findIndex((step) => step.run?.includes("verify-agent-image-version.sh"));
+assert.ok(verifyIndex >= 0 && publishIndex > verifyIndex, "verify the actual image before publishing it");
+assert.equal(imageSteps[publishIndex].if, "inputs.publish");
+assert.equal(imageSteps.find((step) => step.id === "build").with.push, false);
+assert.equal(imageSteps.find((step) => step.id === "build").with.load, true);

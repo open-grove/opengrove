@@ -29,9 +29,10 @@ import {
   inspectAgentTurnEvents,
 } from "./harnesses/kernel-event-contract.js";
 import { providerUnavailableReason } from "./kernel-real-runtime-probe-classification.js";
+import { probeRealRuntimeVersion } from "./kernel-real-runtime-version.js";
 import type { KernelAdapter } from "../kernel/types.js";
 import { createClaudeCodeKernelAdapter } from "../kernel/adapters/claude-code.js";
-import { createCodexKernelAdapter } from "../kernel/adapters/codex.js";
+import { createCodexKernelAdapter, codexProviderConfigFromProfile } from "../kernel/adapters/codex.js";
 import { createKimiKernelAdapter, resolveKimiCommand } from "../kernel/adapters/kimi.js";
 import { createOpenCodeKernelAdapter, resolveOpenCodeCommand } from "../kernel/adapters/opencode.js";
 import { createHermesKernelAdapter } from "../kernel/adapters/hermes.js";
@@ -43,7 +44,11 @@ import {
   resolveOpenClawGatewayConnection,
 } from "../runtime/openclaw-gateway-runtime.js";
 import { BRIDGE_KERNEL_IDS, type BridgeKernelId, type BridgeProviderProfile } from "../server/bridge-types.js";
-import { hermesProviderConfigForKernel, providerEnvForKernel } from "../server/provider-profiles.js";
+import {
+  hermesProviderConfigForKernel,
+  providerEnvForKernel,
+  providerProfileForKernel,
+} from "../server/provider-profiles.js";
 import { KERNEL_CAPABILITY_CONTRACTS } from "../kernel/capabilities/contracts.js";
 import {
   REAL_RUNTIME_EVIDENCE_PATH,
@@ -223,101 +228,129 @@ async function runKernelCapabilityProbes(
     return promise;
   };
 
-  for (const capability of options.capabilities) {
-    const mapping = contract?.mappings.find((item) => item.capability === capability);
-    const testId = mapping?.expectedContractTest ?? `${kernel}.${capability}`;
-    const marker = createMarker(testId);
-    const emptyBase = {
-      kernel,
-      verification: "real_runtime" as const,
-      checkedAt: checkedAtValue,
-      ...(hostVersion ? { hostVersion } : {}),
-      marker,
-      provider: { kind: "unknown" as const },
-    };
+  try {
+    for (const capability of options.capabilities) {
+      const mapping = contract?.mappings.find((item) => item.capability === capability);
+      const testId = mapping?.expectedContractTest ?? `${kernel}.${capability}`;
+      const marker = createMarker(testId);
+      const emptyBase = {
+        kernel,
+        verification: "real_runtime" as const,
+        checkedAt: checkedAtValue,
+        ...(hostVersion ? { hostVersion } : {}),
+        marker,
+        provider: { kind: "unknown" as const },
+      };
 
-    if (!mapping) {
-      records.push(skippedProbe(emptyBase, capability, testId, "no_contract_mapping"));
-      continue;
-    }
+      if (!mapping) {
+        records.push(skippedProbe(emptyBase, capability, testId, "no_contract_mapping"));
+        continue;
+      }
 
-    if (!CERTIFIABLE_MAPPING_STATUSES.has(mapping.status)) {
-      records.push(skippedProbe(emptyBase, capability, testId, `contract_${mapping.status}`));
-      continue;
-    }
+      if (!CERTIFIABLE_MAPPING_STATUSES.has(mapping.status)) {
+        records.push(skippedProbe(emptyBase, capability, testId, `contract_${mapping.status}`));
+        continue;
+      }
 
-    if (!mapping.expectedContractTest) {
-      records.push(skippedProbe(emptyBase, capability, testId, "no_contract_test_declared"));
-      continue;
-    }
+      if (kernel === "codex" && capability === "auth.refresh" && probeProvider(options)) {
+        records.push(
+          skippedProbe(
+            emptyBase,
+            capability,
+            testId,
+            "Codex ChatGPT auth.refresh requires a native account; an external model API key does not verify it.",
+          ),
+        );
+        continue;
+      }
 
-    const kind = probeKindForCapability(kernel, capability);
-    if (!kind) {
-      records.push(failedProbe(emptyBase, capability, testId, "no_real_runtime_probe_implemented"));
-      continue;
-    }
+      if (!mapping.expectedContractTest) {
+        records.push(skippedProbe(emptyBase, capability, testId, "no_contract_test_declared"));
+        continue;
+      }
 
-    const result = await getCase(kind);
-    const base = {
-      kernel,
-      verification: "real_runtime" as const,
-      checkedAt: checkedAtValue,
-      ...(hostVersion ? { hostVersion } : {}),
-      ...(result.resolution.kernelVersion ? { kernelVersion: result.resolution.kernelVersion } : {}),
-      ...(result.resolution.runtimeMode ? { runtimeMode: result.resolution.runtimeMode } : {}),
-      marker: result.case.marker,
-      provider: providerMetadata(result.resolution),
-      command: evidenceCommand(result.resolution.command),
-    };
+      const kind = probeKindForCapability(kernel, capability);
+      if (!kind) {
+        records.push(failedProbe(emptyBase, capability, testId, "no_real_runtime_probe_implemented"));
+        continue;
+      }
 
-    if (result.skippedReason || !result.collected) {
-      records.push(skippedProbe(base, capability, testId, result.skippedReason ?? "probe_case_unavailable"));
-      continue;
-    }
+      let result: ProbeCaseResult;
+      try {
+        result = await getCase(kind);
+      } catch (error) {
+        // Raw command errors can include private paths or provider output. Keep a
+        // failed domain result so one setup failure cannot discard other evidence.
+        const code = error instanceof Error && "code" in error ? error.code : undefined;
+        const category =
+          typeof code === "number"
+            ? `exit_${code}`
+            : ["ENOENT", "ETIMEDOUT", "EACCES"].includes(String(code))
+              ? String(code)
+              : "initialization_failed";
+        records.push({ ...failedProbe(emptyBase, capability, testId, "probe_case_failed"), error: category });
+        continue;
+      }
+      const base = {
+        kernel,
+        verification: "real_runtime" as const,
+        checkedAt: checkedAtValue,
+        ...(hostVersion ? { hostVersion } : {}),
+        ...(result.resolution.kernelVersion ? { kernelVersion: result.resolution.kernelVersion } : {}),
+        ...(result.resolution.runtimeMode ? { runtimeMode: result.resolution.runtimeMode } : {}),
+        marker: result.case.marker,
+        provider: providerMetadata(result.resolution),
+        command: evidenceCommand(result.resolution.command),
+      };
 
-    const events = summarizeEvents(result.collected.events, result.collected.steer, result.collected.compact);
-    const outcome = evaluateCapabilityProbe({
-      kernel,
-      capability,
-      kind,
-      result,
-      events,
-    });
-    const common = {
-      ...base,
-      durationMs: result.collected.durationMs,
-      timedOut: result.collected.timedOut,
-      aborted: result.collected.aborted,
-      events,
-      responsePreview: responsePreview(result.collected.events),
-      error: result.collected.error,
-    };
-    const providerUnavailable = providerUnavailableReason(outcome.reason);
-    if (!outcome.passed && providerUnavailable) {
+      if (result.skippedReason || !result.collected) {
+        records.push(skippedProbe(base, capability, testId, result.skippedReason ?? "probe_case_unavailable"));
+        continue;
+      }
+
+      const events = summarizeEvents(result.collected.events, result.collected.steer, result.collected.compact);
+      const outcome = evaluateCapabilityProbe({
+        kernel,
+        capability,
+        kind,
+        result,
+        events,
+      });
+      const common = {
+        ...base,
+        durationMs: result.collected.durationMs,
+        timedOut: result.collected.timedOut,
+        aborted: result.collected.aborted,
+        events,
+        responsePreview: responsePreview(result.collected.events),
+        error: result.collected.error,
+      };
+      const providerUnavailable = providerUnavailableReason(outcome.reason);
+      if (!outcome.passed && providerUnavailable) {
+        records.push({
+          id: testId,
+          capability,
+          testId,
+          status: "skipped",
+          ...common,
+          reason: `provider_unavailable: ${providerUnavailable}`,
+        });
+        continue;
+      }
       records.push({
         id: testId,
         capability,
         testId,
-        status: "skipped",
+        status: outcome.passed ? "passed" : "failed",
         ...common,
-        reason: `provider_unavailable: ${providerUnavailable}`,
+        ...(outcome.reason ? { reason: outcome.reason } : {}),
       });
-      continue;
     }
-    records.push({
-      id: testId,
-      capability,
-      testId,
-      status: outcome.passed ? "passed" : "failed",
-      ...common,
-      ...(outcome.reason ? { reason: outcome.reason } : {}),
-    });
+  } finally {
+    for (const result of await Promise.allSettled(caseCache.values())) {
+      if (result.status === "fulfilled") cleanupProbeCase(result.value.case);
+    }
   }
-
-  for (const result of await Promise.all(caseCache.values())) {
-    cleanupProbeCase(result.case);
-  }
-
   return records;
 }
 
@@ -327,53 +360,64 @@ async function runProbeCase(
   options: RunnerOptions,
 ): Promise<ProbeCaseResult> {
   const probeCase = createProbeCase(kind, kernel, options);
-  const resolution = await createAgentAdapter(kernel, options, probeCase);
-  if (!resolution.adapter) {
+  let resolution: AdapterResolution | undefined;
+  try {
+    resolution = await createAgentAdapter(kernel, options, probeCase);
+    if (!resolution.adapter) {
+      return {
+        kind,
+        case: probeCase,
+        resolution,
+        skippedReason: resolution.skippedReason ?? "adapter_unavailable",
+      };
+    }
+
+    const health = await resolution.adapter.healthCheck().catch((error: unknown) => ({
+      status: "unavailable" as const,
+      message: error instanceof Error ? error.message : String(error),
+    }));
+    if (health.status !== "ok") {
+      return {
+        kind,
+        case: probeCase,
+        resolution,
+        skippedReason: health.message || `kernel_health_${health.status}`,
+      };
+    }
+
+    resolution.runtimeMode = resolution.adapter.contract.labels.integrationMode;
+    const discovery = await resolution.adapter.discover?.().catch(() => undefined);
+    resolution.kernelVersion =
+      resolution.kernelVersion ??
+      discovery?.version ??
+      (kernel === "pi" ? readDependencyVersion("@earendil-works/pi-agent-core") : undefined);
+
+    const runtime = createKernelRuntime(resolution.adapter);
+    const collected = await collectProbeTurn({
+      runtime,
+      probeCase,
+      kernel,
+      options,
+      requestedModelId: isExternalProbeProvider(resolution.providerKind) ? options.model : undefined,
+    });
+
     return {
       kind,
       case: probeCase,
       resolution,
-      skippedReason: resolution.skippedReason ?? "adapter_unavailable",
+      collected,
     };
+  } catch (error) {
+    cleanupProbeCase(probeCase);
+    throw error;
+  } finally {
+    try {
+      await resolution?.adapter?.dispose?.();
+    } catch (error) {
+      cleanupProbeCase(probeCase);
+      throw error;
+    }
   }
-
-  const health = await resolution.adapter.healthCheck().catch((error: unknown) => ({
-    status: "unavailable" as const,
-    message: error instanceof Error ? error.message : String(error),
-  }));
-  if (health.status !== "ok") {
-    await resolution.adapter.dispose?.();
-    return {
-      kind,
-      case: probeCase,
-      resolution,
-      skippedReason: health.message || `kernel_health_${health.status}`,
-    };
-  }
-
-  resolution.runtimeMode = resolution.adapter.contract.labels.integrationMode;
-  const discovery = await resolution.adapter.discover?.().catch(() => undefined);
-  resolution.kernelVersion =
-    resolution.kernelVersion ??
-    discovery?.version ??
-    (kernel === "pi" ? readDependencyVersion("@earendil-works/pi-agent-core") : undefined);
-
-  const runtime = createKernelRuntime(resolution.adapter);
-  const collected = await collectProbeTurn({
-    runtime,
-    probeCase,
-    kernel,
-    options,
-    requestedModelId: isExternalProbeProvider(resolution.providerKind) ? options.model : undefined,
-  });
-  await resolution.adapter.dispose?.();
-
-  return {
-    kind,
-    case: probeCase,
-    resolution,
-    collected,
-  };
 }
 
 async function createAgentAdapter(
@@ -398,13 +442,19 @@ async function createAgentAdapter(
         : undefined;
 
   if (kernel === "codex") {
+    const binding = providerProfileForKernel(kernel, provider, options.model);
     return {
       adapter: createCodexKernelAdapter({
         cwd: options.cwd,
-        env: probeCase?.runtimeEnv,
+        env: { ...providerEnv, ...probeCase?.runtimeEnv },
         approvalPolicy: probeCase?.codexApprovalPolicy,
+        configuredModel: options.model,
+        providerConfig: binding ? codexProviderConfigFromProfile(binding) : undefined,
+        allowServiceTier: !binding,
       }),
-      providerKind: "native",
+      providerKind,
+      providerBaseUrl,
+      providerModel: options.model,
     };
   }
 
@@ -428,6 +478,7 @@ async function createAgentAdapter(
       return { providerKind, skippedReason: "Hermes CLI command was not found." };
     }
     const providerConfig = hermesProviderConfigForKernel(provider, options.model);
+    const kernelVersion = await probeRealRuntimeVersion(command);
     return {
       adapter: createHermesKernelAdapter({
         command,
@@ -441,6 +492,7 @@ async function createAgentAdapter(
       providerBaseUrl,
       providerModel: isExternalProbeProvider(providerKind) ? options.model : undefined,
       command,
+      kernelVersion,
     };
   }
 
@@ -483,6 +535,7 @@ async function createAgentAdapter(
     if (!command) {
       return { providerKind, skippedReason: "OpenCode CLI command was not found." };
     }
+    const kernelVersion = await probeRealRuntimeVersion(command);
     return {
       adapter: createOpenCodeKernelAdapter({
         command,
@@ -494,6 +547,7 @@ async function createAgentAdapter(
       providerBaseUrl,
       providerModel: isExternalProbeProvider(providerKind) ? options.model : undefined,
       command,
+      kernelVersion,
     };
   }
 
@@ -502,6 +556,7 @@ async function createAgentAdapter(
     if (!command) {
       return { providerKind, skippedReason: "Kimi Code CLI command was not found." };
     }
+    const kernelVersion = await probeRealRuntimeVersion(command);
     return {
       adapter: createKimiKernelAdapter({
         command,
@@ -513,6 +568,7 @@ async function createAgentAdapter(
       providerBaseUrl,
       providerModel: isExternalProbeProvider(providerKind) ? options.model : undefined,
       command,
+      kernelVersion,
     };
   }
 
@@ -590,23 +646,32 @@ async function collectProbeTurn(input: {
         if (seedError) throw new Error(`pi_compaction_seed_failed:${seedError}`);
       }
     }
-    if (input.probeCase.kind === "compact" && input.kernel === "claude-code") {
-      for (let seedIndex = 1; seedIndex <= 3; seedIndex += 1) {
+    if (input.probeCase.kind === "compact" && (input.kernel === "claude-code" || input.kernel === "kimi")) {
+      // Seed earlier turns directly: shell output can be truncated or retained,
+      // leaving too little removable history to verify native token reduction.
+      const seedCount = input.kernel === "kimi" ? 2 : 3;
+      // Kimi 0.41 preserves up to 20,000 user-input tokens during compaction.
+      // Two 800-line seeds exceed that retained-input budget (~34,000 tokens).
+      // https://github.com/MoonshotAI/kimi-code/blob/%40moonshot-ai%2Fkimi-code%400.41.0/packages/agent-core-v2/src/agent/contextMemory/compactionHandoff.ts
+      const paddingLines = input.kernel === "kimi" ? 800 : 40;
+      for (let seedIndex = 1; seedIndex <= seedCount; seedIndex += 1) {
         const seedEvents: AgentEvent[] = [];
         const seedRequest: AgentTurnRequest = {
           ...request,
           runId: `${request.runId}_seed_${seedIndex}`,
           input: [
-            `OpenGrove Claude Code compaction seed turn ${seedIndex}.`,
+            `OpenGrove ${input.kernel} compaction seed turn ${seedIndex}.`,
             `Reference id: ${input.probeCase.marker}`,
-            "Keep this disposable history in the native session until the following /compact probe.\n".repeat(40),
+            "Keep this disposable history in the native session until the following /compact probe.\n".repeat(
+              paddingLines,
+            ),
             "Reply in one short sentence and include the reference id.",
           ].join("\n"),
           signal: controller.signal,
         };
         for await (const event of input.runtime.runTurn(seedRequest)) seedEvents.push(event);
         const seedError = firstErrorMessage(seedEvents);
-        if (seedError) throw new Error(`claude_compaction_seed_failed:${seedError}`);
+        if (seedError) throw new Error(`${input.kernel}_compaction_seed_failed:${seedError}`);
       }
     }
     for await (const event of input.runtime.runTurn({ ...request, signal: controller.signal })) {
@@ -1023,20 +1088,6 @@ function createProbeCase(kind: ProbeCaseKind, kernel: BridgeKernelId, options: R
 
   if (kind === "compact") {
     if (usesDirectCompactProbe(kernel)) {
-      if (kernel === "kimi") {
-        return {
-          kind,
-          marker,
-          accessMode: "full-access",
-          input: [
-            base,
-            "Use the native shell tool exactly once to run: python3 -c \"print('OG_COMPACTION_PADDING\\n' * 3000)\"",
-            "Read the output but do not repeat it in the answer; this disposable tool result creates native history that compaction can remove.",
-            "After the tool finishes, answer in one short sentence and include the reference id.",
-            "OpenGrove will then call the native compact API directly and verify that the context token count decreases.",
-          ].join("\n"),
-        };
-      }
       return {
         kind,
         marker,
@@ -2454,8 +2505,10 @@ function cleanupProbeCase(probeCase: ProbeCase): void {
       if (basename(parent) === ".opengrove-real-runtime-probes") {
         rmdirSync(parent);
       }
-    } catch {
-      // Best-effort cleanup only; evidence has already captured the probe result.
+    } catch (error) {
+      // A sibling case may still own the parent directory.
+      const code = error instanceof Error && "code" in error ? String(error.code) : "cleanup_failed";
+      if (code !== "ENOENT" && code !== "ENOTEMPTY") console.warn(`[probe-cleanup] ${code}`);
     }
   }
 }

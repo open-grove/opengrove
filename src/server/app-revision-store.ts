@@ -790,7 +790,8 @@ function sameRevisionFiles(left: Map<string, RevisionFile>, right: Map<string, R
 
 function sameExistingPath(left: string, right: string): boolean {
   try {
-    return realpathSync(left) === realpathSync(right);
+    // Native resolution canonicalizes case and Windows short-name aliases.
+    return realpathSync.native(left) === realpathSync.native(right);
   } catch {
     return resolve(left) === resolve(right);
   }
