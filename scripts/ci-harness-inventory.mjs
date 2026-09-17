@@ -21,6 +21,28 @@ export const integrationSuites = [
 // One canonical record per executable harness. `owner` assigns the Main/Nightly
 // shard; `suite` preserves the smaller affected-integration subsets used by PRs.
 export const harnessInventory = [
+  task("package-contents", "scripts/test-package-contents.mjs", "kernels-providers", {
+    suite: "packed-runtime",
+    build: true,
+  }),
+  task("app-create-route", "dist/tests/app-create-route-harness.js", "apps-knowledge"),
+  task("app-pack-publish", "dist/tests/app-pack-publish-harness.js", "apps-knowledge"),
+  task("claude-bedrock-env", "dist/tests/claude-bedrock-env-harness.js", "kernels-providers"),
+  task("client-bootstrap", "dist/tests/client-bootstrap-harness.js", "state-storage"),
+  task("diagnostic-bundle-server", "dist/tests/diagnostic-bundle-server-harness.js", "web-desktop"),
+  task("extension-manager", "dist/tests/extension-manager-harness.js", "apps-knowledge"),
+  task(
+    "kernel-capability-contract-evidence",
+    "dist/tests/kernel-capability-contract-evidence-harness.js",
+    "kernels-providers",
+  ),
+  task("kernel-event-contract", "dist/tests/kernel-event-contract-harness.js", "kernels-providers"),
+  task("kernel-login", "dist/tests/kernel-login-harness.js", "kernels-providers"),
+  task("mcp-app", "dist/tests/mcp-app-harness.js", "apps-knowledge"),
+  task("mcp-app-media-cache", "dist/tests/mcp-app-media-cache-harness.js", "apps-knowledge"),
+  task("runtime-environment", "dist/tests/runtime-environment-harness.js", "kernels-providers"),
+  task("withdrawal-route", "dist/tests/withdrawal-route-harness.js", "kernels-providers"),
+
   task("web-remote-agent-ui", "scripts/test-web-remote-agent-ui.mjs", "web-desktop"),
   task("web-mounted-app-group-deletion", "scripts/test-web-mounted-app-group-deletion.mjs", "apps-knowledge"),
   task("web-account-profile-storage", "scripts/test-web-account-profile-storage.mjs", "state-storage"),
@@ -213,6 +235,74 @@ export const harnessInventory = [
   task("raw-file-range", "dist/tests/raw-file-range-harness.js", "web-desktop", { suite: "media-streaming" }),
 ];
 
+// Shared native regressions are executable records, also used by developer aliases.
+export const nativeTasks = [
+  { id: "desktop-cleanup", path: "scripts/test-desktop-rebuildable-cleanup.mjs" },
+  ...[
+    [
+      "windows-discovery",
+      "--test",
+      "dist/tests/codex-windows-discovery.test.js",
+      "dist/tests/windows-discovery-cache.test.js",
+      "dist/tests/windows-command-probe.test.js",
+      "dist/tests/windows-system-terminal.test.js",
+    ],
+    ["windows-archive", "--test", "dist/tests/app-store-archive.test.js"],
+    ["windows-state-lock", "scripts/test-desktop-state-lock-recovery.mjs"],
+    ["windows-state-ownership", "scripts/test-state-ownership.mjs"],
+    ["windows-bridge-supervisor", "scripts/test-bridge-supervisor-lifecycle.mjs"],
+    ["windows-process-start", "scripts/test-process-started-at.mjs"],
+  ].map(([id, path, ...args]) => ({ id, path, args, platforms: ["win32"] })),
+].map((entry) => ({ ...entry, timeoutMs: 300_000 }));
+
+export function nativePlatformTasks(platform) {
+  const ids = new Set([
+    "kernel-login",
+    "state-file-lock",
+    "sqlite-state-store",
+    "desktop-bridge",
+    "app-store",
+    "app-version-activation",
+  ]);
+  return harnessTasksForPlatform(
+    [
+      ...nativeTasks,
+      ...harnessInventory.filter((entry) => entry.suite && !entry.network),
+      ...(platform === "win32" ? harnessInventory.filter((entry) => ids.has(entry.id)) : []),
+    ],
+    platform,
+  ).filter((entry, index, all) => all.findIndex((other) => other.id === entry.id) === index);
+}
+
+// Unknown/shared inputs select every owner. Narrow mappings are only for established boundaries.
+export function affectedHarnesses(paths, includeIntegration) {
+  const owners = new Set(paths.length ? [] : harnessOwners);
+  for (const path of paths) {
+    const direct = harnessInventory.find(
+      (entry) => entry.path === path || entry.path.replace(/^dist\//u, "src/").replace(/\.js$/u, ".ts") === path,
+    );
+    if (direct) {
+      owners.add(direct.owner);
+      continue;
+    }
+    if (/^src\/(?:kernel|runtime)\//u.test(path) || /^docker\/agents\//u.test(path)) owners.add("kernels-providers");
+    else if (/^src\/(?:skills|knowledge|packs)\//u.test(path)) owners.add("apps-knowledge");
+    else if (/^src\/(?:rooms|routines)\//u.test(path) || /^src\/server\/(?:room-|routine-)/u.test(path))
+      owners.add("rooms-routines");
+    else if (/^src\/server\/app-/u.test(path) || path.startsWith("src/app-builder/")) {
+      owners.add("app-lifecycle");
+      owners.add("apps-knowledge");
+    } else if (/^(?:web|desktop|extension)\//u.test(path) || /^scripts\/.*(?:web|desktop)/u.test(path))
+      owners.add("web-desktop");
+    else if (/^docs\/releases\//u.test(path) || path === "CHANGELOG.md" || /release/.test(path))
+      owners.add("release-contracts");
+    else for (const owner of harnessOwners) owners.add(owner);
+  }
+  return harnessInventory.filter(
+    (entry) => !entry.network && (owners.has(entry.owner) || (includeIntegration && entry.suite)),
+  );
+}
+
 validateInventory(harnessInventory);
 
 const deterministicInventory = harnessInventory.filter((task) => !task.network);
@@ -230,7 +320,7 @@ export const harnessGroups = {
 };
 
 function task(id, path, owner, options = {}) {
-  return { id, path, owner, ...options };
+  return { id, path, owner, timeoutMs: 300_000, ...options };
 }
 
 export function harnessTasksForPlatform(tasks, platform) {

@@ -22,10 +22,10 @@ jobs:
       has_platforms: ${{ steps.plan.outputs.has_platforms }}
       has_packages: ${{ steps.plan.outputs.has_packages }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 24
       - name: Validate GitHub Actions definitions
@@ -70,19 +70,22 @@ jobs:
       fail-fast: false
       matrix: ${{ fromJSON(needs.plan.outputs.checks) }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 24
           cache: npm
       - run: npm ci
+        if: matrix.preparation != 'node'
+      - run: npm run build:server
+        if: matrix.preparation == 'server'
       - name: Install browser dependencies for runtime checks
         if: matrix.browser
         run: npx playwright install --with-deps chromium
       - run: ${{ matrix.command }}
-      - name: Upload failed source diagnostics
-        if: failure()
-        uses: actions/upload-artifact@v4
+      - name: Upload test results including retry successes
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: source-${{ matrix.id }}-${{ github.run_attempt }}
           path: test-results/
@@ -98,8 +101,8 @@ jobs:
       fail-fast: false
       matrix: ${{ fromJSON(needs.plan.outputs.platforms) }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 24
           cache: npm
@@ -111,10 +114,12 @@ jobs:
         run: node scripts/run-ci-platform.mjs
       - name: Upload filesystem acceptance
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: storage-cleanup-${{ matrix.platform }}-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/storage-cleanup-receipt.json
+          path: |
+            ${{ runner.temp }}/storage-cleanup-receipt.json
+            test-results/ci/
           if-no-files-found: ignore
 
   packages:
@@ -129,12 +134,12 @@ jobs:
     env:
       CSC_IDENTITY_AUTO_DISCOVERY: 'false'
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 24
           cache: npm
-      - uses: actions/cache@v4
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: |
             ~/Library/Caches/electron
@@ -149,7 +154,7 @@ jobs:
         run: node scripts/run-ci-desktop-package.mjs --target ${{ matrix.target }}
       - name: Upload package diagnostics
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: desktop-ci-${{ matrix.target }}-${{ github.run_attempt }}
           path: |
@@ -163,8 +168,8 @@ jobs:
     needs: [plan, checks, platforms, packages]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 24
       - name: Verify actual execution matches the plan

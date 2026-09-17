@@ -11,32 +11,40 @@ import {
 } from "./real-agent-ci.mjs";
 const required = [
   {
+    case: "pi",
+    provider: { kind: "deepseek", protocol: "openai-completions", model: "deepseek-flash", configRevision: "1" },
     kernel: "pi",
     runtime_mode: "sdk",
     kernel_version: "0.85.1",
     capabilities: ["turn.lifecycle", "session.lifecycle"],
   },
 ];
-const missing = planRealAgents(required, {});
+const planContext = { inputDigest: "a".repeat(64) };
+const missing = planRealAgents(required, {}, planContext);
 assert.equal(missing.matrix.include.length, 0);
 assert.deepEqual(missing.unconfigured, ["pi"]);
-assert.equal(summarizeRealAgentCoverage(required, []).ready, false);
+assert.equal(summarizeRealAgentCoverage(missing, []).ready, false);
 const image = `ghcr.io/open-grove/pi@sha256:${"a".repeat(64)}`;
-const plan = planRealAgents(required, { pi: { image } });
+const plan = planRealAgents(required, { pi: { image } }, planContext);
 assert.equal(plan.matrix.include[0].capabilities, "turn.lifecycle,session.lifecycle");
-assert.throws(() => planRealAgents(required, { pi: { image: "ghcr.io/open-grove/pi:latest" } }), /digest/);
+assert.throws(() => planRealAgents(required, { pi: { image: "ghcr.io/open-grove/pi:latest" } }, planContext), /digest/);
 const pass = {
+  schemaVersion: 2,
+  case: "pi",
+  image,
+  provider: plan.matrix.include[0].provider,
+  fingerprint: plan.matrix.include[0].fingerprint,
   kernel: "pi",
   runtimeMode: "sdk",
   kernelVersion: "0.85.1",
   capabilities: ["turn.lifecycle", "session.lifecycle"],
   passed: true,
 };
-assert.equal(summarizeRealAgentCoverage(required, [pass]).ready, true);
-assert.equal(summarizeRealAgentCoverage(required, [{ ...pass, capabilities: ["turn.lifecycle"] }]).ready, false);
-assert.equal(summarizeRealAgentCoverage(required, [{ ...pass, passed: false }]).ready, false);
-assert.equal(summarizeRealAgentCoverage(required, [{ ...pass, runtimeMode: "cli" }]).ready, false);
-assert.throws(() => summarizeRealAgentCoverage(required, [pass, pass]), /duplicate/);
+assert.equal(summarizeRealAgentCoverage(plan, [pass]).ready, true);
+assert.equal(summarizeRealAgentCoverage(plan, [{ ...pass, capabilities: ["turn.lifecycle"] }]).ready, false);
+assert.equal(summarizeRealAgentCoverage(plan, [{ ...pass, passed: false }]).ready, false);
+assert.equal(summarizeRealAgentCoverage(plan, [{ ...pass, runtimeMode: "cli" }]).ready, false);
+assert.throws(() => summarizeRealAgentCoverage(plan, [pass, pass]), /duplicate/);
 const inventory = readRealAgentRequirements();
 assert.equal(inventory.length, 7);
 assert.equal(
@@ -135,6 +143,7 @@ try {
   const env = {
     ...process.env,
     RUNNER_TEMP: caseRoot,
+    CI_CASE_PLAN: JSON.stringify({ ...plan.matrix.include[0], capabilities: "turn.lifecycle" }),
     CI_KERNEL: "pi",
     CI_RUNTIME_MODE: "sdk",
     CI_KERNEL_VERSION: "0.85.1",
@@ -161,8 +170,24 @@ try {
   assert.equal(selectRealAgentCases([receipt], { ...context, now: new Date() })[0].capabilities[0], "turn.lifecycle");
   writeFileSync(stub, probeProgram("failed"));
   assert.notEqual(invokeCase().status, 0);
-  assert.equal(existsSync(receiptPath), false, "a failed probe must never publish a previous successful case receipt");
+  assert.equal(
+    JSON.parse(readFileSync(receiptPath, "utf8")).passed,
+    false,
+    "failed diagnostics must supersede any earlier success",
+  );
   assert.equal(existsSync(join(caseRoot, "real-agent-case/deepseek")), false);
 } finally {
   rmSync(caseRoot, { recursive: true, force: true });
 }
+
+for (const change of [
+  { kernelVersion: "wrong" },
+  { image: `ghcr.io/open-grove/pi@sha256:${"b".repeat(64)}` },
+  { fingerprint: "wrong" },
+  { provider: { ...pass.provider, model: "deepseek-other" } },
+])
+  assert.equal(summarizeRealAgentCoverage(plan, [{ ...pass, ...change }]).ready, false);
+assert.notEqual(
+  plan.planDigest,
+  planRealAgents(required, { pi: { image, configRevision: "2" } }, planContext).planDigest,
+);

@@ -1,0 +1,190 @@
+{
+  "schemaVersion": 1,
+  "policyVersion": 1,
+  "maxAgeHours": 24,
+  "cases": [
+    {
+      "kernel": "claude-code",
+      "runtime_mode": "sdk",
+      "kernel_version": "2.1.263 (Claude Code)",
+      "capabilities": [
+        "approval.request",
+        "budget.limit",
+        "control.stop",
+        "diagnostics.usage",
+        "interaction.askUser",
+        "message.streamText",
+        "sandbox.policy",
+        "session.lifecycle",
+        "tools.hostTool",
+        "tools.mcpServers",
+        "tools.nativeTool",
+        "turn.lifecycle",
+        "media.input",
+        "session.compact",
+        "reasoning.nativeText"
+      ],
+      "case": "claude-code",
+      "provider": {
+        "kind": "deepseek",
+        "protocol": "anthropic",
+        "model": "deepseek-flash",
+        "configRevision": "1"
+      }
+    },
+    {
+      "kernel": "codex",
+      "runtime_mode": "sdk",
+      "kernel_version": "codex-cli 0.154.0-alpha.6.2",
+      "capabilities": [
+        "approval.request",
+        "control.stop",
+        "diagnostics.usage",
+        "interaction.askUser",
+        "message.streamText",
+        "output.artifacts",
+        "planning.plan",
+        "sandbox.policy",
+        "session.lifecycle",
+        "tools.hostTool",
+        "tools.nativeTool",
+        "turn.lifecycle",
+        "session.compact",
+        "media.input",
+        "output.structured",
+        "response.speed",
+        "control.steer",
+        "session.goal",
+        "reasoning.summary"
+      ],
+      "case": "codex",
+      "provider": {
+        "kind": "deepseek",
+        "protocol": "openai-responses",
+        "model": "deepseek-flash",
+        "configRevision": "1"
+      }
+    },
+    {
+      "kernel": "hermes",
+      "runtime_mode": "acp",
+      "kernel_version": "Hermes Agent v0.21.1 (2026.9.7) · upstream 5eb99eb2 · local 2237be35 (+30500 carried commits)",
+      "capabilities": [
+        "tools.nativeTool",
+        "approval.request",
+        "interaction.askUser",
+        "session.lifecycle",
+        "session.compact",
+        "control.stop",
+        "message.streamText",
+        "turn.lifecycle",
+        "diagnostics.usage",
+        "reasoning.nativeText"
+      ],
+      "case": "hermes",
+      "provider": {
+        "kind": "deepseek",
+        "protocol": "openai-completions",
+        "model": "deepseek-flash",
+        "configRevision": "1"
+      }
+    },
+    {
+      "kernel": "kimi",
+      "runtime_mode": "acp",
+      "kernel_version": "0.41.0",
+      "capabilities": [
+        "approval.request",
+        "control.stop",
+        "message.streamText",
+        "session.lifecycle",
+        "tool.progress",
+        "tools.nativeTool",
+        "turn.lifecycle",
+        "media.input",
+        "session.compact",
+        "reasoning.nativeText",
+        "tools.hostTool",
+        "tools.mcpServers"
+      ],
+      "case": "kimi",
+      "provider": {
+        "kind": "deepseek",
+        "protocol": "openai-completions",
+        "model": "deepseek-flash",
+        "configRevision": "1"
+      }
+    },
+    {
+      "kernel": "openclaw",
+      "runtime_mode": "gateway",
+      "kernel_version": "2026.9.2",
+      "capabilities": [
+        "control.stop",
+        "message.streamText",
+        "session.lifecycle",
+        "turn.lifecycle",
+        "session.compact",
+        "diagnostics.usage"
+      ],
+      "case": "openclaw",
+      "provider": {
+        "kind": "deepseek",
+        "protocol": "openai-completions",
+        "model": "deepseek-flash",
+        "configRevision": "1"
+      }
+    },
+    {
+      "kernel": "opencode",
+      "runtime_mode": "acp",
+      "kernel_version": "1.18.29",
+      "capabilities": [
+        "approval.request",
+        "control.stop",
+        "session.lifecycle",
+        "tool.progress",
+        "turn.lifecycle",
+        "session.compact",
+        "message.streamText",
+        "diagnostics.usage",
+        "tools.nativeTool",
+        "planning.plan",
+        "media.input",
+        "reasoning.nativeText"
+      ],
+      "case": "opencode",
+      "provider": {
+        "kind": "deepseek",
+        "protocol": "openai-completions",
+        "model": "deepseek-flash",
+        "configRevision": "1"
+      }
+    },
+    {
+      "kernel": "pi",
+      "runtime_mode": "sdk",
+      "kernel_version": "0.85.1",
+      "capabilities": [
+        "tools.hostTool",
+        "approval.request",
+        "control.stop",
+        "tools.parallelCalls",
+        "turn.lifecycle",
+        "media.input",
+        "session.compact",
+        "diagnostics.usage",
+        "reasoning.nativeText",
+        "tool.progress",
+        "tools.nativeTool"
+      ],
+      "case": "pi",
+      "provider": {
+        "kind": "deepseek",
+        "protocol": "openai-completions",
+        "model": "deepseek-flash",
+        "configRevision": "1"
+      }
+    }
+  ]
+}

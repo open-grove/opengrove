@@ -1,5 +1,4 @@
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
 import { readFileSync, readdirSync } from "node:fs";
 import { resolve } from "node:path";
 import { load } from "js-yaml";
@@ -51,6 +50,9 @@ assert.deepEqual(nightly.on.schedule, [{ cron: "0 2,14 * * *" }]);
 for (const file of readdirSync(resolve(root, ".github/workflows")).filter((file) => /\.ya?ml$/.test(file))) {
   const value = workflow(file);
   for (const [id, job] of Object.entries(value.jobs)) {
+    for (const step of job.steps ?? [])
+      if (step.uses && !step.uses.startsWith("./"))
+        assert.match(step.uses, /@[a-f0-9]{40}$/u, `${file}: external actions must have immutable commits`);
     for (const dependency of typeof job.needs === "string" ? [job.needs] : (job.needs ?? [])) {
       assert.ok(value.jobs[dependency], `${file}: ${id} depends on missing ${dependency}`);
       assert.notEqual(id, dependency);
@@ -69,17 +71,21 @@ assert.equal(
 );
 assert.ok(!nightly.jobs.harness && !nightly.jobs["browser-ui"] && !nightly.jobs["web-package"]);
 const live = workflow("real-agent-smoke.yml");
-const providerSetup = live.jobs.smoke.steps.find((step) => step.env?.CI_DEEPSEEK_API_KEY);
-assert.ok(providerSetup);
+const probeStep = live.jobs.smoke.steps.find((step) => step.env?.CI_CASE_PLAN);
+assert.ok(probeStep);
 assert.equal(live.jobs.smoke.environment, "opengrove-real-agent-test");
-for (const kernel of ["claude-code", "opencode", "pi", "codex", "kimi", "hermes", "openclaw"]) {
-  const bootstrap = spawnSync("bash", ["-c", providerSetup.run], {
-    env: { PATH: process.env.PATH, KERNEL: kernel, CI_DEEPSEEK_API_KEY: "test-only-deepseek-key" },
-    encoding: "utf8",
-  });
-  assert.equal(bootstrap.status, 0, `${kernel}: DeepSeek must not require Cloudflare credentials`);
-  assert.equal(`${bootstrap.stdout}${bootstrap.stderr}`.includes("test-only-deepseek-key"), false);
-}
+assert.ok(probeStep.env.DEEPSEEK_API_KEY);
+assert.ok(
+  !probeStep.env.CI_RUNTIME_ENVIRONMENTS,
+  "certification must execute the resolved profile without hidden overrides",
+);
+assert.ok(
+  nightly.jobs.result.steps.some((step) => step.run?.includes("real-agent-ci.mjs summarize")),
+  "the final Nightly job must reissue evidence after a partial rerun",
+);
+assert.ok(nightly.jobs.result.steps.some((step) => step.with?.name?.startsWith("nightly-release-evidence-")));
+assert.equal(shared.jobs.checks.steps.find((step) => step.run === "npm ci").if, "matrix.preparation != 'node'");
+assert.equal(shared.jobs.checks.steps.find((step) => step.uses?.startsWith("actions/upload-artifact@")).if, "always()");
 assert.ok(live.jobs.coverage.steps.some((step) => step.run?.includes("real-agent-ci.mjs summarize")));
 assert.ok(
   !live.on.push && !live.on.pull_request,

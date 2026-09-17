@@ -8,6 +8,22 @@ assert.deepEqual(
 );
 assert.deepEqual(docs.platforms, []);
 assert.deepEqual(docs.packages, []);
+assert.equal(docs.checks[0].preparation, "node", "documentation must not install or build the application");
+const skill = createCiCheckPlan("pull_request", ["src/skills/bundled/opengrove-developer-mode-guard/SKILL.md"]);
+assert.ok(
+  skill.checks.some((check) => check.id === "integration"),
+  "runtime Markdown must select product tests",
+);
+for (const [path, task] of [
+  ["src/runtime/hermes-runtime.ts", "hermes-runtime"],
+  ["src/runtime/claude-agent-sdk-runtime.ts", "claude-agent-sdk-runtime"],
+  ["src/runtime/openclaw-gateway-runtime.ts", "openclaw-gateway-runtime"],
+]) {
+  const plan = createCiCheckPlan("pull_request", [path]);
+  const tasks = plan.checks.flatMap((check) => check.tasks ?? []);
+  assert.ok(tasks.includes(task), `${path} must run its dedicated harness before merge`);
+  assert.equal(new Set(tasks).size, tasks.length, "the Linux execution plan must not duplicate harnesses");
+}
 
 for (const event of ["push", "workflow_dispatch"]) {
   const main = createCiCheckPlan(event, []);

@@ -44,8 +44,9 @@ must already be complete before starting the pipeline.
 The pipeline derives the version and client release number from that SHA, records
 child run IDs immediately, and uploads `release-progress-<run-id>-<attempt>` even
 when a stage fails. To resume, dispatch it with the same SHA and the original
-`resume_run_id`, explicitly selecting the newly authorized endpoint. It verifies
-existing child workflow identities and conclusions and reuses successful runs.
+`resume_run_id`, explicitly selecting the newly authorized endpoint. It first loads the latest persisted progress and verifies its candidate SHA,
+version and release number. Separate pipeline runs use the same identity for the
+same candidate. It then verifies existing child workflow identities and conclusions and reuses successful runs.
 A failed child is not automatically redispatched: fix the cause, rerun that child
 when appropriate, then resume. Ambiguous identities fail closed. Each stage keeps
 its existing environment, permissions, exact-byte checks and remote verification.

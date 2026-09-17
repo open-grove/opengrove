@@ -86,7 +86,7 @@ assert.match(
   /public-release-bootstrap\.mjs/,
 );
 
-const cacheStep = jobs["mac-release"].steps.find((step) => step.uses === "actions/cache@v4");
+const cacheStep = jobs["mac-release"].steps.find((step) => step.uses?.startsWith("actions/cache@"));
 assert.ok(cacheStep, "macOS release jobs must cache Electron downloads");
 assert.match(cacheStep.with.path, /Library\/Caches\/electron(?:\n|$)/);
 assert.match(cacheStep.with.path, /Library\/Caches\/electron-builder/);

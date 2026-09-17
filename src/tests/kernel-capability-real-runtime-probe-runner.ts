@@ -228,113 +228,129 @@ async function runKernelCapabilityProbes(
     return promise;
   };
 
-  for (const capability of options.capabilities) {
-    const mapping = contract?.mappings.find((item) => item.capability === capability);
-    const testId = mapping?.expectedContractTest ?? `${kernel}.${capability}`;
-    const marker = createMarker(testId);
-    const emptyBase = {
-      kernel,
-      verification: "real_runtime" as const,
-      checkedAt: checkedAtValue,
-      ...(hostVersion ? { hostVersion } : {}),
-      marker,
-      provider: { kind: "unknown" as const },
-    };
+  try {
+    for (const capability of options.capabilities) {
+      const mapping = contract?.mappings.find((item) => item.capability === capability);
+      const testId = mapping?.expectedContractTest ?? `${kernel}.${capability}`;
+      const marker = createMarker(testId);
+      const emptyBase = {
+        kernel,
+        verification: "real_runtime" as const,
+        checkedAt: checkedAtValue,
+        ...(hostVersion ? { hostVersion } : {}),
+        marker,
+        provider: { kind: "unknown" as const },
+      };
 
-    if (!mapping) {
-      records.push(skippedProbe(emptyBase, capability, testId, "no_contract_mapping"));
-      continue;
-    }
+      if (!mapping) {
+        records.push(skippedProbe(emptyBase, capability, testId, "no_contract_mapping"));
+        continue;
+      }
 
-    if (!CERTIFIABLE_MAPPING_STATUSES.has(mapping.status)) {
-      records.push(skippedProbe(emptyBase, capability, testId, `contract_${mapping.status}`));
-      continue;
-    }
+      if (!CERTIFIABLE_MAPPING_STATUSES.has(mapping.status)) {
+        records.push(skippedProbe(emptyBase, capability, testId, `contract_${mapping.status}`));
+        continue;
+      }
 
-    if (kernel === "codex" && capability === "auth.refresh" && probeProvider(options)) {
-      records.push(
-        skippedProbe(
-          emptyBase,
+      if (kernel === "codex" && capability === "auth.refresh" && probeProvider(options)) {
+        records.push(
+          skippedProbe(
+            emptyBase,
+            capability,
+            testId,
+            "Codex ChatGPT auth.refresh requires a native account; an external model API key does not verify it.",
+          ),
+        );
+        continue;
+      }
+
+      if (!mapping.expectedContractTest) {
+        records.push(skippedProbe(emptyBase, capability, testId, "no_contract_test_declared"));
+        continue;
+      }
+
+      const kind = probeKindForCapability(kernel, capability);
+      if (!kind) {
+        records.push(failedProbe(emptyBase, capability, testId, "no_real_runtime_probe_implemented"));
+        continue;
+      }
+
+      let result: ProbeCaseResult;
+      try {
+        result = await getCase(kind);
+      } catch (error) {
+        // Raw command errors can include private paths or provider output. Keep a
+        // failed domain result so one setup failure cannot discard other evidence.
+        const code = error instanceof Error && "code" in error ? error.code : undefined;
+        const category =
+          typeof code === "number"
+            ? `exit_${code}`
+            : ["ENOENT", "ETIMEDOUT", "EACCES"].includes(String(code))
+              ? String(code)
+              : "initialization_failed";
+        records.push({ ...failedProbe(emptyBase, capability, testId, "probe_case_failed"), error: category });
+        continue;
+      }
+      const base = {
+        kernel,
+        verification: "real_runtime" as const,
+        checkedAt: checkedAtValue,
+        ...(hostVersion ? { hostVersion } : {}),
+        ...(result.resolution.kernelVersion ? { kernelVersion: result.resolution.kernelVersion } : {}),
+        ...(result.resolution.runtimeMode ? { runtimeMode: result.resolution.runtimeMode } : {}),
+        marker: result.case.marker,
+        provider: providerMetadata(result.resolution),
+        command: evidenceCommand(result.resolution.command),
+      };
+
+      if (result.skippedReason || !result.collected) {
+        records.push(skippedProbe(base, capability, testId, result.skippedReason ?? "probe_case_unavailable"));
+        continue;
+      }
+
+      const events = summarizeEvents(result.collected.events, result.collected.steer, result.collected.compact);
+      const outcome = evaluateCapabilityProbe({
+        kernel,
+        capability,
+        kind,
+        result,
+        events,
+      });
+      const common = {
+        ...base,
+        durationMs: result.collected.durationMs,
+        timedOut: result.collected.timedOut,
+        aborted: result.collected.aborted,
+        events,
+        responsePreview: responsePreview(result.collected.events),
+        error: result.collected.error,
+      };
+      const providerUnavailable = providerUnavailableReason(outcome.reason);
+      if (!outcome.passed && providerUnavailable) {
+        records.push({
+          id: testId,
           capability,
           testId,
-          "Codex ChatGPT auth.refresh requires a native account; an external model API key does not verify it.",
-        ),
-      );
-      continue;
-    }
-
-    if (!mapping.expectedContractTest) {
-      records.push(skippedProbe(emptyBase, capability, testId, "no_contract_test_declared"));
-      continue;
-    }
-
-    const kind = probeKindForCapability(kernel, capability);
-    if (!kind) {
-      records.push(failedProbe(emptyBase, capability, testId, "no_real_runtime_probe_implemented"));
-      continue;
-    }
-
-    const result = await getCase(kind);
-    const base = {
-      kernel,
-      verification: "real_runtime" as const,
-      checkedAt: checkedAtValue,
-      ...(hostVersion ? { hostVersion } : {}),
-      ...(result.resolution.kernelVersion ? { kernelVersion: result.resolution.kernelVersion } : {}),
-      ...(result.resolution.runtimeMode ? { runtimeMode: result.resolution.runtimeMode } : {}),
-      marker: result.case.marker,
-      provider: providerMetadata(result.resolution),
-      command: evidenceCommand(result.resolution.command),
-    };
-
-    if (result.skippedReason || !result.collected) {
-      records.push(skippedProbe(base, capability, testId, result.skippedReason ?? "probe_case_unavailable"));
-      continue;
-    }
-
-    const events = summarizeEvents(result.collected.events, result.collected.steer, result.collected.compact);
-    const outcome = evaluateCapabilityProbe({
-      kernel,
-      capability,
-      kind,
-      result,
-      events,
-    });
-    const common = {
-      ...base,
-      durationMs: result.collected.durationMs,
-      timedOut: result.collected.timedOut,
-      aborted: result.collected.aborted,
-      events,
-      responsePreview: responsePreview(result.collected.events),
-      error: result.collected.error,
-    };
-    const providerUnavailable = providerUnavailableReason(outcome.reason);
-    if (!outcome.passed && providerUnavailable) {
+          status: "skipped",
+          ...common,
+          reason: `provider_unavailable: ${providerUnavailable}`,
+        });
+        continue;
+      }
       records.push({
         id: testId,
         capability,
         testId,
-        status: "skipped",
+        status: outcome.passed ? "passed" : "failed",
         ...common,
-        reason: `provider_unavailable: ${providerUnavailable}`,
+        ...(outcome.reason ? { reason: outcome.reason } : {}),
       });
-      continue;
     }
-    records.push({
-      id: testId,
-      capability,
-      testId,
-      status: outcome.passed ? "passed" : "failed",
-      ...common,
-      ...(outcome.reason ? { reason: outcome.reason } : {}),
-    });
+  } finally {
+    for (const result of await Promise.allSettled(caseCache.values())) {
+      if (result.status === "fulfilled") cleanupProbeCase(result.value.case);
+    }
   }
-
-  for (const result of await Promise.all(caseCache.values())) {
-    cleanupProbeCase(result.case);
-  }
-
   return records;
 }
 
@@ -344,53 +360,64 @@ async function runProbeCase(
   options: RunnerOptions,
 ): Promise<ProbeCaseResult> {
   const probeCase = createProbeCase(kind, kernel, options);
-  const resolution = await createAgentAdapter(kernel, options, probeCase);
-  if (!resolution.adapter) {
+  let resolution: AdapterResolution | undefined;
+  try {
+    resolution = await createAgentAdapter(kernel, options, probeCase);
+    if (!resolution.adapter) {
+      return {
+        kind,
+        case: probeCase,
+        resolution,
+        skippedReason: resolution.skippedReason ?? "adapter_unavailable",
+      };
+    }
+
+    const health = await resolution.adapter.healthCheck().catch((error: unknown) => ({
+      status: "unavailable" as const,
+      message: error instanceof Error ? error.message : String(error),
+    }));
+    if (health.status !== "ok") {
+      return {
+        kind,
+        case: probeCase,
+        resolution,
+        skippedReason: health.message || `kernel_health_${health.status}`,
+      };
+    }
+
+    resolution.runtimeMode = resolution.adapter.contract.labels.integrationMode;
+    const discovery = await resolution.adapter.discover?.().catch(() => undefined);
+    resolution.kernelVersion =
+      resolution.kernelVersion ??
+      discovery?.version ??
+      (kernel === "pi" ? readDependencyVersion("@earendil-works/pi-agent-core") : undefined);
+
+    const runtime = createKernelRuntime(resolution.adapter);
+    const collected = await collectProbeTurn({
+      runtime,
+      probeCase,
+      kernel,
+      options,
+      requestedModelId: isExternalProbeProvider(resolution.providerKind) ? options.model : undefined,
+    });
+
     return {
       kind,
       case: probeCase,
       resolution,
-      skippedReason: resolution.skippedReason ?? "adapter_unavailable",
+      collected,
     };
+  } catch (error) {
+    cleanupProbeCase(probeCase);
+    throw error;
+  } finally {
+    try {
+      await resolution?.adapter?.dispose?.();
+    } catch (error) {
+      cleanupProbeCase(probeCase);
+      throw error;
+    }
   }
-
-  const health = await resolution.adapter.healthCheck().catch((error: unknown) => ({
-    status: "unavailable" as const,
-    message: error instanceof Error ? error.message : String(error),
-  }));
-  if (health.status !== "ok") {
-    await resolution.adapter.dispose?.();
-    return {
-      kind,
-      case: probeCase,
-      resolution,
-      skippedReason: health.message || `kernel_health_${health.status}`,
-    };
-  }
-
-  resolution.runtimeMode = resolution.adapter.contract.labels.integrationMode;
-  const discovery = await resolution.adapter.discover?.().catch(() => undefined);
-  resolution.kernelVersion =
-    resolution.kernelVersion ??
-    discovery?.version ??
-    (kernel === "pi" ? readDependencyVersion("@earendil-works/pi-agent-core") : undefined);
-
-  const runtime = createKernelRuntime(resolution.adapter);
-  const collected = await collectProbeTurn({
-    runtime,
-    probeCase,
-    kernel,
-    options,
-    requestedModelId: isExternalProbeProvider(resolution.providerKind) ? options.model : undefined,
-  });
-  await resolution.adapter.dispose?.();
-
-  return {
-    kind,
-    case: probeCase,
-    resolution,
-    collected,
-  };
 }
 
 async function createAgentAdapter(
@@ -451,6 +478,7 @@ async function createAgentAdapter(
       return { providerKind, skippedReason: "Hermes CLI command was not found." };
     }
     const providerConfig = hermesProviderConfigForKernel(provider, options.model);
+    const kernelVersion = await probeRealRuntimeVersion(command);
     return {
       adapter: createHermesKernelAdapter({
         command,
@@ -464,7 +492,7 @@ async function createAgentAdapter(
       providerBaseUrl,
       providerModel: isExternalProbeProvider(providerKind) ? options.model : undefined,
       command,
-      kernelVersion: await probeRealRuntimeVersion(command),
+      kernelVersion,
     };
   }
 
@@ -507,6 +535,7 @@ async function createAgentAdapter(
     if (!command) {
       return { providerKind, skippedReason: "OpenCode CLI command was not found." };
     }
+    const kernelVersion = await probeRealRuntimeVersion(command);
     return {
       adapter: createOpenCodeKernelAdapter({
         command,
@@ -518,7 +547,7 @@ async function createAgentAdapter(
       providerBaseUrl,
       providerModel: isExternalProbeProvider(providerKind) ? options.model : undefined,
       command,
-      kernelVersion: await probeRealRuntimeVersion(command),
+      kernelVersion,
     };
   }
 
@@ -527,6 +556,7 @@ async function createAgentAdapter(
     if (!command) {
       return { providerKind, skippedReason: "Kimi Code CLI command was not found." };
     }
+    const kernelVersion = await probeRealRuntimeVersion(command);
     return {
       adapter: createKimiKernelAdapter({
         command,
@@ -538,7 +568,7 @@ async function createAgentAdapter(
       providerBaseUrl,
       providerModel: isExternalProbeProvider(providerKind) ? options.model : undefined,
       command,
-      kernelVersion: await probeRealRuntimeVersion(command),
+      kernelVersion,
     };
   }
 
@@ -2480,8 +2510,10 @@ function cleanupProbeCase(probeCase: ProbeCase): void {
       if (basename(parent) === ".opengrove-real-runtime-probes") {
         rmdirSync(parent);
       }
-    } catch {
-      // Best-effort cleanup only; evidence has already captured the probe result.
+    } catch (error) {
+      // A sibling case may still own the parent directory.
+      const code = error instanceof Error && "code" in error ? String(error.code) : "cleanup_failed";
+      if (code !== "ENOENT" && code !== "ENOTEMPTY") console.warn(`[probe-cleanup] ${code}`);
     }
   }
 }

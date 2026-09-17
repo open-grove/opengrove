@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -70,12 +70,12 @@ assert.equal(
 );
 
 const expectedFullGroupSizes = {
-  "state-storage": 10,
+  "state-storage": 11,
   "rooms-routines": 23,
-  "apps-knowledge": 16,
+  "apps-knowledge": 21,
   "app-lifecycle": 21,
-  "kernels-providers": 29,
-  "web-desktop": 19,
+  "kernels-providers": 36,
+  "web-desktop": 20,
   "release-contracts": 1,
 };
 const groupSetupCommands = {
@@ -103,7 +103,7 @@ for (const [groupName, expectedSize] of Object.entries(expectedFullGroupSizes)) 
   groupedLabels.push(...harnessGroups[groupName].map((task) => task.id));
 }
 
-assert.equal(harnessInventory.length, 120, "the canonical deterministic harness inventory must not shrink silently");
+assert.equal(harnessInventory.length, 134, "the canonical deterministic harness inventory must not shrink silently");
 assert.deepEqual(
   harnessGroups.full,
   harnessInventory.filter((task) => !task.network),
@@ -114,10 +114,10 @@ assert.equal(
   harnessInventory.length,
   "every harness id must be unique",
 );
-assert.equal(harnessGroups.integration.length, 41, "the affected-integration subset must not shrink silently");
+assert.equal(harnessGroups.integration.length, 42, "the affected-integration subset must not shrink silently");
 assert.equal(
   new Set(harnessGroups.integration.map((task) => task.id)).size,
-  41,
+  42,
   "the integration subset must not execute a canonical harness twice",
 );
 assert.equal(new Set(groupedLabels).size, groupedLabels.length, "a full harness must have exactly one owner group");
@@ -153,7 +153,7 @@ assert.deepEqual(
 );
 
 const windowsTasks = harnessTasksForPlatform(harnessGroups.integration, "win32");
-assert.equal(windowsTasks.length, 38);
+assert.equal(windowsTasks.length, 39);
 assert.ok(windowsTasks.some((task) => task.id === "app-release-windows-build-boundary"));
 assert.deepEqual(
   harnessGroups.integration.filter((task) => !windowsTasks.includes(task)).map((task) => task.id),
@@ -161,7 +161,7 @@ assert.deepEqual(
 );
 for (const platform of ["darwin", "linux"]) {
   const selected = harnessTasksForPlatform(harnessGroups.integration, platform);
-  assert.equal(selected.length, 40);
+  assert.equal(selected.length, 41);
   assert.deepEqual(
     harnessGroups.integration.filter((task) => !selected.includes(task)).map((task) => task.id),
     ["app-release-windows-build-boundary"],
@@ -171,7 +171,8 @@ for (const platform of ["darwin", "linux"]) {
 for (const task of harnessGroups.full) {
   assert.deepEqual(
     Object.keys(task).filter(
-      (field) => !["id", "path", "owner", "suite", "isolation", "platforms", "network"].includes(field),
+      (field) =>
+        !["id", "path", "owner", "suite", "isolation", "platforms", "network", "timeoutMs", "build"].includes(field),
     ),
     [],
     `${task.id} should use only the reviewed, non-redundant inventory fields`,
@@ -194,3 +195,13 @@ assert.ok(
   "desktop process checks belong to the desktop contract owner",
 );
 assert.ok(packageJson.scripts["check:desktop-dev-runtime"].includes("scripts/test-desktop-dev-processes.mjs"));
+
+for (const file of readdirSync(resolve(projectRoot, "src/tests")).filter((file) => file.endsWith("-harness.ts"))) {
+  const path = `dist/tests/${file.replace(/\.ts$/u, ".js")}`;
+  assert.ok(
+    harnessInventory.some((task) => task.path === path),
+    `${file} has no CI owner`,
+  );
+}
+const executionKeys = harnessGroups.full.map((task) => `${task.path}:${task.isolation ?? "default"}`);
+assert.equal(new Set(executionKeys).size, executionKeys.length, "same-environment harnesses must have one owner");

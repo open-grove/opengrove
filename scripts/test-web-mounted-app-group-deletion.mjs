@@ -100,7 +100,6 @@ async function runBrowserHarness(path) {
         member: {
           id: "member-app-story-seed-editor",
           name: "金牌编辑",
-          displayName: "Lead Editor",
           kernel: "codex",
           model: "gpt-5",
           role: "审核大纲",

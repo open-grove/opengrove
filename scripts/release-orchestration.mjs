@@ -1,6 +1,8 @@
 import { execFileSync } from "node:child_process";
-import { appendFileSync, mkdirSync, writeFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { appendFileSync, mkdirSync, writeFileSync, readFileSync, mkdtempSync, rmSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { tmpdir } from "node:os";
+import { dirname, resolve, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { setTimeout } from "node:timers/promises";
 
@@ -11,6 +13,80 @@ const workflows = {
   register: "desktop-release-deploy.yml",
   promote: "desktop-release-control.yml",
 };
+
+export function releaseIdentity({ commit, tag, clientReleaseNumber }) {
+  return createHash("sha256").update(JSON.stringify({ commit, tag, clientReleaseNumber })).digest("hex").slice(0, 24);
+}
+export function restoreReleaseProgress(state, saved) {
+  if (
+    saved.schemaVersion !== 2 ||
+    ["id", "commit", "tag", "clientReleaseNumber"].some((key) => saved[key] !== state[key]) ||
+    !saved.stages ||
+    Object.keys(saved.stages).some((stage) => !stages.includes(stage))
+  )
+    throw new Error("Saved release progress identity mismatch");
+  for (const entry of Object.values(saved.stages))
+    if (!Number.isSafeInteger(entry.runId) || entry.runId <= 0) throw new Error("Saved child run identity is invalid");
+  // The current invocation supplies authorization; an old receipt cannot expand it.
+  state.stages = saved.stages;
+  return state;
+}
+export function githubWorkflowApi(repository, invoke = execFileSync) {
+  return (path, payload) =>
+    JSON.parse(
+      invoke(
+        "gh",
+        [
+          "api",
+          `repos/${repository}/${path}`,
+          "-H",
+          "X-GitHub-Api-Version: 2026-03-10",
+          ...(payload ? ["--method", "POST", "--input", "-"] : []),
+        ],
+        {
+          input: payload ? JSON.stringify(payload) : undefined,
+          encoding: "utf8",
+          timeout: 60_000,
+          maxBuffer: 16 * 1024 * 1024,
+          stdio: ["pipe", "pipe", "inherit"],
+        },
+      ),
+    );
+}
+export function dispatchReleaseStage(name, state, api) {
+  const common = { orchestration_id: state.id, orchestration_tag: state.tag };
+  const inputs =
+    name === "candidate"
+      ? { ...common, ref: state.commit, platforms: "all", first_public_release: false }
+      : name === "promote"
+        ? { ...common, action: "promote", client_release_number: String(state.clientReleaseNumber) }
+        : { ...common, candidate_run_id: String(state.stages.candidate.runId), tag: state.tag };
+  const response = api(`actions/workflows/${workflows[name]}/dispatches`, { ref: "main", inputs });
+  if (!Number.isSafeInteger(response.workflow_run_id) || response.workflow_run_id <= 0)
+    throw new Error("Dispatch acknowledgement has no run identity; recover before retrying");
+  return response;
+}
+function readProgressArtifact(repository, runId, api) {
+  const artifacts = [];
+  for (let page = 1; ; page++) {
+    const values = api(`actions/runs/${runId}/artifacts?per_page=100&page=${page}`).artifacts;
+    artifacts.push(...values.filter((entry) => !entry.expired && entry.name.startsWith(`release-progress-${runId}-`)));
+    if (values.length < 100) break;
+  }
+  const artifact = artifacts.sort((a, b) => b.id - a.id)[0];
+  if (!artifact) return null; // A dispatch may finish before the first progress upload.
+  const directory = mkdtempSync(join(tmpdir(), "opengrove-release-progress-"));
+  try {
+    execFileSync(
+      "gh",
+      ["run", "download", String(runId), "--repo", repository, "--name", artifact.name, "--dir", directory],
+      { stdio: "inherit", timeout: 60_000 },
+    );
+    return JSON.parse(readFileSync(join(directory, "release-progress.json"), "utf8"));
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+}
 function title(state, stage) {
   return `OpenGrove ${state.tag} / ${stage} [${state.id}]`;
 }
@@ -76,26 +152,7 @@ async function main() {
     !stages.includes(stopAfter)
   )
     throw new Error("A repository, exact candidate SHA, valid run ID and explicit stop stage are required");
-  const api = (path, payload) =>
-    JSON.parse(
-      execFileSync(
-        "gh",
-        [
-          "api",
-          `repos/${repository}/${path}`,
-          "-H",
-          "X-GitHub-Api-Version: 2026-03-10",
-          ...(payload ? ["--method", "POST", "--input", "-"] : []),
-        ],
-        {
-          input: payload ? JSON.stringify(payload) : undefined,
-          encoding: "utf8",
-          timeout: 60_000,
-          maxBuffer: 16 * 1024 * 1024,
-          stdio: ["pipe", "pipe", "inherit"],
-        },
-      ),
-    );
+  const api = githubWorkflowApi(repository);
   if (process.env.RESUME_RUN_ID) {
     const original = api(`actions/runs/${id}`);
     if (
@@ -113,14 +170,16 @@ async function main() {
   )
     throw new Error("Candidate release identity is invalid");
   const state = {
-    schemaVersion: 1,
-    id,
+    schemaVersion: 2,
+    id: releaseIdentity({ commit, tag: `v${pkg.version}`, clientReleaseNumber: pkg.clientReleaseNumber }),
     commit,
     tag: `v${pkg.version}`,
     clientReleaseNumber: pkg.clientReleaseNumber,
     stopAfter,
     stages: {},
   };
+  const saved = readProgressArtifact(repository, id, api);
+  if (saved) restoreReleaseProgress(state, saved);
   const output = resolve(process.env.RELEASE_PROGRESS_FILE);
   mkdirSync(dirname(output), { recursive: true });
   const save = () => writeFileSync(output, `${JSON.stringify(state, null, 2)}\n`);
@@ -143,18 +202,7 @@ async function main() {
           return matches[0] ?? null;
         },
         dispatch: async (name) => {
-          const common = { orchestration_id: id, orchestration_tag: state.tag };
-          const inputs =
-            name === "candidate"
-              ? { ...common, ref: commit, platforms: "all", first_public_release: false }
-              : name === "promote"
-                ? { ...common, action: "promote", client_release_number: String(state.clientReleaseNumber) }
-                : { ...common, candidate_run_id: String(state.stages.candidate.runId), tag: state.tag };
-          const response = api(`actions/workflows/${workflows[name]}/dispatches`, {
-            ref: "main",
-            inputs,
-            return_run_details: true,
-          });
+          const response = dispatchReleaseStage(name, state, api);
           const runId = response.workflow_run_id;
           if (process.env.GITHUB_STEP_SUMMARY)
             appendFileSync(

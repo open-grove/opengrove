@@ -14,10 +14,21 @@
 | 手动桌面候选 | 发布说明、基础设施、golden 回放、N-1 字节、签名产物、真实升级和源码身份 | 三平台完整候选及门禁回执 |
 | Finalize / 登记 / 切换 | 将同一批已验证字节发布到已授权终点 | 既有制品与远端身份校验 |
 
-纯文档 PR 检查链接；范围未知或无法取得时保守执行。选中的检查失败、取消或
-跳过都会阻断；未选中的检查应明确跳过。Actions 定义使用固定版本、校验摘要的
-actionlint 检查，行为测试覆盖范围选择、测试归属、前置条件顺序和证据拒绝。
-确定性测试使用普通 Linux 用户与进程环境，仅运行时检查安装浏览器依赖。
+普通文档路径只用 Node 检查链接，不安装应用依赖、不构建。运行时技能、提示词和
+fixture 中的 Markdown 属于产品输入。范围未知或 diff 不可用时保守执行。
+PR 的 harness 集合是“基础集成检查 + 受影响模块的测试归属”的并集，Main 执行全部
+归属。`src/tests/*-harness.ts` 必须登记，同一环境的重复执行项会被清单检查拒绝。
+Windows 开发命令和原生 job 共用同一份记录；Node 单测负责 `*.test.js`，Server
+静态检查不再重复执行 Host 契约单测。
+
+任务声明准备需求，harness job 构建一次后执行选中的测试。离线包内容检查验证技能
+与 import 目标是否进入发布包，合并前就运行；联网安装留在 Nightly。
+跨 OS、源码运行与安装后运行属于不同场景。原生和安装包检查暂时保守选取，后续根据
+实际耗时与回归数据细化，不能仅为缩短时间删掉平台。
+
+选中的检查必须成功，失败、取消、跳过都阻断；未选中的 job 应明确跳过。
+Actions 定义使用固定版本和校验摘要的 actionlint 检查，行为测试覆盖选择、恢复和
+证据拒绝。
 
 Windows 和 macOS 在实际文件系统上执行共用集成集，Windows 另补发现、状态和
 App 激活检查。清理验收使用既有回执，覆盖 junction、符号链接等情况。
@@ -42,45 +53,61 @@ Nightly 不再重复 Main 的 Linux harness、完整 UI 和 Web 包测试。临�
 
 ## 真实 Agent 配置与证据
 
-必需的 Kernel、运行模式和能力组合来自生成的认证台账，历史认证行不视为本次执行。
-仓库变量 `OPENGROVE_REAL_AGENT_IMAGES` 是按 Kernel ID 索引的 JSON 对象；每项包含
-固定到 `ghcr.io/OWNER/IMAGE@sha256:DIGEST` 的 `image`，有意测试新引擎时可指定
-`kernelVersion`，否则沿用台账版本。版本是完整发现字符串，不仅是 semver 前缀。
-镜像清单检查和实际探针身份检查都执行；Claude SDK 使用锁文件安装的平台 Engine。
+[`scripts/ci/real-agent-support.json`](../../scripts/ci/real-agent-support.json)
+独立定义必测 case、模式、能力与模型接入配置。这是要求清单，不是成功证明；历史
+认证不随 CI 结果手改。新增能力或登录方式，需要明确 case 与对应实现才能认证。
 
-凭据放在 `opengrove-real-agent-test` environment：
+仓库 JSON 变量 `OPENGROVE_REAL_AGENT_IMAGES` 按 **case ID** 索引（目前为七个
+Kernel ID）。每项必须指定 `ghcr.io/OWNER/IMAGE@sha256:DIGEST`，可显式覆盖
+`kernelVersion`、`model`、非敏感的 `configRevision`；默认版本与模型来自支持清单。
+版本必须是完整发现身份。轮换凭据或修改外部配置时递增 `configRevision`，不得公开
+凭据或原始 secret 的哈希。配置变化会使相应计划失效。
 
-- `DEEPSEEK_API_KEY` 为各 Kernel 启用独立的 DeepSeek 测试配置；GitHub environment
-  变量 `DEEPSEEK_MODEL` 可选，默认 `deepseek-flash`。Claude 走 Anthropic 接口，
-  Codex 走 Responses，OpenCode、Pi、Kimi、Hermes 使用各自的 OpenAI 兼容接入。
-  OpenClaw 启动独立的本机回环 Gateway，镜像内包含同版本 DeepSeek 插件。
-  测试配置不复制用户的原生账号。
-- 未配置 DeepSeek Secret 时，Claude/OpenCode 继续使用既有 Cloudflare 网关变量与 token。
-- Pi 可使用 `REAL_RUNTIME_OPENAI_BASE_URL`、`REAL_RUNTIME_OPENAI_API_KEY`
-  和 `REAL_RUNTIME_MODEL`。
-- 可选 JSON secret `REAL_AGENT_RUNTIME_ENVIRONMENTS` 按 Kernel ID 提供受支持的
-  厂商／OpenGrove 环境变量，仅传入探针子进程。Codex 测试配置、OpenClaw Gateway
-  按各自真实鉴权协议配置；镜像不得包含凭据，定制 Hermes 构建需要独立固定镜像。
-  镜像流程支持 Claude、Codex、Pi、OpenCode、Kimi、OpenClaw 的精确 npm 版本；
-  `publish: false` 只构建和验证，不需要仓库发布权限；发布前先验证实际镜像。
-  Hermes 必须匹配被测源码提交，不能用官方版本替代定制版本的验证。
+执行计划固定源码输入摘要、测试策略、case、模式、版本、镜像、供应商、协议、模型和
+配置代次。测试按这份计划执行，汇总与发布再次核对，不能只验证版本非空。
+源码和依赖范围保持保守；无关脚本和 Web UI 不使真实认证失效。每项 case 从实际执行
+时间起有效 24 小时，重跑汇总不会延长它的有效期。
 
-DeepSeek 调用成功仅验证所选模型接入路径，不等于原生账号能力全部通过。例如
-Codex ChatGPT `auth.refresh` 仍需要原生账号；依赖模型的必需能力必须实际通过，
-不能因为 Key 有效就豁免不支持的能力或版本不匹配。
+当前认证配置使用 `opengrove-real-agent-test` environment 内的 `DEEPSEEK_API_KEY`。
+模型由计划指定；`REAL_AGENT_RUNTIME_ENVIRONMENTS`、旧 Cloudflare/Pi 引导变量和
+`DEEPSEEK_MODEL` 不再隐式覆盖认证配置。其他供应商应新增明确的支持配置和 runner
+实现。Claude 走 Anthropic，Codex 走 Responses，其余保留各自的 OpenAI 兼容接入；
+OpenClaw 启动独立 Gateway。API Key 可用不能证明原生账号专属能力。
 
-该入口负责接入已有环境，不会自动开通账号。缺镜像、凭据、服务、探针跳过或覆盖
-不完整，都保持“未验证”。单 Kernel 手动诊断通过时流程可绿，但制品仍为
-`ready: false`，不代表完整覆盖。旧的启用开关也不能
-让跳过的矩阵满足发布要求。
+镜像流程支持六个 npm Kernel 和源码固定的 Hermes，发布前校验实际镜像，分别展示本地构建摘要和已发布的
+不可变仓库引用；只有后者可填入映射。Hermes 必须指定完整的 `source_revision`，按上游锁文件安装 Python 依赖，使用官方
+构建 SHA 机制避免本机分支元数据改变版本显示，并核验实际源码身份。
+Claude SDK 使用锁文件安装的 Engine 并核验身份。镜像不包含凭据。
+完整门禁启用前必须配置仓库对 GHCR 包的 Actions 访问权限，取得全部要求的真实成功
+记录。缺镜像、权限或能力失败都会阻断，确定性 CI 通过不能代替在线验收。
 
-只上传已通过泄漏检查的成功探针证据。汇总制品 `real-agent-coverage-RUN_ATTEMPT`
-列出全部必需能力，并绑定 run、attempt、提交、运行模式和实际引擎版本。重跑失败
-job 可复用同一 run/SHA 内未超过 24 小时的成功案例，按最新 attempt 取证；矩阵失败
-仍不能满足发布条件。配置改变后需要新 run。发布资格
-下载最新成功 Nightly 的制品、核对覆盖，并比较运行时／构建／探针源码输入摘要。
-祖先提交足够新且相关输入一致时才复用；输入改变后必须重新运行 Nightly。
-PR 不接收真实服务或签名密钥。
+手动单 Kernel 运行仅用于诊断，不能代替完整 Nightly。
+`exploratory: true` 使用独立的 `OPENGROVE_REAL_AGENT_EXPLORATORY_IMAGES` 映射
+测试新的固定版本，其执行目的和计划不能满足发布认证。PR 不接收模型或签名密钥。
+
+成功探针先通过泄漏检查再上传；失败只保存安全的 case 身份、阶段、错误类别和耗时，
+明确标记不成功。各 case 保留实际 run/attempt 与不可变 artifact ID；后来的失败
+不能被旧成功覆盖。
+
+最后的 **Nightly result** job 生成 `nightly-release-evidence-RUN_ATTEMPT`。
+只重跑其他失败分支时，它也会重新汇总，复用同一 run/SHA 中仍有效的早期 case。
+缺失、过期、错误输入和失败仍阻断，最终汇总必须属于当前 attempt。
+发布同时根据当前仓库配置重新解析计划，模型或镜像改变后旧认证失效。
+祖先提交只有在相关输入完全相同时才能复用。外部安装包可用性、安装包 SHA-256 和
+Agent 能力证据分别验证；网络恢复不会刷新旧 Agent 成绩的时间。
+
+## 诊断与维护
+
+每个 harness 有独立超时和进程清理责任，`test-results/ci/` 记录退出类别、超时／
+取消、耗时、平台与 Node 版本。版本探测或初始化失败会写失败结果并清理资源，
+不再丢弃本轮其他结果。Playwright 保留 JSON、HTML 报告，重试变绿也上传结果；
+失败与不稳定测试的 trace、视频遵循 Playwright 保留规则。重试成功不等于根因修复。
+
+外部 Actions 固定完整提交 SHA，CI 自动检查，Dependabot 每周维护并限制同时打开的
+更新 PR 数。CodeQL 对 Actions 与 JavaScript/TypeScript 按事件扫描一次，不应再
+开启重复的默认扫描。仓库管理员负责必需检查、CODEOWNERS、绕过权限和凭据范围，
+不能单凭 YAML 断言后台设置。正式发布保留受保护环境与现有鉴权协议，仅在目标服务
+支持时使用 OIDC。
 
 打包 job 无论成功失败都保留阶段耗时和门禁诊断。缓存用于加速输入，不能代替制品
 身份或执行回执。优化以 Actions job 耗时和阶段记录为依据。

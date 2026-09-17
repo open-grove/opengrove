@@ -1,46 +1,58 @@
-import { spawn } from "node:child_process";
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { runCiProcess } from "./ci-process.mjs";
 import { prepareDeepSeekRuntime, startDeepSeekGateway } from "./deepseek-ci.mjs";
 
-const kernel = process.env.CI_KERNEL;
-const mode = process.env.CI_RUNTIME_MODE;
-const version = process.env.CI_KERNEL_VERSION;
-const capabilities = process.env.CI_CAPABILITIES;
+const expected = JSON.parse(process.env.CI_CASE_PLAN || "null");
+if (!expected || !/^[a-f0-9]{64}$/.test(expected.fingerprint))
+  throw new Error("A resolved immutable case plan is required");
+const { kernel, runtime_mode: mode, kernel_version: version, capabilities } = expected;
 const directory = join(process.env.RUNNER_TEMP, "real-agent-case");
 const rawFile = join(directory, "probe.json");
 const publicDir = join(directory, "sanitized");
 rmSync(publicDir, { recursive: true, force: true });
 mkdirSync(publicDir, { recursive: true });
-const profiles = JSON.parse(process.env.CI_RUNTIME_ENVIRONMENTS || "{}");
-const extraEnv = profiles[kernel] ?? {};
-for (const [name, value] of Object.entries(extraEnv)) {
-  if (
-    !/^(OPENGROVE_|ANTHROPIC_|OPENAI_|CODEX_|CLAUDE_|HERMES_|KIMI_|PI_|OPENCLAW_|OPENCODE_)[A-Z0-9_]+$/.test(name) ||
-    typeof value !== "string" ||
-    /[\r\n]/.test(value)
-  )
-    throw new Error(`Invalid runtime environment entry for ${kernel}: ${name}`);
-  // Mask each value before the runtime sees it. Never persist credentials in artifacts.
-  if (process.env.GITHUB_ACTIONS === "true") console.log(`::add-mask::${value.replaceAll("%", "%25")}`);
-}
-const deepseekEnv = process.env.DEEPSEEK_API_KEY
-  ? prepareDeepSeekRuntime(kernel, {
-      root: directory,
-      apiKey: process.env.DEEPSEEK_API_KEY,
-      model: process.env.DEEPSEEK_MODEL || "deepseek-flash",
-    })
-  : {};
-const runtimeEnv = { ...process.env, ...deepseekEnv, ...extraEnv };
-delete runtimeEnv.CI_RUNTIME_ENVIRONMENTS;
+let runtimeEnv;
 const startedAt = new Date().toISOString();
 const { version: hostVersion } = JSON.parse(readFileSync("package.json", "utf8"));
 let gateway;
+let stage = "configuration";
+const receipt = {
+  schemaVersion: 2,
+  case: expected.case,
+  kernel,
+  runtimeMode: mode,
+  kernelVersion: version,
+  image: expected.image,
+  provider: expected.provider,
+  fingerprint: expected.fingerprint,
+  capabilities: capabilities.split(","),
+  passed: false,
+  generatedAt: startedAt,
+  headSha: process.env.GITHUB_SHA,
+  runId: process.env.GITHUB_RUN_ID,
+  runAttempt: process.env.GITHUB_RUN_ATTEMPT,
+};
 try {
+  if (expected.provider.kind !== "deepseek" || !process.env.DEEPSEEK_API_KEY)
+    throw new Error("The resolved DeepSeek profile needs DEEPSEEK_API_KEY");
+  runtimeEnv = {
+    ...process.env,
+    ...prepareDeepSeekRuntime(kernel, {
+      root: directory,
+      apiKey: process.env.DEEPSEEK_API_KEY,
+      model: expected.provider.model,
+    }),
+  };
+  // Certified profiles have one source of configuration. Extra runtime profiles
+  // must be added to the support policy before they can certify a release.
+  delete runtimeEnv.CI_RUNTIME_ENVIRONMENTS;
+  stage = "gateway";
   if (kernel === "openclaw" && process.env.DEEPSEEK_API_KEY) {
     gateway = await startDeepSeekGateway(runtimeEnv);
     Object.assign(runtimeEnv, gateway.env);
   }
+  stage = "probe";
   await run(
     process.execPath,
     [
@@ -58,6 +70,7 @@ try {
     ],
     { stdio: "inherit", env: runtimeEnv },
   );
+  stage = "validation";
   await run(
     process.execPath,
     [
@@ -84,21 +97,29 @@ try {
   );
   // Only evidence that passed schema, identity, coverage and leak checks is publishable.
   writeFileSync(join(publicDir, "evidence.json"), readFileSync(rawFile));
-  writeFileSync(
-    join(publicDir, "case-receipt.json"),
-    `${JSON.stringify({ kernel, runtimeMode: mode, kernelVersion: version, image: process.env.CI_AGENT_IMAGE, capabilities: capabilities.split(","), passed: true, generatedAt: startedAt, headSha: process.env.GITHUB_SHA, runId: process.env.GITHUB_RUN_ID, runAttempt: process.env.GITHUB_RUN_ATTEMPT }, null, 2)}\n`,
-  );
+  receipt.passed = true;
+} catch (error) {
+  // The raw probe stays private. Public failure diagnostics contain no model
+  // response, environment values, provider URLs or credentials.
+  receipt.failure = {
+    stage,
+    reason: error.timedOut ? "timeout" : "case_failed",
+    exitCode: Number.isInteger(error.exitCode) ? error.exitCode : null,
+  };
+  process.exitCode = 1;
 } finally {
+  receipt.durationMs = Date.now() - Date.parse(startedAt);
+  writeFileSync(join(publicDir, "case-receipt.json"), `${JSON.stringify(receipt, null, 2)}\n`);
   await gateway?.stop();
   rmSync(join(directory, "deepseek"), { recursive: true, force: true });
 }
 
-function run(command, args, options) {
-  return new Promise((resolveRun, reject) => {
-    const child = spawn(command, args, options);
-    child.once("error", reject);
-    child.once("exit", (code, signal) =>
-      code === 0 ? resolveRun() : reject(new Error(`Real Agent command failed: ${args[0]} (${signal || code})`)),
-    );
-  });
+async function run(command, args, options) {
+  const result = await runCiProcess(command, args, { ...options, timeoutMs: 20 * 60_000 });
+  if (result.status !== 0 || result.timedOut || result.interrupted) {
+    const error = new Error("Real Agent command failed");
+    error.exitCode = result.status;
+    error.timedOut = result.timedOut;
+    throw error;
+  }
 }

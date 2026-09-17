@@ -23,9 +23,14 @@ on:
           - opencode
           - kimi
           - openclaw
+          - hermes
       engine_version:
         description: Exact engine version to pin (e.g. 1.18.3)
         required: true
+        type: string
+      source_revision:
+        description: Exact upstream source SHA (required for Hermes)
+        required: false
         type: string
       publish:
         description: Publish the verified image to GHCR (false validates only)
@@ -48,36 +53,46 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Log in to GitHub Container Registry
         if: inputs.publish
-        uses: docker/login-action@v3
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
 
       - name: Resolve image reference
         id: image
         shell: bash
+        env:
+          OWNER: ${{ github.repository_owner }}
+          KERNEL: ${{ inputs.kernel }}
+          ENGINE_VERSION: ${{ inputs.engine_version }}
+          SOURCE_REVISION: ${{ inputs.source_revision }}
         run: |
           set -euo pipefail
-          owner="$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')"
-          image="ghcr.io/${owner}/opengrove-agent-${{ inputs.kernel }}"
-          echo "ref=${image}:${{ inputs.engine_version }}" >> "${GITHUB_OUTPUT}"
+          [[ "$ENGINE_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+([-+][0-9A-Za-z.-]+)?$ ]]
+          if [[ "$KERNEL" == hermes ]]; then [[ "$SOURCE_REVISION" =~ ^[a-f0-9]{40}$ ]]; fi
+          owner="$(echo "$OWNER" | tr '[:upper:]' '[:lower:]')"
+          image="ghcr.io/${owner}/opengrove-agent-${KERNEL}"
+          tag="$ENGINE_VERSION"
+          if [[ "$KERNEL" == hermes ]]; then tag="$tag-${SOURCE_REVISION:0:12}"; fi
+          echo "ref=${image}:${tag}" >> "$GITHUB_OUTPUT"
 
       - name: Build image for local verification
         id: build
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
         with:
           context: .
           file: docker/agents/${{ inputs.kernel }}.Dockerfile
           build-args: |
             ENGINE_VERSION=${{ inputs.engine_version }}
+            SOURCE_REVISION=${{ inputs.source_revision }}
           tags: ${{ steps.image.outputs.ref }}
           load: true
           push: false
@@ -85,10 +100,24 @@ jobs:
 
       - name: Verify pinned engine version before publication
         shell: bash
+        env:
+          IMAGE: ${{ steps.image.outputs.ref }}
+          KERNEL: ${{ inputs.kernel }}
         run: |
           set -euo pipefail
-          docker run --rm "${{ steps.image.outputs.ref }}" \
-            bash /opt/opengrove/verify-agent-image-version.sh "${{ inputs.kernel }}"
+          docker run --rm "$IMAGE" bash /opt/opengrove/verify-agent-image-version.sh "$KERNEL"
+
+      - name: Record actual engine identity
+        id: identity
+        env:
+          IMAGE: ${{ steps.image.outputs.ref }}
+          KERNEL: ${{ inputs.kernel }}
+        run: |
+          command="$KERNEL"
+          if [[ "$KERNEL" == claude-code ]]; then command=claude; fi
+          version="$(docker run --rm "$IMAGE" "$command" --version | head -n1)"
+          test -n "$version"
+          echo "kernel_version=$version" >> "$GITHUB_OUTPUT"
 
       - name: Publish verified image
         if: inputs.publish
@@ -111,7 +140,25 @@ jobs:
             echo "| kernel | ${{ inputs.kernel }} |"
             echo "| engineVersion | ${{ inputs.engine_version }} |"
             echo "| image | ${{ steps.image.outputs.ref }} |"
-            echo "| digest | ${{ steps.build.outputs.digest }} |"
+            echo "| local build digest | ${{ steps.build.outputs.digest }} |"
             echo "| published | ${{ inputs.publish }} |"
-            echo "| registry reference | ${{ steps.publish.outputs.reference }} |"
+            echo "| published immutable registry reference | ${{ steps.publish.outputs.reference }} |"
           } >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Save verified image configuration
+        if: success()
+        env:
+          KERNEL: ${{ inputs.kernel }}
+          KERNEL_VERSION: ${{ steps.identity.outputs.kernel_version }}
+          SOURCE_REVISION: ${{ inputs.source_revision }}
+          REGISTRY_REFERENCE: ${{ steps.publish.outputs.reference }}
+        run: |
+          node --input-type=module - <<'JS'
+          import { writeFileSync } from 'node:fs';
+          writeFileSync(process.env.RUNNER_TEMP + '/agent-image.json', JSON.stringify({schemaVersion:1, kernel:process.env.KERNEL, kernelVersion:process.env.KERNEL_VERSION, sourceRevision:process.env.SOURCE_REVISION || null, image:process.env.REGISTRY_REFERENCE || null}, null, 2));
+          JS
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: agent-image-${{ inputs.kernel }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/agent-image.json
+          if-no-files-found: error

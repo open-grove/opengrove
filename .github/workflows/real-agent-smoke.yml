@@ -4,6 +4,10 @@ on:
   workflow_call:
   workflow_dispatch:
     inputs:
+      exploratory:
+        description: Test alternate pinned images without producing release certification
+        type: boolean
+        default: false
       kernel:
         description: Optional single-kernel diagnostic (empty runs all certified kernels)
         required: false
@@ -11,6 +15,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
   packages: read
 
 concurrency:
@@ -25,17 +30,18 @@ jobs:
       matrix: ${{ steps.build.outputs.matrix }}
       run: ${{ steps.build.outputs.run }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 24
-      - name: Derive required coverage from the certified ledger
+      - name: Resolve the versioned live support plan
         id: build
         env:
           DISPATCH_KERNEL: ${{ inputs.kernel }}
-          OPENGROVE_REAL_AGENT_IMAGES: ${{ vars.OPENGROVE_REAL_AGENT_IMAGES }}
+          LIVE_PURPOSE: ${{ inputs.exploratory && 'exploratory' || 'certification' }}
+          OPENGROVE_REAL_AGENT_IMAGES: ${{ inputs.exploratory && (vars.OPENGROVE_REAL_AGENT_EXPLORATORY_IMAGES || '{}') || vars.OPENGROVE_REAL_AGENT_IMAGES }}
         run: node scripts/real-agent-ci.mjs plan "$RUNNER_TEMP/real-agent-plan"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
           name: real-agent-plan-${{ github.run_attempt }}
@@ -61,10 +67,10 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 24
           cache: npm
@@ -103,100 +109,14 @@ jobs:
           echo "OPENGROVE_CLAUDE_CLI_PATH=$sdk_engine" >> "$GITHUB_ENV"
           echo "SDK-bundled Claude Engine $actual_version selected"
 
-      # ===== per-kernel auth bootstrap =====
-      #
-      # Each kernel resolves credentials differently. Secrets live in
-      # the opengrove-real-agent-test Environment and are masked before use, then
-      # written to $GITHUB_ENV for the probe step.
-      - name: Configure runtime credentials
-        shell: bash
-        env:
-          KERNEL: ${{ matrix.kernel }}
-          RUNTIME_MODE: ${{ matrix.runtime_mode }}
-          CASE: ${{ matrix.case }}
-          CI_DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
-          CI_CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CI_CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
-          CI_CLOUDFLARE_GATEWAY_ID: ${{ vars.CLOUDFLARE_GATEWAY_ID }}
-          CI_CLOUDFLARE_ANTHROPIC_MODEL: ${{ vars.CLOUDFLARE_ANTHROPIC_MODEL }}
-          CI_CLOUDFLARE_ANTHROPIC_HAIKU_MODEL: ${{ vars.CLOUDFLARE_ANTHROPIC_HAIKU_MODEL }}
-          CI_PROVIDER_BASE_URL: ${{ secrets.REAL_RUNTIME_OPENAI_BASE_URL }}
-          CI_PROVIDER_API_KEY: ${{ secrets.REAL_RUNTIME_OPENAI_API_KEY }}
-          CI_PROVIDER_MODEL: ${{ vars.REAL_RUNTIME_MODEL }}
-        run: |
-          set -euo pipefail
-          # DeepSeek configuration is created inside the probe's disposable runtime.
-          # It does not require the legacy Cloudflare credentials below.
-          if [[ -n "$CI_DEEPSEEK_API_KEY" ]]; then exit 0; fi
-          if [[ "$KERNEL" == "claude-code" || "$KERNEL" == "opencode" ]]; then
-            test -n "$CI_CLOUDFLARE_API_TOKEN" || { echo "CLOUDFLARE_API_TOKEN secret is missing" >&2; exit 1; }
-            test -n "$CI_CLOUDFLARE_ACCOUNT_ID" || { echo "CLOUDFLARE_ACCOUNT_ID var is missing" >&2; exit 1; }
-            test -n "$CI_CLOUDFLARE_GATEWAY_ID" || { echo "CLOUDFLARE_GATEWAY_ID var is missing" >&2; exit 1; }
-            echo "::add-mask::$CI_CLOUDFLARE_API_TOKEN"
-            # These probes also depend on repository-external gateway state:
-            # authenticated gateway access and upstream Anthropic access must be configured in Cloudflare.
-            gateway_base_url="https://gateway.ai.cloudflare.com/v1/$CI_CLOUDFLARE_ACCOUNT_ID/$CI_CLOUDFLARE_GATEWAY_ID"
-          fi
-
-          if [[ "$KERNEL" == "claude-code" ]]; then
-            test -n "$CI_CLOUDFLARE_ANTHROPIC_MODEL" || { echo "CLOUDFLARE_ANTHROPIC_MODEL var is missing" >&2; exit 1; }
-            # Keep these as raw Anthropic environment variables instead of an OpenGrove provider profile.
-            # The authenticated gateway requires ANTHROPIC_CUSTOM_HEADERS to pass through to the child process.
-            {
-              echo "ANTHROPIC_BASE_URL=$gateway_base_url/anthropic"
-              echo "ANTHROPIC_API_KEY=$CI_CLOUDFLARE_API_TOKEN"
-              echo "ANTHROPIC_CUSTOM_HEADERS=cf-aig-authorization: Bearer $CI_CLOUDFLARE_API_TOKEN"
-              echo "ANTHROPIC_MODEL=$CI_CLOUDFLARE_ANTHROPIC_MODEL"
-              echo "OPENGROVE_REAL_RUNTIME_MODEL=$CI_CLOUDFLARE_ANTHROPIC_MODEL"
-              echo "CLAUDE_CONFIG_DIR=$RUNNER_TEMP/auth/$CASE"
-            } >> "$GITHUB_ENV"
-            if [[ -n "${CI_CLOUDFLARE_ANTHROPIC_HAIKU_MODEL:-}" ]]; then
-              echo "ANTHROPIC_DEFAULT_HAIKU_MODEL=$CI_CLOUDFLARE_ANTHROPIC_HAIKU_MODEL" >> "$GITHUB_ENV"
-            fi
-            # CLI mode: OpenGrove drives the Claude CLI instead of the Agent SDK.
-            # This is the case that guards against "runs CLI but UI still shows SDK".
-            # SDK mode leaves the runtime unset (default).
-            if [[ "$RUNTIME_MODE" == "cli" ]]; then
-              echo "OPENGROVE_CLAUDE_CODE_RUNTIME=cli" >> "$GITHUB_ENV"
-            fi
-          elif [[ "$KERNEL" == "opencode" ]]; then
-            test -n "$CI_CLOUDFLARE_ANTHROPIC_MODEL" || { echo "CLOUDFLARE_ANTHROPIC_MODEL var is missing" >&2; exit 1; }
-            # The Anthropic-native schema preserves system prompts and tool calls.
-            # The API token authenticates both OpenCode's provider and the gateway.
-            cloudflare_anthropic_url="$gateway_base_url/anthropic/v1"
-            config="{\"\$schema\":\"https://opencode.ai/config.json\",\"model\":\"cloudflare-anthropic/$CI_CLOUDFLARE_ANTHROPIC_MODEL\",\"small_model\":\"cloudflare-anthropic/$CI_CLOUDFLARE_ANTHROPIC_MODEL\",\"provider\":{\"cloudflare-anthropic\":{\"npm\":\"@ai-sdk/anthropic\",\"name\":\"Cloudflare Anthropic (CI)\",\"options\":{\"baseURL\":\"$cloudflare_anthropic_url\",\"apiKey\":\"{env:CLOUDFLARE_API_TOKEN}\",\"headers\":{\"cf-aig-authorization\":\"Bearer {env:CLOUDFLARE_API_TOKEN}\"}},\"models\":{\"$CI_CLOUDFLARE_ANTHROPIC_MODEL\":{\"name\":\"$CI_CLOUDFLARE_ANTHROPIC_MODEL\",\"tool_call\":true,\"reasoning\":false,\"limit\":{\"context\":200000,\"output\":16384}}}}}}"
-            {
-              # OPENCODE_CONFIG_CONTENT keeps normalizeAcpRuntimeEnv from stripping this token before {env:...} substitution.
-              echo "CLOUDFLARE_API_TOKEN=$CI_CLOUDFLARE_API_TOKEN"
-              echo "OPENCODE_CONFIG_CONTENT=$config"
-              echo "OPENGROVE_REAL_RUNTIME_MODEL=$CI_CLOUDFLARE_ANTHROPIC_MODEL"
-            } >> "$GITHUB_ENV"
-          elif [[ "$KERNEL" == "pi" && -n "$CI_PROVIDER_API_KEY" ]]; then
-            test -n "$CI_PROVIDER_BASE_URL" || { echo "REAL_RUNTIME_OPENAI_BASE_URL secret is missing" >&2; exit 1; }
-            test -n "$CI_PROVIDER_API_KEY" || { echo "REAL_RUNTIME_OPENAI_API_KEY secret is missing" >&2; exit 1; }
-            test -n "$CI_PROVIDER_MODEL" || { echo "REAL_RUNTIME_MODEL var is missing" >&2; exit 1; }
-            echo "::add-mask::$CI_PROVIDER_API_KEY"
-            {
-              echo "OPENGROVE_REAL_RUNTIME_OPENAI_BASE_URL=$CI_PROVIDER_BASE_URL"
-              echo "OPENGROVE_REAL_RUNTIME_OPENAI_API_KEY=$CI_PROVIDER_API_KEY"
-              echo "OPENGROVE_REAL_RUNTIME_MODEL=$CI_PROVIDER_MODEL"
-            } >> "$GITHUB_ENV"
-          fi
-
       - name: Probe every required capability and verify current runtime identity
         env:
-          CI_KERNEL: ${{ matrix.kernel }}
-          CI_RUNTIME_MODE: ${{ matrix.runtime_mode }}
-          CI_KERNEL_VERSION: ${{ matrix.kernel_version }}
-          CI_CAPABILITIES: ${{ matrix.capabilities }}
-          CI_AGENT_IMAGE: ${{ matrix.image }}
-          CI_RUNTIME_ENVIRONMENTS: ${{ secrets.REAL_AGENT_RUNTIME_ENVIRONMENTS }}
+          CI_CASE_PLAN: ${{ toJSON(matrix) }}
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
-          DEEPSEEK_MODEL: ${{ vars.DEEPSEEK_MODEL || 'deepseek-flash' }}
         run: node scripts/run-real-agent-ci-case.mjs
       - name: Upload verified sanitized evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: real-agent-case-${{ matrix.case }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/real-agent-case/sanitized/
@@ -210,11 +130,11 @@ jobs:
     needs: [plan, smoke]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 24
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           pattern: real-agent-*
           path: ${{ runner.temp }}/real-agent-coverage
@@ -222,8 +142,9 @@ jobs:
         env:
           DISPATCH_KERNEL: ${{ inputs.kernel }}
           SMOKE_RESULT: ${{ needs.smoke.result }}
+          GH_TOKEN: ${{ github.token }}
         run: node scripts/real-agent-ci.mjs summarize "$RUNNER_TEMP/real-agent-coverage"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
           name: real-agent-coverage-${{ github.run_attempt }}

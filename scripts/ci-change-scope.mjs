@@ -150,8 +150,15 @@ function classifyPath(path, result) {
   }
 }
 
-function isDocumentationOnlyPath(path) {
-  return !path.startsWith("docs/releases/") && path !== "CHANGELOG.md" && /\.(?:md|mdx|markdown)$/iu.test(path);
+export function isDocumentationOnlyPath(path) {
+  const markdown = /\.(?:md|mdx|markdown)$/iu.test(path);
+  return (
+    markdown &&
+    ((path.startsWith("docs/") && !path.startsWith("docs/releases/")) ||
+      /^(?:README(?:\.[a-z-]+)?|AGENTS|CONTEXT|PROJECT_OVERVIEW|CONTRIBUTING|SECURITY|CODE_OF_CONDUCT|SUPPORT|THIRD_PARTY_NOTICES)\.md$/iu.test(
+        path,
+      ))
+  );
 }
 
 function isReleasePath(path) {

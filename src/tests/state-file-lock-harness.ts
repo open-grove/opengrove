@@ -308,7 +308,21 @@ async function runLockChild(): Promise<void> {
   sendChildMessage({ type: "ready", pid: process.pid });
   await waitForParentStart();
   try {
-    const lock = acquireStateFileLock(statePath);
+    // SQLite's nonblocking lock upgrade can reject every simultaneous first
+    // attempt. Retry contention briefly; the winner holds the lock for much
+    // longer, so the assertion still rejects two writers or no eventual owner.
+    const deadline = Date.now() + 250;
+    const acquire = async () => {
+      for (;;) {
+        try {
+          return acquireStateFileLock(statePath);
+        } catch (error) {
+          if (!isStateFileLockError(error) || error.code !== "STATE_LOCKED" || Date.now() >= deadline) throw error;
+          await delay(10);
+        }
+      }
+    };
+    const lock = await acquire();
     sendChildMessage({ type: "result", result: { ok: true, pid: process.pid, lockPath: lock.lockPath } });
     await delay(holdMs);
     lock.release();

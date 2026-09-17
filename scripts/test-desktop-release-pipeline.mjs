@@ -649,7 +649,7 @@ function testDesktopReleaseWorkflow() {
   assert.match(deploy, /RELEASE_TIMING_FILE=\$RUNNER_TEMP\/desktop-release-deploy-timing\.json/);
   assert.doesNotMatch(deploy, /RELEASE_TIMING_FILE: release\/desktop/);
   assert.doesNotMatch(deploy, /electron-builder|control:desktop-release/);
-  assert.match(deploy, /uses: actions\/setup-node@v4\s+with:\s+node-version: 24/);
+  assert.match(deploy, /uses: actions\/setup-node@[a-f0-9]{40}[^\n]*\s+with:\s+node-version: 24/);
   const ossutilInstaller = readFileSync(join(projectRoot, "scripts", "install-pinned-ossutil.sh"), "utf8");
   const ossutilSha256 = "3ae4d9fc85a7a6e9f5654d1599766f1a3a42a3692870887b5ae9338d582ef65a";
   assert.equal((`${workflow}\n${deploy}`.match(new RegExp(ossutilSha256, "g")) ?? []).length, 0);
@@ -664,7 +664,7 @@ function testDesktopReleaseWorkflow() {
   assert.doesNotMatch(controlJobHeader, /secrets\./, "release control credentials must not be job-scoped");
   assert.match(control, /control-desktop-release\.mjs/);
   assert.match(control, /--finish-run/);
-  assert.match(control, /uses: actions\/setup-node@v4\s+with:\s+node-version: 24/);
+  assert.match(control, /uses: actions\/setup-node@[a-f0-9]{40}[^\n]*\s+with:\s+node-version: 24/);
   assert.doesNotMatch(control, /node-version: 24\s+cache: npm/);
   assert.match(control, /Release upload token is not configured/);
   assert.match(control, /withdraw does not accept a client release number/);

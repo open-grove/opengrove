@@ -83,6 +83,9 @@ case "${kernel}" in
     ;;
   hermes)
     actual_version="$(hermes --version 2>&1 | extract_semver)"
+    expected_revision="$(read_manifest_field sourceRevision)"
+    actual_revision="$(python -c 'from hermes_cli.build_info import get_code_identity; print(get_code_identity()["sha"])')"
+    [[ "$expected_revision" =~ ^[a-f0-9]{40}$ ]] && test "$actual_revision" = "$expected_revision"
     ;;
   kimi)
     actual_version="$(kimi --version 2>&1 | extract_semver)"

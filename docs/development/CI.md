@@ -15,13 +15,25 @@ copying commands between entrypoints.
 | Desktop candidate, manual | Release notes, infrastructure, golden replay, verified N-1 bytes, signed artifacts, real upgrade and source/receipt identity | Full three-platform candidate and gate receipt |
 | Finalize / register / promote | Publish the same verified bytes through the authorized endpoint | Existing artifact and remote identity checks |
 
-Documentation-only PRs run link checks. Unknown or unavailable change scopes
-select the conservative checks. A selected job that is skipped, cancelled or
-fails blocks the result; an intentionally unselected job must be skipped.
-GitHub Actions definitions are checked with checksum-pinned actionlint, and
-behavioral tests cover selection, ownership, prerequisite order and evidence
-rejection. Deterministic jobs use a normal Linux user/process environment;
-browser dependencies are installed only for runtime checks.
+Documentation-only paths run link checks with Node alone: no application install
+or build. Markdown under runtime skills, prompts or fixtures is product input.
+Unknown/unavailable diffs select conservative coverage. PR harness selection is
+the union of baseline integration and changed module owners; Main runs every
+owner. `src/tests/*-harness.ts` must have an inventory entry, and duplicate
+same-environment execution entries fail the inventory contract. Windows aliases
+and native jobs consume the same records. Node unit tests own their `*.test.js`
+files; static Server checks do not repeat the Host contract unit test.
+
+Each planned task states its preparation needs. Harness jobs build once before
+executing their selected tests. Offline package contents (including bundled
+Skills and package import targets) run before merge; online dependency installation
+remains in Nightly. Cross-OS and installed-product validation are distinct
+scenarios, not duplicate tests. Native/package scope stays conservative until
+measured cost and regression data justify narrowing it.
+
+Selected tasks must succeed; skipped/cancelled/failed selected work blocks the
+result. Unselected jobs must be skipped. Workflow definitions use checksum-pinned
+actionlint; behavioral tests cover selection, recovery and evidence rejection.
 
 Native Windows and macOS jobs run the shared integration suite against their
 actual filesystem, with Windows discovery/state/App activation checks where
@@ -56,58 +68,87 @@ using the real updater.
 
 ## Real Agent configuration and evidence
 
-The generated certified ledger supplies required Kernel/runtime/capability pairs;
-historical certification rows are never treated as a fresh CI run. Configure the
-repository variable `OPENGROVE_REAL_AGENT_IMAGES` as a JSON map keyed by Kernel ID.
-Each entry has an `image` pinned as `ghcr.io/OWNER/IMAGE@sha256:DIGEST`, and optionally
-`kernelVersion` when intentionally testing a newer engine than the ledger.
-The expected version is the complete discovery string, not just a semver prefix.
-The existing image-version manifest check and probe identity checks both run.
-Claude SDK uses the platform Engine installed by the repository lockfile.
+[`scripts/ci/real-agent-support.json`](../../scripts/ci/real-agent-support.json)
+is the versioned list of required cases, modes, capabilities and provider profiles.
+It records requirements, not successful evidence. Historical certifications remain
+separate and are never rewritten to declare a CI run successful. New capabilities
+or authentication routes need explicit cases and an implementation before they
+can be certified.
 
-Provider credentials belong to the `opengrove-real-agent-test` environment:
+`OPENGROVE_REAL_AGENT_IMAGES` is a repository JSON variable keyed by **case ID**
+(currently the seven Kernel IDs). Each value requires an immutable
+`ghcr.io/OWNER/IMAGE@sha256:DIGEST` image and optionally overrides `kernelVersion`,
+`model` and non-sensitive `configRevision`. The default version/model comes from
+the support policy. `kernelVersion` is the complete discovery identity, not a
+semver prefix. Bump `configRevision` when rotating credentials or changing external
+configuration without a model/image change. Never publish credentials or hashes of
+raw secrets. A changed configuration invalidates the corresponding plan.
 
-- `DEEPSEEK_API_KEY` enables a disposable DeepSeek profile for each Kernel.
-  `DEEPSEEK_MODEL` is an optional environment variable in GitHub (default
-  `deepseek-flash`). Claude uses the Anthropic API; Codex uses Responses;
-  OpenCode, Pi, Kimi and Hermes use their OpenAI-compatible routes. OpenClaw
-  starts an owned loopback Gateway with the same-version DeepSeek provider
-  baked into its image. No native account is copied into these profiles.
-- Without the DeepSeek secret, Claude/OpenCode retain the existing Cloudflare
-  gateway variables and token.
-- Pi may use `REAL_RUNTIME_OPENAI_BASE_URL`, `REAL_RUNTIME_OPENAI_API_KEY` and
-  `REAL_RUNTIME_MODEL`.
-- `REAL_AGENT_RUNTIME_ENVIRONMENTS` is an optional JSON secret mapping Kernel IDs
-  to their supported vendor/OpenGrove environment variables. It reaches only the
-  probe subprocess. Configure a disposable Codex profile or an accessible
-  OpenClaw Gateway using that Kernel's actual authentication contract. Images
-  must not contain credentials; a custom Hermes build needs its own pinned image.
-  The image workflow builds Claude, Codex, Pi, OpenCode, Kimi and OpenClaw with
-  exact npm versions. Run it with `publish: false` for build/version validation
-  without registry credentials; publication runs only after image verification. Hermes must be built from the exact source revision being
-  tested; substituting an official release does not verify a customized build.
+The plan artifact freezes each case's source-input digest, policy, mode, version,
+image, provider/protocol/model and configuration revision. The runner executes that
+profile; aggregate and release checks compare results to the resolved plan, not
+merely to nonempty version strings or historical defaults. Source/dependency inputs
+remain conservative, but unrelated scripts and Web UI do not invalidate live
+certification. Case evidence expires after 24 hours independently of rerun time.
 
-A successful DeepSeek call verifies that selected provider route, not every native
-account feature. Codex ChatGPT `auth.refresh`, for example, still requires its
-native account. Required model-dependent capabilities must actually pass;
-unsupported features and version mismatches are not waived by a working API key.
+The current certified profile uses the `DEEPSEEK_API_KEY` secret in the
+`opengrove-real-agent-test` environment. Model selection lives in the resolved
+plan, not a second environment override. Hidden `REAL_AGENT_RUNTIME_ENVIRONMENTS`,
+legacy Cloudflare/Pi bootstrap variables and `DEEPSEEK_MODEL` no longer override
+certification. To support another provider, add an explicit policy profile and
+matching runner implementation. Claude uses Anthropic; Codex uses Responses;
+other Kernels use their existing OpenAI-compatible routes. OpenClaw starts an
+owned Gateway. A working API key does not certify native-account-only features.
 
-The environment profile is an integration seam, not automatic account provisioning.
-Missing images, credentials, services, skipped probes or incomplete coverage leave
-the release unverified. A successful single-Kernel diagnostic may be green, but its artifact remains
-`ready: false` and never counts as full coverage.
-The old opt-in switch cannot make a skipped matrix qualify a release.
+The image workflow builds six npm-based Kernels and source-pinned Hermes, verifies the actual image before
+publication, and reports a **local build digest** separately from the **published
+immutable registry reference**. Only the latter belongs in the mapping. Hermes
+requires `source_revision` to name a full upstream commit and installs its frozen
+Python dependency lock. Its official baked build-SHA mechanism avoids mutable
+local branch metadata in the version banner; verification checks that SHA too.
+Claude SDK selects its lockfile-installed Engine and checks its actual identity.
+No credentials belong in an image. Configure package Actions access for this
+repository before enabling the complete live gate; absent images/access or failed
+required capabilities block release. Deterministic CI success is not rollout proof.
 
-Only leak-checked successful case evidence is uploaded. The aggregate artifact
-`real-agent-coverage-RUN_ATTEMPT` records all required capabilities and binds them
-to the workflow run, attempt, commit, runtime modes and tested engine versions.
-Release eligibility downloads that artifact from the latest successful Nightly,
-checks completeness and individual case freshness, and compares a digest of tracked runtime/build/probe inputs
-with the candidate. Failed-job reruns may reuse passing cases from an earlier
-attempt of the same run/SHA for up to 24 hours; the newest case wins, and a failed
-matrix cannot qualify a release. Changed configuration requires a new run. A recent ancestor's evidence is reusable only when those
-inputs are identical; otherwise run Nightly again. PRs receive no live-provider
-or signing secrets.
+A manual single-Kernel run is diagnostic and cannot substitute for a complete
+Nightly receipt. `exploratory: true` uses the separate
+`OPENGROVE_REAL_AGENT_EXPLORATORY_IMAGES` mapping for new pinned versions; its
+purpose and plan cannot satisfy release certification. PR jobs receive no live
+provider or signing secrets.
+
+Successful raw evidence is leak-checked before upload. Failures publish only safe
+case identity, stage, category and duration, explicitly marked unsuccessful.
+Individual case receipts retain their actual run/attempt and immutable artifact
+ID. A newer failed case always overrides an older success.
+
+The final **Nightly result** job creates
+`nightly-release-evidence-RUN_ATTEMPT`, even when an unrelated branch alone was
+rerun. It can reference fresh cases from earlier attempts of the same run/SHA.
+Missing, expired, wrong-input or unsuccessful cases remain blocking; the final
+receipt must belong to the current run attempt. Release checks also re-resolve
+current repository configuration, so changing a model/image invalidates old
+certification. A recent ancestor is reusable only with identical relevant inputs.
+Baseline availability and immutable installer SHA-256 remain separate evidence;
+a network recovery does not renew old case timestamps.
+
+## Diagnostics and maintenance
+
+Every harness has a bounded timeout and an owned process tree. The runner records
+exit category, timeout/cancellation, duration, platform and Node version in
+`test-results/ci/`. A probe initialization/version failure produces failed evidence
+and cleans its resources rather than aborting all collected results.
+Playwright saves JSON plus HTML reports, and CI uploads results even when a retry
+turns a failure green. Failure/flaky traces and videos follow Playwright's retention
+policy. A retry is diagnostic recovery, not a root-cause fix.
+
+Actions use full commit SHAs enforced by a workflow contract; Dependabot maintains
+weekly Action and dependency updates with limited open PRs. CodeQL scans Actions
+and JavaScript/TypeScript once per configured event; do not also enable duplicate
+default setup. Repository administrators own required checks, CODEOWNERS review,
+bypass permissions and credential scopes; workflow files cannot establish those
+settings by themselves. Publishing keeps its protected environments and existing
+credential contracts; use OIDC only where the target service supports it.
 
 Package jobs upload phase timings and gate diagnostics on failure as well as
 success. Cache hits accelerate inputs; they never replace artifact identity or

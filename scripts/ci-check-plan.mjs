@@ -1,7 +1,7 @@
 import { appendFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { classifyCiChanges } from "./ci-change-scope.mjs";
-import { harnessOwners } from "./ci-harness-inventory.mjs";
+import { classifyCiChanges, isDocumentationOnlyPath } from "./ci-change-scope.mjs";
+import { harnessOwners, harnessGroups, affectedHarnesses } from "./ci-harness-inventory.mjs";
 
 export function createCiCheckPlan(event, paths) {
   if (!["pull_request", "merge_group", "push", "workflow_dispatch"].includes(event)) {
@@ -9,7 +9,11 @@ export function createCiCheckPlan(event, paths) {
   }
   const scope = classifyCiChanges(event, paths);
   if (scope.docsOnly) {
-    return { checks: [{ id: "docs", command: "npm run check:doc-refs", browser: false }], platforms: [], packages: [] };
+    return {
+      checks: [{ id: "docs", command: "npm run check:doc-refs", browser: false, preparation: "node" }],
+      platforms: [],
+      packages: [],
+    };
   }
   const checks = [];
   const add = (id, command, enabled) => {
@@ -17,6 +21,7 @@ export function createCiCheckPlan(event, paths) {
       checks.push({
         id,
         command,
+        preparation: "dependencies",
         browser: [
           "integration",
           "browser-ui",
@@ -38,13 +43,27 @@ export function createCiCheckPlan(event, paths) {
   ])
     add(id, `npm run ${command}`, enabled);
 
+  const addHarnesses = (id, tasks) => {
+    if (!tasks.length) return;
+    checks.push({
+      id,
+      command: `node scripts/run-built-harnesses.mjs --tasks ${tasks.map((task) => task.id).join(",")}`,
+      tasks: tasks.map((task) => task.id),
+      preparation: tasks.some((task) => task.build || task.path.startsWith("dist/")) ? "server" : "dependencies",
+      browser: tasks.some((task) => ["app-lifecycle", "web-desktop"].includes(task.owner)),
+    });
+  };
   const main = event === "push" || event === "workflow_dispatch";
   if (main) {
-    for (const owner of harnessOwners) add(`harness-${owner}`, `npm run test:harness:${owner}`, true);
-  } else {
-    add("integration", "npm run test:integration", scope.integration);
-    add("kernel", "npm run test:capabilities", scope.kernel);
-    add("release-contracts", "npm run test:harness:release-contracts", scope.release);
+    for (const owner of harnessOwners) addHarnesses(`harness-${owner}`, harnessGroups[owner]);
+  } else if (scope.integration || scope.kernel || scope.web || scope.desktop || scope.release) {
+    addHarnesses(
+      "integration",
+      affectedHarnesses(
+        paths.filter((path) => !isDocumentationOnlyPath(path)),
+        scope.integration,
+      ),
+    );
   }
   add("desktop-protocol", "xvfb-run -a npm run test:desktop-protocol-proxy-electron", scope.desktop);
   const native = scope.server || scope.desktop || scope.kernel || scope.windowsMediaCleanup || scope.windowsAppStore;
