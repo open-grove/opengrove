@@ -1,5 +1,5 @@
 import type { RoomChannelMember, RoomChannelStore } from "../rooms/channel-store.js";
-import { resolveRuntimeAccessModeSelection, runtimeAccessIssue } from "../runtime-access.js";
+import { resolveRuntimeAccessModeSelection, runtimeAccessSelectionIssue } from "../runtime-access.js";
 import type { RuntimeAccessMode } from "../core.js";
 import { claudeAutoReviewModelIds, readClaudeModelsCache } from "../runtime/claude-models-cache.js";
 
@@ -21,12 +21,14 @@ export function employeeAccessModeIssue(
   mode: RuntimeAccessMode | undefined,
   model: string,
   configHome?: string,
+  saved?: Pick<RoomChannelMember, "kernel" | "accessMode">,
 ) {
   if (!mode || mode === "default") return undefined;
-  return runtimeAccessIssue(
+  return runtimeAccessSelectionIssue(
     kernel,
     mode,
     kernel === "claude-code" && claudeAutoReviewModelIds(readClaudeModelsCache(configHome)).includes(model),
+    saved,
   );
 }
 

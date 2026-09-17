@@ -1500,12 +1500,28 @@ for (const configuredSupport of [true, false]) {
       await mutateMember("/rooms/members/grove-guide", "PATCH", { accessMode: null });
       assert.equal(memberById("grove-guide").accessMode, "auto-review", "null clears to the product default");
       assert.equal(memberById("grove-guide").userOverrides?.includes("accessMode"), false);
-      await mutateMember(
-        "/rooms/members/grove-guide",
-        "PATCH",
-        { model: "claude-custom" },
-        configuredSupport ? 200 : 409,
-      );
+      await mutateMember("/rooms/members/grove-guide", "PATCH", { model: "claude-custom" });
+      assert.equal(memberById("grove-guide").model, "claude-custom");
+      assert.equal(memberById("grove-guide").accessMode, "auto-review", "unknown metadata preserves saved Auto");
+      await mutateMember("/rooms/members/grove-guide", "PATCH", { providerId: "custom-provider" });
+      assert.equal(memberById("grove-guide").providerId, "custom-provider");
+      await mutateMember("/rooms/members/grove-guide", "PATCH", {
+        kernel: "claude-code",
+        model: "another-custom-model",
+        accessMode: "auto-review",
+      });
+      assert.equal(memberById("grove-guide").accessMode, "auto-review", "full edits may repeat the saved preset");
+      const savedAutoEdit = {
+        id: "grove-guide",
+        kernel: "claude-code",
+        model: "another-custom-model",
+        accessMode: "auto-review",
+      };
+      await mutateMember("/rooms/members", "POST", savedAutoEdit);
+      await mutateMember(`/rooms/${encodeURIComponent(roomId)}/members`, "POST", savedAutoEdit);
+      assert.equal(memberById("grove-guide").accessMode, "auto-review", "upsert and room add retain saved Auto");
+      await mutateMember("/rooms/members/grove-guide", "PATCH", { kernel: "pi", model: "pi-test" });
+      assert.equal(memberById("grove-guide").accessMode, "default", "a kernel without Auto still normalizes to Ask");
 
       const appRoot = join(cwd, "app");
       mkdirSync(join(appRoot, "workspace"), { recursive: true });

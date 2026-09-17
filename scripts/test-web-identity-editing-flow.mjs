@@ -53,6 +53,7 @@ try {
   try {
     const page = await browser.newPage({ viewport: { width: 1180, height: 860 } });
     await page.goto(pathToFileURL(htmlPath).href);
+    await testEmployeeAutosaveWithoutPermissionMetadata(page);
     await testAutoFallbackChatSelection(page);
     await testEmployeePageFlow(page);
     await testEmployeeAccessKernelSwitch(page);
@@ -150,11 +151,13 @@ async function testEmployeeModelPermissionAutosave(page) {
   const model = surface.locator(".employee-dialog-field").filter({ hasText: "模型" });
   await model.getByRole("button").click();
   await page.getByRole("option", { name: /Claude Custom/ }).click();
-  await surface.getByText("当前权限选择不可用，请重新选择后运行", { exact: true }).waitFor();
+  await page.waitForFunction(
+    () => window.__savedEmployeeModel === "claude-custom" && window.__savedEmployeeAccessMode === "auto-review",
+  );
   assert.equal(
     await page.evaluate(() => window.__savedEmployeeCount),
-    previousSaves,
-    "invalid model/Auto combination stays in the draft",
+    previousSaves + 1,
+    "changing model preserves saved Auto even when the catalog has no support metadata",
   );
   const access = surface.locator(".employee-dialog-field").filter({ hasText: "权限" });
   await access.getByRole("button").click();
@@ -164,9 +167,31 @@ async function testEmployeeModelPermissionAutosave(page) {
   );
   assert.equal(
     await page.evaluate(() => window.__savedEmployeeCount),
-    previousSaves + 1,
-    "model and repaired permission save together",
+    previousSaves + 2,
+    "the user can still change the saved preset to Ask",
   );
+}
+
+async function testEmployeeAutosaveWithoutPermissionMetadata(page) {
+  await renderFixture(page, "employee-access-loading");
+  const surface = page.locator("#identity-root .contacts-employee-settings-surface");
+  const budget = surface.getByRole("spinbutton", { name: "上下文窗口（tokens）" });
+  await budget.fill("777000");
+  await surface.getByRole("button", { name: "职责与协作", exact: true }).click();
+  await page.waitForFunction(() => window.__savedEmployeeContextTokenBudget === 777000, undefined, { timeout: 5000 });
+  const role = surface.locator(".employee-dialog-responsibility-textarea");
+  await role.fill("加载权限资料期间修改的职责");
+  await surface.getByRole("button", { name: "返回员工概览" }).click();
+  await page.waitForFunction(() => window.__savedEmployeeRole === "加载权限资料期间修改的职责", undefined, {
+    timeout: 5000,
+  });
+  assert.equal(
+    await page.evaluate(() => window.__savedEmployeeAccessMode),
+    "auto-review",
+    "unrelated edits must not change saved Auto while metadata is loading",
+  );
+  await surface.getByRole("button", { name: "职责与协作", exact: true }).click();
+  assert.equal(await role.inputValue(), "加载权限资料期间修改的职责", "navigation must retain saved edits");
 }
 
 // ===== Employee reasoning behavior =====
@@ -550,6 +575,7 @@ async function renderFixture(page, mode) {
   }
   if (
     mode === "employee-page" ||
+    mode === "employee-access-loading" ||
     mode === "employee-unavailable-kernel" ||
     mode === "employee-reasoning-kernel-switch" ||
     mode === "employee-reasoning-loading" ||
@@ -1017,7 +1043,7 @@ function entrySource() {
       }];
     }));
 
-    function EmployeeFixture({ dialog, unavailableKernel = false, reasoningState = "supported" }) {
+    function EmployeeFixture({ dialog, unavailableKernel = false, reasoningState = "supported", accessMode }) {
       const usesReasoningFixture = reasoningState !== "default";
       const unavailableMember = { ...initialMember, kernel: "openclaw" };
       const appReasoningDefault = reasoningState === "app-default"
@@ -1032,6 +1058,7 @@ function entrySource() {
         kernel: "claude-code",
         model: "claude-custom",
         providerId: "claude-provider",
+        accessMode,
         reasoningEffort: userReasoningOverride ? "high" : appReasoningDefault,
         manifestDefaults: {
           ...initialMember.manifestDefaults,
@@ -1062,6 +1089,7 @@ function entrySource() {
           await new Promise((resolve) => { window.__releaseEmployeeSave = resolve; });
         }
         window.__savedEmployeeName = nextMember.name;
+        window.__savedEmployeeRole = nextMember.role;
         window.__savedEmployeeKernel = nextMember.kernel;
         window.__savedEmployeeAccessMode = nextMember.accessMode;
         window.__savedEmployeeModel = nextMember.model;
@@ -1273,6 +1301,7 @@ function entrySource() {
       window.__finishTurn = undefined;
       if (mode === "auto-fallback") renderWithToasts(<AutoFallbackFixture />);
       if (mode === "employee-page") renderWithToasts(<EmployeeFixture dialog={false} reasoningState="default" />);
+      if (mode === "employee-access-loading") renderWithToasts(<EmployeeFixture dialog={false} reasoningState="loading" accessMode="auto-review" />);
       if (mode === "employee-reasoning-kernel-switch") renderWithToasts(<EmployeeFixture dialog={false} />);
       if (mode === "employee-reasoning-loading") renderWithToasts(<EmployeeFixture dialog={false} reasoningState="loading" />);
       if (mode === "employee-reasoning-unsupported") renderWithToasts(<EmployeeFixture dialog={false} reasoningState="unsupported" />);

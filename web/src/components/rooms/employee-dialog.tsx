@@ -88,6 +88,8 @@ type EmployeeDraft = {
 
 export type EmployeeKernelRuntimeDraft = Pick<EmployeeDraft, "model" | "providerId" | "reasoningEffort">;
 
+const PERMISSION_SELECTION_FIELDS = new Set<keyof RoomMember>(["kernel", "model", "providerId", "accessMode"]);
+
 export function switchEmployeeKernelRuntimeDraft(
   draftsByKernel: Record<string, EmployeeKernelRuntimeDraft>,
   currentKernelId: string,
@@ -193,24 +195,33 @@ export function EmployeeDialog(props: EmployeeDialogProps) {
       const controls = runtimeControlsForKernel(next.kernel, props.runtimeControls, props.runtimeControlsByKernel);
       const invalidAccess =
         next.kernel !== "openclaw" &&
-        Boolean(accessModeUnavailableKey(next.kernel, next.accessMode, next.model, controls));
+        Boolean(accessModeUnavailableKey(next.kernel, next.accessMode, next.model, controls, props.initialMember));
       for (const field of options?.fields ?? []) pendingDraftFieldsRef.current.add(field);
-      const canAutosave = !invalidAccess && Boolean(options?.fields?.length);
+      // Keep a runtime edit (including its derived fields) together. A later,
+      // unrelated edit can save on its own while that runtime edit stays pending.
+      const editedFields = options?.fields ?? [];
+      const fieldsToSave = invalidAccess
+        ? editedFields.some((field) => PERMISSION_SELECTION_FIELDS.has(field))
+          ? []
+          : editedFields
+        : [...pendingDraftFieldsRef.current];
+      const canAutosave = Boolean(options?.fields?.length && fieldsToSave.length);
       if (canAutosave) {
         const member = createMemberFromDraft(next, {
           initialMember: props.initialMember,
           runtimeControls: controls,
+          fields: fieldsToSave,
         });
         const patch = {} as Partial<RoomMember>;
-        for (const field of pendingDraftFieldsRef.current) {
+        for (const field of fieldsToSave) {
           (patch as Record<keyof RoomMember, RoomMember[keyof RoomMember] | undefined>)[field] = member[field];
+          pendingDraftFieldsRef.current.delete(field);
         }
         if (props.onDraftPatch) {
           const expectedBase = pendingAutosaveEchoesRef.current.at(-1) ?? props.initialMember ?? member;
           pendingAutosaveEchoesRef.current.push({ ...expectedBase, ...patch });
           props.onDraftPatch(patch, { immediate: options?.immediate });
         }
-        pendingDraftFieldsRef.current.clear();
       }
       const nextDirty = props.onDraftPatch && canAutosave ? hadUnsubmittedDraft : true;
       draftDirtyRef.current = nextDirty;
@@ -348,7 +359,7 @@ export function EmployeeDialog(props: EmployeeDialogProps) {
     draft.contextTokenBudget.trim() && !positiveTokenBudget(draft.contextTokenBudget),
   );
   const canSubmit =
-    canSubmitDraft(draft, selectedKernelReady, selectedRuntimeControls) &&
+    canSubmitDraft(draft, selectedKernelReady, selectedRuntimeControls, props.initialMember) &&
     (!providerRoutingEnabled || Boolean(draft.providerId || providerSelection.defaultProviderId)) &&
     (!editing || draftDirty) &&
     !submitPending;
@@ -688,7 +699,13 @@ export function EmployeeDialog(props: EmployeeDialogProps) {
                 </div>
               ) : null}
               {draft.kernel !== "openclaw" &&
-              accessModeUnavailableKey(draft.kernel, draft.accessMode, draft.model, selectedRuntimeControls) ? (
+              accessModeUnavailableKey(
+                draft.kernel,
+                draft.accessMode,
+                draft.model,
+                selectedRuntimeControls,
+                props.initialMember,
+              ) ? (
                 <div className="employee-dialog-warning" role="status">
                   {t("composer.selectedAccessUnavailable")}
                 </div>
@@ -924,6 +941,7 @@ export function canSubmitDraft(
   draft: EmployeeDraft,
   selectedKernelReady: boolean,
   controls?: RuntimeControls,
+  initialMember?: RoomMember,
 ): boolean {
   return Boolean(
     draft.name.trim() &&
@@ -932,7 +950,7 @@ export function canSubmitDraft(
       selectedKernelReady &&
       resolveRuntimeAccessModeSelection(draft.kernel, draft.accessMode) === draft.accessMode &&
       (draft.kernel === "openclaw" ||
-        !accessModeUnavailableKey(draft.kernel, draft.accessMode, draft.model, controls)) &&
+        !accessModeUnavailableKey(draft.kernel, draft.accessMode, draft.model, controls, initialMember)) &&
       (draft.avatarMode !== "upload" ||
         draft.legacyInvalidAvatar ||
         isSupportedRoomMemberAvatarDataUrl(draft.avatarDataUrl)) &&
@@ -1021,11 +1039,17 @@ function shouldReplaceDefaultEmployeeName(currentName: string, previousKernelLab
 
 export function createMemberFromDraft(
   draft: EmployeeDraft,
-  params: { base?: RoomMember; initialMember?: RoomMember; runtimeControls?: RuntimeControls },
+  params: {
+    base?: RoomMember;
+    initialMember?: RoomMember;
+    runtimeControls?: RuntimeControls;
+    fields?: Array<keyof RoomMember>;
+  },
 ): RoomMember {
   if (
     draft.kernel !== "openclaw" &&
-    accessModeUnavailableKey(draft.kernel, draft.accessMode, draft.model, params.runtimeControls)
+    (!params.fields || params.fields.some((field) => PERMISSION_SELECTION_FIELDS.has(field))) &&
+    accessModeUnavailableKey(draft.kernel, draft.accessMode, draft.model, params.runtimeControls, params.initialMember)
   ) {
     throw new Error("runtime_access_mode_unavailable");
   }

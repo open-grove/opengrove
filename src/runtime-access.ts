@@ -35,6 +35,19 @@ export function runtimeAccessIssue(
   return "auto-review-unavailable";
 }
 
+/** Missing metadata may block a new Auto choice, but never an already saved Claude choice. */
+export function runtimeAccessSelectionIssue(
+  kernel: string | undefined,
+  mode: "default" | "auto-review" | "full-access",
+  nativeAutoReviewSupported = false,
+  saved?: { kernel: string; accessMode?: "default" | "auto-review" | "full-access" },
+): RuntimeAccessIssue | undefined {
+  const issue = runtimeAccessIssue(kernel, mode, nativeAutoReviewSupported);
+  return issue === "auto-review-unverified" && saved?.kernel === kernel && saved?.accessMode === mode
+    ? undefined
+    : issue;
+}
+
 export function assertRuntimeAccessMode(
   kernel: string,
   mode: "default" | "auto-review" | "full-access" | undefined,

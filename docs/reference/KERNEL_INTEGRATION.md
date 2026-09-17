@@ -244,9 +244,12 @@ including switching back to Ask, survive restarts; PM's App-scoped bindings foll
 Stored chat choices are read without being rewritten;
 an unset chat choice resolves against the selected kernel and model.
 
-Unsupported presets are disabled in the picker and rejected at execution. Employee saves and API writes
-also validate the selected model. A model change that leaves Auto unavailable stays unsaved until the user
-chooses a valid permission; autosave sends the corrected model and permission together. Clearing an API
+Unsupported presets are disabled in the picker and rejected at execution. New Employee permission choices
+also validate the selected model. Missing Claude metadata does not invalidate an already saved Auto choice:
+model and Provider edits preserve it, and native activation still confirms Auto or switches to Ask at runtime.
+Unrelated Employee fields save independently of pending permission edits or loading model metadata.
+A new unverified Auto choice stays in the draft until a valid permission is selected; autosave then sends
+the pending runtime fields together. Clearing an API
 permission with `null` follows App/product defaults and removes its user-override marker.
 Switching to Pi, Kimi or
 OpenCode while auto review is selected changes the selection to ask for approval and displays a notice.

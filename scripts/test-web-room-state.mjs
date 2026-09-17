@@ -619,6 +619,15 @@ await writeFile(
     "switching models cannot save an unavailable Auto selection");
   assert.throws(() => createMemberFromDraft({ ...autoDraft, model: "unsupported" }, { runtimeControls: permissionControls }),
     /runtime_access_mode_unavailable/);
+  const savedAuto = { ...legacyEmployee, kernel: "claude-code", model: "supported", accessMode: "auto-review" };
+  const editedSavedAuto = { ...autoDraft, model: "unknown", role: "Updated role" };
+  assert.equal(canSubmitDraft(editedSavedAuto, true, undefined, savedAuto), true,
+    "missing metadata must not block editing an already saved Auto employee");
+  assert.equal(createMemberFromDraft(editedSavedAuto, { initialMember: savedAuto }).accessMode, "auto-review");
+  assert.equal(createMemberFromDraft(editedSavedAuto, { fields: ["role"] }).role, "Updated role",
+    "an unrelated field can be serialized without approving a pending permission selection");
+  assert.throws(() => createMemberFromDraft(editedSavedAuto, { fields: ["model"] }), /runtime_access_mode_unavailable/,
+    "new unverified Auto selections still require a valid permission before saving runtime fields");
   assert.equal(legacyEmployeeAfterEmptySave.avatarSeed, undefined, "empty save preserves the effective id-based avatar");
   assert.equal(legacyEmployeeAfterEmptySave.reasoningEffort, undefined, "empty save keeps reasoning on the kernel default");
   assert.equal(

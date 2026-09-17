@@ -77,6 +77,7 @@ export async function handleAddRoomMemberOperation(
       context.input.body.accessMode ?? normalizedMember.accessMode,
       normalizedMember.model,
       kernelConfigHomeForRegistry(state.settings, "claude-code"),
+      state.app.rooms.listMembers().find((member) => member.id === normalizedMember.id),
     )
   ) {
     sendJson(response, 409, { ok: false, error: "runtime_access_mode_unavailable" });
@@ -132,6 +133,7 @@ export async function handleUpsertEmployeeOperation(
       context.input.body.accessMode ?? normalizedMember.accessMode,
       normalizedMember.model,
       kernelConfigHomeForRegistry(state.settings, "claude-code"),
+      state.app.rooms.listMembers().find((member) => member.id === normalizedMember.id),
     )
   ) {
     sendJson(response, 409, { ok: false, error: "runtime_access_mode_unavailable" });
@@ -218,6 +220,7 @@ export async function handleUpdateEmployeeOperation(
       patchInput.accessMode ?? patch.accessMode ?? existing?.accessMode,
       patch.model ?? existing?.model ?? "",
       kernelConfigHomeForRegistry(state.settings, "claude-code"),
+      existing,
     )
   ) {
     sendJson(response, 409, { ok: false, error: "runtime_access_mode_unavailable" });
