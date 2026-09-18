@@ -5,7 +5,6 @@ import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   evaluateToolPolicy,
-  agentTurnReplyLanguageInstruction,
   type AgentEvent,
   type AgentContext,
   type AgentCompactRequest,
@@ -29,7 +28,7 @@ import {
   type ToolRisk,
   type ToolSpec,
 } from "../core.js";
-import { renderSkillIndex } from "../skills/catalog.js";
+import { HOST_CONTEXT_MAX_CHARACTERS, prepareAgentTurnContext } from "../core/turn-context.js";
 import { imageAttachmentsWithDataUrl } from "./media-input.js";
 import { resolveRuntimeRunId } from "./run-id.js";
 
@@ -110,19 +109,40 @@ export class PiAgentRuntime implements AgentRuntime {
     const packs = request.packs ?? [];
     const capabilities = request.capabilities ?? [];
     const policy = request.policy ?? capabilities.flatMap((capability) => capability.policy);
-    const systemPrompt = [
-      buildSystemPrompt(
-        this.options.system ?? DEFAULT_SYSTEM,
-        request.context,
-        skills,
-        packs,
-        capabilities,
-        agentTurnReplyLanguageInstruction(request),
-      ),
-      request.sessionInstructions?.trim(),
-    ]
+    const systemPrompt = [buildSystemPrompt(this.options.system ?? DEFAULT_SYSTEM), request.sessionInstructions?.trim()]
       .filter(Boolean)
       .join("\n\n");
+    request = prepareAgentTurnContext(
+      {
+        ...request,
+        assembledContext: {
+          id: request.assembledContext?.id ?? `ctx_${runId}`,
+          createdAt: request.assembledContext?.createdAt ?? new Date().toISOString(),
+          summary: request.assembledContext?.summary ?? "host context",
+          items: request.assembledContext?.items ?? [],
+          promptBlock: request.assembledContext?.promptBlock ?? "",
+          budget: request.assembledContext?.budget ?? {
+            maxItems: 8,
+            usedItems: 0,
+            maxCharacters: HOST_CONTEXT_MAX_CHARACTERS,
+            usedCharacters: 0,
+            truncated: false,
+          },
+          turnInstructions: request.assembledContext?.turnInstructions,
+          hostState: [
+            ...(request.assembledContext?.hostState ?? []),
+            { id: "opengrove.packs", text: packs.map((pack) => `- ${pack.id}: ${pack.description}`).join("\n") },
+            {
+              id: "opengrove.capabilities",
+              text: capabilities
+                .map((capability) => `- ${capability.id}@${capability.version}: ${capability.description}`)
+                .join("\n"),
+            },
+          ],
+        },
+      },
+      systemPrompt.length,
+    );
     const session = this.options.createSession({
       sessionId: request.context.sessionId,
       system: systemPrompt,
@@ -410,47 +430,13 @@ function piNativeToolSpec(toolId: string): ToolSpec | undefined {
   };
 }
 
-function buildSystemPrompt(
-  base: string,
-  context: AgentContext,
-  skills: SkillManifest[],
-  packs: PackManifest[],
-  capabilities: CapabilityManifest[],
-  replyLanguageInstruction: string,
-): string {
-  const skillLines = getCachedPromptSection(context, "skillIndex", () => renderSkillIndex(skills));
-  const capabilityLines = capabilities.map(
-    (capability) => `- ${capability.id}@${capability.version}: ${capability.description}`,
-  );
-  const packLines = packs.map((pack) => `- ${pack.id}: ${pack.description}`);
-
+function buildSystemPrompt(base: string): string {
   return [
     base,
     "\nSkill protocol:",
-    "- Keep the base prompt small. Skills are indexed here and loaded on demand.",
+    "- Keep the base prompt small. Skills are indexed in the current Host context and loaded on demand.",
     "- When a skill matches the user's request, this is a blocking requirement: invoke `skill.invoke` before generating any substantive response about the task.",
     "- Never mention or rely on a skill without actually invoking it first.",
     "- For user slash commands, treat `/<skill-name>` as an explicit skill load request.",
-    skillLines ? `\nAvailable skills:\n${skillLines}` : "",
-    packLines.length ? `\nAvailable packs:\n${packLines.join("\n")}` : "",
-    capabilityLines.length ? `\nAvailable capabilities:\n${capabilityLines.join("\n")}` : "",
-    replyLanguageInstruction,
-  ]
-    .filter(Boolean)
-    .join("\n");
-}
-
-function getCachedPromptSection(context: AgentContext, key: string, compute: () => string): string {
-  const workingState = context.workingState.get();
-  const nextValue = compute();
-  if (workingState.toolSchemaCache[key] === nextValue) {
-    return nextValue;
-  }
-  context.workingState.update({
-    toolSchemaCache: {
-      ...workingState.toolSchemaCache,
-      [key]: nextValue,
-    },
-  });
-  return nextValue;
+  ].join("\n");
 }

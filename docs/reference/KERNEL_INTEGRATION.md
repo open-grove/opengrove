@@ -80,6 +80,30 @@ guarantee synchronous Host injection during an automatic compaction inside a
 running turn; a queued steer must not be described as that guarantee. Mutable
 Room facts remain available through Room tools.
 
+Pi keeps stable Host instructions in its native system prompt. Its native
+`transform_context` hook projects the current state and turn instructions into
+user-role context before **each model request**, including tool continuations
+and requests after compaction. These projected blocks are not written to the
+native transcript; attachment materials and user messages remain in native
+history. A Host restart rebuilds the current projection on resume. Language,
+Skill, Pack and Capability catalogs do not mutate the system prefix.
+
+OpenClaw Gateway uses `agent.extraSystemPrompt` for stable rules and `agent.message`
+for current state, turn instructions and materials. It retains native model
+selection, session history, `agent.wait` and `chat.abort`; a native abort
+acknowledgement also counts as cancellation when `agent.wait` reports `error`.
+State is sent in full each Host turn, including the first turn after compaction.
+This RPC does not expose a synchronous callback to restore dynamic Host state
+during an in-flight native compaction.
+
+ACP `session/prompt` and Hermes TUI Gateway `prompt.submit` currently expose
+user-input context, not a general system-instructions or before-model-request
+hook. These adapters send stable rules and full current state in user input
+each Host turn. Native in-process plugin hooks do not establish remote protocol
+support. Their session diagnostics identify the delivery channel and next-Host-turn
+recovery boundary; no undocumented parameters or assistant-transcript injection
+are used to simulate a stronger contract.
+
 The final Host-added text budget is 32,000 characters, including stable Host
 instructions, state, Skill instructions and rendered materials. This is a text
 size bound, separate from the Kernel's native token budget. Required instructions
@@ -92,6 +116,12 @@ base prompts and the user's own request are not truncated by this budget.
 `npm run test:native-claude-context` runs the installed SDK and native CLI against
 a loopback Messages API, verifying actual multi-turn request roles, native
 resume, state deltas and the compaction hook without model credentials.
+The Pi runtime harness exercises the installed SDK with a deterministic provider.
+`npm run test:native-openclaw-context` starts an isolated OpenClaw 2026.9.2 Gateway
+and loopback model API to verify request roles, reconnect, native compaction and
+provider cancellation. Set `OPENGROVE_TEST_OPENCLAW_CLI` to an installed
+`openclaw.mjs` to avoid fetching that version with npx. It does not use personal
+Gateway state or model credentials.
 
 ## Minimum end-to-end loop
 

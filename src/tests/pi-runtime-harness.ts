@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createAssistantMessageEventStream, createModels, createProvider } from "@earendil-works/pi-ai";
@@ -63,6 +63,7 @@ async function collect(
 }
 
 async function main() {
+  await assertNativePiHostContext();
   const deepSeekEnv = buildPiProviderEnv({
     id: "deepseek",
     name: "DeepSeek",
@@ -187,6 +188,7 @@ async function main() {
   let sawImageInSession = 0;
   let capturedSessionInput = "";
   let capturedSystemPrompt = "";
+  let capturedHostState = "";
   const runtime = new PiAgentRuntime({
     createSession(options) {
       capturedSystemPrompt = options.system;
@@ -196,6 +198,7 @@ async function main() {
           // image attachment is available to the session that talks to pi.
           sawImageInSession = imageAttachmentsWithDataUrl(context.agent.page?.attachments).length;
           capturedSessionInput = input;
+          capturedHostState = JSON.stringify(context.assembledContext?.hostState);
           yield { type: "assistant.delta", runId: context.runId, text: "ok" };
         },
       };
@@ -221,14 +224,9 @@ async function main() {
   const imageRequest = imageEvents.find((event) => event.type === "model.requested");
   assert.ok(imageRequest && imageRequest.type === "model.requested");
   assert.equal(capturedSessionInput, "what is in this image?");
-  assert.match(capturedSystemPrompt, /Default response language: Simplified Chinese/);
-  assert.match(capturedSystemPrompt, /primary natural language of the current input/);
-  assert.ok(
-    capturedSystemPrompt.endsWith(
-      "Default response language: Simplified Chinese. Follow the primary natural language of the current input unless it explicitly requests another language.",
-    ),
-    "the concise preference should remain visible after Pi's skill context",
-  );
+  assert.doesNotMatch(capturedSystemPrompt, /Default response language/);
+  assert.match(capturedHostState, /Default response language: Simplified Chinese/);
+  assert.match(capturedHostState, /primary natural language of the current input/);
   assert.ok(
     imageEvents.some(
       (event) =>
@@ -1353,6 +1351,7 @@ async function assertNativePiCompaction(): Promise<void> {
       input: `compaction input ${runId}`,
       context: createContext("pi-compaction-session"),
       tools: [],
+      replyLanguagePreference: "zh-CN",
       skills: [],
       packs: [],
       capabilities: [],
@@ -1375,9 +1374,100 @@ async function assertNativePiCompaction(): Promise<void> {
   const request = after.find((event) => event.type === "model.requested");
   assert.match(
     JSON.stringify(request?.type === "model.requested" ? request.request.messages : []),
+    /Default response language: Simplified Chinese/,
+  );
+  assert.match(
+    JSON.stringify(request?.type === "model.requested" ? request.request.messages : []),
     /conversation history before this point was compacted|Preserve the tested conversation/,
     "The next Pi provider request should receive the native compaction summary",
   );
+}
+
+async function assertNativePiHostContext(): Promise<void> {
+  const model = nativeTestModel("pi-host-context-model");
+  const sessionRoot = mkdtempSync(join(tmpdir(), "opengrove-pi-host-context-"));
+  const fixturePath = join(sessionRoot, "material.txt");
+  writeFileSync(fixturePath, "native tool result");
+  const requests: Array<{ system: string; messages: string }> = [];
+  const options: Parameters<typeof createNativePiSessionFactory>[0] = {
+    model,
+    sessionRoot,
+    streamFn: (_model, context) => {
+      requests.push({ system: context.systemPrompt ?? "", messages: JSON.stringify(context.messages) });
+      if (requests.length === 1)
+        return nativeAssistantStream(
+          model.id,
+          [
+            {
+              type: "toolCall",
+              id: "context-read",
+              name: "read",
+              arguments: { path: fixturePath },
+            },
+          ],
+          "toolUse",
+        );
+      return nativeAssistantStream(model.id, [{ type: "text", text: "answer ".repeat(200) }]);
+    },
+  };
+  let runtime = new PiAgentRuntime({ createSession: createNativePiSessionFactory(options) });
+  const run = async (room: string, language: "zh-CN" | "en", material: string) => {
+    const events: AgentEvent[] = [];
+    for await (const event of runtime.runTurn({
+      runId: `run-${room}`,
+      input: `question-${room}`,
+      context: createContext("pi-host-context"),
+      tools: [],
+      sessionInstructions: "STABLE_EMPLOYEE_RULE",
+      replyLanguagePreference: language,
+      assembledContext: {
+        id: `context-${room}`,
+        createdAt: new Date().toISOString(),
+        summary: "test materials",
+        items: [],
+        hostState: [{ id: "room", text: room }],
+        turnInstructions: [{ id: "task", text: `INSTRUCTIONS_${room}` }],
+        promptBlock: material,
+        budget: { maxItems: 8, usedItems: 0, maxCharacters: 6000, usedCharacters: material.length, truncated: false },
+      },
+    }))
+      events.push(event);
+    assert.equal(
+      events.some((event) => event.type === "error"),
+      false,
+    );
+    return requests.at(-1)!;
+  };
+  try {
+    const first = await run("ROOM_ONE", "zh-CN", "ATTACHMENT_ONE");
+    assert.equal(requests.length, 2, "the same turn must project Host state again after a native tool call");
+    for (const projected of requests) {
+      assert.match(projected.messages, /INSTRUCTIONS_ROOM_ONE/);
+      assert.equal(projected.messages.split("OpenGrove current state.").length - 1, 1);
+    }
+    assert.match(first.messages, /native tool result/);
+    assert.match(first.system, /STABLE_EMPLOYEE_RULE/);
+    assert.doesNotMatch(first.system, /ROOM_ONE|ATTACHMENT_ONE|Default response language/);
+    assert.match(first.messages, /ROOM_ONE/);
+    assert.match(first.messages, /Simplified Chinese/);
+    await runtime.dispose();
+    runtime = new PiAgentRuntime({ createSession: createNativePiSessionFactory(options) });
+    const next = await run("ROOM_TWO", "en", "ATTACHMENT_TWO");
+    assert.equal(next.system, first.system, "changing state must preserve the native system prefix");
+    assert.match(next.messages, /question-ROOM_ONE/, "native history must survive Host restart");
+    assert.match(next.messages, /ATTACHMENT_ONE/, "past task materials stay in native history");
+    assert.match(next.messages, /ATTACHMENT_TWO/);
+    assert.match(next.messages, /INSTRUCTIONS_ROOM_TWO/);
+    assert.doesNotMatch(next.messages, /INSTRUCTIONS_ROOM_ONE|Simplified Chinese/);
+    assert.equal(
+      next.messages.split("OpenGrove current state.").length - 1,
+      1,
+      "Host state is projected once per request, not accumulated in history",
+    );
+  } finally {
+    await runtime.dispose();
+    rmSync(sessionRoot, { recursive: true, force: true });
+  }
 }
 
 async function assertNativePiUnconfiguredUsesModelWindow(): Promise<void> {

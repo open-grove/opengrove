@@ -71,6 +71,23 @@ Codex 在下一个 Host 轮次恢复完整状态；当前支持的 app-server �
 自动压缩后同步插入 Host 状态，不能把排队的 steer 消息宣称为这种保证。
 模型仍可通过 Room 工具读取变化的房间事实。
 
+Pi 将稳定规则放在原生系统提示词，通过原生 `transform_context` 钩子，在**每次模型请求前**
+把当前状态和本轮指示投射到 user 角色上下文，包括工具执行后的继续请求以及压缩后的请求。
+这些投射块不写入原生历史；附件材料和用户消息继续由原生历史保存。
+Host 重启后在续聊时重建当前投射。语言、Skill、Pack、Capability 目录不再改变系统前缀。
+
+OpenClaw Gateway 通过 `agent.extraSystemPrompt` 传稳定规则，通过 `agent.message`
+传当前状态、本轮指示和材料。原生模型选择、会话历史、`agent.wait`、`chat.abort` 保留；
+原生取消确认即使伴随 `agent.wait` 的 `error` 状态，也映射为取消。
+每个 Host 轮次完整传状态，包括压缩后的第一轮；这个 RPC 没有暴露在运行中压缩后
+同步回填动态 Host 状态的钩子。
+
+ACP `session/prompt` 和 Hermes TUI Gateway `prompt.submit` 当前只暴露 user 输入，
+没有通用的系统规则字段或模型请求前钩子。因此仍在每个 Host 轮次的 user 输入中传稳定规则和
+完整当前状态。内核进程内存在插件钩子，不等于远程协议已经支持。
+会话诊断会注明实际传入通道和“下个 Host 轮次恢复”的边界；不发送未定义的协议字段，
+也不通过伪造 assistant 历史来模拟更强的能力。
+
 最终 Host 追加文本上限为 32,000 字符，包含稳定规则、状态、Skill 指示和渲染后的材料。
 这是文本长度限制，与 Kernel 原生 token 预算独立。必需规则超限会明确报错，不静默截断。
 默认材料预算为 6,000 个渲染后字符、最多八项；文本附件初始摘录最多 3,200 字符。
@@ -79,6 +96,10 @@ Codex 在下一个 Host 轮次恢复完整状态；当前支持的 app-server �
 
 `npm run test:native-claude-context` 使用已安装的真实 SDK、CLI 和本地回环 Messages API，
 检查多轮实际请求的角色位置、原生续聊、状态差量及压缩钩子，不需要模型账号凭据。
+Pi runtime harness 使用已安装的真实 SDK 和确定性模型响应。
+`npm run test:native-openclaw-context` 启动隔离的 OpenClaw 2026.9.2 Gateway 与本地模型 API，
+检查请求角色、重连、原生压缩和模型连接取消。可用 `OPENGROVE_TEST_OPENCLAW_CLI`
+指定已安装的 `openclaw.mjs`，避免通过 npx 获取该版本；测试不使用个人 Gateway 状态或模型凭据。
 
 ## 最小闭环
 

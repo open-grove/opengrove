@@ -441,6 +441,9 @@ export class AcpCliRuntime implements AgentRuntime {
       data: {
         sessionId: nativeSession.sessionId,
         resuming: nativeSession.resuming,
+        hostInstructionsChannel: "user-input",
+        hostStateDelivery: "full-per-host-turn",
+        hostCompactionRecovery: "next-host-turn",
         hostToolMcpServers: hostToolBinding ? 1 : 0,
         hostToolIds: hostTools?.exposedToolIds ?? [],
       },

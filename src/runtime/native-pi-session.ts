@@ -181,6 +181,7 @@ class NativePiSession implements PiSession {
   private faulted = false;
   private streamFn?: StreamFn;
   private removeToolGate?: () => void;
+  private removeContextHook?: () => void;
   private nativeToolNames = new Map<string, string>();
   private pendingSkillOverlay?: InvokedSkillRecord;
   private activeSkillOverlay?: InvokedSkillRecord;
@@ -215,6 +216,8 @@ class NativePiSession implements PiSession {
     this.faulted = false;
     this.removeToolGate?.();
     this.removeToolGate = undefined;
+    this.removeContextHook?.();
+    this.removeContextHook = undefined;
     this.closing = Promise.resolve()
       .then(() => harness.close(background))
       .finally(() => {
@@ -389,8 +392,8 @@ class NativePiSession implements PiSession {
         if (!context.assembledContext?.turnInstructions?.some((block) => block.id === "opengrove.selected-skill"))
           await this.lane!.steer(createSkillSteeringMessage(context.requestedSkillInvocation), undefined, background);
       }
-      if (context.assembledContext && agentTurnContextPromptBlock(context))
-        await this.lane!.steer(createContextSteeringMessage(context.assembledContext), undefined, background);
+      if (context.assembledContext?.promptBlock.trim())
+        await this.lane!.steer(createMaterialSteeringMessage(context.assembledContext), undefined, background);
       // Explicit admission closes the cancel-before-start race.
       const admitted = await this.lane!.accept({ kind: "prompt", prompt: input, images }, background);
       if (!admitted.ok) throw admitted.error;
@@ -679,6 +682,28 @@ class NativePiSession implements PiSession {
     context: PiSessionContext,
     push: (events: NativeSessionEvent[]) => void,
   ): Promise<void> {
+    // Validate before installing the hook: Pi reports hook exceptions and continues
+    // generation, which must never silently discard required Host instructions.
+    const projectedContext = agentTurnContextPromptBlock(
+      {
+        assembledContext: context.assembledContext ? { ...context.assembledContext, promptBlock: "" } : undefined,
+      },
+      undefined,
+      this.runtimeContext.system.length,
+    );
+    this.removeContextHook?.();
+    this.removeContextHook = this.harness!.hooks.on("transform_context", ({ messages }) => {
+      if (!projectedContext) return;
+      const next = [...messages];
+      let lastUser = next.length - 1;
+      while (lastUser >= 0 && next[lastUser]!.role !== "user") lastUser -= 1;
+      next.splice(lastUser < 0 ? next.length : lastUser, 0, {
+        role: "user",
+        content: [{ type: "text", text: projectedContext }],
+        timestamp: Date.now(),
+      });
+      return { messages: next };
+    });
     this.nativeToolNames = createNativeToolNameMap(this.runtimeContext.tools);
     const model = resolveModel(this.options.model, this.runtimeContext.requestedModelId);
     const thinkingLevel = clampThinkingLevel(
@@ -1745,10 +1770,10 @@ function createSkillSteeringMessage(invocation: InvokedSkillRecord): UserMessage
   };
 }
 
-function createContextSteeringMessage(context: ContextEnvelope): UserMessage {
+function createMaterialSteeringMessage(context: ContextEnvelope): UserMessage {
   return {
     role: "user",
-    content: [{ type: "text", text: agentTurnContextPromptBlock({ assembledContext: context }) }],
+    content: [{ type: "text", text: context.promptBlock }],
     timestamp: Date.now(),
   };
 }
