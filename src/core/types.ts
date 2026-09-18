@@ -80,6 +80,15 @@ export interface ContextEnvelope {
   items: ContextItem[];
   budget: ContextBudget;
   promptBlock: string;
+  /** Host-owned state. Each id names a replaceable section, never attachment content. */
+  hostState?: HostContextBlock[];
+  /** Instructions specific to this Turn, kept separate from user materials. */
+  turnInstructions?: HostContextBlock[];
+}
+
+export interface HostContextBlock {
+  id: string;
+  text: string;
 }
 
 export interface SchemaSpec {

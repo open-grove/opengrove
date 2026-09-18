@@ -271,12 +271,7 @@ function buildPrompt(
     return `${[request.input, agentTurnReplyLanguageInstruction(request)].filter(Boolean).join("\n\n")}\n`;
   }
   const ambientContext = renderAmbientContext(request);
-  const sections = [
-    ambientContext,
-    recentSessionPromptBlock(request),
-    request.input,
-    agentTurnReplyLanguageInstruction(request),
-  ].filter(Boolean);
+  const sections = [ambientContext, recentSessionPromptBlock(request), request.input].filter(Boolean);
   return `${sections.join("\n\n")}\n`;
 }
 

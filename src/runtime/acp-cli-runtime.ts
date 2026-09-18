@@ -12,7 +12,7 @@ import type {
   ApprovalRequest,
   JsonObject,
 } from "../core.js";
-import { agentTurnHostContextPromptBlock, agentTurnReplyLanguageInstruction } from "../core.js";
+import { agentTurnHostContextPromptBlock } from "../core.js";
 import { AsyncEventQueue } from "./codex/async-event-queue.js";
 import {
   AcpSessionProjector,
@@ -1117,7 +1117,6 @@ function buildAcpPrompt(
     threadHistory,
     skillHint,
     exactNativeSkillInvocation ? "" : `User request:\n${request.input}`,
-    agentTurnReplyLanguageInstruction(request),
   ].filter(Boolean);
   return sections.join("\n\n");
 }

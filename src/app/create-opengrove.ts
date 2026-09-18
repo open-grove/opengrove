@@ -15,6 +15,8 @@ import {
   ToolRegistry,
   WorkingStateStore,
   createAssistantFinalEvent,
+  prepareAgentTurnContext,
+  agentTurnContextPromptBlock,
   type AgentCompactRequest,
   type AgentCompactResult,
   type AgentEvent,
@@ -29,6 +31,7 @@ import {
   type AgentSessionListResult,
   type AgentTurnRequest,
   type ContextEnvelope,
+  type HostContextBlock,
   type DynamicToolsMode,
   type InvokedSkillRecord,
   type LoadedSkill,
@@ -126,7 +129,8 @@ export interface AgentTurnOptions {
   requiredSkillNames?: string[];
   /** Stable Host contract delivered through the kernel's session-instructions channel when supported. */
   sessionInstructions?: string;
-  hostContextPromptBlock?: string;
+  hostState?: HostContextBlock[];
+  turnInstructions?: HostContextBlock[];
   responseSpeed?: ResponseSpeed;
   budgetLimitUsd?: number;
   contextTokenBudget?: number;
@@ -694,15 +698,16 @@ export function createOpenGrove(options: CreateOpenGroveOptions): OpenGroveApp {
         page: toAgentPageContext(page),
         computer: normalizeComputerSnapshot(computer),
       };
-      const assembledContext = withRequiredSkillsPromptBlock(
-        withHostContextPromptBlock(
-          assembleContext(preparedInput.contextInput, context, {
+      const assembledContext = withRequiredSkillInstructions(
+        {
+          ...assembleContext(preparedInput.contextInput, context, {
             runId,
             kernelId: options.kernel?.id,
             kernelCapabilities: options.kernel?.capabilities,
           }),
-          turnOptions.hostContextPromptBlock,
-        ),
+          hostState: turnOptions.hostState ?? [],
+          turnInstructions: turnOptions.turnInstructions ?? [],
+        },
         requiredSkillPreparation.loadedSkills,
         requiredSkillPreparation.requirements,
       );
@@ -732,34 +737,37 @@ export function createOpenGrove(options: CreateOpenGroveOptions): OpenGroveApp {
       let runPaused = false;
       const turnEvents: AgentEvent[] = [];
       for await (const event of closeRuntimeOnException(
-        runtime.runTurn({
-          input: preparedInput.runtimeInput,
-          runId,
-          context,
-          sessionInstructions: turnOptions.sessionInstructions,
-          assembledContext,
-          replyLanguagePreference: options.readReplyLanguagePreference?.(),
-          requestedModelId: turnOptions.requestedModelId ?? preparedInput.requestedModelId,
-          requestedEffort: turnOptions.requestedEffort ?? preparedInput.requestedEffort,
-          responseSpeed: turnOptions.responseSpeed,
-          budgetLimitUsd: turnOptions.budgetLimitUsd,
-          contextTokenBudget: turnOptions.contextTokenBudget,
-          threadGoal: preparedInput.threadGoal,
-          accessMode: turnOptions.accessMode,
-          dynamicToolsMode: turnOptions.dynamicToolsMode,
-          sessionHistoryMode: resolveSessionHistoryMode(runtimeKernel.capabilities, turnOptions.sessionHistoryMode),
-          requestedSkillInvocation: preparedInput.invocation,
-          requiredSkills: requiredSkillPreparation.loadedSkills,
-          requiredSkillRequirements: requiredSkillPreparation.requirements,
-          signal: turnOptions.signal,
-          tools: tools.list(),
-          capabilities: capabilities.list(),
-          skills: availableSkills,
-          packs: packs.list(),
-          policy: [...(options.policy ?? []), ...(turnOptions.policy ?? []), ...capabilities.policy()],
-          runtimeEnv: turnOptions.runtimeEnv,
-          hostToolScope: turnOptions.hostToolScope ? { sessionId, ...turnOptions.hostToolScope } : { sessionId },
-        }),
+        () =>
+          runtime.runTurn(
+            prepareAgentTurnContext({
+              input: preparedInput.runtimeInput,
+              runId,
+              context,
+              sessionInstructions: turnOptions.sessionInstructions,
+              assembledContext,
+              replyLanguagePreference: options.readReplyLanguagePreference?.(),
+              requestedModelId: turnOptions.requestedModelId ?? preparedInput.requestedModelId,
+              requestedEffort: turnOptions.requestedEffort ?? preparedInput.requestedEffort,
+              responseSpeed: turnOptions.responseSpeed,
+              budgetLimitUsd: turnOptions.budgetLimitUsd,
+              contextTokenBudget: turnOptions.contextTokenBudget,
+              threadGoal: preparedInput.threadGoal,
+              accessMode: turnOptions.accessMode,
+              dynamicToolsMode: turnOptions.dynamicToolsMode,
+              sessionHistoryMode: resolveSessionHistoryMode(runtimeKernel.capabilities, turnOptions.sessionHistoryMode),
+              requestedSkillInvocation: preparedInput.invocation,
+              requiredSkills: requiredSkillPreparation.loadedSkills,
+              requiredSkillRequirements: requiredSkillPreparation.requirements,
+              signal: turnOptions.signal,
+              tools: tools.list(),
+              capabilities: capabilities.list(),
+              skills: availableSkills,
+              packs: packs.list(),
+              policy: [...(options.policy ?? []), ...(turnOptions.policy ?? []), ...capabilities.policy()],
+              runtimeEnv: turnOptions.runtimeEnv,
+              hostToolScope: turnOptions.hostToolScope ? { sessionId, ...turnOptions.hostToolScope } : { sessionId },
+            }),
+          ),
         runId,
         turnOptions.signal,
       )) {
@@ -944,13 +952,13 @@ function kernelRuntimeExceptionMessage(error: unknown): string {
 }
 
 async function* closeRuntimeOnException(
-  events: AsyncIterable<AgentEvent>,
+  startRuntime: () => AsyncIterable<AgentEvent>,
   runId: string,
   signal?: AbortSignal,
 ): AsyncIterable<AgentEvent> {
   const observed: AgentEvent[] = [];
   try {
-    for await (const event of events) {
+    for await (const event of startRuntime()) {
       observed.push(event);
       yield event;
     }
@@ -961,6 +969,7 @@ async function* closeRuntimeOnException(
       runId,
       message: kernelRuntimeExceptionMessage(error),
     };
+    const contextRejected = errorEvent.message.startsWith("host_context_budget_exceeded:");
     observed.push(errorEvent);
     yield errorEvent;
     if (observed.some((event) => event.type === "turn.finished")) return;
@@ -979,8 +988,12 @@ async function* closeRuntimeOnException(
       at: failureAt,
       outcome: {
         taskState: "TASK_STATE_FAILED",
-        reasonCode: signal?.aborted ? "cancel_outcome_unknown" : "kernel_runtime_exception",
-        outcomeUnknown: true,
+        reasonCode: contextRejected
+          ? "host_context_budget_exceeded"
+          : signal?.aborted
+            ? "cancel_outcome_unknown"
+            : "kernel_runtime_exception",
+        ...(contextRejected ? {} : { outcomeUnknown: true }),
       },
       synthetic: true,
     };
@@ -1416,31 +1429,17 @@ function resolvedKernelContract(
   return kernel?.contract;
 }
 
-function createCompactionSnapshotText(input: string, context: { summary?: string; promptBlock?: string }): string {
+function createCompactionSnapshotText(input: string, context: ContextEnvelope): string {
+  const hostContext = agentTurnContextPromptBlock({ assembledContext: context });
   const sections = [
     `User request before compaction:\n${input}`,
     context.summary ? `Context summary:\n${context.summary}` : "",
-    context.promptBlock ? `Host context snapshot:\n${truncateContextSnapshot(context.promptBlock)}` : "",
+    hostContext ? `Host context snapshot:\n${truncateContextSnapshot(hostContext)}` : "",
   ];
   return sections.filter(Boolean).join("\n\n");
 }
 
-function withHostContextPromptBlock(context: ContextEnvelope, hostContextPromptBlock?: string): ContextEnvelope {
-  const hostBlock = hostContextPromptBlock?.trim();
-  if (!hostBlock) return context;
-  const existingPromptBlock = context.promptBlock.trim();
-  return {
-    ...context,
-    summary: context.summary === "empty context" ? "host context" : `host context, ${context.summary}`,
-    budget: {
-      ...context.budget,
-      usedCharacters: context.budget.usedCharacters + hostBlock.length,
-    },
-    promptBlock: [hostBlock, existingPromptBlock].filter(Boolean).join("\n\n"),
-  };
-}
-
-function withRequiredSkillsPromptBlock(
+function withRequiredSkillInstructions(
   context: ContextEnvelope,
   loadedSkills: LoadedSkill[],
   requirements: RequiredSkillRequirement[],
@@ -1486,11 +1485,7 @@ function withRequiredSkillsPromptBlock(
     ...context,
     summary:
       context.summary === "empty context" ? "required employee skills" : `required employee skills, ${context.summary}`,
-    budget: {
-      ...context.budget,
-      usedCharacters: context.budget.usedCharacters + requiredBlock.length,
-    },
-    promptBlock: [requiredBlock, context.promptBlock].filter(Boolean).join("\n\n"),
+    turnInstructions: [...(context.turnInstructions ?? []), { id: "opengrove.required-skills", text: requiredBlock }],
   };
 }
 

@@ -14,7 +14,7 @@ import type {
   JsonObject,
   JsonValue,
 } from "../core.js";
-import { agentTurnHostContextPromptBlock, agentTurnReplyLanguageInstruction } from "../core.js";
+import { agentTurnHostContextPromptBlock } from "../core.js";
 import { appEnvName } from "../identity.js";
 import { AsyncEventQueue } from "./codex/async-event-queue.js";
 import { recentSessionMessages, recentSessionPromptBlock } from "./session-history.js";
@@ -1046,22 +1046,11 @@ class OpenClawGatewayClient {
 function buildOpenClawPrompt(request: AgentTurnRequest): string {
   const hostContext = agentTurnHostContextPromptBlock(request);
   const threadHistory = recentSessionPromptBlock(request);
-  const selectedSkill = request.requestedSkillInvocation?.content.trim();
   const sections = [
     "You are running inside the OpenGrove host.",
     hostContext ? `Host context:\n${hostContext}` : "",
     threadHistory,
-    selectedSkill
-      ? [
-          `OpenGrove selected skill ${request.requestedSkillInvocation?.skillName}:`,
-          selectedSkill,
-          request.requestedSkillInvocation?.args ? `Skill arguments:\n${request.requestedSkillInvocation.args}` : "",
-        ]
-          .filter(Boolean)
-          .join("\n\n")
-      : "",
     `User request:\n${request.input}`,
-    agentTurnReplyLanguageInstruction(request),
   ].filter(Boolean);
   return sections.join("\n\n");
 }

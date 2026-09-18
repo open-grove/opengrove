@@ -1,3 +1,4 @@
+import { agentTurnContextPromptBlock, type ContextEnvelope } from "../core.js";
 import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -14,6 +15,10 @@ import {
 } from "../runtime/codex/input.js";
 import { createSkillCatalog } from "../skills/catalog.js";
 import { createJsonStateStore } from "../storage/json-state-store.js";
+
+function contextText(context: ContextEnvelope | undefined): string {
+  return agentTurnContextPromptBlock({ assembledContext: context });
+}
 
 async function main() {
   const cwd = mkdtempSync(join(tmpdir(), "opengrove-skill-"));
@@ -210,7 +215,7 @@ async function main() {
     "a disabled required Skill should reach the model instead of aborting in the Host",
   );
   assert.match(
-    disabledRequiredRequest.request.context?.promptBlock ?? "",
+    contextText(disabledRequiredRequest.request.context) ?? "",
     /Host policy does not allow this Skill to be loaded by the model/,
   );
   assert.ok(
@@ -221,7 +226,7 @@ async function main() {
   const hostContextEvents: AgentEvent[] = [];
   for await (const event of app.runTurn("hello host context", {
     sessionInstructions: "Employee session marker: EMPLOYEE_IDENTITY_STABLE",
-    hostContextPromptBlock: "Room host marker: HOST_CONTEXT_VISIBLE",
+    hostState: [{ id: "room", text: "Room host marker: HOST_CONTEXT_VISIBLE" }],
   })) {
     hostContextEvents.push(event);
   }
@@ -231,12 +236,12 @@ async function main() {
   assert.ok(hostContextRequest, "host context run should emit model.requested");
   assert.equal(hostContextRequest.request.userInput, "hello host context");
   assert.ok(
-    hostContextRequest.request.context?.promptBlock.includes("HOST_CONTEXT_VISIBLE"),
-    "hostContextPromptBlock should be delivered through assembledContext.promptBlock",
+    contextText(hostContextRequest.request.context).includes("HOST_CONTEXT_VISIBLE"),
+    "Host state should remain a separate context section until adapter rendering",
   );
   assert.ok(
     !hostContextRequest.request.userInput.includes("HOST_CONTEXT_VISIBLE"),
-    "hostContextPromptBlock must not be mixed into the user input",
+    "Host state must not be mixed into the user input",
   );
   const codexInput = buildCodexTurnInput({
     input: "hello host context",
@@ -289,7 +294,7 @@ async function main() {
   );
   assert.ok(missingRequiredRequest, "a missing required Skill should still reach the model");
   assert.match(
-    missingRequiredRequest.request.context?.promptBlock ?? "",
+    contextText(missingRequiredRequest.request.context) ?? "",
     /required_skill_not_found:missing-required-skill/,
     "the model should receive the real Host preflight failure",
   );
@@ -301,7 +306,7 @@ async function main() {
   const requiredSkillEvents: AgentEvent[] = [];
   for await (const event of app.runTurn("hello required skill", {
     requiredSkillNames: ["demo-inline"],
-    hostContextPromptBlock: "Room host marker: REQUIRED_SKILL_ROOM_CONTEXT",
+    hostState: [{ id: "room", text: "Room host marker: REQUIRED_SKILL_ROOM_CONTEXT" }],
   })) {
     requiredSkillEvents.push(event);
   }
@@ -310,15 +315,15 @@ async function main() {
   );
   assert.ok(requiredSkillRequest, "required skill run should emit model.requested");
   assert.ok(
-    requiredSkillRequest.request.context?.promptBlock.includes("OpenGrove required employee skills"),
+    contextText(requiredSkillRequest.request.context).includes("OpenGrove required employee skills"),
     "required skills should be marked as host-mandated context",
   );
   assert.ok(
-    requiredSkillRequest.request.context?.promptBlock.includes("KEEP_OUT_OF_SYSTEM_PROMPT"),
+    contextText(requiredSkillRequest.request.context).includes("KEEP_OUT_OF_SYSTEM_PROMPT"),
     "required skill body should be loaded into the host context",
   );
   assert.ok(
-    requiredSkillRequest.request.context?.promptBlock.includes("REQUIRED_SKILL_ROOM_CONTEXT"),
+    contextText(requiredSkillRequest.request.context).includes("REQUIRED_SKILL_ROOM_CONTEXT"),
     "required skill injection should preserve the normal room host context",
   );
   assert.ok(
@@ -406,8 +411,8 @@ async function main() {
     "skill body must not be embedded into the system prompt",
   );
   assert.ok(
-    !request.request.context?.promptBlock.includes("KEEP_OUT_OF_SYSTEM_PROMPT"),
-    "skill body should not be expanded into the assembled context for every turn",
+    !(request.request.context?.promptBlock ?? "").includes("KEEP_OUT_OF_SYSTEM_PROMPT"),
+    "explicit Skill instructions must remain separate from task materials",
   );
   assert.ok(
     app.knowledge
@@ -480,9 +485,9 @@ async function main() {
   assert.equal(nativeRequiredRequest.requiredSkillRequirements?.length, 1);
   assert.equal(nativeRequiredRequest.requiredSkillRequirements?.[0]?.hostLoadStatus, "available");
   assert.equal(nativeRequiredRequest.requiredSkillRequirements?.[0]?.modelLoadAllowed, true);
-  assert.match(nativeRequiredRequest.assembledContext?.promptBlock ?? "", /Load this Skill before acting/);
+  assert.match(contextText(nativeRequiredRequest.assembledContext) ?? "", /Load this Skill before acting/);
   assert.ok(
-    !(nativeRequiredRequest.assembledContext?.promptBlock ?? "").includes("KEEP_OUT_OF_SYSTEM_PROMPT"),
+    !(contextText(nativeRequiredRequest.assembledContext) ?? "").includes("KEEP_OUT_OF_SYSTEM_PROMPT"),
     "native required Skill bodies must not be injected into Host context",
   );
   const nativeDefaultOnlyRequest: AgentTurnRequest = {

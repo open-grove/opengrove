@@ -1,5 +1,10 @@
 import { resolve } from "node:path";
-import { agentTurnReplyLanguageInstruction, type AgentTurnRequest } from "../../core.js";
+import {
+  agentTurnContextPromptBlock,
+  prepareAgentTurnContext,
+  type HostContextBlock,
+  type AgentTurnRequest,
+} from "../../core.js";
 import type { CodexAppServerClient } from "./app-server-client.js";
 import type { CodexTurnInputItem } from "./types.js";
 
@@ -18,32 +23,14 @@ export function buildCodexDeveloperInstructions(request?: Pick<AgentTurnRequest,
   return sections.filter((section) => typeof section === "string" && section.trim()).join("\n\n");
 }
 
-function employeeOptionalSkillEntries(request: AgentTurnRequest | undefined) {
-  const requiredIds = new Set([
-    ...(request?.requiredSkills ?? []).map((skill) => skill.manifest.id),
-    ...(request?.requiredSkillRequirements ?? [])
-      .map((requirement) => requirement.manifest?.id)
-      .filter((skillId): skillId is string => Boolean(skillId)),
-  ]);
-  return (request?.skills ?? []).filter((skill) => !requiredIds.has(skill.id));
-}
-
-export function buildCodexTurnInput(request: AgentTurnRequest): string {
-  const hostContext = request.assembledContext?.promptBlock?.trim();
-  const optionalSkillEntries = employeeOptionalSkillEntries(request);
-  const sections = [
-    hostContext ? `OpenGrove context for this Turn:\n${hostContext}` : "",
-    optionalSkillEntries.length
-      ? [
-          "Employee optional skill scope (load only when relevant by reading the exact SKILL.md path, then follow its references progressively):",
-          ...optionalSkillEntries.map((skill) => `- ${skill.name}: ${skill.description}\n  SKILL.md: ${skill.entry}`),
-        ].join("\n")
-      : "",
-    buildRequestedSkillSection(request),
+export function buildCodexTurnInput(request: AgentTurnRequest, state?: HostContextBlock[]): string {
+  const prepared = prepareAgentTurnContext(request, buildCodexDeveloperInstructions(request).length);
+  return [
+    agentTurnContextPromptBlock(prepared, state, buildCodexDeveloperInstructions(request).length),
     `User request:\n${request.input}`,
-    agentTurnReplyLanguageInstruction(request),
-  ];
-  return sections.filter((section) => typeof section === "string" && section.trim()).join("\n\n");
+  ]
+    .filter(Boolean)
+    .join("\n\n");
 }
 
 export function buildCodexTurnInputItems(request: AgentTurnRequest, text: string): CodexTurnInputItem[] {
@@ -118,34 +105,6 @@ export function imageGenerationTruthCorrection(
     "更正：当前这一轮没有收到真实 `imageGeneration` 结果，也没有可渲染图片文件，所以不能视为已经生成了图片。",
     "上面的内容只能算 brief 或方向说明。这个 skill 在没有真实图像生成工具时应该降级为 4 条白底产品图 prompt，而不是把文字方向当作图片产物。",
   ].join("\n");
-}
-
-function buildRequestedSkillSection(request: AgentTurnRequest): string {
-  const invocation = request.requestedSkillInvocation;
-  if (!invocation) {
-    return "";
-  }
-  if (!invocation.content.trim()) {
-    return [
-      `Native Codex skill selected: $${invocation.skillName}`,
-      `Skill path: ${invocation.sourcePath}`,
-      invocation.allowedTools.length
-        ? `Host-declared tool scope for this skill: ${invocation.allowedTools.join(", ")}`
-        : "",
-      "Do not reload this skill through an OpenGrove tool; the Codex skill input item carries the native skill reference.",
-    ]
-      .filter(Boolean)
-      .join("\n");
-  }
-  return [
-    `Loaded host skill for this turn /${invocation.skillName}:`,
-    invocation.content,
-    invocation.allowedTools.length
-      ? `Host-declared tool scope for this skill: ${invocation.allowedTools.join(", ")}`
-      : "",
-  ]
-    .filter(Boolean)
-    .join("\n");
 }
 
 function buildCodexSkillInputItem(request: AgentTurnRequest): CodexTurnInputItem | undefined {

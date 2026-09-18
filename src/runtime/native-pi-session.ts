@@ -1,3 +1,4 @@
+import { agentTurnContextPromptBlock } from "../core/turn-context.js";
 import {
   AgentHarness,
   HarnessClosed,
@@ -385,9 +386,10 @@ class NativePiSession implements PiSession {
       if (context.requestedSkillInvocation?.context === "inline") {
         this.pendingSkillOverlay = undefined;
         this.activeSkillOverlay = context.requestedSkillInvocation;
-        await this.lane!.steer(createSkillSteeringMessage(context.requestedSkillInvocation), undefined, background);
+        if (!context.assembledContext?.turnInstructions?.some((block) => block.id === "opengrove.selected-skill"))
+          await this.lane!.steer(createSkillSteeringMessage(context.requestedSkillInvocation), undefined, background);
       }
-      if (context.assembledContext?.promptBlock)
+      if (context.assembledContext && agentTurnContextPromptBlock(context))
         await this.lane!.steer(createContextSteeringMessage(context.assembledContext), undefined, background);
       // Explicit admission closes the cancel-before-start race.
       const admitted = await this.lane!.accept({ kind: "prompt", prompt: input, images }, background);
@@ -497,7 +499,7 @@ class NativePiSession implements PiSession {
     const budget = resolveContextTokenBudget(context.contextTokenBudget, model.contextWindow);
     const triggerWindow = budget.effectiveBudget ?? budget.modelContextWindow;
     const incomingMessage = createPiBudgetMessage(
-      [context.assembledContext?.promptBlock, input].filter(Boolean).join("\n\n"),
+      [agentTurnContextPromptBlock(context), input].filter(Boolean).join("\n\n"),
       images,
     );
     const usage = await this.estimateNativeContext(incomingMessage);
@@ -1746,7 +1748,7 @@ function createSkillSteeringMessage(invocation: InvokedSkillRecord): UserMessage
 function createContextSteeringMessage(context: ContextEnvelope): UserMessage {
   return {
     role: "user",
-    content: [{ type: "text", text: context.promptBlock }],
+    content: [{ type: "text", text: agentTurnContextPromptBlock({ assembledContext: context }) }],
     timestamp: Date.now(),
   };
 }
