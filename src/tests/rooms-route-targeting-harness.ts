@@ -1,3 +1,4 @@
+import { agentTurnContextPromptBlock } from "../core.js";
 import assert from "node:assert/strict";
 import { once } from "node:events";
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
@@ -1045,7 +1046,7 @@ async function runForgotMentionPmDispatchHarness(): Promise<void> {
     harnessAdapter.runTurn = async function* runFakeRoomTurn(turn): AsyncIterable<AgentEvent> {
       const input = turn.input;
       const runId = turn.runId ?? `fake-run-${runInputs.length}`;
-      const hostContext = turn.assembledContext?.promptBlock ?? "";
+      const hostContext = agentTurnContextPromptBlock(turn);
       const sessionInstructions = turn.sessionInstructions ?? "";
       runInputs.push({
         input,

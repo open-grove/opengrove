@@ -65,6 +65,14 @@ export function createCiCheckPlan(event, paths) {
       ),
     );
   }
+  // Keep the pinned CLI install visible as its own network-dependent gate.
+  // It uses a loopback provider fixture and requires no model credentials.
+  if (scope.kernel || scope.server) {
+    addHarnesses(
+      "native-context",
+      harnessGroups.network.filter((task) => task.id === "native-openclaw-context"),
+    );
+  }
   add("desktop-protocol", "xvfb-run -a npm run test:desktop-protocol-proxy-electron", scope.desktop);
   const native = scope.server || scope.desktop || scope.kernel || scope.windowsMediaCleanup || scope.windowsAppStore;
   const platforms = native

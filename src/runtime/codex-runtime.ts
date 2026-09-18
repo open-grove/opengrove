@@ -1,3 +1,5 @@
+import { hostContextDelivery } from "./host-context-delivery.js";
+import { prepareAgentTurnContext } from "../core.js";
 import { createHash } from "node:crypto";
 import {
   closeSync,
@@ -111,6 +113,7 @@ export class CodexRuntime implements AgentRuntime {
       return { ok: false, compacted: false, error: "session_not_found" };
     }
 
+    hostContextDelivery.invalidate(`codex:${binding.threadId}`);
     const runtimeEnv = this.options.env;
     let client: CodexAppServerClient | undefined;
     const clientKey = envFingerprint(runtimeEnv);
@@ -246,10 +249,10 @@ export class CodexRuntime implements AgentRuntime {
     if (request.accessMode && sandbox === "workspace-write") {
       threadConfig["sandbox_workspace_write.network_access"] = false;
     }
+    request = prepareAgentTurnContext(request);
     const staticDeveloperInstructions = buildCodexDeveloperInstructions();
     const developerInstructions = buildCodexDeveloperInstructions(request);
-    const turnInput = buildCodexTurnInput(request);
-    const turnInputItems = buildCodexTurnInputItems(request, turnInput);
+    const mediaInputItems = buildCodexTurnInputItems(request, "");
     const exposeDynamicTools = shouldExposeCodexDynamicTools(request);
     const toolBridge = createCodexDynamicToolBridge(
       exposeDynamicTools ? request : { ...request, tools: [], capabilities: [] },
@@ -272,7 +275,7 @@ export class CodexRuntime implements AgentRuntime {
           ? "model_auto_compact_token_limit"
           : "employee/App budget unconfigured; preserving Codex native default",
     });
-    const mediaDiagnostic = codexMediaInputDiagnostic(turnInputItems);
+    const mediaDiagnostic = codexMediaInputDiagnostic(mediaInputItems);
     if (mediaDiagnostic) {
       yield {
         type: "runtime.diagnostic",
@@ -445,6 +448,12 @@ export class CodexRuntime implements AgentRuntime {
         };
         return;
       }
+      const delivery = hostContextDelivery;
+      const receipt = delivery.begin(`codex:${thread.threadId}`, request.assembledContext?.hostState ?? []);
+      const turnInputItems = buildCodexTurnInputItems(
+        request,
+        buildCodexTurnInput(request, receipt.fullState ? undefined : receipt.blocks),
+      );
       activeThreadId = thread.threadId;
       activeTurn = {
         client,
@@ -594,8 +603,10 @@ export class CodexRuntime implements AgentRuntime {
         for await (const event of queue) {
           if (event.type === "compaction.started") {
             compactionTriggered = true;
+            delivery.invalidate(`codex:${thread.threadId}`);
           } else if (event.type === "compaction.finished") {
             compactionTriggered = true;
+            delivery.invalidate(`codex:${thread.threadId}`);
             compactionSucceeded = true;
           }
           if (event.type === "approval.requested" && event.request.resume?.type !== "kernel.native") {
@@ -658,6 +669,15 @@ export class CodexRuntime implements AgentRuntime {
         compactionSucceeded,
         reason: "turn-final",
       });
+      if (
+        !compactTurn &&
+        !compactionTriggered &&
+        !runtimeFailure &&
+        !projector.errorMessage() &&
+        turnCompleted &&
+        projector.nativeTerminalStatus() === "completed"
+      )
+        receipt.acknowledge();
       if (pauseRequest) {
         yield {
           type: "run.paused",

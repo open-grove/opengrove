@@ -9529,6 +9529,38 @@
                         "promptBlock": {
                           "type": "string"
                         },
+                        "hostState": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "text": {
+                                "type": "string"
+                              }
+                            },
+                            "required": ["id", "text"],
+                            "additionalProperties": false
+                          }
+                        },
+                        "turnInstructions": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "text": {
+                                "type": "string"
+                              }
+                            },
+                            "required": ["id", "text"],
+                            "additionalProperties": false
+                          }
+                        },
                         "items": {
                           "type": "array",
                           "items": {
@@ -9770,6 +9802,38 @@
                             },
                             "promptBlock": {
                               "type": "string"
+                            },
+                            "hostState": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "id": {
+                                    "type": "string"
+                                  },
+                                  "text": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": ["id", "text"],
+                                "additionalProperties": false
+                              }
+                            },
+                            "turnInstructions": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "id": {
+                                    "type": "string"
+                                  },
+                                  "text": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": ["id", "text"],
+                                "additionalProperties": false
+                              }
                             },
                             "items": {
                               "type": "array",
@@ -12743,6 +12807,38 @@
                         "promptBlock": {
                           "type": "string"
                         },
+                        "hostState": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "text": {
+                                "type": "string"
+                              }
+                            },
+                            "required": ["id", "text"],
+                            "additionalProperties": false
+                          }
+                        },
+                        "turnInstructions": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "text": {
+                                "type": "string"
+                              }
+                            },
+                            "required": ["id", "text"],
+                            "additionalProperties": false
+                          }
+                        },
                         "items": {
                           "type": "array",
                           "items": {
@@ -12984,6 +13080,38 @@
                             },
                             "promptBlock": {
                               "type": "string"
+                            },
+                            "hostState": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "id": {
+                                    "type": "string"
+                                  },
+                                  "text": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": ["id", "text"],
+                                "additionalProperties": false
+                              }
+                            },
+                            "turnInstructions": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "id": {
+                                    "type": "string"
+                                  },
+                                  "text": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": ["id", "text"],
+                                "additionalProperties": false
+                              }
                             },
                             "items": {
                               "type": "array",

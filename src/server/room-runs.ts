@@ -232,7 +232,11 @@ async function executeRoomRun(state: BridgeState, input: RoomRunExecutionInput):
                 availableSkillNames,
                 requiredSkillNames,
                 sessionInstructions: envelope.sessionInstructions,
-                hostContextPromptBlock: [envelope.turnInstructions, cliEnvironmentContext].filter(Boolean).join("\n\n"),
+                hostState: [
+                  ...envelope.hostState,
+                  { id: "opengrove.cli-environment", text: cliEnvironmentContext ?? "" },
+                ],
+                turnInstructions: envelope.turnInstructions,
                 accessMode: events.some((event) => autoReviewFallbackReason(event) !== undefined)
                   ? "default"
                   : target.accessMode,

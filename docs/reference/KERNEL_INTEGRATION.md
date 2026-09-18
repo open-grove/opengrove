@@ -43,6 +43,93 @@ Use a generic text CLI only when no structured boundary is available. Native
 protocol events are the source of truth for tool lifecycle, approvals, session
 identity, usage, and errors.
 
+## Host instructions and current context
+
+Keep these channels distinct until the Adapter renders a native request:
+
+| Content | Host field | Claude / Codex placement |
+| --- | --- | --- |
+| Employee identity and durable collaboration rules | `sessionInstructions` | Native system append / developer instructions |
+| Current Room, members, language, CLI environment and optional Skill index | `assembledContext.hostState` | Named, replaceable sections in the current user input |
+| Required or explicitly selected Skills and message-specific directions | `assembledContext.turnInstructions` | Current user input |
+| Attachment excerpts and explicit selections | `assembledContext.promptBlock` and `items` | Task materials in user input; images use native media blocks |
+
+Host-generated stable collaboration rules use one canonical language; changing
+the UI or reply-language preference updates Turn state, not those rules.
+
+Claude enables native system-prompt snapshots. Existing sessions whose recorded
+Host prompt is unknown or changed use `snapshot: false` until native compaction
+clears the old snapshot; this preserves their transcript while removing stale
+Host text from the system channel. Mutable state and task materials
+must therefore never be appended to that prompt. Both Claude and Codex retain
+their native base instructions, tools and transcript ownership.
+
+For Claude and Codex, the first delivery to a native session contains all current
+Host state. Empty sections are absent on initial delivery; removal notices are
+sent only for previously delivered sections. Full snapshots explicitly replace
+all earlier Host state, including an empty current state, so omitted sections
+cannot remain active in retained history. A successful native turn records a receipt; later turns send changed
+sections and explicit notices for removed sections. Materials and per-turn
+instructions are delivered each turn. Failed, canceled, overlapping or
+unacknowledged deliveries cannot suppress the next full state. Receipts are
+bounded and keyed by Kernel and native session within the Host process; restart or eviction safely causes
+a full delivery, without replaying conversation history.
+
+Compaction invalidates the receipt. Claude's synchronous `SessionStart` hook
+with `source: compact` supplies the current Host state and turn instructions
+before native continuation; attachment excerpts are excluded. Codex restores the
+full state with the next Host turn. The supported app-server boundary does not
+guarantee synchronous Host injection during an automatic compaction inside a
+running turn; a queued steer must not be described as that guarantee. Mutable
+Room facts remain available through Room tools.
+
+Pi keeps stable Host instructions in its native system prompt. Its native
+`transform_context` hook projects the current state and turn instructions into
+user-role context before **each model request**, including tool continuations
+and requests after compaction. These projected blocks are not written to the
+native transcript; attachment materials and user messages remain in native
+history. A Host restart rebuilds the current projection on resume. Language,
+Skill, Pack and Capability catalogs do not mutate the system prefix.
+
+OpenClaw Gateway uses `agent.extraSystemPrompt` for stable rules and `agent.message`
+for current state, turn instructions and materials. It retains native model
+selection, session history, `agent.wait` and `chat.abort`; a native abort
+acknowledgement also counts as cancellation when `agent.wait` reports `error`.
+State is sent in full each Host turn, including the first turn after compaction.
+This RPC does not expose a synchronous callback to restore dynamic Host state
+during an in-flight native compaction.
+
+ACP `session/prompt` and Hermes TUI Gateway `prompt.submit` currently expose
+user-input context, not a general system-instructions or before-model-request
+hook. These adapters send stable rules and full current state in user input
+each Host turn. Native in-process plugin hooks do not establish remote protocol
+support. Their session diagnostics identify the delivery channel and next-Host-turn
+recovery boundary; no undocumented parameters or assistant-transcript injection
+are used to simulate a stronger contract.
+
+Host instructions, state and Skill instructions have no combined Host character
+cap; native model windows and Kernel compaction retain ownership of the overall
+context. `ContextEnvelope.budget` describes material excerpts only. The default
+material budget is 6,000 rendered characters and eight items; text attachments
+start with at most 3,200 characters. Excerpts are labeled, retained attachment
+paths remain complete, and omitted material is reported. Native history, native
+base prompts and the user's own request are not truncated by this budget. A
+material allowance too small for an omission notice does not reject the Turn;
+the envelope still reports that material was omitted.
+
+`npm run test:native-claude-context` runs the installed SDK and native CLI against
+a loopback Messages API, verifying actual multi-turn request roles, native
+resume, state deltas and the compaction hook without model credentials.
+The Pi runtime harness exercises the installed SDK with a deterministic provider.
+`npm run test:native-openclaw-context` starts an isolated OpenClaw 2026.9.2 Gateway
+and loopback model API to verify request roles, reconnect, native compaction and
+provider cancellation. Set `OPENGROVE_TEST_OPENCLAW_CLI` to an installed
+`openclaw.mjs` to avoid fetching that version with npx. It does not use personal
+Gateway state or model credentials. Relevant PR, merge-queue and Main source
+checks run the Claude probe through affected harness selection and the OpenClaw
+probe in a separate `native-context` check. The latter may fetch the pinned CLI
+and is explicitly tracked as network-dependent.
+
 ## Minimum end-to-end loop
 
 A new integration must first prove this loop:

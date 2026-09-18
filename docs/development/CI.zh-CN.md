@@ -25,7 +25,9 @@ Windows 开发命令和原生 job 共用同一份记录；Node 单测负责 `*.t
 静态检查不再重复执行 Host 契约单测。
 
 任务声明准备需求，harness job 构建一次后执行选中的测试。离线包内容检查验证技能
-与 import 目标是否进入发布包，合并前就运行；联网安装留在 Nightly。
+与 import 目标是否进入发布包，合并前就运行；生产包的联网安装留在 Nightly。
+Server/Kernel 变更还会选择独立的 `native-context` 检查，必要时获取固定的 OpenClaw 2026.9.2 CLI，
+用本地回环模型 API 验证真实 Gateway，不需要模型账号。已安装 Claude SDK 的验证随受影响 harness 选择运行。
 跨 OS、源码运行与安装后运行属于不同场景。原生和安装包检查暂时保守选取，后续根据
 实际耗时与回归数据细化，不能仅为缩短时间删掉平台。
 

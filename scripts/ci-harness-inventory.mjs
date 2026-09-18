@@ -97,6 +97,13 @@ export const harnessInventory = [
   task("generic-cli-runtime", "dist/tests/generic-cli-runtime-harness.js", "kernels-providers"),
   task("claude-engine-resolution", "dist/tests/claude-engine-resolution-harness.js", "kernels-providers"),
   task("claude-agent-sdk-runtime", "dist/tests/claude-agent-sdk-runtime-harness.js", "kernels-providers"),
+  task("native-claude-context", "scripts/test-native-claude-context.mjs", "kernels-providers", { build: true }),
+  task("native-openclaw-context", "scripts/certify-openclaw-gateway-2026-8-2.mjs", "kernels-providers", {
+    args: ["2026.9.2", "--context"],
+    build: true,
+    network: true,
+    timeoutMs: 600_000,
+  }),
   task("claude-models-cache", "dist/tests/claude-models-cache-harness.js", "kernels-providers"),
   task("pi-runtime", "dist/tests/pi-runtime-harness.js", "kernels-providers"),
   task("kernel-capability-evidence-generated", "scripts/generate-certified-kernel-evidence.mjs", "kernels-providers"),

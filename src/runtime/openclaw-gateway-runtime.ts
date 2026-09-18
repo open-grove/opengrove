@@ -14,7 +14,7 @@ import type {
   JsonObject,
   JsonValue,
 } from "../core.js";
-import { agentTurnHostContextPromptBlock, agentTurnReplyLanguageInstruction } from "../core.js";
+import { agentTurnFullContextPromptBlock, prepareAgentTurnContext } from "../core/turn-context.js";
 import { appEnvName } from "../identity.js";
 import { AsyncEventQueue } from "./codex/async-event-queue.js";
 import { recentSessionMessages, recentSessionPromptBlock } from "./session-history.js";
@@ -217,12 +217,18 @@ export class OpenClawGatewayRuntime implements AgentRuntime {
 
   async *runTurn(request: AgentTurnRequest): AsyncIterable<AgentEvent> {
     assertRuntimeAccessMode("openclaw", request.accessMode);
+    // Prepare before dispatch so failures reach the Host exception boundary,
+    // even before turn.started.
+    const extraSystemPrompt = ["You are running inside the OpenGrove host.", request.sessionInstructions?.trim()]
+      .filter(Boolean)
+      .join("\n\n");
+    request = prepareAgentTurnContext(request);
     const queue = new AsyncEventQueue<AgentEvent>();
     const runId = resolveRuntimeRunId(request.runId);
     let turnStarted = false;
     let turnFinished = false;
     let producerFailure = "";
-    const producer = this.produceGatewayTurn(request, queue, runId)
+    const producer = this.produceGatewayTurn(request, queue, runId, extraSystemPrompt)
       .then(() => queue.close())
       .catch((error) => {
         producerFailure = error instanceof Error ? error.message : String(error);
@@ -260,6 +266,7 @@ export class OpenClawGatewayRuntime implements AgentRuntime {
     request: AgentTurnRequest,
     queue: AsyncEventQueue<AgentEvent>,
     runId: string,
+    extraSystemPrompt: string,
   ): Promise<void> {
     const requestedModel = request.requestedModelId?.trim() || this.options.configuredModel?.trim();
     const prompt = buildOpenClawPrompt(request);
@@ -291,13 +298,16 @@ export class OpenClawGatewayRuntime implements AgentRuntime {
       data: {
         url: redactGatewayUrl(this.options.url),
         sessionKey,
+        hostInstructionsChannel: "agent.extraSystemPrompt",
+        hostStateDelivery: "full-per-host-turn",
+        hostCompactionRecovery: "next-host-turn",
       },
     });
     queue.push({
       type: "model.requested",
       runId,
       request: {
-        systemPrompt: "OpenClaw Gateway mode. OpenGrove host context is prepended to the user prompt when present.",
+        systemPrompt: extraSystemPrompt,
         userInput: request.input,
         modelId: requestedModel,
         session,
@@ -339,14 +349,25 @@ export class OpenClawGatewayRuntime implements AgentRuntime {
     });
 
     let nativeRunId = runId;
-    let chatSent = false;
+    let runSubmitted = false;
+    let cancellation: Promise<boolean> | undefined;
     const waitController = new AbortController();
     let cancelSettleTimer: ReturnType<typeof setTimeout> | undefined;
     const abort = () => {
-      if (!chatSent) return;
-      void this.client
+      if (!runSubmitted) return;
+      cancellation ??= this.client
         .request("chat.abort", { sessionKey, runId: nativeRunId }, { timeoutMs: 10_000 })
-        .catch(() => undefined);
+        .then((result) => asObject(result).aborted === true)
+        .catch((error) => {
+          queue.push({
+            type: "runtime.diagnostic",
+            runId,
+            at: new Date().toISOString(),
+            name: "openclaw.gateway.cancel-failed",
+            data: { error: String(error) },
+          });
+          return false;
+        });
       if (!cancelSettleTimer) {
         cancelSettleTimer = setTimeout(() => waitController.abort(), OPENCLAW_CANCEL_SETTLE_MS);
         cancelSettleTimer.unref?.();
@@ -383,15 +404,15 @@ export class OpenClawGatewayRuntime implements AgentRuntime {
         runId,
         sessionKey,
         priorMessages,
-        incomingTokens: estimateTextTokens(prompt),
+        incomingTokens: estimateTextTokens(extraSystemPrompt + "\n\n" + prompt),
       });
       const sent = asObject(
         await this.client.request(
-          "chat.send",
+          "agent",
           {
             sessionKey,
-            sessionId: request.context.sessionId,
             message: prompt,
+            extraSystemPrompt,
             deliver: false,
             idempotencyKey: runId,
           },
@@ -399,7 +420,7 @@ export class OpenClawGatewayRuntime implements AgentRuntime {
         ),
       );
       nativeRunId = readString(sent, "runId") || runId;
-      chatSent = true;
+      runSubmitted = true;
       acceptedRunIds.add(nativeRunId);
       if (request.signal?.aborted) abort();
       const waitSliceMs = Math.max(100, this.options.requestTimeoutMs ?? OPENCLAW_WAIT_SLICE_MS);
@@ -423,9 +444,14 @@ export class OpenClawGatewayRuntime implements AgentRuntime {
         if (!["timeout", "pending", "running", "working"].includes(waitStatus.trim().toLowerCase())) break;
       }
       const normalizedWaitStatus = waitStatus.trim().toLowerCase();
-      const nativeCanceled = ["aborted", "cancelled", "canceled", "interrupted"].includes(normalizedWaitStatus);
+      // agent.wait can settle with status:error after chat.abort has confirmed
+      // cancellation. Use the native acknowledgement, not merely the Host signal.
+      const nativeCanceled =
+        (await cancellation) === true ||
+        ["aborted", "cancelled", "canceled", "interrupted"].includes(normalizedWaitStatus);
       if (
         waitStatus &&
+        !nativeCanceled &&
         !["ok", "complete", "completed", "success", "aborted", "cancelled", "canceled", "interrupted"].includes(
           normalizedWaitStatus,
         )
@@ -449,14 +475,14 @@ export class OpenClawGatewayRuntime implements AgentRuntime {
         type: "turn.finished",
         runId,
         at: new Date().toISOString(),
-        outcome: sawTerminalError
-          ? { taskState: "TASK_STATE_FAILED", reasonCode: "openclaw_gateway_run_failed" }
-          : nativeCanceled
-            ? {
-                taskState: "TASK_STATE_CANCELED",
-                reasonCode: request.signal?.aborted ? "user_canceled" : "native_interrupted",
-                retryable: false,
-              }
+        outcome: nativeCanceled
+          ? {
+              taskState: "TASK_STATE_CANCELED",
+              reasonCode: request.signal?.aborted ? "user_canceled" : "native_interrupted",
+              retryable: false,
+            }
+          : sawTerminalError
+            ? { taskState: "TASK_STATE_FAILED", reasonCode: "openclaw_gateway_run_failed" }
             : !assistantText.trim()
               ? { taskState: "TASK_STATE_FAILED", reasonCode: "openclaw_gateway_empty_response" }
               : ["ok", "complete", "completed", "success"].includes(normalizedWaitStatus)
@@ -468,7 +494,7 @@ export class OpenClawGatewayRuntime implements AgentRuntime {
                   },
       });
     } catch (error) {
-      if (request.signal?.aborted && !chatSent) {
+      if (request.signal?.aborted && !runSubmitted) {
         queue.push({ type: "model.response", runId, response: { text: "" } });
         queue.push({
           type: "turn.finished",
@@ -1044,24 +1070,12 @@ class OpenClawGatewayClient {
 }
 
 function buildOpenClawPrompt(request: AgentTurnRequest): string {
-  const hostContext = agentTurnHostContextPromptBlock(request);
+  const hostContext = agentTurnFullContextPromptBlock(request);
   const threadHistory = recentSessionPromptBlock(request);
-  const selectedSkill = request.requestedSkillInvocation?.content.trim();
   const sections = [
-    "You are running inside the OpenGrove host.",
     hostContext ? `Host context:\n${hostContext}` : "",
     threadHistory,
-    selectedSkill
-      ? [
-          `OpenGrove selected skill ${request.requestedSkillInvocation?.skillName}:`,
-          selectedSkill,
-          request.requestedSkillInvocation?.args ? `Skill arguments:\n${request.requestedSkillInvocation.args}` : "",
-        ]
-          .filter(Boolean)
-          .join("\n\n")
-      : "",
     `User request:\n${request.input}`,
-    agentTurnReplyLanguageInstruction(request),
   ].filter(Boolean);
   return sections.join("\n\n");
 }

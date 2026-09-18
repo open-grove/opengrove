@@ -12,7 +12,7 @@ import type {
   ApprovalRequest,
   JsonObject,
 } from "../core.js";
-import { agentTurnHostContextPromptBlock, agentTurnReplyLanguageInstruction } from "../core.js";
+import { agentTurnHostContextPromptBlock } from "../core.js";
 import { AsyncEventQueue } from "./codex/async-event-queue.js";
 import {
   AcpSessionProjector,
@@ -441,6 +441,9 @@ export class AcpCliRuntime implements AgentRuntime {
       data: {
         sessionId: nativeSession.sessionId,
         resuming: nativeSession.resuming,
+        hostInstructionsChannel: "user-input",
+        hostStateDelivery: "full-per-host-turn",
+        hostCompactionRecovery: "next-host-turn",
         hostToolMcpServers: hostToolBinding ? 1 : 0,
         hostToolIds: hostTools?.exposedToolIds ?? [],
       },
@@ -1117,7 +1120,6 @@ function buildAcpPrompt(
     threadHistory,
     skillHint,
     exactNativeSkillInvocation ? "" : `User request:\n${request.input}`,
-    agentTurnReplyLanguageInstruction(request),
   ].filter(Boolean);
   return sections.join("\n\n");
 }

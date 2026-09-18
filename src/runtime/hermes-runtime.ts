@@ -264,6 +264,9 @@ export class HermesRuntime implements AgentRuntime {
       data: {
         sessionId: nativeSession.sessionId,
         resuming: nativeSession.resuming,
+        hostInstructionsChannel: "user-input",
+        hostStateDelivery: "full-per-host-turn",
+        hostCompactionRecovery: "next-host-turn",
         provider: requestedProvider ?? "",
         accessMode: request.accessMode ?? "default",
         approvalMode: hermesApprovalMode(request.accessMode),

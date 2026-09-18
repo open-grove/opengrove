@@ -62,6 +62,7 @@ async function main() {
     context: createContext("openclaw-harness-session"),
     tools: [],
     replyLanguagePreference: "zh-CN",
+    sessionInstructions: `OPENCLAW_STABLE_RULE\n${"S".repeat(40_000)}`,
     skills: [],
     packs: [],
     capabilities: [],
@@ -70,7 +71,7 @@ async function main() {
       skillId: "skill.openclaw-host-fallback",
       skillName: "openclaw-host-fallback",
       title: "OpenClaw Host Fallback",
-      content: "OPENCLAW_SELECTED_SKILL_INSTRUCTIONS",
+      content: `OPENCLAW_SELECTED_SKILL_INSTRUCTIONS\n${"K".repeat(40_000)}`,
       contentPreview: "OPENCLAW_SELECTED_SKILL_INSTRUCTIONS",
       sourcePath: "/tmp/openclaw-host-fallback/SKILL.md",
       source: "user",
@@ -123,10 +124,24 @@ async function main() {
     gateway.capturedPrompt.includes("Default response language: Simplified Chinese"),
     "Gateway prompt should include the user language preference",
   );
+  assert.match(gateway.capturedSystemPrompt, /OPENCLAW_STABLE_RULE/);
+  assert.ok(
+    gateway.capturedSystemPrompt.includes("S".repeat(40_000)),
+    "large stable instructions must reach the Gateway intact",
+  );
+  assert.ok(
+    gateway.capturedPrompt.includes("K".repeat(40_000)),
+    "large skill instructions must reach the Gateway intact",
+  );
+  assert.doesNotMatch(
+    gateway.capturedSystemPrompt,
+    /OPENCLAW_CONTEXT_VISIBLE|Default response language|OPENCLAW_SELECTED_SKILL/,
+  );
+  assert.doesNotMatch(gateway.capturedPrompt, /OPENCLAW_STABLE_RULE/);
   assert.equal(gateway.capturedSessionKey, "openclaw-harness-session");
   assert.equal(gateway.capturedSessionModel, OPENCLAW_TEST_MODEL);
   assert.ok(
-    gateway.callOrder.indexOf("sessions.patch") < gateway.callOrder.indexOf("chat.send"),
+    gateway.callOrder.indexOf("sessions.patch") < gateway.callOrder.indexOf("agent"),
     "OpenClaw must pin the exact session model before sending the user message",
   );
   assert.equal(gateway.compactionCount, 1, "OpenClaw should call native sessions.compact before an over-budget turn");
@@ -231,11 +246,11 @@ async function assertAbortedTurnCloses(): Promise<void> {
     ),
     "a pre-start abort must be an explicit cancellation, not an unknown failure",
   );
-  assert.equal(gateway.callOrder.includes("chat.send"), false, "a pre-start abort must not send work to the Kernel");
+  assert.equal(gateway.callOrder.includes("agent"), false, "a pre-start abort must not send work to the Kernel");
 }
 
 async function assertAbortAfterDispatchUsesNativeCancellation(): Promise<void> {
-  const gateway = await startFakeOpenClawGateway({ waitStatus: "canceled", waitResponseDelayMs: 50 });
+  const gateway = await startFakeOpenClawGateway({ waitStatus: "error", waitResponseDelayMs: 50 });
   const runtime = new OpenClawGatewayRuntime({
     url: gateway.url,
     configuredModel: OPENCLAW_TEST_MODEL,
@@ -424,6 +439,7 @@ async function startFakeOpenClawGateway(
   url: string;
   capturedConnectParams: Record<string, unknown> | undefined;
   capturedPrompt: string;
+  capturedSystemPrompt: string;
   capturedSessionKey: string;
   capturedSessionModel: string;
   callOrder: string[];
@@ -432,6 +448,7 @@ async function startFakeOpenClawGateway(
 }> {
   let capturedConnectParams: Record<string, unknown> | undefined;
   let capturedPrompt = "";
+  let capturedSystemPrompt = "";
   let capturedSessionKey = "";
   let capturedSessionModel = "";
   const callOrder: string[] = [];
@@ -480,6 +497,9 @@ async function startFakeOpenClawGateway(
           (prompt) => {
             capturedPrompt = prompt;
           },
+          (system) => {
+            capturedSystemPrompt = system;
+          },
           (sessionKey) => {
             capturedSessionKey = sessionKey;
           },
@@ -503,6 +523,9 @@ async function startFakeOpenClawGateway(
     url: `ws://127.0.0.1:${address.port}`,
     get capturedConnectParams() {
       return capturedConnectParams;
+    },
+    get capturedSystemPrompt() {
+      return capturedSystemPrompt;
     },
     get capturedPrompt() {
       return capturedPrompt;
@@ -531,6 +554,7 @@ function handleGatewayRequest(
   text: string,
   captureConnectParams: (params: Record<string, unknown>) => void,
   capturePrompt: (prompt: string) => void,
+  captureSystemPrompt: (system: string) => void,
   captureSessionKey: (sessionKey: string) => void,
   captureSessionModel: (model: string) => void,
   callOrder: string[],
@@ -563,12 +587,18 @@ function handleGatewayRequest(
     );
     return;
   }
-  if (frame.method === "chat.send") {
+  if (frame.method === "agent") {
+    captureSystemPrompt(typeof frame.params?.extraSystemPrompt === "string" ? frame.params.extraSystemPrompt : "");
     capturePrompt(typeof frame.params?.message === "string" ? frame.params.message : "");
     captureSessionKey(typeof frame.params?.sessionKey === "string" ? frame.params.sessionKey : "");
     sendTextFrame(
       socket,
-      JSON.stringify({ type: "res", id: frame.id, ok: true, payload: { runId: "native-openclaw-run" } }),
+      JSON.stringify({
+        type: "res",
+        id: frame.id,
+        ok: true,
+        payload: { runId: "native-openclaw-run", status: "accepted" },
+      }),
     );
     return;
   }
@@ -650,6 +680,10 @@ function handleGatewayRequest(
           : { ok: true, compacted: true, result: { tokensBefore: 160000, tokensAfter: 40000 } },
       }),
     );
+    return;
+  }
+  if (frame.method === "chat.abort") {
+    sendTextFrame(socket, JSON.stringify({ type: "res", id: frame.id, ok: true, payload: { aborted: true } }));
     return;
   }
   if (frame.method === "agent.wait") {
@@ -742,7 +776,10 @@ function decodeClientTextFrames(buffer: Buffer): { messages: string[]; remaining
       length = buffer.readUInt16BE(offset + 2);
       headerLength = 4;
     } else if (length === 127) {
-      throw new Error("fake gateway does not support oversized frames");
+      if (offset + 10 > buffer.length) break;
+      length = Number(buffer.readBigUInt64BE(offset + 2));
+      assert.ok(Number.isSafeInteger(length), "fixture frame length must fit a JavaScript integer");
+      headerLength = 10;
     }
     const maskLength = masked ? 4 : 0;
     const frameEnd = offset + headerLength + maskLength + length;

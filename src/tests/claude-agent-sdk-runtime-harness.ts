@@ -566,19 +566,13 @@ async function main() {
     }
   }
 
-  assert.equal(capturedPrompt, roomUserInput);
-  assert.match(capturedPrompt, /<current-message>\n@金牌编辑 请审核章节大纲。\n<\/current-message>$/);
-  assert.match(capturedSystemPrompt, /room\.ledger\.read/);
-  assert.match(capturedSystemPrompt, /room\.delegate\.task/);
-  assert.match(capturedSystemPrompt, /当前房间：故事种子/);
-  assert.match(capturedSystemPrompt, /Default response language: Simplified Chinese/);
-  assert.match(capturedSystemPrompt, /primary natural language of the current input/);
-  assert.ok(
-    capturedSystemPrompt.endsWith(
-      "Default response language: Simplified Chinese. Follow the primary natural language of the current input unless it explicitly requests another language.",
-    ),
-    "the concise preference should remain visible after the larger host context",
-  );
+  assert.ok(capturedPrompt.includes(roomUserInput));
+  assert.match(capturedPrompt, /room\.ledger\.read/);
+  assert.match(capturedPrompt, /room\.delegate\.task/);
+  assert.match(capturedPrompt, /当前房间：故事种子/);
+  assert.doesNotMatch(capturedSystemPrompt, /当前房间|room\.ledger\.read|Default response language/);
+  assert.match(capturedPrompt, /Default response language: Simplified Chinese/);
+  assert.match(capturedPrompt, /primary natural language of the current input/);
   assert.doesNotMatch(capturedSystemPrompt, /Claude CLI 降级模式/);
   assert.deepEqual(
     capturedSkills,
@@ -591,9 +585,9 @@ async function main() {
     ],
     "Claude SDK must keep the required Skill enabled alongside the employee's available allow-list.",
   );
-  assert.match(capturedSystemPrompt, /Load this Skill before acting/);
-  assert.match(capturedSystemPrompt, /Employee optional skill scope/);
-  assert.match(capturedSystemPrompt, /SKILL\.md:/);
+  assert.match(capturedPrompt, /Load this Skill before acting/);
+  assert.match(capturedPrompt, /Employee optional skill scope/);
+  assert.match(capturedPrompt, /SKILL\.md:/);
   assert.equal(capturedModel, "opus", "Claude SDK should receive a Claude Code family alias");
   assert.equal(capturedEnvModel, "glm-5.1", "Provider model should stay in Claude env mapping");
   assert.equal(capturedEnvOpusModel, "glm-5.1", "Provider model should map the Opus family");
@@ -1615,7 +1609,7 @@ async function assertImageAttachmentReachesModel(app: ReturnType<typeof createOp
   assert.ok(Array.isArray(content), "user message content must be a content-block array");
   const blocks = content as Array<Record<string, unknown>>;
   const textBlock = blocks.find((block) => block.type === "text");
-  assert.equal(textBlock?.text, "what is in this image?", "text block carries the user prompt");
+  assert.ok(String(textBlock?.text).includes("what is in this image?"), "text block carries the user prompt");
   const imageBlock = blocks.find((block) => block.type === "image");
   assert.ok(imageBlock, "an image content block must reach the model");
   const source = imageBlock?.source as Record<string, unknown> | undefined;

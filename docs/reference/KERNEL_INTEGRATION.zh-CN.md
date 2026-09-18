@@ -40,6 +40,72 @@ SDK 仍会启动 Claude 引擎，原生 Login 命令也需要该程序，因此�
 只有上游没有结构化边界时才回退到通用文本 CLI。Tool lifecycle、approval、
 session identity、usage 和 error 都应以原生协议事件为真相源。
 
+## Host 规则与当前上下文
+
+以下内容保持结构化，直到 Adapter 构造原生请求时才渲染：
+
+| 内容 | Host 字段 | Claude / Codex 传入位置 |
+| --- | --- | --- |
+| 员工身份、长期协作规则 | `sessionInstructions` | 原生 system append / developer instructions |
+| 当前 Room、成员、语言、CLI 环境、可选 Skill 索引 | `assembledContext.hostState` | 本轮 user 输入中的具名状态块 |
+| 必用或明确选中的 Skill、本轮指示 | `assembledContext.turnInstructions` | 本轮 user 输入 |
+| 附件摘录、明确选中的材料 | `assembledContext.promptBlock` 和 `items` | user 输入中的任务材料；图片使用原生媒体块 |
+
+Host 自动生成的稳定协作规则使用固定的英文版本；切换界面或回复语言只更新本轮状态，
+不改写这些规则。员工自己设置的岗位内容保持原样。
+
+Claude 启用原生系统提示词快照。已有会话若没有已确认的 Host 提示词记录，或稳定规则
+发生变化，会先用 `snapshot: false`，在原生压缩清除旧快照后恢复复用；这会保留原生
+历史，同时清除系统通道里过时的 Host 文本。因此变化的状态和任务材料不能追加到系统提示词。
+Claude、Codex 都继续保留原生基础规则、工具及 transcript 的所有权。
+
+Claude 和 Codex 首次向原生会话传入完整 Host 状态，空块不发送；只有曾经传入的状态
+被删除时才发送撤回通知。完整快照会声明替换此前全部 Host 状态，空快照也明确表示当前没有有效状态，
+避免省略的字段继续在保留的历史中生效。原生轮次成功后记录送达状态，
+后续只发送变化的块，并明确提示已移除的块。材料和本轮指示每轮发送。
+失败、取消、并发重叠或未确认送达，都不能让下一轮省略完整状态。
+送达记录有数量上限，在 Host 进程内按 Kernel 和原生会话标识隔离；Host 重启或
+记录淘汰后重新发送完整状态，不重放会话历史。
+
+压缩会使送达记录失效。Claude 通过同步 `SessionStart` 的 `source: compact` 钩子，
+在原生继续执行前补入当前状态和本轮指示，恢复内容不包含附件摘录。
+Codex 在下一个 Host 轮次恢复完整状态；当前支持的 app-server 接口无法保证在运行中
+自动压缩后同步插入 Host 状态，不能把排队的 steer 消息宣称为这种保证。
+模型仍可通过 Room 工具读取变化的房间事实。
+
+Pi 将稳定规则放在原生系统提示词，通过原生 `transform_context` 钩子，在**每次模型请求前**
+把当前状态和本轮指示投射到 user 角色上下文，包括工具执行后的继续请求以及压缩后的请求。
+这些投射块不写入原生历史；附件材料和用户消息继续由原生历史保存。
+Host 重启后在续聊时重建当前投射。语言、Skill、Pack、Capability 目录不再改变系统前缀。
+
+OpenClaw Gateway 通过 `agent.extraSystemPrompt` 传稳定规则，通过 `agent.message`
+传当前状态、本轮指示和材料。原生模型选择、会话历史、`agent.wait`、`chat.abort` 保留；
+原生取消确认即使伴随 `agent.wait` 的 `error` 状态，也映射为取消。
+每个 Host 轮次完整传状态，包括压缩后的第一轮；这个 RPC 没有暴露在运行中压缩后
+同步回填动态 Host 状态的钩子。
+
+ACP `session/prompt` 和 Hermes TUI Gateway `prompt.submit` 当前只暴露 user 输入，
+没有通用的系统规则字段或模型请求前钩子。因此仍在每个 Host 轮次的 user 输入中传稳定规则和
+完整当前状态。内核进程内存在插件钩子，不等于远程协议已经支持。
+会话诊断会注明实际传入通道和“下个 Host 轮次恢复”的边界；不发送未定义的协议字段，
+也不通过伪造 assistant 历史来模拟更强的能力。
+
+Host 规则、状态和 Skill 指示不设统一字符上限，整体上下文由模型窗口和 Kernel 原生压缩管理。
+`ContextEnvelope.budget` 只描述材料摘录，不包含 Host 指令。
+默认材料预算为 6,000 个渲染后字符、最多八项；文本附件初始摘录最多 3,200 字符。
+摘录会标明，保留的附件路径不会截成半条，省略材料会提示。
+这个预算不会截断原生历史、原生基础提示词或用户自己的请求。
+材料配额小到容不下省略提示时，也不会拒绝整个轮次；envelope 仍记录材料被省略。
+
+`npm run test:native-claude-context` 使用已安装的真实 SDK、CLI 和本地回环 Messages API，
+检查多轮实际请求的角色位置、原生续聊、状态差量及压缩钩子，不需要模型账号凭据。
+Pi runtime harness 使用已安装的真实 SDK 和确定性模型响应。
+`npm run test:native-openclaw-context` 启动隔离的 OpenClaw 2026.9.2 Gateway 与本地模型 API，
+检查请求角色、重连、原生压缩和模型连接取消。可用 `OPENGROVE_TEST_OPENCLAW_CLI`
+指定已安装的 `openclaw.mjs`，避免通过 npx 获取该版本；测试不使用个人 Gateway 状态或模型凭据。
+相关 PR、合并队列和 Main 源码检查通过受影响 harness 选择运行 Claude 验证，
+通过单独的 `native-context` 检查运行 OpenClaw 验证；后者可能获取固定版本 CLI，明确标记为依赖网络。
+
 ## 最小闭环
 
 新接入必须先证明以下闭环：
