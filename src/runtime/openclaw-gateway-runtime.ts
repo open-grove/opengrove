@@ -217,12 +217,18 @@ export class OpenClawGatewayRuntime implements AgentRuntime {
 
   async *runTurn(request: AgentTurnRequest): AsyncIterable<AgentEvent> {
     assertRuntimeAccessMode("openclaw", request.accessMode);
+    // Pre-dispatch validation must reach the Host exception boundary so it can
+    // close the Run with the precise rejection reason, even before turn.started.
+    const extraSystemPrompt = ["You are running inside the OpenGrove host.", request.sessionInstructions?.trim()]
+      .filter(Boolean)
+      .join("\n\n");
+    request = prepareAgentTurnContext(request, extraSystemPrompt.length);
     const queue = new AsyncEventQueue<AgentEvent>();
     const runId = resolveRuntimeRunId(request.runId);
     let turnStarted = false;
     let turnFinished = false;
     let producerFailure = "";
-    const producer = this.produceGatewayTurn(request, queue, runId)
+    const producer = this.produceGatewayTurn(request, queue, runId, extraSystemPrompt)
       .then(() => queue.close())
       .catch((error) => {
         producerFailure = error instanceof Error ? error.message : String(error);
@@ -260,12 +266,9 @@ export class OpenClawGatewayRuntime implements AgentRuntime {
     request: AgentTurnRequest,
     queue: AsyncEventQueue<AgentEvent>,
     runId: string,
+    extraSystemPrompt: string,
   ): Promise<void> {
     const requestedModel = request.requestedModelId?.trim() || this.options.configuredModel?.trim();
-    const extraSystemPrompt = ["You are running inside the OpenGrove host.", request.sessionInstructions?.trim()]
-      .filter(Boolean)
-      .join("\n\n");
-    request = prepareAgentTurnContext(request, extraSystemPrompt.length);
     const prompt = buildOpenClawPrompt(request);
     const sessionKey =
       this.options.sessionKey?.trim() ||

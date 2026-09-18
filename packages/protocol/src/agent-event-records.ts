@@ -15,11 +15,15 @@ import {
   memoryRecordSchema,
 } from "./workspace-records.js";
 
+const hostContextBlockSchema = z.object({ id: z.string(), text: z.string() });
+
 export const contextEnvelopeSchema = z.object({
   id: z.string(),
   createdAt: z.string(),
   summary: z.string(),
   promptBlock: z.string(),
+  hostState: z.array(hostContextBlockSchema).optional(),
+  turnInstructions: z.array(hostContextBlockSchema).optional(),
   items: z.array(
     z.object({
       id: z.string(),

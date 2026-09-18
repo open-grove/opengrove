@@ -11,6 +11,7 @@ import {
   type AgentEvent,
   type AgentTurnRequest,
 } from "../core.js";
+import { OpenClawGatewayRuntime } from "../runtime/openclaw-gateway-runtime.js";
 import { HostContextDelivery } from "../runtime/host-context-delivery.js";
 
 test("native session receipts send only changed sections and explicitly clear removed state", () => {
@@ -144,5 +145,35 @@ test("oversized Host instructions fail before invoking the Kernel and close the 
     taskState: "TASK_STATE_FAILED",
     reasonCode: "host_context_budget_exceeded",
   });
+  assert.match(events.find((event) => event.type === "error")?.message ?? "", /required Host instructions/);
+});
+
+test("OpenClaw adapter-only context rejection closes the persisted Host Run", async (t) => {
+  const cwd = mkdtempSync(join(tmpdir(), "opengrove-openclaw-context-rejected-"));
+  const runtime = new OpenClawGatewayRuntime({ url: "ws://127.0.0.1:1" });
+  t.after(() => {
+    runtime.close();
+    rmSync(cwd, { recursive: true, force: true });
+  });
+  const app = createOpenGrove({ cwd, runtime, readPage: async () => ({}) });
+  const events: AgentEvent[] = [];
+  // Fits the shared 32,000-character preflight, but OpenClaw's fixed Host
+  // system preamble makes the final native request exceed that same budget.
+  for await (const event of app.runTurn("hello", {
+    runId: "openclaw-context-rejected",
+    availableSkillNames: [],
+    sessionInstructions: "x".repeat(31_748),
+  }))
+    events.push(event);
+  assert.equal(events.filter((event) => event.type === "turn.finished").length, 1);
+  assert.deepEqual(events.find((event) => event.type === "turn.finished")?.outcome, {
+    taskState: "TASK_STATE_FAILED",
+    reasonCode: "host_context_budget_exceeded",
+  });
+  assert.equal(app.sessions.listRuns()[0]?.lifecycle.taskState, "TASK_STATE_FAILED");
+  assert.equal(
+    events.some((event) => event.type === "model.requested"),
+    false,
+  );
   assert.match(events.find((event) => event.type === "error")?.message ?? "", /required Host instructions/);
 });

@@ -322,6 +322,14 @@ export type RoutineRunResult = {
           createdAt: string;
           summary: string;
           promptBlock: string;
+          hostState?: Array<{
+            id: string;
+            text: string;
+          }>;
+          turnInstructions?: Array<{
+            id: string;
+            text: string;
+          }>;
           items: Array<{
             id: string;
             kind:
@@ -403,6 +411,14 @@ export type RoutineRunResult = {
             createdAt: string;
             summary: string;
             promptBlock: string;
+            hostState?: Array<{
+              id: string;
+              text: string;
+            }>;
+            turnInstructions?: Array<{
+              id: string;
+              text: string;
+            }>;
             items: Array<{
               id: string;
               kind:
@@ -1236,6 +1252,14 @@ export type RunEventPage = {
           createdAt: string;
           summary: string;
           promptBlock: string;
+          hostState?: Array<{
+            id: string;
+            text: string;
+          }>;
+          turnInstructions?: Array<{
+            id: string;
+            text: string;
+          }>;
           items: Array<{
             id: string;
             kind:
@@ -1317,6 +1341,14 @@ export type RunEventPage = {
             createdAt: string;
             summary: string;
             promptBlock: string;
+            hostState?: Array<{
+              id: string;
+              text: string;
+            }>;
+            turnInstructions?: Array<{
+              id: string;
+              text: string;
+            }>;
             items: Array<{
               id: string;
               kind:
