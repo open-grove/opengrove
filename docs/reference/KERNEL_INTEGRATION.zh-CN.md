@@ -59,7 +59,9 @@ Claude 启用原生系统提示词快照。已有会话若没有已确认的 Hos
 历史，同时清除系统通道里过时的 Host 文本。因此变化的状态和任务材料不能追加到系统提示词。
 Claude、Codex 都继续保留原生基础规则、工具及 transcript 的所有权。
 
-Claude 和 Codex 首次向原生会话传入完整 Host 状态；原生轮次成功后记录送达状态，
+Claude 和 Codex 首次向原生会话传入完整 Host 状态，空块不发送；只有曾经传入的状态
+被删除时才发送撤回通知。完整快照会声明替换此前全部 Host 状态，空快照也明确表示当前没有有效状态，
+避免省略的字段继续在保留的历史中生效。原生轮次成功后记录送达状态，
 后续只发送变化的块，并明确提示已移除的块。材料和本轮指示每轮发送。
 失败、取消、并发重叠或未确认送达，都不能让下一轮省略完整状态。
 送达记录有数量上限，在 Host 进程内按 Kernel 和原生会话标识隔离；Host 重启或
@@ -88,11 +90,12 @@ ACP `session/prompt` 和 Hermes TUI Gateway `prompt.submit` 当前只暴露 user
 会话诊断会注明实际传入通道和“下个 Host 轮次恢复”的边界；不发送未定义的协议字段，
 也不通过伪造 assistant 历史来模拟更强的能力。
 
-最终 Host 追加文本上限为 32,000 字符，包含稳定规则、状态、Skill 指示和渲染后的材料。
-这是文本长度限制，与 Kernel 原生 token 预算独立。必需规则超限会明确报错，不静默截断。
+Host 规则、状态和 Skill 指示不设统一字符上限，整体上下文由模型窗口和 Kernel 原生压缩管理。
+`ContextEnvelope.budget` 只描述材料摘录，不包含 Host 指令。
 默认材料预算为 6,000 个渲染后字符、最多八项；文本附件初始摘录最多 3,200 字符。
 摘录会标明，保留的附件路径不会截成半条，省略材料会提示。
 这个预算不会截断原生历史、原生基础提示词或用户自己的请求。
+材料配额小到容不下省略提示时，也不会拒绝整个轮次；envelope 仍记录材料被省略。
 
 `npm run test:native-claude-context` 使用已安装的真实 SDK、CLI 和本地回环 Messages API，
 检查多轮实际请求的角色位置、原生续聊、状态差量及压缩钩子，不需要模型账号凭据。
@@ -100,6 +103,8 @@ Pi runtime harness 使用已安装的真实 SDK 和确定性模型响应。
 `npm run test:native-openclaw-context` 启动隔离的 OpenClaw 2026.9.2 Gateway 与本地模型 API，
 检查请求角色、重连、原生压缩和模型连接取消。可用 `OPENGROVE_TEST_OPENCLAW_CLI`
 指定已安装的 `openclaw.mjs`，避免通过 npx 获取该版本；测试不使用个人 Gateway 状态或模型凭据。
+相关 PR、合并队列和 Main 源码检查通过受影响 harness 选择运行 Claude 验证，
+通过单独的 `native-context` 检查运行 OpenClaw 验证；后者可能获取固定版本 CLI，明确标记为依赖网络。
 
 ## 最小闭环
 

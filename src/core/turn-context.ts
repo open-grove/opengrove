@@ -1,29 +1,19 @@
 import type { AgentTurnRequest, HostContextBlock } from "./types.js";
 import { agentTurnReplyLanguageInstruction } from "./language-preference.js";
 
-export const HOST_CONTEXT_MAX_CHARACTERS = 32_000;
-
 /** Render at the adapter boundary: materials never become session instructions. */
 export function agentTurnContextPromptBlock(
-  request: Pick<AgentTurnRequest, "assembledContext" | "sessionInstructions">,
+  request: Pick<AgentTurnRequest, "assembledContext">,
   state?: HostContextBlock[],
-  stablePromptCharacters = 0,
 ): string {
   const context = request.assembledContext;
-  const rendered = [
+  return [
     renderHostContextState(state ?? context?.hostState ?? []),
     ...(context?.turnInstructions ?? []).map((block) => block.text),
     context?.promptBlock?.trim(),
   ]
     .filter(Boolean)
     .join("\n\n");
-  const total = rendered.length + Math.max(stablePromptCharacters, request.sessionInstructions?.length ?? 0);
-  if (total > HOST_CONTEXT_MAX_CHARACTERS) {
-    throw new Error(
-      `host_context_budget_exceeded: rendered Host context uses ${total} characters; limit ${HOST_CONTEXT_MAX_CHARACTERS}. Reduce Host instructions or attached context.`,
-    );
-  }
-  return rendered;
 }
 
 export function renderHostContextState(blocks: readonly HostContextBlock[]): string {
@@ -34,8 +24,23 @@ export function renderHostContextState(blocks: readonly HostContextBlock[]): str
   ].join("\n\n");
 }
 
-/** Bound all Host additions together; native history, native prompts and user input are not truncated. */
-export function prepareAgentTurnContext(request: AgentTurnRequest, stablePromptCharacters = 0): AgentTurnRequest {
+/** Full snapshots also clear sections omitted since the preceding Host Turn. */
+export function agentTurnFullContextPromptBlock(request: Pick<AgentTurnRequest, "assembledContext">): string {
+  const state = request.assembledContext?.hostState;
+  if (state === undefined) return agentTurnContextPromptBlock(request);
+  return [
+    "OpenGrove current state. This complete snapshot replaces all previously supplied Host state sections:",
+    state.length
+      ? state.map((block) => `[${block.id}]\n${block.text}`).join("\n\n")
+      : "No Host state sections are active.",
+    agentTurnContextPromptBlock(request, []),
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+}
+
+/** Separate current Host state and Turn instructions without imposing a Kernel-independent size limit. */
+export function prepareAgentTurnContext(request: AgentTurnRequest): AgentTurnRequest {
   const context = request.assembledContext;
   const state = new Map((context?.hostState ?? []).map((block) => [block.id, block.text]));
   const instructions = new Map((context?.turnInstructions ?? []).map((block) => [block.id, block.text]));
@@ -69,26 +74,11 @@ export function prepareAgentTurnContext(request: AgentTurnRequest, stablePromptC
           .join("\n")
       : "",
   );
-  const hostState = [...state].map(([id, text]) => ({ id, text }));
+  // Absence is not a withdrawal. Delivery receipts synthesize removals only
+  // for sections that were actually present in the previous native context.
+  const hostState = [...state].filter(([, text]) => text.trim()).map(([id, text]) => ({ id, text }));
   const turnInstructions = [...instructions].filter(([, text]) => text.trim()).map(([id, text]) => ({ id, text }));
-  const requiredCharacters =
-    Math.max(stablePromptCharacters, request.sessionInstructions?.length ?? 0) +
-    renderHostContextState(hostState).length +
-    turnInstructions.reduce((total, block) => total + block.text.length + 2, 0) +
-    4;
-  if (requiredCharacters > HOST_CONTEXT_MAX_CHARACTERS) {
-    throw new Error(
-      `host_context_budget_exceeded: required Host instructions use ${requiredCharacters} characters; limit ${HOST_CONTEXT_MAX_CHARACTERS}. Reduce Employee instructions or Skill scope.`,
-    );
-  }
   const materials = context?.promptBlock?.trim() ?? "";
-  // Preserve attachment paths and provenance instead of chopping the rendered
-  // material block at an arbitrary position. The assembler already bounds excerpts.
-  if (requiredCharacters + materials.length > HOST_CONTEXT_MAX_CHARACTERS) {
-    throw new Error(
-      `host_context_budget_exceeded: Host context uses ${requiredCharacters + materials.length} characters; limit ${HOST_CONTEXT_MAX_CHARACTERS}. Reduce attached context or Skill scope.`,
-    );
-  }
   return {
     ...request,
     assembledContext: {
@@ -99,12 +89,13 @@ export function prepareAgentTurnContext(request: AgentTurnRequest, stablePromptC
       promptBlock: materials,
       hostState,
       turnInstructions,
-      budget: {
-        maxItems: context?.budget.maxItems ?? 8,
-        usedItems: context?.items.length ?? 0,
-        maxCharacters: HOST_CONTEXT_MAX_CHARACTERS,
-        usedCharacters: requiredCharacters + materials.length,
-        truncated: context?.budget.truncated ?? false,
+      // This ledger describes material excerpts, never a cap on Host instructions.
+      budget: context?.budget ?? {
+        maxItems: 0,
+        usedItems: 0,
+        maxCharacters: 0,
+        usedCharacters: 0,
+        truncated: false,
       },
     },
   };
@@ -115,7 +106,14 @@ export function prepareAgentTurnContext(request: AgentTurnRequest, stablePromptC
  * native session-instructions channel.
  */
 export function agentTurnHostContextPromptBlock(request: AgentTurnRequest): string {
-  return [request.sessionInstructions?.trim(), agentTurnContextPromptBlock(prepareAgentTurnContext(request))]
+  const prepared = prepareAgentTurnContext(request);
+  // Preserve summary-only envelopes that do not declare any structured state.
+  const hasState =
+    request.assembledContext?.hostState !== undefined || prepared.assembledContext!.hostState!.length > 0;
+  return [
+    request.sessionInstructions?.trim(),
+    hasState ? agentTurnFullContextPromptBlock(prepared) : agentTurnContextPromptBlock(prepared),
+  ]
     .filter(Boolean)
     .join("\n\n");
 }

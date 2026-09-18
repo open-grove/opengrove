@@ -969,7 +969,6 @@ async function* closeRuntimeOnException(
       runId,
       message: kernelRuntimeExceptionMessage(error),
     };
-    const contextRejected = errorEvent.message.startsWith("host_context_budget_exceeded:");
     observed.push(errorEvent);
     yield errorEvent;
     if (observed.some((event) => event.type === "turn.finished")) return;
@@ -988,12 +987,8 @@ async function* closeRuntimeOnException(
       at: failureAt,
       outcome: {
         taskState: "TASK_STATE_FAILED",
-        reasonCode: contextRejected
-          ? "host_context_budget_exceeded"
-          : signal?.aborted
-            ? "cancel_outcome_unknown"
-            : "kernel_runtime_exception",
-        ...(contextRejected ? {} : { outcomeUnknown: true }),
+        reasonCode: signal?.aborted ? "cancel_outcome_unknown" : "kernel_runtime_exception",
+        outcomeUnknown: true,
       },
       synthetic: true,
     };

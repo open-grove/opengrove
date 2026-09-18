@@ -1,6 +1,7 @@
 import { resolve } from "node:path";
 import {
   agentTurnContextPromptBlock,
+  agentTurnFullContextPromptBlock,
   prepareAgentTurnContext,
   type HostContextBlock,
   type AgentTurnRequest,
@@ -24,9 +25,9 @@ export function buildCodexDeveloperInstructions(request?: Pick<AgentTurnRequest,
 }
 
 export function buildCodexTurnInput(request: AgentTurnRequest, state?: HostContextBlock[]): string {
-  const prepared = prepareAgentTurnContext(request, buildCodexDeveloperInstructions(request).length);
+  const prepared = prepareAgentTurnContext(request);
   return [
-    agentTurnContextPromptBlock(prepared, state, buildCodexDeveloperInstructions(request).length),
+    state === undefined ? agentTurnFullContextPromptBlock(prepared) : agentTurnContextPromptBlock(prepared, state),
     `User request:\n${request.input}`,
   ]
     .filter(Boolean)

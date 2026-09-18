@@ -29,7 +29,7 @@ import type {
   ToolResult,
   UsageStats,
 } from "../core.js";
-import { agentTurnContextPromptBlock, prepareAgentTurnContext } from "../core.js";
+import { agentTurnContextPromptBlock, agentTurnFullContextPromptBlock, prepareAgentTurnContext } from "../core.js";
 import { AsyncEventQueue } from "./codex/async-event-queue.js";
 import { asJsonValue, isJsonObject, readString } from "./codex/json.js";
 import { createClaudeSdkHostBridge, type ClaudeSdkHostBridge } from "./claude-agent-sdk-tools.js";
@@ -156,7 +156,7 @@ export class ClaudeAgentSdkRuntime implements AgentRuntime {
     queue: AsyncEventQueue<AgentEvent>,
     abortController: AbortController,
   ): Promise<void> {
-    request = prepareAgentTurnContext(request, buildClaudeSdkSystemPrompt(request).length);
+    request = prepareAgentTurnContext(request);
     const runId = resolveRuntimeRunId(request.runId);
     const requestedModel = resolveClaudeRuntimeModel(
       request.requestedModelId,
@@ -177,7 +177,7 @@ export class ClaudeAgentSdkRuntime implements AgentRuntime {
     });
     const systemPrompt = buildClaudeSdkSystemPrompt(request);
     const delivery = hostContextDelivery;
-    const hostContext = agentTurnContextPromptBlock({
+    const hostContext = agentTurnFullContextPromptBlock({
       assembledContext: { ...request.assembledContext!, promptBlock: "", items: [] },
     });
     rememberClaudeNativeSession(request, nativeSession.sessionId, runtimeBindingFingerprint);
@@ -354,7 +354,9 @@ export class ClaudeAgentSdkRuntime implements AgentRuntime {
           request.assembledContext?.hostState ?? [],
         );
         const turnInput = [
-          agentTurnContextPromptBlock(request, receipt.blocks, systemPrompt.length),
+          receipt.fullState
+            ? agentTurnFullContextPromptBlock(request)
+            : agentTurnContextPromptBlock(request, receipt.blocks),
           `User request:\n${request.input}`,
         ]
           .filter(Boolean)
@@ -1591,7 +1593,9 @@ function claudeCompactContextHook(context: string, invalidate: () => void): Hook
   };
 }
 
-// SDK 0.3.270 reuses an existing system snapshot even when append changes.
+// Verified with SDK 0.3.263 and 0.3.270: resume can reuse the old system snapshot
+// even when append changes. Remove this legacy-snapshot bypass when the supported
+// SDK invalidates stale append snapshots itself, verified by the native context probe.
 // Legacy sessions may contain task materials there. Keep their native history,
 // render the corrected append fresh until compaction, then resume snapshots.
 // This also covers future changes to stable Host instructions. See https://github.com/open-grove/opengrove/issues/122.

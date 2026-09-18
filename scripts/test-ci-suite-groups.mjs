@@ -104,7 +104,7 @@ for (const [groupName, expectedSize] of Object.entries(expectedFullGroupSizes)) 
   groupedLabels.push(...harnessGroups[groupName].map((task) => task.id));
 }
 
-assert.equal(harnessInventory.length, 138, "the canonical deterministic harness inventory must not shrink silently");
+assert.equal(harnessInventory.length, 139, "the canonical harness inventory must not shrink silently");
 assert.deepEqual(
   harnessGroups.full,
   harnessInventory.filter((task) => !task.network),
@@ -203,8 +203,12 @@ for (const task of harnessGroups.full) {
 
 assert.deepEqual(
   harnessGroups.network.map((task) => task.id),
-  ["packed-runtime"],
+  ["native-openclaw-context", "packed-runtime"],
 );
+assert.deepEqual(harnessGroups.network.find((task) => task.id === "native-openclaw-context")?.args, [
+  "2026.9.2",
+  "--context",
+]);
 assert.ok(!harnessGroups.full.some((task) => task.network));
 console.log("CI suite ownership harness ok");
 

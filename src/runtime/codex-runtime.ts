@@ -249,7 +249,7 @@ export class CodexRuntime implements AgentRuntime {
     if (request.accessMode && sandbox === "workspace-write") {
       threadConfig["sandbox_workspace_write.network_access"] = false;
     }
-    request = prepareAgentTurnContext(request, buildCodexDeveloperInstructions(request).length);
+    request = prepareAgentTurnContext(request);
     const staticDeveloperInstructions = buildCodexDeveloperInstructions();
     const developerInstructions = buildCodexDeveloperInstructions(request);
     const mediaInputItems = buildCodexTurnInputItems(request, "");
@@ -450,7 +450,10 @@ export class CodexRuntime implements AgentRuntime {
       }
       const delivery = hostContextDelivery;
       const receipt = delivery.begin(`codex:${thread.threadId}`, request.assembledContext?.hostState ?? []);
-      const turnInputItems = buildCodexTurnInputItems(request, buildCodexTurnInput(request, receipt.blocks));
+      const turnInputItems = buildCodexTurnInputItems(
+        request,
+        buildCodexTurnInput(request, receipt.fullState ? undefined : receipt.blocks),
+      );
       activeThreadId = thread.threadId;
       activeTurn = {
         client,

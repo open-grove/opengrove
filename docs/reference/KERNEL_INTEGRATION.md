@@ -65,7 +65,10 @@ must therefore never be appended to that prompt. Both Claude and Codex retain
 their native base instructions, tools and transcript ownership.
 
 For Claude and Codex, the first delivery to a native session contains all current
-Host state. A successful native turn records a receipt; later turns send changed
+Host state. Empty sections are absent on initial delivery; removal notices are
+sent only for previously delivered sections. Full snapshots explicitly replace
+all earlier Host state, including an empty current state, so omitted sections
+cannot remain active in retained history. A successful native turn records a receipt; later turns send changed
 sections and explicit notices for removed sections. Materials and per-turn
 instructions are delivered each turn. Failed, canceled, overlapping or
 unacknowledged deliveries cannot suppress the next full state. Receipts are
@@ -104,14 +107,15 @@ support. Their session diagnostics identify the delivery channel and next-Host-t
 recovery boundary; no undocumented parameters or assistant-transcript injection
 are used to simulate a stronger contract.
 
-The final Host-added text budget is 32,000 characters, including stable Host
-instructions, state, Skill instructions and rendered materials. This is a text
-size bound, separate from the Kernel's native token budget. Required instructions
-that exceed it fail explicitly rather than being silently cut. The default
+Host instructions, state and Skill instructions have no combined Host character
+cap; native model windows and Kernel compaction retain ownership of the overall
+context. `ContextEnvelope.budget` describes material excerpts only. The default
 material budget is 6,000 rendered characters and eight items; text attachments
 start with at most 3,200 characters. Excerpts are labeled, retained attachment
 paths remain complete, and omitted material is reported. Native history, native
-base prompts and the user's own request are not truncated by this budget.
+base prompts and the user's own request are not truncated by this budget. A
+material allowance too small for an omission notice does not reject the Turn;
+the envelope still reports that material was omitted.
 
 `npm run test:native-claude-context` runs the installed SDK and native CLI against
 a loopback Messages API, verifying actual multi-turn request roles, native
@@ -121,7 +125,10 @@ The Pi runtime harness exercises the installed SDK with a deterministic provider
 and loopback model API to verify request roles, reconnect, native compaction and
 provider cancellation. Set `OPENGROVE_TEST_OPENCLAW_CLI` to an installed
 `openclaw.mjs` to avoid fetching that version with npx. It does not use personal
-Gateway state or model credentials.
+Gateway state or model credentials. Relevant PR, merge-queue and Main source
+checks run the Claude probe through affected harness selection and the OpenClaw
+probe in a separate `native-context` check. The latter may fetch the pinned CLI
+and is explicitly tracked as network-dependent.
 
 ## Minimum end-to-end loop
 

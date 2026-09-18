@@ -28,7 +28,7 @@ import {
   type ToolRisk,
   type ToolSpec,
 } from "../core.js";
-import { HOST_CONTEXT_MAX_CHARACTERS, prepareAgentTurnContext } from "../core/turn-context.js";
+import { prepareAgentTurnContext } from "../core/turn-context.js";
 import { imageAttachmentsWithDataUrl } from "./media-input.js";
 import { resolveRuntimeRunId } from "./run-id.js";
 
@@ -112,37 +112,34 @@ export class PiAgentRuntime implements AgentRuntime {
     const systemPrompt = [buildSystemPrompt(this.options.system ?? DEFAULT_SYSTEM), request.sessionInstructions?.trim()]
       .filter(Boolean)
       .join("\n\n");
-    request = prepareAgentTurnContext(
-      {
-        ...request,
-        assembledContext: {
-          id: request.assembledContext?.id ?? `ctx_${runId}`,
-          createdAt: request.assembledContext?.createdAt ?? new Date().toISOString(),
-          summary: request.assembledContext?.summary ?? "host context",
-          items: request.assembledContext?.items ?? [],
-          promptBlock: request.assembledContext?.promptBlock ?? "",
-          budget: request.assembledContext?.budget ?? {
-            maxItems: 8,
-            usedItems: 0,
-            maxCharacters: HOST_CONTEXT_MAX_CHARACTERS,
-            usedCharacters: 0,
-            truncated: false,
-          },
-          turnInstructions: request.assembledContext?.turnInstructions,
-          hostState: [
-            ...(request.assembledContext?.hostState ?? []),
-            { id: "opengrove.packs", text: packs.map((pack) => `- ${pack.id}: ${pack.description}`).join("\n") },
-            {
-              id: "opengrove.capabilities",
-              text: capabilities
-                .map((capability) => `- ${capability.id}@${capability.version}: ${capability.description}`)
-                .join("\n"),
-            },
-          ],
+    request = prepareAgentTurnContext({
+      ...request,
+      assembledContext: {
+        id: request.assembledContext?.id ?? `ctx_${runId}`,
+        createdAt: request.assembledContext?.createdAt ?? new Date().toISOString(),
+        summary: request.assembledContext?.summary ?? "host context",
+        items: request.assembledContext?.items ?? [],
+        promptBlock: request.assembledContext?.promptBlock ?? "",
+        budget: request.assembledContext?.budget ?? {
+          maxItems: 0,
+          usedItems: 0,
+          maxCharacters: 0,
+          usedCharacters: 0,
+          truncated: false,
         },
+        turnInstructions: request.assembledContext?.turnInstructions,
+        hostState: [
+          ...(request.assembledContext?.hostState ?? []),
+          { id: "opengrove.packs", text: packs.map((pack) => `- ${pack.id}: ${pack.description}`).join("\n") },
+          {
+            id: "opengrove.capabilities",
+            text: capabilities
+              .map((capability) => `- ${capability.id}@${capability.version}: ${capability.description}`)
+              .join("\n"),
+          },
+        ],
       },
-      systemPrompt.length,
-    );
+    });
     const session = this.options.createSession({
       sessionId: request.context.sessionId,
       system: systemPrompt,

@@ -682,15 +682,10 @@ class NativePiSession implements PiSession {
     context: PiSessionContext,
     push: (events: NativeSessionEvent[]) => void,
   ): Promise<void> {
-    // Validate before installing the hook: Pi reports hook exceptions and continues
-    // generation, which must never silently discard required Host instructions.
-    const projectedContext = agentTurnContextPromptBlock(
-      {
-        assembledContext: context.assembledContext ? { ...context.assembledContext, promptBlock: "" } : undefined,
-      },
-      undefined,
-      this.runtimeContext.system.length,
-    );
+    // Render before installing the hook so its callback only projects current state.
+    const projectedContext = agentTurnContextPromptBlock({
+      assembledContext: context.assembledContext ? { ...context.assembledContext, promptBlock: "" } : undefined,
+    });
     this.removeContextHook?.();
     this.removeContextHook = this.harness!.hooks.on("transform_context", ({ messages }) => {
       if (!projectedContext) return;

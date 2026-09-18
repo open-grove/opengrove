@@ -11,7 +11,7 @@ import { nodePackageManagerInvocation } from "./node-package-manager-invocation.
 const certifiedVersion = process.argv[2] ?? "2026.8.2";
 assert.match(certifiedVersion, /^\d{4}\.\d+\.\d+(?:-\d+)?$/, "Specify an exact stable OpenClaw version");
 const installedCliPath =
-  process.env.OPENGROVE_TEST_OPENCLAW_CLI ?? (process.argv[3] !== "--context" ? process.argv[3] : undefined);
+  (process.argv[3] !== "--context" ? process.argv[3] : undefined) ?? process.env.OPENGROVE_TEST_OPENCLAW_CLI;
 const verifyContext = process.argv.includes("--context");
 const openClawInvocation = (args) =>
   installedCliPath

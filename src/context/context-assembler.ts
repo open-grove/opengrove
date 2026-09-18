@@ -51,7 +51,7 @@ export function assembleDefaultContext(
     selected,
     maxItems,
     maxCharacters,
-    renderExplicitPromptBlock(selected.items, selected.truncated),
+    renderExplicitPromptBlock(selected.items, selected.truncated, maxCharacters),
   );
 }
 
@@ -132,9 +132,7 @@ function fitContext(
     }
     fitted.push({ ...item, text, ...(text !== item.text ? { data: { ...item.data, truncated: true } } : {}) });
   }
-  const prompt = renderExplicitPromptBlock(fitted, truncated);
-  if (prompt.length > maxCharacters)
-    throw new Error("host_context_budget_exceeded: material budget cannot fit the excerpt notice");
+  const prompt = renderExplicitPromptBlock(fitted, truncated, maxCharacters);
   return { items: fitted, usedCharacters: prompt.length, truncated };
 }
 
@@ -173,7 +171,7 @@ function createEnvelope(
   };
 }
 
-function renderExplicitPromptBlock(items: ContextItem[], truncated: boolean): string {
+function renderExplicitPromptBlock(items: ContextItem[], truncated: boolean, maxCharacters = Infinity): string {
   if (items.length === 0 && !truncated) {
     return "";
   }
@@ -194,7 +192,14 @@ function renderExplicitPromptBlock(items: ContextItem[], truncated: boolean): st
     lines.push("\nSome context was omitted or excerpted to stay within budget.");
   }
 
-  return lines.join("\n");
+  const prompt = lines.join("\n");
+  if (items.length === 0 && prompt.length > maxCharacters) {
+    // A tiny material allowance may omit even the notice; it must not reject
+    // the user's whole Turn. The envelope still reports truncated: true.
+    const notice = "Some context was omitted or excerpted to stay within budget.";
+    return notice.length <= maxCharacters ? notice : "";
+  }
+  return prompt;
 }
 
 function summarizeAttachment(attachment: AgentAttachmentContext, mediaInputSupported: boolean): string {

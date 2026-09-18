@@ -696,13 +696,70 @@ try {
     "stable Room instructions must stay separate for the native session-start boundary",
   );
   assert.ok(
-    scheduledEnvelope.hostState.every((block) => scheduledHostContext.includes(block.text)),
-    "the fresh per-Run App view must deliver mutable Room facts to the reused Kernel worker",
+    [...scheduledEnvelope.hostState, ...scheduledEnvelope.turnInstructions].every((block) =>
+      scheduledHostContext.includes(block.text),
+    ),
+    "the fresh per-Run App view must deliver both Room facts and current Turn instructions to the reused Kernel worker",
   );
   assert.ok(
     !scheduledHostContext.includes(scheduledEnvelope.sessionInstructions),
     "stable Room instructions must not be duplicated into assembled per-Turn context",
   );
+
+  const guide = state.app.rooms.upsertMember({
+    ...scheduledTarget,
+    id: "employee-context-guide",
+    name: "Grove",
+    defaultSkillIds: [],
+  });
+  const guideRoomId = "room-context-bootstrap";
+  state.app.rooms.ensureGroupRoom({
+    id: guideRoomId,
+    title: "Bootstrap context",
+    badge: "Test",
+    memberIds: [guide.id],
+  });
+  state.app.rooms.postUserMessage({
+    roomId: guideRoomId,
+    text: "Existing room context",
+    targetIds: [],
+    assistantTargets: [],
+  });
+  const guidePost = state.app.rooms.postUserMessage({
+    roomId: guideRoomId,
+    text: "Continue setup",
+    targetIds: [guide.id],
+    assistantTargets: [guide],
+    deliveryKind: "user_direct",
+  });
+  const guideExecution = roomExecutionState(state, guide);
+  assert.ok(guideExecution.kernelAdapter);
+  let guideHostContext = "";
+  guideExecution.kernelAdapter.runTurn = async function* captureBootstrap(request): AsyncIterable<AgentEvent> {
+    guideHostContext = agentTurnContextPromptBlock(request);
+    yield { type: "turn.finished", runId: request.runId!, at: "now", outcome: { taskState: "TASK_STATE_COMPLETED" } };
+  };
+  const guideEnvelope = buildRoomRunEnvelope(state, {
+    roomId: guideRoomId,
+    triggerMessageId: guidePost.userMessage.id,
+    target: guide,
+    hostTools: guideExecution.kernelCapabilities?.hostTools === true,
+  });
+  assert.deepEqual(
+    guideEnvelope.turnInstructions.map((block) => block.id),
+    ["opengrove.message-source", "opengrove.continuation", "opengrove.bootstrap"],
+    "the fixture must exercise all three Room Turn instructions",
+  );
+  scheduleRoomAssistantRuns(state, {
+    roomId: guideRoomId,
+    triggerMessageId: guidePost.userMessage.id,
+    targets: [guide],
+    assistantMessages: guidePost.assistantMessages,
+  });
+  await waitFor(() => Boolean(guideHostContext), "bootstrap Room instructions reaching the Kernel");
+  for (const block of [...guideEnvelope.hostState, ...guideEnvelope.turnInstructions]) {
+    assert.ok(guideHostContext.includes(block.text), `${block.id} must reach the Kernel through the Room scheduler`);
+  }
   state.settings.customProviders = providersBeforeScheduledRun;
 
   const originalAgentReply = state.app.rooms.postAgentMessage({

@@ -14,7 +14,7 @@ import type {
   JsonObject,
   JsonValue,
 } from "../core.js";
-import { agentTurnContextPromptBlock, prepareAgentTurnContext } from "../core/turn-context.js";
+import { agentTurnFullContextPromptBlock, prepareAgentTurnContext } from "../core/turn-context.js";
 import { appEnvName } from "../identity.js";
 import { AsyncEventQueue } from "./codex/async-event-queue.js";
 import { recentSessionMessages, recentSessionPromptBlock } from "./session-history.js";
@@ -217,12 +217,12 @@ export class OpenClawGatewayRuntime implements AgentRuntime {
 
   async *runTurn(request: AgentTurnRequest): AsyncIterable<AgentEvent> {
     assertRuntimeAccessMode("openclaw", request.accessMode);
-    // Pre-dispatch validation must reach the Host exception boundary so it can
-    // close the Run with the precise rejection reason, even before turn.started.
+    // Prepare before dispatch so failures reach the Host exception boundary,
+    // even before turn.started.
     const extraSystemPrompt = ["You are running inside the OpenGrove host.", request.sessionInstructions?.trim()]
       .filter(Boolean)
       .join("\n\n");
-    request = prepareAgentTurnContext(request, extraSystemPrompt.length);
+    request = prepareAgentTurnContext(request);
     const queue = new AsyncEventQueue<AgentEvent>();
     const runId = resolveRuntimeRunId(request.runId);
     let turnStarted = false;
@@ -1070,7 +1070,7 @@ class OpenClawGatewayClient {
 }
 
 function buildOpenClawPrompt(request: AgentTurnRequest): string {
-  const hostContext = agentTurnContextPromptBlock(request);
+  const hostContext = agentTurnFullContextPromptBlock(request);
   const threadHistory = recentSessionPromptBlock(request);
   const sections = [
     hostContext ? `Host context:\n${hostContext}` : "",

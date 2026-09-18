@@ -62,7 +62,7 @@ async function main() {
     context: createContext("openclaw-harness-session"),
     tools: [],
     replyLanguagePreference: "zh-CN",
-    sessionInstructions: "OPENCLAW_STABLE_RULE",
+    sessionInstructions: `OPENCLAW_STABLE_RULE\n${"S".repeat(40_000)}`,
     skills: [],
     packs: [],
     capabilities: [],
@@ -71,7 +71,7 @@ async function main() {
       skillId: "skill.openclaw-host-fallback",
       skillName: "openclaw-host-fallback",
       title: "OpenClaw Host Fallback",
-      content: "OPENCLAW_SELECTED_SKILL_INSTRUCTIONS",
+      content: `OPENCLAW_SELECTED_SKILL_INSTRUCTIONS\n${"K".repeat(40_000)}`,
       contentPreview: "OPENCLAW_SELECTED_SKILL_INSTRUCTIONS",
       sourcePath: "/tmp/openclaw-host-fallback/SKILL.md",
       source: "user",
@@ -125,6 +125,14 @@ async function main() {
     "Gateway prompt should include the user language preference",
   );
   assert.match(gateway.capturedSystemPrompt, /OPENCLAW_STABLE_RULE/);
+  assert.ok(
+    gateway.capturedSystemPrompt.includes("S".repeat(40_000)),
+    "large stable instructions must reach the Gateway intact",
+  );
+  assert.ok(
+    gateway.capturedPrompt.includes("K".repeat(40_000)),
+    "large skill instructions must reach the Gateway intact",
+  );
   assert.doesNotMatch(
     gateway.capturedSystemPrompt,
     /OPENCLAW_CONTEXT_VISIBLE|Default response language|OPENCLAW_SELECTED_SKILL/,
@@ -768,7 +776,10 @@ function decodeClientTextFrames(buffer: Buffer): { messages: string[]; remaining
       length = buffer.readUInt16BE(offset + 2);
       headerLength = 4;
     } else if (length === 127) {
-      throw new Error("fake gateway does not support oversized frames");
+      if (offset + 10 > buffer.length) break;
+      length = Number(buffer.readBigUInt64BE(offset + 2));
+      assert.ok(Number.isSafeInteger(length), "fixture frame length must fit a JavaScript integer");
+      headerLength = 10;
     }
     const maskLength = masked ? 4 : 0;
     const frameEnd = offset + headerLength + maskLength + length;

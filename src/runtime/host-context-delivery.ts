@@ -19,6 +19,7 @@ export class HostContextDelivery {
     if (this.sessions.size > 256) this.sessions.delete(this.sessions.keys().next().value!);
     return {
       blocks: delta,
+      fullState: previous === undefined,
       acknowledge: () => {
         if (this.sessions.get(sessionId)?.token === token) this.sessions.set(sessionId, { token, blocks: current });
       },
