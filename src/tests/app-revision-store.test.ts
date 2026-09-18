@@ -6,6 +6,7 @@ import {
   chmodSync,
   cpSync,
   existsSync,
+  lstatSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -14,7 +15,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import test from "node:test";
 import git from "isomorphic-git";
 import {
@@ -244,6 +245,49 @@ test("managed App revisions expose dirty changes and preserve earlier save point
       "materializing an earlier save point must not move the live working copy HEAD",
     );
   } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("same-size content changes survive unchanged filesystem metadata", async (t) => {
+  const root = mkdtempSync(join(tmpdir(), "opengrove-app-revision-same-stat-"));
+  const appRoot = join(root, "app");
+  const programPath = join(appRoot, "program.txt");
+  try {
+    mkdirSync(appRoot);
+    writeFileSync(join(appRoot, "opengrove.app.json"), '{"id":"same-stat","version":"1.0.0"}\n');
+    writeFileSync(programPath, "formal v1\n");
+    const store = new AppRevisionStore(join(root, "revisions"));
+    const target = { localAppId: "local-same-stat", appRoot, workspacePath: "workspace" };
+    const first = await store.ensureWorkingCopy(target);
+    const originalStats = lstatSync(programPath);
+    const originalLstat = fs.promises.lstat;
+    // Reproduce a filesystem stat-cache collision without relying on the test
+    // finishing within one clock second or running on a particular platform.
+    t.mock.method(fs.promises, "lstat", async (...args: Parameters<typeof fs.promises.lstat>) => {
+      if (resolve(String(args[0])) === programPath) return originalStats;
+      return originalLstat(...args);
+    });
+
+    writeFileSync(programPath, "formal v2\n");
+    const status = await store.inspect(target);
+    assert.equal(status.dirty, true);
+    assert.deepEqual(status.changedFiles, ["program.txt"]);
+
+    const second = await store.saveIfChanged({ ...target, message: "Save same-size program edit" });
+    assert.notEqual(second.commitSha, first.commitSha);
+    assert.equal((await store.inspect(target)).dirty, false);
+    assert.equal((await store.saveIfChanged({ ...target, message: "Unchanged program" })).commitSha, second.commitSha);
+    for (const [commitSha, directory, expected] of [
+      [first.commitSha, "first", "formal v1\n"],
+      [second.commitSha, "second", "formal v2\n"],
+    ] as const) {
+      const targetRoot = join(root, directory);
+      await store.materialize({ ...target, commitSha, targetRoot });
+      assert.equal(readFileSync(join(targetRoot, "program.txt"), "utf8"), expected);
+    }
+  } finally {
+    t.mock.restoreAll();
     rmSync(root, { recursive: true, force: true });
   }
 });
