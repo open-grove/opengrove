@@ -347,7 +347,13 @@ export class AppRevisionStore {
         continue;
       }
       const workingFile = revisionWorkingFile(normalized.appRoot, path);
-      if (!committed || row[1] !== row[2] || workingFile.executable !== committed.executable) {
+      // Git's stat cache can report a clean file after a same-size edit within
+      // one timestamp tick. Save-point decisions must compare actual content.
+      if (
+        !committed ||
+        workingFile.executable !== committed.executable ||
+        (await git.hashBlob({ object: readFileSync(workingFile.absolutePath) })).oid !== committed.oid
+      ) {
         changedFiles.add(path);
       }
     }
