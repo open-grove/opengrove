@@ -4,6 +4,22 @@ export type ClientOptions = {
   baseUrl: `${string}://${string}/api` | (string & {});
 };
 
+export type ToolResultInput = {
+  ok: boolean;
+  value?: HostInputSharedDefinitionSchema0;
+  error?: string;
+  problem?: {
+    incidentId: string;
+    code: string;
+  };
+  sources?: Array<{
+    title?: string;
+    url?: string;
+    locator?: string;
+    quote?: string;
+  }>;
+};
+
 export type EmployeeWriteInput = {
   name?: string;
   role?: string;
@@ -55,6 +71,36 @@ export type HostInputSharedDefinitionSchema1 =
   | Array<HostInputSharedDefinitionSchema1>
   | {
       [key: string]: HostInputSharedDefinitionSchema1;
+    };
+
+export type HostInputSharedDefinitionSchema2 =
+  | string
+  | number
+  | boolean
+  | null
+  | Array<HostInputSharedDefinitionSchema2>
+  | {
+      [key: string]: HostInputSharedDefinitionSchema2;
+    };
+
+export type HostInputSharedDefinitionSchema3 =
+  | string
+  | number
+  | boolean
+  | null
+  | Array<HostInputSharedDefinitionSchema3>
+  | {
+      [key: string]: HostInputSharedDefinitionSchema3;
+    };
+
+export type HostInputSharedDefinitionSchema4 =
+  | string
+  | number
+  | boolean
+  | null
+  | Array<HostInputSharedDefinitionSchema4>
+  | {
+      [key: string]: HostInputSharedDefinitionSchema4;
     };
 
 export type HostError = {
@@ -1220,6 +1266,155 @@ export type RoomError = {
   [key: string]: unknown;
 };
 
+export type ExtensionSkillImportResponse200 = {
+  ok: boolean;
+  result: {
+    ok: boolean;
+    action: string;
+    records: Array<{
+      id: string;
+      itemId: string;
+      kind: "app" | "skill" | "mcp" | "plugin" | "hook" | "tool" | "cli";
+      kernelId?: "codex" | "claude-code" | "hermes" | "pi" | "openclaw" | "opencode" | "kimi";
+      scope: "user" | "project" | "workspace" | "system" | "managed" | "external";
+      status: "enabled" | "disabled" | "unpublished" | "missing" | "unsupported";
+      enabled: boolean;
+      managedByOpenGrove: boolean;
+      readonly: boolean;
+      system: boolean;
+      sourcePath?: string;
+      targetPath?: string;
+      configPath?: string;
+      configFormat?: string;
+      markerPath?: string;
+      reason?: string;
+      command?: string;
+      args?: Array<string>;
+      envKeys?: Array<string>;
+      metadata?: {
+        [key: string]: HostOutputSharedDefinitionSchema2;
+      };
+    }>;
+    warnings: Array<string>;
+  };
+  extensions: {
+    scannedAt: string;
+    workspaceRoot: string;
+    items: Array<{
+      id: string;
+      kind: "app" | "skill" | "mcp" | "plugin" | "hook" | "tool" | "cli";
+      name: string;
+      title: string;
+      description: string;
+      enabled: boolean;
+      managedByOpenGrove: boolean;
+      readonly: boolean;
+      system: boolean;
+      source: {
+        origin: "opengrove" | "kernel" | "plugin" | "registry" | "git" | "local" | "system" | "unknown";
+        kernelId?: "codex" | "claude-code" | "hermes" | "pi" | "openclaw" | "opencode" | "kimi";
+        path?: string;
+        url?: string;
+        packageId?: string;
+        readonly?: boolean;
+        system?: boolean;
+      };
+      deployments: Array<{
+        id: string;
+        itemId: string;
+        kind: "app" | "skill" | "mcp" | "plugin" | "hook" | "tool" | "cli";
+        kernelId?: "codex" | "claude-code" | "hermes" | "pi" | "openclaw" | "opencode" | "kimi";
+        scope: "user" | "project" | "workspace" | "system" | "managed" | "external";
+        status: "enabled" | "disabled" | "unpublished" | "missing" | "unsupported";
+        enabled: boolean;
+        managedByOpenGrove: boolean;
+        readonly: boolean;
+        system: boolean;
+        sourcePath?: string;
+        targetPath?: string;
+        configPath?: string;
+        configFormat?: string;
+        markerPath?: string;
+        reason?: string;
+        command?: string;
+        args?: Array<string>;
+        envKeys?: Array<string>;
+        metadata?: {
+          [key: string]: HostOutputSharedDefinitionSchema2;
+        };
+      }>;
+      permissions: Array<{
+        type: "filesystem" | "network" | "shell" | "env" | "model" | "unknown";
+        values: Array<string>;
+      }>;
+      commandUsages: Array<{
+        command: string;
+        args: Array<string>;
+        envKeys: Array<string>;
+        parentKind: "app" | "skill" | "mcp" | "plugin" | "hook" | "tool" | "cli";
+        parentId: string;
+        kernelId?: "codex" | "claude-code" | "hermes" | "pi" | "openclaw" | "opencode" | "kimi";
+        configPath?: string;
+        resolvedPath?: string;
+        risk: "low" | "medium" | "high";
+      }>;
+      parentId?: string;
+      childIds: Array<string>;
+      tags: Array<string>;
+      metadata?: {
+        [key: string]: HostOutputSharedDefinitionSchema2;
+      };
+    }>;
+    deployments: Array<{
+      id: string;
+      itemId: string;
+      kind: "app" | "skill" | "mcp" | "plugin" | "hook" | "tool" | "cli";
+      kernelId?: "codex" | "claude-code" | "hermes" | "pi" | "openclaw" | "opencode" | "kimi";
+      scope: "user" | "project" | "workspace" | "system" | "managed" | "external";
+      status: "enabled" | "disabled" | "unpublished" | "missing" | "unsupported";
+      enabled: boolean;
+      managedByOpenGrove: boolean;
+      readonly: boolean;
+      system: boolean;
+      sourcePath?: string;
+      targetPath?: string;
+      configPath?: string;
+      configFormat?: string;
+      markerPath?: string;
+      reason?: string;
+      command?: string;
+      args?: Array<string>;
+      envKeys?: Array<string>;
+      metadata?: {
+        [key: string]: HostOutputSharedDefinitionSchema2;
+      };
+    }>;
+    commandUsages: Array<{
+      command: string;
+      args: Array<string>;
+      envKeys: Array<string>;
+      parentKind: "app" | "skill" | "mcp" | "plugin" | "hook" | "tool" | "cli";
+      parentId: string;
+      kernelId?: "codex" | "claude-code" | "hermes" | "pi" | "openclaw" | "opencode" | "kimi";
+      configPath?: string;
+      resolvedPath?: string;
+      risk: "low" | "medium" | "high";
+    }>;
+    summary: {
+      itemCount: number;
+      deploymentCount: number;
+      byKind: {
+        [key: string]: number;
+      };
+      byKernel: {
+        [key: string]: number;
+      };
+      managedCount: number;
+      systemCount: number;
+    };
+  };
+};
+
 export type RunEventPage = {
   ok: true;
   events: Array<
@@ -2214,6 +2409,3151 @@ export type HostOutputSharedDefinitionSchema7 =
       [key: string]: HostOutputSharedDefinitionSchema7;
     };
 
+export type HostOutputSharedDefinitionSchema8 = {
+  name: string;
+  path: string;
+  kind: "file" | "directory";
+  size?: number;
+  mimeType?: string;
+  updatedAt?: string;
+  children?: Array<HostOutputSharedDefinitionSchema8>;
+};
+
+export type HostOutputSharedDefinitionSchema9 =
+  | string
+  | number
+  | boolean
+  | null
+  | Array<HostOutputSharedDefinitionSchema9>
+  | {
+      [key: string]: HostOutputSharedDefinitionSchema9;
+    };
+
+export type HostOutputSharedDefinitionSchema10 =
+  | string
+  | number
+  | boolean
+  | null
+  | Array<HostOutputSharedDefinitionSchema10>
+  | {
+      [key: string]: HostOutputSharedDefinitionSchema10;
+    };
+
+export type WorkspaceFileListData = {
+  body?: never;
+  path: {
+    sessionId: string;
+  };
+  query?: {
+    maxDepth?: number;
+    maxEntries?: number;
+    path?: string;
+  };
+  url: "/sessions/{sessionId}/files";
+};
+
+export type WorkspaceFileListErrors = {
+  /**
+   * The input is invalid.
+   */
+  400: HostError;
+  /**
+   * A valid Host session or token is required.
+   */
+  401: HostError;
+  /**
+   * The request is not authorized.
+   */
+  403: HostError;
+  /**
+   * Error response.
+   */
+  404: HostError;
+  /**
+   * Error response.
+   */
+  409: HostError;
+  /**
+   * Error response.
+   */
+  428: HostError;
+  /**
+   * The Host could not complete the operation.
+   */
+  500: HostError;
+  /**
+   * The Host or authenticated session is temporarily unavailable.
+   */
+  503: HostError;
+};
+
+export type WorkspaceFileListError = WorkspaceFileListErrors[keyof WorkspaceFileListErrors];
+
+export type WorkspaceFileListResponses = {
+  /**
+   * Successful response.
+   */
+  200: {
+    ok: true;
+    entries: Array<HostOutputSharedDefinitionSchema8>;
+    count: number;
+    truncated: boolean;
+  };
+};
+
+export type WorkspaceFileListResponse = WorkspaceFileListResponses[keyof WorkspaceFileListResponses];
+
+export type WorkspaceFileReadData = {
+  body?: never;
+  path: {
+    sessionId: string;
+  };
+  query: {
+    maxBytes?: number;
+    path: string;
+  };
+  url: "/sessions/{sessionId}/file";
+};
+
+export type WorkspaceFileReadErrors = {
+  /**
+   * The input is invalid.
+   */
+  400: HostError;
+  /**
+   * A valid Host session or token is required.
+   */
+  401: HostError;
+  /**
+   * The request is not authorized.
+   */
+  403: HostError;
+  /**
+   * Error response.
+   */
+  404: HostError;
+  /**
+   * Error response.
+   */
+  409: HostError;
+  /**
+   * Error response.
+   */
+  428: HostError;
+  /**
+   * The Host could not complete the operation.
+   */
+  500: HostError;
+  /**
+   * The Host or authenticated session is temporarily unavailable.
+   */
+  503: HostError;
+};
+
+export type WorkspaceFileReadError = WorkspaceFileReadErrors[keyof WorkspaceFileReadErrors];
+
+export type WorkspaceFileReadResponses = {
+  /**
+   * Successful response.
+   */
+  200: {
+    ok: true;
+    file: {
+      entry: HostOutputSharedDefinitionSchema8;
+      revision?: string;
+      content?: string;
+      contentTruncated?: boolean;
+    };
+  };
+};
+
+export type WorkspaceFileReadResponse = WorkspaceFileReadResponses[keyof WorkspaceFileReadResponses];
+
+export type WorkspaceFileWriteData = {
+  body: {
+    path: string;
+    content: string;
+    expectedRevision?: string;
+  };
+  path: {
+    sessionId: string;
+  };
+  query?: never;
+  url: "/sessions/{sessionId}/file";
+};
+
+export type WorkspaceFileWriteErrors = {
+  /**
+   * The input is invalid.
+   */
+  400: HostError;
+  /**
+   * A valid Host session or token is required.
+   */
+  401: HostError;
+  /**
+   * The request is not authorized.
+   */
+  403: HostError;
+  /**
+   * Error response.
+   */
+  404: HostError;
+  /**
+   * Error response.
+   */
+  409: HostError;
+  /**
+   * Error response.
+   */
+  428: HostError;
+  /**
+   * The Host could not complete the operation.
+   */
+  500: HostError;
+  /**
+   * The Host or authenticated session is temporarily unavailable.
+   */
+  503: HostError;
+};
+
+export type WorkspaceFileWriteError = WorkspaceFileWriteErrors[keyof WorkspaceFileWriteErrors];
+
+export type WorkspaceFileWriteResponses = {
+  /**
+   * Successful response.
+   */
+  200: {
+    ok: true;
+    file: {
+      entry: HostOutputSharedDefinitionSchema8;
+      revision?: string;
+      content?: string;
+      contentTruncated?: boolean;
+    };
+  };
+};
+
+export type WorkspaceFileWriteResponse = WorkspaceFileWriteResponses[keyof WorkspaceFileWriteResponses];
+
+export type ExtensionExtensionListData = {
+  body?: never;
+  path?: never;
+  query?: {
+    includeSystem?: boolean;
+  };
+  url: "/extensions";
+};
+
+export type ExtensionExtensionListErrors = {
+  /**
+   * The input is invalid.
+   */
+  400: HostError;
+  /**
+   * A valid Host session or token is required.
+   */
+  401: HostError;
+  /**
+   * The request is not authorized.
+   */
+  403: HostError;
+  /**
+   * The Host could not complete the operation.
+   */
+  500: HostError;
+  /**
+   * The Host or authenticated session is temporarily unavailable.
+   */
+  503: HostError;
+};
+
+export type ExtensionExtensionListError = ExtensionExtensionListErrors[keyof ExtensionExtensionListErrors];
+
+export type ExtensionExtensionListResponses = {
+  /**
+   * Successful response.
+   */
+  200: {
+    ok: true;
+    extensions: {
+      scannedAt: string;
+      workspaceRoot: string;
+      items: Array<{
+        id: string;
+        kind: "app" | "skill" | "mcp" | "plugin" | "hook" | "tool" | "cli";
+        name: string;
+        title: string;
+        description: string;
+        enabled: boolean;
+        managedByOpenGrove: boolean;
+        readonly: boolean;
+        system: boolean;
+        source: {
+          origin: "opengrove" | "kernel" | "plugin" | "registry" | "git" | "local" | "system" | "unknown";
+          kernelId?: "codex" | "claude-code" | "hermes" | "pi" | "openclaw" | "opencode" | "kimi";
+          path?: string;
+          url?: string;
+          packageId?: string;
+          readonly?: boolean;
+          system?: boolean;
+        };
+        deployments: Array<{
+          id: string;
+          itemId: string;
+          kind: "app" | "skill" | "mcp" | "plugin" | "hook" | "tool" | "cli";
+          kernelId?: "codex" | "claude-code" | "hermes" | "pi" | "openclaw" | "opencode" | "kimi";
+          scope: "user" | "project" | "workspace" | "system" | "managed" | "external";
+          status: "enabled" | "disabled" | "unpublished" | "missing" | "unsupported";
+          enabled: boolean;
+          managedByOpenGrove: boolean;
+          readonly: boolean;
+          system: boolean;
+          sourcePath?: string;
+          targetPath?: string;
+          configPath?: string;
+          configFormat?: string;
+          markerPath?: string;
+          reason?: string;
+          command?: string;
+          args?: Array<string>;
+          envKeys?: Array<string>;
+          metadata?: {
+            [key: string]: HostOutputSharedDefinitionSchema2;
+          };
+        }>;
+        permissions: Array<{
+          type: "filesystem" | "network" | "shell" | "env" | "model" | "unknown";
+          values: Array<string>;
+        }>;
+        commandUsages: Array<{
+          command: string;
+          args: Array<string>;
+          envKeys: Array<string>;
+          parentKind: "app" | "skill" | "mcp" | "plugin" | "hook" | "tool" | "cli";
+          parentId: string;
+          kernelId?: "codex" | "claude-code" | "hermes" | "pi" | "openclaw" | "opencode" | "kimi";
+          configPath?: string;
+          resolvedPath?: string;
+          risk: "low" | "medium" | "high";
+        }>;
+        parentId?: string;
+        childIds: Array<string>;
+        tags: Array<string>;
+        metadata?: {
+          [key: string]: HostOutputSharedDefinitionSchema2;
+        };
+      }>;
+      deployments: Array<{
+        id: string;
+        itemId: string;
+        kind: "app" | "skill" | "mcp" | "plugin" | "hook" | "tool" | "cli";
+        kernelId?: "codex" | "claude-code" | "hermes" | "pi" | "openclaw" | "opencode" | "kimi";
+        scope: "user" | "project" | "workspace" | "system" | "managed" | "external";
+        status: "enabled" | "disabled" | "unpublished" | "missing" | "unsupported";
+        enabled: boolean;
+        managedByOpenGrove: boolean;
+        readonly: boolean;
+        system: boolean;
+        sourcePath?: string;
+        targetPath?: string;
+        configPath?: string;
+        configFormat?: string;
+        markerPath?: string;
+        reason?: string;
+        command?: string;
+        args?: Array<string>;
+        envKeys?: Array<string>;
+        metadata?: {
+          [key: string]: HostOutputSharedDefinitionSchema2;
+        };
+      }>;
+      commandUsages: Array<{
+        command: string;
+        args: Array<string>;
+        envKeys: Array<string>;
+        parentKind: "app" | "skill" | "mcp" | "plugin" | "hook" | "tool" | "cli";
+        parentId: string;
+        kernelId?: "codex" | "claude-code" | "hermes" | "pi" | "openclaw" | "opencode" | "kimi";
+        configPath?: string;
+        resolvedPath?: string;
+        risk: "low" | "medium" | "high";
+      }>;
+      summary: {
+        itemCount: number;
+        deploymentCount: number;
+        byKind: {
+          [key: string]: number;
+        };
+        byKernel: {
+          [key: string]: number;
+        };
+        managedCount: number;
+        systemCount: number;
+      };
+    };
+  };
+};
+
+export type ExtensionExtensionListResponse = ExtensionExtensionListResponses[keyof ExtensionExtensionListResponses];
+
+export type ExtensionSkillImportData = {
+  body: {
+    sourcePath?: string;
+    deploymentId?: string;
+    itemId?: string;
+    name?: string;
+    replace?: boolean;
+  };
+  path?: never;
+  query?: {
+    includeSystem?: boolean;
+  };
+  url: "/extensions/skills/import";
+};
+
+export type ExtensionSkillImportErrors = {
+  /**
+   * Extension action rejected; inspect result warnings.
+   */
+  400: ExtensionSkillImportResponse200 | HostError;
+  /**
+   * A valid Host session or token is required.
+   */
+  401: HostError;
+  /**
+   * The request is not authorized.
+   */
+  403: HostError;
+  /**
+   * The Host could not complete the operation.
+   */
+  500: HostError;
+  /**
+   * The Host or authenticated session is temporarily unavailable.
+   */
+  503: HostError;
+};
+
+export type ExtensionSkillImportError = ExtensionSkillImportErrors[keyof ExtensionSkillImportErrors];
+
+export type ExtensionSkillImportResponses = {
+  /**
+   * Successful response.
+   */
+  200: {
+    ok: boolean;
+    result: {
+      ok: boolean;
+      action: string;
+      records: Array<{
+        id: string;
+        itemId: string;
+        kind: "app" | "skill" | "mcp" | "plugin" | "hook" | "tool" | "cli";
+        kernelId?: "codex" | "claude-code" | "hermes" | "pi" | "openclaw" | "opencode" | "kimi";
+        scope: "user" | "project" | "workspace" | "system" | "managed" | "external";
+        status: "enabled" | "disabled" | "unpublished" | "missing" | "unsupported";
+        enabled: boolean;
+        managedByOpenGrove: boolean;
+        readonly: boolean;
+        system: boolean;
+        sourcePath?: string;
+        targetPath?: string;
+        configPath?: string;
+        configFormat?: string;
+        markerPath?: string;
+        reason?: string;
+        command?: string;
+        args?: Array<string>;
+        envKeys?: Array<string>;
+        metadata?: {
+          [key: string]: HostOutputSharedDefinitionSchema2;
+        };
+      }>;
+      warnings: Array<string>;
+    };
+    extensions: {
+      scannedAt: string;
+      workspaceRoot: string;
+      items: Array<{
+        id: string;
+        kind: "app" | "skill" | "mcp" | "plugin" | "hook" | "tool" | "cli";
+        name: string;
+        title: string;
+        description: string;
+        enabled: boolean;
+        managedByOpenGrove: boolean;
+        readonly: boolean;
+        system: boolean;
+        source: {
+          origin: "opengrove" | "kernel" | "plugin" | "registry" | "git" | "local" | "system" | "unknown";
+          kernelId?: "codex" | "claude-code" | "hermes" | "pi" | "openclaw" | "opencode" | "kimi";
+          path?: string;
+          url?: string;
+          packageId?: string;
+          readonly?: boolean;
+          system?: boolean;
+        };
+        deployments: Array<{
+          id: string;
+          itemId: string;
+          kind: "app" | "skill" | "mcp" | "plugin" | "hook" | "tool" | "cli";
+          kernelId?: "codex" | "claude-code" | "hermes" | "pi" | "openclaw" | "opencode" | "kimi";
+          scope: "user" | "project" | "workspace" | "system" | "managed" | "external";
+          status: "enabled" | "disabled" | "unpublished" | "missing" | "unsupported";
+          enabled: boolean;
+          managedByOpenGrove: boolean;
+          readonly: boolean;
+          system: boolean;
+          sourcePath?: string;
+          targetPath?: string;
+          configPath?: string;
+          configFormat?: string;
+          markerPath?: string;
+          reason?: string;
+          command?: string;
+          args?: Array<string>;
+          envKeys?: Array<string>;
+          metadata?: {
+            [key: string]: HostOutputSharedDefinitionSchema2;
+          };
+        }>;
+        permissions: Array<{
+          type: "filesystem" | "network" | "shell" | "env" | "model" | "unknown";
+          values: Array<string>;
+        }>;
+        commandUsages: Array<{
+          command: string;
+          args: Array<string>;
+          envKeys: Array<string>;
+          parentKind: "app" | "skill" | "mcp" | "plugin" | "hook" | "tool" | "cli";
+          parentId: string;
+          kernelId?: "codex" | "claude-code" | "hermes" | "pi" | "openclaw" | "opencode" | "kimi";
+          configPath?: string;
+          resolvedPath?: string;
+          risk: "low" | "medium" | "high";
+        }>;
+        parentId?: string;
+        childIds: Array<string>;
+        tags: Array<string>;
+        metadata?: {
+          [key: string]: HostOutputSharedDefinitionSchema2;
+        };
+      }>;
+      deployments: Array<{
+        id: string;
+        itemId: string;
+        kind: "app" | "skill" | "mcp" | "plugin" | "hook" | "tool" | "cli";
+        kernelId?: "codex" | "claude-code" | "hermes" | "pi" | "openclaw" | "opencode" | "kimi";
+        scope: "user" | "project" | "workspace" | "system" | "managed" | "external";
+        status: "enabled" | "disabled" | "unpublished" | "missing" | "unsupported";
+        enabled: boolean;
+        managedByOpenGrove: boolean;
+        readonly: boolean;
+        system: boolean;
+        sourcePath?: string;
+        targetPath?: string;
+        configPath?: string;
+        configFormat?: string;
+        markerPath?: string;
+        reason?: string;
+        command?: string;
+        args?: Array<string>;
+        envKeys?: Array<string>;
+        metadata?: {
+          [key: string]: HostOutputSharedDefinitionSchema2;
+        };
+      }>;
+      commandUsages: Array<{
+        command: string;
+        args: Array<string>;
+        envKeys: Array<string>;
+        parentKind: "app" | "skill" | "mcp" | "plugin" | "hook" | "tool" | "cli";
+        parentId: string;
+        kernelId?: "codex" | "claude-code" | "hermes" | "pi" | "openclaw" | "opencode" | "kimi";
+        configPath?: string;
+        resolvedPath?: string;
+        risk: "low" | "medium" | "high";
+      }>;
+      summary: {
+        itemCount: number;
+        deploymentCount: number;
+        byKind: {
+          [key: string]: number;
+        };
+        byKernel: {
+          [key: string]: number;
+        };
+        managedCount: number;
+        systemCount: number;
+      };
+    };
+  };
+};
+
+export type ExtensionSkillImportResponse = ExtensionSkillImportResponses[keyof ExtensionSkillImportResponses];
+
+export type ExtensionSkillPublishData = {
+  body: {
+    sourcePath?: string;
+    deploymentId?: string;
+    itemId?: string;
+    name?: string;
+    replace?: boolean;
+    librarySkillId?: string;
+    targetKernelIds?: Array<"codex" | "claude-code" | "hermes" | "pi" | "openclaw" | "opencode" | "kimi">;
+    scope?: "project" | "user";
+  };
+  path?: never;
+  query?: {
+    includeSystem?: boolean;
+  };
+  url: "/extensions/skills/publish";
+};
+
+export type ExtensionSkillPublishErrors = {
+  /**
+   * Extension action rejected; inspect result warnings.
+   */
+  400: ExtensionSkillImportResponse200 | HostError;
+  /**
+   * A valid Host session or token is required.
+   */
+  401: HostError;
+  /**
+   * The request is not authorized.
+   */
+  403: HostError;
+  /**
+   * The Host could not complete the operation.
+   */
+  500: HostError;
+  /**
+   * The Host or authenticated session is temporarily unavailable.
+   */
+  503: HostError;
+};
+
+export type ExtensionSkillPublishError = ExtensionSkillPublishErrors[keyof ExtensionSkillPublishErrors];
+
+export type ExtensionSkillPublishResponses = {
+  /**
+   * Successful response.
+   */
+  200: {
+    ok: boolean;
+    result: {
+      ok: boolean;
+      action: string;
+      records: Array<{
+        id: string;
+        itemId: string;
+        kind: "app" | "skill" | "mcp" | "plugin" | "hook" | "tool" | "cli";
+        kernelId?: "codex" | "claude-code" | "hermes" | "pi" | "openclaw" | "opencode" | "kimi";
+        scope: "user" | "project" | "workspace" | "system" | "managed" | "external";
+        status: "enabled" | "disabled" | "unpublished" | "missing" | "unsupported";
+        enabled: boolean;
+        managedByOpenGrove: boolean;
+        readonly: boolean;
+        system: boolean;
+        sourcePath?: string;
+        targetPath?: string;
+        configPath?: string;
+        configFormat?: string;
+        markerPath?: string;
+        reason?: string;
+        command?: string;
+        args?: Array<string>;
+        envKeys?: Array<string>;
+        metadata?: {
+          [key: string]: HostOutputSharedDefinitionSchema2;
+        };
+      }>;
+      warnings: Array<string>;
+    };
+    extensions: {
+      scannedAt: string;
+      workspaceRoot: string;
+      items: Array<{
+        id: string;
+        kind: "app" | "skill" | "mcp" | "plugin" | "hook" | "tool" | "cli";
+        name: string;
+        title: string;
+        description: string;
+        enabled: boolean;
+        managedByOpenGrove: boolean;
+        readonly: boolean;
+        system: boolean;
+        source: {
+          origin: "opengrove" | "kernel" | "plugin" | "registry" | "git" | "local" | "system" | "unknown";
+          kernelId?: "codex" | "claude-code" | "hermes" | "pi" | "openclaw" | "opencode" | "kimi";
+          path?: string;
+          url?: string;
+          packageId?: string;
+          readonly?: boolean;
+          system?: boolean;
+        };
+        deployments: Array<{
+          id: string;
+          itemId: string;
+          kind: "app" | "skill" | "mcp" | "plugin" | "hook" | "tool" | "cli";
+          kernelId?: "codex" | "claude-code" | "hermes" | "pi" | "openclaw" | "opencode" | "kimi";
+          scope: "user" | "project" | "workspace" | "system" | "managed" | "external";
+          status: "enabled" | "disabled" | "unpublished" | "missing" | "unsupported";
+          enabled: boolean;
+          managedByOpenGrove: boolean;
+          readonly: boolean;
+          system: boolean;
+          sourcePath?: string;
+          targetPath?: string;
+          configPath?: string;
+          configFormat?: string;
+          markerPath?: string;
+          reason?: string;
+          command?: string;
+          args?: Array<string>;
+          envKeys?: Array<string>;
+          metadata?: {
+            [key: string]: HostOutputSharedDefinitionSchema2;
+          };
+        }>;
+        permissions: Array<{
+          type: "filesystem" | "network" | "shell" | "env" | "model" | "unknown";
+          values: Array<string>;
+        }>;
+        commandUsages: Array<{
+          command: string;
+          args: Array<string>;
+          envKeys: Array<string>;
+          parentKind: "app" | "skill" | "mcp" | "plugin" | "hook" | "tool" | "cli";
+          parentId: string;
+          kernelId?: "codex" | "claude-code" | "hermes" | "pi" | "openclaw" | "opencode" | "kimi";
+          configPath?: string;
+          resolvedPath?: string;
+          risk: "low" | "medium" | "high";
+        }>;
+        parentId?: string;
+        childIds: Array<string>;
+        tags: Array<string>;
+        metadata?: {
+          [key: string]: HostOutputSharedDefinitionSchema2;
+        };
+      }>;
+      deployments: Array<{
+        id: string;
+        itemId: string;
+        kind: "app" | "skill" | "mcp" | "plugin" | "hook" | "tool" | "cli";
+        kernelId?: "codex" | "claude-code" | "hermes" | "pi" | "openclaw" | "opencode" | "kimi";
+        scope: "user" | "project" | "workspace" | "system" | "managed" | "external";
+        status: "enabled" | "disabled" | "unpublished" | "missing" | "unsupported";
+        enabled: boolean;
+        managedByOpenGrove: boolean;
+        readonly: boolean;
+        system: boolean;
+        sourcePath?: string;
+        targetPath?: string;
+        configPath?: string;
+        configFormat?: string;
+        markerPath?: string;
+        reason?: string;
+        command?: string;
+        args?: Array<string>;
+        envKeys?: Array<string>;
+        metadata?: {
+          [key: string]: HostOutputSharedDefinitionSchema2;
+        };
+      }>;
+      commandUsages: Array<{
+        command: string;
+        args: Array<string>;
+        envKeys: Array<string>;
+        parentKind: "app" | "skill" | "mcp" | "plugin" | "hook" | "tool" | "cli";
+        parentId: string;
+        kernelId?: "codex" | "claude-code" | "hermes" | "pi" | "openclaw" | "opencode" | "kimi";
+        configPath?: string;
+        resolvedPath?: string;
+        risk: "low" | "medium" | "high";
+      }>;
+      summary: {
+        itemCount: number;
+        deploymentCount: number;
+        byKind: {
+          [key: string]: number;
+        };
+        byKernel: {
+          [key: string]: number;
+        };
+        managedCount: number;
+        systemCount: number;
+      };
+    };
+  };
+};
+
+export type ExtensionSkillPublishResponse = ExtensionSkillPublishResponses[keyof ExtensionSkillPublishResponses];
+
+export type ExtensionSkillRepublishData = {
+  body: {
+    deploymentIds?: Array<string>;
+    itemId?: string;
+    name?: string;
+    targetKernelIds?: Array<"codex" | "claude-code" | "hermes" | "pi" | "openclaw" | "opencode" | "kimi">;
+  };
+  path?: never;
+  query?: {
+    includeSystem?: boolean;
+  };
+  url: "/extensions/skills/republish";
+};
+
+export type ExtensionSkillRepublishErrors = {
+  /**
+   * Extension action rejected; inspect result warnings.
+   */
+  400: ExtensionSkillImportResponse200 | HostError;
+  /**
+   * A valid Host session or token is required.
+   */
+  401: HostError;
+  /**
+   * The request is not authorized.
+   */
+  403: HostError;
+  /**
+   * The Host could not complete the operation.
+   */
+  500: HostError;
+  /**
+   * The Host or authenticated session is temporarily unavailable.
+   */
+  503: HostError;
+};
+
+export type ExtensionSkillRepublishError = ExtensionSkillRepublishErrors[keyof ExtensionSkillRepublishErrors];
+
+export type ExtensionSkillRepublishResponses = {
+  /**
+   * Successful response.
+   */
+  200: {
+    ok: boolean;
+    result: {
+      ok: boolean;
+      action: string;
+      records: Array<{
+        id: string;
+        itemId: string;
+        kind: "app" | "skill" | "mcp" | "plugin" | "hook" | "tool" | "cli";
+        kernelId?: "codex" | "claude-code" | "hermes" | "pi" | "openclaw" | "opencode" | "kimi";
+        scope: "user" | "project" | "workspace" | "system" | "managed" | "external";
+        status: "enabled" | "disabled" | "unpublished" | "missing" | "unsupported";
+        enabled: boolean;
+        managedByOpenGrove: boolean;
+        readonly: boolean;
+        system: boolean;
+        sourcePath?: string;
+        targetPath?: string;
+        configPath?: string;
+        configFormat?: string;
+        markerPath?: string;
+        reason?: string;
+        command?: string;
+        args?: Array<string>;
+        envKeys?: Array<string>;
+        metadata?: {
+          [key: string]: HostOutputSharedDefinitionSchema2;
+        };
+      }>;
+      warnings: Array<string>;
+    };
+    extensions: {
+      scannedAt: string;
+      workspaceRoot: string;
+      items: Array<{
+        id: string;
+        kind: "app" | "skill" | "mcp" | "plugin" | "hook" | "tool" | "cli";
+        name: string;
+        title: string;
+        description: string;
+        enabled: boolean;
+        managedByOpenGrove: boolean;
+        readonly: boolean;
+        system: boolean;
+        source: {
+          origin: "opengrove" | "kernel" | "plugin" | "registry" | "git" | "local" | "system" | "unknown";
+          kernelId?: "codex" | "claude-code" | "hermes" | "pi" | "openclaw" | "opencode" | "kimi";
+          path?: string;
+          url?: string;
+          packageId?: string;
+          readonly?: boolean;
+          system?: boolean;
+        };
+        deployments: Array<{
+          id: string;
+          itemId: string;
+          kind: "app" | "skill" | "mcp" | "plugin" | "hook" | "tool" | "cli";
+          kernelId?: "codex" | "claude-code" | "hermes" | "pi" | "openclaw" | "opencode" | "kimi";
+          scope: "user" | "project" | "workspace" | "system" | "managed" | "external";
+          status: "enabled" | "disabled" | "unpublished" | "missing" | "unsupported";
+          enabled: boolean;
+          managedByOpenGrove: boolean;
+          readonly: boolean;
+          system: boolean;
+          sourcePath?: string;
+          targetPath?: string;
+          configPath?: string;
+          configFormat?: string;
+          markerPath?: string;
+          reason?: string;
+          command?: string;
+          args?: Array<string>;
+          envKeys?: Array<string>;
+          metadata?: {
+            [key: string]: HostOutputSharedDefinitionSchema2;
+          };
+        }>;
+        permissions: Array<{
+          type: "filesystem" | "network" | "shell" | "env" | "model" | "unknown";
+          values: Array<string>;
+        }>;
+        commandUsages: Array<{
+          command: string;
+          args: Array<string>;
+          envKeys: Array<string>;
+          parentKind: "app" | "skill" | "mcp" | "plugin" | "hook" | "tool" | "cli";
+          parentId: string;
+          kernelId?: "codex" | "claude-code" | "hermes" | "pi" | "openclaw" | "opencode" | "kimi";
+          configPath?: string;
+          resolvedPath?: string;
+          risk: "low" | "medium" | "high";
+        }>;
+        parentId?: string;
+        childIds: Array<string>;
+        tags: Array<string>;
+        metadata?: {
+          [key: string]: HostOutputSharedDefinitionSchema2;
+        };
+      }>;
+      deployments: Array<{
+        id: string;
+        itemId: string;
+        kind: "app" | "skill" | "mcp" | "plugin" | "hook" | "tool" | "cli";
+        kernelId?: "codex" | "claude-code" | "hermes" | "pi" | "openclaw" | "opencode" | "kimi";
+        scope: "user" | "project" | "workspace" | "system" | "managed" | "external";
+        status: "enabled" | "disabled" | "unpublished" | "missing" | "unsupported";
+        enabled: boolean;
+        managedByOpenGrove: boolean;
+        readonly: boolean;
+        system: boolean;
+        sourcePath?: string;
+        targetPath?: string;
+        configPath?: string;
+        configFormat?: string;
+        markerPath?: string;
+        reason?: string;
+        command?: string;
+        args?: Array<string>;
+        envKeys?: Array<string>;
+        metadata?: {
+          [key: string]: HostOutputSharedDefinitionSchema2;
+        };
+      }>;
+      commandUsages: Array<{
+        command: string;
+        args: Array<string>;
+        envKeys: Array<string>;
+        parentKind: "app" | "skill" | "mcp" | "plugin" | "hook" | "tool" | "cli";
+        parentId: string;
+        kernelId?: "codex" | "claude-code" | "hermes" | "pi" | "openclaw" | "opencode" | "kimi";
+        configPath?: string;
+        resolvedPath?: string;
+        risk: "low" | "medium" | "high";
+      }>;
+      summary: {
+        itemCount: number;
+        deploymentCount: number;
+        byKind: {
+          [key: string]: number;
+        };
+        byKernel: {
+          [key: string]: number;
+        };
+        managedCount: number;
+        systemCount: number;
+      };
+    };
+  };
+};
+
+export type ExtensionSkillRepublishResponse = ExtensionSkillRepublishResponses[keyof ExtensionSkillRepublishResponses];
+
+export type ExtensionSkillUnpublishData = {
+  body: {
+    deploymentIds?: Array<string>;
+    itemId?: string;
+    name?: string;
+    targetKernelIds?: Array<"codex" | "claude-code" | "hermes" | "pi" | "openclaw" | "opencode" | "kimi">;
+    forceExternal?: boolean;
+    deleteLibrary?: boolean;
+  };
+  path?: never;
+  query?: {
+    includeSystem?: boolean;
+  };
+  url: "/extensions/skills/unpublish";
+};
+
+export type ExtensionSkillUnpublishErrors = {
+  /**
+   * Extension action rejected; inspect result warnings.
+   */
+  400: ExtensionSkillImportResponse200 | HostError;
+  /**
+   * A valid Host session or token is required.
+   */
+  401: HostError;
+  /**
+   * The request is not authorized.
+   */
+  403: HostError;
+  /**
+   * The Host could not complete the operation.
+   */
+  500: HostError;
+  /**
+   * The Host or authenticated session is temporarily unavailable.
+   */
+  503: HostError;
+};
+
+export type ExtensionSkillUnpublishError = ExtensionSkillUnpublishErrors[keyof ExtensionSkillUnpublishErrors];
+
+export type ExtensionSkillUnpublishResponses = {
+  /**
+   * Successful response.
+   */
+  200: {
+    ok: boolean;
+    result: {
+      ok: boolean;
+      action: string;
+      records: Array<{
+        id: string;
+        itemId: string;
+        kind: "app" | "skill" | "mcp" | "plugin" | "hook" | "tool" | "cli";
+        kernelId?: "codex" | "claude-code" | "hermes" | "pi" | "openclaw" | "opencode" | "kimi";
+        scope: "user" | "project" | "workspace" | "system" | "managed" | "external";
+        status: "enabled" | "disabled" | "unpublished" | "missing" | "unsupported";
+        enabled: boolean;
+        managedByOpenGrove: boolean;
+        readonly: boolean;
+        system: boolean;
+        sourcePath?: string;
+        targetPath?: string;
+        configPath?: string;
+        configFormat?: string;
+        markerPath?: string;
+        reason?: string;
+        command?: string;
+        args?: Array<string>;
+        envKeys?: Array<string>;
+        metadata?: {
+          [key: string]: HostOutputSharedDefinitionSchema2;
+        };
+      }>;
+      warnings: Array<string>;
+    };
+    extensions: {
+      scannedAt: string;
+      workspaceRoot: string;
+      items: Array<{
+        id: string;
+        kind: "app" | "skill" | "mcp" | "plugin" | "hook" | "tool" | "cli";
+        name: string;
+        title: string;
+        description: string;
+        enabled: boolean;
+        managedByOpenGrove: boolean;
+        readonly: boolean;
+        system: boolean;
+        source: {
+          origin: "opengrove" | "kernel" | "plugin" | "registry" | "git" | "local" | "system" | "unknown";
+          kernelId?: "codex" | "claude-code" | "hermes" | "pi" | "openclaw" | "opencode" | "kimi";
+          path?: string;
+          url?: string;
+          packageId?: string;
+          readonly?: boolean;
+          system?: boolean;
+        };
+        deployments: Array<{
+          id: string;
+          itemId: string;
+          kind: "app" | "skill" | "mcp" | "plugin" | "hook" | "tool" | "cli";
+          kernelId?: "codex" | "claude-code" | "hermes" | "pi" | "openclaw" | "opencode" | "kimi";
+          scope: "user" | "project" | "workspace" | "system" | "managed" | "external";
+          status: "enabled" | "disabled" | "unpublished" | "missing" | "unsupported";
+          enabled: boolean;
+          managedByOpenGrove: boolean;
+          readonly: boolean;
+          system: boolean;
+          sourcePath?: string;
+          targetPath?: string;
+          configPath?: string;
+          configFormat?: string;
+          markerPath?: string;
+          reason?: string;
+          command?: string;
+          args?: Array<string>;
+          envKeys?: Array<string>;
+          metadata?: {
+            [key: string]: HostOutputSharedDefinitionSchema2;
+          };
+        }>;
+        permissions: Array<{
+          type: "filesystem" | "network" | "shell" | "env" | "model" | "unknown";
+          values: Array<string>;
+        }>;
+        commandUsages: Array<{
+          command: string;
+          args: Array<string>;
+          envKeys: Array<string>;
+          parentKind: "app" | "skill" | "mcp" | "plugin" | "hook" | "tool" | "cli";
+          parentId: string;
+          kernelId?: "codex" | "claude-code" | "hermes" | "pi" | "openclaw" | "opencode" | "kimi";
+          configPath?: string;
+          resolvedPath?: string;
+          risk: "low" | "medium" | "high";
+        }>;
+        parentId?: string;
+        childIds: Array<string>;
+        tags: Array<string>;
+        metadata?: {
+          [key: string]: HostOutputSharedDefinitionSchema2;
+        };
+      }>;
+      deployments: Array<{
+        id: string;
+        itemId: string;
+        kind: "app" | "skill" | "mcp" | "plugin" | "hook" | "tool" | "cli";
+        kernelId?: "codex" | "claude-code" | "hermes" | "pi" | "openclaw" | "opencode" | "kimi";
+        scope: "user" | "project" | "workspace" | "system" | "managed" | "external";
+        status: "enabled" | "disabled" | "unpublished" | "missing" | "unsupported";
+        enabled: boolean;
+        managedByOpenGrove: boolean;
+        readonly: boolean;
+        system: boolean;
+        sourcePath?: string;
+        targetPath?: string;
+        configPath?: string;
+        configFormat?: string;
+        markerPath?: string;
+        reason?: string;
+        command?: string;
+        args?: Array<string>;
+        envKeys?: Array<string>;
+        metadata?: {
+          [key: string]: HostOutputSharedDefinitionSchema2;
+        };
+      }>;
+      commandUsages: Array<{
+        command: string;
+        args: Array<string>;
+        envKeys: Array<string>;
+        parentKind: "app" | "skill" | "mcp" | "plugin" | "hook" | "tool" | "cli";
+        parentId: string;
+        kernelId?: "codex" | "claude-code" | "hermes" | "pi" | "openclaw" | "opencode" | "kimi";
+        configPath?: string;
+        resolvedPath?: string;
+        risk: "low" | "medium" | "high";
+      }>;
+      summary: {
+        itemCount: number;
+        deploymentCount: number;
+        byKind: {
+          [key: string]: number;
+        };
+        byKernel: {
+          [key: string]: number;
+        };
+        managedCount: number;
+        systemCount: number;
+      };
+    };
+  };
+};
+
+export type ExtensionSkillUnpublishResponse = ExtensionSkillUnpublishResponses[keyof ExtensionSkillUnpublishResponses];
+
+export type ExtensionDeploymentEnableData = {
+  body: {
+    deploymentIds?: Array<string>;
+    itemId?: string;
+    kind?: "app" | "skill" | "mcp" | "plugin" | "hook" | "tool" | "cli";
+    forceExternal?: boolean;
+    reason?: string;
+    enabled?: boolean;
+  };
+  path?: never;
+  query?: {
+    includeSystem?: boolean;
+  };
+  url: "/extensions/deployments/enable";
+};
+
+export type ExtensionDeploymentEnableErrors = {
+  /**
+   * Extension action rejected; inspect result warnings.
+   */
+  400: ExtensionSkillImportResponse200 | HostError;
+  /**
+   * A valid Host session or token is required.
+   */
+  401: HostError;
+  /**
+   * The request is not authorized.
+   */
+  403: HostError;
+  /**
+   * The Host could not complete the operation.
+   */
+  500: HostError;
+  /**
+   * The Host or authenticated session is temporarily unavailable.
+   */
+  503: HostError;
+};
+
+export type ExtensionDeploymentEnableError = ExtensionDeploymentEnableErrors[keyof ExtensionDeploymentEnableErrors];
+
+export type ExtensionDeploymentEnableResponses = {
+  /**
+   * Successful response.
+   */
+  200: {
+    ok: boolean;
+    result: {
+      ok: boolean;
+      action: string;
+      records: Array<{
+        id: string;
+        itemId: string;
+        kind: "app" | "skill" | "mcp" | "plugin" | "hook" | "tool" | "cli";
+        kernelId?: "codex" | "claude-code" | "hermes" | "pi" | "openclaw" | "opencode" | "kimi";
+        scope: "user" | "project" | "workspace" | "system" | "managed" | "external";
+        status: "enabled" | "disabled" | "unpublished" | "missing" | "unsupported";
+        enabled: boolean;
+        managedByOpenGrove: boolean;
+        readonly: boolean;
+        system: boolean;
+        sourcePath?: string;
+        targetPath?: string;
+        configPath?: string;
+        configFormat?: string;
+        markerPath?: string;
+        reason?: string;
+        command?: string;
+        args?: Array<string>;
+        envKeys?: Array<string>;
+        metadata?: {
+          [key: string]: HostOutputSharedDefinitionSchema2;
+        };
+      }>;
+      warnings: Array<string>;
+    };
+    extensions: {
+      scannedAt: string;
+      workspaceRoot: string;
+      items: Array<{
+        id: string;
+        kind: "app" | "skill" | "mcp" | "plugin" | "hook" | "tool" | "cli";
+        name: string;
+        title: string;
+        description: string;
+        enabled: boolean;
+        managedByOpenGrove: boolean;
+        readonly: boolean;
+        system: boolean;
+        source: {
+          origin: "opengrove" | "kernel" | "plugin" | "registry" | "git" | "local" | "system" | "unknown";
+          kernelId?: "codex" | "claude-code" | "hermes" | "pi" | "openclaw" | "opencode" | "kimi";
+          path?: string;
+          url?: string;
+          packageId?: string;
+          readonly?: boolean;
+          system?: boolean;
+        };
+        deployments: Array<{
+          id: string;
+          itemId: string;
+          kind: "app" | "skill" | "mcp" | "plugin" | "hook" | "tool" | "cli";
+          kernelId?: "codex" | "claude-code" | "hermes" | "pi" | "openclaw" | "opencode" | "kimi";
+          scope: "user" | "project" | "workspace" | "system" | "managed" | "external";
+          status: "enabled" | "disabled" | "unpublished" | "missing" | "unsupported";
+          enabled: boolean;
+          managedByOpenGrove: boolean;
+          readonly: boolean;
+          system: boolean;
+          sourcePath?: string;
+          targetPath?: string;
+          configPath?: string;
+          configFormat?: string;
+          markerPath?: string;
+          reason?: string;
+          command?: string;
+          args?: Array<string>;
+          envKeys?: Array<string>;
+          metadata?: {
+            [key: string]: HostOutputSharedDefinitionSchema2;
+          };
+        }>;
+        permissions: Array<{
+          type: "filesystem" | "network" | "shell" | "env" | "model" | "unknown";
+          values: Array<string>;
+        }>;
+        commandUsages: Array<{
+          command: string;
+          args: Array<string>;
+          envKeys: Array<string>;
+          parentKind: "app" | "skill" | "mcp" | "plugin" | "hook" | "tool" | "cli";
+          parentId: string;
+          kernelId?: "codex" | "claude-code" | "hermes" | "pi" | "openclaw" | "opencode" | "kimi";
+          configPath?: string;
+          resolvedPath?: string;
+          risk: "low" | "medium" | "high";
+        }>;
+        parentId?: string;
+        childIds: Array<string>;
+        tags: Array<string>;
+        metadata?: {
+          [key: string]: HostOutputSharedDefinitionSchema2;
+        };
+      }>;
+      deployments: Array<{
+        id: string;
+        itemId: string;
+        kind: "app" | "skill" | "mcp" | "plugin" | "hook" | "tool" | "cli";
+        kernelId?: "codex" | "claude-code" | "hermes" | "pi" | "openclaw" | "opencode" | "kimi";
+        scope: "user" | "project" | "workspace" | "system" | "managed" | "external";
+        status: "enabled" | "disabled" | "unpublished" | "missing" | "unsupported";
+        enabled: boolean;
+        managedByOpenGrove: boolean;
+        readonly: boolean;
+        system: boolean;
+        sourcePath?: string;
+        targetPath?: string;
+        configPath?: string;
+        configFormat?: string;
+        markerPath?: string;
+        reason?: string;
+        command?: string;
+        args?: Array<string>;
+        envKeys?: Array<string>;
+        metadata?: {
+          [key: string]: HostOutputSharedDefinitionSchema2;
+        };
+      }>;
+      commandUsages: Array<{
+        command: string;
+        args: Array<string>;
+        envKeys: Array<string>;
+        parentKind: "app" | "skill" | "mcp" | "plugin" | "hook" | "tool" | "cli";
+        parentId: string;
+        kernelId?: "codex" | "claude-code" | "hermes" | "pi" | "openclaw" | "opencode" | "kimi";
+        configPath?: string;
+        resolvedPath?: string;
+        risk: "low" | "medium" | "high";
+      }>;
+      summary: {
+        itemCount: number;
+        deploymentCount: number;
+        byKind: {
+          [key: string]: number;
+        };
+        byKernel: {
+          [key: string]: number;
+        };
+        managedCount: number;
+        systemCount: number;
+      };
+    };
+  };
+};
+
+export type ExtensionDeploymentEnableResponse =
+  ExtensionDeploymentEnableResponses[keyof ExtensionDeploymentEnableResponses];
+
+export type ExtensionDeploymentDisableData = {
+  body: {
+    deploymentIds?: Array<string>;
+    itemId?: string;
+    kind?: "app" | "skill" | "mcp" | "plugin" | "hook" | "tool" | "cli";
+    forceExternal?: boolean;
+    reason?: string;
+  };
+  path?: never;
+  query?: {
+    includeSystem?: boolean;
+  };
+  url: "/extensions/deployments/disable";
+};
+
+export type ExtensionDeploymentDisableErrors = {
+  /**
+   * Extension action rejected; inspect result warnings.
+   */
+  400: ExtensionSkillImportResponse200 | HostError;
+  /**
+   * A valid Host session or token is required.
+   */
+  401: HostError;
+  /**
+   * The request is not authorized.
+   */
+  403: HostError;
+  /**
+   * The Host could not complete the operation.
+   */
+  500: HostError;
+  /**
+   * The Host or authenticated session is temporarily unavailable.
+   */
+  503: HostError;
+};
+
+export type ExtensionDeploymentDisableError = ExtensionDeploymentDisableErrors[keyof ExtensionDeploymentDisableErrors];
+
+export type ExtensionDeploymentDisableResponses = {
+  /**
+   * Successful response.
+   */
+  200: {
+    ok: boolean;
+    result: {
+      ok: boolean;
+      action: string;
+      records: Array<{
+        id: string;
+        itemId: string;
+        kind: "app" | "skill" | "mcp" | "plugin" | "hook" | "tool" | "cli";
+        kernelId?: "codex" | "claude-code" | "hermes" | "pi" | "openclaw" | "opencode" | "kimi";
+        scope: "user" | "project" | "workspace" | "system" | "managed" | "external";
+        status: "enabled" | "disabled" | "unpublished" | "missing" | "unsupported";
+        enabled: boolean;
+        managedByOpenGrove: boolean;
+        readonly: boolean;
+        system: boolean;
+        sourcePath?: string;
+        targetPath?: string;
+        configPath?: string;
+        configFormat?: string;
+        markerPath?: string;
+        reason?: string;
+        command?: string;
+        args?: Array<string>;
+        envKeys?: Array<string>;
+        metadata?: {
+          [key: string]: HostOutputSharedDefinitionSchema2;
+        };
+      }>;
+      warnings: Array<string>;
+    };
+    extensions: {
+      scannedAt: string;
+      workspaceRoot: string;
+      items: Array<{
+        id: string;
+        kind: "app" | "skill" | "mcp" | "plugin" | "hook" | "tool" | "cli";
+        name: string;
+        title: string;
+        description: string;
+        enabled: boolean;
+        managedByOpenGrove: boolean;
+        readonly: boolean;
+        system: boolean;
+        source: {
+          origin: "opengrove" | "kernel" | "plugin" | "registry" | "git" | "local" | "system" | "unknown";
+          kernelId?: "codex" | "claude-code" | "hermes" | "pi" | "openclaw" | "opencode" | "kimi";
+          path?: string;
+          url?: string;
+          packageId?: string;
+          readonly?: boolean;
+          system?: boolean;
+        };
+        deployments: Array<{
+          id: string;
+          itemId: string;
+          kind: "app" | "skill" | "mcp" | "plugin" | "hook" | "tool" | "cli";
+          kernelId?: "codex" | "claude-code" | "hermes" | "pi" | "openclaw" | "opencode" | "kimi";
+          scope: "user" | "project" | "workspace" | "system" | "managed" | "external";
+          status: "enabled" | "disabled" | "unpublished" | "missing" | "unsupported";
+          enabled: boolean;
+          managedByOpenGrove: boolean;
+          readonly: boolean;
+          system: boolean;
+          sourcePath?: string;
+          targetPath?: string;
+          configPath?: string;
+          configFormat?: string;
+          markerPath?: string;
+          reason?: string;
+          command?: string;
+          args?: Array<string>;
+          envKeys?: Array<string>;
+          metadata?: {
+            [key: string]: HostOutputSharedDefinitionSchema2;
+          };
+        }>;
+        permissions: Array<{
+          type: "filesystem" | "network" | "shell" | "env" | "model" | "unknown";
+          values: Array<string>;
+        }>;
+        commandUsages: Array<{
+          command: string;
+          args: Array<string>;
+          envKeys: Array<string>;
+          parentKind: "app" | "skill" | "mcp" | "plugin" | "hook" | "tool" | "cli";
+          parentId: string;
+          kernelId?: "codex" | "claude-code" | "hermes" | "pi" | "openclaw" | "opencode" | "kimi";
+          configPath?: string;
+          resolvedPath?: string;
+          risk: "low" | "medium" | "high";
+        }>;
+        parentId?: string;
+        childIds: Array<string>;
+        tags: Array<string>;
+        metadata?: {
+          [key: string]: HostOutputSharedDefinitionSchema2;
+        };
+      }>;
+      deployments: Array<{
+        id: string;
+        itemId: string;
+        kind: "app" | "skill" | "mcp" | "plugin" | "hook" | "tool" | "cli";
+        kernelId?: "codex" | "claude-code" | "hermes" | "pi" | "openclaw" | "opencode" | "kimi";
+        scope: "user" | "project" | "workspace" | "system" | "managed" | "external";
+        status: "enabled" | "disabled" | "unpublished" | "missing" | "unsupported";
+        enabled: boolean;
+        managedByOpenGrove: boolean;
+        readonly: boolean;
+        system: boolean;
+        sourcePath?: string;
+        targetPath?: string;
+        configPath?: string;
+        configFormat?: string;
+        markerPath?: string;
+        reason?: string;
+        command?: string;
+        args?: Array<string>;
+        envKeys?: Array<string>;
+        metadata?: {
+          [key: string]: HostOutputSharedDefinitionSchema2;
+        };
+      }>;
+      commandUsages: Array<{
+        command: string;
+        args: Array<string>;
+        envKeys: Array<string>;
+        parentKind: "app" | "skill" | "mcp" | "plugin" | "hook" | "tool" | "cli";
+        parentId: string;
+        kernelId?: "codex" | "claude-code" | "hermes" | "pi" | "openclaw" | "opencode" | "kimi";
+        configPath?: string;
+        resolvedPath?: string;
+        risk: "low" | "medium" | "high";
+      }>;
+      summary: {
+        itemCount: number;
+        deploymentCount: number;
+        byKind: {
+          [key: string]: number;
+        };
+        byKernel: {
+          [key: string]: number;
+        };
+        managedCount: number;
+        systemCount: number;
+      };
+    };
+  };
+};
+
+export type ExtensionDeploymentDisableResponse =
+  ExtensionDeploymentDisableResponses[keyof ExtensionDeploymentDisableResponses];
+
+export type ExtensionDeploymentDeleteData = {
+  body: {
+    deploymentIds?: Array<string>;
+    itemId?: string;
+    kind?: "app" | "skill" | "mcp" | "plugin" | "hook" | "tool" | "cli";
+    forceExternal?: boolean;
+    reason?: string;
+    deleteLibrary?: boolean;
+  };
+  path?: never;
+  query?: {
+    includeSystem?: boolean;
+  };
+  url: "/extensions/deployments/delete";
+};
+
+export type ExtensionDeploymentDeleteErrors = {
+  /**
+   * Extension action rejected; inspect result warnings.
+   */
+  400: ExtensionSkillImportResponse200 | HostError;
+  /**
+   * A valid Host session or token is required.
+   */
+  401: HostError;
+  /**
+   * The request is not authorized.
+   */
+  403: HostError;
+  /**
+   * The Host could not complete the operation.
+   */
+  500: HostError;
+  /**
+   * The Host or authenticated session is temporarily unavailable.
+   */
+  503: HostError;
+};
+
+export type ExtensionDeploymentDeleteError = ExtensionDeploymentDeleteErrors[keyof ExtensionDeploymentDeleteErrors];
+
+export type ExtensionDeploymentDeleteResponses = {
+  /**
+   * Successful response.
+   */
+  200: {
+    ok: boolean;
+    result: {
+      ok: boolean;
+      action: string;
+      records: Array<{
+        id: string;
+        itemId: string;
+        kind: "app" | "skill" | "mcp" | "plugin" | "hook" | "tool" | "cli";
+        kernelId?: "codex" | "claude-code" | "hermes" | "pi" | "openclaw" | "opencode" | "kimi";
+        scope: "user" | "project" | "workspace" | "system" | "managed" | "external";
+        status: "enabled" | "disabled" | "unpublished" | "missing" | "unsupported";
+        enabled: boolean;
+        managedByOpenGrove: boolean;
+        readonly: boolean;
+        system: boolean;
+        sourcePath?: string;
+        targetPath?: string;
+        configPath?: string;
+        configFormat?: string;
+        markerPath?: string;
+        reason?: string;
+        command?: string;
+        args?: Array<string>;
+        envKeys?: Array<string>;
+        metadata?: {
+          [key: string]: HostOutputSharedDefinitionSchema2;
+        };
+      }>;
+      warnings: Array<string>;
+    };
+    extensions: {
+      scannedAt: string;
+      workspaceRoot: string;
+      items: Array<{
+        id: string;
+        kind: "app" | "skill" | "mcp" | "plugin" | "hook" | "tool" | "cli";
+        name: string;
+        title: string;
+        description: string;
+        enabled: boolean;
+        managedByOpenGrove: boolean;
+        readonly: boolean;
+        system: boolean;
+        source: {
+          origin: "opengrove" | "kernel" | "plugin" | "registry" | "git" | "local" | "system" | "unknown";
+          kernelId?: "codex" | "claude-code" | "hermes" | "pi" | "openclaw" | "opencode" | "kimi";
+          path?: string;
+          url?: string;
+          packageId?: string;
+          readonly?: boolean;
+          system?: boolean;
+        };
+        deployments: Array<{
+          id: string;
+          itemId: string;
+          kind: "app" | "skill" | "mcp" | "plugin" | "hook" | "tool" | "cli";
+          kernelId?: "codex" | "claude-code" | "hermes" | "pi" | "openclaw" | "opencode" | "kimi";
+          scope: "user" | "project" | "workspace" | "system" | "managed" | "external";
+          status: "enabled" | "disabled" | "unpublished" | "missing" | "unsupported";
+          enabled: boolean;
+          managedByOpenGrove: boolean;
+          readonly: boolean;
+          system: boolean;
+          sourcePath?: string;
+          targetPath?: string;
+          configPath?: string;
+          configFormat?: string;
+          markerPath?: string;
+          reason?: string;
+          command?: string;
+          args?: Array<string>;
+          envKeys?: Array<string>;
+          metadata?: {
+            [key: string]: HostOutputSharedDefinitionSchema2;
+          };
+        }>;
+        permissions: Array<{
+          type: "filesystem" | "network" | "shell" | "env" | "model" | "unknown";
+          values: Array<string>;
+        }>;
+        commandUsages: Array<{
+          command: string;
+          args: Array<string>;
+          envKeys: Array<string>;
+          parentKind: "app" | "skill" | "mcp" | "plugin" | "hook" | "tool" | "cli";
+          parentId: string;
+          kernelId?: "codex" | "claude-code" | "hermes" | "pi" | "openclaw" | "opencode" | "kimi";
+          configPath?: string;
+          resolvedPath?: string;
+          risk: "low" | "medium" | "high";
+        }>;
+        parentId?: string;
+        childIds: Array<string>;
+        tags: Array<string>;
+        metadata?: {
+          [key: string]: HostOutputSharedDefinitionSchema2;
+        };
+      }>;
+      deployments: Array<{
+        id: string;
+        itemId: string;
+        kind: "app" | "skill" | "mcp" | "plugin" | "hook" | "tool" | "cli";
+        kernelId?: "codex" | "claude-code" | "hermes" | "pi" | "openclaw" | "opencode" | "kimi";
+        scope: "user" | "project" | "workspace" | "system" | "managed" | "external";
+        status: "enabled" | "disabled" | "unpublished" | "missing" | "unsupported";
+        enabled: boolean;
+        managedByOpenGrove: boolean;
+        readonly: boolean;
+        system: boolean;
+        sourcePath?: string;
+        targetPath?: string;
+        configPath?: string;
+        configFormat?: string;
+        markerPath?: string;
+        reason?: string;
+        command?: string;
+        args?: Array<string>;
+        envKeys?: Array<string>;
+        metadata?: {
+          [key: string]: HostOutputSharedDefinitionSchema2;
+        };
+      }>;
+      commandUsages: Array<{
+        command: string;
+        args: Array<string>;
+        envKeys: Array<string>;
+        parentKind: "app" | "skill" | "mcp" | "plugin" | "hook" | "tool" | "cli";
+        parentId: string;
+        kernelId?: "codex" | "claude-code" | "hermes" | "pi" | "openclaw" | "opencode" | "kimi";
+        configPath?: string;
+        resolvedPath?: string;
+        risk: "low" | "medium" | "high";
+      }>;
+      summary: {
+        itemCount: number;
+        deploymentCount: number;
+        byKind: {
+          [key: string]: number;
+        };
+        byKernel: {
+          [key: string]: number;
+        };
+        managedCount: number;
+        systemCount: number;
+      };
+    };
+  };
+};
+
+export type ExtensionDeploymentDeleteResponse =
+  ExtensionDeploymentDeleteResponses[keyof ExtensionDeploymentDeleteResponses];
+
+export type RoutineRoutineListData = {
+  body?: never;
+  path?: never;
+  query?: {
+    limit?: number;
+    status?: "draft" | "active" | "paused" | "needs_repair" | "archived";
+  };
+  url: "/routines";
+};
+
+export type RoutineRoutineListErrors = {
+  /**
+   * The input is invalid.
+   */
+  400: HostError;
+  /**
+   * A valid Host session or token is required.
+   */
+  401: HostError;
+  /**
+   * The request is not authorized.
+   */
+  403: HostError;
+  /**
+   * Error response.
+   */
+  404: HostError;
+  /**
+   * Error response.
+   */
+  409: HostError;
+  /**
+   * The Host could not complete the operation.
+   */
+  500: HostError;
+  /**
+   * The Host or authenticated session is temporarily unavailable.
+   */
+  503: HostError;
+};
+
+export type RoutineRoutineListError = RoutineRoutineListErrors[keyof RoutineRoutineListErrors];
+
+export type RoutineRoutineListResponses = {
+  /**
+   * Successful response.
+   */
+  200: {
+    ok: true;
+    routines: Array<{
+      id: string;
+      title: string;
+      description?: string;
+      sourceKnowledgeId?: string;
+      status: "draft" | "active" | "paused" | "needs_repair" | "archived";
+      trigger: "manual" | "schedule" | "event";
+      schedule?: {
+        at?: string;
+        everyMinutes?: number;
+        daysOfWeek?: Array<number>;
+        lastFiredAt?: string;
+      };
+      capabilityIds: Array<string>;
+      steps: Array<{
+        id: string;
+        title: string;
+        toolId?: string;
+        capabilityId?: string;
+        skillId?: string;
+        memberId?: string;
+        roomId?: string;
+        prompt?: string;
+        input?: HostOutputSharedDefinitionSchema9;
+        when?: {
+          stepId: string;
+          path?: string;
+          operator?: "truthy" | "equals" | "notEquals" | "gt" | "gte" | "lt" | "lte";
+          value?: HostOutputSharedDefinitionSchema10;
+        };
+        approval?: {
+          mode: "allow" | "ask" | "deny";
+          reason: string;
+        };
+        flowApproval?: {
+          flowId: string;
+          stepId: string;
+        };
+      }>;
+      approvalRules: Array<{
+        mode: "allow" | "ask" | "deny";
+        reason: string;
+        id?: string;
+        toolId?: string;
+        capabilityId?: string;
+        risk?: "read" | "write" | "send" | "spend" | "delete";
+      }>;
+      createdAt: string;
+      updatedAt: string;
+      lastRun?: {
+        id: string;
+        routineId: string;
+        status: "running" | "succeeded" | "failed" | "paused_for_approval";
+        startedAt: string;
+        endedAt?: string;
+        eventCount: number;
+        error?: string;
+        problem?: {
+          incidentId: string;
+          code: string;
+        };
+      };
+    }>;
+  };
+};
+
+export type RoutineRoutineListResponse = RoutineRoutineListResponses[keyof RoutineRoutineListResponses];
+
+export type RoutineRoutineCreateData = {
+  body: {
+    title: string;
+    description?: string;
+    status?: "draft" | "active";
+    trigger?: "manual" | "schedule" | "event";
+    schedule?: {
+      at?: string;
+      everyMinutes?: number | string;
+      daysOfWeek?: Array<number>;
+    };
+    steps: Array<{
+      id?: string;
+      title?: string;
+      toolId?: string;
+      capabilityId?: string;
+      skillId?: string;
+      memberId?: string;
+      roomId?: string;
+      prompt?: string;
+      input?: HostInputSharedDefinitionSchema1;
+      when?: {
+        stepId: string;
+        path?: string;
+        operator?: "truthy" | "equals" | "notEquals" | "gt" | "gte" | "lt" | "lte";
+        value?: HostInputSharedDefinitionSchema2;
+      };
+      approval?: {
+        mode: "allow" | "ask" | "deny";
+        reason: string;
+      };
+      flowApproval?: {
+        flowId: string;
+        stepId: string;
+      };
+    }>;
+  };
+  path?: never;
+  query?: never;
+  url: "/routines";
+};
+
+export type RoutineRoutineCreateErrors = {
+  /**
+   * The input is invalid.
+   */
+  400: HostError;
+  /**
+   * A valid Host session or token is required.
+   */
+  401: HostError;
+  /**
+   * The request is not authorized.
+   */
+  403: HostError;
+  /**
+   * Error response.
+   */
+  404: HostError;
+  /**
+   * Error response.
+   */
+  409: HostError;
+  /**
+   * The Host could not complete the operation.
+   */
+  500: HostError;
+  /**
+   * The Host or authenticated session is temporarily unavailable.
+   */
+  503: HostError;
+};
+
+export type RoutineRoutineCreateError = RoutineRoutineCreateErrors[keyof RoutineRoutineCreateErrors];
+
+export type RoutineRoutineCreateResponses = {
+  /**
+   * Successful response.
+   */
+  200: {
+    ok: true;
+    routine: {
+      id: string;
+      title: string;
+      description?: string;
+      sourceKnowledgeId?: string;
+      status: "draft" | "active" | "paused" | "needs_repair" | "archived";
+      trigger: "manual" | "schedule" | "event";
+      schedule?: {
+        at?: string;
+        everyMinutes?: number;
+        daysOfWeek?: Array<number>;
+        lastFiredAt?: string;
+      };
+      capabilityIds: Array<string>;
+      steps: Array<{
+        id: string;
+        title: string;
+        toolId?: string;
+        capabilityId?: string;
+        skillId?: string;
+        memberId?: string;
+        roomId?: string;
+        prompt?: string;
+        input?: HostOutputSharedDefinitionSchema9;
+        when?: {
+          stepId: string;
+          path?: string;
+          operator?: "truthy" | "equals" | "notEquals" | "gt" | "gte" | "lt" | "lte";
+          value?: HostOutputSharedDefinitionSchema10;
+        };
+        approval?: {
+          mode: "allow" | "ask" | "deny";
+          reason: string;
+        };
+        flowApproval?: {
+          flowId: string;
+          stepId: string;
+        };
+      }>;
+      approvalRules: Array<{
+        mode: "allow" | "ask" | "deny";
+        reason: string;
+        id?: string;
+        toolId?: string;
+        capabilityId?: string;
+        risk?: "read" | "write" | "send" | "spend" | "delete";
+      }>;
+      createdAt: string;
+      updatedAt: string;
+      lastRun?: {
+        id: string;
+        routineId: string;
+        status: "running" | "succeeded" | "failed" | "paused_for_approval";
+        startedAt: string;
+        endedAt?: string;
+        eventCount: number;
+        error?: string;
+        problem?: {
+          incidentId: string;
+          code: string;
+        };
+      };
+    };
+  };
+};
+
+export type RoutineRoutineCreateResponse = RoutineRoutineCreateResponses[keyof RoutineRoutineCreateResponses];
+
+export type RoutineRoutineImportData = {
+  body: {
+    content?: string;
+    knowledgeId?: string;
+  };
+  path?: never;
+  query?: never;
+  url: "/routines/import";
+};
+
+export type RoutineRoutineImportErrors = {
+  /**
+   * The input is invalid.
+   */
+  400: HostError;
+  /**
+   * A valid Host session or token is required.
+   */
+  401: HostError;
+  /**
+   * The request is not authorized.
+   */
+  403: HostError;
+  /**
+   * Error response.
+   */
+  404: HostError;
+  /**
+   * Error response.
+   */
+  409: HostError;
+  /**
+   * The Host could not complete the operation.
+   */
+  500: HostError;
+  /**
+   * The Host or authenticated session is temporarily unavailable.
+   */
+  503: HostError;
+};
+
+export type RoutineRoutineImportError = RoutineRoutineImportErrors[keyof RoutineRoutineImportErrors];
+
+export type RoutineRoutineImportResponses = {
+  /**
+   * Successful response.
+   */
+  200: {
+    ok: true;
+    routine: {
+      id: string;
+      title: string;
+      description?: string;
+      sourceKnowledgeId?: string;
+      status: "draft" | "active" | "paused" | "needs_repair" | "archived";
+      trigger: "manual" | "schedule" | "event";
+      schedule?: {
+        at?: string;
+        everyMinutes?: number;
+        daysOfWeek?: Array<number>;
+        lastFiredAt?: string;
+      };
+      capabilityIds: Array<string>;
+      steps: Array<{
+        id: string;
+        title: string;
+        toolId?: string;
+        capabilityId?: string;
+        skillId?: string;
+        memberId?: string;
+        roomId?: string;
+        prompt?: string;
+        input?: HostOutputSharedDefinitionSchema9;
+        when?: {
+          stepId: string;
+          path?: string;
+          operator?: "truthy" | "equals" | "notEquals" | "gt" | "gte" | "lt" | "lte";
+          value?: HostOutputSharedDefinitionSchema10;
+        };
+        approval?: {
+          mode: "allow" | "ask" | "deny";
+          reason: string;
+        };
+        flowApproval?: {
+          flowId: string;
+          stepId: string;
+        };
+      }>;
+      approvalRules: Array<{
+        mode: "allow" | "ask" | "deny";
+        reason: string;
+        id?: string;
+        toolId?: string;
+        capabilityId?: string;
+        risk?: "read" | "write" | "send" | "spend" | "delete";
+      }>;
+      createdAt: string;
+      updatedAt: string;
+      lastRun?: {
+        id: string;
+        routineId: string;
+        status: "running" | "succeeded" | "failed" | "paused_for_approval";
+        startedAt: string;
+        endedAt?: string;
+        eventCount: number;
+        error?: string;
+        problem?: {
+          incidentId: string;
+          code: string;
+        };
+      };
+    };
+  };
+};
+
+export type RoutineRoutineImportResponse = RoutineRoutineImportResponses[keyof RoutineRoutineImportResponses];
+
+export type RoutineRoutineScheduleData = {
+  body: {
+    trigger?: "manual" | "schedule";
+    enabled?: boolean;
+    schedule?: {
+      at?: string;
+      everyMinutes?: number | string;
+      daysOfWeek?: Array<number>;
+    };
+  };
+  path: {
+    routineId: string;
+  };
+  query?: never;
+  url: "/routines/{routineId}/schedule";
+};
+
+export type RoutineRoutineScheduleErrors = {
+  /**
+   * The input is invalid.
+   */
+  400: HostError;
+  /**
+   * A valid Host session or token is required.
+   */
+  401: HostError;
+  /**
+   * The request is not authorized.
+   */
+  403: HostError;
+  /**
+   * Error response.
+   */
+  404: HostError;
+  /**
+   * Error response.
+   */
+  409: HostError;
+  /**
+   * The Host could not complete the operation.
+   */
+  500: HostError;
+  /**
+   * The Host or authenticated session is temporarily unavailable.
+   */
+  503: HostError;
+};
+
+export type RoutineRoutineScheduleError = RoutineRoutineScheduleErrors[keyof RoutineRoutineScheduleErrors];
+
+export type RoutineRoutineScheduleResponses = {
+  /**
+   * Successful response.
+   */
+  200: {
+    ok: true;
+    routine: {
+      id: string;
+      title: string;
+      description?: string;
+      sourceKnowledgeId?: string;
+      status: "draft" | "active" | "paused" | "needs_repair" | "archived";
+      trigger: "manual" | "schedule" | "event";
+      schedule?: {
+        at?: string;
+        everyMinutes?: number;
+        daysOfWeek?: Array<number>;
+        lastFiredAt?: string;
+      };
+      capabilityIds: Array<string>;
+      steps: Array<{
+        id: string;
+        title: string;
+        toolId?: string;
+        capabilityId?: string;
+        skillId?: string;
+        memberId?: string;
+        roomId?: string;
+        prompt?: string;
+        input?: HostOutputSharedDefinitionSchema9;
+        when?: {
+          stepId: string;
+          path?: string;
+          operator?: "truthy" | "equals" | "notEquals" | "gt" | "gte" | "lt" | "lte";
+          value?: HostOutputSharedDefinitionSchema10;
+        };
+        approval?: {
+          mode: "allow" | "ask" | "deny";
+          reason: string;
+        };
+        flowApproval?: {
+          flowId: string;
+          stepId: string;
+        };
+      }>;
+      approvalRules: Array<{
+        mode: "allow" | "ask" | "deny";
+        reason: string;
+        id?: string;
+        toolId?: string;
+        capabilityId?: string;
+        risk?: "read" | "write" | "send" | "spend" | "delete";
+      }>;
+      createdAt: string;
+      updatedAt: string;
+      lastRun?: {
+        id: string;
+        routineId: string;
+        status: "running" | "succeeded" | "failed" | "paused_for_approval";
+        startedAt: string;
+        endedAt?: string;
+        eventCount: number;
+        error?: string;
+        problem?: {
+          incidentId: string;
+          code: string;
+        };
+      };
+    };
+  };
+};
+
+export type RoutineRoutineScheduleResponse = RoutineRoutineScheduleResponses[keyof RoutineRoutineScheduleResponses];
+
+export type RoutineRoutineRunData = {
+  body?: never;
+  path: {
+    routineId: string;
+  };
+  query?: never;
+  url: "/routines/{routineId}/run";
+};
+
+export type RoutineRoutineRunErrors = {
+  /**
+   * The input is invalid.
+   */
+  400: HostError;
+  /**
+   * A valid Host session or token is required.
+   */
+  401: HostError;
+  /**
+   * The request is not authorized.
+   */
+  403: HostError;
+  /**
+   * Error response.
+   */
+  404: HostError;
+  /**
+   * Error response.
+   */
+  409: HostError;
+  /**
+   * The Host could not complete the operation.
+   */
+  500: HostError;
+  /**
+   * The Host or authenticated session is temporarily unavailable.
+   */
+  503: HostError;
+};
+
+export type RoutineRoutineRunError = RoutineRoutineRunErrors[keyof RoutineRoutineRunErrors];
+
+export type RoutineRoutineRunResponses = {
+  /**
+   * Successful response.
+   */
+  200: {
+    summary: {
+      id: string;
+      routineId: string;
+      status: "running" | "succeeded" | "failed" | "paused_for_approval";
+      startedAt: string;
+      endedAt?: string;
+      eventCount: number;
+      error?: string;
+      problem?: {
+        incidentId: string;
+        code: string;
+      };
+    };
+    events: Array<
+      | {
+          type: "turn.started";
+          runId: string;
+          at: string;
+        }
+      | {
+          type: "context.assembled";
+          runId: string;
+          context: {
+            id: string;
+            createdAt: string;
+            summary: string;
+            promptBlock: string;
+            items: Array<{
+              id: string;
+              kind:
+                | "page"
+                | "selection"
+                | "attachment"
+                | "computer"
+                | "artifact"
+                | "session"
+                | "execution"
+                | "task"
+                | "knowledge"
+                | "memory"
+                | "routine"
+                | "permission"
+                | "skill";
+              title: string;
+              text: string;
+              source?: {
+                title?: string;
+                url?: string;
+                locator?: string;
+                quote?: string;
+              };
+              score?: number;
+              data?: {
+                [key: string]: HostOutputSharedDefinitionSchema2;
+              };
+            }>;
+            budget: {
+              maxItems: number;
+              usedItems: number;
+              maxCharacters: number;
+              usedCharacters: number;
+              truncated: boolean;
+            };
+          };
+        }
+      | {
+          type: "compaction.started";
+          runId: string;
+          at: string;
+          reason?: string;
+          item?: HostOutputSharedDefinitionSchema4;
+        }
+      | {
+          type: "compaction.finished";
+          runId: string;
+          at: string;
+          summary?: string;
+          item?: HostOutputSharedDefinitionSchema5;
+        }
+      | {
+          type: "model.requested";
+          runId: string;
+          request: {
+            systemPrompt: string;
+            userInput: string;
+            modelId?: string;
+            session?: {
+              provider: string;
+              sessionId: string;
+              persistent: boolean;
+              priorMessageCount: number;
+              priorMessages: Array<{
+                role: "system" | "user" | "assistant" | "tool";
+                content: string;
+                name?: string;
+              }>;
+              nativeSessionId?: string;
+            };
+            messages?: Array<{
+              role: "system" | "user" | "assistant" | "tool";
+              content: string;
+              name?: string;
+            }>;
+            context?: {
+              id: string;
+              createdAt: string;
+              summary: string;
+              promptBlock: string;
+              items: Array<{
+                id: string;
+                kind:
+                  | "page"
+                  | "selection"
+                  | "attachment"
+                  | "computer"
+                  | "artifact"
+                  | "session"
+                  | "execution"
+                  | "task"
+                  | "knowledge"
+                  | "memory"
+                  | "routine"
+                  | "permission"
+                  | "skill";
+                title: string;
+                text: string;
+                source?: {
+                  title?: string;
+                  url?: string;
+                  locator?: string;
+                  quote?: string;
+                };
+                score?: number;
+                data?: {
+                  [key: string]: HostOutputSharedDefinitionSchema2;
+                };
+              }>;
+              budget: {
+                maxItems: number;
+                usedItems: number;
+                maxCharacters: number;
+                usedCharacters: number;
+                truncated: boolean;
+              };
+            };
+            tools: Array<{
+              id: string;
+              title: string;
+              description: string;
+              activity: "browser" | "chat" | "local" | "api" | "computer";
+              risk: "read" | "write" | "send" | "spend" | "delete";
+              input: {
+                type: "json-schema";
+                schema: {
+                  [key: string]: HostOutputSharedDefinitionSchema2;
+                };
+              };
+              output?: {
+                type: "json-schema";
+                schema: {
+                  [key: string]: HostOutputSharedDefinitionSchema2;
+                };
+              };
+              permission: {
+                mode: "allow" | "ask" | "deny";
+                reason: string;
+              };
+              liveness?: {
+                cancellation: "run-signal" | "none";
+                deadlineSource: "kernel-native" | "upstream-service" | "business-rule" | "none";
+                abandonOutcome: "outcome-unknown";
+                terminalConfirmation: "tool-result";
+                cancellationGraceMs?: number;
+              };
+            }>;
+            skills: Array<{
+              id: string;
+              name: string;
+              aliases?: Array<string>;
+              title: string;
+              description: string;
+              whenToUse?: string;
+              format: "markdown-v1" | "markdown-v2";
+              entry: string;
+              skillRoot: string;
+              activities: Array<"browser" | "chat" | "local" | "api" | "computer">;
+              toolIds: Array<string>;
+              memoryHooks: Array<{
+                kind: string;
+                mode: "direct" | "propose" | "ask";
+                reason: string;
+              }>;
+              allowedTools: Array<string>;
+              argumentHint?: string;
+              arguments?: Array<string>;
+              userInvocable: boolean;
+              disableModelInvocation: boolean;
+              model?: string;
+              effort?: string;
+              context: "inline" | "fork";
+              shell?: Array<string>;
+              paths?: Array<string>;
+              hooks?: {
+                [key: string]: HostOutputSharedDefinitionSchema2;
+              };
+              source: "bundled" | "project" | "user" | "pack";
+              trust: "trusted" | "untrusted";
+              packId?: string;
+              capabilityId?: string;
+              contentLength?: number;
+              tags?: Array<string>;
+            }>;
+            packs: Array<{
+              id: string;
+              title: string;
+              description: string;
+              source: "bundled" | "project" | "user" | "pack";
+              trust: "trusted" | "untrusted";
+              rootDir: string;
+              skillIds: Array<string>;
+              toolIds: Array<string>;
+              capabilityIds: Array<string>;
+              artifactTypes: Array<string>;
+              referenceAssetDirs?: Array<string>;
+              tags?: Array<string>;
+            }>;
+            capabilities: Array<{
+              id: string;
+              title: string;
+              version: string;
+              description: string;
+              source?: {
+                kind: "native" | "wrapped-open-source" | "mcp" | "external-api" | "user-routine";
+                project?: string;
+                url?: string;
+                license?: string;
+              };
+              activities: Array<"browser" | "chat" | "local" | "api" | "computer">;
+              triggers?: Array<{
+                [key: string]: HostOutputSharedDefinitionSchema2;
+              }>;
+              tools: Array<{
+                id: string;
+                title: string;
+                description: string;
+                activity: "browser" | "chat" | "local" | "api" | "computer";
+                risk: "read" | "write" | "send" | "spend" | "delete";
+                input: {
+                  type: "json-schema";
+                  schema: {
+                    [key: string]: HostOutputSharedDefinitionSchema2;
+                  };
+                };
+                output?: {
+                  type: "json-schema";
+                  schema: {
+                    [key: string]: HostOutputSharedDefinitionSchema2;
+                  };
+                };
+                permission: {
+                  mode: "allow" | "ask" | "deny";
+                  reason: string;
+                };
+                liveness?: {
+                  cancellation: "run-signal" | "none";
+                  deadlineSource: "kernel-native" | "upstream-service" | "business-rule" | "none";
+                  abandonOutcome: "outcome-unknown";
+                  terminalConfirmation: "tool-result";
+                  cancellationGraceMs?: number;
+                };
+              }>;
+              skills: Array<{
+                id: string;
+                name: string;
+                aliases?: Array<string>;
+                title: string;
+                description: string;
+                whenToUse?: string;
+                format: "markdown-v1" | "markdown-v2";
+                entry: string;
+                skillRoot: string;
+                activities: Array<"browser" | "chat" | "local" | "api" | "computer">;
+                toolIds: Array<string>;
+                memoryHooks: Array<{
+                  kind: string;
+                  mode: "direct" | "propose" | "ask";
+                  reason: string;
+                }>;
+                allowedTools: Array<string>;
+                argumentHint?: string;
+                arguments?: Array<string>;
+                userInvocable: boolean;
+                disableModelInvocation: boolean;
+                model?: string;
+                effort?: string;
+                context: "inline" | "fork";
+                shell?: Array<string>;
+                paths?: Array<string>;
+                hooks?: {
+                  [key: string]: HostOutputSharedDefinitionSchema2;
+                };
+                source: "bundled" | "project" | "user" | "pack";
+                trust: "trusted" | "untrusted";
+                packId?: string;
+                capabilityId?: string;
+                contentLength?: number;
+                tags?: Array<string>;
+              }>;
+              memoryHooks: Array<{
+                kind: string;
+                mode: "direct" | "propose" | "ask";
+                reason: string;
+              }>;
+              policy: Array<{
+                mode: "allow" | "ask" | "deny";
+                reason: string;
+                id?: string;
+                toolId?: string;
+                capabilityId?: string;
+                risk?: "read" | "write" | "send" | "spend" | "delete";
+              }>;
+              sandbox?: "read-only" | "workspace-write" | "danger-full-access";
+              evals?: Array<{
+                id: string;
+                description: string;
+                input: string;
+                expectedBehavior: string;
+              }>;
+            }>;
+          };
+        }
+      | {
+          type: "model.response";
+          runId: string;
+          response: {
+            text: string;
+            usage?: {
+              inputTokens?: number;
+              outputTokens?: number;
+              totalTokens?: number;
+              costUsd?: number;
+              latencyMs?: number;
+              contextWindowSize?: number;
+              contextUsedTokens?: number;
+              contextBreakdown?: Array<{
+                category: string;
+                tokens: number;
+              }>;
+            };
+          };
+        }
+      | {
+          type: "runtime.diagnostic";
+          runId: string;
+          at: string;
+          name: string;
+          data: {
+            [key: string]: HostOutputSharedDefinitionSchema2;
+          };
+        }
+      | {
+          type: "reasoning.started";
+          runId: string;
+          reasoning: {
+            id: string;
+            kind: "native" | "summary";
+            kernelId: string;
+          };
+        }
+      | {
+          type: "reasoning.completed";
+          runId: string;
+          reasoning: {
+            id: string;
+            kind: "native" | "summary";
+            kernelId: string;
+            text: string;
+            redacted?: boolean;
+            elapsedMs?: number;
+          };
+        }
+      | {
+          type: "assistant.delta";
+          runId: string;
+          text: string;
+        }
+      | {
+          type: "assistant.final";
+          runId: string;
+          text: string;
+          at: string;
+          source?: "runtime" | "adapter" | "fallback";
+        }
+      | {
+          type: "assistant.status";
+          runId: string;
+          text: string;
+          at: string;
+          data?: {
+            [key: string]: HostOutputSharedDefinitionSchema2;
+          };
+        }
+      | {
+          type: "skill.discovered";
+          runId: string;
+          skills: Array<{
+            id: string;
+            name: string;
+            aliases?: Array<string>;
+            title: string;
+            description: string;
+            whenToUse?: string;
+            format: "markdown-v1" | "markdown-v2";
+            entry: string;
+            skillRoot: string;
+            activities: Array<"browser" | "chat" | "local" | "api" | "computer">;
+            toolIds: Array<string>;
+            memoryHooks: Array<{
+              kind: string;
+              mode: "direct" | "propose" | "ask";
+              reason: string;
+            }>;
+            allowedTools: Array<string>;
+            argumentHint?: string;
+            arguments?: Array<string>;
+            userInvocable: boolean;
+            disableModelInvocation: boolean;
+            model?: string;
+            effort?: string;
+            context: "inline" | "fork";
+            shell?: Array<string>;
+            paths?: Array<string>;
+            hooks?: {
+              [key: string]: HostOutputSharedDefinitionSchema2;
+            };
+            source: "bundled" | "project" | "user" | "pack";
+            trust: "trusted" | "untrusted";
+            packId?: string;
+            capabilityId?: string;
+            contentLength?: number;
+            tags?: Array<string>;
+          }>;
+        }
+      | {
+          type: "skill.invoked";
+          runId: string;
+          skill: {
+            id: string;
+            name: string;
+            aliases?: Array<string>;
+            title: string;
+            description: string;
+            whenToUse?: string;
+            format: "markdown-v1" | "markdown-v2";
+            entry: string;
+            skillRoot: string;
+            activities: Array<"browser" | "chat" | "local" | "api" | "computer">;
+            toolIds: Array<string>;
+            memoryHooks: Array<{
+              kind: string;
+              mode: "direct" | "propose" | "ask";
+              reason: string;
+            }>;
+            allowedTools: Array<string>;
+            argumentHint?: string;
+            arguments?: Array<string>;
+            userInvocable: boolean;
+            disableModelInvocation: boolean;
+            model?: string;
+            effort?: string;
+            context: "inline" | "fork";
+            shell?: Array<string>;
+            paths?: Array<string>;
+            hooks?: {
+              [key: string]: HostOutputSharedDefinitionSchema2;
+            };
+            source: "bundled" | "project" | "user" | "pack";
+            trust: "trusted" | "untrusted";
+            packId?: string;
+            capabilityId?: string;
+            contentLength?: number;
+            tags?: Array<string>;
+          };
+          invocation: InvokedSkill;
+        }
+      | {
+          type: "skill.loaded";
+          runId: string;
+          skillId: string;
+          contentPreview: string;
+          allowedTools: Array<string>;
+          model?: string;
+          effort?: string;
+          context: "inline" | "fork";
+        }
+      | {
+          type: "skill.forked";
+          runId: string;
+          skillId: string;
+          forkSessionId: string;
+          status: "started" | "finished";
+          result?: string;
+        }
+      | {
+          type: "skill.cleared";
+          runId: string;
+          skillId?: string;
+          reason: string;
+        }
+      | {
+          type: "tool.started";
+          runId: string;
+          toolId: string;
+          callId?: string;
+          input: HostOutputSharedDefinitionSchema6;
+        }
+      | {
+          type: "tool.progress";
+          runId: string;
+          toolId: string;
+          callId?: string;
+          update: HostOutputSharedDefinitionSchema7;
+        }
+      | {
+          type: "tool.finished";
+          runId: string;
+          toolId: string;
+          callId?: string;
+          result: ToolResult;
+        }
+      | {
+          type: "approval.requested";
+          runId: string;
+          request: Approval;
+        }
+      | {
+          type: "approval.resolved";
+          runId: string;
+          request: Approval;
+        }
+      | {
+          type: "question.requested";
+          runId: string;
+          question: Question;
+        }
+      | {
+          type: "question.answered";
+          runId: string;
+          question: Question;
+        }
+      | {
+          type: "planning.updated";
+          runId: string;
+          plan: {
+            id: string;
+            title?: string;
+            text: string;
+            status?: string;
+            raw?: {
+              [key: string]: HostOutputSharedDefinitionSchema2;
+            };
+            updatedAt: string;
+            source?:
+              | {
+                  type: "kernel.native";
+                  kernelId: string;
+                }
+              | {
+                  type: "host";
+                }
+              | {
+                  type: "unknown";
+                };
+          };
+        }
+      | {
+          type: "run.cancel_requested";
+          runId: string;
+          at: string;
+          reason?: string;
+        }
+      | {
+          type: "run.paused";
+          runId: string;
+          at: string;
+          reason: string;
+          approvalId?: string;
+        }
+      | {
+          type: "run.resumed";
+          runId: string;
+          at: string;
+          reason?: string;
+          approvalId?: string;
+        }
+      | {
+          type: "memory.written";
+          runId: string;
+          record: {
+            id: string;
+            scope: "user" | "workspace" | "page" | "session";
+            kind: string;
+            text: string;
+            confidence: "asserted" | "observed" | "inferred";
+            source: {
+              kind: "user" | "agent" | "tool" | "skill";
+              ref?: {
+                title?: string;
+                url?: string;
+                locator?: string;
+                quote?: string;
+              };
+            };
+            tags: Array<string>;
+            data?: {
+              [key: string]: HostOutputSharedDefinitionSchema2;
+            };
+            createdAt: string;
+            updatedAt: string;
+            expiresAt?: string;
+          };
+        }
+      | {
+          type: "turn.finished";
+          runId: string;
+          at: string;
+          outcome: RunLifecycle;
+          synthetic?: boolean;
+        }
+      | {
+          type: "error";
+          runId: string;
+          message: string;
+          problem?: {
+            incidentId: string;
+            code: string;
+          };
+          diagnostics?: {
+            runtimeModelId?: string;
+            runtimeVersion?: string;
+            upstreamRequestId?: string;
+          };
+        }
+    >;
+    toolResults: Array<ToolResult>;
+    ok: true;
+  };
+};
+
+export type RoutineRoutineRunResponse = RoutineRoutineRunResponses[keyof RoutineRoutineRunResponses];
+
+export type HostRuntimeListData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: "/runtime";
+};
+
+export type HostRuntimeListErrors = {
+  /**
+   * The input is invalid.
+   */
+  400: HostError;
+  /**
+   * A valid Host session or token is required.
+   */
+  401: HostError;
+  /**
+   * The request is not authorized.
+   */
+  403: HostError;
+  /**
+   * The Host could not complete the operation.
+   */
+  500: HostError;
+  /**
+   * The Host or authenticated session is temporarily unavailable.
+   */
+  503: HostError;
+};
+
+export type HostRuntimeListError = HostRuntimeListErrors[keyof HostRuntimeListErrors];
+
+export type HostRuntimeListResponses = {
+  /**
+   * Successful response.
+   */
+  200: {
+    ok: true;
+    modules: {
+      rooms: boolean;
+      routines: boolean;
+      apps: boolean;
+    };
+    kernels: Array<{
+      id: string;
+      label: string;
+      available: boolean;
+      hostTools: boolean;
+      reason: string;
+      installed?: boolean;
+      version?: string;
+      providerId?: string;
+      capabilityReport?: {
+        [key: string]: HostOutputSharedDefinitionSchema2;
+      };
+    }>;
+    controls: {
+      [key: string]: {
+        kernel: string;
+        source: string;
+        models: Array<{
+          id: string;
+          label: string;
+          description?: string;
+          defaultProviderId?: string;
+          apiModelId?: string;
+          canonicalModelId?: string;
+          family?: string;
+          status?: "alpha" | "beta" | "deprecated";
+          metadata?: {
+            [key: string]: HostOutputSharedDefinitionSchema2;
+          };
+        }>;
+        defaultModel?: string;
+        reasoningEfforts: Array<{
+          id: string;
+          label: string;
+          description?: string;
+          defaultProviderId?: string;
+          apiModelId?: string;
+          canonicalModelId?: string;
+          family?: string;
+          status?: "alpha" | "beta" | "deprecated";
+          metadata?: {
+            [key: string]: HostOutputSharedDefinitionSchema2;
+          };
+        }>;
+        defaultReasoningEffort?: string;
+        speedTiers: Array<{
+          id: string;
+          label: string;
+          description?: string;
+          defaultProviderId?: string;
+          apiModelId?: string;
+          canonicalModelId?: string;
+          family?: string;
+          status?: "alpha" | "beta" | "deprecated";
+          metadata?: {
+            [key: string]: HostOutputSharedDefinitionSchema2;
+          };
+        }>;
+        defaultSpeedTier?: string;
+      };
+    };
+  };
+};
+
+export type HostRuntimeListResponse = HostRuntimeListResponses[keyof HostRuntimeListResponses];
+
+export type HostRuntimeInspectData = {
+  body: {
+    kernel: "codex" | "claude-code" | "hermes" | "pi" | "openclaw" | "opencode" | "kimi";
+    model: string;
+    providerId: string;
+    workspaceRoot?: string;
+  };
+  path?: never;
+  query?: never;
+  url: "/runtime/inspect";
+};
+
+export type HostRuntimeInspectErrors = {
+  /**
+   * The input is invalid.
+   */
+  400: HostError;
+  /**
+   * A valid Host session or token is required.
+   */
+  401: HostError;
+  /**
+   * The request is not authorized.
+   */
+  403: HostError;
+  /**
+   * The Host could not complete the operation.
+   */
+  500: HostError;
+  /**
+   * The Host or authenticated session is temporarily unavailable.
+   */
+  503: HostError;
+};
+
+export type HostRuntimeInspectError = HostRuntimeInspectErrors[keyof HostRuntimeInspectErrors];
+
+export type HostRuntimeInspectResponses = {
+  /**
+   * Successful response.
+   */
+  200: {
+    ok: true;
+    available: boolean;
+    reason?: string;
+    kernel: string;
+    model: string;
+    providerId?: string;
+    workspaceRoot: string;
+    capabilities?: {
+      streaming: boolean;
+      hostTools: boolean;
+      approvals: boolean;
+      elicitation: boolean;
+      compaction: boolean;
+      nativeSkillCatalog: boolean;
+      sessionHistory: "kernel" | "host";
+    };
+  };
+};
+
+export type HostRuntimeInspectResponse = HostRuntimeInspectResponses[keyof HostRuntimeInspectResponses];
+
 export type HostHostBootstrapData = {
   body?: never;
   path?: never;
@@ -2273,6 +5613,123 @@ export type HostHostBootstrapResponses = {
 };
 
 export type HostHostBootstrapResponse = HostHostBootstrapResponses[keyof HostHostBootstrapResponses];
+
+export type RunToolListData = {
+  body?: never;
+  path: {
+    runId: string;
+  };
+  query?: never;
+  url: "/runs/{runId}/tool-calls";
+};
+
+export type RunToolListErrors = {
+  /**
+   * The input is invalid.
+   */
+  400: HostError;
+  /**
+   * A valid Host session or token is required.
+   */
+  401: HostError;
+  /**
+   * The request is not authorized.
+   */
+  403: HostError;
+  /**
+   * Error response.
+   */
+  404: HostError;
+  /**
+   * The Host could not complete the operation.
+   */
+  500: HostError;
+  /**
+   * The Host or authenticated session is temporarily unavailable.
+   */
+  503: HostError;
+};
+
+export type RunToolListError = RunToolListErrors[keyof RunToolListErrors];
+
+export type RunToolListResponses = {
+  /**
+   * Successful response.
+   */
+  200: {
+    ok: true;
+    calls: Array<{
+      id: string;
+      runId: string;
+      toolId: string;
+      input: {
+        [key: string]: HostOutputSharedDefinitionSchema2;
+      };
+      status: "pending" | "completed" | "canceled" | "timed_out";
+      createdAt: string;
+      deadlineAt: string;
+      result?: ToolResult;
+    }>;
+  };
+};
+
+export type RunToolListResponse = RunToolListResponses[keyof RunToolListResponses];
+
+export type RunToolResolveData = {
+  body: {
+    result: ToolResultInput;
+  };
+  path: {
+    callId: string;
+    runId: string;
+  };
+  query?: never;
+  url: "/runs/{runId}/tool-calls/{callId}/result";
+};
+
+export type RunToolResolveErrors = {
+  /**
+   * The input is invalid.
+   */
+  400: HostError;
+  /**
+   * A valid Host session or token is required.
+   */
+  401: HostError;
+  /**
+   * The request is not authorized.
+   */
+  403: HostError;
+  /**
+   * Error response.
+   */
+  404: HostError;
+  /**
+   * Error response.
+   */
+  409: HostError;
+  /**
+   * The Host could not complete the operation.
+   */
+  500: HostError;
+  /**
+   * The Host or authenticated session is temporarily unavailable.
+   */
+  503: HostError;
+};
+
+export type RunToolResolveError = RunToolResolveErrors[keyof RunToolResolveErrors];
+
+export type RunToolResolveResponses = {
+  /**
+   * Successful response.
+   */
+  200: {
+    ok: true;
+  };
+};
+
+export type RunToolResolveResponse = RunToolResolveResponses[keyof RunToolResolveResponses];
 
 export type RunEventListData = {
   body?: never;
@@ -2382,6 +5839,89 @@ export type RunRunListResponses = {
 };
 
 export type RunRunListResponse = RunRunListResponses[keyof RunRunListResponses];
+
+export type RunDirectStartData = {
+  body: {
+    sessionId: string;
+    input: string;
+    kernel: "codex" | "claude-code" | "hermes" | "pi" | "openclaw" | "opencode" | "kimi";
+    model: string;
+    providerId: string;
+    workspaceRoot?: string;
+    instructions?: string;
+    context?:
+      | string
+      | {
+          [key: string]: HostInputSharedDefinitionSchema3;
+        };
+    attachments?: Array<{
+      id?: string;
+      name: string;
+      kind: "image" | "text" | "file";
+      mimeType?: string;
+      size?: number;
+      text?: string;
+      dataUrl?: string;
+    }>;
+    tools?: Array<{
+      id: string;
+      description: string;
+      inputSchema: {
+        [key: string]: HostInputSharedDefinitionSchema3;
+      };
+      timeoutMs?: number;
+    }>;
+    skills?: Array<string>;
+    accessMode?: "default" | "auto-review" | "full-access";
+    effort?: "low" | "medium" | "high" | "xhigh" | "max";
+    planMode?: boolean;
+  };
+  path?: never;
+  query?: never;
+  url: "/runs";
+};
+
+export type RunDirectStartErrors = {
+  /**
+   * The input is invalid.
+   */
+  400: HostError;
+  /**
+   * A valid Host session or token is required.
+   */
+  401: HostError;
+  /**
+   * The request is not authorized.
+   */
+  403: HostError;
+  /**
+   * Error response.
+   */
+  409: HostError;
+  /**
+   * The Host could not complete the operation.
+   */
+  500: HostError;
+  /**
+   * The Host or authenticated session is temporarily unavailable.
+   */
+  503: HostError;
+};
+
+export type RunDirectStartError = RunDirectStartErrors[keyof RunDirectStartErrors];
+
+export type RunDirectStartResponses = {
+  /**
+   * Successful response.
+   */
+  202: {
+    ok: true;
+    runId: string;
+    sessionId: string;
+  };
+};
+
+export type RunDirectStartResponse = RunDirectStartResponses[keyof RunDirectStartResponses];
 
 export type RunSessionListData = {
   body?: never;
@@ -2493,6 +6033,60 @@ export type RunExecutionListResponses = {
 };
 
 export type RunExecutionListResponse = RunExecutionListResponses[keyof RunExecutionListResponses];
+
+export type RunDirectResultData = {
+  body?: never;
+  path: {
+    runId: string;
+  };
+  query?: never;
+  url: "/runs/{runId}/result";
+};
+
+export type RunDirectResultErrors = {
+  /**
+   * The input is invalid.
+   */
+  400: HostError;
+  /**
+   * A valid Host session or token is required.
+   */
+  401: HostError;
+  /**
+   * The request is not authorized.
+   */
+  403: HostError;
+  /**
+   * Error response.
+   */
+  404: HostError;
+  /**
+   * The Host could not complete the operation.
+   */
+  500: HostError;
+  /**
+   * The Host or authenticated session is temporarily unavailable.
+   */
+  503: HostError;
+};
+
+export type RunDirectResultError = RunDirectResultErrors[keyof RunDirectResultErrors];
+
+export type RunDirectResultResponses = {
+  /**
+   * Successful response.
+   */
+  200: {
+    ok: true;
+    run: Run;
+    answer: string;
+    outputAvailable: boolean;
+    finalized: boolean;
+    artifactId?: string;
+  };
+};
+
+export type RunDirectResultResponse = RunDirectResultResponses[keyof RunDirectResultResponses];
 
 export type RunDirectCancelData = {
   body: {
@@ -2647,6 +6241,7 @@ export type InteractionApprovalListData = {
      * Defaults to 100; values above 500 are capped; invalid values use the default.
      */
     limit?: number | string;
+    runId?: string;
     status?: string;
   };
   url: "/approvals";
@@ -2719,7 +6314,7 @@ export type InteractionApprovalApproveData = {
     /**
      * Structured decision response or answer.
      */
-    response?: HostInputSharedDefinitionSchema0;
+    response?: HostInputSharedDefinitionSchema4;
   };
   path: {
     approvalId: string;
@@ -2768,7 +6363,7 @@ export type InteractionApprovalRejectData = {
     /**
      * Structured decision response or answer.
      */
-    response?: HostInputSharedDefinitionSchema0;
+    response?: HostInputSharedDefinitionSchema4;
   };
   path: {
     approvalId: string;
@@ -2817,7 +6412,7 @@ export type InteractionApprovalCancelData = {
     /**
      * Structured decision response or answer.
      */
-    response?: HostInputSharedDefinitionSchema0;
+    response?: HostInputSharedDefinitionSchema4;
   };
   path: {
     approvalId: string;
@@ -2869,6 +6464,7 @@ export type InteractionQuestionListData = {
      * Defaults to 100; values above 500 are capped; invalid values use the default.
      */
     limit?: number | string;
+    runId?: string;
     status?: string;
   };
   url: "/questions";
@@ -2940,7 +6536,7 @@ export type InteractionQuestionAnswerData = {
     /**
      * Structured decision response or answer.
      */
-    response?: HostInputSharedDefinitionSchema0;
+    response?: HostInputSharedDefinitionSchema4;
   };
   path: {
     questionId: string;
@@ -2989,7 +6585,7 @@ export type InteractionQuestionDeclineData = {
     /**
      * Structured decision response or answer.
      */
-    response?: HostInputSharedDefinitionSchema0;
+    response?: HostInputSharedDefinitionSchema4;
   };
   path: {
     questionId: string;
@@ -3038,7 +6634,7 @@ export type InteractionQuestionCancelData = {
     /**
      * Structured decision response or answer.
      */
-    response?: HostInputSharedDefinitionSchema0;
+    response?: HostInputSharedDefinitionSchema4;
   };
   path: {
     questionId: string;
@@ -3082,6 +6678,55 @@ export type InteractionQuestionCancelResponses = {
 export type InteractionQuestionCancelResponse =
   InteractionQuestionCancelResponses[keyof InteractionQuestionCancelResponses];
 
+export type ArtifactArtifactListData = {
+  body?: never;
+  path?: never;
+  query?: {
+    id?: Array<string>;
+    limit?: number;
+    tag?: Array<string>;
+    type?: string;
+  };
+  url: "/artifacts";
+};
+
+export type ArtifactArtifactListErrors = {
+  /**
+   * The input is invalid.
+   */
+  400: HostError;
+  /**
+   * A valid Host session or token is required.
+   */
+  401: HostError;
+  /**
+   * The request is not authorized.
+   */
+  403: HostError;
+  /**
+   * The Host could not complete the operation.
+   */
+  500: HostError;
+  /**
+   * The Host or authenticated session is temporarily unavailable.
+   */
+  503: HostError;
+};
+
+export type ArtifactArtifactListError = ArtifactArtifactListErrors[keyof ArtifactArtifactListErrors];
+
+export type ArtifactArtifactListResponses = {
+  /**
+   * Successful response.
+   */
+  200: {
+    ok: true;
+    artifacts: Array<Artifact>;
+  };
+};
+
+export type ArtifactArtifactListResponse = ArtifactArtifactListResponses[keyof ArtifactArtifactListResponses];
+
 export type ArtifactArtifactCreateData = {
   body: {
     id?: string;
@@ -3091,7 +6736,7 @@ export type ArtifactArtifactCreateData = {
     version?: number;
     tags?: Array<string>;
     data?: {
-      [key: string]: HostInputSharedDefinitionSchema1;
+      [key: string]: HostInputSharedDefinitionSchema3;
     };
     assets?: Array<{
       kind: "image" | "audio" | "video" | "file" | "url" | "text";
@@ -3100,7 +6745,7 @@ export type ArtifactArtifactCreateData = {
       title?: string;
       mimeType?: string;
       metadata?: {
-        [key: string]: HostInputSharedDefinitionSchema1;
+        [key: string]: HostInputSharedDefinitionSchema3;
       };
     }>;
     preview?: {
@@ -3121,7 +6766,7 @@ export type ArtifactArtifactCreateData = {
     derivedFrom?: Array<string>;
     lineage?: Array<string>;
     provenance?: {
-      [key: string]: HostInputSharedDefinitionSchema1;
+      [key: string]: HostInputSharedDefinitionSchema3;
     };
   };
   path?: never;
@@ -3162,6 +6807,53 @@ export type ArtifactArtifactCreateResponses = {
 };
 
 export type ArtifactArtifactCreateResponse = ArtifactArtifactCreateResponses[keyof ArtifactArtifactCreateResponses];
+
+export type ArtifactArtifactDeleteData = {
+  body?: never;
+  path: {
+    artifactId: string;
+  };
+  query?: never;
+  url: "/artifacts/{artifactId}";
+};
+
+export type ArtifactArtifactDeleteErrors = {
+  /**
+   * The input is invalid.
+   */
+  400: HostError;
+  /**
+   * A valid Host session or token is required.
+   */
+  401: HostError;
+  /**
+   * The request is not authorized.
+   */
+  403: HostError;
+  /**
+   * The Host could not complete the operation.
+   */
+  500: HostError;
+  /**
+   * The Host or authenticated session is temporarily unavailable.
+   */
+  503: HostError;
+};
+
+export type ArtifactArtifactDeleteError = ArtifactArtifactDeleteErrors[keyof ArtifactArtifactDeleteErrors];
+
+export type ArtifactArtifactDeleteResponses = {
+  /**
+   * Successful response.
+   */
+  200: {
+    ok: true;
+    deleted: boolean;
+    artifacts: Array<Artifact>;
+  };
+};
+
+export type ArtifactArtifactDeleteResponse = ArtifactArtifactDeleteResponses[keyof ArtifactArtifactDeleteResponses];
 
 export type ArtifactArtifactGetData = {
   body?: never;
@@ -3212,6 +6904,75 @@ export type ArtifactArtifactGetResponses = {
 };
 
 export type ArtifactArtifactGetResponse = ArtifactArtifactGetResponses[keyof ArtifactArtifactGetResponses];
+
+export type ArtifactArtifactUpdateData = {
+  body: {
+    type?: string;
+    title?: string;
+    status?: string;
+    version?: number;
+    tags?: Array<string>;
+    data?: {
+      [key: string]: HostInputSharedDefinitionSchema3;
+    };
+    sourceRefs?: Array<{
+      title?: string;
+      url?: string;
+      locator?: string;
+      quote?: string;
+    }>;
+    parentId?: string;
+    variantOf?: string;
+    derivedFrom?: Array<string>;
+    lineage?: Array<string>;
+    provenance?: {
+      [key: string]: HostInputSharedDefinitionSchema3;
+    };
+  };
+  path: {
+    artifactId: string;
+  };
+  query?: never;
+  url: "/artifacts/{artifactId}";
+};
+
+export type ArtifactArtifactUpdateErrors = {
+  /**
+   * The input is invalid.
+   */
+  400: HostError;
+  /**
+   * A valid Host session or token is required.
+   */
+  401: HostError;
+  /**
+   * The request is not authorized.
+   */
+  403: HostError;
+  /**
+   * The artifact does not exist.
+   */
+  404: HostError;
+  /**
+   * The Host could not complete the operation.
+   */
+  500: HostError;
+  /**
+   * The Host or authenticated session is temporarily unavailable.
+   */
+  503: HostError;
+};
+
+export type ArtifactArtifactUpdateError = ArtifactArtifactUpdateErrors[keyof ArtifactArtifactUpdateErrors];
+
+export type ArtifactArtifactUpdateResponses = {
+  /**
+   * Successful response.
+   */
+  200: ArtifactMutation;
+};
+
+export type ArtifactArtifactUpdateResponse = ArtifactArtifactUpdateResponses[keyof ArtifactArtifactUpdateResponses];
 
 export type AuthEmailCodeCreateData = {
   body: {

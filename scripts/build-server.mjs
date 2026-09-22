@@ -18,7 +18,11 @@ for (const packageName of ["protocol", "agent-protocol", "client"]) {
 }
 
 await rm(join(projectRoot, "dist"), { recursive: true, force: true });
-await compile(compatibilityBuild ? legacyCompiler : nativeCompiler, ["-p", join(projectRoot, "tsconfig.json")]);
+await compile(compatibilityBuild ? legacyCompiler : nativeCompiler, [
+  "-p",
+  join(projectRoot, "tsconfig.json"),
+  ...(process.argv.includes("--declarations") ? ["--declaration"] : []),
+]);
 await import("./copy-workspace-runtimes.mjs");
 
 async function compile(compiler, args) {

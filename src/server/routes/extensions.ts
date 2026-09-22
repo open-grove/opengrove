@@ -1,3 +1,7 @@
+import { recreateBridgeApp } from "../bridge-state.js";
+import { hostContractById } from "#protocol/compiled";
+import { operationRoute } from "./registry-utils.js";
+import type { BridgeRoute } from "../router.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { BRIDGE_KERNEL_IDS } from "../bridge-types.js";
 import type { BridgeKernelId, BridgeState } from "../bridge-types.js";
@@ -16,6 +20,37 @@ import type { ExtensionKind } from "../../extensions/types.js";
 type SendJson = (response: ServerResponse, status: number, data: unknown) => void;
 type ReadJsonBody = (request: IncomingMessage) => Promise<unknown>;
 
+export function createExtensionRoutes(): BridgeRoute[] {
+  return [
+    hostContractById["extension.extension.list"],
+    hostContractById["extension.skill.import"],
+    hostContractById["extension.skill.publish"],
+    hostContractById["extension.skill.republish"],
+    hostContractById["extension.skill.unpublish"],
+    hostContractById["extension.deployment.enable"],
+    hostContractById["extension.deployment.disable"],
+    hostContractById["extension.deployment.delete"],
+  ].map((operation) =>
+    operationRoute<(typeof operation)["operation"]>(operation, async (context) => {
+      await handleExtensionsRoute({
+        ...context,
+        readJsonBody: async () => context.input.body,
+        includeSystem: context.input.query.includeSystem ?? false,
+        sendJson(response, status, data) {
+          if (operation.method !== "GET" && status >= 200 && status < 300) {
+            // Rebuild through the existing hot-reload boundary, which retains active
+            // producers while retiring cached adapters for future tasks.
+            const root = context.state.rootState ?? context.state;
+            root.store.saveFrom(root.app);
+            recreateBridgeApp(root);
+          }
+          context.sendJson(response, status, data);
+        },
+      });
+    }),
+  );
+}
+
 export async function handleExtensionsRoute(options: {
   request: IncomingMessage;
   response: ServerResponse;
@@ -23,10 +58,12 @@ export async function handleExtensionsRoute(options: {
   state: BridgeState;
   sendJson: SendJson;
   readJsonBody: ReadJsonBody;
+  includeSystem?: boolean;
 }): Promise<boolean> {
   const { request, response, url, state, sendJson, readJsonBody } = options;
   const includeSystem =
-    url.searchParams.get("includeSystem") === "1" || url.searchParams.get("includeSystem") === "true";
+    options.includeSystem ??
+    (url.searchParams.get("includeSystem") === "1" || url.searchParams.get("includeSystem") === "true");
 
   if (request.method === "GET" && url.pathname === "/extensions") {
     sendJson(response, 200, {

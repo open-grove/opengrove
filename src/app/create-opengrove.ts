@@ -1,3 +1,4 @@
+import { DEFAULT_HOST_MODULES, type HostModules } from "./host-modules.js";
 import { existsSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { APP_PRODUCT_NAME } from "../identity.js";
@@ -15,6 +16,7 @@ import {
   ToolRegistry,
   WorkingStateStore,
   createAssistantFinalEvent,
+  type ToolDefinition,
   type AgentCompactRequest,
   type AgentCompactResult,
   type AgentEvent,
@@ -115,6 +117,9 @@ export interface OpenGroveApp {
 }
 
 export interface AgentTurnOptions {
+  activity?: ActivitySpace;
+  additionalTools?: ToolDefinition[];
+  allowedHostToolIds?: string[];
   sessionId?: string;
   runId?: string;
   requestedModelId?: string;
@@ -154,6 +159,7 @@ export interface RecordEventOptions {
 }
 
 export interface CreateOpenGroveOptions {
+  modules?: Readonly<HostModules>;
   readPage: BrowserPageReader;
   readComputer?: ComputerStateReader;
   readReplyLanguagePreference?: () => UserLanguagePreference | undefined;
@@ -176,6 +182,7 @@ export interface CreateOpenGroveOptions {
 }
 
 export function createOpenGrove(options: CreateOpenGroveOptions): OpenGroveApp {
+  const modules = options.modules ?? DEFAULT_HOST_MODULES;
   const workspaceRoot = options.workspaceRoot ?? options.cwd;
   const events = new EventLog();
   const approvals = new ApprovalInbox();
@@ -235,113 +242,120 @@ export function createOpenGrove(options: CreateOpenGroveOptions): OpenGroveApp {
       }),
     );
   }
-  tools.register(
-    createRoomLedgerReadTool(
-      {
-        id: "room.ledger.read",
-        title: "读取房间账本",
-        description:
-          "读取当前获授权房间的可见消息；可以按关键词或消息序号分页，消息正文按原文返回，并用 sourceRoomId 标明实际房间。默认不返回成员资料；仅在需要核对当前成员状态时设置 includeMembers=true。附件不返回宿主机路径，过大的内联正文只保留元数据。",
-        activity: "chat",
-        risk: "read",
-        input: {
-          type: "json-schema",
-          schema: {
-            type: "object",
-            properties: {
-              roomId: {
-                type: "string",
-                description: "可选。房间 Run 已由 OpenGrove 绑定当前房间；在授权范围内传其他值不会切换房间。",
+  if (modules.rooms) {
+    tools.register(
+      createRoomLedgerReadTool(
+        {
+          id: "room.ledger.read",
+          title: "读取房间账本",
+          description:
+            "读取当前获授权房间的可见消息；可以按关键词或消息序号分页，消息正文按原文返回，并用 sourceRoomId 标明实际房间。默认不返回成员资料；仅在需要核对当前成员状态时设置 includeMembers=true。附件不返回宿主机路径，过大的内联正文只保留元数据。",
+          activity: "chat",
+          risk: "read",
+          input: {
+            type: "json-schema",
+            schema: {
+              type: "object",
+              properties: {
+                roomId: {
+                  type: "string",
+                  description: "可选。房间 Run 已由 OpenGrove 绑定当前房间；在授权范围内传其他值不会切换房间。",
+                },
+                query: { type: "string", description: "可选。按消息正文、发送者或附件信息筛选。" },
+                limit: { type: "number", description: "可选。最多返回多少条消息，范围 1 到 200。" },
+                beforeSeq: { type: "number", description: "可选。只读取该 channelSeq 之前的消息。" },
+                afterSeq: { type: "number", description: "可选。只读取该 channelSeq 之后的消息。" },
+                includeMembers: {
+                  type: "boolean",
+                  description:
+                    "可选。设为 true 时附带当前成员的 id、名称和状态摘要；不会返回完整岗位、模型或内核配置。",
+                },
               },
-              query: { type: "string", description: "可选。按消息正文、发送者或附件信息筛选。" },
-              limit: { type: "number", description: "可选。最多返回多少条消息，范围 1 到 200。" },
-              beforeSeq: { type: "number", description: "可选。只读取该 channelSeq 之前的消息。" },
-              afterSeq: { type: "number", description: "可选。只读取该 channelSeq 之后的消息。" },
-              includeMembers: {
-                type: "boolean",
-                description: "可选。设为 true 时附带当前成员的 id、名称和状态摘要；不会返回完整岗位、模型或内核配置。",
+              additionalProperties: false,
+            },
+          },
+          permission: {
+            mode: "allow",
+            reason: "Reading the local room ledger is read-only.",
+          },
+        },
+        rooms,
+      ),
+    );
+  }
+  if (modules.apps) {
+    tools.register(
+      createAppImportTool(
+        {
+          id: "opengrove.app.import",
+          title: "Import OpenGrove App",
+          description:
+            "Import, package when needed, mount, and live-refresh an App in the current local OpenGrove instance. Use this instead of editing bridge settings or guessing localhost ports.",
+          activity: "local",
+          risk: "write",
+          input: {
+            type: "json-schema",
+            schema: {
+              type: "object",
+              required: ["source"],
+              properties: {
+                source: { type: "string" },
+                title: { type: "string" },
+                description: { type: "string" },
+                force: { type: "boolean" },
               },
+              additionalProperties: false,
             },
-            additionalProperties: false,
+          },
+          permission: {
+            mode: "allow",
+            reason: "App import writes only to the local OpenGrove App registry or managed App package directory.",
           },
         },
-        permission: {
-          mode: "allow",
-          reason: "Reading the local room ledger is read-only.",
+        {
+          profile: options.appImport?.profile,
+          workspaceRoot,
+          cwd: options.cwd,
+          mountedApps: options.appImport?.mountedApps ?? options.mountedApps,
+          importApp: options.appImport?.importApp,
+          language: () => options.readReplyLanguagePreference?.(),
         },
-      },
-      rooms,
-    ),
-  );
-  tools.register(
-    createAppImportTool(
-      {
-        id: "opengrove.app.import",
-        title: "Import OpenGrove App",
-        description:
-          "Import, package when needed, mount, and live-refresh an App in the current local OpenGrove instance. Use this instead of editing bridge settings or guessing localhost ports.",
-        activity: "local",
-        risk: "write",
-        input: {
-          type: "json-schema",
-          schema: {
-            type: "object",
-            required: ["source"],
-            properties: {
-              source: { type: "string" },
-              title: { type: "string" },
-              description: { type: "string" },
-              force: { type: "boolean" },
+      ),
+    );
+  }
+  if (modules.apps) {
+    tools.register(
+      createGroveGuideStatusTool(
+        {
+          id: "opengrove.guide.status",
+          title: "Read OpenGrove guide status",
+          description:
+            "Return the local OpenGrove architecture and current workspace/App mounting state for Grove onboarding and troubleshooting.",
+          activity: "chat",
+          risk: "read",
+          input: {
+            type: "json-schema",
+            schema: {
+              type: "object",
+              properties: {},
+              additionalProperties: false,
             },
-            additionalProperties: false,
+          },
+          permission: {
+            mode: "allow",
+            reason: "Reading OpenGrove guide status is read-only.",
           },
         },
-        permission: {
-          mode: "allow",
-          reason: "App import writes only to the local OpenGrove App registry or managed App package directory.",
+        {
+          profile: options.groveGuide?.profile,
+          workspaceRoot,
+          cwd: options.cwd,
+          mountedApps: options.groveGuide?.mountedApps ?? options.mountedApps,
+          language: () => options.readReplyLanguagePreference?.(),
         },
-      },
-      {
-        profile: options.appImport?.profile,
-        workspaceRoot,
-        cwd: options.cwd,
-        mountedApps: options.appImport?.mountedApps ?? options.mountedApps,
-        importApp: options.appImport?.importApp,
-        language: () => options.readReplyLanguagePreference?.(),
-      },
-    ),
-  );
-  tools.register(
-    createGroveGuideStatusTool(
-      {
-        id: "opengrove.guide.status",
-        title: "Read OpenGrove guide status",
-        description:
-          "Return the local OpenGrove architecture and current workspace/App mounting state for Grove onboarding and troubleshooting.",
-        activity: "chat",
-        risk: "read",
-        input: {
-          type: "json-schema",
-          schema: {
-            type: "object",
-            properties: {},
-            additionalProperties: false,
-          },
-        },
-        permission: {
-          mode: "allow",
-          reason: "Reading OpenGrove guide status is read-only.",
-        },
-      },
-      {
-        profile: options.groveGuide?.profile,
-        workspaceRoot,
-        cwd: options.cwd,
-        mountedApps: options.groveGuide?.mountedApps ?? options.mountedApps,
-        language: () => options.readReplyLanguagePreference?.(),
-      },
-    ),
-  );
+      ),
+    );
+  }
   tools.register(
     createRequestChoicesTool(
       {
@@ -400,133 +414,142 @@ export function createOpenGrove(options: CreateOpenGroveOptions): OpenGroveApp {
   );
   // workflow.create 宿主工具:给员工产出 P1 格式 .routine.md 文件。
   // activity=local / risk=write(只写工作区文件);permission allow。安全靠 F3 确定性高危校验 + §0 app wrapper。
-  tools.register(
-    createWorkflowCreateTool(
-      {
-        id: "workflow.create",
-        title: "Create workflow",
-        description:
-          "Generate a routine workflow file (.routine.md) in the local knowledge vault's routines directory. " +
-          "Validates member/tool targets. High-risk execution intents (e.g. drama-ops strategy-execute, ad creation, budget scaling) " +
-          "require a preceding flowApproval step or generation is deterministically refused — engine approval is not a flow approval gate.",
-        activity: "local",
-        risk: "write",
-        input: {
-          type: "json-schema",
-          schema: {
-            type: "object",
-            required: ["title", "steps"],
-            properties: {
-              appId: { type: "string" },
-              title: { type: "string" },
-              description: { type: "string" },
-              steps: {
-                type: "array",
-                minItems: 1,
-                items: {
-                  type: "object",
-                  required: ["title"],
-                  properties: {
-                    title: { type: "string" },
-                    toolId: { type: "string" },
-                    memberId: { type: "string" },
-                    roomId: { type: "string" },
-                    prompt: { type: "string" },
-                    input: {},
-                    when: {
-                      type: "object",
-                      required: ["stepId"],
-                      properties: {
-                        stepId: { type: "string" },
-                        path: { type: "string" },
-                        operator: { type: "string", enum: ["truthy", "equals", "notEquals", "gt", "gte", "lt", "lte"] },
-                        value: {},
+  if (modules.routines) {
+    tools.register(
+      createWorkflowCreateTool(
+        {
+          id: "workflow.create",
+          title: "Create workflow",
+          description:
+            "Generate a routine workflow file (.routine.md) in the local knowledge vault's routines directory. " +
+            "Validates member/tool targets. High-risk execution intents (e.g. drama-ops strategy-execute, ad creation, budget scaling) " +
+            "require a preceding flowApproval step or generation is deterministically refused — engine approval is not a flow approval gate.",
+          activity: "local",
+          risk: "write",
+          input: {
+            type: "json-schema",
+            schema: {
+              type: "object",
+              required: ["title", "steps"],
+              properties: {
+                appId: { type: "string" },
+                title: { type: "string" },
+                description: { type: "string" },
+                steps: {
+                  type: "array",
+                  minItems: 1,
+                  items: {
+                    type: "object",
+                    required: ["title"],
+                    properties: {
+                      title: { type: "string" },
+                      toolId: { type: "string" },
+                      memberId: { type: "string" },
+                      roomId: { type: "string" },
+                      prompt: { type: "string" },
+                      input: {},
+                      when: {
+                        type: "object",
+                        required: ["stepId"],
+                        properties: {
+                          stepId: { type: "string" },
+                          path: { type: "string" },
+                          operator: {
+                            type: "string",
+                            enum: ["truthy", "equals", "notEquals", "gt", "gte", "lt", "lte"],
+                          },
+                          value: {},
+                        },
+                        additionalProperties: false,
                       },
-                      additionalProperties: false,
-                    },
-                    approval: {
-                      type: "object",
-                      required: ["mode", "reason"],
-                      properties: {
-                        mode: { type: "string", enum: ["allow", "ask", "deny"] },
-                        reason: { type: "string" },
+                      approval: {
+                        type: "object",
+                        required: ["mode", "reason"],
+                        properties: {
+                          mode: { type: "string", enum: ["allow", "ask", "deny"] },
+                          reason: { type: "string" },
+                        },
+                        additionalProperties: false,
                       },
-                      additionalProperties: false,
-                    },
-                    flowApproval: {
-                      type: "object",
-                      required: ["flowId", "stepId"],
-                      properties: {
-                        flowId: { type: "string" },
-                        stepId: { type: "string" },
+                      flowApproval: {
+                        type: "object",
+                        required: ["flowId", "stepId"],
+                        properties: {
+                          flowId: { type: "string" },
+                          stepId: { type: "string" },
+                        },
+                        additionalProperties: false,
                       },
-                      additionalProperties: false,
                     },
+                    additionalProperties: false,
                   },
-                  additionalProperties: false,
                 },
-              },
-              schedule: {
-                type: "object",
-                properties: {
-                  at: { type: "string" },
-                  everyMinutes: { type: "number" },
-                  daysOfWeek: { type: "array", items: { type: "number" } },
+                schedule: {
+                  type: "object",
+                  properties: {
+                    at: { type: "string" },
+                    everyMinutes: { type: "number" },
+                    daysOfWeek: { type: "array", items: { type: "number" } },
+                  },
                 },
+                bodyMarkdown: { type: "string" },
               },
-              bodyMarkdown: { type: "string" },
+              additionalProperties: false,
             },
-            additionalProperties: false,
+          },
+          permission: {
+            mode: "allow",
+            reason: "workflow.create only writes a routine file to the local knowledge vault.",
           },
         },
-        permission: {
-          mode: "allow",
-          reason: "workflow.create only writes a routine file to the local knowledge vault.",
-        },
-      },
-      options.workflowCreateContext ?? {
-        validateMember(memberId, scope) {
-          // R1:对齐 import route 的校验——不只查存在,还查可运行(runnable)且在当前范围。
-          // 否则 workflow.create 能生成"用 disabled/不可运行/跨 app 成员"的 routine,导入/运行才失败。
-          return validateWorkflowMemberRef(rooms, memberId, scope);
-        },
-        validateTool(toolId) {
-          return tools.get(toolId) ? undefined : `tool_not_registered:${toolId}`;
-        },
-        prepareToolStep(step, scope) {
-          return prepareRoutineToolStep(step, scope, (appId) => findDefaultAppGroupRoom(rooms.listRooms(), appId)?.id);
-        },
-        validateToolInput(step) {
-          const inputError = validateRoutineToolInput(step);
-          if (inputError) return inputError;
-          if (step.toolId === "room.ledger.read") {
-            const roomId = routineStepRoomId(step);
-            if (roomId && !rooms.getRoom(roomId)) {
-              return `tool_input_invalid:room.ledger.read:room_not_found:${roomId}`;
+        options.workflowCreateContext ?? {
+          validateMember(memberId, scope) {
+            // R1:对齐 import route 的校验——不只查存在,还查可运行(runnable)且在当前范围。
+            // 否则 workflow.create 能生成"用 disabled/不可运行/跨 app 成员"的 routine,导入/运行才失败。
+            return validateWorkflowMemberRef(rooms, memberId, scope);
+          },
+          validateTool(toolId) {
+            return tools.get(toolId) ? undefined : `tool_not_registered:${toolId}`;
+          },
+          prepareToolStep(step, scope) {
+            return prepareRoutineToolStep(
+              step,
+              scope,
+              (appId) => findDefaultAppGroupRoom(rooms.listRooms(), appId)?.id,
+            );
+          },
+          validateToolInput(step) {
+            const inputError = validateRoutineToolInput(step);
+            if (inputError) return inputError;
+            if (step.toolId === "room.ledger.read") {
+              const roomId = routineStepRoomId(step);
+              if (roomId && !rooms.getRoom(roomId)) {
+                return `tool_input_invalid:room.ledger.read:room_not_found:${roomId}`;
+              }
             }
-          }
-          return undefined;
+            return undefined;
+          },
+          validateFlowApproval(flowApproval, scope) {
+            return options.validateWorkflowFlowApproval?.(flowApproval, scope);
+          },
+          writeRoutineDocument({ title, body }) {
+            // RC2:先算出最终去重 slug,再创建 knowledge document,避免改 create() 返回的克隆视图。
+            const slug = dedupeRoutineSlug(title);
+            const document = knowledge.create({
+              type: "routine",
+              title,
+              body,
+              format: "markdown",
+              metadata: { vaultPath: `OpenGrove/routines/${slug}.routine.md` },
+            });
+            writeRoutineFileToVault({ title, body, slug });
+            return { knowledgeId: document.id };
+          },
         },
-        validateFlowApproval(flowApproval, scope) {
-          return options.validateWorkflowFlowApproval?.(flowApproval, scope);
-        },
-        writeRoutineDocument({ title, body }) {
-          // RC2:先算出最终去重 slug,再创建 knowledge document,避免改 create() 返回的克隆视图。
-          const slug = dedupeRoutineSlug(title);
-          const document = knowledge.create({
-            type: "routine",
-            title,
-            body,
-            format: "markdown",
-            metadata: { vaultPath: `OpenGrove/routines/${slug}.routine.md` },
-          });
-          writeRoutineFileToVault({ title, body, slug });
-          return { knowledgeId: document.id };
-        },
-      },
-    ),
-  );
-  if (options.workflowActivation) {
+      ),
+    );
+  }
+  if (modules.routines && options.workflowActivation) {
     tools.register(
       createWorkflowActivateTool(
         {
@@ -643,7 +666,7 @@ export function createOpenGrove(options: CreateOpenGroveOptions): OpenGroveApp {
       const page = await options.readPage();
       const computer = await (options.readComputer?.() ?? Promise.resolve({} as ComputerStateSnapshot));
       const sessionId = turnOptions.sessionId ?? options.sessionId ?? "local";
-      const activity: ActivitySpace = hasComputerState(computer) ? "computer" : "browser";
+      const activity: ActivitySpace = turnOptions.activity ?? (hasComputerState(computer) ? "computer" : "browser");
       const runId = turnOptions.runId ?? createRunId();
       const persistEvent = (event: AgentEvent): void => {
         if (turnOptions.eventPersistence === "caller") return;
@@ -752,7 +775,14 @@ export function createOpenGrove(options: CreateOpenGroveOptions): OpenGroveApp {
           requiredSkills: requiredSkillPreparation.loadedSkills,
           requiredSkillRequirements: requiredSkillPreparation.requirements,
           signal: turnOptions.signal,
-          tools: tools.list(),
+          tools: [
+            ...tools
+              .list()
+              .filter(
+                (tool) => !turnOptions.allowedHostToolIds || turnOptions.allowedHostToolIds.includes(tool.spec.id),
+              ),
+            ...(turnOptions.additionalTools ?? []),
+          ],
           capabilities: capabilities.list(),
           skills: availableSkills,
           packs: packs.list(),

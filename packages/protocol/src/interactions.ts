@@ -20,7 +20,11 @@ export const listApprovalsOperation = defineHostOperation({
   method: "GET",
   path: "/approvals",
   risk: "read",
-  query: z.object({ status: hostQueryFilter(approvalStatusSchema), limit: stateQueryLimit(100, 500) }),
+  query: z.object({
+    runId: z.string().optional(),
+    status: hostQueryFilter(approvalStatusSchema),
+    limit: stateQueryLimit(100, 500),
+  }),
   success: {
     status: 200,
     body: z.object({ ok: z.literal(true), approvals: z.array(approvalRequestSchema.omit({ resume: true })) }),
@@ -36,7 +40,11 @@ export const listQuestionsOperation = defineHostOperation({
   method: "GET",
   path: "/questions",
   risk: "read",
-  query: z.object({ status: hostQueryFilter(questionStatusSchema), limit: stateQueryLimit(100, 500) }),
+  query: z.object({
+    runId: z.string().optional(),
+    status: hostQueryFilter(questionStatusSchema),
+    limit: stateQueryLimit(100, 500),
+  }),
   success: {
     status: 200,
     body: z.object({ ok: z.literal(true), questions: z.array(questionRequestSchema.omit({ resume: true })) }),

@@ -277,6 +277,8 @@
     "test:local-app-draft": "npm run build:server && node dist/tests/local-app-draft-harness.js",
     "minify:dist": "node scripts/minify-dist.mjs",
     "stage:desktop-runtime": "node scripts/stage-desktop-runtime.mjs",
+    "pack:local": "node scripts/pack-local-host.mjs",
+    "test:local-integration": "npm run build:sdk && node --test packages/sdk/test/*.test.mjs && npm run build:server && node --test dist/tests/host-direct-start.test.js dist/tests/host-direct-session.test.js dist/tests/host-integration-resources.test.js dist/tests/client-tool-calls.test.js dist/tests/host-contract-coverage.test.js && node --test dist/tests/host-modules.test.js examples/external-editor/web/server.test.mjs",
     "pack:web:backend": "node scripts/pack-web-artifact.mjs backend",
     "pack:web:frontend": "node scripts/pack-web-artifact.mjs frontend",
     "pack:desktop": "npm run build && npm run minify:dist && npm run stage:desktop-runtime -- --target current && npm run check:desktop-package && electron-builder --dir && npm run check:desktop-artifact",
@@ -300,7 +302,8 @@
     "control:desktop-release": "node scripts/control-desktop-release.mjs",
     "prepack": "npm run build",
     "test:remote-agents": "npm run build:server && node --test dist/tests/agent-router-settings.test.js dist/tests/agent-network-sessions.test.js dist/tests/router-oauth.test.js dist/tests/remote-agent-room.test.js dist/tests/remote-agent-groups.test.js dist/tests/remote-agent-isolation.test.js dist/tests/remote-agent-authorization.test.js dist/tests/remote-room-restore.test.js dist/tests/host-openapi.test.js && node scripts/test-web-remote-agent-ui.mjs && node scripts/test-web-router-settings.mjs",
-    "test:web-compact-layout": "node scripts/test-web-compact-layout.mjs && node scripts/test-web-adaptive-workbench.mjs"
+    "test:web-compact-layout": "node scripts/test-web-compact-layout.mjs && node scripts/test-web-adaptive-workbench.mjs",
+    "test:local-integration:real": "node scripts/verify-local-integration.mjs"
   },
   "bundleDependencies": [
     "@agent-router/sdk"

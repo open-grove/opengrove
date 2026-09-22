@@ -10,8 +10,11 @@ OpenGrove exposes Host capabilities through three workspace packages:
   request and response validation, error normalization, and the generated typed
   domain API used by OpenGrove Web, desktop, and CLI runtimes.
 - `@opengrove/sdk` is the generated JavaScript SDK for external HTTP consumers.
-  It follows the OpenAPI document and is not part of OpenGrove's internal
-  runtime request path.
+  Its resource methods follow OpenAPI and are not part of OpenGrove's internal
+  runtime request path. The optional `connectOpenGrove` orchestration layer uses
+  only those generated methods to observe tasks and handle product callbacks; it
+  contains no separate HTTP transport or Host business logic. See
+  [Local product integration](../reference/LOCAL_INTEGRATION.md).
 
 The generation and dependency direction is fixed:
 

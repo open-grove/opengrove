@@ -1,3 +1,5 @@
+import { clientToolResource } from "./client-tools.js";
+import { startDirectRunOperation, getDirectRunResultOperation } from "./direct-runs.js";
 import { agentEventSchema } from "./agent-event-records.js";
 import { z } from "zod";
 import {
@@ -176,6 +178,7 @@ export const runOperationGroup = defineHostOperationGroup({
   title: "Execution",
   description: "Run records, direct execution, and session controls.",
   resources: [
+    clientToolResource,
     defineHostOperationResource({
       id: "event",
       title: "Execution events",
@@ -204,7 +207,13 @@ export const runOperationGroup = defineHostOperationGroup({
       id: "direct",
       title: "Direct sessions",
       description: "Control direct streaming execution.",
-      operations: [cancelDirectRunOperation, guideDirectRunOperation, compactDirectSessionOperation] as const,
+      operations: [
+        getDirectRunResultOperation,
+        startDirectRunOperation,
+        cancelDirectRunOperation,
+        guideDirectRunOperation,
+        compactDirectSessionOperation,
+      ] as const,
     }),
   ] as const,
 });

@@ -1,3 +1,4 @@
+import { runtimeResource } from "./runtime.js";
 import { clientBootstrapSchema } from "./client-bootstrap.js";
 import { defineHostOperation, defineHostOperationGroup, defineHostOperationResource } from "./operation.js";
 import { hostRequestErrors } from "./host-errors.js";
@@ -19,6 +20,7 @@ export const hostOperationGroup = defineHostOperationGroup({
   title: "Host",
   description: "Discover and diagnose the running Host.",
   resources: [
+    runtimeResource,
     defineHostOperationResource({
       id: "host",
       title: "Host discovery",

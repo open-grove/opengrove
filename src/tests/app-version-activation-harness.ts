@@ -903,8 +903,17 @@ try {
   );
   const draftStagingRoot = join(appStoreDataRoot(state), "staging", "draft-transactions");
   const draftBackupRoot = join(appStoreDataRoot(state), "staging", "draft-backups");
-  assert.deepEqual(readdirSync(draftStagingRoot), [], "a completed draft switch must clean staging");
-  assert.deepEqual(readdirSync(draftBackupRoot), [], "a finalized draft switch must clean recovery backup data");
+  // Successful cleanup may remove the empty container as well as its contents.
+  assert.deepEqual(
+    existsSync(draftStagingRoot) ? readdirSync(draftStagingRoot) : [],
+    [],
+    "a completed draft switch must clean staging",
+  );
+  assert.deepEqual(
+    existsSync(draftBackupRoot) ? readdirSync(draftBackupRoot) : [],
+    [],
+    "a finalized draft switch must clean recovery backup data",
+  );
   const openedDraftWorker = state.app.rooms
     .listMembers()
     .find((member) => member.id === "member-app-versioned-app-worker");

@@ -3,11 +3,33 @@ import { hostOperationById, type HostOperationInput, type HostOperationOutput } 
 import type { HostOperationRequest, OpenGroveRequestOptions } from "../transport.js";
 
 export const openGroveClientOperationIds = [
+  "workspace.file.list",
+  "workspace.file.read",
+  "workspace.file.write",
+  "extension.extension.list",
+  "extension.skill.import",
+  "extension.skill.publish",
+  "extension.skill.republish",
+  "extension.skill.unpublish",
+  "extension.deployment.enable",
+  "extension.deployment.disable",
+  "extension.deployment.delete",
+  "routine.routine.list",
+  "routine.routine.create",
+  "routine.routine.import",
+  "routine.routine.schedule",
+  "routine.routine.run",
+  "host.runtime.list",
+  "host.runtime.inspect",
   "host.host.bootstrap",
+  "run.tool.list",
+  "run.tool.resolve",
   "run.event.list",
   "run.run.list",
   "run.session.list",
   "run.execution.list",
+  "run.direct.result",
+  "run.direct.start",
   "run.direct.cancel",
   "run.direct.guide",
   "run.direct.compact",
@@ -21,6 +43,9 @@ export const openGroveClientOperationIds = [
   "interaction.question.cancel",
   "artifact.artifact.create",
   "artifact.artifact.get",
+  "artifact.artifact.list",
+  "artifact.artifact.update",
+  "artifact.artifact.delete",
   "auth.email-code.create",
   "auth.session.create",
   "auth.session.get",
@@ -61,7 +86,284 @@ export const openGroveClientOperationIds = [
 export function bindOpenGroveClient(request: HostOperationRequest) {
   return {
     request,
+    workspace: {
+      file: {
+        list: (
+          input: HostOperationInput<(typeof hostOperationById)["workspace.file.list"]>,
+          options?: OpenGroveRequestOptions,
+        ): Promise<HostOperationOutput<(typeof hostOperationById)["workspace.file.list"]>> =>
+          request(hostOperationById["workspace.file.list"], {
+            params: {
+              sessionId: input.sessionId,
+            },
+            query: {
+              maxDepth: input.maxDepth,
+              maxEntries: input.maxEntries,
+              path: input.path,
+            },
+            signal: options?.signal,
+          }),
+        read: (
+          input: HostOperationInput<(typeof hostOperationById)["workspace.file.read"]>,
+          options?: OpenGroveRequestOptions,
+        ): Promise<HostOperationOutput<(typeof hostOperationById)["workspace.file.read"]>> =>
+          request(hostOperationById["workspace.file.read"], {
+            params: {
+              sessionId: input.sessionId,
+            },
+            query: {
+              maxBytes: input.maxBytes,
+              path: input.path,
+            },
+            signal: options?.signal,
+          }),
+        write: (
+          input: HostOperationInput<(typeof hostOperationById)["workspace.file.write"]>,
+          options?: OpenGroveRequestOptions,
+        ): Promise<HostOperationOutput<(typeof hostOperationById)["workspace.file.write"]>> =>
+          request(hostOperationById["workspace.file.write"], {
+            params: {
+              sessionId: input.sessionId,
+            },
+            body: {
+              content: input.content,
+              expectedRevision: input.expectedRevision,
+              path: input.path,
+            },
+            signal: options?.signal,
+          }),
+      },
+    },
+    extension: {
+      extension: {
+        list: (
+          input: HostOperationInput<(typeof hostOperationById)["extension.extension.list"]> = {},
+          options?: OpenGroveRequestOptions,
+        ): Promise<HostOperationOutput<(typeof hostOperationById)["extension.extension.list"]>> =>
+          request(hostOperationById["extension.extension.list"], {
+            query: {
+              includeSystem: input.includeSystem,
+            },
+            signal: options?.signal,
+          }),
+      },
+      skill: {
+        import: (
+          input: HostOperationInput<(typeof hostOperationById)["extension.skill.import"]> = {},
+          options?: OpenGroveRequestOptions,
+        ): Promise<HostOperationOutput<(typeof hostOperationById)["extension.skill.import"]>> =>
+          request(hostOperationById["extension.skill.import"], {
+            query: {
+              includeSystem: input.includeSystem,
+            },
+            body: {
+              deploymentId: input.deploymentId,
+              itemId: input.itemId,
+              name: input.name,
+              replace: input.replace,
+              sourcePath: input.sourcePath,
+            },
+            signal: options?.signal,
+          }),
+        publish: (
+          input: HostOperationInput<(typeof hostOperationById)["extension.skill.publish"]> = {},
+          options?: OpenGroveRequestOptions,
+        ): Promise<HostOperationOutput<(typeof hostOperationById)["extension.skill.publish"]>> =>
+          request(hostOperationById["extension.skill.publish"], {
+            query: {
+              includeSystem: input.includeSystem,
+            },
+            body: {
+              deploymentId: input.deploymentId,
+              itemId: input.itemId,
+              librarySkillId: input.librarySkillId,
+              name: input.name,
+              replace: input.replace,
+              scope: input.scope,
+              sourcePath: input.sourcePath,
+              targetKernelIds: input.targetKernelIds,
+            },
+            signal: options?.signal,
+          }),
+        republish: (
+          input: HostOperationInput<(typeof hostOperationById)["extension.skill.republish"]> = {},
+          options?: OpenGroveRequestOptions,
+        ): Promise<HostOperationOutput<(typeof hostOperationById)["extension.skill.republish"]>> =>
+          request(hostOperationById["extension.skill.republish"], {
+            query: {
+              includeSystem: input.includeSystem,
+            },
+            body: {
+              deploymentIds: input.deploymentIds,
+              itemId: input.itemId,
+              name: input.name,
+              targetKernelIds: input.targetKernelIds,
+            },
+            signal: options?.signal,
+          }),
+        unpublish: (
+          input: HostOperationInput<(typeof hostOperationById)["extension.skill.unpublish"]> = {},
+          options?: OpenGroveRequestOptions,
+        ): Promise<HostOperationOutput<(typeof hostOperationById)["extension.skill.unpublish"]>> =>
+          request(hostOperationById["extension.skill.unpublish"], {
+            query: {
+              includeSystem: input.includeSystem,
+            },
+            body: {
+              deleteLibrary: input.deleteLibrary,
+              deploymentIds: input.deploymentIds,
+              forceExternal: input.forceExternal,
+              itemId: input.itemId,
+              name: input.name,
+              targetKernelIds: input.targetKernelIds,
+            },
+            signal: options?.signal,
+          }),
+      },
+      deployment: {
+        enable: (
+          input: HostOperationInput<(typeof hostOperationById)["extension.deployment.enable"]> = {},
+          options?: OpenGroveRequestOptions,
+        ): Promise<HostOperationOutput<(typeof hostOperationById)["extension.deployment.enable"]>> =>
+          request(hostOperationById["extension.deployment.enable"], {
+            query: {
+              includeSystem: input.includeSystem,
+            },
+            body: {
+              deploymentIds: input.deploymentIds,
+              enabled: input.enabled,
+              forceExternal: input.forceExternal,
+              itemId: input.itemId,
+              kind: input.kind,
+              reason: input.reason,
+            },
+            signal: options?.signal,
+          }),
+        disable: (
+          input: HostOperationInput<(typeof hostOperationById)["extension.deployment.disable"]> = {},
+          options?: OpenGroveRequestOptions,
+        ): Promise<HostOperationOutput<(typeof hostOperationById)["extension.deployment.disable"]>> =>
+          request(hostOperationById["extension.deployment.disable"], {
+            query: {
+              includeSystem: input.includeSystem,
+            },
+            body: {
+              deploymentIds: input.deploymentIds,
+              forceExternal: input.forceExternal,
+              itemId: input.itemId,
+              kind: input.kind,
+              reason: input.reason,
+            },
+            signal: options?.signal,
+          }),
+        delete: (
+          input: HostOperationInput<(typeof hostOperationById)["extension.deployment.delete"]> = {},
+          options?: OpenGroveRequestOptions,
+        ): Promise<HostOperationOutput<(typeof hostOperationById)["extension.deployment.delete"]>> =>
+          request(hostOperationById["extension.deployment.delete"], {
+            query: {
+              includeSystem: input.includeSystem,
+            },
+            body: {
+              deleteLibrary: input.deleteLibrary,
+              deploymentIds: input.deploymentIds,
+              forceExternal: input.forceExternal,
+              itemId: input.itemId,
+              kind: input.kind,
+              reason: input.reason,
+            },
+            signal: options?.signal,
+          }),
+      },
+    },
+    routine: {
+      routine: {
+        list: (
+          input: HostOperationInput<(typeof hostOperationById)["routine.routine.list"]> = {},
+          options?: OpenGroveRequestOptions,
+        ): Promise<HostOperationOutput<(typeof hostOperationById)["routine.routine.list"]>> =>
+          request(hostOperationById["routine.routine.list"], {
+            query: {
+              limit: input.limit,
+              status: input.status,
+            },
+            signal: options?.signal,
+          }),
+        create: (
+          input: HostOperationInput<(typeof hostOperationById)["routine.routine.create"]>,
+          options?: OpenGroveRequestOptions,
+        ): Promise<HostOperationOutput<(typeof hostOperationById)["routine.routine.create"]>> =>
+          request(hostOperationById["routine.routine.create"], {
+            body: {
+              description: input.description,
+              schedule: input.schedule,
+              status: input.status,
+              steps: input.steps,
+              title: input.title,
+              trigger: input.trigger,
+            },
+            signal: options?.signal,
+          }),
+        import: (
+          input: HostOperationInput<(typeof hostOperationById)["routine.routine.import"]> = {},
+          options?: OpenGroveRequestOptions,
+        ): Promise<HostOperationOutput<(typeof hostOperationById)["routine.routine.import"]>> =>
+          request(hostOperationById["routine.routine.import"], {
+            body: {
+              content: input.content,
+              knowledgeId: input.knowledgeId,
+            },
+            signal: options?.signal,
+          }),
+        schedule: (
+          input: HostOperationInput<(typeof hostOperationById)["routine.routine.schedule"]>,
+          options?: OpenGroveRequestOptions,
+        ): Promise<HostOperationOutput<(typeof hostOperationById)["routine.routine.schedule"]>> =>
+          request(hostOperationById["routine.routine.schedule"], {
+            params: {
+              routineId: input.routineId,
+            },
+            body: {
+              enabled: input.enabled,
+              schedule: input.schedule,
+              trigger: input.trigger,
+            },
+            signal: options?.signal,
+          }),
+        run: (
+          input: HostOperationInput<(typeof hostOperationById)["routine.routine.run"]>,
+          options?: OpenGroveRequestOptions,
+        ): Promise<HostOperationOutput<(typeof hostOperationById)["routine.routine.run"]>> =>
+          request(hostOperationById["routine.routine.run"], {
+            params: {
+              routineId: input.routineId,
+            },
+            signal: options?.signal,
+          }),
+      },
+    },
     host: {
+      runtime: {
+        list: (
+          options?: OpenGroveRequestOptions,
+        ): Promise<HostOperationOutput<(typeof hostOperationById)["host.runtime.list"]>> =>
+          request(hostOperationById["host.runtime.list"], {
+            signal: options?.signal,
+          }),
+        inspect: (
+          input: HostOperationInput<(typeof hostOperationById)["host.runtime.inspect"]>,
+          options?: OpenGroveRequestOptions,
+        ): Promise<HostOperationOutput<(typeof hostOperationById)["host.runtime.inspect"]>> =>
+          request(hostOperationById["host.runtime.inspect"], {
+            body: {
+              kernel: input.kernel,
+              model: input.model,
+              providerId: input.providerId,
+              workspaceRoot: input.workspaceRoot,
+            },
+            signal: options?.signal,
+          }),
+      },
       discovery: {
         bootstrap: (
           options?: OpenGroveRequestOptions,
@@ -72,6 +374,32 @@ export function bindOpenGroveClient(request: HostOperationRequest) {
       },
     },
     runs: {
+      tool: {
+        list: (
+          input: HostOperationInput<(typeof hostOperationById)["run.tool.list"]>,
+          options?: OpenGroveRequestOptions,
+        ): Promise<HostOperationOutput<(typeof hostOperationById)["run.tool.list"]>> =>
+          request(hostOperationById["run.tool.list"], {
+            params: {
+              runId: input.runId,
+            },
+            signal: options?.signal,
+          }),
+        resolve: (
+          input: HostOperationInput<(typeof hostOperationById)["run.tool.resolve"]>,
+          options?: OpenGroveRequestOptions,
+        ): Promise<HostOperationOutput<(typeof hostOperationById)["run.tool.resolve"]>> =>
+          request(hostOperationById["run.tool.resolve"], {
+            params: {
+              callId: input.callId,
+              runId: input.runId,
+            },
+            body: {
+              result: input.result,
+            },
+            signal: options?.signal,
+          }),
+      },
       events: {
         list: (
           input: HostOperationInput<(typeof hostOperationById)["run.event.list"]> = {},
@@ -134,6 +462,39 @@ export function bindOpenGroveClient(request: HostOperationRequest) {
           }),
       },
       direct: {
+        result: (
+          input: HostOperationInput<(typeof hostOperationById)["run.direct.result"]>,
+          options?: OpenGroveRequestOptions,
+        ): Promise<HostOperationOutput<(typeof hostOperationById)["run.direct.result"]>> =>
+          request(hostOperationById["run.direct.result"], {
+            params: {
+              runId: input.runId,
+            },
+            signal: options?.signal,
+          }),
+        start: (
+          input: HostOperationInput<(typeof hostOperationById)["run.direct.start"]>,
+          options?: OpenGroveRequestOptions,
+        ): Promise<HostOperationOutput<(typeof hostOperationById)["run.direct.start"]>> =>
+          request(hostOperationById["run.direct.start"], {
+            body: {
+              accessMode: input.accessMode,
+              attachments: input.attachments,
+              context: input.context,
+              effort: input.effort,
+              input: input.input,
+              instructions: input.instructions,
+              kernel: input.kernel,
+              model: input.model,
+              planMode: input.planMode,
+              providerId: input.providerId,
+              sessionId: input.sessionId,
+              skills: input.skills,
+              tools: input.tools,
+              workspaceRoot: input.workspaceRoot,
+            },
+            signal: options?.signal,
+          }),
         cancel: (
           input: HostOperationInput<(typeof hostOperationById)["run.direct.cancel"]> = {},
           options?: OpenGroveRequestOptions,
@@ -179,6 +540,7 @@ export function bindOpenGroveClient(request: HostOperationRequest) {
           request(hostOperationById["interaction.approval.list"], {
             query: {
               limit: input.limit,
+              runId: input.runId,
               status: input.status,
             },
             signal: options?.signal,
@@ -231,6 +593,7 @@ export function bindOpenGroveClient(request: HostOperationRequest) {
           request(hostOperationById["interaction.question.list"], {
             query: {
               limit: input.limit,
+              runId: input.runId,
               status: input.status,
             },
             signal: options?.signal,
@@ -307,6 +670,53 @@ export function bindOpenGroveClient(request: HostOperationRequest) {
           options?: OpenGroveRequestOptions,
         ): Promise<HostOperationOutput<(typeof hostOperationById)["artifact.artifact.get"]>> =>
           request(hostOperationById["artifact.artifact.get"], {
+            params: {
+              artifactId: input.artifactId,
+            },
+            signal: options?.signal,
+          }),
+        list: (
+          input: HostOperationInput<(typeof hostOperationById)["artifact.artifact.list"]> = {},
+          options?: OpenGroveRequestOptions,
+        ): Promise<HostOperationOutput<(typeof hostOperationById)["artifact.artifact.list"]>> =>
+          request(hostOperationById["artifact.artifact.list"], {
+            query: {
+              id: input.id,
+              limit: input.limit,
+              tag: input.tag,
+              type: input.type,
+            },
+            signal: options?.signal,
+          }),
+        update: (
+          input: HostOperationInput<(typeof hostOperationById)["artifact.artifact.update"]>,
+          options?: OpenGroveRequestOptions,
+        ): Promise<HostOperationOutput<(typeof hostOperationById)["artifact.artifact.update"]>> =>
+          request(hostOperationById["artifact.artifact.update"], {
+            params: {
+              artifactId: input.artifactId,
+            },
+            body: {
+              data: input.data,
+              derivedFrom: input.derivedFrom,
+              lineage: input.lineage,
+              parentId: input.parentId,
+              provenance: input.provenance,
+              sourceRefs: input.sourceRefs,
+              status: input.status,
+              tags: input.tags,
+              title: input.title,
+              type: input.type,
+              variantOf: input.variantOf,
+              version: input.version,
+            },
+            signal: options?.signal,
+          }),
+        delete: (
+          input: HostOperationInput<(typeof hostOperationById)["artifact.artifact.delete"]>,
+          options?: OpenGroveRequestOptions,
+        ): Promise<HostOperationOutput<(typeof hostOperationById)["artifact.artifact.delete"]>> =>
+          request(hostOperationById["artifact.artifact.delete"], {
             params: {
               artifactId: input.artifactId,
             },

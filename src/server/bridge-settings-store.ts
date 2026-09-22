@@ -325,6 +325,7 @@ function stripUndefinedLocal(input: Record<string, unknown>): Record<string, unk
 }
 
 export function effectiveMountedApps(state: BridgeState): BridgeSettings["mountedApps"] {
+  if (state.modules?.apps === false) return [];
   return state.settings.mountedApps
     .filter((app) => !isRetiredKnowledgeVaultMount(app))
     .map((app) => {

@@ -17,6 +17,8 @@ third-party source snapshots are intentionally not tracked.
 - [技术参考](reference/TECHNICAL_REFERENCE.zh-CN.md)
 - [Kernel integration guide](reference/KERNEL_INTEGRATION.md)
 - [Kernel 接入指南](reference/KERNEL_INTEGRATION.zh-CN.md)
+- [Local product integration](reference/LOCAL_INTEGRATION.md)
+- [本地产品接入](reference/LOCAL_INTEGRATION.zh-CN.md)
 - [Configuration](reference/CONFIGURATION.md)
 - [Security model](reference/SECURITY_MODEL.md)
 - [Kernel evidence sources](reference/KERNEL_SOURCES.md)

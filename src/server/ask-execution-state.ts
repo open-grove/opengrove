@@ -10,7 +10,7 @@ import { resolveBridgeWorkspaceRoot } from "./workspace-root.js";
  */
 export function resolveAskExecutionState(
   state: BridgeState,
-  payload: Pick<BridgeAskPayload, "kernel" | "model" | "providerId">,
+  payload: Pick<BridgeAskPayload, "kernel" | "model" | "providerId" | "workspaceRoot">,
 ): BridgeState {
   const rootState = state.rootState ?? state;
   const kernel = payload.kernel ?? rootState.kernel;
@@ -34,17 +34,18 @@ export function resolveAskExecutionState(
     runtimeOverride,
     model: rootState.model,
     kernel,
-    settings: { ...rootState.settings },
+    settings: { ...rootState.settings, ...(payload.workspaceRoot ? { workspaceRoot: payload.workspaceRoot } : {}) },
   } satisfies BridgeState;
   const providerRoute = resolveKernelProviderSelection(scopedState, kernel).route;
   const cacheKey = directAskExecutionStateKey({
     kernel,
     model: payload.model,
     providerId: providerRoute.providerId,
-    workspaceRoot: resolveBridgeWorkspaceRoot(rootState.settings),
+    workspaceRoot: resolveBridgeWorkspaceRoot(scopedState.settings),
   });
 
   if (
+    !payload.workspaceRoot &&
     rootState.kernelAdapter &&
     !rootState.kernelUnavailableReason &&
     rootState.kernel === kernel &&

@@ -1,3 +1,4 @@
+import { DEFAULT_HOST_MODULES, resolveHostModules } from "../app/host-modules.js";
 import { createServer } from "node:http";
 import { execFileSync } from "node:child_process";
 import { existsSync, statSync } from "node:fs";
@@ -35,6 +36,22 @@ import { writeBridgeDiscoveryFile } from "./bridge-discovery.js";
 
 export function startOpenGroveServer(options: LocalBridgeServerOptions = {}) {
   loadLocalEnvFile();
+  const configuredModules = readAppEnv("HOST_MODULES");
+  const moduleNames =
+    options.modules ??
+    (configuredModules === "core"
+      ? []
+      : configuredModules === undefined
+        ? undefined
+        : configuredModules
+            .split(",")
+            .map((name) => name.trim())
+            .filter(Boolean));
+  const modules = resolveHostModules(moduleNames);
+  options = {
+    ...options,
+    modules: (Object.keys(modules) as Array<keyof typeof modules>).filter((name) => modules[name]),
+  };
   cleanupStaleKernelLoginSessions();
   const host = options.host ?? readAppEnv("BRIDGE_HOST") ?? "127.0.0.1";
   const port = options.port ?? Number(readAppEnv("BRIDGE_PORT") ?? 37371);
@@ -61,12 +78,12 @@ export function startOpenGroveServer(options: LocalBridgeServerOptions = {}) {
     6 * 60 * 60 * 1000,
   );
   providerModelRefreshTimer.unref();
-  const stopRoutineScheduler = startRoutineScheduler(state);
-  const bridgeRoutes = createBridgeRoutes();
+  const stopRoutineScheduler = modules.routines ? startRoutineScheduler(state) : undefined;
+  const bridgeRoutes = createBridgeRoutes(state.modules ?? DEFAULT_HOST_MODULES);
 
   const server = createServer(async (request, response) => {
     const url = new URL(request.url ?? "/", `http://${request.headers.host ?? `${host}:${port}`}`);
-    if (isMcpAppSandboxRequest(request, security)) {
+    if (modules.apps && isMcpAppSandboxRequest(request, security)) {
       serveMcpAppSandbox(request, response, url, security);
       return;
     }
@@ -114,6 +131,7 @@ export function startOpenGroveServer(options: LocalBridgeServerOptions = {}) {
       }
 
       if (
+        modules.apps &&
         (request.method === "GET" || request.method === "HEAD") &&
         servePublicStaticRoute(url, response, request.method === "HEAD")
       ) {
@@ -138,6 +156,7 @@ export function startOpenGroveServer(options: LocalBridgeServerOptions = {}) {
       }
 
       if (
+        modules.apps &&
         (request.method === "GET" || request.method === "HEAD") &&
         serveProtectedStaticRoute(url, response, request.method === "HEAD")
       ) {
@@ -216,7 +235,7 @@ export function startOpenGroveServer(options: LocalBridgeServerOptions = {}) {
       });
     }
   });
-  server.on("close", stopRoutineScheduler);
+  if (stopRoutineScheduler) server.on("close", stopRoutineScheduler);
   server.on("close", () => clearInterval(providerModelRefreshTimer));
   server.on("close", () => closeImportedNativeFolderWatchers(state));
 

@@ -39,6 +39,50 @@ export const getArtifactOperation = defineHostOperation({
   errors: [...hostRequestErrors, { status: 404, body: hostErrorSchema, description: "The artifact does not exist." }],
 });
 export type GetArtifactOperation = typeof getArtifactOperation;
+export const listArtifactsOperation = defineHostOperation({
+  id: "artifact.artifact.list",
+  summary: "List artifacts",
+  description: "Read bounded artifact summaries. Use get for full data.",
+  method: "GET",
+  path: "/artifacts",
+  risk: "read",
+  query: z.object({
+    type: z.string().optional(),
+    id: z.array(z.string()).optional(),
+    tag: z.array(z.string()).optional(),
+    limit: z.number().int().min(1).max(500).default(100),
+  }),
+  success: { status: 200, body: z.object({ ok: z.literal(true), artifacts: z.array(artifactRecordSchema) }) },
+  errors: hostRequestErrors,
+});
+export const updateArtifactOperation = defineHostOperation({
+  id: "artifact.artifact.update",
+  summary: "Update an artifact",
+  description: "Update saved artifact metadata and structured data.",
+  method: "PATCH",
+  path: "/artifacts/{artifactId}",
+  risk: "write",
+  params: getArtifactOperation.params,
+  body: artifactRecordSchema
+    .omit({ id: true, createdAt: true, updatedAt: true, assets: true, preview: true })
+    .partial(),
+  success: createArtifactOperation.success,
+  errors: getArtifactOperation.errors,
+});
+export const deleteArtifactOperation = defineHostOperation({
+  id: "artifact.artifact.delete",
+  summary: "Delete an artifact",
+  description: "Delete a saved artifact record.",
+  method: "DELETE",
+  path: "/artifacts/{artifactId}",
+  risk: "high-risk-write",
+  params: getArtifactOperation.params,
+  success: {
+    status: 200,
+    body: z.object({ ok: z.literal(true), deleted: z.boolean(), artifacts: z.array(artifactRecordSchema) }),
+  },
+  errors: hostRequestErrors,
+});
 export const artifactOperationGroup = defineHostOperationGroup({
   id: "artifact",
   title: "Artifacts",
@@ -48,7 +92,13 @@ export const artifactOperationGroup = defineHostOperationGroup({
       id: "artifact",
       title: "Artifacts",
       description: "Manage saved artifact records.",
-      operations: [createArtifactOperation, getArtifactOperation] as const,
+      operations: [
+        createArtifactOperation,
+        getArtifactOperation,
+        listArtifactsOperation,
+        updateArtifactOperation,
+        deleteArtifactOperation,
+      ] as const,
     }),
   ] as const,
 });

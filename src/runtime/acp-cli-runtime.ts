@@ -532,6 +532,17 @@ export class AcpCliRuntime implements AgentRuntime {
         nativeSession.sessionId,
         previousEstimate + estimateTextTokens(prompt) + estimateTextTokens(finalText) + 16,
       );
+      // ACP can acknowledge cancellation without emitting assistant text.
+      // Preserve the acknowledged terminal state before validating a normal response.
+      if (request.signal?.aborted && !finalText.trim()) {
+        queue.push({
+          type: "turn.finished",
+          runId,
+          at: new Date().toISOString(),
+          outcome: { taskState: "TASK_STATE_CANCELED", reasonCode: "native_cancelled", retryable: false },
+        });
+        return;
+      }
       if (!finalText.trim()) {
         const diagnostic = client.stderr().trim();
         if (diagnostic) {

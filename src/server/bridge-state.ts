@@ -1,3 +1,4 @@
+import { DEFAULT_HOST_MODULES, resolveHostModules } from "../app/host-modules.js";
 import {
   migrateNativeApprovalPresetsV4,
   NATIVE_APPROVAL_PRESETS_VERSION,
@@ -157,6 +158,7 @@ export function createBridgeState(
   options: LocalBridgeServerOptions,
   authMode: HostRuntimeAuthMode = "bridge-token",
 ): BridgeState {
+  const modules = resolveHostModules(options.modules);
   cleanupAbandonedHermesHomes();
   const profile = normalizeOpenGroveProfile(options.profile, "local");
   let bridgeApp: BridgeState["app"] | undefined;
@@ -169,6 +171,7 @@ export function createBridgeState(
       bridgeApp = value;
       state.appInitialized = true;
     },
+    modules,
     store: options.store ?? createSqliteStateStore(options.statePath),
     eventCheckpointPolicy: createAgentEventCheckpointPolicy(),
     profile,
@@ -199,373 +202,377 @@ export function createBridgeState(
     settingsFileExisted && (loadedSettings.providerSetupVersion ?? 0) < CURRENT_PROVIDER_SETUP_VERSION;
   const discoveredSettings = applyProviderSetupMigration(loadedSettings);
   state.settings = discoveredSettings;
-  const appStoreRoot = bridgeDataPath(state, "app-store");
-  const workspaceBindingMigration = migrateStoreWorkspaceBindingsV1({
-    mountedApps: state.settings.mountedApps,
-    storeRoot: appStoreRoot,
-  });
-  if (workspaceBindingMigration.changed) {
-    state.settings = {
-      ...state.settings,
-      mountedApps: workspaceBindingMigration.mountedApps,
-    };
-    console.info("store_workspace_binding_migration_recovered", {
-      appIds: workspaceBindingMigration.recoveredAppIds,
+  if (modules.apps) {
+    const appStoreRoot = bridgeDataPath(state, "app-store");
+    const workspaceBindingMigration = migrateStoreWorkspaceBindingsV1({
+      mountedApps: state.settings.mountedApps,
+      storeRoot: appStoreRoot,
     });
-  }
-  if (workspaceBindingMigration.failures.length) {
-    console.warn("store_workspace_binding_migration_failed", {
-      failures: workspaceBindingMigration.failures,
-    });
-  }
-  if (
-    !needsLegacyProviderActivation &&
-    (!settingsFileExisted ||
-      workspaceBindingMigration.changed ||
-      JSON.stringify(state.settings) !== JSON.stringify(loadedSettings))
-  ) {
-    saveBridgeSettings(state);
-  }
-  const versionActivationScan = scanAppVersionActivationJournals(appVersionActivationJournalRoot(appStoreRoot));
-  if (versionActivationScan.failures.length === 0) {
-    try {
-      pruneManagedAppRevisionCheckpoints({
-        revisionsRoot: join(appStoreRoot, "app-revisions"),
-        retainedCheckpointIds: new Set(
-          versionActivationScan.journals.flatMap((journal) =>
-            journal.record.previousSourceRevision ? [journal.record.previousSourceRevision.checkpointId] : [],
-          ),
-        ),
-      });
-    } catch (error) {
-      // non-critical-fallback: unreferenced recovery objects are inert and can be retried next startup.
-      console.warn("app_revision_recovery_cleanup_deferred", {
-        failure: error instanceof Error ? error.message : String(error),
+    if (workspaceBindingMigration.changed) {
+      state.settings = {
+        ...state.settings,
+        mountedApps: workspaceBindingMigration.mountedApps,
+      };
+      console.info("store_workspace_binding_migration_recovered", {
+        appIds: workspaceBindingMigration.recoveredAppIds,
       });
     }
-  }
-  const corruptJournalKeys = new Set(
-    versionActivationScan.failures.flatMap((failure) => (failure.journalKey ? [failure.journalKey] : [])),
-  );
-  const corruptJournalRoots = new Set(
-    state.settings.mountedApps.flatMap((mountedApp) =>
-      corruptJournalKeys.has(appVersionActivationJournalKey(mountedApp.id)) ? [resolve(mountedApp.path)] : [],
-    ),
-  );
-  if (versionActivationScan.failures.length) {
-    console.error("app_version_activation_recovery_needs_manual_repair", {
-      errorCode: "app_version_activation_journal_corrupted",
-      journalCount: versionActivationScan.failures.length,
-      matchedAppCount: corruptJournalRoots.size,
-      unmatchedJournalCount: versionActivationScan.failures.length - corruptJournalRoots.size,
-    });
-    disableMountedAppsForRecovery(state, corruptJournalRoots, "app_version_activation_journal_corrupted");
-  }
-  const recoveryJournalRoots = new Set([
-    ...corruptJournalRoots,
-    ...versionActivationScan.journals.map((journal) => resolve(journal.record.appRoot)),
-  ]);
-  let versionActivationJournal =
-    versionActivationScan.journals.length === 1 ? versionActivationScan.journals[0] : undefined;
-  if (versionActivationScan.journals.length > 1) {
-    disableMountedAppsForRecovery(state, recoveryJournalRoots, "app_version_activation_recovery_ambiguous");
-  }
-  let versionActivationRecovery: { authoritativeEmployeeConfigAppId?: string } | undefined;
-  let versionActivationRecovered = false;
-  if (versionActivationJournal) {
-    try {
-      versionActivationRecovery = prepareInterruptedAppVersionActivationRecovery(
-        state,
-        versionActivationJournal,
-        appStoreRoot,
-      );
-      versionActivationRecovered = true;
-    } catch (error) {
+    if (workspaceBindingMigration.failures.length) {
+      console.warn("store_workspace_binding_migration_failed", {
+        failures: workspaceBindingMigration.failures,
+      });
+    }
+    if (
+      !needsLegacyProviderActivation &&
+      (!settingsFileExisted ||
+        workspaceBindingMigration.changed ||
+        JSON.stringify(state.settings) !== JSON.stringify(loadedSettings))
+    ) {
+      saveBridgeSettings(state);
+    }
+    const versionActivationScan = scanAppVersionActivationJournals(appVersionActivationJournalRoot(appStoreRoot));
+    if (versionActivationScan.failures.length === 0) {
+      try {
+        pruneManagedAppRevisionCheckpoints({
+          revisionsRoot: join(appStoreRoot, "app-revisions"),
+          retainedCheckpointIds: new Set(
+            versionActivationScan.journals.flatMap((journal) =>
+              journal.record.previousSourceRevision ? [journal.record.previousSourceRevision.checkpointId] : [],
+            ),
+          ),
+        });
+      } catch (error) {
+        // non-critical-fallback: unreferenced recovery objects are inert and can be retried next startup.
+        console.warn("app_revision_recovery_cleanup_deferred", {
+          failure: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+    const corruptJournalKeys = new Set(
+      versionActivationScan.failures.flatMap((failure) => (failure.journalKey ? [failure.journalKey] : [])),
+    );
+    const corruptJournalRoots = new Set(
+      state.settings.mountedApps.flatMap((mountedApp) =>
+        corruptJournalKeys.has(appVersionActivationJournalKey(mountedApp.id)) ? [resolve(mountedApp.path)] : [],
+      ),
+    );
+    if (versionActivationScan.failures.length) {
+      console.error("app_version_activation_recovery_needs_manual_repair", {
+        errorCode: "app_version_activation_journal_corrupted",
+        journalCount: versionActivationScan.failures.length,
+        matchedAppCount: corruptJournalRoots.size,
+        unmatchedJournalCount: versionActivationScan.failures.length - corruptJournalRoots.size,
+      });
+      disableMountedAppsForRecovery(state, corruptJournalRoots, "app_version_activation_journal_corrupted");
+    }
+    const recoveryJournalRoots = new Set([
+      ...corruptJournalRoots,
+      ...versionActivationScan.journals.map((journal) => resolve(journal.record.appRoot)),
+    ]);
+    let versionActivationJournal =
+      versionActivationScan.journals.length === 1 ? versionActivationScan.journals[0] : undefined;
+    if (versionActivationScan.journals.length > 1) {
+      disableMountedAppsForRecovery(state, recoveryJournalRoots, "app_version_activation_recovery_ambiguous");
+    }
+    let versionActivationRecovery: { authoritativeEmployeeConfigAppId?: string } | undefined;
+    let versionActivationRecovered = false;
+    if (versionActivationJournal) {
+      try {
+        versionActivationRecovery = prepareInterruptedAppVersionActivationRecovery(
+          state,
+          versionActivationJournal,
+          appStoreRoot,
+        );
+        versionActivationRecovered = true;
+      } catch (error) {
+        disableMountedAppsForRecovery(
+          state,
+          new Set([resolve(versionActivationJournal.record.appRoot)]),
+          error instanceof Error ? error.message : "app_version_activation_recovery_failed",
+        );
+        versionActivationJournal = undefined;
+      }
+    }
+    const activationRecovery = recoverInterruptedAppProgramActivations(
+      state.settings.mountedApps
+        .map((mountedApp) => mountedApp.path)
+        .filter((appRoot) => !recoveryJournalRoots.has(resolve(appRoot))),
+    );
+    if (activationRecovery.failed.length) {
       disableMountedAppsForRecovery(
         state,
-        new Set([resolve(versionActivationJournal.record.appRoot)]),
-        error instanceof Error ? error.message : "app_version_activation_recovery_failed",
+        new Set(activationRecovery.failed.map((failure) => resolve(failure.appRoot))),
+        "app_program_activation_recovery_failed",
       );
-      versionActivationJournal = undefined;
     }
-  }
-  const activationRecovery = recoverInterruptedAppProgramActivations(
-    state.settings.mountedApps
-      .map((mountedApp) => mountedApp.path)
-      .filter((appRoot) => !recoveryJournalRoots.has(resolve(appRoot))),
-  );
-  if (activationRecovery.failed.length) {
-    disableMountedAppsForRecovery(
-      state,
-      new Set(activationRecovery.failed.map((failure) => resolve(failure.appRoot))),
-      "app_program_activation_recovery_failed",
-    );
-  }
-  const storeAppLayoutRoots = {
-    legacyProgramsRoot: legacyAppStoreProgramsRoot(appStoreRoot),
-    legacyWorkspacesRoot: legacyAppStoreRoot(),
-    programsRoot: currentAppStoreProgramsRoot(appStoreRoot),
-    workspacesRoot: defaultAppStoreRoot(),
-  };
-  let preLayoutMigrationMountedApps: BridgeMountedAppSettings[] | undefined;
-  let layoutMigratedAppIds: string[] = [];
-  let startupMigrationActivityReported = false;
-  if (
-    !needsLegacyProviderActivation &&
-    versionActivationScan.journals.length === 0 &&
-    versionActivationScan.failures.length === 0 &&
-    activationRecovery.failed.length === 0
-  ) {
+    const storeAppLayoutRoots = {
+      legacyProgramsRoot: legacyAppStoreProgramsRoot(appStoreRoot),
+      legacyWorkspacesRoot: legacyAppStoreRoot(),
+      programsRoot: currentAppStoreProgramsRoot(appStoreRoot),
+      workspacesRoot: defaultAppStoreRoot(),
+    };
+    let preLayoutMigrationMountedApps: BridgeMountedAppSettings[] | undefined;
+    let layoutMigratedAppIds: string[] = [];
+    let startupMigrationActivityReported = false;
+    if (
+      !needsLegacyProviderActivation &&
+      versionActivationScan.journals.length === 0 &&
+      versionActivationScan.failures.length === 0 &&
+      activationRecovery.failed.length === 0
+    ) {
+      try {
+        const layoutMigration = migrateStoreAppLayoutsV2({
+          mountedApps: state.settings.mountedApps,
+          roots: storeAppLayoutRoots,
+          onMigrationStart(appId) {
+            console.info(STORE_APP_LAYOUT_V2_LOG_EVENTS.migrationStarted, { appId });
+            if (startupMigrationActivityReported) return;
+            startupMigrationActivityReported = true;
+            try {
+              options.onStartupActivity?.("migrating_local_data");
+            } catch (error) {
+              // non-critical-fallback: renderer progress is informational and must
+              // never influence the migration transaction or Bridge startup.
+              console.warn("store_app_layout_startup_activity_report_failed", {
+                failure: error instanceof Error ? error.message : String(error),
+              });
+            }
+          },
+        });
+        if (layoutMigration.changed) {
+          preLayoutMigrationMountedApps = state.settings.mountedApps.map((mountedApp) => ({ ...mountedApp }));
+          state.settings = {
+            ...state.settings,
+            mountedApps: layoutMigration.mountedApps,
+          };
+          layoutMigratedAppIds = layoutMigration.migratedAppIds;
+          console.info(STORE_APP_LAYOUT_V2_LOG_EVENTS.copyCompleted, {
+            appIds: layoutMigration.migratedAppIds,
+          });
+        }
+        if (layoutMigration.failures.length) {
+          console.warn(STORE_APP_LAYOUT_V2_LOG_EVENTS.migrationDeferred, {
+            failures: layoutMigration.failures,
+          });
+        }
+      } catch (error) {
+        if (preLayoutMigrationMountedApps) {
+          state.settings = {
+            ...state.settings,
+            mountedApps: preLayoutMigrationMountedApps,
+          };
+          preLayoutMigrationMountedApps = undefined;
+          layoutMigratedAppIds = [];
+        }
+        // non-critical-fallback: the persisted legacy mounts remain authoritative.
+        console.warn(STORE_APP_LAYOUT_V2_LOG_EVENTS.migrationDeferred, {
+          failure: error instanceof Error ? error.message : "store_app_layout_migration_failed",
+        });
+      }
+    }
     try {
-      const layoutMigration = migrateStoreAppLayoutsV2({
-        mountedApps: state.settings.mountedApps,
-        roots: storeAppLayoutRoots,
-        onMigrationStart(appId) {
-          console.info(STORE_APP_LAYOUT_V2_LOG_EVENTS.migrationStarted, { appId });
-          if (startupMigrationActivityReported) return;
-          startupMigrationActivityReported = true;
-          try {
-            options.onStartupActivity?.("migrating_local_data");
-          } catch (error) {
-            // non-critical-fallback: renderer progress is informational and must
-            // never influence the migration transaction or Bridge startup.
-            console.warn("store_app_layout_startup_activity_report_failed", {
-              failure: error instanceof Error ? error.message : String(error),
-            });
-          }
-        },
+      const programCleanup = cleanupUnreferencedAppStoreProgramGenerations(appStoreRoot, state.settings);
+      if (programCleanup.retained.length) {
+        console.warn(STORE_APP_LAYOUT_V2_LOG_EVENTS.programCleanupDeferred, {
+          retained: programCleanup.retained,
+        });
+      }
+    } catch (error) {
+      // non-critical-fallback: obsolete programs remain recoverable for a later cleanup pass.
+      console.warn(STORE_APP_LAYOUT_V2_LOG_EVENTS.programCleanupDeferred, {
+        failure: error instanceof Error ? error.message : "app_store_program_cleanup_failed",
       });
-      if (layoutMigration.changed) {
-        preLayoutMigrationMountedApps = state.settings.mountedApps.map((mountedApp) => ({ ...mountedApp }));
+    }
+    let layoutMigrationActivationFailed = false;
+    for (const mountedApp of state.settings.mountedApps) {
+      if (mountedApp.enabled === false || !mountedApp.path?.trim()) continue;
+      const appRoot = resolvePathLike(mountedApp.path);
+      try {
+        if (existsSync(appRoot)) {
+          const migration = migrateMountedAppManifestV1(appRoot);
+          if (migration.status === "failed" || migration.status === "invalid" || migration.status === "missing") {
+            console.warn("mounted_app_manifest_migration_skipped", {
+              appId: mountedApp.id,
+              appRoot,
+              status: migration.status,
+              issues: migration.issues ?? [],
+            });
+            if (preLayoutMigrationMountedApps && layoutMigratedAppIds.includes(mountedApp.id)) {
+              state.settings = {
+                ...state.settings,
+                mountedApps: preLayoutMigrationMountedApps,
+              };
+              layoutMigrationActivationFailed = true;
+              console.warn(STORE_APP_LAYOUT_V2_LOG_EVENTS.activationDeferred, {
+                failure: `mounted_app_manifest_${migration.status}`,
+                appId: mountedApp.id,
+              });
+              break;
+            }
+          }
+        }
+      } catch (error) {
+        if (!preLayoutMigrationMountedApps) throw error;
         state.settings = {
           ...state.settings,
-          mountedApps: layoutMigration.mountedApps,
+          mountedApps: preLayoutMigrationMountedApps,
         };
-        layoutMigratedAppIds = layoutMigration.migratedAppIds;
-        console.info(STORE_APP_LAYOUT_V2_LOG_EVENTS.copyCompleted, {
-          appIds: layoutMigration.migratedAppIds,
+        layoutMigrationActivationFailed = true;
+        console.warn(STORE_APP_LAYOUT_V2_LOG_EVENTS.activationDeferred, {
+          failure: error instanceof Error ? error.message : "mounted_app_manifest_migration_failed",
+          appId: mountedApp.id,
         });
+        break;
       }
-      if (layoutMigration.failures.length) {
-        console.warn(STORE_APP_LAYOUT_V2_LOG_EVENTS.migrationDeferred, {
-          failures: layoutMigration.failures,
-        });
-      }
+    }
+    try {
+      recreateBridgeApp(
+        state,
+        versionActivationRecovery || preLayoutMigrationMountedApps
+          ? {
+              deferPersistedStateSave: true,
+              ...(versionActivationRecovery?.authoritativeEmployeeConfigAppId
+                ? { authoritativeEmployeeConfigAppId: versionActivationRecovery.authoritativeEmployeeConfigAppId }
+                : {}),
+            }
+          : {},
+      );
     } catch (error) {
       if (preLayoutMigrationMountedApps) {
         state.settings = {
           ...state.settings,
           mountedApps: preLayoutMigrationMountedApps,
         };
-        preLayoutMigrationMountedApps = undefined;
-        layoutMigratedAppIds = [];
-      }
-      // non-critical-fallback: the persisted legacy mounts remain authoritative.
-      console.warn(STORE_APP_LAYOUT_V2_LOG_EVENTS.migrationDeferred, {
-        failure: error instanceof Error ? error.message : "store_app_layout_migration_failed",
-      });
-    }
-  }
-  try {
-    const programCleanup = cleanupUnreferencedAppStoreProgramGenerations(appStoreRoot, state.settings);
-    if (programCleanup.retained.length) {
-      console.warn(STORE_APP_LAYOUT_V2_LOG_EVENTS.programCleanupDeferred, {
-        retained: programCleanup.retained,
-      });
-    }
-  } catch (error) {
-    // non-critical-fallback: obsolete programs remain recoverable for a later cleanup pass.
-    console.warn(STORE_APP_LAYOUT_V2_LOG_EVENTS.programCleanupDeferred, {
-      failure: error instanceof Error ? error.message : "app_store_program_cleanup_failed",
-    });
-  }
-  let layoutMigrationActivationFailed = false;
-  for (const mountedApp of state.settings.mountedApps) {
-    if (mountedApp.enabled === false || !mountedApp.path?.trim()) continue;
-    const appRoot = resolvePathLike(mountedApp.path);
-    try {
-      if (existsSync(appRoot)) {
-        const migration = migrateMountedAppManifestV1(appRoot);
-        if (migration.status === "failed" || migration.status === "invalid" || migration.status === "missing") {
-          console.warn("mounted_app_manifest_migration_skipped", {
-            appId: mountedApp.id,
-            appRoot,
-            status: migration.status,
-            issues: migration.issues ?? [],
-          });
-          if (preLayoutMigrationMountedApps && layoutMigratedAppIds.includes(mountedApp.id)) {
-            state.settings = {
-              ...state.settings,
-              mountedApps: preLayoutMigrationMountedApps,
-            };
-            layoutMigrationActivationFailed = true;
-            console.warn(STORE_APP_LAYOUT_V2_LOG_EVENTS.activationDeferred, {
-              failure: `mounted_app_manifest_${migration.status}`,
-              appId: mountedApp.id,
-            });
-            break;
-          }
-        }
-      }
-    } catch (error) {
-      if (!preLayoutMigrationMountedApps) throw error;
-      state.settings = {
-        ...state.settings,
-        mountedApps: preLayoutMigrationMountedApps,
-      };
-      layoutMigrationActivationFailed = true;
-      console.warn(STORE_APP_LAYOUT_V2_LOG_EVENTS.activationDeferred, {
-        failure: error instanceof Error ? error.message : "mounted_app_manifest_migration_failed",
-        appId: mountedApp.id,
-      });
-      break;
-    }
-  }
-  try {
-    recreateBridgeApp(
-      state,
-      versionActivationRecovery || preLayoutMigrationMountedApps
-        ? {
+        try {
+          recreateBridgeApp(state, {
             deferPersistedStateSave: true,
             ...(versionActivationRecovery?.authoritativeEmployeeConfigAppId
               ? { authoritativeEmployeeConfigAppId: versionActivationRecovery.authoritativeEmployeeConfigAppId }
               : {}),
-          }
-        : {},
-    );
-  } catch (error) {
-    if (preLayoutMigrationMountedApps) {
-      state.settings = {
-        ...state.settings,
-        mountedApps: preLayoutMigrationMountedApps,
-      };
-      try {
-        recreateBridgeApp(state, {
-          deferPersistedStateSave: true,
-          ...(versionActivationRecovery?.authoritativeEmployeeConfigAppId
-            ? { authoritativeEmployeeConfigAppId: versionActivationRecovery.authoritativeEmployeeConfigAppId }
-            : {}),
+          });
+        } catch (legacyError) {
+          throw new AggregateError([error, legacyError], "store_app_layout_legacy_recreation_failed");
+        }
+        layoutMigrationActivationFailed = true;
+        console.warn(STORE_APP_LAYOUT_V2_LOG_EVENTS.activationDeferred, {
+          failure: error instanceof Error ? error.message : "store_app_layout_activation_failed",
         });
-      } catch (legacyError) {
-        throw new AggregateError([error, legacyError], "store_app_layout_legacy_recreation_failed");
+      } else {
+        throw error;
       }
-      layoutMigrationActivationFailed = true;
-      console.warn(STORE_APP_LAYOUT_V2_LOG_EVENTS.activationDeferred, {
-        failure: error instanceof Error ? error.message : "store_app_layout_activation_failed",
-      });
-    } else {
-      throw error;
     }
-  }
-  if (preLayoutMigrationMountedApps && !layoutMigrationActivationFailed) {
-    const validationFailures = validateStoreAppLayoutWorkspaceCopiesV2({
-      appIds: layoutMigratedAppIds,
-      previousMountedApps: preLayoutMigrationMountedApps,
-      mountedApps: state.settings.mountedApps,
-      roots: storeAppLayoutRoots,
-    });
-    if (validationFailures.length) {
-      state.settings = {
-        ...state.settings,
-        mountedApps: preLayoutMigrationMountedApps,
-      };
-      try {
-        recreateBridgeApp(state, {
-          deferPersistedStateSave: true,
-          ...(versionActivationRecovery?.authoritativeEmployeeConfigAppId
-            ? { authoritativeEmployeeConfigAppId: versionActivationRecovery.authoritativeEmployeeConfigAppId }
-            : {}),
-        });
-      } catch (legacyError) {
-        throw new AggregateError([legacyError], "store_app_layout_validation_legacy_recreation_failed");
-      }
-      layoutMigrationActivationFailed = true;
-      console.warn(STORE_APP_LAYOUT_V2_LOG_EVENTS.finalValidationDeferred, { failures: validationFailures });
-    }
-  }
-  if (preLayoutMigrationMountedApps && !layoutMigrationActivationFailed) {
-    try {
-      // bridge-settings.json is the atomic activation pointer. Persist it only
-      // after the new App has passed recreation, while every legacy path still exists.
-      saveBridgeSettings(state);
-      console.info(STORE_APP_LAYOUT_V2_LOG_EVENTS.migrationCompleted, { appIds: layoutMigratedAppIds });
-    } catch (error) {
-      state.settings = {
-        ...state.settings,
-        mountedApps: preLayoutMigrationMountedApps,
-      };
-      try {
-        recreateBridgeApp(state, {
-          deferPersistedStateSave: true,
-          ...(versionActivationRecovery?.authoritativeEmployeeConfigAppId
-            ? { authoritativeEmployeeConfigAppId: versionActivationRecovery.authoritativeEmployeeConfigAppId }
-            : {}),
-        });
-      } catch (legacyError) {
-        throw new AggregateError([error, legacyError], "store_app_layout_pointer_persist_legacy_recreation_failed");
-      }
-      layoutMigrationActivationFailed = true;
-      console.warn(STORE_APP_LAYOUT_V2_LOG_EVENTS.pointerSwitchDeferred, {
-        failure: error instanceof Error ? error.message : "store_app_layout_post_activation_persist_failed",
-      });
-    }
-  }
-  if (preLayoutMigrationMountedApps && !layoutMigrationActivationFailed && !versionActivationRecovery) {
-    try {
-      state.store.saveFrom(state.app);
-    } catch (error) {
-      // non-critical-fallback: the persisted mount pointer is healthy; normalized state can retry later.
-      console.warn(STORE_APP_LAYOUT_V2_LOG_EVENTS.postActivationStatePersistDeferred, {
-        failure: error instanceof Error ? error.message : "store_app_layout_post_activation_state_persist_failed",
-      });
-    }
-  }
-  if (!layoutMigrationActivationFailed) {
-    try {
-      const layoutRetirement = retireLegacyStoreAppLayoutsV2({
+    if (preLayoutMigrationMountedApps && !layoutMigrationActivationFailed) {
+      const validationFailures = validateStoreAppLayoutWorkspaceCopiesV2({
+        appIds: layoutMigratedAppIds,
+        previousMountedApps: preLayoutMigrationMountedApps,
         mountedApps: state.settings.mountedApps,
         roots: storeAppLayoutRoots,
       });
-      recordStoreAppLayoutBackups(
-        layoutRetirement.renamed,
-        {
-          roots: storeAppLayoutRoots,
+      if (validationFailures.length) {
+        state.settings = {
+          ...state.settings,
+          mountedApps: preLayoutMigrationMountedApps,
+        };
+        try {
+          recreateBridgeApp(state, {
+            deferPersistedStateSave: true,
+            ...(versionActivationRecovery?.authoritativeEmployeeConfigAppId
+              ? { authoritativeEmployeeConfigAppId: versionActivationRecovery.authoritativeEmployeeConfigAppId }
+              : {}),
+          });
+        } catch (legacyError) {
+          throw new AggregateError([legacyError], "store_app_layout_validation_legacy_recreation_failed");
+        }
+        layoutMigrationActivationFailed = true;
+        console.warn(STORE_APP_LAYOUT_V2_LOG_EVENTS.finalValidationDeferred, { failures: validationFailures });
+      }
+    }
+    if (preLayoutMigrationMountedApps && !layoutMigrationActivationFailed) {
+      try {
+        // bridge-settings.json is the atomic activation pointer. Persist it only
+        // after the new App has passed recreation, while every legacy path still exists.
+        saveBridgeSettings(state);
+        console.info(STORE_APP_LAYOUT_V2_LOG_EVENTS.migrationCompleted, { appIds: layoutMigratedAppIds });
+      } catch (error) {
+        state.settings = {
+          ...state.settings,
+          mountedApps: preLayoutMigrationMountedApps,
+        };
+        try {
+          recreateBridgeApp(state, {
+            deferPersistedStateSave: true,
+            ...(versionActivationRecovery?.authoritativeEmployeeConfigAppId
+              ? { authoritativeEmployeeConfigAppId: versionActivationRecovery.authoritativeEmployeeConfigAppId }
+              : {}),
+          });
+        } catch (legacyError) {
+          throw new AggregateError([error, legacyError], "store_app_layout_pointer_persist_legacy_recreation_failed");
+        }
+        layoutMigrationActivationFailed = true;
+        console.warn(STORE_APP_LAYOUT_V2_LOG_EVENTS.pointerSwitchDeferred, {
+          failure: error instanceof Error ? error.message : "store_app_layout_post_activation_persist_failed",
+        });
+      }
+    }
+    if (preLayoutMigrationMountedApps && !layoutMigrationActivationFailed && !versionActivationRecovery) {
+      try {
+        state.store.saveFrom(state.app);
+      } catch (error) {
+        // non-critical-fallback: the persisted mount pointer is healthy; normalized state can retry later.
+        console.warn(STORE_APP_LAYOUT_V2_LOG_EVENTS.postActivationStatePersistDeferred, {
+          failure: error instanceof Error ? error.message : "store_app_layout_post_activation_state_persist_failed",
+        });
+      }
+    }
+    if (!layoutMigrationActivationFailed) {
+      try {
+        const layoutRetirement = retireLegacyStoreAppLayoutsV2({
           mountedApps: state.settings.mountedApps,
-          persistedMountedApps: readPersistedBackupSettings(bridgeSettingsPath(state))?.mountedApps,
-          appInitialized: state.appInitialized === true,
-          initializedMountedApps: state.initializedMountedApps,
-        },
-        layoutMigratedAppIds,
-      );
-      if (layoutRetirement.renamed.length) {
-        console.info(STORE_APP_LAYOUT_V2_LOG_EVENTS.legacyPathsRetired, { paths: layoutRetirement.renamed });
+          roots: storeAppLayoutRoots,
+        });
+        recordStoreAppLayoutBackups(
+          layoutRetirement.renamed,
+          {
+            roots: storeAppLayoutRoots,
+            mountedApps: state.settings.mountedApps,
+            persistedMountedApps: readPersistedBackupSettings(bridgeSettingsPath(state))?.mountedApps,
+            appInitialized: state.appInitialized === true,
+            initializedMountedApps: state.initializedMountedApps,
+          },
+          layoutMigratedAppIds,
+        );
+        if (layoutRetirement.renamed.length) {
+          console.info(STORE_APP_LAYOUT_V2_LOG_EVENTS.legacyPathsRetired, { paths: layoutRetirement.renamed });
+        }
+        if (layoutRetirement.retained.length) {
+          console.warn(STORE_APP_LAYOUT_V2_LOG_EVENTS.legacyRetirementDeferred, { paths: layoutRetirement.retained });
+        }
+      } catch (error) {
+        // non-critical-fallback: retirement is rename-only and can be retried on a later startup.
+        console.warn(STORE_APP_LAYOUT_V2_LOG_EVENTS.legacyRetirementDeferred, {
+          failure: error instanceof Error ? error.message : "store_app_layout_legacy_retirement_failed",
+        });
       }
-      if (layoutRetirement.retained.length) {
-        console.warn(STORE_APP_LAYOUT_V2_LOG_EVENTS.legacyRetirementDeferred, { paths: layoutRetirement.retained });
+    }
+    if (versionActivationJournal?.record.phase === "activating") {
+      // recreateBridgeApp has already restored the pre-activation snapshot and
+      // applied every current startup migration to it. Persist that normalized
+      // result instead of writing the stale journal snapshot back over it.
+      state.store.saveFrom(state.app);
+      saveBridgeSettings(state);
+    }
+    if (versionActivationJournal && versionActivationRecovered) {
+      removeAppVersionActivationJournal(versionActivationJournal);
+      if (versionActivationJournal.record.previousSourceRevision) {
+        removeManagedAppRevisionCheckpoint({
+          revisionsRoot: join(appStoreRoot, "app-revisions"),
+          localAppId: versionActivationJournal.record.localAppId,
+          checkpoint: versionActivationJournal.record.previousSourceRevision,
+        });
       }
-    } catch (error) {
-      // non-critical-fallback: retirement is rename-only and can be retried on a later startup.
-      console.warn(STORE_APP_LAYOUT_V2_LOG_EVENTS.legacyRetirementDeferred, {
-        failure: error instanceof Error ? error.message : "store_app_layout_legacy_retirement_failed",
-      });
     }
-  }
-  if (versionActivationJournal?.record.phase === "activating") {
-    // recreateBridgeApp has already restored the pre-activation snapshot and
-    // applied every current startup migration to it. Persist that normalized
-    // result instead of writing the stale journal snapshot back over it.
-    state.store.saveFrom(state.app);
-    saveBridgeSettings(state);
-  }
-  if (versionActivationJournal && versionActivationRecovered) {
-    removeAppVersionActivationJournal(versionActivationJournal);
-    if (versionActivationJournal.record.previousSourceRevision) {
-      removeManagedAppRevisionCheckpoint({
-        revisionsRoot: join(appStoreRoot, "app-revisions"),
-        localAppId: versionActivationJournal.record.localAppId,
-        checkpoint: versionActivationJournal.record.previousSourceRevision,
-      });
-    }
+  } else {
+    recreateBridgeApp(state);
   }
   if (needsLegacyProviderActivation) {
     const activatedSettings = activateLegacyProviderReferences(
@@ -717,8 +724,10 @@ export function recreateBridgeApp(state: BridgeState, options: RecreateBridgeApp
     if (systemRuntime.kernel === state.kernel) state.model = systemRuntime.model;
   }
   const workspaceRoot = resolveBridgeWorkspaceRoot(state.settings);
-  const mountedApps = effectiveMountedApps(state);
+  const modules = state.modules ?? DEFAULT_HOST_MODULES;
+  const mountedApps = modules.apps ? effectiveMountedApps(state) : [];
   state.app = createOpenGrove({
+    modules,
     readPage: () => getBridgeTurnContext()?.snapshot ?? state.snapshot,
     readComputer: () => getBridgeTurnContext()?.computerSnapshot ?? state.computerSnapshot,
     readReplyLanguagePreference: () => resolveHostLanguageSettings(state.settings),
@@ -750,90 +759,97 @@ export function recreateBridgeApp(state: BridgeState, options: RecreateBridgeApp
     validateWorkflowFlowApproval: (flowApproval, scope) =>
       validateWorkflowFlowApprovalForBridgeState(rootState, flowApproval, scope),
   });
-  state.app.tools.register(
-    createDelegateTaskTool(
-      {
-        id: "room.delegate.task",
-        title: "Delegate a room employee",
-        description:
-          "Writes a targeted source-employee-to-target-employee message in the room bound to the source Run, creates the target placeholder, and submits the target Run asynchronously. Success returns TASK_STATE_SUBMITTED without waiting for or returning the target's final reply.",
-        activity: "chat",
-        risk: "write",
-        input: {
-          type: "json-schema",
-          schema: {
-            type: "object",
-            properties: {
-              targetMemberId: { type: "string", description: "Member id of the target employee in the current room." },
-              prompt: {
-                type: "string",
-                description:
-                  "Task body for a normal employee delegation. Omit during PM auto-routing; the Host forwards the author's original message.",
+  if (modules.rooms) {
+    state.app.tools.register(
+      createDelegateTaskTool(
+        {
+          id: "room.delegate.task",
+          title: "Delegate a room employee",
+          description:
+            "Writes a targeted source-employee-to-target-employee message in the room bound to the source Run, creates the target placeholder, and submits the target Run asynchronously. Success returns TASK_STATE_SUBMITTED without waiting for or returning the target's final reply.",
+          activity: "chat",
+          risk: "write",
+          input: {
+            type: "json-schema",
+            schema: {
+              type: "object",
+              properties: {
+                targetMemberId: {
+                  type: "string",
+                  description: "Member id of the target employee in the current room.",
+                },
+                prompt: {
+                  type: "string",
+                  description:
+                    "Task body for a normal employee delegation. Omit during PM auto-routing; the Host forwards the author's original message.",
+                },
               },
+              required: ["targetMemberId"],
+              additionalProperties: false,
             },
-            required: ["targetMemberId"],
-            additionalProperties: false,
+          },
+          permission: {
+            mode: "allow",
+            reason: "Delegating to a local employee runs within this node under its own run policies.",
           },
         },
-        permission: {
-          mode: "allow",
-          reason: "Delegating to a local employee runs within this node under its own run policies.",
+        {
+          delegate: (input) => delegateRoomTask(rootState, input),
+          listTargets: (sourceRunId) => delegationTargetSummaries(rootState, sourceRunId),
+          language: () => resolveHostLanguageSettings(rootState.settings),
         },
-      },
-      {
-        delegate: (input) => delegateRoomTask(rootState, input),
-        listTargets: (sourceRunId) => delegationTargetSummaries(rootState, sourceRunId),
-        language: () => resolveHostLanguageSettings(rootState.settings),
-      },
-    ),
-  );
-  state.app.tools.register(
-    createAppCommandRunTool(
-      {
-        id: "opengrove.app.command.run",
-        title: "Run mounted App command",
-        description: "Run a declared CLI from a mounted OpenGrove App by commandId and return stdout/stderr.",
-        activity: "local",
-        risk: "write",
-        input: {
-          type: "json-schema",
-          schema: {
-            type: "object",
-            required: ["appId"],
-            properties: {
-              appId: { type: "string" },
-              commandId: { type: "string" },
-              args: { type: "array", items: { type: "string", maxLength: 16_384 }, maxItems: 100 },
-              cwd: { type: "string" },
-              parseJson: { type: "boolean" },
+      ),
+    );
+  }
+  if (modules.apps) {
+    state.app.tools.register(
+      createAppCommandRunTool(
+        {
+          id: "opengrove.app.command.run",
+          title: "Run mounted App command",
+          description: "Run a declared CLI from a mounted OpenGrove App by commandId and return stdout/stderr.",
+          activity: "local",
+          risk: "write",
+          input: {
+            type: "json-schema",
+            schema: {
+              type: "object",
+              required: ["appId"],
+              properties: {
+                appId: { type: "string" },
+                commandId: { type: "string" },
+                args: { type: "array", items: { type: "string", maxLength: 16_384 }, maxItems: 100 },
+                cwd: { type: "string" },
+                parseJson: { type: "boolean" },
+              },
+              additionalProperties: false,
             },
-            additionalProperties: false,
+          },
+          permission: {
+            mode: "allow",
+            reason: "Scheduled App-local probes must run without a per-tick approval pause.",
           },
         },
-        permission: {
-          mode: "allow",
-          reason: "Scheduled App-local probes must run without a per-tick approval pause.",
+        {
+          resolveApp(appId) {
+            const target = resolveMountedAppTarget(rootState, appId);
+            return target ? { id: target.id, appRoot: target.appRoot } : undefined;
+          },
+          resolveRuntimeEnv(appId) {
+            const appRuntimeEnv = resolveMountedAppRuntimeEnv(rootState, appId)?.env;
+            const appCliEnv = resolveMountedAppCliEnv(rootState, appId, undefined, appRuntimeEnv)?.env;
+            return {
+              ...(appRuntimeEnv ?? {}),
+              ...(appCliEnv ?? {}),
+            };
+          },
+          resolveCommand(appId, commandId, args) {
+            return resolveMountedAppDeclaredCliCommand(rootState, appId, commandId, args);
+          },
         },
-      },
-      {
-        resolveApp(appId) {
-          const target = resolveMountedAppTarget(rootState, appId);
-          return target ? { id: target.id, appRoot: target.appRoot } : undefined;
-        },
-        resolveRuntimeEnv(appId) {
-          const appRuntimeEnv = resolveMountedAppRuntimeEnv(rootState, appId)?.env;
-          const appCliEnv = resolveMountedAppCliEnv(rootState, appId, undefined, appRuntimeEnv)?.env;
-          return {
-            ...(appRuntimeEnv ?? {}),
-            ...(appCliEnv ?? {}),
-          };
-        },
-        resolveCommand(appId, commandId, args) {
-          return resolveMountedAppDeclaredCliCommand(rootState, appId, commandId, args);
-        },
-      },
-    ),
-  );
+      ),
+    );
+  }
   const agentStateSnapshot = options.agentStateSnapshot;
   let loadedState: PersistedAgentState | undefined;
   if (agentStateSnapshot) {
@@ -853,6 +869,12 @@ export function recreateBridgeApp(state: BridgeState, options: RecreateBridgeApp
       preserveResumablePendingRequests: hotRebuild,
       language: resolveHostLanguageSettings(state.settings),
     });
+  }
+  if (!modules.rooms) {
+    if (eventLogCheckpoint) state.app.events.restoreCheckpoint(eventLogCheckpoint);
+    state.app.skills.list();
+    state.initializedMountedApps = [];
+    return;
   }
   const unscopedMigration = migrateLoadedPersistedState(
     state,

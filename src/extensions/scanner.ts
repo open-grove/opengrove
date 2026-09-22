@@ -607,6 +607,7 @@ function scanPluginRoot(accumulator: InventoryAccumulator, root: ExtensionRootDe
 }
 
 function scanMountedApps(accumulator: InventoryAccumulator, state: BridgeState): void {
+  if (state.modules?.apps === false) return;
   const seenRoots = new Set<string>();
   const language = resolveHostLanguageSettings(state.settings);
   for (const mountedApp of state.settings.mountedApps ?? []) {
@@ -857,7 +858,7 @@ function addTool(accumulator: InventoryAccumulator, tool: ToolSpec, workspaceRoo
       tags: [tool.activity, tool.risk],
       metadata: {
         input: tool.input as unknown as JsonObject,
-        output: tool.output as unknown as JsonObject,
+        ...(tool.output ? { output: tool.output as unknown as JsonObject } : {}),
       },
     },
     deployment,

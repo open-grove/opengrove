@@ -1,3 +1,6 @@
+import { workspaceOperationGroup } from "./workspace.js";
+import { extensionOperationGroup } from "./extensions.js";
+import { routineOperationGroup } from "./routines.js";
 import type { HostOperation, HostOperationGroup } from "./operation.js";
 import { authOperationGroup } from "./auth.js";
 import { appOperationGroup } from "./apps.js";
@@ -13,6 +16,9 @@ import { interactionOperationGroup } from "./interactions.js";
 import { artifactOperationGroup } from "./artifacts.js";
 
 export const hostOperationGroups = [
+  workspaceOperationGroup,
+  extensionOperationGroup,
+  routineOperationGroup,
   hostOperationGroup,
   runOperationGroup,
   interactionOperationGroup,

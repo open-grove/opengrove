@@ -30,9 +30,18 @@ import type {
   ArtifactArtifactCreateData,
   ArtifactArtifactCreateErrors,
   ArtifactArtifactCreateResponses,
+  ArtifactArtifactDeleteData,
+  ArtifactArtifactDeleteErrors,
+  ArtifactArtifactDeleteResponses,
   ArtifactArtifactGetData,
   ArtifactArtifactGetErrors,
   ArtifactArtifactGetResponses,
+  ArtifactArtifactListData,
+  ArtifactArtifactListErrors,
+  ArtifactArtifactListResponses,
+  ArtifactArtifactUpdateData,
+  ArtifactArtifactUpdateErrors,
+  ArtifactArtifactUpdateResponses,
   AuthEmailCodeCreateData,
   AuthEmailCodeCreateErrors,
   AuthEmailCodeCreateResponses,
@@ -54,9 +63,39 @@ import type {
   EmployeeEmployeeUpsertData,
   EmployeeEmployeeUpsertErrors,
   EmployeeEmployeeUpsertResponses,
+  ExtensionDeploymentDeleteData,
+  ExtensionDeploymentDeleteErrors,
+  ExtensionDeploymentDeleteResponses,
+  ExtensionDeploymentDisableData,
+  ExtensionDeploymentDisableErrors,
+  ExtensionDeploymentDisableResponses,
+  ExtensionDeploymentEnableData,
+  ExtensionDeploymentEnableErrors,
+  ExtensionDeploymentEnableResponses,
+  ExtensionExtensionListData,
+  ExtensionExtensionListErrors,
+  ExtensionExtensionListResponses,
+  ExtensionSkillImportData,
+  ExtensionSkillImportErrors,
+  ExtensionSkillImportResponses,
+  ExtensionSkillPublishData,
+  ExtensionSkillPublishErrors,
+  ExtensionSkillPublishResponses,
+  ExtensionSkillRepublishData,
+  ExtensionSkillRepublishErrors,
+  ExtensionSkillRepublishResponses,
+  ExtensionSkillUnpublishData,
+  ExtensionSkillUnpublishErrors,
+  ExtensionSkillUnpublishResponses,
   HostHostBootstrapData,
   HostHostBootstrapErrors,
   HostHostBootstrapResponses,
+  HostRuntimeInspectData,
+  HostRuntimeInspectErrors,
+  HostRuntimeInspectResponses,
+  HostRuntimeListData,
+  HostRuntimeListErrors,
+  HostRuntimeListResponses,
   InteractionApprovalApproveData,
   InteractionApprovalApproveErrors,
   InteractionApprovalApproveResponses,
@@ -140,6 +179,21 @@ import type {
   RoomRoomUpdateData,
   RoomRoomUpdateErrors,
   RoomRoomUpdateResponses,
+  RoutineRoutineCreateData,
+  RoutineRoutineCreateErrors,
+  RoutineRoutineCreateResponses,
+  RoutineRoutineImportData,
+  RoutineRoutineImportErrors,
+  RoutineRoutineImportResponses,
+  RoutineRoutineListData,
+  RoutineRoutineListErrors,
+  RoutineRoutineListResponses,
+  RoutineRoutineRunData,
+  RoutineRoutineRunErrors,
+  RoutineRoutineRunResponses,
+  RoutineRoutineScheduleData,
+  RoutineRoutineScheduleErrors,
+  RoutineRoutineScheduleResponses,
   RunDirectCancelData,
   RunDirectCancelErrors,
   RunDirectCancelResponses,
@@ -149,6 +203,12 @@ import type {
   RunDirectGuideData,
   RunDirectGuideErrors,
   RunDirectGuideResponses,
+  RunDirectResultData,
+  RunDirectResultErrors,
+  RunDirectResultResponses,
+  RunDirectStartData,
+  RunDirectStartErrors,
+  RunDirectStartResponses,
   RunEventListData,
   RunEventListErrors,
   RunEventListResponses,
@@ -161,6 +221,21 @@ import type {
   RunSessionListData,
   RunSessionListErrors,
   RunSessionListResponses,
+  RunToolListData,
+  RunToolListErrors,
+  RunToolListResponses,
+  RunToolResolveData,
+  RunToolResolveErrors,
+  RunToolResolveResponses,
+  WorkspaceFileListData,
+  WorkspaceFileListErrors,
+  WorkspaceFileListResponses,
+  WorkspaceFileReadData,
+  WorkspaceFileReadErrors,
+  WorkspaceFileReadResponses,
+  WorkspaceFileWriteData,
+  WorkspaceFileWriteErrors,
+  WorkspaceFileWriteResponses,
 } from "./types.gen.js";
 
 export type Options<
@@ -209,6 +284,390 @@ class HeyApiRegistry<T> {
   }
 }
 
+export class File_ extends HeyApiClient {
+  /**
+   * List session workspace files
+   *
+   * List files under the workspace bound to an independent session. A session identifier does not grant authority independently of Host authentication.
+   */
+  public list<ThrowOnError extends boolean = false>(
+    options: Options<WorkspaceFileListData, ThrowOnError>,
+  ): RequestResult<WorkspaceFileListResponses, WorkspaceFileListErrors, ThrowOnError> {
+    return (options.client ?? this.client).get<WorkspaceFileListResponses, WorkspaceFileListErrors, ThrowOnError>({
+      url: "/sessions/{sessionId}/files",
+      ...options,
+    });
+  }
+
+  /**
+   * Read a session workspace file
+   *
+   * Read bounded text content and its revision. Paths and symlinks must remain inside the session workspace.
+   */
+  public read<ThrowOnError extends boolean = false>(
+    options: Options<WorkspaceFileReadData, ThrowOnError>,
+  ): RequestResult<WorkspaceFileReadResponses, WorkspaceFileReadErrors, ThrowOnError> {
+    return (options.client ?? this.client).get<WorkspaceFileReadResponses, WorkspaceFileReadErrors, ThrowOnError>({
+      url: "/sessions/{sessionId}/file",
+      ...options,
+    });
+  }
+
+  /**
+   * Write a session workspace file
+   *
+   * Atomically write a text file. Send the revision from read to replace an existing file, or missing to create one. Conflicting writes are rejected.
+   */
+  public write<ThrowOnError extends boolean = false>(
+    options: Options<WorkspaceFileWriteData, ThrowOnError>,
+  ): RequestResult<WorkspaceFileWriteResponses, WorkspaceFileWriteErrors, ThrowOnError> {
+    return (options.client ?? this.client).put<WorkspaceFileWriteResponses, WorkspaceFileWriteErrors, ThrowOnError>({
+      url: "/sessions/{sessionId}/file",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+}
+
+export class Workspace extends HeyApiClient {
+  private _file?: File_;
+  get file(): File_ {
+    return (this._file ??= new File_({ client: this.client }));
+  }
+}
+
+export class Extension extends HeyApiClient {
+  /**
+   * Inspect skills and extensions
+   *
+   * Discover local Skills, MCP configurations, hooks, tools and their actual deployments.
+   */
+  public list<ThrowOnError extends boolean = false>(
+    options?: Options<ExtensionExtensionListData, ThrowOnError>,
+  ): RequestResult<ExtensionExtensionListResponses, ExtensionExtensionListErrors, ThrowOnError> {
+    return (options?.client ?? this.client).get<
+      ExtensionExtensionListResponses,
+      ExtensionExtensionListErrors,
+      ThrowOnError
+    >({ url: "/extensions", ...options });
+  }
+}
+
+export class Skill extends HeyApiClient {
+  /**
+   * Import a Skill
+   *
+   * Copy a local Skill into the Host-managed library.
+   */
+  public import<ThrowOnError extends boolean = false>(
+    options: Options<ExtensionSkillImportData, ThrowOnError>,
+  ): RequestResult<ExtensionSkillImportResponses, ExtensionSkillImportErrors, ThrowOnError> {
+    return (options.client ?? this.client).post<
+      ExtensionSkillImportResponses,
+      ExtensionSkillImportErrors,
+      ThrowOnError
+    >({
+      url: "/extensions/skills/import",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Make a Skill available to Kernels
+   *
+   * Deploy a Skill to explicit Kernel configuration roots, retaining ownership and collision checks.
+   */
+  public publish<ThrowOnError extends boolean = false>(
+    options: Options<ExtensionSkillPublishData, ThrowOnError>,
+  ): RequestResult<ExtensionSkillPublishResponses, ExtensionSkillPublishErrors, ThrowOnError> {
+    return (options.client ?? this.client).post<
+      ExtensionSkillPublishResponses,
+      ExtensionSkillPublishErrors,
+      ThrowOnError
+    >({
+      url: "/extensions/skills/publish",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Refresh Skill deployments
+   *
+   * Update existing managed Skill deployments.
+   */
+  public republish<ThrowOnError extends boolean = false>(
+    options: Options<ExtensionSkillRepublishData, ThrowOnError>,
+  ): RequestResult<ExtensionSkillRepublishResponses, ExtensionSkillRepublishErrors, ThrowOnError> {
+    return (options.client ?? this.client).post<
+      ExtensionSkillRepublishResponses,
+      ExtensionSkillRepublishErrors,
+      ThrowOnError
+    >({
+      url: "/extensions/skills/republish",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Remove Skill deployments
+   *
+   * Remove selected managed deployments, preserving source library files.
+   */
+  public unpublish<ThrowOnError extends boolean = false>(
+    options: Options<ExtensionSkillUnpublishData, ThrowOnError>,
+  ): RequestResult<ExtensionSkillUnpublishResponses, ExtensionSkillUnpublishErrors, ThrowOnError> {
+    return (options.client ?? this.client).post<
+      ExtensionSkillUnpublishResponses,
+      ExtensionSkillUnpublishErrors,
+      ThrowOnError
+    >({
+      url: "/extensions/skills/unpublish",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+}
+
+export class Deployment extends HeyApiClient {
+  /**
+   * Enable an extension deployment
+   *
+   * Enable selected deployments according to their ownership and Kernel support.
+   */
+  public enable<ThrowOnError extends boolean = false>(
+    options: Options<ExtensionDeploymentEnableData, ThrowOnError>,
+  ): RequestResult<ExtensionDeploymentEnableResponses, ExtensionDeploymentEnableErrors, ThrowOnError> {
+    return (options.client ?? this.client).post<
+      ExtensionDeploymentEnableResponses,
+      ExtensionDeploymentEnableErrors,
+      ThrowOnError
+    >({
+      url: "/extensions/deployments/enable",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Disable an extension deployment
+   *
+   * Disable selected deployments without deleting their source.
+   */
+  public disable<ThrowOnError extends boolean = false>(
+    options: Options<ExtensionDeploymentDisableData, ThrowOnError>,
+  ): RequestResult<ExtensionDeploymentDisableResponses, ExtensionDeploymentDisableErrors, ThrowOnError> {
+    return (options.client ?? this.client).post<
+      ExtensionDeploymentDisableResponses,
+      ExtensionDeploymentDisableErrors,
+      ThrowOnError
+    >({
+      url: "/extensions/deployments/disable",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Delete extension deployments
+   *
+   * Remove selected deployments. Deleting a library requires deleteLibrary=true.
+   */
+  public delete<ThrowOnError extends boolean = false>(
+    options: Options<ExtensionDeploymentDeleteData, ThrowOnError>,
+  ): RequestResult<ExtensionDeploymentDeleteResponses, ExtensionDeploymentDeleteErrors, ThrowOnError> {
+    return (options.client ?? this.client).post<
+      ExtensionDeploymentDeleteResponses,
+      ExtensionDeploymentDeleteErrors,
+      ThrowOnError
+    >({
+      url: "/extensions/deployments/delete",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+}
+
+export class Extension2 extends HeyApiClient {
+  private _extension?: Extension;
+  get extension(): Extension {
+    return (this._extension ??= new Extension({ client: this.client }));
+  }
+
+  private _skill?: Skill;
+  get skill(): Skill {
+    return (this._skill ??= new Skill({ client: this.client }));
+  }
+
+  private _deployment?: Deployment;
+  get deployment(): Deployment {
+    return (this._deployment ??= new Deployment({ client: this.client }));
+  }
+}
+
+export class Routine extends HeyApiClient {
+  /**
+   * List workflows
+   *
+   * Read persisted local workflows.
+   */
+  public list<ThrowOnError extends boolean = false>(
+    options?: Options<RoutineRoutineListData, ThrowOnError>,
+  ): RequestResult<RoutineRoutineListResponses, RoutineRoutineListErrors, ThrowOnError> {
+    return (options?.client ?? this.client).get<RoutineRoutineListResponses, RoutineRoutineListErrors, ThrowOnError>({
+      url: "/routines",
+      ...options,
+    });
+  }
+
+  /**
+   * Create a workflow
+   *
+   * Create a workflow from explicit tool or Employee steps, without requiring an App package.
+   */
+  public create<ThrowOnError extends boolean = false>(
+    options: Options<RoutineRoutineCreateData, ThrowOnError>,
+  ): RequestResult<RoutineRoutineCreateResponses, RoutineRoutineCreateErrors, ThrowOnError> {
+    return (options.client ?? this.client).post<
+      RoutineRoutineCreateResponses,
+      RoutineRoutineCreateErrors,
+      ThrowOnError
+    >({
+      url: "/routines",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Import a workflow definition
+   *
+   * Validate and import an inline .routine.md definition.
+   */
+  public import<ThrowOnError extends boolean = false>(
+    options: Options<RoutineRoutineImportData, ThrowOnError>,
+  ): RequestResult<RoutineRoutineImportResponses, RoutineRoutineImportErrors, ThrowOnError> {
+    return (options.client ?? this.client).post<
+      RoutineRoutineImportResponses,
+      RoutineRoutineImportErrors,
+      ThrowOnError
+    >({
+      url: "/routines/import",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Schedule or unschedule a workflow
+   *
+   * Set local Host scheduling. The Host must remain running; this is not a distributed scheduler.
+   */
+  public schedule<ThrowOnError extends boolean = false>(
+    options: Options<RoutineRoutineScheduleData, ThrowOnError>,
+  ): RequestResult<RoutineRoutineScheduleResponses, RoutineRoutineScheduleErrors, ThrowOnError> {
+    return (options.client ?? this.client).post<
+      RoutineRoutineScheduleResponses,
+      RoutineRoutineScheduleErrors,
+      ThrowOnError
+    >({
+      url: "/routines/{routineId}/schedule",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Execute a workflow
+   *
+   * Execute the existing workflow runner and return its result, including a pause for approval. Client disconnection is not cancellation.
+   */
+  public run<ThrowOnError extends boolean = false>(
+    options: Options<RoutineRoutineRunData, ThrowOnError>,
+  ): RequestResult<RoutineRoutineRunResponses, RoutineRoutineRunErrors, ThrowOnError> {
+    return (options.client ?? this.client).post<RoutineRoutineRunResponses, RoutineRoutineRunErrors, ThrowOnError>({
+      url: "/routines/{routineId}/run",
+      ...options,
+    });
+  }
+}
+
+export class Routine2 extends HeyApiClient {
+  private _routine?: Routine;
+  get routine(): Routine {
+    return (this._routine ??= new Routine({ client: this.client }));
+  }
+}
+
+export class Runtime extends HeyApiClient {
+  /**
+   * Discover local Agent runtimes
+   *
+   * Read discovered Kernels and model controls for configured routes. Inspect an explicit Provider or Login route before starting work; no credentials are returned.
+   */
+  public list<ThrowOnError extends boolean = false>(
+    options?: Options<HostRuntimeListData, ThrowOnError>,
+  ): RequestResult<HostRuntimeListResponses, HostRuntimeListErrors, ThrowOnError> {
+    return (options?.client ?? this.client).get<HostRuntimeListResponses, HostRuntimeListErrors, ThrowOnError>({
+      url: "/runtime",
+      ...options,
+    });
+  }
+
+  /**
+   * Check a task runtime configuration
+   *
+   * Resolve an explicit route and workspace without changing Host defaults or starting a task. Availability is discovery evidence, not a completed native execution probe.
+   */
+  public inspect<ThrowOnError extends boolean = false>(
+    options: Options<HostRuntimeInspectData, ThrowOnError>,
+  ): RequestResult<HostRuntimeInspectResponses, HostRuntimeInspectErrors, ThrowOnError> {
+    return (options.client ?? this.client).post<HostRuntimeInspectResponses, HostRuntimeInspectErrors, ThrowOnError>({
+      url: "/runtime/inspect",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+}
+
 export class Host extends HeyApiClient {
   /**
    * Read Host startup configuration
@@ -226,9 +685,48 @@ export class Host extends HeyApiClient {
 }
 
 export class Host2 extends HeyApiClient {
+  private _runtime?: Runtime;
+  get runtime(): Runtime {
+    return (this._runtime ??= new Runtime({ client: this.client }));
+  }
+
   private _host?: Host;
   get host(): Host {
     return (this._host ??= new Host({ client: this.client }));
+  }
+}
+
+export class Tool extends HeyApiClient {
+  /**
+   * Read product tool calls
+   *
+   * Read pending and settled client tool calls for one live direct run. Calls are not replayed after Host restart.
+   */
+  public list<ThrowOnError extends boolean = false>(
+    options: Options<RunToolListData, ThrowOnError>,
+  ): RequestResult<RunToolListResponses, RunToolListErrors, ThrowOnError> {
+    return (options.client ?? this.client).get<RunToolListResponses, RunToolListErrors, ThrowOnError>({
+      url: "/runs/{runId}/tool-calls",
+      ...options,
+    });
+  }
+
+  /**
+   * Return a product tool result
+   *
+   * Resolve a pending tool call. Repeating the same result is idempotent; conflicting, expired, canceled or missing calls are rejected.
+   */
+  public resolve<ThrowOnError extends boolean = false>(
+    options: Options<RunToolResolveData, ThrowOnError>,
+  ): RequestResult<RunToolResolveResponses, RunToolResolveErrors, ThrowOnError> {
+    return (options.client ?? this.client).post<RunToolResolveResponses, RunToolResolveErrors, ThrowOnError>({
+      url: "/runs/{runId}/tool-calls/{callId}/result",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
   }
 }
 
@@ -264,39 +762,39 @@ export class Run extends HeyApiClient {
   }
 }
 
-export class Session extends HeyApiClient {
-  /**
-   * List recorded sessions
-   *
-   * List persisted Host sessions, optionally filtered by activity and status.
-   */
-  public list<ThrowOnError extends boolean = false>(
-    options?: Options<RunSessionListData, ThrowOnError>,
-  ): RequestResult<RunSessionListResponses, RunSessionListErrors, ThrowOnError> {
-    return (options?.client ?? this.client).get<RunSessionListResponses, RunSessionListErrors, ThrowOnError>({
-      url: "/sessions",
-      ...options,
-    });
-  }
-}
-
-export class Execution extends HeyApiClient {
-  /**
-   * List execution steps
-   *
-   * List recorded execution steps by session, run, or step kind. A matching revision returns unchanged=true.
-   */
-  public list<ThrowOnError extends boolean = false>(
-    options?: Options<RunExecutionListData, ThrowOnError>,
-  ): RequestResult<RunExecutionListResponses, RunExecutionListErrors, ThrowOnError> {
-    return (options?.client ?? this.client).get<RunExecutionListResponses, RunExecutionListErrors, ThrowOnError>({
-      url: "/executions",
-      ...options,
-    });
-  }
-}
-
 export class Direct extends HeyApiClient {
+  /**
+   * Start an independent Agent task
+   *
+   * Start a background task without an App or Room. Observe it through run events and records. One direct run per session may execute at a time; disconnecting the caller does not cancel execution.
+   */
+  public start<ThrowOnError extends boolean = false>(
+    options: Options<RunDirectStartData, ThrowOnError>,
+  ): RequestResult<RunDirectStartResponses, RunDirectStartErrors, ThrowOnError> {
+    return (options.client ?? this.client).post<RunDirectStartResponses, RunDirectStartErrors, ThrowOnError>({
+      url: "/runs",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Read a task outcome
+   *
+   * Read a persisted run and its complete final answer, stored as an artifact independently of bounded event presentation. outputAvailable is false before finalization or when no output was saved.
+   */
+  public result<ThrowOnError extends boolean = false>(
+    options: Options<RunDirectResultData, ThrowOnError>,
+  ): RequestResult<RunDirectResultResponses, RunDirectResultErrors, ThrowOnError> {
+    return (options.client ?? this.client).get<RunDirectResultResponses, RunDirectResultErrors, ThrowOnError>({
+      url: "/runs/{runId}/result",
+      ...options,
+    });
+  }
+
   /**
    * Cancel a direct run
    *
@@ -352,7 +850,44 @@ export class Direct extends HeyApiClient {
   }
 }
 
+export class Session extends HeyApiClient {
+  /**
+   * List recorded sessions
+   *
+   * List persisted Host sessions, optionally filtered by activity and status.
+   */
+  public list<ThrowOnError extends boolean = false>(
+    options?: Options<RunSessionListData, ThrowOnError>,
+  ): RequestResult<RunSessionListResponses, RunSessionListErrors, ThrowOnError> {
+    return (options?.client ?? this.client).get<RunSessionListResponses, RunSessionListErrors, ThrowOnError>({
+      url: "/sessions",
+      ...options,
+    });
+  }
+}
+
+export class Execution extends HeyApiClient {
+  /**
+   * List execution steps
+   *
+   * List recorded execution steps by session, run, or step kind. A matching revision returns unchanged=true.
+   */
+  public list<ThrowOnError extends boolean = false>(
+    options?: Options<RunExecutionListData, ThrowOnError>,
+  ): RequestResult<RunExecutionListResponses, RunExecutionListErrors, ThrowOnError> {
+    return (options?.client ?? this.client).get<RunExecutionListResponses, RunExecutionListErrors, ThrowOnError>({
+      url: "/executions",
+      ...options,
+    });
+  }
+}
+
 export class Run2 extends HeyApiClient {
+  private _tool?: Tool;
+  get tool(): Tool {
+    return (this._tool ??= new Tool({ client: this.client }));
+  }
+
   private _event?: Event_;
   get event(): Event_ {
     return (this._event ??= new Event_({ client: this.client }));
@@ -363,6 +898,11 @@ export class Run2 extends HeyApiClient {
     return (this._run ??= new Run({ client: this.client }));
   }
 
+  private _direct?: Direct;
+  get direct(): Direct {
+    return (this._direct ??= new Direct({ client: this.client }));
+  }
+
   private _session?: Session;
   get session(): Session {
     return (this._session ??= new Session({ client: this.client }));
@@ -371,11 +911,6 @@ export class Run2 extends HeyApiClient {
   private _execution?: Execution;
   get execution(): Execution {
     return (this._execution ??= new Execution({ client: this.client }));
-  }
-
-  private _direct?: Direct;
-  get direct(): Direct {
-    return (this._direct ??= new Direct({ client: this.client }));
   }
 }
 
@@ -559,6 +1094,21 @@ export class Interaction extends HeyApiClient {
 
 export class Artifact extends HeyApiClient {
   /**
+   * List artifacts
+   *
+   * Read bounded artifact summaries. Use get for full data.
+   */
+  public list<ThrowOnError extends boolean = false>(
+    options?: Options<ArtifactArtifactListData, ThrowOnError>,
+  ): RequestResult<ArtifactArtifactListResponses, ArtifactArtifactListErrors, ThrowOnError> {
+    return (options?.client ?? this.client).get<
+      ArtifactArtifactListResponses,
+      ArtifactArtifactListErrors,
+      ThrowOnError
+    >({ url: "/artifacts", ...options });
+  }
+
+  /**
    * Create an artifact
    *
    * Save a typed artifact with structured data, sources, and media metadata. An explicit existing ID replaces that artifact. The response contains bounded summaries; use artifact get for the full data.
@@ -581,6 +1131,21 @@ export class Artifact extends HeyApiClient {
   }
 
   /**
+   * Delete an artifact
+   *
+   * Delete a saved artifact record.
+   */
+  public delete<ThrowOnError extends boolean = false>(
+    options: Options<ArtifactArtifactDeleteData, ThrowOnError>,
+  ): RequestResult<ArtifactArtifactDeleteResponses, ArtifactArtifactDeleteErrors, ThrowOnError> {
+    return (options.client ?? this.client).delete<
+      ArtifactArtifactDeleteResponses,
+      ArtifactArtifactDeleteErrors,
+      ThrowOnError
+    >({ url: "/artifacts/{artifactId}", ...options });
+  }
+
+  /**
    * Read an artifact
    *
    * Read the complete artifact record, including structured data, media references, provenance, and lineage.
@@ -591,6 +1156,28 @@ export class Artifact extends HeyApiClient {
     return (options.client ?? this.client).get<ArtifactArtifactGetResponses, ArtifactArtifactGetErrors, ThrowOnError>({
       url: "/artifacts/{artifactId}",
       ...options,
+    });
+  }
+
+  /**
+   * Update an artifact
+   *
+   * Update saved artifact metadata and structured data.
+   */
+  public update<ThrowOnError extends boolean = false>(
+    options: Options<ArtifactArtifactUpdateData, ThrowOnError>,
+  ): RequestResult<ArtifactArtifactUpdateResponses, ArtifactArtifactUpdateErrors, ThrowOnError> {
+    return (options.client ?? this.client).patch<
+      ArtifactArtifactUpdateResponses,
+      ArtifactArtifactUpdateErrors,
+      ThrowOnError
+    >({
+      url: "/artifacts/{artifactId}",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
     });
   }
 }
@@ -1274,6 +1861,21 @@ export class OpenGroveApi extends HeyApiClient {
   }) {
     super(args);
     OpenGroveApi.__registry.set(this, args?.key);
+  }
+
+  private _workspace?: Workspace;
+  get workspace(): Workspace {
+    return (this._workspace ??= new Workspace({ client: this.client }));
+  }
+
+  private _extension?: Extension2;
+  get extension(): Extension2 {
+    return (this._extension ??= new Extension2({ client: this.client }));
+  }
+
+  private _routine?: Routine2;
+  get routine(): Routine2 {
+    return (this._routine ??= new Routine2({ client: this.client }));
   }
 
   private _host?: Host2;

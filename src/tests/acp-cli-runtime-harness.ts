@@ -152,7 +152,8 @@ async function main() {
   await assertAcpClientGenerationRevokesHostToolBindings(cwd);
   await assertCleanAcpSessionErrorKeepsTransportHealthy(cwd);
   await assertAcpControlTimeoutDoesNotKillSiblingRun(cwd);
-  await assertAcpNativeCancellationCanConfirmOneRun(cwd);
+  await assertAcpNativeCancellationCanConfirmOneRun(cwd, true);
+  await assertAcpNativeCancellationCanConfirmOneRun(cwd, false);
   await assertAbortedHostToolTurnCancelsScopedSession(cwd);
 
   const runtime = new AcpCliRuntime({
@@ -798,7 +799,7 @@ async function assertCleanAcpSessionErrorKeepsTransportHealthy(cwd: string): Pro
   );
 }
 
-async function assertAcpNativeCancellationCanConfirmOneRun(cwd: string): Promise<void> {
+async function assertAcpNativeCancellationCanConfirmOneRun(cwd: string, withPartialText: boolean): Promise<void> {
   const server = join(cwd, "fake-kimi-confirmed-cancel-acp-server.mjs");
   const cli = fakeAcpCommandPath(cwd, "fake-kimi-confirmed-cancel-acp-cli");
   writeFileSync(
@@ -821,7 +822,10 @@ async function assertAcpNativeCancellationCanConfirmOneRun(cwd: string): Promise
       "  }",
       "  if (msg.method === 'session/prompt') {",
       "    prompt = msg;",
-      "    send({ jsonrpc: '2.0', method: 'session/update', params: { sessionId: msg.params.sessionId, update: { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: 'PARTIAL_BEFORE_CANCEL' } } } });",
+      withPartialText
+        ? "    send({ jsonrpc: '2.0', method: 'session/update', params: { sessionId: msg.params.sessionId, update: { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: 'PARTIAL_BEFORE_CANCEL' } } } });"
+        : "",
+      "    send({ jsonrpc: '2.0', method: 'session/update', params: { sessionId: msg.params.sessionId, update: { sessionUpdate: 'usage_update', used: 0, size: 100 } } });",
       "    return;",
       "  }",
       "  if (msg.method === 'session/cancel' && prompt) {",
@@ -854,7 +858,8 @@ async function assertAcpNativeCancellationCanConfirmOneRun(cwd: string): Promise
     signal: controller.signal,
   })) {
     events.push(event);
-    if (event.type === "assistant.delta") controller.abort();
+    if (event.type === "assistant.delta" || (event.type === "runtime.diagnostic" && event.name === "kimi.acp.usage"))
+      controller.abort();
   }
   runtime.close();
 

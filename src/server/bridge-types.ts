@@ -1,3 +1,5 @@
+import type { HostModules } from "../app/host-modules.js";
+import type { ClientToolDefinitionInput } from "#protocol";
 import type { ModelMetadata } from "../kernel/model-metadata.js";
 import type { WwProviderReconciliation } from "./ww-provider-reconciliation.js";
 import type { OpenGroveApp } from "../app/create-opengrove.js";
@@ -184,6 +186,8 @@ export const MAX_CONTEXT_RECORD_ARRAY_ITEMS = 12;
 export const MAX_CONTEXT_RECORD_OBJECT_KEYS = 60;
 
 export interface LocalBridgeServerOptions {
+  /** Undefined preserves the full product; [] starts core tasks and Skills only. */
+  modules?: Array<keyof HostModules>;
   host?: string;
   port?: number;
   statePath?: string;
@@ -205,6 +209,11 @@ export interface LocalBridgeListeningInfo {
 }
 
 export interface BridgeAskPayload {
+  clientTools?: ClientToolDefinitionInput[];
+  allowedHostToolIds?: string[];
+  workspaceRoot?: string;
+  sessionInstructions?: string;
+  availableSkillNames?: string[];
   question: string;
   model: BridgeModelId;
   kernel?: BridgeKernelId;
@@ -381,6 +390,7 @@ export interface BridgeRuntimeOverride {
 }
 
 export interface BridgeState {
+  modules?: Readonly<HostModules>;
   app: OpenGroveApp;
   /** Loopback URL used by host-local capabilities without traversing an external gateway. */
   internalBridgeBaseUrl?: string;

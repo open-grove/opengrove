@@ -1,3 +1,7 @@
+import { syncExecutionSessionMetadata } from "./execution-session.js";
+import { isDeepStrictEqual } from "node:util";
+import { resolveBridgeWorkspaceRoot } from "./workspace-root.js";
+import { registerClientToolCalls, findClientToolCalls, forgetClientToolCalls } from "./client-tool-calls.js";
 import { autoReviewFallbackReason } from "../runtime-access.js";
 import type { ServerResponse } from "node:http";
 import { mkdirSync, writeFileSync } from "node:fs";
@@ -71,6 +75,42 @@ export const ASK_STREAM_RESPONSE_HEADERS = {
 } as const;
 
 const askRunRegistries = new WeakMap<BridgeState, Map<string, BackgroundAskRun>>();
+
+export function isDirectRunActive(state: BridgeState, runId: string): boolean {
+  const run = registryForState(state).get(runId);
+  return Boolean(run && !run.done);
+}
+
+/** JSON task submission shares the same execution and persistence as streaming asks. */
+export function submitDirectRun(
+  state: BridgeState,
+  payload: BridgeAskPayload,
+  options: { wwAuth?: BridgeWwRuntimeAuth } = {},
+): { runId: string; sessionId: string } {
+  const active = [...registryForState(state).values()].some((run) => run.threadId === payload.threadId && !run.done);
+  if (active) throw new Error("session_busy");
+  const execution = resolveAskExecutionState(state, payload);
+  if (execution.kernelUnavailableReason) throw new Error(execution.kernelUnavailableReason);
+  if (payload.clientTools?.length && !execution.kernelAdapter?.capabilities.hostTools)
+    throw new Error("client_tools_unsupported");
+  const root = state.rootState ?? state;
+  const binding = {
+    kernel: payload.kernel ?? root.kernel,
+    model: payload.model,
+    providerId: payload.providerId ?? "",
+    workspaceRoot: resolveBridgeWorkspaceRoot(execution.settings),
+  };
+  const previous = root.app.sessions.get(payload.threadId);
+  if (previous?.metadata?.integrationSession && !isDeepStrictEqual(previous.metadata.integrationSession, binding))
+    throw new Error("session_configuration_conflict");
+  const metadata = { ...(previous?.metadata ?? {}), integrationSession: binding };
+  root.app.sessions.ensureSession({ id: payload.threadId, activity: "api", metadata });
+  if (execution.app !== root.app)
+    execution.app.sessions.ensureSession({ id: payload.threadId, activity: "api", metadata });
+  root.store.saveFrom(root.app);
+  const run = startBackgroundAskRun(state, payload, options);
+  return { runId: run.runId, sessionId: run.threadId };
+}
 
 export async function streamAskResponse(
   state: BridgeState,
@@ -215,6 +255,16 @@ function startBackgroundAskRun(
     done: false,
     subscribers: new Set(),
   };
+  if (payload.clientTools) registerClientToolCalls(state, runId, controller.signal);
+  if (payload.clientTools) {
+    rootState.app.sessions.startRun({
+      id: runId,
+      sessionId: payload.threadId,
+      activity: payload.clientTools ? "api" : "browser",
+      input: payload.question,
+    });
+    rootState.store.saveFrom(rootState.app);
+  }
   registryForState(state).set(runId, run);
   void executeBackgroundAskRun(state, run);
   return run;
@@ -247,7 +297,12 @@ async function executeBackgroundAskRun(state: BridgeState, run: BackgroundAskRun
         consumeWwRetryableTurnAttempt({
           events: executionState.app.runTurn(payload.question, {
             sessionId: payload.threadId,
+            activity: payload.clientTools ? "api" : undefined,
             runId: run.runId,
+            additionalTools: findClientToolCalls(state, run.runId)?.definitions(payload.clientTools ?? []),
+            allowedHostToolIds: payload.allowedHostToolIds,
+            sessionInstructions: payload.sessionInstructions,
+            availableSkillNames: payload.availableSkillNames,
             requestedModelId: payload.model,
             requestedEffort: payload.effort,
             responseSpeed: payload.responseSpeed,
@@ -335,6 +390,12 @@ async function executeBackgroundAskRun(state: BridgeState, run: BackgroundAskRun
         data: finalizeAskResponse(run, payload, events, run.mediaArtifactByUri),
       });
     } else {
+      recordAskRunEvent(run, payload, {
+        type: "turn.finished",
+        runId: run.runId,
+        at: new Date().toISOString(),
+        outcome: { taskState: "TASK_STATE_FAILED", reasonCode: "run_initialization_failed" },
+      });
       emitAskRunChunk(run, {
         type: "fatal",
         error: error instanceof Error ? error.message : String(error),
@@ -342,11 +403,13 @@ async function executeBackgroundAskRun(state: BridgeState, run: BackgroundAskRun
     }
   } finally {
     run.done = true;
+    findClientToolCalls(state, run.runId)?.close();
     clearActiveBridgeRunExecutionState(state, run.runId);
     run.releaseActiveRun();
     windowlessDelay(
       () => {
         registryForState(state).delete(run.runId);
+        forgetClientToolCalls(state, run.runId);
       },
       10 * 60 * 1000,
     );
@@ -372,10 +435,11 @@ function recordAskRunEvent(run: BackgroundAskRun, payload: BridgeAskPayload, eve
       nativeRequestId: event.question.nativeRequestId,
     });
   }
+  syncExecutionSessionMetadata(run.rootState, run.executionState, payload.threadId);
   const executionApp = run.executionState?.app ?? run.rootState.app;
   executionApp.recordEvent(event, {
     sessionId: payload.threadId,
-    activity: "browser",
+    activity: payload.clientTools ? "api" : "browser",
     input: payload.question,
   });
   if (executionApp !== run.rootState.app) {
@@ -385,7 +449,7 @@ function recordAskRunEvent(run: BackgroundAskRun, payload: BridgeAskPayload, eve
     }
     run.rootState.app.recordEvent(event, {
       sessionId: payload.threadId,
-      activity: "browser",
+      activity: payload.clientTools ? "api" : "browser",
       input: payload.question,
     });
   }
@@ -670,9 +734,17 @@ function finalizeAskResponse(
   // Never let an older per-run app overwrite state produced after a hot
   // rebuild. Events and pending actions are mirrored incrementally above;
   // the live root is the only authoritative persistence source.
-  run.rootState.store.saveFrom(run.rootState.app);
   const contextRecords = buildContextRecords(events);
   const answer = rewriteMediaReferences(collectAssistantText(events), mediaArtifactByUri);
+  if (payload.clientTools)
+    run.rootState.app.artifacts.create({
+      id: `run-result:${run.runId}`,
+      type: "agent-result",
+      title: "Agent task result",
+      data: { answer },
+      provenance: { runId: run.runId, sessionId: payload.threadId },
+    });
+  run.rootState.store.saveFrom(run.rootState.app);
   writeTrajectoryRecord(run.rootState, payload, events, answer, contextRecords);
 
   return {
