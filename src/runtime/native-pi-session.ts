@@ -1,6 +1,6 @@
+import { openPiHarness, drivePiTurn, compactPiSession, bridgePiStream } from "@open-grove/agent-host/pi";
 import {
   AgentHarness,
-  HarnessClosed,
   HarnessFault,
   BACKGROUND_CONTEXT as background,
   type AgentLane,
@@ -38,8 +38,6 @@ import {
   type ImageContent,
   type Model,
   type MutableModels,
-  type Models,
-  createAssistantMessageEventStream,
   type TSchema,
   type UserMessage,
 } from "@earendil-works/pi-ai";
@@ -340,47 +338,11 @@ class NativePiSession implements PiSession {
         }
       }),
     );
-    let abortRequested = false;
     let abortTimedOut = false;
-    let abortTimer: ReturnType<typeof setTimeout> | undefined;
-    let closeTask: Promise<void> | undefined;
-    let abortTask: Promise<void> | undefined;
-    const abortTurn = () => {
-      if (abortRequested) return;
-      abortRequested = true;
-      abortTimer = setTimeout(() => {
-        if (done) return;
-        abortTimedOut = true;
-        project(projector.abort(streamingMessage));
-        push([
-          {
-            type: "error",
-            runId: context.runId,
-            message: "pi_abort_settlement_timeout: Pi provider or tool did not settle after cancellation",
-          },
-        ]);
-        closeTask = this.closeNativeHarness().catch((error) =>
-          push([{ type: "error", runId: context.runId, message: String(error) }]),
-        );
-      }, this.options.abortSettleTimeoutMs ?? 15_000);
-      // Pi closes the effect gate; reopening reconciles orphaned tools and partial
-      // assistant frames through its own recovery. Never fabricate tool results.
-      abortTask = this.lane!.abort(background)
-        .then((result) => {
-          if (
-            !result.ok &&
-            result.error._tag !== "NoActiveOperation" &&
-            !(abortTimedOut && result.error._tag === "Closed")
-          )
-            throw result.error;
-        })
-        .catch((error) => {
-          // Closing an in-flight abort rejects with HarnessClosed; an abort
-          // started after close instead returns Result.err(Closed).
-          if (!(abortTimedOut && error instanceof HarnessClosed))
-            push([{ type: "error", runId: context.runId, message: String(error) }]);
-        });
-    };
+    const controller = new AbortController();
+    const abortTurn = () => controller.abort(context.signal?.reason);
+    context.signal?.addEventListener("abort", abortTurn, { once: true });
+    if (context.signal?.aborted) abortTurn();
     const prompt = (async () => {
       if (context.requestedSkillInvocation?.context === "inline") {
         this.pendingSkillOverlay = undefined;
@@ -389,17 +351,26 @@ class NativePiSession implements PiSession {
       }
       if (context.assembledContext?.promptBlock)
         await this.lane!.steer(createContextSteeringMessage(context.assembledContext), undefined, background);
-      // Explicit admission closes the cancel-before-start race.
-      const admitted = await this.lane!.accept({ kind: "prompt", prompt: input, images }, background);
-      if (!admitted.ok) throw admitted.error;
-      context.signal?.addEventListener("abort", abortTurn, { once: true });
-      if (context.signal?.aborted) abortTurn();
-      const result = await this.lane!.drive(
-        { operationId: admitted.value.operationId, waitForRetry: true, pollDeferred: true },
-        background,
-      );
-      if (!result.ok) throw result.error;
-      if (result.value.kind !== "settled") throw new Error(`pi_operation_waiting: ${result.value.reason}`);
+      await drivePiTurn({
+        lane: this.lane!,
+        input,
+        images,
+        signal: controller.signal,
+        abortSettleTimeoutMs: this.options.abortSettleTimeoutMs,
+        close: () => this.closeNativeHarness(),
+        onCleanupError: (error) => push([{ type: "error", runId: context.runId, message: String(error) }]),
+        onAbortTimeout: () => {
+          abortTimedOut = true;
+          project(projector.abort(streamingMessage));
+          push([
+            {
+              type: "error",
+              runId: context.runId,
+              message: "pi_abort_settlement_timeout: Pi provider or tool did not settle after cancellation",
+            },
+          ]);
+        },
+      });
     })()
       .catch((error) => {
         if (error instanceof HarnessFault) this.faulted = true;
@@ -425,9 +396,6 @@ class NativePiSession implements PiSession {
       context.signal?.removeEventListener("abort", abortTurn);
       if (!done) abortTurn();
       await prompt;
-      await abortTask;
-      await closeTask;
-      if (abortTimer) clearTimeout(abortTimer);
       for (const unsubscribe of listeners) unsubscribe();
     }
     while (queue.length) yield queue.shift()!;
@@ -444,23 +412,7 @@ class NativePiSession implements PiSession {
   ): Promise<AgentCompactResult> {
     try {
       await this.ensureNativeSession();
-      if ((await this.lane!.inspectExecution(background)).current)
-        return { ok: false, compacted: false, error: "pi_session_busy" };
-      await this.harness!.setCompactionSettings(settings, background);
-      let result;
-      try {
-        result = await this.lane!.compact({ customInstructions: request.reason }, background);
-      } finally {
-        await this.harness!.setCompactionSettings({ ...settings, enabled: false }, background);
-      }
-      if (!result.ok)
-        return result.error._tag === "NothingToCompact"
-          ? { ok: true, compacted: false }
-          : { ok: false, compacted: false, error: result.error.message };
-      const compacted = result.value.compaction.status === "completed";
-      return result.value.compaction.status === "failed"
-        ? { ok: false, compacted: false, error: result.value.compaction.error?.message ?? "pi_compaction_failed" }
-        : { ok: true, compacted };
+      return await compactPiSession(this.harness!, this.lane!, settings, request.reason);
     } catch (error) {
       if (error instanceof HarnessFault) this.faulted = true;
       return { ok: false, compacted: false, error: error instanceof Error ? error.message : String(error) };
@@ -628,46 +580,34 @@ class NativePiSession implements PiSession {
             return stream
               ? bridgePiStream(stream, model, context, options)
               : target.streamSimple(model, context, options);
-          }) satisfies Models["streamSimple"];
+          }) satisfies MutableModels["streamSimple"];
         const member = Reflect.get(target, property, receiver);
         return typeof member === "function" ? member.bind(target) : member;
       },
     });
     let harness: AgentHarness<ExecutionToolContext> | undefined;
     try {
-      const created = await AgentHarness.create(
-        {
-          session,
-          models,
-          model: resolveModel(this.options.model, this.runtimeContext.requestedModelId),
-          thinkingLevel: resolveThinkingLevel(this.options.thinkingLevel, this.runtimeContext.requestedEffort),
-          systemPrompt: () => this.runtimeContext.system,
-          toolContext: { env: this.options.executionEnv! },
-          toolExecution: this.options.toolExecution ?? "parallel",
-          // The Host owns the user-selected trigger; Pi owns summarization and storage.
-          compaction: { ...DEFAULT_COMPACTION_SETTINGS, enabled: false },
-          toProviderMessages: convertNativeSessionMessages,
-        },
-        background,
-      );
+      const created = await openPiHarness({
+        session,
+        models,
+        model: resolveModel(this.options.model, this.runtimeContext.requestedModelId),
+        thinkingLevel: resolveThinkingLevel(this.options.thinkingLevel, this.runtimeContext.requestedEffort),
+        systemPrompt: () => this.runtimeContext.system,
+        toolContext: { env: this.options.executionEnv! },
+        toolExecution: this.options.toolExecution ?? "parallel",
+        // The Host owns the user-selected trigger; Pi owns summarization and storage.
+        compaction: { ...DEFAULT_COMPACTION_SETTINGS, enabled: false },
+        toProviderMessages: convertNativeSessionMessages,
+      });
       harness = created.harness;
-      const lane = await harness.lane("main", background);
-      for (const operation of created.open) {
-        const interrupted = await harness.lane(operation.lane, background);
-        const settled = await interrupted.abort(background);
-        if (!settled.ok) throw settled.error;
-      }
+      const lane = created.lane;
       this.harness = harness;
       this.lane = lane;
       harness.events.on("fault", () => {
         this.faulted = true;
       });
     } catch (error) {
-      try {
-        await (harness ?? session).close(background);
-      } finally {
-        this.repository.release(this.sessionId);
-      }
+      this.repository.release(this.sessionId);
       throw error;
     }
   }
@@ -1223,46 +1163,6 @@ function toPiAgentEvent(event: HarnessEvent): NativePiEvent | undefined {
     default:
       return undefined;
   }
-}
-
-function bridgePiStream(
-  streamFn: StreamFn,
-  model: Parameters<Models["streamSimple"]>[0],
-  context: NativeModelContext,
-  options: Parameters<Models["streamSimple"]>[2],
-) {
-  const result = streamFn(model, context, options);
-  if (Symbol.asyncIterator in result) return result;
-  const output = createAssistantMessageEventStream();
-  void (async () => {
-    try {
-      const stream = await result;
-      for await (const event of stream) output.push(event);
-      output.end(await stream.result());
-    } catch (error) {
-      const message: AssistantMessage = {
-        role: "assistant",
-        content: [],
-        api: model.api,
-        model: model.id,
-        provider: model.provider,
-        stopReason: "error",
-        timestamp: Date.now(),
-        errorMessage: error instanceof Error ? error.message : String(error),
-        usage: {
-          input: 0,
-          output: 0,
-          cacheRead: 0,
-          cacheWrite: 0,
-          totalTokens: 0,
-          cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
-        },
-      };
-      output.push({ type: "error", reason: "error", error: message });
-      output.end(message);
-    }
-  })();
-  return output;
 }
 
 function piApprovalKind(toolId: string): ApprovalKind {

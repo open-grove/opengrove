@@ -27,7 +27,7 @@ import type {
   ToolResult,
   UsageStats,
 } from "../core.js";
-import { agentTurnHostContextPromptBlock, agentTurnReplyLanguageInstruction } from "../core.js";
+import { agentTurnReplyLanguageInstruction } from "../core.js";
 import { AsyncEventQueue } from "./codex/async-event-queue.js";
 import { asJsonValue, isJsonObject, readString } from "./codex/json.js";
 import { createClaudeSdkHostBridge, type ClaudeSdkHostBridge } from "./claude-agent-sdk-tools.js";
@@ -288,6 +288,7 @@ export class ClaudeAgentSdkRuntime implements AgentRuntime {
       });
     }
     const imageBlocks = buildClaudeImageBlocks(request);
+    const currentInput = buildClaudeCurrentInput(request);
     if (imageBlocks.length) {
       queue.push({
         type: "runtime.diagnostic",
@@ -341,8 +342,8 @@ export class ClaudeAgentSdkRuntime implements AgentRuntime {
       for await (const message of this.host.stream({
         sessionId: nativeSession.sessionId,
         prompt: imageBlocks.length
-          ? claudeUserMessageStream(request.input, imageBlocks, nativeSession.sessionId)
-          : request.input,
+          ? claudeUserMessageStream(currentInput, imageBlocks, nativeSession.sessionId)
+          : currentInput,
         options: this.createQueryOptions({
           request,
           cwd,
@@ -1461,7 +1462,6 @@ function buildClaudeSdkSystemPrompt(request: AgentTurnRequest): string {
       .filter((skillId): skillId is string => Boolean(skillId)),
   ]);
   const optionalSkills = (request.skills ?? []).filter((skill) => !requiredIds.has(skill.id));
-  const hostContext = agentTurnHostContextPromptBlock(request);
   const sections = [
     `You are running inside the ${APP_PRODUCT_NAME} host.`,
     "Use Claude Agent's native tools, slash commands, skills, hooks, MCP, permissions, and compaction behavior normally.",
@@ -1472,18 +1472,25 @@ function buildClaudeSdkSystemPrompt(request: AgentTurnRequest): string {
           ...optionalSkills.map((skill) => `- ${skill.name}: ${skill.description}\n  SKILL.md: ${skill.entry}`),
         ].join("\n")
       : "",
-    hostContext ? `OpenGrove host context:\n${hostContext}` : "",
-    request.requestedSkillInvocation
-      ? [
-          `The user explicitly selected the Claude-compatible skill "${request.requestedSkillInvocation.skillName}" for this turn.`,
-          request.requestedSkillInvocation.args
-            ? `Use it for this task. User skill arguments:\n${request.requestedSkillInvocation.args}`
-            : "Use it for this task.",
-        ].join("\n")
-      : "",
-    agentTurnReplyLanguageInstruction(request),
+    request.sessionInstructions?.trim() ?? "",
   ].filter(Boolean);
   return sections.join("\n\n");
+}
+
+/** Resumed SDK workers may retain their initial system prompt. Deliver mutable state with every current user turn. */
+function buildClaudeCurrentInput(request: AgentTurnRequest): string {
+  return [
+    request.assembledContext?.promptBlock?.trim()
+      ? `Current OpenGrove context (supersedes earlier product state):\n${request.assembledContext.promptBlock.trim()}`
+      : "",
+    request.requestedSkillInvocation
+      ? `The user selected skill ${request.requestedSkillInvocation.skillName} for this turn.\n${request.requestedSkillInvocation.args ?? ""}`
+      : "",
+    agentTurnReplyLanguageInstruction(request),
+    request.input,
+  ]
+    .filter(Boolean)
+    .join("\n\n");
 }
 
 function resolveClaudeNativeSession(
