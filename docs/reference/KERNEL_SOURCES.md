@@ -17,7 +17,7 @@ this repository.
 Version and verification dates remain attached to individual facts in
 `src/kernel/capabilities/native-facts.ts`.
 
-Native Provider integration targets Codex 0.153.4, Claude Agent SDK 0.3.263,
+Native Provider integration targets Codex 0.162.0, Claude Agent SDK 0.3.263,
 Pi 0.85.1, OpenCode 1.18.29, Kimi Code 0.41.0, Hermes 0.21.1
 (`v2026.9.7`), and OpenClaw 2026.9.2. The source reviews above and individual
 capability certifications retain their own versions; a Provider transport check
