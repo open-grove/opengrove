@@ -110,7 +110,7 @@ const claudeTools = {
 const piAgent = {
   source:
     "pi-agent-core documents stateful agent turns, awaited lifecycle events, host tool execution, approvals through the before_tool hook, parallel tools, tool progress, steering, follow-up, abort, thinking level, and image input.",
-  sourcePath: "node_modules/@earendil-works/pi-agent-core/README.md",
+  sourcePath: "node_modules/pi-agent-core-legacy/README.md",
   kind: "local_package" as const,
   upstreamVersion: "@earendil-works/pi-agent-core 0.85.1",
   checkedAt: PI_REFRESHED_AT,
@@ -118,7 +118,7 @@ const piAgent = {
 const piAgentTypes = {
   source:
     "pi-agent-core AgentHarness types define assistant-message boundaries, tool execution modes, tool update events, steering, follow-up, abort, and provider stop metadata.",
-  sourcePath: "node_modules/@earendil-works/pi-agent-core/dist/harness/agent-harness.d.ts",
+  sourcePath: "node_modules/pi-agent-core-legacy/dist/harness/agent-harness.d.ts",
   kind: "local_package" as const,
   upstreamVersion: "@earendil-works/pi-agent-core 0.85.1",
   checkedAt: PI_REFRESHED_AT,
@@ -126,7 +126,7 @@ const piAgentTypes = {
 const piHarnessSession = {
   source:
     "pi-agent-core 0.85.1 exports AgentHarness plus in-memory and JSONL session repositories with create/open/list/delete/fork lifecycle.",
-  sourcePath: "node_modules/@earendil-works/pi-agent-core/dist/harness/session/jsonl/repo.d.ts",
+  sourcePath: "node_modules/pi-agent-core-legacy/dist/harness/session/jsonl/repo.d.ts",
   kind: "local_package" as const,
   upstreamVersion: "@earendil-works/pi-agent-core 0.85.1",
   checkedAt: PI_REFRESHED_AT,
@@ -134,21 +134,21 @@ const piHarnessSession = {
 const piHarnessCompaction = {
   source:
     "pi-agent-core 0.85.1 exports native compaction preparation, summarization, usage, and AgentLane.compact surfaces.",
-  sourcePath: "node_modules/@earendil-works/pi-agent-core/dist/harness/compaction/compaction.d.ts",
+  sourcePath: "node_modules/pi-agent-core-legacy/dist/harness/compaction/compaction.d.ts",
   kind: "local_package" as const,
   upstreamVersion: "@earendil-works/pi-agent-core 0.85.1",
   checkedAt: PI_REFRESHED_AT,
 };
 const piHarnessTools = {
   source: "pi-agent-core 0.85.1 exports AgentHarness built-in read, bash, edit, and write tools.",
-  sourcePath: "node_modules/@earendil-works/pi-agent-core/dist/harness/tools/index.d.ts",
+  sourcePath: "node_modules/pi-agent-core-legacy/dist/harness/tools/index.d.ts",
   kind: "local_package" as const,
   upstreamVersion: "@earendil-works/pi-agent-core 0.85.1",
   checkedAt: PI_REFRESHED_AT,
 };
 const piHarnessSkills = {
   source: "pi-agent-core 0.85.1 exports native SKILL.md discovery/loading and AgentHarness skill resources.",
-  sourcePath: "node_modules/@earendil-works/pi-agent-core/dist/harness/skills.d.ts",
+  sourcePath: "node_modules/pi-agent-core-legacy/dist/harness/skills.d.ts",
   kind: "local_package" as const,
   upstreamVersion: "@earendil-works/pi-agent-core 0.85.1",
   checkedAt: PI_REFRESHED_AT,
@@ -156,14 +156,14 @@ const piHarnessSkills = {
 const piAi = {
   source:
     "pi-ai documents streaming text, tool calls, thinking blocks, image input, abort, usage, and structured provider capability metadata.",
-  sourcePath: "node_modules/@earendil-works/pi-ai/README.md",
+  sourcePath: "node_modules/pi-ai-legacy/README.md",
   kind: "local_package" as const,
   upstreamVersion: "@earendil-works/pi-ai 0.85.1",
   checkedAt: PI_REFRESHED_AT,
 };
 const piAiModels = {
   source: "pi-ai Models owns provider auth resolution, OAuth refresh, provider catalogs, and stream dispatch.",
-  sourcePath: "node_modules/@earendil-works/pi-ai/dist/models.d.ts",
+  sourcePath: "node_modules/pi-ai-legacy/dist/models.d.ts",
   kind: "local_package" as const,
   upstreamVersion: "@earendil-works/pi-ai 0.85.1",
   checkedAt: PI_REFRESHED_AT,
@@ -439,12 +439,19 @@ export const KERNEL_NATIVE_CAPABILITY_FACTS: KernelNativeCapabilityFact[] = [
   fact("hermes", "reasoning.nativeText", "yes", hermesAgentLoop, [
     "Hermes stores provider reasoning text when exposed and emits it through reasoning.available/reasoning.delta; thinking.delta is not reasoning content.",
   ]),
-  fact("hermes", "tools.hostTool", "no", hermesProgrammatic, [
-    "The current TUI Gateway integration runs Hermes native toolsets; no OpenGrove host-tool bridge is documented or wired.",
-  ]),
-  fact("hermes", "tools.mcpServers", "no", hermesTools, [
-    "Hermes docs describe native toolsets here, not an MCP server injection surface.",
-  ]),
+  ...facts(
+    "hermes",
+    ["tools.hostTool", "tools.mcpServers"],
+    "yes",
+    {
+      source: "Hermes 0.21.6 exposes mcp.servers.add/list/remove and reload.mcp through its native TUI Gateway.",
+      sourcePath: "docs/reference/KERNEL_SOURCES.md",
+      kind: "linked_source",
+      upstreamVersion: "Hermes Agent 0.21.6",
+      checkedAt: "2026-10-09",
+    },
+    ["Product tools are native MCP tools in an exclusive product-owned profile."],
+  ),
   fact("hermes", "sandbox.policy", "no", hermesTools),
 
   ...facts(
@@ -477,6 +484,20 @@ export const KERNEL_NATIVE_CAPABILITY_FACTS: KernelNativeCapabilityFact[] = [
   fact("kimi", "knowledge.skills", "yes", linkedSkillSources, [
     "OpenGrove publishes portable skills into .kimi-code/skills and uses Kimi's documented /skill:<name> invocation form.",
   ]),
+  fact(
+    "openclaw",
+    "tools.hostTool",
+    "yes",
+    {
+      source:
+        "OpenClaw 2026.9.9 plugin API registers manifest-declared tool factories and authenticated Gateway methods; Agent Host uses that native extension surface.",
+      sourcePath: "docs/reference/KERNEL_SOURCES.md",
+      kind: "linked_source",
+      upstreamVersion: "OpenClaw 2026.9.9",
+      checkedAt: "2026-10-09",
+    },
+    ["Requires the bundled Agent Host plugin and a local Gateway."],
+  ),
   fact("openclaw", "session.compact", "yes", openClawGatewaySource, [
     "OpenClaw Gateway exposes sessions.compact and automatic compaction.",
   ]),

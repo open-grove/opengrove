@@ -436,6 +436,23 @@
     },
     {
       "kernel": "hermes",
+      "receiptSha256": "1936abd62618afb2ffa79cd148821591c53193efcdd55e4c3a455b9f8de0371a",
+      "certifications": [
+        {
+          "kernel": "hermes",
+          "capability": "tools.hostTool",
+          "testId": "hermes.tools.hostTool",
+          "passed": true,
+          "checkedAt": "2026-10-09",
+          "hostVersion": "0.7.0",
+          "kernelVersion": "Hermes Agent vunknown (2026.9.24)",
+          "runtimeMode": "acp",
+          "verification": "real_runtime"
+        }
+      ]
+    },
+    {
+      "kernel": "hermes",
       "receiptSha256": "5a76ea77ee39578a79b662fece9fd79a33652976eb2c0e6b424ff9d908e14dd7",
       "certifications": [
         {
@@ -716,6 +733,23 @@
           "hostVersion": "0.7.0",
           "kernelVersion": "0.41.0",
           "runtimeMode": "acp",
+          "verification": "real_runtime"
+        }
+      ]
+    },
+    {
+      "kernel": "openclaw",
+      "receiptSha256": "9ef8c8d8fa500492a610581fd6cd4b8000d67010475f528064be7c16d520cbbb",
+      "certifications": [
+        {
+          "kernel": "openclaw",
+          "capability": "tools.hostTool",
+          "testId": "openclaw.tools.hostTool",
+          "passed": true,
+          "checkedAt": "2026-10-09",
+          "hostVersion": "0.7.0",
+          "kernelVersion": "2026.9.9",
+          "runtimeMode": "gateway",
           "verification": "real_runtime"
         }
       ]
