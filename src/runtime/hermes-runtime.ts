@@ -301,7 +301,10 @@ export class HermesRuntime implements AgentRuntime {
       return undefined;
     });
     const cleanupNotifications = client.addNotificationHandler((notification) => {
-      this.handleGatewayNotification(notification, turnState);
+      this.handleGatewayNotification(
+        { ...notification, params: notification.params === undefined ? undefined : toJsonValue(notification.params) },
+        turnState,
+      );
     });
     const cleanupClose = client.addCloseHandler((error) => {
       pendingRequests.abort(error);

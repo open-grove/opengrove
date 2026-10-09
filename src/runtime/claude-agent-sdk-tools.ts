@@ -1,22 +1,17 @@
 import {
-  createSdkMcpServer,
-  tool as sdkTool,
   type CanUseTool,
   type ElicitationRequest,
   type ElicitationResult,
   type McpServerConfig,
   type PermissionResult,
 } from "@anthropic-ai/claude-agent-sdk";
-import { z } from "zod/v4";
+import { createClaudeMcpServer } from "@open-grove/agent-host/claude";
 import { type AgentEvent, type AgentTurnRequest, type ApprovalKind, type JsonObject, type JsonValue } from "../core.js";
 import type { AsyncEventQueue } from "./codex/async-event-queue.js";
 import { asJsonValue, isJsonObject, readString, truncateText } from "./codex/json.js";
 import { createHostToolBridge } from "./host-tool-bridge.js";
 
 export const CLAUDE_OPENGROVE_MCP_SERVER = "opengrove";
-
-type ZodSchema = z.ZodType<unknown>;
-type ZodShape = Record<string, ZodSchema>;
 
 export interface ClaudeSdkHostBridge {
   mcpServers: Record<string, McpServerConfig>;
@@ -35,21 +30,13 @@ export function createClaudeSdkHostBridge(
   const hostTools = createHostToolBridge(request, runId, queue, "claude-code");
   const sdkToolNames = new Set<string>();
   let hostToolCallSequence = 0;
-  const sdkTools = hostTools.descriptors.map((descriptor) => {
-    sdkToolNames.add(descriptor.name);
-    return sdkTool(
-      descriptor.name,
-      descriptor.description,
-      jsonSchemaToZodShape(descriptor.inputSchema),
-      async (args) => hostTools.call(descriptor.name, args, `${runId}:host-tool:${++hostToolCallSequence}`),
-      { annotations: descriptor.annotations },
-    );
-  });
+  for (const descriptor of hostTools.descriptors) sdkToolNames.add(descriptor.name);
   const mcpServers: Record<string, McpServerConfig> = {
-    [CLAUDE_OPENGROVE_MCP_SERVER]: createSdkMcpServer({
+    [CLAUDE_OPENGROVE_MCP_SERVER]: createClaudeMcpServer({
       name: CLAUDE_OPENGROVE_MCP_SERVER,
       version: "0.0.0",
-      tools: sdkTools,
+      tools: hostTools.descriptors,
+      call: (name, args) => hostTools.call(name, args, `${runId}:host-tool:${++hostToolCallSequence}`),
     }),
   };
 
@@ -307,75 +294,6 @@ async function waitForQuestionDecision(request: AgentTurnRequest, questionId: st
 function systemCancellationDetails(response: JsonValue | undefined): { reasonCode: string } | undefined {
   if (!isJsonObject(response) || response.system !== true) return undefined;
   return { reasonCode: readString(response, "reasonCode") ?? "system_canceled" };
-}
-
-function jsonSchemaToZodShape(schema: JsonObject): ZodShape {
-  const rootType = schema.type;
-  if (rootType !== "object" && !isJsonObject(schema.properties)) {
-    return { value: jsonSchemaToZod(schema) };
-  }
-
-  const required = new Set(
-    Array.isArray(schema.required) ? schema.required.filter((item): item is string => typeof item === "string") : [],
-  );
-  const properties = isJsonObject(schema.properties) ? schema.properties : {};
-  const shape: ZodShape = {};
-  for (const [key, value] of Object.entries(properties)) {
-    const childSchema = isJsonObject(value) ? value : {};
-    const child = jsonSchemaToZod(childSchema);
-    shape[key] = required.has(key) ? child : child.optional();
-  }
-  return shape;
-}
-
-function jsonSchemaToZod(schema: JsonObject): ZodSchema {
-  let parsed: ZodSchema;
-  const enumValues = Array.isArray(schema.enum)
-    ? schema.enum.filter((item): item is string => typeof item === "string")
-    : [];
-  if (enumValues.length > 0) {
-    parsed = z.enum(enumValues as [string, ...string[]]);
-  } else if (Array.isArray(schema.anyOf) || Array.isArray(schema.oneOf)) {
-    parsed = unionSchema([
-      ...((schema.anyOf as JsonValue[] | undefined) ?? []),
-      ...((schema.oneOf as JsonValue[] | undefined) ?? []),
-    ]);
-  } else {
-    const type = schema.type;
-    if (type === "string") {
-      parsed = z.string();
-    } else if (type === "number") {
-      parsed = z.number();
-    } else if (type === "integer") {
-      parsed = z.number().int();
-    } else if (type === "boolean") {
-      parsed = z.boolean();
-    } else if (type === "array") {
-      parsed = z.array(isJsonObject(schema.items) ? jsonSchemaToZod(schema.items) : z.unknown());
-    } else if (type === "object" || isJsonObject(schema.properties)) {
-      parsed = z
-        .object(jsonSchemaToZodShape(schema))
-        .catchall(schema.additionalProperties === false ? z.never() : z.unknown());
-    } else if (type === "null") {
-      parsed = z.null();
-    } else {
-      parsed = z.unknown();
-    }
-  }
-
-  const description = readString(schema, "description");
-  return description ? parsed.describe(description) : parsed;
-}
-
-function unionSchema(values: JsonValue[]): ZodSchema {
-  const schemas = values.filter(isJsonObject).map(jsonSchemaToZod);
-  if (schemas.length === 0) {
-    return z.unknown();
-  }
-  if (schemas.length === 1) {
-    return schemas[0]!;
-  }
-  return z.union(schemas as [ZodSchema, ZodSchema, ...ZodSchema[]]);
 }
 
 function approvalKindForClaudeTool(toolName: string): ApprovalKind {

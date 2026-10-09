@@ -3,7 +3,6 @@ import { existsSync, readdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import {
-  query as claudeQuery,
   type EffortLevel,
   type Options as ClaudeAgentSdkOptions,
   type PermissionMode as ClaudePermissionMode,
@@ -41,7 +40,7 @@ import {
 } from "./claude-bedrock-env.js";
 import { writeClaudeModelsCache } from "./claude-models-cache.js";
 import { normalizeClaudeRuntimeModelId, resolveClaudeRuntimeModel } from "./claude-model-normalize.js";
-import { runWithNativeSessionLock } from "./native-session-lock.js";
+import { ClaudeQueryHost } from "@open-grove/agent-host/claude";
 import { imageAttachmentsWithDataUrl } from "./media-input.js";
 import { contextBudgetDiagnostic, resolveContextTokenBudget } from "./context-token-budget.js";
 import {
@@ -116,7 +115,13 @@ export class ClaudeAgentSdkRuntime implements AgentRuntime {
   private readonly sessionBindings = new Map<string, ClaudeRuntimeSessionBinding>();
   private readonly observedContextWindowByModel = new Map<string, number>();
 
-  constructor(private readonly options: ClaudeAgentSdkRuntimeOptions) {}
+  private readonly host: ClaudeQueryHost;
+  constructor(private readonly options: ClaudeAgentSdkRuntimeOptions) {
+    this.host = new ClaudeQueryHost(options.query);
+  }
+  close(): void {
+    this.host.close();
+  }
 
   async *runTurn(request: AgentTurnRequest): AsyncIterable<AgentEvent> {
     const queue = new AsyncEventQueue<AgentEvent>();
@@ -333,109 +338,69 @@ export class ClaudeAgentSdkRuntime implements AgentRuntime {
     let currentContextUsage: SDKControlGetContextUsageResponse | undefined;
     let contextUsageRequested = false;
     try {
-      await runWithNativeSessionLock("claude-code", nativeSession.sessionId, async () => {
-        // Submit user input after Claude acknowledges the requested permission mode.
-        const approvalPrompt = permissionMode === "auto" ? new AsyncEventQueue<SDKUserMessage>() : undefined;
-        const query = (this.options.query ?? claudeQuery)({
-          prompt:
-            approvalPrompt ??
-            (imageBlocks.length
-              ? claudeUserMessageStream(request.input, imageBlocks, nativeSession.sessionId)
-              : request.input),
-          options: this.createQueryOptions({
-            request,
-            cwd,
-            requestedModel,
-            permissionMode,
-            nativeSession,
-            systemPrompt,
-            preparedEnv,
-            hostBridge,
-            settingSources,
-            abortController,
-            onStderr: (chunk) => {
-              messageState.stderrText = limitDiagnosticText(messageState.stderrText + chunk);
-            },
-          }),
-        });
-
-        // Metadata is independent of permission activation; a rejected Auto request
-        // must not prevent discovery. This is best-effort and never gates a turn.
-        void this.refreshClaudeModelsCache(query, runtimeEnv);
-        const switchToAsk = async (cause: unknown): Promise<void> => {
-          if (request.signal?.aborted || abortController.signal.aborted) throw cause;
-          const reason = sanitizeDiagnosticText(cause instanceof Error ? cause.message : String(cause));
-          try {
-            await query.setPermissionMode("default");
-          } catch (error) {
-            if (request.signal?.aborted || abortController.signal.aborted) throw error;
-            throw new Error(
-              `runtime_access_mode_unavailable: claude_auto_review_fallback_failed: Auto: ${reason}; Ask: ${sanitizeDiagnosticText(error instanceof Error ? error.message : String(error))}`,
-              { cause: error },
-            );
-          }
-          if (request.signal?.aborted || abortController.signal.aborted) throw new Error("claude_code_aborted");
+      for await (const message of this.host.stream({
+        sessionId: nativeSession.sessionId,
+        prompt: imageBlocks.length
+          ? claudeUserMessageStream(request.input, imageBlocks, nativeSession.sessionId)
+          : request.input,
+        options: this.createQueryOptions({
+          request,
+          cwd,
+          requestedModel,
+          permissionMode,
+          nativeSession,
+          systemPrompt,
+          preparedEnv,
+          hostBridge,
+          settingSources,
+          abortController,
+          onStderr: (chunk) => {
+            messageState.stderrText = limitDiagnosticText(messageState.stderrText + chunk);
+          },
+        }),
+        onQuery: (query) => {
+          void this.refreshClaudeModelsCache(query, runtimeEnv);
+        },
+        onAutoFallback: (reason) => {
           permissionMode = "default";
           queue.push({
             type: "runtime.diagnostic",
             runId,
             at: new Date().toISOString(),
             name: "claude.auto_review.fallback",
-            data: { kernel: "claude-code", from: "auto-review", to: "default", reason },
+            data: { kernel: "claude-code", from: "auto-review", to: "default", reason: sanitizeDiagnosticText(reason) },
           });
-        };
-        try {
-          if (approvalPrompt) {
-            try {
-              await query.setPermissionMode("auto");
-            } catch (error) {
-              await switchToAsk(error);
-            }
-            for await (const message of claudeUserMessageStream(request.input, imageBlocks, nativeSession.sessionId)) {
-              approvalPrompt.push(message);
-            }
-            approvalPrompt.close();
-          }
-          for await (const message of query) {
-            if (
-              message.type === "system" &&
-              message.subtype === "init" &&
-              permissionMode === "auto" &&
-              message.permissionMode !== "auto"
-            ) {
-              await switchToAsk(new Error(`Claude reported ${message.permissionMode} instead of Auto`));
-            }
-            for (const event of mapClaudeSdkMessage(message, {
-              runId,
-              state: messageState,
-              hostBridge,
-              onInit: (init) => {
-                rememberClaudeNativeSession(request, init.session_id, runtimeBindingFingerprint);
-                this.rememberSessionBinding(request.context.sessionId, {
-                  nativeSessionId: init.session_id,
-                  cwd,
-                  requestedModel: requestedModel || init.model,
-                  permissionMode,
-                  runtimeEnv,
-                });
-                recordClaudeRuntimeInventory(request, init);
-              },
-            })) {
-              queue.push(event);
-            }
-            if (message.type === "result" && !contextUsageRequested) {
-              contextUsageRequested = true;
-              currentContextUsage = await readClaudeCurrentContextUsage(query);
-            }
-          }
-          if (!contextUsageRequested && !request.signal?.aborted && !abortController.signal.aborted) {
+        },
+        afterMessage: async (message, query) => {
+          if (message.type === "result" && !contextUsageRequested) {
+            contextUsageRequested = true;
             currentContextUsage = await readClaudeCurrentContextUsage(query);
           }
-        } finally {
-          approvalPrompt?.close();
-          query.close();
+        },
+        onComplete: async (query) => {
+          if (!contextUsageRequested && !request.signal?.aborted && !abortController.signal.aborted)
+            currentContextUsage = await readClaudeCurrentContextUsage(query);
+        },
+      })) {
+        for (const event of mapClaudeSdkMessage(message, {
+          runId,
+          state: messageState,
+          hostBridge,
+          onInit: (init) => {
+            rememberClaudeNativeSession(request, init.session_id, runtimeBindingFingerprint);
+            this.rememberSessionBinding(request.context.sessionId, {
+              nativeSessionId: init.session_id,
+              cwd,
+              requestedModel: requestedModel || init.model,
+              permissionMode,
+              runtimeEnv,
+            });
+            recordClaudeRuntimeInventory(request, init);
+          },
+        })) {
+          queue.push(event);
         }
-      });
+      }
     } catch (error) {
       const diagnostics = claudeRuntimeErrorDiagnostics(messageState, error);
       queue.push({
@@ -526,7 +491,8 @@ export class ClaudeAgentSdkRuntime implements AgentRuntime {
 
     const abortController = new AbortController();
     const state = { started: false, finished: false, error: "" };
-    const query = (this.options.query ?? claudeQuery)({
+    const stream = this.host.stream({
+      sessionId: binding.nativeSessionId,
       prompt: "/compact",
       options: {
         abortController,
@@ -550,18 +516,12 @@ export class ClaudeAgentSdkRuntime implements AgentRuntime {
     });
 
     try {
-      await runWithNativeSessionLock("claude-code", binding.nativeSessionId, async () => {
-        try {
-          for await (const message of query) {
-            const outcome = readClaudeCompactionOutcome(message);
-            if (outcome.started) state.started = true;
-            if (outcome.finished) state.finished = true;
-            if (outcome.error) state.error = outcome.error;
-          }
-        } finally {
-          query.close();
-        }
-      });
+      for await (const message of stream) {
+        const outcome = readClaudeCompactionOutcome(message);
+        if (outcome.started) state.started = true;
+        if (outcome.finished) state.finished = true;
+        if (outcome.error) state.error = outcome.error;
+      }
     } catch (error) {
       return {
         ok: false,
