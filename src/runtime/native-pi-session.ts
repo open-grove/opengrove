@@ -1,892 +1,457 @@
-import { openPiHarness, drivePiTurn, compactPiSession, bridgePiStream } from "@open-grove/agent-host/pi";
+import { estimateContextTokens } from "@earendil-works/pi-ai/utils/estimate";
+import { BACKGROUND_CONTEXT as background } from "@earendil-works/chord/context";
 import {
-  AgentHarness,
-  HarnessFault,
-  BACKGROUND_CONTEXT as background,
-  type AgentLane,
-  type HarnessEvent,
-  convertToLlm as convertNativeSessionMessages,
-  createBashTool,
-  createEditTool,
-  createReadTool,
-  createWriteTool,
-  DEFAULT_COMPACTION_SETTINGS,
-  estimateContextTokens,
-  estimateTokens,
-  shouldCompact,
-  type AgentMessage as NativeAgentMessage,
-  type AgentEvent as NativePiEvent,
-  type AgentOptions,
-  type AgentHarnessTool,
-  type AgentTool,
-  type CompactionSettings,
-  type ExecutionEnv,
-  type ExecutionToolContext,
-  type StreamFn,
-  type ThinkingLevel,
-} from "@earendil-works/pi-agent-core";
-import { NodeExecutionEnv } from "@earendil-works/pi-agent-core/node";
-import {
-  clampThinkingLevel,
-  createProvider,
-  envApiKeyAuth,
-  type AssistantMessage,
+  type Api,
+  type Model,
   type Credential,
   type CredentialInfo,
   type CredentialStore,
-  type Context as NativeModelContext,
-  type ImageContent,
-  type Model,
   type MutableModels,
-  type TSchema,
-  type UserMessage,
+  createProvider,
+  envApiKeyAuth,
 } from "@earendil-works/pi-ai";
-import { anthropicMessagesApi } from "@earendil-works/pi-ai/api/anthropic-messages.lazy";
-import { googleGenerativeAIApi } from "@earendil-works/pi-ai/api/google-generative-ai.lazy";
+import { builtinModels } from "@earendil-works/pi-ai/providers/all";
 import { openAICompletionsApi } from "@earendil-works/pi-ai/api/openai-completions.lazy";
 import { openAIResponsesApi } from "@earendil-works/pi-ai/api/openai-responses.lazy";
-import { builtinModels } from "@earendil-works/pi-ai/providers/all";
-import { NativePiSessionRepository, nativePiSessionId } from "./pi-session-repository.js";
-import { WorkingStateStore } from "../core.js";
-import type {
-  AgentContext,
-  AgentCompactRequest,
-  AgentCompactResult,
-  AgentEvent,
-  AgentModelRequestTrace,
-  AgentSessionTrace,
-  ApprovalKind,
-  ApprovalRequest,
-  ContextEnvelope,
-  InvokedSkillRecord,
-  JsonObject,
-  JsonValue,
-  ModelMessage,
-  ToolDefinition,
-  ToolResult,
+import { anthropicMessagesApi } from "@earendil-works/pi-ai/api/anthropic-messages.lazy";
+import { googleGenerativeAIApi } from "@earendil-works/pi-ai/api/google-generative-ai.lazy";
+import { CodingTools } from "@earendil-works/pi-durable/tools";
+import { PiAgent, type PiAgentOptions } from "@open-grove/agent-host/pi";
+import { AsyncEventQueue } from "./codex/async-event-queue.js";
+import {
+  WorkingStateStore,
+  type AgentEvent,
+  type AgentSessionTrace,
+  type JsonValue,
+  type JsonObject,
+  type ModelMessage,
+  type ApprovalRequest,
 } from "../core.js";
-import { buildSkillSteeringText } from "../skills/runtime.js";
+import {
+  createNativePiSessionFactory as createLegacyFactory,
+  createNativeToolNameMap,
+  toNativeTools,
+  type NativePiSessionOptions as LegacyOptions,
+} from "./native-pi-session.compat.js";
+import { NativePiSessionRepository } from "./pi-session-repository.js";
+import type { PiSessionFactory, PiSessionContext } from "./pi-runtime.js";
 import { imageAttachmentsWithDataUrl } from "./media-input.js";
-import { contextBudgetDiagnostic, resolveContextTokenBudget } from "./context-token-budget.js";
-import type { PiAgentRuntimeOptions, PiSession, PiSessionContext } from "./pi-runtime.js";
+import { contextBudgetDiagnostic, resolveContextTokenBudget, estimateTextTokens } from "./context-token-budget.js";
+import { buildSkillSteeringText } from "../skills/runtime.js";
 
-export interface NativePiSessionOptions {
-  model: Model<any> | ((requestedModelId?: string) => Model<any>);
-  streamFn?: StreamFn;
-  getApiKey?: AgentOptions["getApiKey"];
-  thinkingLevel?: ThinkingLevel | ((requestedEffort?: string) => ThinkingLevel);
-  toolExecution?: AgentOptions["toolExecution"];
-  /** Enables Pi's native durable JSONL SessionRepo. Omit for an in-memory repo. */
-  sessionRoot?: string;
-  cwd?: string;
-  /** Injectable for deterministic compaction tests and custom provider catalogs. */
-  models?: MutableModels;
-  /** Close and natively recover a provider/tool that ignores cancellation beyond this deadline. */
-  abortSettleTimeoutMs?: number;
-  /** Injectable execution boundary for Pi's official coding tools. */
-  executionEnv?: ExecutionEnv;
+export interface NativePiSessionOptions extends Omit<PiAgentOptions, "model" | "bindings"> {
+  model: Model<Api> | ((id?: string) => Model<Api>);
+  getApiKey?: (provider: string) => string | undefined | Promise<string | undefined>;
 }
-
-export function createNativePiSessionFactory(options: NativePiSessionOptions): PiAgentRuntimeOptions["createSession"] {
-  // This map is an in-process single-writer guard. Deployments that share one
-  // sessionRoot across Host processes must provide external coordination.
-  const sessions = new Map<string, NativePiSession>();
-  const models = options.models ?? createNativePiModels(options.getApiKey);
-  const cwd = options.cwd ?? process.cwd();
-  const executionEnv = options.executionEnv ?? new NodeExecutionEnv({ cwd });
-  const repository = new NativePiSessionRepository(options.sessionRoot, cwd, executionEnv);
-  const resolvedOptions = { ...options, cwd, models, executionEnv };
-
-  const factory: PiAgentRuntimeOptions["createSession"] = (context) => {
-    const sessionId = context.sessionId || "default";
-    let session = sessions.get(sessionId);
-    if (!session) {
-      session = new NativePiSession(context, resolvedOptions, sessionId, repository);
-      sessions.set(sessionId, session);
-    } else {
-      session.updateRuntimeContext(context);
-    }
-    return session;
-  };
-  factory.compactSession = async (request) => {
-    let session = sessions.get(request.threadId);
-    if (!session) {
-      session = new NativePiSession(
-        {
-          sessionId: request.threadId,
-          system: "",
-          tools: [],
-          skills: [],
-          packs: [],
-          capabilities: [],
-        },
-        resolvedOptions,
-        request.threadId,
-        repository,
-      );
-      sessions.set(request.threadId, session);
-    }
-    return session.compact(request);
-  };
-  factory.listSessions = () => repository.list();
-  factory.deleteSession = async (sessionId) => {
-    const active = sessions.get(sessionId);
-    if (active?.isRunning) {
-      return { ok: false, deleted: false, error: "pi_session_busy" };
-    }
-    await active?.close();
-    const deleted = await repository.delete(sessionId);
-    // Forget an inactive Host handle even when no durable entry existed. This
-    // keeps repository and factory caches aligned for a later fork/create.
-    sessions.delete(sessionId);
-    return { ok: true, deleted };
-  };
-  factory.forkSession = async (sourceSessionId, targetSessionId) => {
-    if (sessions.get(sourceSessionId)?.isRunning) {
-      return { ok: false, forked: false, error: "pi_session_busy" };
-    }
-    const result = await repository.fork(sourceSessionId, targetSessionId);
-    if (result === "source_not_found") {
-      return { ok: false, forked: false, error: "pi_session_source_not_found" };
-    }
-    if (result === "target_exists") {
-      return { ok: false, forked: false, error: "pi_session_target_exists" };
-    }
-    return {
-      ok: true,
-      forked: true,
-      session: { sessionId: targetSessionId, nativeSessionId: nativePiSessionId(targetSessionId) },
-    };
-  };
-  factory.dispose = async () => {
-    try {
-      await Promise.all([...sessions.values()].map((session) => session.close()));
-    } finally {
-      sessions.clear();
-      await repository.close();
-    }
-  };
-  return factory;
-}
-
-class NativePiSession implements PiSession {
-  readonly emitsModelRequests = true;
-  private harness?: AgentHarness<ExecutionToolContext>;
-  private lane?: AgentLane;
-  private opening?: Promise<void>;
-  private closing?: Promise<void>;
-  private faulted = false;
-  private streamFn?: StreamFn;
-  private removeToolGate?: () => void;
-  private nativeToolNames = new Map<string, string>();
-  private pendingSkillOverlay?: InvokedSkillRecord;
-  private activeSkillOverlay?: InvokedSkillRecord;
-  private activeRuns = 0;
-
-  constructor(
-    private runtimeContext: Parameters<PiAgentRuntimeOptions["createSession"]>[0],
-    private readonly options: NativePiSessionOptions,
-    private readonly sessionId: string,
-    private readonly repository: NativePiSessionRepository,
-  ) {}
-
-  updateRuntimeContext(context: Parameters<PiAgentRuntimeOptions["createSession"]>[0]) {
-    this.runtimeContext = context;
-  }
-
-  get isRunning(): boolean {
-    return this.activeRuns > 0 || this.opening !== undefined || this.closing !== undefined;
-  }
-
-  async close(): Promise<void> {
-    await this.opening;
-    await this.closeNativeHarness();
-  }
-
-  private closeNativeHarness(): Promise<void> {
-    if (this.closing) return this.closing;
-    const harness = this.harness;
-    if (!harness) return Promise.resolve();
-    this.harness = undefined;
-    this.lane = undefined;
-    this.faulted = false;
-    this.removeToolGate?.();
-    this.removeToolGate = undefined;
-    this.closing = Promise.resolve()
-      .then(() => harness.close(background))
-      .finally(() => {
-        this.repository.release(this.sessionId);
-        this.closing = undefined;
-      });
-    return this.closing;
-  }
-
-  async trace(): Promise<AgentSessionTrace> {
-    try {
-      await this.ensureNativeSession();
-      return await this.createSessionTrace();
-    } catch (error) {
-      if (error instanceof HarnessFault) this.faulted = true;
-      throw error;
-    }
-  }
-
-  private async createSessionTrace(): Promise<AgentSessionTrace> {
-    const entries = await this.lane!.findEntries({ order: "oldestFirst" }, background);
-    const messages = entries.flatMap((entry) => (entry.type === "message" ? [entry.message] : []));
-    return {
-      provider: "pi",
-      sessionId: this.sessionId,
-      persistent: true,
-      nativeSessionId: nativePiSessionId(this.sessionId),
-      priorMessageCount: messages.length,
-      priorMessages: toModelMessages(messages),
-    };
-  }
-
-  async *run(input: string, context: PiSessionContext): AsyncIterable<AgentEvent> {
-    this.activeRuns += 1;
-    try {
-      yield* this.runActiveTurn(input, context);
-    } catch (error) {
-      if (error instanceof HarnessFault) this.faulted = true;
-      throw error;
-    } finally {
-      this.activeRuns = Math.max(0, this.activeRuns - 1);
-    }
-  }
-
-  private async *runActiveTurn(input: string, context: PiSessionContext): AsyncIterable<AgentEvent> {
-    await this.ensureNativeSession();
-    const images = piImageContent(context);
-    const queue: NativeSessionEvent[] = [];
-    let done = false;
-    let wake: (() => void) | undefined;
-    let streamingMessage: NativeAgentMessage | undefined;
-    const turnMessages: NativeAgentMessage[] = [];
-    let faultReported = false;
-    const projector = new PiNativeMessageProjector(context.runId);
-    const push = (events: NativeSessionEvent[]) => {
-      queue.push(...events);
-      wake?.();
-      wake = undefined;
-    };
-    const project = (projection: PiNativeMessageProjection) => {
-      push(projection.events);
-      if (projection.terminalMessage)
-        push([
-          {
-            type: "model.response",
-            runId: context.runId,
-            response: {
-              text: readAssistantText(projection.terminalMessage),
-              usage: toUsageStats(
-                projection.terminalMessage,
-                resolveModel(this.options.model, this.runtimeContext.requestedModelId),
-              ),
-            },
-          },
-          createPiMessageDiagnostic(context.runId, projection.terminalMessage),
-        ]);
-    };
-    await this.configureAgentForTurn(input, context, push);
-    const contextPreparation = await this.prepareNativeContext(input, images, context);
-    for (const event of contextPreparation.events) yield event;
-    if (contextPreparation.error) {
-      yield { type: "error", runId: context.runId, message: contextPreparation.error };
-      return;
-    }
-    const listeners = (
-      [
-        "message_start",
-        "message_update",
-        "message_end",
-        "turn_start",
-        "turn_end",
-        "tool_start",
-        "tool_update",
-        "tool_end",
-        "run_end",
-        "fault",
-        "handler_error",
-      ] as const
-    ).map((type) =>
-      this.harness!.events.on(type, (event) => {
-        if (event.type === "fault" || event.type === "handler_error") {
-          if (event.type === "fault") faultReported = true;
-          push([
-            { type: "error", runId: context.runId, message: event.type === "fault" ? event.message : event.error },
-          ]);
-          return;
-        }
-        if (event.type === "message_start" || event.type === "message_update") streamingMessage = event.message;
-        if (event.type === "message_end") {
-          streamingMessage = undefined;
-          turnMessages.push(event.message);
-        }
-        if (event.type === "run_end") {
-          if (event.status === "aborted") project(projector.abort(streamingMessage));
-          else project(projector.project({ type: "agent_end", messages: turnMessages }));
-          if (event.status === "failed") push([{ type: "error", runId: context.runId, message: event.error.message }]);
-          return;
-        }
-        const nativeEvent = toPiAgentEvent(event);
-        if (nativeEvent) {
-          this.handleLoopEvent(nativeEvent, context, push);
-          project(projector.project(nativeEvent));
-          push(mapNativeToolEvent(nativeEvent, context.runId, this.nativeToolNames));
-        }
-      }),
+/** Existing 0.85 JSONL sessions retain their native engine; all new sessions use Pi 1.1 durable. */
+export function createNativePiSessionFactory(options: NativePiSessionOptions): PiSessionFactory {
+  const models = options.models ?? createModels(options.getApiKey);
+  const latest = new PiAgent({ ...options, models });
+  const legacyRepository = new NativePiSessionRepository(options.sessionRoot, options.cwd);
+  let legacyIds: Promise<Set<string>> | undefined;
+  const isLegacy = async (id: string) =>
+    (await (legacyIds ??= legacyRepository.list().then((items) => new Set(items.map((item) => item.sessionId))))).has(
+      id,
     );
-    let abortTimedOut = false;
-    const controller = new AbortController();
-    const abortTurn = () => controller.abort(context.signal?.reason);
-    context.signal?.addEventListener("abort", abortTurn, { once: true });
-    if (context.signal?.aborted) abortTurn();
-    const prompt = (async () => {
-      if (context.requestedSkillInvocation?.context === "inline") {
-        this.pendingSkillOverlay = undefined;
-        this.activeSkillOverlay = context.requestedSkillInvocation;
-        await this.lane!.steer(createSkillSteeringMessage(context.requestedSkillInvocation), undefined, background);
-      }
-      if (context.assembledContext?.promptBlock)
-        await this.lane!.steer(createContextSteeringMessage(context.assembledContext), undefined, background);
-      await drivePiTurn({
-        lane: this.lane!,
-        input,
-        images,
-        signal: controller.signal,
-        abortSettleTimeoutMs: this.options.abortSettleTimeoutMs,
-        close: () => this.closeNativeHarness(),
-        onCleanupError: (error) => push([{ type: "error", runId: context.runId, message: String(error) }]),
-        onAbortTimeout: () => {
-          abortTimedOut = true;
-          project(projector.abort(streamingMessage));
-          push([
-            {
-              type: "error",
+  // Protocol boundary: model identities/costs are plain provider data shared by both Pi generations.
+  // Never send a new durable transcript through the old storage API or vice versa.
+  const legacy = createLegacyFactory({
+    cwd: options.cwd,
+    sessionRoot: options.sessionRoot,
+    getApiKey: options.getApiKey,
+    streamFn: options.streamFn as unknown as LegacyOptions["streamFn"],
+    model: options.model as unknown as LegacyOptions["model"],
+  });
+  const factory: PiSessionFactory = (runtime) => {
+    const trace = async (): Promise<AgentSessionTrace> => {
+      const conversation = await latest.conversation(runtime.sessionId);
+      const messages = conversation ? (await conversation.context(background)).messages : [];
+      return {
+        provider: "pi",
+        sessionId: runtime.sessionId,
+        nativeSessionId: conversation ? String(conversation.id) : undefined,
+        persistent: !!options.sessionRoot,
+        priorMessageCount: messages.length,
+        priorMessages: projectMessages(messages),
+      };
+    };
+    return {
+      emitsModelRequests: true,
+      trace: async (input) => ((await isLegacy(runtime.sessionId)) ? legacy(runtime).trace?.(input) : trace()),
+      compact: async (request) =>
+        (await isLegacy(runtime.sessionId))
+          ? legacy.compactSession!(request)
+          : latest.compact(runtime.sessionId, request.reason),
+      async *run(input, context) {
+        if (await isLegacy(runtime.sessionId)) {
+          yield* legacy(runtime).run(input, context);
+          return;
+        }
+        const controller = new AbortController();
+        const abort = () => controller.abort(context.signal?.reason);
+        context.signal?.addEventListener("abort", abort, { once: true });
+        if (context.signal?.aborted) abort();
+        const queue = new AsyncEventQueue<AgentEvent>();
+        const nativeNames = createNativeToolNameMap(runtime.tools);
+        const originalName = (name: string) => nativeNames.get(name) ?? name;
+        const push = (event: AgentEvent) => queue.push(event);
+        const productTools = toNativeTools(runtime.tools, context, nativeNames, {
+          onSkillInvoked: async (invocation) => {
+            const manifest =
+              context.agent.skills.get(invocation.skillId) ?? context.agent.skills.get(invocation.skillName);
+            if (manifest) push({ type: "skill.invoked", runId: context.runId, skill: manifest, invocation });
+            push({
+              type: "skill.loaded",
               runId: context.runId,
-              message: "pi_abort_settlement_timeout: Pi provider or tool did not settle after cancellation",
-            },
-          ]);
-        },
-      });
-    })()
-      .catch((error) => {
-        if (error instanceof HarnessFault) this.faulted = true;
-        if (!abortTimedOut && !(faultReported && error instanceof HarnessFault))
-          push([
-            { type: "error", runId: context.runId, message: error instanceof Error ? error.message : String(error) },
-          ]);
-      })
-      .finally(() => {
-        done = true;
-        wake?.();
-        wake = undefined;
-      });
-    try {
-      while (!done || queue.length) {
-        while (queue.length) yield queue.shift()!;
-        if (!done)
-          await new Promise<void>((resolve) => {
-            wake = resolve;
-          });
-      }
-    } finally {
-      context.signal?.removeEventListener("abort", abortTurn);
-      if (!done) abortTurn();
-      await prompt;
-      for (const unsubscribe of listeners) unsubscribe();
-    }
-    while (queue.length) yield queue.shift()!;
-  }
-
-  async compact(request: AgentCompactRequest): Promise<AgentCompactResult> {
-    const model = resolveModel(this.options.model, this.runtimeContext.requestedModelId);
-    return this.compactWithSettings(request, piCompactionSettingsForRequest(model.contextWindow, request.maxTokens));
-  }
-
-  private async compactWithSettings(
-    request: AgentCompactRequest,
-    settings: CompactionSettings,
-  ): Promise<AgentCompactResult> {
-    try {
-      await this.ensureNativeSession();
-      return await compactPiSession(this.harness!, this.lane!, settings, request.reason);
-    } catch (error) {
-      if (error instanceof HarnessFault) this.faulted = true;
-      return { ok: false, compacted: false, error: error instanceof Error ? error.message : String(error) };
-    }
-  }
-
-  /** Estimate only: the Harness independently assembles the actual provider context. */
-  private async estimateNativeContext(incoming: NativeAgentMessage) {
-    const entries = await this.lane!.findEntries({ order: "newestFirst", stopAtType: "compaction" }, background);
-    const messages: NativeAgentMessage[] = [];
-    let summaryTokens = 0;
-    for (const entry of entries.reverse()) {
-      if (entry.type === "message") messages.push(entry.message);
-      else if (entry.type === "compaction") {
-        summaryTokens += Math.ceil(entry.summary.length / 4) + 40;
-        messages.push(...entry.retainedTail);
-      }
-    }
-    messages.push(incoming);
-    const usage = estimateContextTokens(messages);
-    return {
-      ...usage,
-      tokens: usage.tokens + summaryTokens,
-      estimatedTokens: messages.reduce((sum, message) => sum + estimateTokens(message), summaryTokens),
-    };
-  }
-
-  private async prepareNativeContext(
-    input: string,
-    images: ImageContent[] | undefined,
-    context: PiSessionContext,
-  ): Promise<{ events: AgentEvent[]; error?: string }> {
-    const model = resolveModel(this.options.model, this.runtimeContext.requestedModelId);
-    const budget = resolveContextTokenBudget(context.contextTokenBudget, model.contextWindow);
-    const triggerWindow = budget.effectiveBudget ?? budget.modelContextWindow;
-    const incomingMessage = createPiBudgetMessage(
-      [context.assembledContext?.promptBlock, input].filter(Boolean).join("\n\n"),
-      images,
-    );
-    const usage = await this.estimateNativeContext(incomingMessage);
-    const usageSource = usage.usageTokens > 0 ? ("native" as const) : ("estimated" as const);
-
-    if (triggerWindow === undefined) {
-      return {
-        events: [
-          contextBudgetDiagnostic({
-            runId: context.runId,
-            kernel: "pi",
-            ...budget,
-            usageSource,
-            enforcementMode: "native-trigger",
-            contextUsedTokens: usage.tokens,
-            reason: "Pi model context window unavailable; no Host truncation applied",
-          }),
-        ],
-      };
-    }
-
-    const settings = piCompactionSettings(triggerWindow);
-    if (!shouldCompact(usage.tokens, triggerWindow, settings)) {
-      return {
-        events: [
-          contextBudgetDiagnostic({
-            runId: context.runId,
-            kernel: "pi",
-            ...budget,
-            usageSource,
-            enforcementMode: "native-trigger",
-            contextUsedTokens: usage.tokens,
-            reason:
-              budget.budgetSource === "configured"
-                ? "Pi native compaction threshold not reached"
-                : "Pi native model-window compaction threshold not reached",
-          }),
-        ],
-      };
-    }
-
-    const reason =
-      budget.budgetSource === "configured"
-        ? `Pi projected context reached the configured ${triggerWindow}-token window`
-        : `Pi projected context approached the native ${triggerWindow}-token model window`;
-    const events: AgentEvent[] = [
-      {
-        type: "compaction.started",
-        runId: context.runId,
-        at: new Date().toISOString(),
-        reason,
-      },
-    ];
-    const result = await this.compactWithSettings(
-      {
-        runId: context.runId,
-        threadId: this.sessionId,
-        reason,
-      },
-      settings,
-    );
-    events.push(
-      contextBudgetDiagnostic({
-        runId: context.runId,
-        kernel: "pi",
-        ...budget,
-        usageSource,
-        enforcementMode: "native-trigger",
-        contextUsedTokens: usage.tokens,
-        compactionTriggered: true,
-        compactionSucceeded: result.ok && result.compacted === true,
-        reason: result.ok
-          ? result.compacted === true
-            ? "Pi native summary compaction completed"
-            : "Pi native compaction found no eligible history"
-          : result.error,
-      }),
-    );
-
-    if (result.ok && result.compacted) {
-      events.push({
-        type: "compaction.finished",
-        runId: context.runId,
-        at: new Date().toISOString(),
-        summary: "Pi native session compaction finished.",
-      });
-    }
-
-    const rebuiltTokens = (await this.estimateNativeContext(incomingMessage)).estimatedTokens;
-    const hardWindowExceeded = budget.modelContextWindow !== undefined && rebuiltTokens >= budget.modelContextWindow;
-    if (hardWindowExceeded) {
-      return {
-        events,
-        error: [
-          `context_window_exceeded_after_pi_compaction: Pi native compaction could not fit this conversation into the model context window (${rebuiltTokens}/${budget.modelContextWindow} tokens).`,
-          "No conversation history was discarded.",
-          result.error ? `Native compaction detail: ${result.error}` : "The native compaction result was insufficient.",
-        ].join(" "),
-      };
-    }
-
-    return { events };
-  }
-
-  private async ensureNativeSession(): Promise<void> {
-    await this.closing;
-    if (this.faulted) await this.closeNativeHarness();
-    if (this.harness) return;
-    this.opening ??= this.openNativeSession().finally(() => {
-      this.opening = undefined;
-    });
-    await this.opening;
-  }
-
-  private async openNativeSession(): Promise<void> {
-    const session = await this.repository.openOrCreate(this.sessionId);
-    const catalog = this.options.models!;
-    const models = new Proxy(catalog, {
-      get: (target, property, receiver) => {
-        if (property === "getModel")
-          return (provider: string, id: string) => {
-            const selected = resolveModel(this.options.model, this.runtimeContext.requestedModelId);
-            return selected.provider === provider && selected.id === id ? selected : target.getModel(provider, id);
-          };
-        if (property === "streamSimple")
-          return ((model, context, options) => {
-            const stream = this.streamFn ?? this.options.streamFn;
-            return stream
-              ? bridgePiStream(stream, model, context, options)
-              : target.streamSimple(model, context, options);
-          }) satisfies MutableModels["streamSimple"];
-        const member = Reflect.get(target, property, receiver);
-        return typeof member === "function" ? member.bind(target) : member;
-      },
-    });
-    let harness: AgentHarness<ExecutionToolContext> | undefined;
-    try {
-      const created = await openPiHarness({
-        session,
-        models,
-        model: resolveModel(this.options.model, this.runtimeContext.requestedModelId),
-        thinkingLevel: resolveThinkingLevel(this.options.thinkingLevel, this.runtimeContext.requestedEffort),
-        systemPrompt: () => this.runtimeContext.system,
-        toolContext: { env: this.options.executionEnv! },
-        toolExecution: this.options.toolExecution ?? "parallel",
-        // The Host owns the user-selected trigger; Pi owns summarization and storage.
-        compaction: { ...DEFAULT_COMPACTION_SETTINGS, enabled: false },
-        toProviderMessages: convertNativeSessionMessages,
-      });
-      harness = created.harness;
-      const lane = created.lane;
-      this.harness = harness;
-      this.lane = lane;
-      harness.events.on("fault", () => {
-        this.faulted = true;
-      });
-    } catch (error) {
-      this.repository.release(this.sessionId);
-      throw error;
-    }
-  }
-
-  private async configureAgentForTurn(
-    input: string,
-    context: PiSessionContext,
-    push: (events: NativeSessionEvent[]) => void,
-  ): Promise<void> {
-    this.nativeToolNames = createNativeToolNameMap(this.runtimeContext.tools);
-    const model = resolveModel(this.options.model, this.runtimeContext.requestedModelId);
-    const thinkingLevel = clampThinkingLevel(
-      model,
-      resolveThinkingLevel(this.options.thinkingLevel, this.runtimeContext.requestedEffort),
-    );
-    const tools = [
-      ...toNativeTools(this.runtimeContext.tools, context, this.nativeToolNames, {
-        onSkillInvoked: async (invocation) => {
-          const manifest =
-            context.agent.skills.get(invocation.skillId) ?? context.agent.skills.get(invocation.skillName);
-          if (manifest) {
-            push([{ type: "skill.invoked", runId: context.runId, skill: manifest, invocation }]);
-            push([
-              {
-                type: "skill.loaded",
-                runId: context.runId,
-                skillId: invocation.skillId,
-                contentPreview: invocation.contentPreview,
-                allowedTools: [...invocation.allowedTools],
-                model: invocation.model,
-                effort: invocation.effort,
-                context: invocation.context,
-              },
-            ]);
-          }
-          if (invocation.context === "inline") {
-            this.pendingSkillOverlay = invocation;
-            await this.lane!.steer(createSkillSteeringMessage(invocation), undefined, background);
-          }
-        },
-        runForkedSkill: async (invocation) => {
-          const forkSessionId = `${this.sessionId}:skill:${invocation.skillName}:${Date.now()}`;
-          push([
-            {
+              skillId: invocation.skillId,
+              contentPreview: invocation.contentPreview,
+              allowedTools: [...invocation.allowedTools],
+              model: invocation.model,
+              effort: invocation.effort,
+              context: invocation.context,
+            });
+            if (invocation.context === "inline")
+              await latest.steer(runtime.sessionId, buildSkillSteeringText(invocation));
+          },
+          runForkedSkill: async (invocation) => {
+            const forkSessionId = `${runtime.sessionId}:skill:${invocation.skillName}:${Date.now()}`;
+            push({
               type: "skill.forked",
               runId: context.runId,
               skillId: invocation.skillId,
               forkSessionId,
               status: "started",
-            },
-          ]);
-          const result = await this.executeForkedSkill(invocation, context, forkSessionId);
-          push([
-            {
+            });
+            const workingState = new WorkingStateStore();
+            workingState.restore({
+              ...context.agent.workingState.get(),
+              sessionId: forkSessionId,
+              activePackId: invocation.packId,
+              activeSkillId: invocation.skillId,
+              expandedSkillIds: [invocation.skillId],
+              invokedSkills: [invocation],
+            });
+            let text = "";
+            for await (const event of factory({
+              ...runtime,
+              sessionId: forkSessionId,
+              requestedModelId: invocation.model,
+              requestedEffort: invocation.effort,
+            }).run(invocation.content, {
+              ...context,
+              runId: `${context.runId}:skill`,
+              agent: { ...context.agent, sessionId: forkSessionId, workingState },
+              assembledContext: undefined,
+            }))
+              if (event.type === "model.response") text = event.response.text;
+            push({
               type: "skill.forked",
               runId: context.runId,
               skillId: invocation.skillId,
-              forkSessionId: result.forkSessionId,
+              forkSessionId,
               status: "finished",
-              result: result.text,
-            },
-          ]);
-          return result;
-        },
-      }).map(toHarnessTool),
-      ...createPiCodingTools(),
-    ];
-    this.streamFn = this.createTracingStreamFn(input, context, push);
-    await this.harness!.setTools(tools, background);
-    await this.lane!.setActiveTools(
-      tools.map((tool) => tool.name),
-      background,
-    );
-    await this.lane!.setModel({ provider: model.provider, modelId: model.id }, background);
-    await this.lane!.setThinkingLevel(thinkingLevel, background);
-    await this.harness!.setCompactionSettings({ ...DEFAULT_COMPACTION_SETTINGS, enabled: false }, background);
-    this.removeToolGate?.();
-    this.removeToolGate = this.harness!.hooks.on("before_tool", async (nativeContext, nativeRequestContext) => {
-      const signal = nativeRequestContext.abortSignal;
-      const toolId = toOriginalToolId(this.nativeToolNames, nativeContext.toolName);
-      const capabilityId = findCapabilityId(this.runtimeContext.tools, context, toolId);
-      const decision = await context.beforeToolCall({
-        toolId,
-        capabilityId,
-        input: isJsonObject(nativeContext.args) ? nativeContext.args : undefined,
-        source: PI_CODING_TOOL_NAMES.has(toolId) ? "native" : "host",
-      });
-
-      if (decision.mode !== "allow") {
-        if (decision.mode === "ask") {
-          const approvalInput = enrichApprovalInput(toolId, nativeContext.args, context.agent);
-          const request = context.agent.approvals.request({
-            kind: piApprovalKind(toolId),
-            title: toolId,
-            reason: decision.reason,
-            toolId,
-            capabilityId,
-            input: approvalInput,
-            resume: {
-              type: "kernel.native",
-              kernelId: "pi",
-              runId: context.runId,
-              continuation: "same-loop",
-            },
-          });
-          push([
-            { type: "approval.requested", runId: context.runId, request },
-            {
-              type: "run.paused",
-              runId: context.runId,
-              at: new Date().toISOString(),
-              reason: decision.reason,
-              approvalId: request.id,
-            },
-          ]);
-          let resolved: ApprovalRequest;
-          try {
-            resolved = await context.agent.approvals.waitForDecision(request.id, {
-              signal: signal ?? context.signal,
+              result: text,
             });
-          } catch (error) {
-            const pending = context.agent.approvals.get(request.id);
-            resolved =
-              pending?.status === "pending"
-                ? context.agent.approvals.decide(request.id, "canceled", {
-                    system: true,
-                    reasonCode: (signal ?? context.signal)?.aborted ? "run_canceled" : "native_request_failed",
-                    error: error instanceof Error ? error.message : String(error),
-                  })
-                : (pending ?? request);
-          }
-          push([{ type: "approval.resolved", runId: context.runId, request: resolved }]);
-          if (resolved.status === "approved") {
-            push([
-              {
-                type: "run.resumed",
+            return { forkSessionId, text };
+          },
+        });
+        const producer = (async () => {
+          const model = typeof options.model === "function" ? options.model(runtime.requestedModelId) : options.model;
+          for await (const event of latest.run({
+            sessionId: runtime.sessionId,
+            runId: context.runId,
+            cwd: options.cwd ?? process.cwd(),
+            input,
+            instructions: runtime.system,
+            // Pi 1.1 supports reconfiguration natively. Product context and offered tools can change per turn.
+            bindingFingerprint: `opengrove-pi-durable-v1:${options.cwd ?? process.cwd()}`,
+            context: [
+              context.assembledContext?.promptBlock,
+              context.requestedSkillInvocation ? buildSkillSteeringText(context.requestedSkillInvocation) : "",
+            ]
+              .filter(Boolean)
+              .join("\n\n"),
+            model: runtime.requestedModelId ?? model.id,
+            thinkingLevel: resolveEffort(runtime.requestedEffort),
+            signal: controller.signal,
+            images: imageAttachmentsWithDataUrl(context.agent.page?.attachments).map(({ image }) => ({
+              type: "image",
+              data: image.base64,
+              mimeType: image.mediaType,
+            })),
+            extensions: [CodingTools],
+            tools: productTools.map((tool) => ({
+              name: tool.name,
+              description: tool.description,
+              inputSchema: json(tool.parameters),
+              execute: async (params, native) => {
+                const result = await tool.execute(native.callId, params, native.signal, (update) =>
+                  push({
+                    type: "tool.progress",
+                    runId: context.runId,
+                    toolId: originalName(tool.name),
+                    callId: native.callId,
+                    update: json(update),
+                  }),
+                );
+                return {
+                  success: true,
+                  contentItems: result.content.map((item) => ({
+                    type: "inputText" as const,
+                    text: item.type === "text" ? item.text : "[image]",
+                  })),
+                };
+              },
+            })),
+            beforeTurn: async ({ conversation }) => {
+              const nativeContext = await conversation.context(background);
+              const usage = estimateContextTokens(nativeContext.messages);
+              const budget = resolveContextTokenBudget(context.contextTokenBudget, model.contextWindow);
+              const projected =
+                usage.tokens +
+                estimateTextTokens([context.assembledContext?.promptBlock, input].filter(Boolean).join("\n\n"));
+              const triggered =
+                budget.budgetSource === "configured" &&
+                budget.effectiveBudget !== undefined &&
+                projected >= budget.effectiveBudget;
+              if (triggered) {
+                push({
+                  type: "compaction.started",
+                  runId: context.runId,
+                  at: new Date().toISOString(),
+                  reason: "Product context budget reached",
+                });
+                const result = await latest.compact(
+                  runtime.sessionId,
+                  `Keep this conversation within the product context budget of ${budget.effectiveBudget} tokens.`,
+                );
+                if (result.compacted)
+                  push({
+                    type: "compaction.finished",
+                    runId: context.runId,
+                    at: new Date().toISOString(),
+                    summary: "Pi native compaction completed",
+                  });
+                const rebuilt =
+                  estimateContextTokens((await conversation.context(background)).messages).tokens +
+                  estimateTextTokens(input);
+                if (rebuilt >= model.contextWindow)
+                  throw new Error(
+                    `context_window_exceeded_after_pi_compaction:${rebuilt}/${model.contextWindow}:${result.error ?? "insufficient"}`,
+                  );
+              }
+              push(
+                contextBudgetDiagnostic({
+                  runId: context.runId,
+                  kernel: "pi",
+                  ...budget,
+                  usageSource: usage.usageTokens ? "native" : "estimated",
+                  enforcementMode: "native-trigger",
+                  contextUsedTokens: usage.tokens,
+                  compactionTriggered: triggered,
+                  reason: "Pi durable native context",
+                }),
+              );
+            },
+            onBeforeTool: async (call, native) =>
+              gateTool(context, originalName(call.name), object(call.arguments), native.signal, push),
+            onModelRequest: (selected, native) =>
+              push({
+                type: "model.requested",
+                runId: context.runId,
+                request: {
+                  systemPrompt: runtime.system,
+                  userInput: input,
+                  modelId: selected.id,
+                  messages: projectMessages(native.messages),
+                  context: context.assembledContext,
+                  tools: runtime.tools.map((tool) => tool.spec),
+                  skills: runtime.skills,
+                  packs: runtime.packs,
+                  capabilities: runtime.capabilities,
+                },
+              }),
+          })) {
+            if (event.type === "assistant.delta") push({ ...event, runId: context.runId });
+            else if (event.type === "tool.started")
+              push({
+                type: "tool.started",
+                runId: context.runId,
+                callId: event.callId,
+                toolId: originalName(event.tool),
+                input: json(event.input),
+              });
+            else if (event.type === "tool.finished")
+              push({
+                type: "tool.finished",
+                runId: context.runId,
+                callId: event.callId,
+                toolId: originalName(event.tool),
+                result: {
+                  ok: event.result.success,
+                  value: json(event.result.contentItems),
+                  ...(!event.result.success
+                    ? {
+                        error: event.result.contentItems
+                          .filter((item) => item.type === "inputText")
+                          .map((item) => item.text)
+                          .join("\n"),
+                      }
+                    : {}),
+                },
+              });
+            else if (event.type === "model.response")
+              push({ type: "model.response", runId: context.runId, response: { text: event.text } });
+            else if (event.type === "native.notification")
+              push({
+                type: "runtime.diagnostic",
                 runId: context.runId,
                 at: new Date().toISOString(),
-                reason: "Pi native tool call approved; continuing the same agent loop.",
-                approvalId: request.id,
-              },
-            ]);
-            return undefined;
+                name: event.notification.method,
+                data: object(json(event.notification.params)),
+              });
+            else if (event.type === "turn.finished") {
+              if (event.outcome.status === "failed")
+                push({ type: "error", runId: context.runId, message: event.outcome.error ?? "pi_native_failed" });
+              push({
+                type: "turn.finished",
+                runId: context.runId,
+                at: new Date().toISOString(),
+                outcome: {
+                  taskState:
+                    event.outcome.status === "completed"
+                      ? "TASK_STATE_COMPLETED"
+                      : event.outcome.status === "cancelled"
+                        ? "TASK_STATE_CANCELED"
+                        : "TASK_STATE_FAILED",
+                  ...(event.outcome.error ? { reasonCode: event.outcome.error } : {}),
+                  ...(event.outcome.outcomeUnknown ? { outcomeUnknown: true } : {}),
+                },
+              });
+            }
           }
-          return { block: { reason: `${decision.reason} Approval ${resolved.status}: ${request.id}` } };
+        })()
+          .catch((error) => queue.push({ type: "error", runId: context.runId, message: String(error) }))
+          .finally(() => queue.close());
+        try {
+          for await (const event of queue) yield event;
+        } finally {
+          controller.abort();
+          context.signal?.removeEventListener("abort", abort);
+          await producer;
         }
-        return { block: { reason: decision.reason } };
-      }
-      return undefined;
-    });
-  }
-
-  private createTracingStreamFn(
-    input: string,
-    context: PiSessionContext,
-    push: (events: NativeSessionEvent[]) => void,
-  ): StreamFn {
-    const delegate =
-      this.options.streamFn ??
-      ((model, llmContext, options) => this.options.models!.streamSimple(model, llmContext, options));
-    return (model, llmContext, options) => {
-      push([
-        {
-          type: "model.requested",
-          runId: context.runId,
-          request: this.createModelRequestTrace(input, context, model, llmContext),
-        },
-      ]);
-      return delegate(model, llmContext, options);
+      },
     };
+  };
+  factory.compactSession = async (request) =>
+    (await isLegacy(request.threadId))
+      ? legacy.compactSession!(request)
+      : latest.compact(request.threadId, request.reason);
+  factory.listSessions = async () => [...(await legacyRepository.list()), ...(await latest.listSessions())];
+  factory.deleteSession = async (id) =>
+    (await isLegacy(id))
+      ? legacy.deleteSession!(id)
+      : { ok: false, deleted: false, error: "pi_durable_native_delete_unsupported" };
+  factory.forkSession = async (source, target) => {
+    if (await isLegacy(source)) return legacy.forkSession!(source, target);
+    const result = await latest.forkSession(source, target);
+    return result === "forked"
+      ? {
+          ok: true,
+          forked: true,
+          session: { sessionId: target, nativeSessionId: String((await latest.conversation(target))!.id) },
+        }
+      : { ok: false, forked: false, error: result };
+  };
+  factory.dispose = async () => {
+    await latest.close();
+    await legacy.dispose?.();
+    await legacyRepository.close();
+  };
+  return factory;
+}
+async function gateTool(
+  context: PiSessionContext,
+  toolId: string,
+  input: JsonObject,
+  signal: AbortSignal,
+  push: (event: AgentEvent) => void,
+): Promise<{ block: string } | undefined> {
+  const native = ["read", "write", "edit", "bash"].includes(toolId);
+  const capabilityId = context.capabilities.find((capability) =>
+    capability.tools.some((tool) => tool.id === toolId),
+  )?.id;
+  const decision = await context.beforeToolCall({ toolId, capabilityId, input, source: native ? "native" : "host" });
+  if (decision.mode === "allow") return undefined;
+  if (decision.mode === "deny") return { block: decision.reason };
+  const request = context.agent.approvals.request({
+    kind: toolId === "bash" ? "command" : ["write", "edit"].includes(toolId) ? "file_change" : "tool",
+    title: toolId,
+    reason: decision.reason,
+    toolId,
+    capabilityId,
+    input,
+    resume: { type: "kernel.native", kernelId: "pi", runId: context.runId, continuation: "same-loop" },
+  });
+  push({ type: "approval.requested", runId: context.runId, request });
+  push({
+    type: "run.paused",
+    runId: context.runId,
+    at: new Date().toISOString(),
+    reason: decision.reason,
+    approvalId: request.id,
+  });
+  let resolved: ApprovalRequest;
+  try {
+    resolved = await context.agent.approvals.waitForDecision(request.id, { signal });
+  } catch (error) {
+    resolved =
+      context.agent.approvals.get(request.id)?.status === "pending"
+        ? context.agent.approvals.decide(request.id, "canceled", {
+            system: true,
+            reasonCode: signal.aborted ? "run_canceled" : "native_request_failed",
+            error: String(error),
+          })
+        : (context.agent.approvals.get(request.id) ?? request);
   }
-
-  private createModelRequestTrace(
-    input: string,
-    context: PiSessionContext,
-    model: Model<any>,
-    llmContext: NativeModelContext,
-  ): AgentModelRequestTrace {
-    const providerMessages = llmContext.messages as NativeAgentMessage[];
-    const lastMessage = providerMessages.at(-1);
-    const priorMessages =
-      lastMessage &&
-      readMessageRole(lastMessage) === "user" &&
-      stringifyMessageContent((lastMessage as { content?: unknown }).content) === input
-        ? providerMessages.slice(0, -1)
-        : providerMessages;
+  push({ type: "approval.resolved", runId: context.runId, request: resolved });
+  if (resolved.status !== "approved") return { block: `Approval ${resolved.status}: ${request.id}` };
+  push({
+    type: "run.resumed",
+    runId: context.runId,
+    at: new Date().toISOString(),
+    reason: "Native Pi tool approved",
+    approvalId: request.id,
+  });
+  return undefined;
+}
+function resolveEffort(value?: string): import("@earendil-works/pi-ai").ModelThinkingLevel | undefined {
+  return ["off", "minimal", "low", "medium", "high", "xhigh", "max"].includes(value ?? "")
+    ? (value as import("@earendil-works/pi-ai").ModelThinkingLevel)
+    : undefined;
+}
+function projectMessages(messages: readonly unknown[]): ModelMessage[] {
+  return messages.map((value) => {
+    const message = object(value);
     return {
-      systemPrompt: llmContext.systemPrompt ?? this.runtimeContext.system,
-      userInput: input,
-      modelId: model.id,
-      session: {
-        provider: "pi",
-        sessionId: this.sessionId,
-        persistent: true,
-        nativeSessionId: nativePiSessionId(this.sessionId),
-        priorMessageCount: priorMessages.length,
-        priorMessages: toModelMessages(priorMessages),
-      },
-      messages: toModelMessages(llmContext.messages as NativeAgentMessage[]),
-      context: context.assembledContext,
-      tools: this.runtimeContext.tools.map((tool) => tool.spec),
-      skills: this.runtimeContext.skills,
-      packs: this.runtimeContext.packs,
-      capabilities: this.runtimeContext.capabilities,
+      role:
+        message.role === "assistant"
+          ? "assistant"
+          : message.role === "toolResult"
+            ? "tool"
+            : message.role === "system"
+              ? "system"
+              : "user",
+      content: typeof message.content === "string" ? message.content : JSON.stringify(message.content ?? []),
+      ...(typeof message.toolCallId === "string" ? { toolCallId: message.toolCallId } : {}),
     };
-  }
-
-  private handleLoopEvent(
-    event: NativePiEvent,
-    context: PiSessionContext,
-    push: (events: NativeSessionEvent[]) => void,
-  ) {
-    if (event.type === "turn_start" && this.pendingSkillOverlay) {
-      this.activeSkillOverlay = this.pendingSkillOverlay;
-      this.pendingSkillOverlay = undefined;
-      return;
-    }
-
-    if (event.type === "turn_end" && this.activeSkillOverlay) {
-      const cleared = this.activeSkillOverlay;
-      this.activeSkillOverlay = undefined;
-      push([{ type: "skill.cleared", runId: context.runId, skillId: cleared.skillId, reason: "skill_turn_complete" }]);
-    }
-  }
-
-  private async executeForkedSkill(
-    invocation: InvokedSkillRecord,
-    context: PiSessionContext,
-    forkSessionId: string,
-  ): Promise<{ forkSessionId: string; text: string }> {
-    const forkRunId = `${context.runId}:skill:${Date.now()}`;
-    const ephemeralRepository = new NativePiSessionRepository(undefined, this.options.cwd);
-    const forkSession = new NativePiSession(
-      {
-        ...this.runtimeContext,
-        sessionId: forkSessionId,
-        requestedModelId: invocation.model,
-        requestedEffort: invocation.effort,
-      },
-      this.options,
-      forkSessionId,
-      ephemeralRepository,
-    );
-    const forkWorkingState = new WorkingStateStore();
-    forkWorkingState.restore({
-      ...context.agent.workingState.get(),
-      sessionId: forkSessionId,
-      activePackId: invocation.packId,
-      activeSkillId: invocation.skillId,
-      expandedSkillIds: [invocation.skillId],
-      invokedSkills: [invocation],
-    });
-    let text = "";
-
-    for await (const event of forkSession.run(invocation.content, {
-      runId: forkRunId,
-      agent: {
-        ...context.agent,
-        sessionId: forkSessionId,
-        workingState: forkWorkingState,
-      },
-      tools: context.tools,
-      skills: context.skills,
-      packs: context.packs,
-      capabilities: context.capabilities,
-      contextTokenBudget: context.contextTokenBudget,
-      assembledContext: undefined,
-      beforeToolCall: async (gate) => context.beforeToolCall(gate),
-    })) {
-      if (event.type === "model.response") {
-        text = event.response.text;
-      }
-    }
-
-    return {
-      forkSessionId,
-      text,
-    };
-  }
+  });
+}
+function object(value: unknown): JsonObject {
+  return value && typeof value === "object" && !Array.isArray(value) ? (value as JsonObject) : {};
+}
+function json(value: unknown): JsonValue {
+  return value === undefined ? null : (JSON.parse(JSON.stringify(value)) as JsonValue);
 }
 
 class CallbackCredentialStore implements CredentialStore {
@@ -894,7 +459,7 @@ class CallbackCredentialStore implements CredentialStore {
   private readonly disabled = new Set<string>();
   private readonly chains = new Map<string, Promise<void>>();
 
-  constructor(private readonly getApiKey?: AgentOptions["getApiKey"]) {}
+  constructor(private readonly getApiKey?: NativePiSessionOptions["getApiKey"]) {}
 
   async read(providerId: string): Promise<Credential | undefined> {
     const stored = this.credentials.get(providerId);
@@ -946,7 +511,7 @@ class CallbackCredentialStore implements CredentialStore {
   }
 }
 
-function createNativePiModels(getApiKey?: AgentOptions["getApiKey"]): MutableModels {
+function createModels(getApiKey?: NativePiSessionOptions["getApiKey"]): MutableModels {
   const models = builtinModels({ credentials: new CallbackCredentialStore(getApiKey) });
   models.setProvider(
     createProvider({
@@ -981,695 +546,4 @@ function createNativePiModels(getApiKey?: AgentOptions["getApiKey"]): MutableMod
     }),
   );
   return models;
-}
-
-type NativeSessionEvent =
-  | Extract<AgentEvent, { type: "model.requested" }>
-  | Extract<AgentEvent, { type: "model.response" | "assistant.delta" | "assistant.status" }>
-  | Extract<AgentEvent, { type: "skill.invoked" | "skill.loaded" | "skill.forked" | "skill.cleared" }>
-  | Extract<AgentEvent, { type: "reasoning.started" | "reasoning.completed" }>
-  | Extract<AgentEvent, { type: "tool.started" | "tool.progress" | "tool.finished" }>
-  | Extract<AgentEvent, { type: "approval.requested" | "approval.resolved" | "run.paused" | "run.resumed" }>
-  | { type: "error"; runId: string; message: string }
-  | Extract<AgentEvent, { type: "runtime.diagnostic" }>;
-
-function piImageContent(context: PiSessionContext): ImageContent[] | undefined {
-  const images = imageAttachmentsWithDataUrl(context.agent.page?.attachments).map(({ image }) => ({
-    type: "image" as const,
-    data: image.base64,
-    mimeType: image.mediaType,
-  }));
-  return images.length ? images : undefined;
-}
-
-function createPiBudgetMessage(text: string, images: ImageContent[] | undefined): UserMessage {
-  return {
-    role: "user",
-    content: images?.length ? [...(text ? [{ type: "text" as const, text }] : []), ...images] : text,
-    timestamp: Date.now(),
-  };
-}
-
-function piCompactionSettings(contextWindow: number, keepRecentTokens?: number): CompactionSettings {
-  const normalizedWindow = Math.max(1, Math.floor(contextWindow));
-  const reserveTokens = Math.min(
-    DEFAULT_COMPACTION_SETTINGS.reserveTokens,
-    Math.max(1, Math.floor(normalizedWindow * 0.2)),
-  );
-  return {
-    enabled: true,
-    reserveTokens,
-    keepRecentTokens: Math.min(
-      Math.max(1, Math.floor(keepRecentTokens ?? DEFAULT_COMPACTION_SETTINGS.keepRecentTokens)),
-      Math.max(1, normalizedWindow - reserveTokens * 2),
-    ),
-  };
-}
-
-export function piCompactionSettingsForRequest(
-  modelContextWindow: number,
-  requestedMaxTokens?: number,
-): CompactionSettings {
-  const targetContextWindow =
-    requestedMaxTokens !== undefined
-      ? Math.min(modelContextWindow, Math.max(1, requestedMaxTokens))
-      : modelContextWindow;
-  return piCompactionSettings(targetContextWindow);
-}
-
-function toNativeTools(
-  tools: ToolDefinition[],
-  context: PiSessionContext,
-  nativeToolNames: Map<string, string>,
-  hooks: {
-    onSkillInvoked(invocation: InvokedSkillRecord): void | Promise<void>;
-    runForkedSkill(invocation: InvokedSkillRecord): Promise<{ forkSessionId: string; text: string }>;
-  },
-): AgentTool[] {
-  return tools.map((tool): AgentTool => {
-    const capabilityId = findCapabilityId(tools, context, tool.spec.id);
-
-    return {
-      name: toNativeToolName(nativeToolNames, tool.spec.id),
-      label: tool.spec.title,
-      description: tool.spec.description,
-      parameters: tool.spec.input.schema as unknown as TSchema,
-      async execute(_toolCallId, params, signal, onUpdate) {
-        const result = await tool.execute(params as JsonObject, {
-          runId: context.runId,
-          capabilityId,
-          memory: context.agent.memory,
-          artifacts: context.agent.artifacts,
-          workingState: context.agent.workingState,
-          approvals: context.agent.approvals,
-          skills: context.agent.skills,
-          packs: context.agent.packs,
-          policy: {
-            mode: "allow",
-            reason: "Execution reached this adapter only after Pi's native beforeToolCall gate approved the call.",
-          },
-          signal,
-          onProgress: (update) =>
-            onUpdate?.({
-              content: [{ type: "text", text: stringifyProgress(update) }],
-              details: update,
-            }),
-        });
-
-        if (!result.ok) {
-          throw new Error(result.error ?? "Tool failed");
-        }
-
-        if (tool.spec.id === "skill.invoke") {
-          const invocation = readInvokedSkillFromWorkingState(context.agent.workingState.get().invokedSkills, params);
-          if (invocation) {
-            await hooks.onSkillInvoked(invocation);
-            if (invocation.context === "fork") {
-              const forked = await hooks.runForkedSkill(invocation);
-              return {
-                content: [{ type: "text", text: forked.text || `Forked skill /${invocation.skillName} completed.` }],
-                details: {
-                  ...(isJsonObject(result.value) ? result.value : {}),
-                  forkSessionId: forked.forkSessionId,
-                  forkedResult: forked.text,
-                },
-              };
-            }
-
-            return {
-              content: [
-                {
-                  type: "text",
-                  text: `Loaded skill /${invocation.skillName}. Continue using the injected skill instructions.`,
-                },
-              ],
-              details: result.value,
-            };
-          }
-        }
-
-        return {
-          content: [{ type: "text", text: stringifyToolResult(result) }],
-          details: result,
-        };
-      },
-    };
-  });
-}
-
-const PI_CODING_TOOL_NAMES = new Set(["read", "write", "edit", "bash"]);
-
-function createPiCodingTools(): AgentHarnessTool<ExecutionToolContext>[] {
-  return [createReadTool(), createWriteTool(), createEditTool(), createBashTool()];
-}
-
-function toHarnessTool(tool: AgentTool): AgentHarnessTool<ExecutionToolContext> {
-  return {
-    ...tool,
-    execute: (id, params, onUpdate, _env, _invocation, context) =>
-      tool.execute(id, params, context.abortSignal, (update) => onUpdate?.(update)),
-  };
-}
-
-function toPiAgentEvent(event: HarnessEvent): NativePiEvent | undefined {
-  switch (event.type) {
-    case "message_start":
-    case "message_end":
-      return { type: event.type, message: event.message };
-    case "message_update":
-      return { type: "message_update", message: event.message, assistantMessageEvent: event.event };
-    case "turn_start":
-      return { type: "turn_start" };
-    case "turn_end":
-      return { type: "turn_end", message: event.message, toolResults: event.toolResults };
-    case "tool_start":
-      return { type: "tool_execution_start", toolCallId: event.toolCallId, toolName: event.toolName, args: event.args };
-    case "tool_update":
-      return {
-        type: "tool_execution_update",
-        toolCallId: event.toolCallId,
-        toolName: event.toolName,
-        args: undefined,
-        partialResult: event.partialResult,
-      };
-    case "tool_end":
-      return {
-        type: "tool_execution_end",
-        toolCallId: event.toolCallId,
-        toolName: event.toolName,
-        result: event.result,
-        isError: event.isError,
-      };
-    default:
-      return undefined;
-  }
-}
-
-function piApprovalKind(toolId: string): ApprovalKind {
-  if (toolId === "bash") return "command";
-  if (toolId === "write" || toolId === "edit") return "file_change";
-  return "tool";
-}
-
-class PiNativeMessageProjector {
-  private reasoningSequence = 0;
-  private readonly completedNonToolMessages: AssistantMessage[] = [];
-  private readonly reasoningStartedAtByContentIndex = new Map<number, number>();
-  private readonly reasoningElapsedMsByContentIndex = new Map<number, number>();
-
-  constructor(private readonly runId: string) {}
-
-  project(event: NativePiEvent): PiNativeMessageProjection {
-    switch (event.type) {
-      case "message_start":
-        if (event.message.role === "assistant") {
-          this.reasoningStartedAtByContentIndex.clear();
-          this.reasoningElapsedMsByContentIndex.clear();
-        }
-        return { events: [] };
-      case "message_update": {
-        // Pi text/thinking deltas describe an assistant message whose final role is
-        // not known until its native boundary. Keep them inside the projector.
-        const update = event.assistantMessageEvent;
-        if (update.type === "thinking_start" || update.type === "thinking_delta") {
-          if (!this.reasoningStartedAtByContentIndex.has(update.contentIndex)) {
-            this.reasoningStartedAtByContentIndex.set(update.contentIndex, Date.now());
-          }
-        }
-        if (update.type === "thinking_end") {
-          const startedAt = this.reasoningStartedAtByContentIndex.get(update.contentIndex);
-          if (startedAt !== undefined) {
-            this.reasoningElapsedMsByContentIndex.set(update.contentIndex, Math.max(0, Date.now() - startedAt));
-          }
-        }
-        return { events: [] };
-      }
-      case "message_end":
-        if (event.message.role !== "assistant") return { events: [] };
-        return { events: this.completeMessage(event.message) };
-      case "agent_end":
-        return this.completeAgent(event.messages);
-      default:
-        return { events: [] };
-    }
-  }
-
-  private completeMessage(message: AssistantMessage): NativeSessionEvent[] {
-    const completedAt = Date.now();
-    const events = message.content.flatMap((item, contentIndex) => {
-      if (item.type !== "thinking" || !item.thinking.trim()) return [];
-      const startedAt = this.reasoningStartedAtByContentIndex.get(contentIndex);
-      const elapsedMs =
-        this.reasoningElapsedMsByContentIndex.get(contentIndex) ??
-        (startedAt === undefined ? undefined : Math.max(0, completedAt - startedAt));
-      return createPiReasoningActivity(
-        this.runId,
-        item.thinking,
-        item.redacted === true,
-        ++this.reasoningSequence,
-        elapsedMs,
-      );
-    });
-    this.reasoningStartedAtByContentIndex.clear();
-    this.reasoningElapsedMsByContentIndex.clear();
-    const text = readAssistantText(message);
-    if (assistantHasToolCall(message)) {
-      if (text) events.push(createPiAssistantStatus(this.runId, text, message));
-    } else {
-      this.completedNonToolMessages.push(message);
-    }
-    return events;
-  }
-
-  abort(streamingMessage: NativeAgentMessage | undefined): PiNativeMessageProjection {
-    if (
-      streamingMessage?.role === "assistant" &&
-      readAssistantText(streamingMessage) &&
-      !assistantHasToolCall(streamingMessage) &&
-      !this.completedNonToolMessages.some((message) => sameAssistantMessage(message, streamingMessage))
-    ) {
-      this.completedNonToolMessages.push(streamingMessage);
-    }
-    return this.completeAgent([...this.completedNonToolMessages]);
-  }
-
-  private completeAgent(messages: NativeAgentMessage[]): PiNativeMessageProjection {
-    const terminalMessage = [...messages]
-      .reverse()
-      .find((message): message is AssistantMessage => message.role === "assistant" && !assistantHasToolCall(message));
-    const events: NativeSessionEvent[] = [];
-    for (const message of this.completedNonToolMessages) {
-      const text = readAssistantText(message);
-      if (!text) continue;
-      if (terminalMessage && sameAssistantMessage(message, terminalMessage)) {
-        events.push({ type: "assistant.delta", runId: this.runId, text });
-      } else {
-        events.push(createPiAssistantStatus(this.runId, text, message));
-      }
-    }
-    this.completedNonToolMessages.length = 0;
-    return { events, ...(terminalMessage ? { terminalMessage } : {}) };
-  }
-}
-
-interface PiNativeMessageProjection {
-  events: NativeSessionEvent[];
-  terminalMessage?: AssistantMessage;
-}
-
-function mapNativeToolEvent(
-  event: NativePiEvent,
-  runId: string,
-  nativeToolNames: Map<string, string>,
-): NativeSessionEvent[] {
-  switch (event.type) {
-    case "tool_execution_start":
-      return [
-        {
-          type: "tool.started",
-          runId,
-          toolId: toOriginalToolId(nativeToolNames, event.toolName),
-          callId: event.toolCallId,
-          input: asJsonValue(event.args),
-        },
-      ];
-    case "tool_execution_end":
-      return [
-        {
-          type: "tool.finished",
-          runId,
-          toolId: toOriginalToolId(nativeToolNames, event.toolName),
-          callId: event.toolCallId,
-          result: normalizeNativeToolResult(event.result, event.isError),
-        },
-      ];
-    case "tool_execution_update":
-      return [
-        {
-          type: "tool.progress",
-          runId,
-          toolId: toOriginalToolId(nativeToolNames, event.toolName),
-          callId: event.toolCallId,
-          update: asJsonValue(readDetails(event.partialResult) ?? event.partialResult),
-        },
-      ];
-    default:
-      return [];
-  }
-}
-
-function createNativeToolNameMap(tools: ToolDefinition[]): Map<string, string> {
-  return new Map(tools.map((tool, index) => [toSafeNativeToolName(tool.spec.id, index), tool.spec.id]));
-}
-
-function toNativeToolName(nativeToolNames: Map<string, string>, toolId: string): string {
-  for (const [nativeName, originalId] of nativeToolNames) {
-    if (originalId === toolId) {
-      return nativeName;
-    }
-  }
-  return toolId.replace(/[^A-Za-z0-9_-]/g, "_");
-}
-
-function toSafeNativeToolName(toolId: string, index: number): string {
-  const prefix = `opengrove_${index}_`;
-  const slug = toolId.replace(/[^A-Za-z0-9_-]/g, "_") || "tool";
-  return `${prefix}${slug}`.slice(0, 64);
-}
-
-function toOriginalToolId(nativeToolNames: Map<string, string>, nativeName: string): string {
-  return nativeToolNames.get(nativeName) ?? nativeName;
-}
-
-function readAssistantText(message: { content?: unknown }): string {
-  const content = message.content;
-  if (!Array.isArray(content)) {
-    return "";
-  }
-
-  return content
-    .map((item) =>
-      item && typeof item === "object" && "type" in item && item.type === "text" && "text" in item
-        ? String(item.text ?? "")
-        : "",
-    )
-    .filter(Boolean)
-    .join("");
-}
-
-function createPiReasoningActivity(
-  runId: string,
-  text: string,
-  redacted: boolean,
-  sequence: number,
-  elapsedMs?: number,
-): NativeSessionEvent[] {
-  const id = `${runId}:reasoning:${sequence}`;
-  return [
-    { type: "reasoning.started", runId, reasoning: { id, kind: "native", kernelId: "pi" } },
-    {
-      type: "reasoning.completed",
-      runId,
-      reasoning: {
-        id,
-        kind: "native",
-        kernelId: "pi",
-        text: text.trim(),
-        ...(redacted ? { redacted: true } : {}),
-        ...(elapsedMs === undefined ? {} : { elapsedMs }),
-      },
-    },
-  ];
-}
-
-function assistantHasToolCall(message: AssistantMessage): boolean {
-  return message.content.some((item) => item.type === "toolCall");
-}
-
-function sameAssistantMessage(left: AssistantMessage, right: AssistantMessage): boolean {
-  if (left === right) return true;
-  if (left.responseId && right.responseId) return left.responseId === right.responseId;
-  return (
-    left.timestamp === right.timestamp &&
-    left.model === right.model &&
-    left.stopReason === right.stopReason &&
-    readAssistantText(left) === readAssistantText(right)
-  );
-}
-
-function createPiAssistantStatus(
-  runId: string,
-  text: string,
-  message: AssistantMessage,
-): Extract<AgentEvent, { type: "assistant.status" }> {
-  return {
-    type: "assistant.status",
-    runId,
-    at: new Date().toISOString(),
-    text,
-    data: {
-      source: "pi-agent-core",
-      kind: "agent_message",
-      phase: "commentary",
-      stopReason: message.stopReason,
-    },
-  };
-}
-
-function toUsageStats(message: AssistantMessage, model: Model<any>) {
-  const inputTokens = message.usage.input + message.usage.cacheRead + message.usage.cacheWrite;
-  return {
-    inputTokens,
-    outputTokens: message.usage.output,
-    totalTokens: message.usage.totalTokens,
-    costUsd: message.usage.cost.total,
-    contextWindowSize: model.contextWindow,
-    contextUsedTokens: inputTokens,
-  };
-}
-
-function createPiMessageDiagnostic(
-  runId: string,
-  message: AssistantMessage,
-): Extract<AgentEvent, { type: "runtime.diagnostic" }> {
-  return {
-    type: "runtime.diagnostic",
-    runId,
-    at: new Date().toISOString(),
-    name: "pi.message.completed",
-    data: {
-      provider: message.provider,
-      model: message.model,
-      api: message.api,
-      stopReason: message.stopReason,
-      ...(message.rawStopReason ? { rawStopReason: message.rawStopReason } : {}),
-      ...(message.responseId ? { responseId: message.responseId } : {}),
-      ...(message.responseModel ? { responseModel: message.responseModel } : {}),
-      ...(message.usage.reasoning !== undefined ? { reasoningTokens: message.usage.reasoning } : {}),
-      ...(message.diagnostics ? { diagnostics: asJsonValue(message.diagnostics) } : {}),
-    },
-  };
-}
-
-function normalizeNativeToolResult(result: unknown, isError: boolean): ToolResult {
-  const value = asJsonValue(readDetails(result) ?? result);
-  return {
-    ok: !isError,
-    value,
-    error: isError ? readTextContent(result) || "Tool failed" : undefined,
-  };
-}
-
-function enrichApprovalInput(_toolId: string, args: unknown, _agent: AgentContext): JsonValue {
-  const input = asJsonObject(args);
-  return input;
-}
-
-function findCapabilityId(tools: ToolDefinition[], context: PiSessionContext, toolId: string): string | undefined {
-  const tool = tools.find((candidate) => candidate.spec.id === toolId);
-  return context.capabilities.find((capability) => capability.tools.some((candidate) => candidate.id === tool?.spec.id))
-    ?.id;
-}
-
-function stringifyToolResult(result: ToolResult): string {
-  if (typeof result.value === "string") {
-    return result.value;
-  }
-  return JSON.stringify(result.value ?? { ok: result.ok, error: result.error });
-}
-
-function stringifyProgress(update: JsonValue): string {
-  return typeof update === "string" ? update : safeJson(update);
-}
-
-function readDetails(result: unknown): unknown {
-  return result && typeof result === "object" && "details" in result
-    ? (result as { details?: unknown }).details
-    : undefined;
-}
-
-function readTextContent(result: unknown): string {
-  if (!result || typeof result !== "object" || !("content" in result)) {
-    return "";
-  }
-
-  const content = (result as { content?: Array<{ type?: string; text?: string }> }).content;
-  if (!Array.isArray(content)) {
-    return "";
-  }
-
-  return content
-    .map((item) => (item.type === "text" && typeof item.text === "string" ? item.text : ""))
-    .filter(Boolean)
-    .join("\n");
-}
-
-function resolveModel(
-  model: Model<any> | ((requestedModelId?: string) => Model<any>),
-  requestedModelId?: string,
-): Model<any> {
-  return typeof model === "function" ? model(requestedModelId) : model;
-}
-
-function resolveThinkingLevel(
-  thinkingLevel: ThinkingLevel | ((requestedEffort?: string) => ThinkingLevel) | undefined,
-  requestedEffort?: string,
-): ThinkingLevel {
-  if (typeof thinkingLevel === "function") {
-    return thinkingLevel(requestedEffort);
-  }
-  if (thinkingLevel) return thinkingLevel;
-  switch (requestedEffort?.trim().toLowerCase()) {
-    case "minimal":
-    case "low":
-    case "medium":
-    case "high":
-    case "xhigh":
-    case "max":
-      return requestedEffort.trim().toLowerCase() as ThinkingLevel;
-    case "extra-high":
-    case "extra_high":
-      return "xhigh";
-    case "maximum":
-      return "max";
-    default:
-      return "off";
-  }
-}
-
-function toModelMessages(messages: NativeAgentMessage[]): ModelMessage[] {
-  return convertNativeSessionMessages(messages)
-    .map((message) => toModelMessage(message))
-    .filter((message): message is ModelMessage => Boolean(message));
-}
-
-function toModelMessage(message: NativeAgentMessage): ModelMessage | undefined {
-  const role = readMessageRole(message);
-  if (role === "user") {
-    return {
-      role: "user",
-      content: stringifyMessageContent((message as { content?: unknown }).content),
-    };
-  }
-
-  if (role === "assistant") {
-    return {
-      role: "assistant",
-      content: stringifyMessageContent((message as { content?: unknown }).content),
-    };
-  }
-
-  if (role === "toolResult") {
-    return {
-      role: "tool",
-      name: readMessageToolName(message),
-      content: stringifyMessageContent((message as { content?: unknown }).content),
-    };
-  }
-
-  return undefined;
-}
-
-function readMessageRole(message: NativeAgentMessage): string {
-  const role = (message as { role?: unknown }).role;
-  return typeof role === "string" ? role : "";
-}
-
-function readMessageToolName(message: NativeAgentMessage): string | undefined {
-  const name = (message as { toolName?: unknown }).toolName;
-  return typeof name === "string" ? name : undefined;
-}
-
-function stringifyMessageContent(content: unknown): string {
-  if (typeof content === "string") {
-    return content;
-  }
-
-  if (!Array.isArray(content)) {
-    return content === undefined ? "" : safeJson(content);
-  }
-
-  return content
-    .map((part) => stringifyContentPart(part))
-    .filter(Boolean)
-    .join("\n");
-}
-
-function stringifyContentPart(part: unknown): string {
-  if (typeof part === "string") {
-    return part;
-  }
-
-  if (!part || typeof part !== "object") {
-    return part === undefined ? "" : String(part);
-  }
-
-  if ("text" in part && typeof part.text === "string") {
-    return part.text;
-  }
-
-  return safeJson(part);
-}
-
-function safeJson(value: unknown): string {
-  try {
-    return JSON.stringify(value);
-  } catch {
-    return String(value);
-  }
-}
-
-function asJsonValue(value: unknown): JsonValue {
-  if (value === undefined) {
-    return null;
-  }
-
-  try {
-    return JSON.parse(JSON.stringify(value)) as JsonValue;
-  } catch {
-    return String(value);
-  }
-}
-
-function asJsonObject(value: unknown): JsonObject {
-  return value && typeof value === "object" && !Array.isArray(value) ? (value as JsonObject) : {};
-}
-
-function createSkillSteeringMessage(invocation: InvokedSkillRecord): UserMessage {
-  return {
-    role: "user",
-    content: [{ type: "text", text: buildSkillSteeringText(invocation) }],
-    timestamp: Date.now(),
-  };
-}
-
-function createContextSteeringMessage(context: ContextEnvelope): UserMessage {
-  return {
-    role: "user",
-    content: [{ type: "text", text: context.promptBlock }],
-    timestamp: Date.now(),
-  };
-}
-
-function readInvokedSkillFromWorkingState(
-  invokedSkills: InvokedSkillRecord[],
-  params: unknown,
-): InvokedSkillRecord | undefined {
-  const requestedSkill =
-    params && typeof params === "object" && "skill" in params && typeof params.skill === "string"
-      ? params.skill
-          .trim()
-          .replace(/^\//, "")
-          .replace(/^skill\./, "")
-      : "";
-  return invokedSkills.find(
-    (item) =>
-      item.skillName === requestedSkill ||
-      item.skillId === requestedSkill ||
-      item.skillId === `skill.${requestedSkill}`,
-  );
-}
-
-function isJsonObject(value: unknown): value is JsonObject {
-  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
