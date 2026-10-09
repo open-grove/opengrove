@@ -17,22 +17,12 @@ export function readCodexAuthRefreshResponse(env?: NodeJS.ProcessEnv): JsonObjec
     if (!tokens) {
       return {};
     }
-    const idToken = readString(tokens, "id_token") ?? readString(tokens, "idToken");
     const accessToken = readString(tokens, "access_token") ?? readString(tokens, "accessToken");
-    const refreshToken = readString(tokens, "refresh_token") ?? readString(tokens, "refreshToken");
     const accountId = readString(tokens, "account_id") ?? readString(tokens, "accountId");
-    const cleanTokens: JsonObject = {
-      ...(idToken ? { id_token: idToken, idToken } : {}),
-      ...(accessToken ? { access_token: accessToken, accessToken } : {}),
-      ...(refreshToken ? { refresh_token: refreshToken, refreshToken } : {}),
-      ...(accountId ? { account_id: accountId, accountId } : {}),
-    };
-    return {
-      ...cleanTokens,
-      tokens: cleanTokens,
-      chatgptAuthTokens: cleanTokens,
-      ...(typeof object?.last_refresh === "string" ? { last_refresh: object.last_refresh } : {}),
-    };
+    if (!accessToken || !accountId) return {};
+    // Codex 0.162 ChatgptAuthTokensRefreshResponse requires these two fields.
+    // The native server does not request the refresh token or ID token.
+    return { accessToken, chatgptAccountId: accountId };
   } catch {
     return {};
   }
