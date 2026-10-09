@@ -59,12 +59,12 @@ export function fakeHermesGatewaySource(options: FakeHermesGatewayOptions = {}):
       : skipBlockingPrompts
         ? ["  const approval = { choice: '' };", "  const answer = { answer: '' };"].join("\n")
         : [
-            options.serverRequests
-              ? "  send({ jsonrpc: '2.0', id: 'approval-1', method: 'approval', params: { session_id: sessionId, name: 'terminal', command: 'printf gateway' } });"
+            options.serverRequests !== false
+              ? "  send({ jsonrpc: '2.0', id: 'approval-1', method: 'approval', params: { session_id: sessionId, request_id:'approval-1', name: 'terminal', command: 'printf gateway',choices:['once','deny'] } });"
               : "  event('approval.request', sessionId, { name: 'terminal', command: 'printf gateway' });",
             "  const approval = await waitFor('approval');",
-            options.serverRequests
-              ? "  send({ jsonrpc: '2.0', id: 'clarify-1', method: 'clarify', params: { session_id: sessionId, question: 'Which marker?', choices: ['alpha', 'beta'] } });"
+            options.serverRequests !== false
+              ? "  send({ jsonrpc: '2.0', id: 'clarify-1', method: 'clarify', params: { session_id: sessionId, questions:[{qid:'marker',question:'Which marker?',choices:['alpha','beta']}] } });"
               : "  event('clarify.request', sessionId, { request_id: 'clarify-1', question: 'Which marker?', choices: ['alpha', 'beta'] });",
             "  const answer = await waitFor('clarify');",
           ].join("\n"),
@@ -89,8 +89,8 @@ export function fakeHermesGatewaySource(options: FakeHermesGatewayOptions = {}):
     holdUntilInterrupt
       ? `  const body = [${JSON.stringify(marker)}, 'INTERRUPTED'].join('\\n');`
       : options.includeConfigEcho
-        ? `  const body = [${JSON.stringify(marker)}, \`PROMPT:\${text}\`, \`APPROVAL:\${approval?.choice || ''}\`, \`ANSWER:\${answer?.answer || ''}\`, \`STEER:\${steering.join('|')}\`, \`HERMES_HOME:\${process.env.HERMES_HOME || ''}\`, 'CONFIG_BEGIN', configText(), 'CONFIG_END'].join('\\n');`
-        : `  const body = [${JSON.stringify(marker)}, \`PROMPT:\${text}\`, \`APPROVAL:\${approval?.choice || ''}\`, \`ANSWER:\${answer?.answer || ''}\`, \`STEER:\${steering.join('|')}\`].join('\\n');`,
+        ? `  const body = [${JSON.stringify(marker)}, \`PROMPT:\${text}\`, \`APPROVAL:\${approval?.choice || ''}\`, \`ANSWER:\${answer?.answers?.marker || answer?.answer || ''}\`, \`STEER:\${steering.join('|')}\`, \`HERMES_HOME:\${process.env.HERMES_HOME || ''}\`, 'CONFIG_BEGIN', configText(), 'CONFIG_END'].join('\\n');`
+        : `  const body = [${JSON.stringify(marker)}, \`PROMPT:\${text}\`, \`APPROVAL:\${approval?.choice || ''}\`, \`ANSWER:\${answer?.answers?.marker || answer?.answer || ''}\`, \`STEER:\${steering.join('|')}\`].join('\\n');`,
     `  const responseSuffix = ${JSON.stringify(options.responseSuffix ?? "")};`,
     `  const responsePrefix = ${JSON.stringify(options.responsePrefix ?? "")};`,
     `  const responseText = (responsePrefix + body + responseSuffix)${options.trimFinalText ? ".trim()" : ""};`,
@@ -110,8 +110,8 @@ export function fakeHermesGatewaySource(options: FakeHermesGatewayOptions = {}):
     "  if (msg.method === 'config.get' && msg.params?.key === 'approvals.mode') {",
     `    const mode = ${JSON.stringify(options.approvalMode)} || configText().match(/mode: ['\"]?(manual|smart|off)/)?.[1] || 'manual';`,
     "    send({ jsonrpc: '2.0', id: msg.id, result: { value: mode } });",
-    "  } else if (msg.method === 'session.create') {",
-    `    send({ jsonrpc: '2.0', id: msg.id, result: { session_id: ${JSON.stringify(sessionId)}, info: { model: 'fake-hermes', tools: {}, skills: {}, cwd: process.cwd(), lazy: true } } });`,
+    "  } else if (msg.method === 'session.create' || msg.method === 'session.resume') {",
+    `    send({ jsonrpc: '2.0', id: msg.id, result: { session_id: ${JSON.stringify(sessionId)}, stored_session_id: ${JSON.stringify(sessionId)}, info: { model: 'fake-hermes', tools: {}, skills: {}, cwd: process.cwd(), lazy: true } } });`,
     "  } else if (msg.method === 'prompt.submit') {",
     "    send({ jsonrpc: '2.0', id: msg.id, result: { status: 'streaming' } });",
     "    void runPrompt(msg.params?.text || '');",
@@ -126,7 +126,7 @@ export function fakeHermesGatewaySource(options: FakeHermesGatewayOptions = {}):
     "    send({ jsonrpc: '2.0', id: msg.id, result: { status: 'interrupted' } });",
     "  } else if (msg.method === 'session.steer') {",
     "    steering.push(msg.params?.text || '');",
-    "    send({ jsonrpc: '2.0', id: msg.id, result: { status: 'accepted' } });",
+    "    send({ jsonrpc: '2.0', id: msg.id, result: { status: 'queued' } });",
     "  } else if (msg.method === 'session.compress') {",
     "    compressions.push(msg.params || {});",
     options.compressionError

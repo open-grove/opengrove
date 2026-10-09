@@ -156,6 +156,7 @@ export function createNativePiSessionFactory(options: NativePiSessionOptions): P
           },
         });
         const producer = (async () => {
+          let nativeTrace: AgentSessionTrace | undefined;
           const model = typeof options.model === "function" ? options.model(runtime.requestedModelId) : options.model;
           for await (const event of latest.run({
             sessionId: runtime.sessionId,
@@ -205,6 +206,15 @@ export function createNativePiSessionFactory(options: NativePiSessionOptions): P
             })),
             beforeTurn: async ({ conversation }) => {
               const nativeContext = await conversation.context(background);
+              const priorMessages = projectMessages(nativeContext.messages);
+              nativeTrace = {
+                provider: "pi",
+                sessionId: runtime.sessionId,
+                nativeSessionId: String(conversation.id),
+                persistent: !!options.sessionRoot,
+                priorMessageCount: priorMessages.length,
+                priorMessages,
+              };
               const usage = estimateContextTokens(nativeContext.messages);
               const budget = resolveContextTokenBudget(context.contextTokenBudget, model.contextWindow);
               const projected =
@@ -263,6 +273,7 @@ export function createNativePiSessionFactory(options: NativePiSessionOptions): P
                   systemPrompt: runtime.system,
                   userInput: input,
                   modelId: selected.id,
+                  session: nativeTrace,
                   messages: projectMessages(native.messages),
                   context: context.assembledContext,
                   tools: runtime.tools.map((tool) => tool.spec),

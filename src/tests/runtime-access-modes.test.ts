@@ -736,6 +736,7 @@ test("Hermes presets use separate native homes, preserve denials and still ask u
     approvalTimeoutMs: 1000,
   });
   const homes = new Map<string, string>();
+  const ctx = context(cwd);
   try {
     for (const [accessMode, mode] of [
       ["default", "manual"],
@@ -743,7 +744,6 @@ test("Hermes presets use separate native homes, preserve denials and still ask u
       ["full-access", "off"],
       ["default", "manual"],
     ] as const) {
-      const ctx = context(cwd);
       let answer = "";
       for await (const event of runtime.runTurn({ input: "hi", context: ctx, tools: [], accessMode })) {
         if (event.type === "approval.requested") ctx.approvals.decide(event.request.id, "approved");
@@ -767,7 +767,8 @@ test("Hermes presets use separate native homes, preserve denials and still ask u
   } finally {
     runtime.close();
   }
-  for (const home of homes.values()) assert.equal(existsSync(home), false, "closing removes owned credential copies");
+  for (const home of homes.values())
+    assert.equal(existsSync(home), true, "closing preserves the product-owned native profile for restart");
 });
 
 test("Hermes omitted permission retains native approval mode and YOLO configuration", async () => {

@@ -1,3 +1,8 @@
+/**
+ * Supports: @earendil-works/pi-agent-core 0.85.1 native JSONL sessions.
+ * Upstream source: https://github.com/earendil-works/pi/tree/v0.85.1
+ * Remove when: all 0.85.1 conversations are retired or migrated by an upstream-supported path to Pi 1.1.0 or newer.
+ */
 import { openPiHarness, drivePiTurn, compactPiSession, bridgePiStream } from "@open-grove/agent-host/compat/pi085";
 import {
   AgentHarness,

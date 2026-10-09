@@ -120,6 +120,10 @@ test("Pi 1.1 OpenGrove consumer uses native tool policy and resumes its own dura
   };
   try {
     const rejected = await run("call echo", false);
+    assert.ok(
+      rejected.find((event) => event.type === "model.requested")?.request.session?.nativeSessionId,
+      "Pi model requests must identify the native conversation",
+    );
     assert.equal(calls, 0);
     assert.ok(rejected.some((event) => event.type === "approval.requested"));
     await run("call echo", true);
