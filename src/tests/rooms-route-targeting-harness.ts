@@ -18,7 +18,8 @@ import { dispatchBridgeRoutes, type BridgeRouteContext } from "../server/router.
 import { operationRoute } from "../server/routes/registry-utils.js";
 import { handleCreateRoomMessageOperation } from "../server/routes/rooms/message-routes.js";
 import type { RoomChannelMember } from "../rooms/channel-store.js";
-import { roomExecutionState } from "../server/room-runs/execution-state.js";
+import { roomExecutionState, roomTargetSupportsHostTools } from "../server/room-runs/execution-state.js";
+import { KERNEL_CAPABILITY_CONTRACTS } from "../kernel/capabilities/contracts.js";
 
 const dir = mkdtempSync(join(tmpdir(), "opengrove-rooms-route-targeting-"));
 const rosterAppRoot = join(dir, "roster-app");
@@ -1354,13 +1355,23 @@ async function runForgotMentionPmDispatchHarness(): Promise<void> {
       ok: true;
       assistantMessages: Array<{ senderId: string; text: string; status: string }>;
     };
+    // Hermes now supports Host Tools. Explicitly simulate an unavailable mapping
+    // to keep this route rejection case independent of bundled Kernel upgrades.
+    const hostToolMapping = KERNEL_CAPABILITY_CONTRACTS.find(
+      (contract) => contract.kernel === noToolsPm.kernel,
+    )?.mappings.find((mapping) => mapping.capability === "tools.hostTool");
+    assert.ok(hostToolMapping);
+    const previousHostToolStatus = hostToolMapping.status;
+    hostToolMapping.status = "not-wired";
     try {
+      assert.equal(roomTargetSupportsHostTools(noToolsPm), false);
       noToolsRoute = await postRoomMessageRoute(state, noToolsRoomId, {
         text: "请把这条消息自动分配出去",
         targetIds: [],
         userMessageId: "message-user-pm-without-host-tools",
       });
     } finally {
+      hostToolMapping.status = previousHostToolStatus;
       state.store.loadInto = originalLoadInto;
     }
     assert.equal(routeGateStateReloads, 0, "the PM routing gate must not reload the full Bridge/App state");
