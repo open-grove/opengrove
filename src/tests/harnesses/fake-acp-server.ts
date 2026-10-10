@@ -186,8 +186,8 @@ export function fakeAcpServerSource(options: FakeAcpServerOptions = {}): string 
     "  const msg = JSON.parse(line);",
     "  if (msg.method === 'initialize') {",
     options.promptImage
-      ? "    send({ jsonrpc: '2.0', id: msg.id, result: { protocolVersion: 1, agentInfo: { name: 'fake-acp', version: '0.0.0' }, agentCapabilities: { promptCapabilities: { image: true } } } });"
-      : "    send({ jsonrpc: '2.0', id: msg.id, result: { protocolVersion: 1, agentInfo: { name: 'fake-acp', version: '0.0.0' }, agentCapabilities: {} } });",
+      ? "    send({ jsonrpc: '2.0', id: msg.id, result: { protocolVersion: 1, agentInfo: { name: 'fake-acp', version: '0.0.0' }, agentCapabilities: { loadSession: true, promptCapabilities: { image: true } } } });"
+      : "    send({ jsonrpc: '2.0', id: msg.id, result: { protocolVersion: 1, agentInfo: { name: 'fake-acp', version: '0.0.0' }, agentCapabilities: { loadSession: true } } });",
     "  } else if (msg.method === 'session/cancel') {",
     ...(options.notificationRecordPath
       ? [

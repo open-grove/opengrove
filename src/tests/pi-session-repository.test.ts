@@ -3,8 +3,8 @@ import { mkdtemp, mkdir, readFile, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { BACKGROUND_CONTEXT as background, value } from "@earendil-works/pi-agent-core";
-import { NodeExecutionEnv } from "@earendil-works/pi-agent-core/node";
+import { BACKGROUND_CONTEXT as background, value } from "pi-agent-core-legacy";
+import { NodeExecutionEnv } from "pi-agent-core-legacy/node";
 import { NativePiSessionRepository } from "../runtime/pi-session-repository.js";
 
 test("old Pi sessions are left untouched and cannot block fresh sessions", async () => {

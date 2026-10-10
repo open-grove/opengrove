@@ -17,6 +17,8 @@ export function prepareHermesRuntimeEnv(input: {
   providerConfig: HermesProviderRuntimeConfig | undefined;
   nativeSkillDir: string | undefined;
   isolatedHome: string | undefined;
+  /** Durable product-owned profile; never eligible for temporary-home cleanup. */
+  persistentHome?: string;
   accessMode?: RuntimeAccessMode;
 }): { env: NodeJS.ProcessEnv; isolatedHome?: string } {
   const env = { ...process.env, ...input.runtimeEnv };
@@ -33,13 +35,20 @@ export function prepareHermesRuntimeEnv(input: {
   // The native full-access switch also covers gates that do not consult approvals.mode.
   if (input.accessMode !== undefined) env.HERMES_YOLO_MODE = input.accessMode === "full-access" ? "1" : "0";
   const isolation = env[appEnvName("HERMES_ISOLATED_HOME")];
-  if (!providerConfig && (isolation === "0" || (explicitHome && isolation !== "1"))) {
+  if (!providerConfig && (isolation === "0" || (explicitHome && isolation !== "1" && !input.persistentHome))) {
     const nativeHome = resolve(explicitHome ?? join(homedir(), ".hermes"));
     env.HERMES_HOME = nativeHome;
     return { env };
   }
   const nativeSkillDir = normalizeOptionalString(input.nativeSkillDir);
   const usableNativeSkillDir = nativeSkillDir && existsSync(nativeSkillDir) ? nativeSkillDir : undefined;
+  if (input.persistentHome) {
+    const isolatedHome = resolve(input.persistentHome);
+    if (!existsSync(resolve(isolatedHome, "config.yaml")))
+      writeHermesHomeConfig(isolatedHome, usableNativeSkillDir, providerConfig, input.accessMode, explicitHome);
+    env.HERMES_HOME = isolatedHome;
+    return { env, isolatedHome };
+  }
   const isolatedHome = input.isolatedHome ?? mkdtempSync(join(tmpdir(), "opengrove-hermes-"));
   if (!input.isolatedHome) {
     try {

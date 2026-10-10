@@ -254,3 +254,11 @@ npm run test:capabilities
 - 取消或拒绝不会让 turn 卡住。
 - 本地 Kernel 循环不依赖 cloud-only 服务。
 - 原生凭据和本地 runtime evidence 不进入 tracked files 或可分发 App。
+
+## 抽出的 Codex 执行层
+
+Codex 接入代码现在使用独立的 [`@open-grove/agent-host`](https://github.com/open-grove/agent-host) 包。在发布到 npm 前，仓库通过 vendor 中的 alpha 安装包保证干净检出也能构建。原生进程、会话和执行控制由独立包负责；OpenGrove 保留上下文组织、产品工具授权、审批与提问存储、事件展示以及现有会话绑定文件格式。独立文件编辑器也调用同一个 `CodexAgent.run` 接口，不依赖 OpenGrove。
+
+第一条拆出的链路面向 Codex 0.162.0，已适配必需的工具类型声明和异步压缩会话流程。真实测试覆盖工具执行和进程重启后的原生续聊；独立包另外验证了原生工具分组和压缩会话。原有能力认证不会自动变成对新版本所有功能的认证。
+
+要运行真实接入测试，先构建服务端，将 `AGENT_HOST_CODEX` 指向已登录的 Codex 0.162.0 可执行文件，再执行 `node scripts/probe-agent-host-codex.mjs`。测试只使用隔离的示例状态。确定性回归检查包括 Codex 客户端、事件转换测试以及 `npm run smoke:server`。

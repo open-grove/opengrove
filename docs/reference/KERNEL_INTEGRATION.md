@@ -300,3 +300,11 @@ replace deterministic harnesses and must not commit their generated evidence.
 - No cloud-only service is required for the local Kernel loop.
 - No native credential or local runtime evidence enters tracked files or
   distributable Apps.
+
+## Extracted Codex execution
+
+The Codex adapter consumes the independent [`@open-grove/agent-host`](https://github.com/open-grove/agent-host) package. The vendored alpha archive keeps clean-checkout builds reproducible before npm publication. Native process/session/turn execution lives in that package; OpenGrove keeps context assembly, product tool authorization, approval/question stores, event projection and its existing binding-file format. The standalone file-editor consumer uses the same `CodexAgent.run` API without OpenGrove.
+
+The initial extracted path targets Codex 0.162.0. It includes the required typed dynamic-tool declarations and asynchronous compaction lifecycle. Native probes cover tool execution and conversation continuation after process restart; the independent package additionally probes native tool namespaces and compaction. Existing capability certifications do not automatically certify every feature on this version.
+
+For an opt-in native consumer probe, build the server, set `AGENT_HOST_CODEX` to an authenticated Codex 0.162.0 executable, and run `node scripts/probe-agent-host-codex.mjs`. The probe uses isolated example state. For deterministic checks, run the Codex client/projector harnesses and `npm run smoke:server`.

@@ -3,9 +3,9 @@ import { spawnSync } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createAssistantMessageEventStream, type AssistantMessage, type Model } from "@earendil-works/pi-ai";
+import { createAssistantMessageEventStream, type AssistantMessage, type Model } from "pi-ai-legacy";
 import { ApprovalInbox, QuestionInbox, WorkingStateStore, type AgentContext, type AgentEvent } from "../core.js";
-import { createNativePiSessionFactory } from "../runtime/native-pi-session.js";
+import { createNativePiSessionFactory } from "../runtime/native-pi-session.compat.js";
 import { PiAgentRuntime } from "../runtime/pi-runtime.js";
 
 const fixtureRoot = mkdtempSync(join(tmpdir(), "opengrove-pi-story-seed-e2e-"));

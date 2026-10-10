@@ -566,15 +566,20 @@ async function main() {
     }
   }
 
-  assert.equal(capturedPrompt, roomUserInput);
+  assert.match(
+    capturedPrompt,
+    /room\.ledger\.read/,
+    "Mutable product context must accompany this native turn, including resumed sessions",
+  );
+  assert.ok(capturedPrompt.endsWith(roomUserInput));
   assert.match(capturedPrompt, /<current-message>\n@金牌编辑 请审核章节大纲。\n<\/current-message>$/);
-  assert.match(capturedSystemPrompt, /room\.ledger\.read/);
-  assert.match(capturedSystemPrompt, /room\.delegate\.task/);
-  assert.match(capturedSystemPrompt, /当前房间：故事种子/);
-  assert.match(capturedSystemPrompt, /Default response language: Simplified Chinese/);
-  assert.match(capturedSystemPrompt, /primary natural language of the current input/);
+  assert.doesNotMatch(capturedSystemPrompt, /room\.ledger\.read/);
+  assert.match(capturedPrompt, /room\.delegate\.task/);
+  assert.match(capturedPrompt, /当前房间：故事种子/);
+  assert.match(capturedPrompt, /Default response language: Simplified Chinese/);
+  assert.match(capturedPrompt, /primary natural language of the current input/);
   assert.ok(
-    capturedSystemPrompt.endsWith(
+    capturedPrompt.includes(
       "Default response language: Simplified Chinese. Follow the primary natural language of the current input unless it explicitly requests another language.",
     ),
     "the concise preference should remain visible after the larger host context",
@@ -591,7 +596,7 @@ async function main() {
     ],
     "Claude SDK must keep the required Skill enabled alongside the employee's available allow-list.",
   );
-  assert.match(capturedSystemPrompt, /Load this Skill before acting/);
+  assert.match(capturedPrompt, /Load this Skill before acting/);
   assert.match(capturedSystemPrompt, /Employee optional skill scope/);
   assert.match(capturedSystemPrompt, /SKILL\.md:/);
   assert.equal(capturedModel, "opus", "Claude SDK should receive a Claude Code family alias");

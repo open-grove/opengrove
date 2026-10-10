@@ -818,7 +818,7 @@ function createProbeRequest(input: {
       threadGoal: input.probeCase.threadGoal,
       structuredOutputSchema: input.probeCase.structuredOutputSchema,
       contextTokenBudget: input.probeCase.contextTokenBudget,
-      accessMode: input.probeCase.accessMode ?? "default",
+      accessMode: input.probeCase.accessMode ?? (input.kernel === "openclaw" ? undefined : "default"),
       sessionHistoryMode: "native",
       context: {
         sessionId: `session_probe_${input.kernel}_${input.probeCase.kind}_${Date.now().toString(36)}`,
@@ -915,7 +915,7 @@ function createProbeCase(kind: ProbeCaseKind, kernel: BridgeKernelId, options: R
       kind,
       marker,
       tools: [hostEchoTool()],
-      accessMode: "full-access",
+      accessMode: kernel === "openclaw" ? undefined : "full-access",
       input: [
         base,
         `Use the available OpenGrove host tool ${HOST_ECHO_TOOL_ID} exactly once with {"ref":"${marker}"}.`,

@@ -1,4 +1,5 @@
 import { autoReviewFallbackReason } from "../runtime-access.js";
+import { syncExecutionSessionMetadata } from "./execution-session.js";
 import { applyEmployeeAutoReviewFallback } from "./employee-access-mode.js";
 import { executeRemoteRoomRun } from "./remote-agents/execution.js";
 import {
@@ -339,7 +340,7 @@ async function executeRoomRun(state: BridgeState, input: RoomRunExecutionInput):
         userInput,
       });
     }
-    syncRoomExecutionSessionMetadata(state, executionState, sessionId);
+    syncExecutionSessionMetadata(state, executionState, sessionId);
 
     if (input.signal?.aborted) {
       await finalizeCanceledRoomRun(state, input, startedAt, events, model, execution.providerRoute);
@@ -496,7 +497,7 @@ async function handleRoomRunError(
     roomProviderRouteErrorMessage(context.error, language) ??
     roomKernelCapabilityErrorMessage(context.error, language) ??
     diagnosticMessage;
-  syncRoomExecutionSessionMetadata(state, context.executionState, context.sessionId);
+  syncExecutionSessionMetadata(state, context.executionState, context.sessionId);
   if (input.signal?.aborted) {
     await finalizeCanceledRoomRun(
       state,
@@ -776,25 +777,6 @@ export function buildRoomRunPageSnapshot(input: {
     visibleText: input.visibleText,
     attachments: input.attachments?.map((attachment) => ({ ...attachment })),
   };
-}
-
-function syncRoomExecutionSessionMetadata(
-  state: BridgeState,
-  executionState: BridgeState | undefined,
-  sessionId: string,
-): void {
-  if (!executionState || executionState === state) {
-    return;
-  }
-  const scopedSession = executionState.app.sessions.get(sessionId);
-  if (!scopedSession?.metadata || Object.keys(scopedSession.metadata).length === 0) {
-    return;
-  }
-  state.app.sessions.ensureSession({
-    id: sessionId,
-    activity: scopedSession.activity,
-    metadata: scopedSession.metadata,
-  });
 }
 
 function durationLabel(durationMs: number): string {

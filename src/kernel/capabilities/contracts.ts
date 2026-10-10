@@ -273,7 +273,14 @@ function openClawMappings(): KernelCapabilityContract {
       ),
       map("planning.plan", "not-wired", "OpenClaw planning surface"),
       map("interaction.askUser", "not-wired", "OpenClaw elicitation surface"),
-      map("tools.hostTool", "not-wired", "OpenGrove does not inject host tools into OpenClaw Gateway."),
+      map(
+        "tools.hostTool",
+        "mapped",
+        "OpenClaw native Agent Host plugin with scoped local callbacks",
+        "OpenGrove product tool policy and tool lifecycle",
+        "openclaw.tools.hostTool",
+        ["Requires the Agent Host plugin on the same machine; a missing plugin fails before dispatch."],
+      ),
       map("tools.mcpServers", "not-wired", "OpenClaw MCP server configuration through OpenGrove"),
       map("tools.parallelCalls", "not-wired", "OpenClaw parallel tool execution surface"),
       map("tool.progress", "not-wired", "OpenClaw Gateway tool progress events", undefined, undefined, [
@@ -738,11 +745,11 @@ export const KERNEL_CAPABILITY_CONTRACTS: KernelCapabilityContract[] = [
       map(
         "session.lifecycle",
         "fallback",
-        "Hermes TUI Gateway session.create and remembered session id",
+        "Hermes TUI Gateway session.create/resume with durable stored IDs",
         "OpenGrove session binding",
         "hermes.session.lifecycle",
         [
-          "OpenGrove reuses Gateway sessions in the active child process, but does not expose full Hermes session management.",
+          "OpenGrove persists native profiles and resumes durable sessions, but does not expose full Hermes session management.",
         ],
       ),
       map(
@@ -758,7 +765,7 @@ export const KERNEL_CAPABILITY_CONTRACTS: KernelCapabilityContract[] = [
       map(
         "approval.request",
         "mapped",
-        "Hermes TUI Gateway approval.request and approval.respond",
+        "Hermes TUI Gateway approval JSON-RPC server request and native choice response",
         "approval.requested / approval.resolved",
         "hermes.approval.request",
       ),
@@ -785,7 +792,14 @@ export const KERNEL_CAPABILITY_CONTRACTS: KernelCapabilityContract[] = [
       ),
       map("response.speed", "not-wired", "Hermes speed/service-tier control through OpenGrove"),
       map("planning.plan", "not-wired", "Hermes planning surface"),
-      map("tools.hostTool", "not-wired", "OpenGrove host-tool bridge"),
+      map(
+        "tools.hostTool",
+        "mapped",
+        "Hermes native MCP in a persistent product-owned profile",
+        "OpenGrove product tool policy and tool lifecycle",
+        "hermes.tools.hostTool",
+        ["Requires the native MCP extra and an exclusive Hermes profile."],
+      ),
       map("tools.mcpServers", "not-wired", "Hermes MCP server injection"),
       map("tools.parallelCalls", "not-wired", "Hermes concurrent tool execution controls"),
       map("control.steer", "not-wired", "Hermes TUI Gateway session.steer", undefined, undefined, [
