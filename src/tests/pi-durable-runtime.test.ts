@@ -189,3 +189,43 @@ test("Pi upgrade selects the explicit compatibility adapter for an existing nati
     await latest.dispose?.();
   }
 });
+
+test("Pi 1.1 projects fresh Host state without retaining old state or one-turn instructions", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "opengrove-pi-context-"));
+  const seen: Context[] = [];
+  const factory = createNativePiSessionFactory({
+    cwd,
+    sessionRoot: join(cwd, "sessions"),
+    model,
+    streamFn: (_model, context) => reply(context, seen),
+  });
+  const app = createOpenGrove({
+    cwd,
+    readPage: async () => ({}),
+    runtime: new PiAgentRuntime({ createSession: factory, workspaceRoot: cwd }),
+  });
+  try {
+    for (const [state, instruction] of [
+      ["ROOM_ALPHA", "ONLY_FIRST_TURN"],
+      ["ROOM_BETA", ""],
+      ["", ""],
+    ]) {
+      const events: AgentEvent[] = [];
+      for await (const event of app.runTurn("continue", {
+        sessionId: "current-context",
+        sessionInstructions: "STABLE_EMPLOYEE",
+        hostState: state ? [{ id: "room", text: state }] : [],
+        turnInstructions: instruction ? [{ id: "task", text: instruction }] : [],
+      }))
+        events.push(event);
+      assert.equal(events.find((event) => event.type === "turn.finished")?.outcome.taskState, "TASK_STATE_COMPLETED");
+      const native = JSON.stringify(seen.at(-1));
+      assert.match(native, /STABLE_EMPLOYEE/);
+      if (state) assert.ok(native.includes(state));
+      if (state !== "ROOM_ALPHA") assert.doesNotMatch(native, /ROOM_ALPHA|ONLY_FIRST_TURN/);
+      if (!state) assert.doesNotMatch(native, /ROOM_BETA/);
+    }
+  } finally {
+    await factory.dispose?.();
+  }
+});

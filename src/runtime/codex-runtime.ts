@@ -1,4 +1,6 @@
 import { createHash } from "node:crypto";
+import { hostContextDelivery } from "./host-context-delivery.js";
+import { prepareAgentTurnContext } from "../core/turn-context.js";
 import { CodexAgent, type TurnOutcome } from "@open-grove/agent-host/codex";
 import {
   closeSync,
@@ -91,6 +93,7 @@ export class CodexRuntime implements AgentRuntime {
       .sort(([, left], [, right]) => right.updatedAt.localeCompare(left.updatedAt))[0];
     if (!entry) return { ok: false, compacted: false, error: "session_not_found" };
     const [sessionId, binding] = entry;
+    hostContextDelivery.invalidate(`codex:${binding.threadId}`);
     const agent = this.agentFor(this.options.env);
     let compacted = false;
     let outcome: TurnOutcome | undefined;
@@ -122,6 +125,7 @@ export class CodexRuntime implements AgentRuntime {
   }
 
   async *runTurn(request: AgentTurnRequest): AsyncIterable<AgentEvent> {
+    request = prepareAgentTurnContext(request);
     const runId = resolveRuntimeRunId(request.runId);
     const cwd = this.options.cwd ?? process.cwd();
     const model = normalizeCodexModelId(request.requestedModelId, this.options.configuredModel);
@@ -215,6 +219,8 @@ export class CodexRuntime implements AgentRuntime {
       Boolean,
     );
     const queue = new AsyncEventQueue<AgentEvent>();
+    let contextReceipt: ReturnType<typeof hostContextDelivery.begin> | undefined;
+    let nativeContextKey: string | undefined;
     let projector: CodexEventProjector | undefined;
     let pauseRequest: ApprovalRequest | undefined;
     let outcome: TurnOutcome | undefined;
@@ -254,6 +260,16 @@ export class CodexRuntime implements AgentRuntime {
             ...(request.structuredOutputSchema ? { outputSchema: request.structuredOutputSchema } : {}),
           },
           beforeTurn: async (client, native) => {
+            nativeContextKey = `codex:${native.threadId}`;
+            contextReceipt = hostContextDelivery.begin(nativeContextKey, request.assembledContext?.hostState ?? []);
+            turnInputItems.splice(
+              0,
+              turnInputItems.length,
+              ...buildCodexTurnInputItems(
+                request,
+                buildCodexTurnInput(request, contextReceipt.fullState ? undefined : contextReceipt.blocks),
+              ),
+            );
             await refreshCodexNativeSkillList(client, cwd, { ...request, signal: native.signal });
             const diagnostic = await this.applyThreadGoal(client, native.threadId, request);
             if (diagnostic) queue.push(diagnostic);
@@ -291,6 +307,7 @@ export class CodexRuntime implements AgentRuntime {
           },
         })) {
           if (event.type === "session.bound") {
+            if (!event.resumed) hostContextDelivery.invalidate(`codex:${event.threadId}`);
             projector = new CodexEventProjector(runId, event.threadId, queue);
             for (const key of activeKeys) this.activeTurns.set(key, activeTurn);
             queue.push({
@@ -362,7 +379,10 @@ export class CodexRuntime implements AgentRuntime {
     const producer = forward();
     try {
       for await (const event of queue) {
-        if (event.type === "compaction.started") compactionTriggered = true;
+        if (event.type === "compaction.started") {
+          compactionTriggered = true;
+          if (nativeContextKey) hostContextDelivery.invalidate(nativeContextKey);
+        }
         if (event.type === "compaction.finished") {
           compactionTriggered = true;
           compactionSucceeded = true;
@@ -372,6 +392,15 @@ export class CodexRuntime implements AgentRuntime {
         if (event.type === "approval.resolved" && pauseRequest?.id === event.request.id) pauseRequest = undefined;
         yield event;
       }
+      if (
+        outcome?.status === "completed" &&
+        !projector?.errorMessage() &&
+        !compactionTriggered &&
+        !compactTurn &&
+        !controller.signal.aborted
+      )
+        contextReceipt?.acknowledge();
+      else if (nativeContextKey) hostContextDelivery.invalidate(nativeContextKey);
       const baseFinalText = projector?.finalText() ?? "";
       const correction = imageGenerationTruthCorrection(request, baseFinalText, projector?.generatedImageCount() ?? 0);
       const finalText = [baseFinalText, correction].filter(Boolean).join("\n\n");

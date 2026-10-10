@@ -14,7 +14,7 @@ import type {
   AgentTurnRequest,
   JsonObject,
 } from "../core.js";
-import { agentTurnHostContextPromptBlock, agentTurnReplyLanguageInstruction } from "../core.js";
+import { agentTurnFullContextPromptBlock, prepareAgentTurnContext } from "../core.js";
 import { appEnvName } from "../identity.js";
 import { AsyncEventQueue } from "./codex/async-event-queue.js";
 import { recentSessionMessages } from "./session-history.js";
@@ -217,6 +217,10 @@ export class OpenClawGatewayRuntime implements AgentRuntime {
     queue: AsyncEventQueue<AgentEvent>,
     runId: string,
   ): Promise<void> {
+    request = prepareAgentTurnContext(request);
+    const extraSystemPrompt = ["You are running inside the OpenGrove host.", request.sessionInstructions?.trim()]
+      .filter(Boolean)
+      .join("\n\n");
     const model = request.requestedModelId?.trim() || this.options.configuredModel?.trim();
     const sessionKey =
       this.options.sessionKey?.trim() ||
@@ -239,7 +243,8 @@ export class OpenClawGatewayRuntime implements AgentRuntime {
       sessionKey,
       runId,
       model,
-      instructions: "",
+      method: "agent",
+      instructions: extraSystemPrompt,
       input: prompt,
       signal: request.signal,
       toolBridge: hostTools,
@@ -273,7 +278,13 @@ export class OpenClawGatewayRuntime implements AgentRuntime {
           runId,
           at: new Date().toISOString(),
           name: "openclaw.gateway.session",
-          data: { url: redactGatewayUrl(this.options.url), sessionKey },
+          data: {
+            url: redactGatewayUrl(this.options.url),
+            sessionKey,
+            hostInstructionsChannel: "agent.extraSystemPrompt",
+            hostStateDelivery: "full-per-host-turn",
+            hostCompactionRecovery: "next-host-turn",
+          },
         });
         if (context.selectedModel)
           queue.push({
@@ -295,7 +306,7 @@ export class OpenClawGatewayRuntime implements AgentRuntime {
           type: "model.requested",
           runId,
           request: {
-            systemPrompt: "OpenClaw native Gateway; current OpenGrove context is in this turn's prompt.",
+            systemPrompt: extraSystemPrompt,
             userInput: request.input,
             modelId: model,
             session,
@@ -312,7 +323,7 @@ export class OpenClawGatewayRuntime implements AgentRuntime {
           runId,
           sessionKey,
           priorMessages,
-          incomingTokens: estimateTextTokens(prompt),
+          incomingTokens: estimateTextTokens(extraSystemPrompt + "\n\n" + prompt),
         });
       },
     })) {
@@ -620,24 +631,10 @@ function identifierDisplayName(value: string): string {
 }
 
 function buildOpenClawPrompt(request: AgentTurnRequest): string {
-  const hostContext = agentTurnHostContextPromptBlock(request);
-  const selectedSkill = request.requestedSkillInvocation?.content.trim();
-  const sections = [
-    "You are running inside the OpenGrove host.",
-    hostContext ? `Host context:\n${hostContext}` : "",
-    selectedSkill
-      ? [
-          `OpenGrove selected skill ${request.requestedSkillInvocation?.skillName}:`,
-          selectedSkill,
-          request.requestedSkillInvocation?.args ? `Skill arguments:\n${request.requestedSkillInvocation.args}` : "",
-        ]
-          .filter(Boolean)
-          .join("\n\n")
-      : "",
-    `User request:\n${request.input}`,
-    agentTurnReplyLanguageInstruction(request),
-  ].filter(Boolean);
-  return sections.join("\n\n");
+  const hostContext = agentTurnFullContextPromptBlock(request);
+  return [hostContext ? `Host context:\n${hostContext}` : "", `User request:\n${request.input}`]
+    .filter(Boolean)
+    .join("\n\n");
 }
 
 function redactGatewayUrl(rawUrl: string): string {

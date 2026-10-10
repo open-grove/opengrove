@@ -387,8 +387,8 @@ assert.equal(capturedRequests[1]?.replyLanguagePreference, "en");
 assert.equal(capturedRequests[2]?.replyLanguagePreference, "en");
 assert.equal(capturedRequests[2]?.input, "Please answer in Japanese.");
 assert.ok(
-  buildCodexTurnInput(capturedRequests[0]!).endsWith(`User request:\n第一轮\n\n${zhLanguageInstruction}`),
-  "per-Turn language preferences must remain the final turn-input instruction",
+  buildCodexTurnInput(capturedRequests[0]!).includes(zhLanguageInstruction),
+  "language preferences must be delivered as mutable Turn state",
 );
 assert.doesNotMatch(
   buildCodexDeveloperInstructions(),

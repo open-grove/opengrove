@@ -30,8 +30,11 @@ files; static Server checks do not repeat the Host contract unit test.
 
 Each planned task states its preparation needs. Harness jobs build once before
 executing their selected tests. Offline package contents (including bundled
-Skills and package import targets) run before merge; online dependency installation
-remains in Nightly. Cross-OS and installed-product validation are distinct
+Skills and package import targets) run before merge; online production-package
+installation remains in Nightly. Server/Kernel changes also select the separate
+`native-context` gate, which can fetch the pinned OpenClaw 2026.9.2 CLI and verifies
+the real Gateway against a loopback model API without provider credentials.
+The installed Claude SDK probe follows affected harness selection. Cross-OS and installed-product validation are distinct
 scenarios, not duplicate tests. Native/package scope stays conservative until
 measured cost and regression data justify narrowing it.
 

@@ -1,8 +1,4 @@
-import {
-  agentTurnHostContextPromptBlock,
-  agentTurnReplyLanguageInstruction,
-  type AgentTurnRequest,
-} from "../../core.js";
+import { agentTurnHostContextPromptBlock, type AgentTurnRequest } from "../../core.js";
 
 export function buildHermesPrompt(request: AgentTurnRequest): string {
   const hostContext = agentTurnHostContextPromptBlock(request);
@@ -17,7 +13,6 @@ export function buildHermesPrompt(request: AgentTurnRequest): string {
     hostContext ? `Host context:\n${hostContext}` : "",
     skillHint,
     `User request:\n${request.input}`,
-    agentTurnReplyLanguageInstruction(request),
   ].filter(Boolean);
   return sections.join("\n\n");
 }

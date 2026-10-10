@@ -1,3 +1,5 @@
+import { agentTurnContextPromptBlock } from "../core/turn-context.js";
+import { defineExtension, hook, GenerationTask } from "@earendil-works/pi-durable";
 import { estimateContextTokens } from "@earendil-works/pi-ai/utils/estimate";
 import { BACKGROUND_CONTEXT as background } from "@earendil-works/chord/context";
 import {
@@ -155,6 +157,30 @@ export function createNativePiSessionFactory(options: NativePiSessionOptions): P
             return { forkSessionId, text };
           },
         });
+        // A native request-only hook keeps mutable state out of the durable
+        // transcript and restores it on every model request after compaction.
+        const projectedContext = agentTurnContextPromptBlock({
+          assembledContext: context.assembledContext ? { ...context.assembledContext, promptBlock: "" } : undefined,
+        });
+        const currentHostContext = defineExtension({
+          name: "opengrove-current-context",
+          hooks: [
+            hook(GenerationTask, {
+              beforeRequest: ({ messages }) => {
+                if (!projectedContext) return;
+                const next = [...messages];
+                let lastUser = next.length - 1;
+                while (lastUser >= 0 && next[lastUser]!.role !== "user") lastUser -= 1;
+                next.splice(lastUser < 0 ? next.length : lastUser, 0, {
+                  role: "user",
+                  content: [{ type: "text", text: projectedContext }],
+                  timestamp: Date.now(),
+                });
+                return { messages: next };
+              },
+            }),
+          ],
+        });
         const producer = (async () => {
           let nativeTrace: AgentSessionTrace | undefined;
           const model = typeof options.model === "function" ? options.model(runtime.requestedModelId) : options.model;
@@ -168,7 +194,10 @@ export function createNativePiSessionFactory(options: NativePiSessionOptions): P
             bindingFingerprint: `opengrove-pi-durable-v1:${options.cwd ?? process.cwd()}`,
             context: [
               context.assembledContext?.promptBlock,
-              context.requestedSkillInvocation ? buildSkillSteeringText(context.requestedSkillInvocation) : "",
+              context.requestedSkillInvocation &&
+              !context.assembledContext?.turnInstructions?.some((block) => block.id === "opengrove.selected-skill")
+                ? buildSkillSteeringText(context.requestedSkillInvocation)
+                : "",
             ]
               .filter(Boolean)
               .join("\n\n"),
@@ -180,7 +209,7 @@ export function createNativePiSessionFactory(options: NativePiSessionOptions): P
               data: image.base64,
               mimeType: image.mediaType,
             })),
-            extensions: [CodingTools],
+            extensions: [CodingTools, currentHostContext],
             tools: productTools.map((tool) => ({
               name: tool.name,
               description: tool.description,
@@ -219,7 +248,7 @@ export function createNativePiSessionFactory(options: NativePiSessionOptions): P
               const budget = resolveContextTokenBudget(context.contextTokenBudget, model.contextWindow);
               const projected =
                 usage.tokens +
-                estimateTextTokens([context.assembledContext?.promptBlock, input].filter(Boolean).join("\n\n"));
+                estimateTextTokens([agentTurnContextPromptBlock(context), input].filter(Boolean).join("\n\n"));
               const triggered =
                 budget.budgetSource === "configured" &&
                 budget.effectiveBudget !== undefined &&

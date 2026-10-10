@@ -23,12 +23,25 @@ assert.ok(
 for (const [path, task] of [
   ["src/runtime/hermes-runtime.ts", "hermes-runtime"],
   ["src/runtime/claude-agent-sdk-runtime.ts", "claude-agent-sdk-runtime"],
+  ["src/runtime/claude-agent-sdk-runtime.ts", "native-claude-context"],
   ["src/runtime/openclaw-gateway-runtime.ts", "openclaw-gateway-runtime"],
 ]) {
   const plan = createCiCheckPlan("pull_request", [path]);
   const tasks = plan.checks.flatMap((check) => check.tasks ?? []);
   assert.ok(tasks.includes(task), `${path} must run its dedicated harness before merge`);
   assert.equal(new Set(tasks).size, tasks.length, "the Linux execution plan must not duplicate harnesses");
+}
+
+for (const event of ["pull_request", "merge_group", "push"]) {
+  for (const path of [
+    "src/runtime/openclaw-gateway-runtime.ts",
+    "src/core/turn-context.ts",
+    "scripts/lib/openclaw-context-fixture.mjs",
+  ]) {
+    const check = createCiCheckPlan(event, [path]).checks.find((check) => check.id === "native-context");
+    assert.deepEqual(check?.tasks, ["native-openclaw-context"], `${event}: ${path} must run the real Gateway probe`);
+    assert.equal(check.preparation, "server", "the native fixture imports built Host modules");
+  }
 }
 
 const crossOwnerWebCases = [

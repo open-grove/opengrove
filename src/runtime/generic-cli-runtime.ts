@@ -271,31 +271,20 @@ function buildPrompt(
     return `${[request.input, agentTurnReplyLanguageInstruction(request)].filter(Boolean).join("\n\n")}\n`;
   }
   const ambientContext = renderAmbientContext(request);
-  const sections = [
-    ambientContext,
-    recentSessionPromptBlock(request),
-    request.input,
-    agentTurnReplyLanguageInstruction(request),
-  ].filter(Boolean);
+  const sections = [ambientContext, recentSessionPromptBlock(request), request.input].filter(Boolean);
   return `${sections.join("\n\n")}\n`;
 }
 
 function renderAmbientContext(request: AgentTurnRequest): string {
   const context = request.assembledContext;
   const promptBlock = agentTurnHostContextPromptBlock(request);
-  if (promptBlock) {
-    return `OpenGrove host context:\n${promptBlock}`;
-  }
-  if (!context) {
-    return "";
-  }
-  const summary = context.summary?.trim();
-  const hasItems = (context.items?.length ?? 0) > 0;
-  if (!hasItems && (!summary || summary === "empty context")) {
-    return "";
-  }
-  if (summary) {
-    return `OpenGrove context summary:\n${summary}`;
-  }
-  return "";
+  const summary = context?.summary?.trim();
+  const summaryOnly =
+    !context?.promptBlock?.trim() && summary && summary !== "empty context" && summary !== "host context";
+  return [
+    promptBlock ? `OpenGrove host context:\n${promptBlock}` : "",
+    summaryOnly ? `OpenGrove context summary:\n${summary}` : "",
+  ]
+    .filter(Boolean)
+    .join("\n\n");
 }
