@@ -6,7 +6,9 @@
     "employee": "employees",
     "run": "runs",
     "interaction": "interactions",
-    "artifact": "artifacts"
+    "artifact": "artifacts",
+    "extension": "extensions",
+    "routine": "routines"
   },
   "resources": {
     "app.release": "releases",
@@ -25,7 +27,11 @@
     "interaction.approval": "approvals",
     "interaction.question": "questions",
     "run.event": "events",
-    "artifact.artifact": "collection"
+    "artifact.artifact": "collection",
+    "extension.extension": "collection",
+    "extension.skill": "skills",
+    "extension.deployment": "deployments",
+    "routine.routine": "collection"
   },
   "operations": {
     "app.release.keep-local": "keepLocal",

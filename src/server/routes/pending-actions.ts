@@ -64,10 +64,11 @@ async function handleQuestionDecision(
 }
 
 export function handleListApprovalsOperation(context: HostOperationRouteContext<ListApprovalsOperation>): true {
-  const { status, limit } = context.input.query;
+  const { status, limit, runId } = context.input.query;
   const approvals = presentApprovalSummaries(
     context.state.app.approvals
       .list(status)
+      .filter((request) => !runId || request.resume?.runId === runId)
       .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))
       .slice(0, limit),
   );
@@ -76,10 +77,11 @@ export function handleListApprovalsOperation(context: HostOperationRouteContext<
 }
 
 export function handleListQuestionsOperation(context: HostOperationRouteContext<ListQuestionsOperation>): true {
-  const { status, limit } = context.input.query;
+  const { status, limit, runId } = context.input.query;
   const questions = presentQuestionSummaries(
     context.state.app.questions
       .list(status)
+      .filter((request) => !runId || request.resume?.runId === runId)
       .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))
       .slice(0, limit),
   );

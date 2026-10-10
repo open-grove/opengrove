@@ -1,3 +1,5 @@
+import { extensionKernelIdSchema } from "@opengrove/protocol";
+import { openGroveClient } from "../../opengrove-client";
 import { useMemo, useState } from "react";
 import clsx from "clsx";
 import {
@@ -78,7 +80,7 @@ type ExtensionSourceFilter = SourceCategory["kind"] | "all";
 type ExtensionStatusFilter = "all" | "enabled" | "disabled";
 
 type KernelTarget = {
-  id: KernelPreference | string;
+  id: KernelPreference;
   label: string;
 };
 
@@ -86,6 +88,8 @@ type SourceCategory = {
   kind: "native" | "user" | "unknown";
   label: string;
 };
+
+export type ExtensionAction = () => ReturnType<typeof openGroveClient.extensions.skills.publish>;
 
 export function ExtensionsView(props: {
   extensions?: ExtensionInventoryRecord;
@@ -95,7 +99,7 @@ export function ExtensionsView(props: {
   actionPending?: boolean;
   onEditSkill?(item: ExtensionItemRecord): void;
   onOpenLocalPath?(path: string): void;
-  onAction(path: string, payload: Record<string, unknown>): void;
+  onAction(action: ExtensionAction): void;
 }) {
   const { t } = useI18n();
   const [workspaceId, setWorkspaceId] = useState<ExtensionWorkspaceId>("skills");
@@ -412,7 +416,7 @@ function SkillLibraryWorkspace(props: {
   disabled: boolean;
   t: TranslationFn;
   onEditSkill?(item: ExtensionItemRecord): void;
-  onAction(path: string, payload: Record<string, unknown>): void;
+  onAction(action: ExtensionAction): void;
 }) {
   const [targetPickerItemId, setTargetPickerItemId] = useState("");
 
@@ -482,7 +486,7 @@ function SkillPublishedTargets(props: {
   onTogglePicker(): void;
   onClosePicker(): void;
   t: TranslationFn;
-  onAction(path: string, payload: Record<string, unknown>): void;
+  onAction(action: ExtensionAction): void;
 }) {
   const [unpublishTarget, setUnpublishTarget] = useState<{
     deployment: ExtensionDeploymentRecord;
@@ -590,12 +594,14 @@ function SkillPublishedTargets(props: {
                   type="button"
                   disabled={props.disabled}
                   onClick={() => {
-                    props.onAction("/extensions/skills/publish", {
-                      ...publishPayload,
-                      targetKernelIds: [kernel.id],
-                      scope: "user",
-                      replace: false,
-                    });
+                    props.onAction(() =>
+                      openGroveClient.extensions.skills.publish({
+                        ...publishPayload,
+                        targetKernelIds: [kernel.id],
+                        scope: "user",
+                        replace: false,
+                      }),
+                    );
                     props.onClosePicker();
                   }}
                 >
@@ -635,9 +641,11 @@ function SkillPublishedTargets(props: {
               variant="primary"
               disabled={props.disabled || outdatedDeploymentIds.length === 0}
               onClick={() => {
-                props.onAction("/extensions/skills/republish", {
-                  deploymentIds: outdatedDeploymentIds,
-                });
+                props.onAction(() =>
+                  openGroveClient.extensions.skills.republish({
+                    deploymentIds: outdatedDeploymentIds,
+                  }),
+                );
                 setRepublishDialogOpen(false);
               }}
             >
@@ -675,10 +683,12 @@ function SkillPublishedTargets(props: {
               disabled={props.disabled}
               onClick={() => {
                 if (!unpublishTarget) return;
-                props.onAction("/extensions/skills/unpublish", {
-                  deploymentIds: [unpublishTarget.deployment.id],
-                  forceExternal: !unpublishTarget.deployment.managedByOpenGrove,
-                });
+                props.onAction(() =>
+                  openGroveClient.extensions.skills.unpublish({
+                    deploymentIds: [unpublishTarget.deployment.id],
+                    forceExternal: !unpublishTarget.deployment.managedByOpenGrove,
+                  }),
+                );
                 setUnpublishTarget(null);
               }}
             >
@@ -732,7 +742,7 @@ function ExtensionManagementWorkspace(props: {
   mode: "mcp" | "plugin" | "hook" | "tool" | "cli";
   t: TranslationFn;
   onOpenLocalPath?(path: string): void;
-  onAction(path: string, payload: Record<string, unknown>): void;
+  onAction(action: ExtensionAction): void;
 }) {
   if (!props.items.length) {
     return <ExtensionEmptyState kind={props.emptyKind} t={props.t} />;
@@ -828,7 +838,7 @@ function ManagementDeploymentTarget(props: {
   kernelLabel: string;
   disabled: boolean;
   t: TranslationFn;
-  onAction(path: string, payload: Record<string, unknown>): void;
+  onAction(action: ExtensionAction): void;
 }) {
   const deployment = props.deployment;
   if (deployment.readonly || deployment.system) {
@@ -855,9 +865,11 @@ function ManagementDeploymentTarget(props: {
       title={actionLabel}
       disabled={props.disabled}
       onClick={() =>
-        props.onAction(deployment.enabled ? "/extensions/deployments/disable" : "/extensions/deployments/enable", {
-          deploymentIds: [deployment.id],
-        })
+        props.onAction(() =>
+          openGroveClient.extensions.deployments[deployment.enabled ? "disable" : "enable"]({
+            deploymentIds: [deployment.id],
+          }),
+        )
       }
     >
       <KernelIcon kernelId={deployment.kernelId} size={20} />
@@ -1024,7 +1036,8 @@ function buildKernelTargets(settings: BridgeSettings | undefined, items: Extensi
   for (const item of items) {
     for (const deployment of item.deployments ?? []) {
       if (!deployment.kernelId || targets.has(deployment.kernelId)) continue;
-      targets.set(deployment.kernelId, { id: deployment.kernelId, label: titleFromId(deployment.kernelId) });
+      const kernelId = extensionKernelIdSchema.safeParse(deployment.kernelId);
+      if (kernelId.success) targets.set(kernelId.data, { id: kernelId.data, label: titleFromId(kernelId.data) });
     }
   }
   return Array.from(targets.values()).sort((left, right) => compareLocalizedText(left.label, right.label));

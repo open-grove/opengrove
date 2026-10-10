@@ -195,6 +195,28 @@ opengrove room message create ...
 opengrove room send ...
 ```
 
+## Product resource operations
+
+Skills and extension deployments use `extension.extension.list`,
+`extension.skill.*`, and `extension.deployment.*`. The internal Client names
+are `client.extensions.collection`, `.skills`, and `.deployments`. The Web
+extension manager uses these generated methods. Successful mutations rebuild
+the Host through its existing reload boundary, so subsequent work sees the
+updated Skill catalog.
+
+Workflow definitions and execution use `routine.routine.*`
+(`client.routines.collection`). Artifact create/get/list/update/delete use
+`artifact.artifact.*` (`client.artifacts.collection`). Approval and question
+lists optionally filter by `runId` before sorting and applying the limit.
+A workflow's returned summary, including failed or paused status, remains the
+execution result; a successful HTTP response only confirms the operation was
+handled.
+
+These operations belong to the OpenGrove product Host. The separate
+[Agent Host](https://github.com/open-grove/agent-host) package owns the reusable
+native Agent runtime and its optional standalone HTTP service. OpenGrove's
+product storage, scheduling and extension management remain here.
+
 ## Naming and risk rules
 
 - Keep product terms defined by OpenGrove: Host, Bridge, Kernel, Adapter, Room,

@@ -20,6 +20,7 @@ try {
   await build({
     entryPoints: [entryPath],
     bundle: true,
+    alias: { "#protocol": join(projectRoot, "packages/protocol/src/index.ts") },
     format: "iife",
     platform: "browser",
     target: "es2022",
@@ -123,6 +124,8 @@ try {
     const dogfoodRow = page.getByRole("article").filter({ hasText: "Dogfood" });
     await dogfoodRow.getByRole("button", { name: "发布", exact: true }).click();
     await page.getByRole("button", { name: "Claude Agent", exact: true }).click();
+    await page.waitForFunction(() => window.__extensionDone);
+    assert.equal(await page.evaluate(() => window.__extensionError), undefined);
     assert.deepEqual(
       await page.evaluate(() => window.__extensionActions.at(-1)),
       {
@@ -282,13 +285,22 @@ function entrySource(component, globalStyles) {
     } as BridgeSettings;
 
     window.__extensionActions = [];
+    window.fetch = async (input, init) => {
+      const request = new Request(input, init);
+      window.__extensionActions.push({ path: new URL(request.url).pathname.replace(/^\\/api/, ""), payload: await request.json() });
+      return Response.json({
+        ok: true,
+        result: { ok: true, action: "skill.publish", records: [], warnings: [] },
+        extensions: { scannedAt: new Date().toISOString(), workspaceRoot: "/fixture", items: [], deployments: [], commandUsages: [], summary: { itemCount: 0, deploymentCount: 0, byKind: {}, byKernel: {}, managedCount: 0, systemCount: 0 } },
+      });
+    };
     document.documentElement.style.setProperty("--opengrove-sidebar-width", "244px");
     localStorage.setItem("opengroveLanguage", "zh-CN");
     createRoot(document.getElementById("root")!).render(
       <ExtensionsView
         extensions={extensions}
         settings={settings}
-        onAction={(path, payload) => window.__extensionActions.push({ path, payload })}
+        onAction={(action) => { action().then(() => { window.__extensionDone = true; }, error => { window.__extensionError = String(error); window.__extensionDone = true; }); }}
       />,
     );
   `;
