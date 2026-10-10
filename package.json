@@ -318,7 +318,7 @@
     "@earendil-works/pi-durable": "1.1.0",
     "@modelcontextprotocol/ext-apps": "^1.7.5",
     "@modelcontextprotocol/sdk": "^1.30.0",
-    "@open-grove/agent-host": "file:vendor/open-grove-agent-host-0.1.0-alpha.1.tgz",
+    "@open-grove/agent-host": "file:vendor/open-grove-agent-host-0.1.0-alpha.2.tgz",
     "adm-zip": "0.6.1",
     "cross-spawn": "^7.0.6",
     "electron-updater": "^6.8.9",
