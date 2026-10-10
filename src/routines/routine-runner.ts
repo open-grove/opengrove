@@ -482,9 +482,10 @@ export async function runRoutine(
       continue;
     }
     // F1: 既无 toolId 也无 memberId 的 step(v1 不执行 skill-only step)→ 显式失败,不静默 continue。
-    if (!step.toolId) {
+    const tool = step.toolId ? app.tools.get(step.toolId) : undefined;
+    if (!step.toolId || !tool) {
       await notifyStepStatus(statusObserver, routine, runId, step, "running");
-      const error = step.skillId ? "skill_step_not_executable" : "step_no_target";
+      const error = step.toolId ? "tool_not_registered" : step.skillId ? "skill_step_not_executable" : "step_no_target";
       const problem = options.problemReporter?.({
         runId,
         phase: step.skillId ? "routine-skill" : "routine-step",
@@ -500,7 +501,11 @@ export async function runRoutine(
       events.push({
         type: "error",
         runId,
-        message: step.skillId ? `routine_skill_step_not_executable:${step.id}` : `routine_step_no_target:${step.id}`,
+        message: step.toolId
+          ? `routine_tool_not_registered:${step.toolId}`
+          : step.skillId
+            ? `routine_skill_step_not_executable:${step.id}`
+            : `routine_step_no_target:${step.id}`,
         ...(problem ? { problem } : {}),
       });
       events.push({
@@ -527,7 +532,6 @@ export async function runRoutine(
       return { summary, events, toolResults };
     }
 
-    const tool = app.tools.require(step.toolId);
     // 执行该步前渲染 input,引用前序已完成步骤输出。
     const renderedInput = renderInputTemplate(step.input, stepOutputs);
     for (const missingReference of renderedInput.missing) {

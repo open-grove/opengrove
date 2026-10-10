@@ -1,4 +1,5 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { recreateBridgeApp } from "../bridge-state.js";
 import { BRIDGE_KERNEL_IDS } from "../bridge-types.js";
 import type { BridgeKernelId, BridgeState } from "../bridge-types.js";
 import {
@@ -45,6 +46,10 @@ export async function handleExtensionsRoute(options: {
       name: stringValue(payload.name),
       replace: payload.replace === true,
     });
+    if (result.ok) {
+      state.store.saveFrom(state.app);
+      recreateBridgeApp(state);
+    }
     sendJson(response, result.ok ? 200 : 400, {
       ok: result.ok,
       result,
@@ -75,6 +80,10 @@ export async function handleExtensionsRoute(options: {
       scope: payload.scope === "project" ? "project" : "user",
       replace: payload.replace === true,
     });
+    if (result.ok) {
+      state.store.saveFrom(state.app);
+      recreateBridgeApp(state);
+    }
     sendJson(response, result.ok ? 200 : 400, {
       ok: result.ok,
       result,
@@ -91,6 +100,10 @@ export async function handleExtensionsRoute(options: {
       name: stringValue(payload.name),
       targetKernelIds: kernelIds(payload.targetKernelIds),
     });
+    if (result.ok) {
+      state.store.saveFrom(state.app);
+      recreateBridgeApp(state);
+    }
     sendJson(response, result.ok ? 200 : 400, {
       ok: result.ok,
       result,
@@ -109,6 +122,10 @@ export async function handleExtensionsRoute(options: {
       forceExternal: payload.forceExternal === true,
       deleteLibrary: payload.deleteLibrary === true,
     });
+    if (result.ok) {
+      state.store.saveFrom(state.app);
+      recreateBridgeApp(state);
+    }
     sendJson(response, 200, {
       ok: true,
       result,
@@ -127,6 +144,10 @@ export async function handleExtensionsRoute(options: {
       forceExternal: payload.forceExternal === true,
       reason: stringValue(payload.reason),
     });
+    if (result.ok) {
+      state.store.saveFrom(state.app);
+      recreateBridgeApp(state);
+    }
     sendJson(response, 200, {
       ok: true,
       result,
@@ -145,6 +166,10 @@ export async function handleExtensionsRoute(options: {
       forceExternal: payload.forceExternal === true,
       reason: stringValue(payload.reason),
     });
+    if (result.ok) {
+      state.store.saveFrom(state.app);
+      recreateBridgeApp(state);
+    }
     sendJson(response, 200, {
       ok: true,
       result,
@@ -162,6 +187,10 @@ export async function handleExtensionsRoute(options: {
       forceExternal: payload.forceExternal === true,
       deleteLibrary: payload.deleteLibrary === true,
     });
+    if (result.ok) {
+      state.store.saveFrom(state.app);
+      recreateBridgeApp(state);
+    }
     sendJson(response, 200, {
       ok: true,
       result,
