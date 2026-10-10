@@ -1,15 +1,18 @@
 import assert from "node:assert/strict";
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { mkdtempSync, rmSync } from "node:fs";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { discoverOpenClawGatewayProviderProfiles } from "../dist/runtime/openclaw-gateway-runtime.js";
+import { startOpenClawContextFixture } from "./lib/openclaw-context-fixture.mjs";
 import { nodePackageManagerInvocation } from "./node-package-manager-invocation.mjs";
 
 const certifiedVersion = process.argv[2] ?? "2026.8.2";
 assert.match(certifiedVersion, /^\d{4}\.\d+\.\d+(?:-\d+)?$/, "Specify an exact stable OpenClaw version");
-const installedCliPath = process.argv[3];
+const installedCliPath =
+  (process.argv[3] !== "--context" ? process.argv[3] : undefined) ?? process.env.OPENGROVE_TEST_OPENCLAW_CLI;
+const verifyContext = process.argv.includes("--context");
 const openClawInvocation = (args) =>
   installedCliPath
     ? { command: process.execPath, args: [installedCliPath, ...args] }
@@ -20,15 +23,17 @@ const port = await reservePort();
 const gatewayUrl = `ws://127.0.0.1:${port}`;
 let gateway;
 let gatewayOutput = "";
+let contextFixture;
 
 try {
   const versionOutput = await runAndCollect(openClawInvocation(["--version"]));
   assert.match(versionOutput, new RegExp(`OpenClaw\\s+${certifiedVersion.replaceAll(".", "\\.")}(?:\\s|$)`));
 
+  if (verifyContext) contextFixture = await startOpenClawContextFixture(stateDir);
   const invocation = openClawInvocation([
     "gateway",
     "--allow-unconfigured",
-    "--dev",
+    ...(verifyContext ? [] : ["--dev"]),
     "--bind",
     "loopback",
     "--port",
@@ -38,8 +43,14 @@ try {
     "run",
   ]);
   gateway = spawn(invocation.command, invocation.args, {
+    detached: process.platform !== "win32",
     cwd: process.cwd(),
-    env: { ...process.env, OPENCLAW_STATE_DIR: stateDir },
+    env: {
+      ...process.env,
+      OPENCLAW_STATE_DIR: stateDir,
+      OPENCLAW_CONFIG_PATH: join(stateDir, "openclaw.json"),
+      OPENCLAW_DISABLE_BONJOUR: "1",
+    },
     stdio: ["ignore", "pipe", "pipe"],
   });
   gateway.stdout.on("data", (chunk) => {
@@ -50,6 +61,7 @@ try {
   });
 
   const providers = await waitForGateway(gatewayUrl, token, gateway);
+  await contextFixture?.verify(gatewayUrl, token);
   assert.ok(Array.isArray(providers), "OpenClaw models.list must return a model catalog array");
   process.stdout.write(
     `OpenClaw ${certifiedVersion} Gateway certification: challenge handshake, protocol v4, and models.list passed.\n`,
@@ -59,6 +71,7 @@ try {
   throw error;
 } finally {
   await stopChild(gateway);
+  await contextFixture?.close();
   rmSync(stateDir, { recursive: true, force: true });
 }
 
@@ -116,15 +129,40 @@ function reservePort() {
   });
 }
 
-function stopChild(child) {
-  if (!child || child.exitCode !== null) return Promise.resolve();
-  return new Promise((resolve) => {
-    const killTimer = setTimeout(() => child.kill("SIGKILL"), 5_000);
-    child.once("exit", () => {
-      clearTimeout(killTimer);
+async function stopChild(child) {
+  if (!child?.pid) return;
+  const killTree = (signal) => {
+    if (process.platform === "win32") {
+      const result = spawnSync("taskkill", ["/PID", String(child.pid), "/T", "/F"], {
+        stdio: "ignore",
+        timeout: 10_000,
+      });
+      if (result.error) console.warn(`Gateway cleanup: ${result.error.message}`);
+    } else {
+      try {
+        process.kill(-child.pid, signal);
+      } catch (error) {
+        if (error.code !== "ESRCH") throw error;
+      }
+    }
+  };
+  // npx can exit before its Gateway child. Reap the whole owned group even then.
+  if (child.exitCode !== null || child.signalCode !== null) {
+    killTree("SIGKILL");
+    return;
+  }
+  await new Promise((resolve, reject) => {
+    const grace = setTimeout(() => killTree("SIGKILL"), 5_000);
+    const deadline = setTimeout(
+      () => reject(new Error("Gateway process tree did not close after cancellation")),
+      10_000,
+    );
+    child.once("close", () => {
+      clearTimeout(grace);
+      clearTimeout(deadline);
       resolve();
     });
-    child.kill("SIGTERM");
+    killTree("SIGTERM");
   });
 }
 

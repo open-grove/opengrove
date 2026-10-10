@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import type { AgentAttachmentContext, UserLanguagePreference } from "../../core.js";
+import type { AgentAttachmentContext, HostContextBlock, UserLanguagePreference } from "../../core.js";
 import {
   GROVE_GUIDE_SKILL_NAME,
   isGroveGuideMember,
@@ -15,7 +15,8 @@ import { resolveRoomTargetProviderRoute, roomAgentAppVersionKey, roomAgentThread
 
 export interface RoomRunEnvelope {
   sessionInstructions: string;
-  turnInstructions: string;
+  hostState: HostContextBlock[];
+  turnInstructions: HostContextBlock[];
   userInput: string;
   sessionDefinitionFingerprint: string;
   sessionId: string;
@@ -46,7 +47,6 @@ export function buildRoomRunEnvelope(
   const sessionInstructions = buildSessionInstructions(
     input.target,
     input.hostTools,
-    language,
     isRoomAdministrator,
     isPmAutoRoute,
   );
@@ -82,7 +82,7 @@ export function buildRoomRunEnvelope(
 
   return {
     sessionInstructions,
-    turnInstructions: buildTurnInstructions(state, {
+    ...buildTurnInstructions(state, {
       roomId: input.roomId,
       roomTitle: room.title,
       memberIds: room.memberIds,
@@ -138,11 +138,11 @@ export function buildRoomTextInput(
 function buildSessionInstructions(
   target: RoomChannelMember,
   hostTools: boolean,
-  language: UserLanguagePreference,
   isRoomAdministrator: boolean,
   isPmAutoRoute: boolean,
 ): string {
-  const copy = ROOM_RUN_INSTRUCTION_COPY[language];
+  // UI/reply language changes are Turn state; they must not rewrite stable rules.
+  const copy = ROOM_RUN_INSTRUCTION_COPY.en;
   const identity = [copy.employeeIdentity(memberPromptName(target), target.id), copy.displayNamePolicy].join("\n");
   if (isPmAutoRoute && canRoomPmAutoRoute(target, { isRoomAdministrator, hostTools })) {
     return [identity, copy.pmAutoRouting].join("\n\n");
@@ -178,7 +178,7 @@ function buildTurnInstructions(
     language: UserLanguagePreference;
     isPmAutoRoute: boolean;
   },
-): string {
+): { hostState: HostContextBlock[]; turnInstructions: HostContextBlock[] } {
   const copy = ROOM_RUN_INSTRUCTION_COPY[input.language];
   const membersById = new Map(state.app.rooms.listMembers().map((member) => [member.id, member]));
   const memberLines = input.memberIds
@@ -214,18 +214,26 @@ function buildTurnInstructions(
       .some(
         (message) => (message.senderType === "user" || message.senderType === "agent") && Boolean(message.text.trim()),
       );
-  return [
-    copy.room(input.roomTitle, input.roomId),
-    copy.responseLanguageSource,
-    [
-      input.isPmAutoRoute ? copy.routingMemberHeading : copy.memberHeading,
-      ...(memberLines.length ? memberLines : [copy.noMembers]),
-    ].join("\n"),
-    isBootstrapTurn && hasPriorRoomContext ? copy.sessionContinuation : "",
-    isBootstrapTurn && isGroveGuideMember(input.target) ? copy.groveBootstrap : "",
-  ]
-    .filter(Boolean)
-    .join("\n\n");
+  return {
+    hostState: [
+      { id: "opengrove.room", text: copy.room(input.roomTitle, input.roomId) },
+      {
+        id: "opengrove.members",
+        text: [
+          input.isPmAutoRoute ? copy.routingMemberHeading : copy.memberHeading,
+          ...(memberLines.length ? memberLines : [copy.noMembers]),
+        ].join("\n"),
+      },
+    ],
+    turnInstructions: [
+      { id: "opengrove.message-source", text: copy.responseLanguageSource },
+      { id: "opengrove.continuation", text: isBootstrapTurn && hasPriorRoomContext ? copy.sessionContinuation : "" },
+      {
+        id: "opengrove.bootstrap",
+        text: isBootstrapTurn && isGroveGuideMember(input.target) ? copy.groveBootstrap : "",
+      },
+    ].filter((block) => block.text),
+  };
 }
 
 function buildMessageUserInput(

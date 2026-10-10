@@ -1,3 +1,4 @@
+import { agentTurnContextPromptBlock, type HostContextBlock } from "../core.js";
 import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -20,6 +21,10 @@ import {
 } from "../server/room-runs/execution-state.js";
 import { resolveVisibleRoomTargets } from "../server/routes/rooms/normalizers.js";
 import { clearRemovedProviderSettingsReferences } from "../server/routes/settings.js";
+
+function roomContextText(envelope: { hostState: HostContextBlock[]; turnInstructions: HostContextBlock[] }): string {
+  return [...envelope.hostState, ...envelope.turnInstructions].map((block) => block.text).join("\n\n");
+}
 
 const dir = mkdtempSync(join(tmpdir(), "opengrove-room-run-envelope-"));
 const stores: Array<ReturnType<typeof createBridgeState>["store"]> = [];
@@ -528,17 +533,17 @@ try {
   assert.match(directEnvelope.sessionInstructions, /Room collaboration rules:/);
   assert.match(directEnvelope.sessionInstructions, /includeMembers: true/);
   assert.doesNotMatch(directEnvelope.sessionInstructions, /Default skill index:/);
-  assert.match(directEnvelope.turnInstructions, /Current room: Story Seed/);
+  assert.match(roomContextText(directEnvelope), /Current room: Story Seed/);
   assert.match(
-    directEnvelope.turnInstructions,
+    roomContextText(directEnvelope),
     /For this Room turn, treat the content inside <current-message> as the current input/,
   );
-  assert.match(directEnvelope.turnInstructions, /room-envelope-story-seed/);
-  assert.match(directEnvelope.turnInstructions, /Current room members/);
-  assert.doesNotMatch(directEnvelope.turnInstructions, /includeMembers: true/);
-  assert.doesNotMatch(directEnvelope.turnInstructions, /Session continuation/);
-  assert.match(directEnvelope.turnInstructions, /Lead Editor \(employee-editor\)/);
-  assert.doesNotMatch(directEnvelope.turnInstructions, /故事架构师|金牌编辑|故事种子 PM|stored name/);
+  assert.match(roomContextText(directEnvelope), /room-envelope-story-seed/);
+  assert.match(roomContextText(directEnvelope), /Current room members/);
+  assert.doesNotMatch(roomContextText(directEnvelope), /includeMembers: true/);
+  assert.doesNotMatch(roomContextText(directEnvelope), /Session continuation/);
+  assert.match(roomContextText(directEnvelope), /Lead Editor \(employee-editor\)/);
+  assert.doesNotMatch(roomContextText(directEnvelope), /故事架构师|金牌编辑|故事种子 PM|stored name/);
   assert.deepEqual(resolveVisibleRoomTargets(state, roomId, "@Lead Editor review this", []), [editor.id]);
   assert.deepEqual(resolveVisibleRoomTargets(state, roomId, "@金牌编辑 review this", []), [editor.id]);
   assert.equal(
@@ -580,7 +585,7 @@ try {
       "</current-message>",
     ].join("\n"),
   );
-  assert.match(ambiguousEnglishEnvelope.turnInstructions, /Session continuation/);
+  assert.match(roomContextText(ambiguousEnglishEnvelope), /Session continuation/);
 
   state.settings.languagePreference = "zh-CN";
   const chinesePost = state.app.rooms.postUserMessage({
@@ -606,14 +611,22 @@ try {
       "</current-message>",
     ].join("\n"),
   );
-  assert.match(chineseEnvelope.sessionInstructions, /名称使用规则：App 和员工名称以 Host 提供的当前界面展示名为准/);
-  assert.match(chineseEnvelope.sessionInstructions, /房间协作规则：/);
+  assert.match(
+    chineseEnvelope.sessionInstructions,
+    /Name usage: Use the App and employee display names provided by the Host exactly as shown/,
+  );
+  assert.equal(
+    chineseEnvelope.sessionInstructions,
+    ambiguousEnglishEnvelope.sessionInstructions,
+    "changing reply language must not rewrite stable session rules",
+  );
+  assert.match(chineseEnvelope.sessionInstructions, /Room collaboration rules:/);
   assert.match(chineseEnvelope.sessionInstructions, /includeMembers: true/);
-  assert.match(chineseEnvelope.turnInstructions, /当前房间：Story Seed/);
-  assert.match(chineseEnvelope.turnInstructions, /本轮以 <current-message> 内的内容作为当前输入/);
-  assert.doesNotMatch(chineseEnvelope.turnInstructions, /includeMembers: true/);
-  assert.match(chineseEnvelope.turnInstructions, /Lead Editor \(employee-editor\)/);
-  assert.doesNotMatch(chineseEnvelope.turnInstructions, /原名/);
+  assert.match(roomContextText(chineseEnvelope), /当前房间：Story Seed/);
+  assert.match(roomContextText(chineseEnvelope), /本轮以 <current-message> 内的内容作为当前输入/);
+  assert.doesNotMatch(roomContextText(chineseEnvelope), /includeMembers: true/);
+  assert.match(roomContextText(chineseEnvelope), /Lead Editor \(employee-editor\)/);
+  assert.doesNotMatch(roomContextText(chineseEnvelope), /原名/);
   const chineseWithoutToolsEnvelope = buildRoomRunEnvelope(state, {
     roomId,
     triggerMessageId: chinesePost.userMessage.id,
@@ -622,10 +635,10 @@ try {
   });
   assert.match(
     chineseWithoutToolsEnvelope.sessionInstructions,
-    /名称使用规则：App 和员工名称以 Host 提供的当前界面展示名为准/,
+    /Name usage: Use the App and employee display names provided by the Host exactly as shown/,
   );
-  assert.match(chineseWithoutToolsEnvelope.sessionInstructions, /房间协作能力限制：/);
-  assert.match(chineseWithoutToolsEnvelope.turnInstructions, /本轮以 <current-message> 内的内容作为当前输入/);
+  assert.match(chineseWithoutToolsEnvelope.sessionInstructions, /This kernel has no OpenGrove Host Tools/);
+  assert.match(roomContextText(chineseWithoutToolsEnvelope), /本轮以 <current-message> 内的内容作为当前输入/);
   state.settings.languagePreference = "en";
 
   let scheduledInput = "";
@@ -651,7 +664,7 @@ try {
   assert.ok(scheduledAdapter);
   scheduledAdapter.runTurn = async function* captureEnvelopeRun(request): AsyncIterable<AgentEvent> {
     scheduledInput = request.input;
-    scheduledHostContext = request.assembledContext?.promptBlock ?? "";
+    scheduledHostContext = agentTurnContextPromptBlock(request);
     scheduledSessionInstructions = request.sessionInstructions ?? "";
     const runId = request.runId ?? "missing-run";
     yield { type: "turn.started", runId, at: new Date().toISOString() };
@@ -683,13 +696,70 @@ try {
     "stable Room instructions must stay separate for the native session-start boundary",
   );
   assert.ok(
-    scheduledHostContext.includes(scheduledEnvelope.turnInstructions),
-    "the fresh per-Run App view must deliver mutable Room facts to the reused Kernel worker",
+    [...scheduledEnvelope.hostState, ...scheduledEnvelope.turnInstructions].every((block) =>
+      scheduledHostContext.includes(block.text),
+    ),
+    "the fresh per-Run App view must deliver both Room facts and current Turn instructions to the reused Kernel worker",
   );
   assert.ok(
     !scheduledHostContext.includes(scheduledEnvelope.sessionInstructions),
     "stable Room instructions must not be duplicated into assembled per-Turn context",
   );
+
+  const guide = state.app.rooms.upsertMember({
+    ...scheduledTarget,
+    id: "employee-context-guide",
+    name: "Grove",
+    defaultSkillIds: [],
+  });
+  const guideRoomId = "room-context-bootstrap";
+  state.app.rooms.ensureGroupRoom({
+    id: guideRoomId,
+    title: "Bootstrap context",
+    badge: "Test",
+    memberIds: [guide.id],
+  });
+  state.app.rooms.postUserMessage({
+    roomId: guideRoomId,
+    text: "Existing room context",
+    targetIds: [],
+    assistantTargets: [],
+  });
+  const guidePost = state.app.rooms.postUserMessage({
+    roomId: guideRoomId,
+    text: "Continue setup",
+    targetIds: [guide.id],
+    assistantTargets: [guide],
+    deliveryKind: "user_direct",
+  });
+  const guideExecution = roomExecutionState(state, guide);
+  assert.ok(guideExecution.kernelAdapter);
+  let guideHostContext = "";
+  guideExecution.kernelAdapter.runTurn = async function* captureBootstrap(request): AsyncIterable<AgentEvent> {
+    guideHostContext = agentTurnContextPromptBlock(request);
+    yield { type: "turn.finished", runId: request.runId!, at: "now", outcome: { taskState: "TASK_STATE_COMPLETED" } };
+  };
+  const guideEnvelope = buildRoomRunEnvelope(state, {
+    roomId: guideRoomId,
+    triggerMessageId: guidePost.userMessage.id,
+    target: guide,
+    hostTools: guideExecution.kernelCapabilities?.hostTools === true,
+  });
+  assert.deepEqual(
+    guideEnvelope.turnInstructions.map((block) => block.id),
+    ["opengrove.message-source", "opengrove.continuation", "opengrove.bootstrap"],
+    "the fixture must exercise all three Room Turn instructions",
+  );
+  scheduleRoomAssistantRuns(state, {
+    roomId: guideRoomId,
+    triggerMessageId: guidePost.userMessage.id,
+    targets: [guide],
+    assistantMessages: guidePost.assistantMessages,
+  });
+  await waitFor(() => Boolean(guideHostContext), "bootstrap Room instructions reaching the Kernel");
+  for (const block of [...guideEnvelope.hostState, ...guideEnvelope.turnInstructions]) {
+    assert.ok(guideHostContext.includes(block.text), `${block.id} must reach the Kernel through the Room scheduler`);
+  }
   state.settings.customProviders = providersBeforeScheduledRun;
 
   const originalAgentReply = state.app.rooms.postAgentMessage({
@@ -807,7 +877,7 @@ try {
     ].join("\n"),
   );
   assert.doesNotMatch(delegatedEnvelope.userInput, /Thread root/);
-  assert.doesNotMatch(delegatedEnvelope.turnInstructions, /付费点衔接/);
+  assert.doesNotMatch(roomContextText(delegatedEnvelope), /付费点衔接/);
 
   const degradedDelegatedEnvelope = buildRoomRunEnvelope(state, {
     roomId,
@@ -895,7 +965,7 @@ try {
     /Name usage: Use the App and employee display names provided by the Host exactly as shown/,
   );
   assert.match(
-    pmEnvelope.turnInstructions,
+    roomContextText(pmEnvelope),
     /For this Room turn, treat the content inside <current-message> as the current input/,
   );
   assert.match(
@@ -908,18 +978,18 @@ try {
   assert.doesNotMatch(pmEnvelope.sessionInstructions, /负责把未明确 @ 的用户消息路由给合适员工/);
   assert.doesNotMatch(pmEnvelope.sessionInstructions, /我想写一个悬疑小说/);
   assert.match(
-    pmEnvelope.turnInstructions,
+    roomContextText(pmEnvelope),
     /Story Architect.*employee-writer.*Develops story concepts and chapter outlines/,
   );
   assert.match(
-    pmEnvelope.turnInstructions,
+    roomContextText(pmEnvelope),
     /Lead Editor.*employee-editor.*Independently reviews story concepts and chapter outlines/,
   );
-  assert.match(pmEnvelope.turnInstructions, /employee-role-only/);
-  assert.doesNotMatch(pmEnvelope.turnInstructions, /human-reviewer|人类审稿人/);
-  assert.doesNotMatch(pmEnvelope.turnInstructions, /employee-disabled-router-target|已禁用员工/);
+  assert.match(roomContextText(pmEnvelope), /employee-role-only/);
+  assert.doesNotMatch(roomContextText(pmEnvelope), /human-reviewer|人类审稿人/);
+  assert.doesNotMatch(roomContextText(pmEnvelope), /employee-disabled-router-target|已禁用员工/);
   assert.doesNotMatch(
-    pmEnvelope.turnInstructions,
+    roomContextText(pmEnvelope),
     /INTERNAL_(WRITER|EDITOR)_ROLE|ROLE_ONLY_SECRET_MUST_NOT_REACH_ROUTER|\/private\/(story-|role-only)/,
   );
   assert.equal(
@@ -1164,7 +1234,7 @@ try {
   });
   assert.equal(afterRosterChange.sessionDefinitionFingerprint, fingerprintBeforeRosterChange);
   assert.equal(afterRosterChange.sessionId, sessionIdBeforeSkillRegistryChange);
-  assert.notEqual(afterRosterChange.turnInstructions, directEnvelope.turnInstructions);
+  assert.notEqual(roomContextText(afterRosterChange), roomContextText(directEnvelope));
 
   const changedRoleEnvelope = buildRoomRunEnvelope(state, {
     roomId,

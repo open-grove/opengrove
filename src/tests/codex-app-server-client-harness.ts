@@ -524,14 +524,16 @@ lines.on("line", (line) => {
     const turnId = "terminal-turn-" + turnCount;
     const inputText = message.params?.input?.find?.((item) => item.type === "text")?.text ?? "";
     const expectedRoomContext = turnCount === 1 ? "FIRST_ROOM_CONTEXT" : "SECOND_ROOM_CONTEXT";
-    if (!inputText.includes(expectedRoomContext) || inputText.includes("STABLE_EMPLOYEE_IDENTITY")) {
+    const needsState = turnCount !== 3 && turnCount !== 5;
+    if ((inputText.includes(expectedRoomContext) !== needsState) || inputText.includes("STABLE_EMPLOYEE_IDENTITY") || !inputText.includes("TURN_MATERIAL")) {
       return send({ id: message.id, error: { code: -32000, message: "incorrect session/turn instruction projection" } });
     }
     send({ id: message.id, result: { turn: { id: turnId } } });
     queueMicrotask(() => {
+      if (turnCount === 3) send({ method: "thread/compacted", params: { threadId: "terminal-thread", turnId } });
       const item = { id: "terminal-answer-" + turnCount, type: "agentMessage", phase: "final_answer", text: "CODEX_SINGLE_TERMINAL_OK" };
       send({ method: "item/completed", params: { threadId: "terminal-thread", turnId, item } });
-      send({ method: "turn/completed", params: { threadId: "terminal-thread", turn: { id: turnId, status: "completed", items: [item] } } });
+      send({ method: "turn/completed", params: { threadId: "terminal-thread", turn: { id: turnId, status: turnCount === 5 ? "failed" : "completed", items: [item] } } });
     });
   }
 });
@@ -578,7 +580,8 @@ for await (const event of terminalRuntime.runTurn({
     id: "first-room-context",
     createdAt: new Date().toISOString(),
     summary: "first room context",
-    promptBlock: "FIRST_ROOM_CONTEXT",
+    promptBlock: "TURN_MATERIAL",
+    hostState: [{ id: "room", text: "FIRST_ROOM_CONTEXT" }],
     items: [],
     budget: { maxCharacters: 1_000, usedCharacters: 18, maxItems: 10, usedItems: 1, truncated: false },
   },
@@ -596,7 +599,8 @@ try {
       id: "second-room-context",
       createdAt: new Date().toISOString(),
       summary: "second room context",
-      promptBlock: "SECOND_ROOM_CONTEXT",
+      promptBlock: "TURN_MATERIAL",
+      hostState: [{ id: "room", text: "SECOND_ROOM_CONTEXT" }],
       items: [],
       budget: { maxCharacters: 1_000, usedCharacters: 19, maxItems: 10, usedItems: 1, truncated: false },
     },
@@ -605,6 +609,30 @@ try {
     resumedTerminalEvents.push(event);
 } catch (error) {
   assert.fail(`Changing per-turn Room context must resume the existing Codex thread: ${String(error)}`);
+}
+for (let index = 3; index <= 6; index++) {
+  const events: AgentEvent[] = [];
+  for await (const event of terminalRuntime.runTurn({
+    input: `Continue ${index}`,
+    context: terminalContext,
+    tools: [],
+    sessionInstructions: "Employee identity: STABLE_EMPLOYEE_IDENTITY",
+    assembledContext: {
+      id: `ctx-${index}`,
+      createdAt: new Date().toISOString(),
+      summary: "room state",
+      hostState: [{ id: "room", text: "SECOND_ROOM_CONTEXT" }],
+      promptBlock: "TURN_MATERIAL",
+      items: [],
+      budget: { maxCharacters: 6000, usedCharacters: 13, maxItems: 8, usedItems: 0, truncated: false },
+    },
+  }))
+    events.push(event);
+  assert.equal(
+    events.find((event) => event.type === "turn.finished")?.outcome.taskState,
+    index === 5 ? "TASK_STATE_FAILED" : "TASK_STATE_COMPLETED",
+    "unchanged state is omitted; compaction and failed turns restore the full snapshot on the next turn",
+  );
 }
 terminalRuntime.close();
 assert.doesNotThrow(() => JSON.parse(readFileSync(terminalStatePath, "utf8")));
