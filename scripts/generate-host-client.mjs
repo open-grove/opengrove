@@ -87,7 +87,13 @@ async function generateExternalSdk(outputPath) {
       },
     ],
   });
-  await run(process.execPath, [biomeBinPath, "format", "--write", outputPath]);
+  // Use the committed SDK paths for both generation and temporary comparisons.
+  // Biome's VCS scanner requires paths under the project root; stdin formatting
+  // applies the same repository configuration without scanning the temp tree.
+  for (const [path, source] of await directorySnapshot(outputPath)) {
+    const formatted = await formatGeneratedSource(source, join(sdkOutputPath, path));
+    await writeFile(join(outputPath, path), formatted);
+  }
 }
 
 function renderClient(protocol, names) {
@@ -235,17 +241,6 @@ async function directorySnapshot(root, current = "") {
     }
   }
   return result;
-}
-
-async function run(command, args) {
-  await new Promise((resolvePromise, reject) => {
-    const child = spawn(command, args, { cwd: projectRoot, stdio: "ignore" });
-    child.once("error", reject);
-    child.once("exit", (code, signal) => {
-      if (code === 0) resolvePromise();
-      else reject(new Error(`Command failed (${signal ? `signal ${signal}` : `exit ${code}`}): ${args.join(" ")}`));
-    });
-  });
 }
 
 async function formatGeneratedSource(source, filePath) {
