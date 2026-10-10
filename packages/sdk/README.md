@@ -29,6 +29,7 @@ The same running Host exposes Skills and extensions, Routines, and Artifacts:
 ```ts
 const inventory = await sdk.extension.extension.list();
 const workflow = await sdk.routine.routine.create({
+  throwOnError: true,
   body: {
     title: "Use a published Skill",
     steps: [{ toolId: "skill.invoke", input: { skill: "my-skill" } }],
