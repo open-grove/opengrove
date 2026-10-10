@@ -30,7 +30,7 @@ const OPENCLAW_GATEWAY_CAPABILITIES: KernelCapabilities = {
   sessionHistory: "kernel",
   reasoning: { nativeText: "unsupported", summary: "unsupported" },
   streaming: true,
-  toolCalls: false,
+  toolCalls: bridgeKernelSupportsHostTools("openclaw"),
   hostTools: bridgeKernelSupportsHostTools("openclaw"),
   approvals: false,
   elicitation: false,

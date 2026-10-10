@@ -77,14 +77,14 @@ a full delivery, without replaying conversation history.
 
 Compaction invalidates the receipt. Claude's synchronous `SessionStart` hook
 with `source: compact` supplies the current Host state and turn instructions
-before native continuation; attachment excerpts are excluded. Codex restores the
+before native continuation; attachment excerpts are excluded. Manual compaction restores state only, without repeating the preceding Turn instructions. Codex restores the
 full state with the next Host turn. The supported app-server boundary does not
 guarantee synchronous Host injection during an automatic compaction inside a
 running turn; a queued steer must not be described as that guarantee. Mutable
 Room facts remain available through Room tools.
 
 Pi keeps stable Host instructions in its native system prompt. Its native
-`transform_context` hook projects the current state and turn instructions into
+`GenerationTask.beforeRequest` hook (Pi 1.1) or `transform_context` hook (legacy 0.85) projects the current state and turn instructions into
 user-role context before **each model request**, including tool continuations
 and requests after compaction. These projected blocks are not written to the
 native transcript; attachment materials and user messages remain in native
@@ -121,7 +121,7 @@ the envelope still reports that material was omitted.
 a loopback Messages API, verifying actual multi-turn request roles, native
 resume, state deltas and the compaction hook without model credentials.
 The Pi runtime harness exercises the installed SDK with a deterministic provider.
-`npm run test:native-openclaw-context` starts an isolated OpenClaw 2026.9.2 Gateway
+`npm run test:native-openclaw-context` starts an isolated OpenClaw 2026.9.9 Gateway
 and loopback model API to verify request roles, reconnect, native compaction and
 provider cancellation. Set `OPENGROVE_TEST_OPENCLAW_CLI` to an installed
 `openclaw.mjs` to avoid fetching that version with npx. It does not use personal
@@ -387,3 +387,11 @@ replace deterministic harnesses and must not commit their generated evidence.
 - No cloud-only service is required for the local Kernel loop.
 - No native credential or local runtime evidence enters tracked files or
   distributable Apps.
+
+## Extracted Codex execution
+
+The Codex adapter consumes the independent [`@open-grove/agent-host`](https://github.com/open-grove/agent-host) package. The vendored alpha archive keeps clean-checkout builds reproducible before npm publication. Native process/session/turn execution lives in that package; OpenGrove keeps context assembly, product tool authorization, approval/question stores, event projection and its existing binding-file format. The standalone file-editor consumer uses the same `CodexAgent.run` API without OpenGrove.
+
+The initial extracted path targets Codex 0.162.0. It includes the required typed dynamic-tool declarations and asynchronous compaction lifecycle. Native probes cover tool execution and conversation continuation after process restart; the independent package additionally probes native tool namespaces and compaction. Existing capability certifications do not automatically certify every feature on this version.
+
+For an opt-in native consumer probe, build the server, set `AGENT_HOST_CODEX` to an authenticated Codex 0.162.0 executable, and run `node scripts/probe-agent-host-codex.mjs`. The probe uses isolated example state. For deterministic checks, run the Codex client/projector harnesses and `npm run smoke:server`.

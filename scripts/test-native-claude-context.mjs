@@ -135,6 +135,7 @@ async function sendTurn(number, room) {
       createdAt: new Date().toISOString(),
       summary: "fixture",
       hostState: [{ id: "room", text: room }],
+      turnInstructions: [{ id: "task", text: `ONLY_TURN_${number}` }],
       items: [],
       promptBlock: `ATTACHMENT_${number}`,
       budget: { maxItems: 8, usedItems: 0, maxCharacters: 6000, usedCharacters: 12, truncated: false },
@@ -195,6 +196,10 @@ try {
   assert.ok(
     restoredContexts.every((text) => !text?.includes("ATTACHMENT_")),
     "compaction recovery must not promote task materials into Host rules",
+  );
+  assert.ok(
+    restoredContexts.every((text) => !text?.includes("ONLY_TURN_")),
+    "manual compaction must not reapply the preceding turn's instructions",
   );
   await sendTurn(4, "ROOM_B");
   assert.equal(snapshots.at(-1), true, "native compaction enables stable snapshots again");

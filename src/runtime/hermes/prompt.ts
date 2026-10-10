@@ -1,9 +1,7 @@
 import { agentTurnHostContextPromptBlock, type AgentTurnRequest } from "../../core.js";
-import { recentSessionPromptBlock } from "../session-history.js";
 
 export function buildHermesPrompt(request: AgentTurnRequest): string {
   const hostContext = agentTurnHostContextPromptBlock(request);
-  const threadHistory = recentSessionPromptBlock(request);
   const skillHint = request.requestedSkillInvocation
     ? [
         `The user invoked OpenGrove skill /${request.requestedSkillInvocation.skillName}.`,
@@ -13,7 +11,6 @@ export function buildHermesPrompt(request: AgentTurnRequest): string {
   const sections = [
     "You are running inside the OpenGrove host.",
     hostContext ? `Host context:\n${hostContext}` : "",
-    threadHistory,
     skillHint,
     `User request:\n${request.input}`,
   ].filter(Boolean);

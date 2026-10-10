@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { SessionStore } from "../core/stores/session-store.js";
 import { createHash } from "node:crypto";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { createServer, type Server } from "node:http";
@@ -416,7 +417,7 @@ function createContext(sessionId: string): AgentContext {
   return {
     sessionId,
     activity: undefined as any,
-    sessions: undefined as any,
+    sessions: new SessionStore(),
     memory: undefined as any,
     artifacts: undefined as any,
     skills: undefined as any,

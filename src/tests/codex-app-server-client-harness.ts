@@ -810,9 +810,9 @@ const [canceledBeforeAckEvents, cancelSiblingEvents] = await Promise.all([cancel
 cancelConcurrencyRuntime.close();
 assert.ok(
   canceledBeforeAckEvents.some(
-    (event) => event.type === "turn.finished" && event.outcome.taskState === "TASK_STATE_COMPLETED",
+    (event) => event.type === "turn.finished" && event.outcome.taskState === "TASK_STATE_CANCELED",
   ),
-  "when the Kernel confirms completion after a cancel request, the known native terminal must win",
+  "canceling before thread/start acknowledges must prevent a new model turn from being started",
 );
 assert.ok(
   cancelSiblingEvents.some(

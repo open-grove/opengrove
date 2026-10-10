@@ -99,7 +99,7 @@ export const harnessInventory = [
   task("claude-agent-sdk-runtime", "dist/tests/claude-agent-sdk-runtime-harness.js", "kernels-providers"),
   task("native-claude-context", "scripts/test-native-claude-context.mjs", "kernels-providers", { build: true }),
   task("native-openclaw-context", "scripts/certify-openclaw-gateway-2026-8-2.mjs", "kernels-providers", {
-    args: ["2026.9.2", "--context"],
+    args: ["2026.9.9", "--context"],
     build: true,
     network: true,
     timeoutMs: 600_000,

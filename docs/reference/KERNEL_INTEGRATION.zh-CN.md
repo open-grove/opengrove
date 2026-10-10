@@ -73,7 +73,7 @@ Codex 在下一个 Host 轮次恢复完整状态；当前支持的 app-server �
 自动压缩后同步插入 Host 状态，不能把排队的 steer 消息宣称为这种保证。
 模型仍可通过 Room 工具读取变化的房间事实。
 
-Pi 将稳定规则放在原生系统提示词，通过原生 `transform_context` 钩子，在**每次模型请求前**
+Pi 将稳定规则放在原生系统提示词，通过原生 `GenerationTask.beforeRequest`（Pi 1.1）或 `transform_context`（旧版 0.85） 钩子，在**每次模型请求前**
 把当前状态和本轮指示投射到 user 角色上下文，包括工具执行后的继续请求以及压缩后的请求。
 这些投射块不写入原生历史；附件材料和用户消息继续由原生历史保存。
 Host 重启后在续聊时重建当前投射。语言、Skill、Pack、Capability 目录不再改变系统前缀。
@@ -100,7 +100,7 @@ Host 规则、状态和 Skill 指示不设统一字符上限，整体上下文�
 `npm run test:native-claude-context` 使用已安装的真实 SDK、CLI 和本地回环 Messages API，
 检查多轮实际请求的角色位置、原生续聊、状态差量及压缩钩子，不需要模型账号凭据。
 Pi runtime harness 使用已安装的真实 SDK 和确定性模型响应。
-`npm run test:native-openclaw-context` 启动隔离的 OpenClaw 2026.9.2 Gateway 与本地模型 API，
+`npm run test:native-openclaw-context` 启动隔离的 OpenClaw 2026.9.9 Gateway 与本地模型 API，
 检查请求角色、重连、原生压缩和模型连接取消。可用 `OPENGROVE_TEST_OPENCLAW_CLI`
 指定已安装的 `openclaw.mjs`，避免通过 npx 获取该版本；测试不使用个人 Gateway 状态或模型凭据。
 相关 PR、合并队列和 Main 源码检查通过受影响 harness 选择运行 Claude 验证，
@@ -320,3 +320,11 @@ npm run test:capabilities
 - 取消或拒绝不会让 turn 卡住。
 - 本地 Kernel 循环不依赖 cloud-only 服务。
 - 原生凭据和本地 runtime evidence 不进入 tracked files 或可分发 App。
+
+## 抽出的 Codex 执行层
+
+Codex 接入代码现在使用独立的 [`@open-grove/agent-host`](https://github.com/open-grove/agent-host) 包。在发布到 npm 前，仓库通过 vendor 中的 alpha 安装包保证干净检出也能构建。原生进程、会话和执行控制由独立包负责；OpenGrove 保留上下文组织、产品工具授权、审批与提问存储、事件展示以及现有会话绑定文件格式。独立文件编辑器也调用同一个 `CodexAgent.run` 接口，不依赖 OpenGrove。
+
+第一条拆出的链路面向 Codex 0.162.0，已适配必需的工具类型声明和异步压缩会话流程。真实测试覆盖工具执行和进程重启后的原生续聊；独立包另外验证了原生工具分组和压缩会话。原有能力认证不会自动变成对新版本所有功能的认证。
+
+要运行真实接入测试，先构建服务端，将 `AGENT_HOST_CODEX` 指向已登录的 Codex 0.162.0 可执行文件，再执行 `node scripts/probe-agent-host-codex.mjs`。测试只使用隔离的示例状态。确定性回归检查包括 Codex 客户端、事件转换测试以及 `npm run smoke:server`。

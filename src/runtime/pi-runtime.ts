@@ -153,6 +153,7 @@ export class PiAgentRuntime implements AgentRuntime {
     let assistantText = "";
     let emittedModelResponse = false;
     let terminalError = "";
+    let nativeTerminal = false;
 
     yield { type: "turn.started", runId, at: new Date().toISOString() };
     if (request.assembledContext) {
@@ -244,6 +245,8 @@ export class PiAgentRuntime implements AgentRuntime {
       };
 
       for await (const event of session.run(request.input, context)) {
+        if (event.type === "turn.finished") nativeTerminal = true;
+        if (event.type === "error") terminalError = event.message;
         if (event.type === "assistant.delta") {
           assistantText += event.text;
         }
@@ -266,6 +269,7 @@ export class PiAgentRuntime implements AgentRuntime {
       yield { type: "model.response", runId, response: { text: assistantText } };
     }
 
+    if (nativeTerminal) return;
     yield {
       type: "turn.finished",
       runId,

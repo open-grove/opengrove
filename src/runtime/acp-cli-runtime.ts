@@ -1,7 +1,5 @@
 import { assertRuntimeAccessMode } from "../runtime-access.js";
-import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { resolve } from "node:path";
-import { resolveCommandInvocation } from "../kernel/discovery.js";
 import type {
   AgentCompactRequest,
   AgentCompactResult,
@@ -21,7 +19,8 @@ import {
   readAcpUsage,
   toJsonValue,
 } from "./projectors/acp.js";
-import { JsonRpcRequestFailure, StdioJsonRpcClient } from "./stdio-json-rpc-client.js";
+import { StdioJsonRpcClient } from "./stdio-json-rpc-client.js";
+import { AcpAgent, compactKimi, compactOpenCode } from "@open-grove/agent-host/acp";
 import { recentSessionMessages, recentSessionPromptBlock } from "./session-history.js";
 import { imageAttachmentsWithDataUrl } from "./media-input.js";
 import { resolveRuntimeRunId } from "./run-id.js";
@@ -37,7 +36,6 @@ import {
   AcpHostToolBridgeServer,
   AcpHostToolBridgeUnavailableError,
   type AcpHostToolBridgeProvider,
-  type AcpHostToolSessionBinding,
 } from "./acp-host-tool-bridge.js";
 
 export interface AcpCliRuntimeOptions {
@@ -66,16 +64,7 @@ export interface AcpCliRuntimeOptions {
 
 export class AcpCliRuntime implements AgentRuntime {
   private readonly acpClientsByEnv = new Map<string, StdioJsonRpcClient>();
-  private readonly acpClientReadyByEnv = new Map<string, Promise<StdioJsonRpcClient>>();
-  private readonly acpSessionsByClient = new WeakMap<StdioJsonRpcClient, Set<string>>();
-  private readonly acpModelOptionsByClient = new WeakMap<
-    StdioJsonRpcClient,
-    Map<string, { configId?: string; options: Array<{ id: string; name: string }> }>
-  >();
-  private readonly acpImagePromptSupportedByClient = new WeakMap<StdioJsonRpcClient, boolean>();
-  private readonly acpClientLeases = new Map<StdioJsonRpcClient, number>();
-  private readonly retiredAcpClients = new Set<StdioJsonRpcClient>();
-  private readonly acpClientByRun = new Map<string, StdioJsonRpcClient>();
+  private readonly agentsByEnv = new Map<string, AcpAgent>();
   private readonly acpSessionByThread = new Map<string, string>();
   private readonly acpEnvKeyByThread = new Map<string, string>();
   private readonly opencodeModelByThread = new Map<string, string>();
@@ -88,12 +77,9 @@ export class AcpCliRuntime implements AgentRuntime {
   }
 
   close(): void {
-    for (const client of new Set([...this.acpClientsByEnv.values(), ...this.retiredAcpClients])) client.close();
+    for (const agent of this.agentsByEnv.values()) void agent.close();
+    this.agentsByEnv.clear();
     this.acpClientsByEnv.clear();
-    this.acpClientReadyByEnv.clear();
-    this.retiredAcpClients.clear();
-    this.acpClientLeases.clear();
-    this.acpClientByRun.clear();
     this.acpSessionByThread.clear();
     this.acpEnvKeyByThread.clear();
     this.opencodeModelByThread.clear();
@@ -125,50 +111,14 @@ export class AcpCliRuntime implements AgentRuntime {
       return await this.compactKimiSession(client, nativeSessionId, request.signal);
     }
 
-    const runtimeEnv = normalizeAcpRuntimeEnv(this.options.kernelId, mergeRuntimeEnv(this.options.env, undefined));
-    let server: OpenCodeServerProcess | undefined;
-    try {
-      server = await startOpenCodeServer({
-        command: this.options.command,
-        cwd: resolve(this.options.cwd ?? process.cwd()),
-        env: runtimeEnv,
-      });
-      const model =
-        openCodeSummarizeModel(this.opencodeModelByThread.get(request.threadId), runtimeEnv) ??
-        openCodeSummarizeModel(this.options.configuredModel, runtimeEnv) ??
-        (await readOpenCodeDefaultSummarizeModel(server.url, request.signal));
-      if (!model) {
-        return { ok: false, compacted: false, error: "opencode_summarize_model_unavailable" };
-      }
-
-      const response = await fetch(`${server.url}/session/${encodeURIComponent(nativeSessionId)}/summarize`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(model),
-        signal: request.signal,
-      });
-      const text = await response.text();
-      if (!response.ok) {
-        return {
-          ok: false,
-          compacted: false,
-          error: `opencode_summarize_failed:${response.status}:${text.slice(0, 240)}`,
-        };
-      }
-      const compacted = text.trim() === "true" || parseBooleanJson(text) === true;
-      return compacted
-        ? { ok: true, compacted: true }
-        : { ok: false, compacted: false, error: `opencode_summarize_not_confirmed:${text.slice(0, 240)}` };
-    } catch (error) {
-      return {
-        ok: false,
-        compacted: false,
-        error: error instanceof Error ? error.message : String(error),
-        ...(request.signal?.aborted ? { outcomeUnknown: true } : {}),
-      };
-    } finally {
-      await server?.close();
-    }
+    return compactOpenCode({
+      command: this.options.command,
+      cwd: this.options.cwd,
+      env: normalizeAcpRuntimeEnv(this.options.kernelId, mergeRuntimeEnv(this.options.env, undefined)),
+      sessionId: nativeSessionId,
+      model: this.opencodeModelByThread.get(request.threadId) ?? this.options.configuredModel,
+      signal: request.signal,
+    });
   }
 
   private async compactKimiSession(
@@ -176,95 +126,27 @@ export class AcpCliRuntime implements AgentRuntime {
     nativeSessionId: string,
     signal?: AbortSignal,
   ): Promise<AgentCompactResult> {
-    const beforeUsed =
-      this.contextUsageBySession.get(nativeSessionId)?.used ?? this.estimatedTokensBySession.get(nativeSessionId);
-    let observedUsage: { used?: number; size?: number } | undefined;
-    let commandText = "";
-    let resolveCompletion: () => void = () => {};
-    const completion = new Promise<void>((resolve) => {
-      resolveCompletion = resolve;
+    const result = await compactKimi({
+      client,
+      sessionId: nativeSessionId,
+      beforeUsed:
+        this.contextUsageBySession.get(nativeSessionId)?.used ?? this.estimatedTokensBySession.get(nativeSessionId),
+      timeoutMs: this.options.requestTimeoutMs,
+      signal,
     });
-    let completionTimer: ReturnType<typeof setTimeout> | undefined;
-    const startedAt = Date.now();
-    const cleanupNotifications = client.addNotificationHandler((notification) => {
-      if (notification.method !== "session/update" && notification.method !== "session/notification") return;
-      const params = asObject(notification.params);
-      if (readString(params, "sessionId") !== nativeSessionId) return;
-      const update = asObject(params.update);
-      if (update.sessionUpdate === "config_option_update")
-        this.rememberAcpModelOptions(client, nativeSessionId, update);
-      const usage = readAcpContextUsage(update);
-      if (usage) observedUsage = usage;
-      if (readString(update, "sessionUpdate") === "agent_message_chunk") {
-        commandText += readString(asObject(update.content), "text") ?? "";
-      }
-      if (
-        readKimiCompactionResult(commandText) ||
-        /Compaction cancelled|Compaction is blocked|\/compact failed:/i.test(commandText) ||
-        (beforeUsed !== undefined && observedUsage?.used !== undefined && observedUsage.used < beforeUsed)
-      ) {
-        resolveCompletion();
-      }
-    });
-    const cancelCompact = () => {
-      client.notify("session/cancel", { sessionId: nativeSessionId });
-      resolveCompletion();
-    };
-    if (signal?.aborted) cancelCompact();
-    signal?.addEventListener("abort", cancelCompact, { once: true });
-    try {
-      await client.request(
-        "session/prompt",
-        {
-          sessionId: nativeSessionId,
-          prompt: [{ type: "text", text: "/compact" }],
-        },
-        { timeoutMs: this.options.requestTimeoutMs ?? 120_000, signal },
-      );
-      // Kimi Code 0.41 ACP acknowledges /compact before its background task finishes:
-      // https://github.com/MoonshotAI/kimi-code/blob/main/packages/acp-server/src/builtin-commands.ts
-      // Keep listening for the native completion receipt; an acknowledgement is not success.
-      if (/Context compaction started|A context compaction is already running/i.test(commandText)) {
-        const remainingMs = Math.max(0, (this.options.requestTimeoutMs ?? 120_000) - (Date.now() - startedAt));
-        completionTimer = setTimeout(resolveCompletion, remainingMs);
-        await completion;
-        if (signal?.aborted) throw new Error("kimi_compaction_aborted");
-      }
-      const commandResult = readKimiCompactionResult(commandText);
-      if (commandResult && commandResult.tokensAfter < commandResult.tokensBefore) {
-        const previousUsage = this.contextUsageBySession.get(nativeSessionId);
-        this.contextUsageBySession.set(nativeSessionId, {
-          ...(previousUsage?.size !== undefined ? { size: previousUsage.size } : {}),
-          used: commandResult.tokensAfter,
-        });
-        this.estimatedTokensBySession.set(nativeSessionId, commandResult.tokensAfter);
-        return { ok: true, compacted: true };
-      }
-      if (beforeUsed !== undefined && observedUsage?.used !== undefined && observedUsage.used < beforeUsed) {
-        this.contextUsageBySession.set(nativeSessionId, observedUsage);
-        this.estimatedTokensBySession.set(nativeSessionId, observedUsage.used);
-        return { ok: true, compacted: true };
-      }
-      const receipt = commandText.trim().replaceAll(/\s+/g, " ").slice(0, 240);
-      return {
-        ok: false,
-        compacted: false,
-        error: receipt
-          ? `kimi_compaction_not_confirmed:${receipt}`
-          : "kimi_compaction_not_confirmed:no_compaction_receipt",
-      };
-    } catch (error) {
-      return {
-        ok: false,
-        compacted: false,
-        error: error instanceof Error ? error.message : String(error),
-        ...(signal?.aborted ? { outcomeUnknown: true } : {}),
-      };
-    } finally {
-      if (completionTimer) clearTimeout(completionTimer);
-      signal?.removeEventListener("abort", cancelCompact);
-      cleanupNotifications();
+    if (result.usage) {
+      this.contextUsageBySession.set(nativeSessionId, {
+        ...this.contextUsageBySession.get(nativeSessionId),
+        ...result.usage,
+      });
+      if (result.usage.used !== undefined) this.estimatedTokensBySession.set(nativeSessionId, result.usage.used);
     }
+    return {
+      ok: result.ok,
+      compacted: result.compacted,
+      ...(result.error ? { error: result.error } : {}),
+      ...(result.outcomeUnknown ? { outcomeUnknown: true } : {}),
+    };
   }
 
   async *runTurn(request: AgentTurnRequest): AsyncIterable<AgentEvent> {
@@ -306,7 +188,10 @@ export class AcpCliRuntime implements AgentRuntime {
         queue.push({
           type: "error",
           runId,
-          message: translateAcpRuntimeError(message),
+          message:
+            error instanceof AcpHostToolBridgeUnavailableError
+              ? `OpenGrove could not connect its tools. Restart OpenGrove and allow 127.0.0.1 connections. (${error.code})`
+              : translateAcpRuntimeError(message),
         });
         queue.close();
       });
@@ -318,18 +203,7 @@ export class AcpCliRuntime implements AgentRuntime {
       }
       await producer;
     } finally {
-      const runClient = this.acpClientByRun.get(runId);
-      if (request.signal?.aborted && runClient && !runClient.isClosed()) {
-        const nativeSessionId = readRememberedAcpSession(
-          request,
-          this.options.kernelId,
-          this.options.runtimeBindingFingerprint,
-        )?.sessionId;
-        if (nativeSessionId) {
-          runClient.notify("session/cancel", { sessionId: nativeSessionId });
-        }
-      }
-      this.releaseAcpClientForRun(runId);
+      // Agent Host owns transport cancellation and leases.
     }
     if (turnStarted && !turnFinished) {
       yield {
@@ -356,155 +230,72 @@ export class AcpCliRuntime implements AgentRuntime {
     queue: AsyncEventQueue<AgentEvent>,
     runId: string,
   ): Promise<void> {
-    const requestedModel =
-      normalizeOptionalString(request.requestedModelId) ?? normalizeOptionalString(this.options.configuredModel);
-    const runtimeEnv = normalizeAcpRuntimeEnv(
-      this.options.kernelId,
-      mergeRuntimeEnv(this.options.env, request.runtimeEnv),
-    );
-    const prompt = buildAcpPrompt(request, this.options.title, this.options.skillInvocationPromptPlacement);
-    const envKey = envFingerprint(runtimeEnv);
-    const client = await this.ensureAcpClient(runtimeEnv);
-    this.leaseAcpClientForRun(runId, client);
-    const cwd = resolve(this.options.cwd ?? process.cwd());
-    const hostTools = request.tools.length
-      ? createHostToolBridge(request, runId, queue, this.options.kernelId)
-      : undefined;
-    const hostToolBinding = hostTools
-      ? await this.hostToolBridgeServer.prepare({
-          scope: request.hostToolScope ?? { sessionId: request.context.sessionId },
-          bridge: hostTools,
-        })
-      : undefined;
-    let nativeSession: { sessionId: string; resuming: boolean };
+    const controller = new AbortController();
+    const sourceSignal = request.signal;
+    const abort = () => controller.abort(sourceSignal?.reason);
+    sourceSignal?.addEventListener("abort", abort, { once: true });
+    if (sourceSignal?.aborted) abort();
+    request = { ...request, signal: controller.signal };
     try {
-      nativeSession = await this.ensureAcpSession(client, request, cwd, requestedModel, hostToolBinding);
-    } catch (error) {
-      if (shouldPoisonAcpTransport(error, client)) this.poisonAcpClient(envKey, client);
-      throw error;
-    }
-    this.acpSessionByThread.set(request.context.sessionId, nativeSession.sessionId);
-    this.acpEnvKeyByThread.set(request.context.sessionId, envKey);
-    if (requestedModel && this.options.kernelId === "opencode") {
-      this.opencodeModelByThread.set(request.context.sessionId, requestedModel);
-    }
-    const priorMessages = recentSessionMessages(request);
-    const sessionTrace: AgentSessionTrace = {
-      provider: this.options.kernelId,
-      sessionId: nativeSession.sessionId,
-      persistent: true,
-      priorMessageCount: nativeSession.resuming ? priorMessages.length : 0,
-      priorMessages: nativeSession.resuming ? priorMessages : [],
-    };
-    let assistantText = "";
-    const projector = new AcpSessionProjector({
-      runId,
-      kernelId: this.options.kernelId,
-      diagnosticPrefix: `${this.options.kernelId}.acp`,
-      toolFailureMessage: this.options.toolFailureMessage ?? `${this.options.title} tool failed`,
-      ignoreToolCall: hostTools
-        ? (update) => hostTools.isToolName(readString(update, "name") ?? readString(update, "title") ?? "")
-        : undefined,
-      onAssistantText(text) {
-        assistantText += text;
-      },
-    });
-
-    if (request.assembledContext) {
-      queue.push({ type: "context.assembled", runId, context: request.assembledContext });
-    }
-    await this.prepareContextBudget({
-      client,
-      nativeSessionId: nativeSession.sessionId,
-      threadId: request.context.sessionId,
-      request,
-      queue,
-      runId,
-      priorMessages,
-      incomingTokens: estimateTextTokens(prompt),
-    });
-    const policyDiagnostic = acpPolicyDiagnostic(this.options.kernelId, request, runtimeEnv);
-    if (policyDiagnostic) {
-      queue.push({
-        type: "runtime.diagnostic",
-        runId,
-        at: new Date().toISOString(),
-        name: policyDiagnostic.name,
-        data: policyDiagnostic.data,
-      });
-    }
-    queue.push({
-      type: "runtime.diagnostic",
-      runId,
-      at: new Date().toISOString(),
-      name: `${this.options.kernelId}.acp.session`,
-      data: {
-        sessionId: nativeSession.sessionId,
-        resuming: nativeSession.resuming,
-        hostInstructionsChannel: "user-input",
-        hostStateDelivery: "full-per-host-turn",
-        hostCompactionRecovery: "next-host-turn",
-        hostToolMcpServers: hostToolBinding ? 1 : 0,
-        hostToolIds: hostTools?.exposedToolIds ?? [],
-      },
-    });
-    queue.push({
-      type: "model.requested",
-      runId,
-      request: {
-        systemPrompt: `${this.options.title} ACP mode. OpenGrove host context is prepended to the user prompt when present.`,
-        userInput: request.input,
-        modelId: requestedModel,
-        session: sessionTrace,
-        context: request.assembledContext,
-        tools: request.tools.map((tool) => tool.spec),
-        skills: request.skills ?? [],
-        packs: request.packs ?? [],
-        capabilities: request.capabilities ?? [],
-      },
-    });
-
-    const cleanupNotifications = client.addNotificationHandler((notification) => {
-      if (notification.method !== "session/update" && notification.method !== "session/notification") return;
-      const params = asObject(notification.params);
-      if (readString(params, "sessionId") !== nativeSession.sessionId) return;
-      const update = asObject(params.update);
-      if (update.sessionUpdate === "config_option_update")
-        this.rememberAcpModelOptions(client, nativeSession.sessionId, update);
-      const contextUsage = readAcpContextUsage(update);
-      if (contextUsage) {
-        this.contextUsageBySession.set(nativeSession.sessionId, contextUsage);
+      const requestedModel =
+        normalizeOptionalString(request.requestedModelId) ?? normalizeOptionalString(this.options.configuredModel);
+      const runtimeEnv = normalizeAcpRuntimeEnv(
+        this.options.kernelId,
+        mergeRuntimeEnv(this.options.env, request.runtimeEnv),
+      );
+      const prompt = buildAcpPrompt(request, this.options.title, this.options.skillInvocationPromptPlacement);
+      const envKey = envFingerprint(runtimeEnv);
+      let agent = this.agentsByEnv.get(envKey);
+      if (!agent) {
+        agent = new AcpAgent({
+          command: this.options.command,
+          args: [...(this.options.commandArgs ?? []), ...(this.options.acpArgs ?? ["acp"])],
+          cwd: resolve(this.options.cwd ?? process.cwd()),
+          env: { ...process.env, ...runtimeEnv, PWD: resolve(this.options.cwd ?? process.cwd()) },
+          clientInfo: { name: "opengrove", title: "OpenGrove", version: "0.0.0" },
+          elicitation: { form: {} },
+          requestTimeoutMs: this.options.requestTimeoutMs,
+          controlRequestTimeoutMs: this.options.controlRequestTimeoutMs,
+          cancellationGraceMs: this.options.cancelGraceMs,
+          promptPayload: this.options.promptPayload,
+          resumeSessions: this.options.resumeSessions,
+          setModelFailure: this.options.setModelFailure ?? "ignore",
+        });
+        this.agentsByEnv.set(envKey, agent);
       }
-      for (const event of projector.project(update)) {
-        queue.push(event);
-      }
-    });
-    const cleanupRequests = client.addRequestHandler(async (rpcRequest) => {
-      if (rpcRequest.method !== "session/request_permission" && rpcRequest.method !== "session/requestPermission")
-        return undefined;
-      const params = asObject(rpcRequest.params);
-      if (readString(params, "sessionId") !== nativeSession.sessionId) return undefined;
-      return await this.handleAcpPermissionRequest(params, {
-        request,
+      const client = await agent.connect();
+      this.acpClientsByEnv.set(envKey, client);
+      const hostTools = request.tools.length
+        ? createHostToolBridge(request, runId, queue, this.options.kernelId)
+        : undefined;
+      const hostToolBinding = hostTools
+        ? await this.hostToolBridgeServer.prepare({
+            scope: request.hostToolScope ?? { sessionId: request.context.sessionId },
+            bridge: hostTools,
+          })
+        : undefined;
+      const fingerprint = hostToolBinding
+        ? `${this.options.runtimeBindingFingerprint || "native"}:host-tools:${hostToolBinding.fingerprint}`
+        : this.options.runtimeBindingFingerprint || "native";
+      const priorMessages = recentSessionMessages(request);
+      let assistantText = "";
+      let nativeSessionId = "";
+      let usage: ReturnType<typeof readAcpUsage>;
+      const projector = new AcpSessionProjector({
         runId,
-        queue,
+        kernelId: this.options.kernelId,
+        diagnosticPrefix: `${this.options.kernelId}.acp`,
+        toolFailureMessage: this.options.toolFailureMessage ?? `${this.options.title} tool failed`,
+        ignoreToolCall: hostTools
+          ? (update) => hostTools.isToolName(readString(update, "name") ?? readString(update, "title") ?? "")
+          : undefined,
+        onAssistantText(text) {
+          assistantText += text;
+        },
       });
-    });
-    const promptController = new AbortController();
-    let cancelGraceTimer: ReturnType<typeof setTimeout> | undefined;
-    const abortPrompt = () => {
-      client.notify("session/cancel", { sessionId: nativeSession.sessionId });
-      if (cancelGraceTimer) return;
-      cancelGraceTimer = setTimeout(() => promptController.abort(), this.options.cancelGraceMs ?? 15_000);
-      cancelGraceTimer.unref?.();
-    };
-    if (request.signal?.aborted) abortPrompt();
-    request.signal?.addEventListener("abort", abortPrompt, { once: true });
-
-    try {
-      hostToolBinding?.activate(hostTools!);
-      const imageBlocks = this.acpImagePromptSupportedByClient.get(client) ? acpImageBlocks(request) : [];
-      if (imageBlocks.length) {
+      const imageBlocks =
+        asObject(agent.getCapabilities(client).promptCapabilities).image === true ? acpImageBlocks(request) : [];
+      if (imageBlocks.length)
         queue.push({
           type: "runtime.diagnostic",
           runId,
@@ -512,83 +303,146 @@ export class AcpCliRuntime implements AgentRuntime {
           name: `${this.options.kernelId}.media_input.configured`,
           data: { imageInputs: imageBlocks.length },
         });
-      }
-      const promptBlocks = [{ type: "text", text: prompt }, ...imageBlocks];
-      const promptParams: JsonObject = {
-        sessionId: nativeSession.sessionId,
-        prompt: promptBlocks,
-      };
-      if (this.options.promptPayload === "content-and-prompt") {
-        promptParams.content = promptBlocks;
-      }
-      const response = await client.request("session/prompt", promptParams, {
-        timeoutMs: this.options.requestTimeoutMs,
-        signal: promptController.signal,
-      });
-      for (const event of projector.flushReasoning()) {
-        queue.push(event);
-      }
-      const usage = readAcpUsage(response);
-      const finalText = assistantText.trimEnd();
-      const previousEstimate = this.estimatedTokensBySession.get(nativeSession.sessionId) ?? 0;
-      this.estimatedTokensBySession.set(
-        nativeSession.sessionId,
-        previousEstimate + estimateTextTokens(prompt) + estimateTextTokens(finalText) + 16,
-      );
-      if (!finalText.trim()) {
-        const diagnostic = client.stderr().trim();
-        if (diagnostic) {
-          queue.push({
-            type: "runtime.diagnostic",
-            runId,
-            at: new Date().toISOString(),
-            name: `${this.options.kernelId}.acp.empty_response_diagnostic`,
-            data: { diagnostic },
-          });
+      try {
+        hostToolBinding?.activate(hostTools!);
+        for await (const event of agent.run({
+          sessionId: request.context.sessionId,
+          runId,
+          cwd: resolve(this.options.cwd ?? process.cwd()),
+          instructions: "",
+          input: [{ type: "text", text: prompt }, ...imageBlocks],
+          model: requestedModel,
+          signal: request.signal,
+          bindingFingerprint: fingerprint,
+          mcpServers: hostToolBinding ? [hostToolBinding.mcpServer] : [],
+          bindings: {
+            get: async () => {
+              const stored = readRememberedAcpSession(request, this.options.kernelId, fingerprint);
+              return stored ? { threadId: stored.sessionId, fingerprint } : undefined;
+            },
+            set: async (_id, binding) =>
+              rememberAcpSession(request, this.options.kernelId, binding.threadId, fingerprint),
+          },
+          onRequest: async (rpc, context) => {
+            if (rpc.method === "elicitation/create")
+              return this.handleAcpElicitation(asObject(rpc.params), request, runId, queue, context.signal);
+            if (rpc.method !== "session/request_permission" && rpc.method !== "session/requestPermission")
+              return undefined;
+            return this.handleAcpPermissionRequest(asObject(rpc.params), { request, runId, queue });
+          },
+          beforeTurn: async (client, context) => {
+            nativeSessionId = context.threadId;
+            this.acpSessionByThread.set(request.context.sessionId, nativeSessionId);
+            this.acpEnvKeyByThread.set(request.context.sessionId, envKey);
+            if (requestedModel && this.options.kernelId === "opencode")
+              this.opencodeModelByThread.set(request.context.sessionId, requestedModel);
+            if (request.assembledContext)
+              queue.push({ type: "context.assembled", runId, context: request.assembledContext });
+            await this.prepareContextBudget({
+              client,
+              nativeSessionId,
+              threadId: request.context.sessionId,
+              request,
+              queue,
+              runId,
+              priorMessages,
+              incomingTokens: estimateTextTokens(prompt),
+            });
+            const policyDiagnostic = acpPolicyDiagnostic(this.options.kernelId, request, runtimeEnv);
+            if (policyDiagnostic)
+              queue.push({ type: "runtime.diagnostic", runId, at: new Date().toISOString(), ...policyDiagnostic });
+            queue.push({
+              type: "runtime.diagnostic",
+              runId,
+              at: new Date().toISOString(),
+              name: `${this.options.kernelId}.acp.session`,
+              data: {
+                sessionId: nativeSessionId,
+                resuming: context.resumed,
+                hostInstructionsChannel: "user-input",
+                hostStateDelivery: "full-per-host-turn",
+                hostCompactionRecovery: "next-host-turn",
+                hostToolMcpServers: hostToolBinding ? 1 : 0,
+                hostToolIds: hostTools?.exposedToolIds ?? [],
+              },
+            });
+            const session: AgentSessionTrace = {
+              provider: this.options.kernelId,
+              sessionId: nativeSessionId,
+              persistent: true,
+              priorMessageCount: context.resumed ? priorMessages.length : 0,
+              priorMessages: context.resumed ? priorMessages : [],
+            };
+            queue.push({
+              type: "model.requested",
+              runId,
+              request: {
+                systemPrompt: `${this.options.title} ACP mode. OpenGrove host context is prepended to the user prompt when present.`,
+                userInput: request.input,
+                modelId: requestedModel,
+                session,
+                context: request.assembledContext,
+                tools: request.tools.map((tool) => tool.spec),
+                skills: request.skills ?? [],
+                packs: request.packs ?? [],
+                capabilities: request.capabilities ?? [],
+              },
+            });
+          },
+        })) {
+          if (event.type === "native.notification") {
+            if (event.notification.method !== "session/update" && event.notification.method !== "session/notification")
+              continue;
+            const update = asObject(asObject(event.notification.params).update);
+            const contextUsage = readAcpContextUsage(update);
+            if (contextUsage) this.contextUsageBySession.set(event.threadId, contextUsage);
+            for (const projected of projector.project(update)) queue.push(projected);
+          } else if (event.type === "native.response") usage = readAcpUsage(toJsonValue(event.response));
+          else if (event.type === "model.response") {
+            for (const projected of projector.flushReasoning()) queue.push(projected);
+            if (assistantText.trim())
+              queue.push({
+                type: "model.response",
+                runId,
+                response: { text: assistantText.trimEnd(), ...(usage ? { usage } : {}) },
+              });
+            const previous = this.estimatedTokensBySession.get(nativeSessionId) ?? 0;
+            this.estimatedTokensBySession.set(
+              nativeSessionId,
+              previous + estimateTextTokens(prompt) + estimateTextTokens(assistantText) + 16,
+            );
+          } else if (event.type === "turn.finished") {
+            let outcome = event.outcome;
+            if (outcome.status === "completed" && !assistantText.trim())
+              outcome = {
+                status: "failed",
+                error: client.stderr().trim() || `${this.options.kernelId}_empty_response`,
+              };
+            if (outcome.status === "failed")
+              queue.push({ type: "error", runId, message: outcome.error ?? "acp_failed" });
+            queue.push({
+              type: "turn.finished",
+              runId,
+              at: new Date().toISOString(),
+              outcome: {
+                taskState:
+                  outcome.status === "completed"
+                    ? "TASK_STATE_COMPLETED"
+                    : outcome.status === "cancelled"
+                      ? "TASK_STATE_CANCELED"
+                      : "TASK_STATE_FAILED",
+                ...(outcome.error ? { reasonCode: outcome.error } : {}),
+                ...(outcome.outcomeUnknown ? { outcomeUnknown: true } : {}),
+              },
+            });
+          }
         }
-        queue.push({
-          type: "error",
-          runId,
-          message: diagnostic || `${this.options.kernelId}_empty_response`,
-        });
-        queue.push({
-          type: "turn.finished",
-          runId,
-          at: new Date().toISOString(),
-          outcome: { taskState: "TASK_STATE_FAILED", reasonCode: "acp_empty_response" },
-        });
-        return;
+      } finally {
+        if (hostTools) hostToolBinding?.deactivate(hostTools);
       }
-      queue.push({
-        type: "model.response",
-        runId,
-        response: { text: finalText, ...(usage ? { usage } : {}) },
-      });
-      queue.push({
-        type: "turn.finished",
-        runId,
-        at: new Date().toISOString(),
-        outcome: request.signal?.aborted
-          ? { taskState: "TASK_STATE_CANCELED", reasonCode: "native_cancelled", retryable: false }
-          : { taskState: "TASK_STATE_COMPLETED" },
-      });
-    } catch (error) {
-      for (const event of projector.flushReasoning()) {
-        queue.push(event);
-      }
-      const message = error instanceof Error ? error.message : String(error);
-      const rawMessage = client.stderr().trim() || message || `${this.options.kernelId}_acp_failed`;
-      queue.push({
-        type: "error",
-        runId,
-        message: translateAcpRuntimeError(rawMessage),
-      });
     } finally {
-      if (cancelGraceTimer) clearTimeout(cancelGraceTimer);
-      if (hostTools) hostToolBinding?.deactivate(hostTools);
-      request.signal?.removeEventListener("abort", abortPrompt);
-      cleanupRequests();
-      cleanupNotifications();
+      sourceSignal?.removeEventListener("abort", abort);
+      controller.abort();
     }
   }
 
@@ -703,227 +557,41 @@ export class AcpCliRuntime implements AgentRuntime {
     }
   }
 
-  private async ensureAcpClient(runtimeEnv: NodeJS.ProcessEnv | undefined): Promise<StdioJsonRpcClient> {
-    const envKey = envFingerprint(runtimeEnv);
-    const initializing = this.acpClientReadyByEnv.get(envKey);
-    if (initializing) return await initializing;
-    const existing = this.acpClientsByEnv.get(envKey);
-    if (existing && !existing.isClosed()) return existing;
-    if (existing) this.acpClientsByEnv.delete(envKey);
-    const args = [...(this.options.commandArgs ?? []), ...(this.options.acpArgs ?? ["acp"])];
-    const cwd = resolve(this.options.cwd ?? process.cwd());
-    const env = normalizeAcpRuntimeEnv(this.options.kernelId, { ...process.env, ...runtimeEnv });
-    const client = StdioJsonRpcClient.start({
-      command: this.options.command,
-      args,
-      cwd,
-      env: { ...env, PWD: cwd },
-    });
-    this.acpClientsByEnv.set(envKey, client);
-    this.acpSessionsByClient.set(client, new Set());
-    const ready = (async () => {
-      const initializeResult = asObject(
-        await client.request(
-          "initialize",
-          {
-            protocolVersion: 1,
-            clientInfo: {
-              name: "opengrove",
-              title: "OpenGrove",
-              version: "0.0.0",
-            },
-            clientCapabilities: {
-              auth: { terminal: false },
-              fs: { readTextFile: false, writeTextFile: false },
-              terminal: false,
-            },
-          },
-          { timeoutMs: 30_000 },
-        ),
-      );
-      this.acpImagePromptSupportedByClient.set(client, acpImagePromptCapability(initializeResult));
-      return client;
-    })();
-    this.acpClientReadyByEnv.set(envKey, ready);
-    try {
-      return await ready;
-    } catch (error) {
-      if (this.acpClientsByEnv.get(envKey) === client) this.acpClientsByEnv.delete(envKey);
-      this.acpSessionsByClient.delete(client);
-      this.acpImagePromptSupportedByClient.delete(client);
-      client.close();
-      throw error;
-    } finally {
-      if (this.acpClientReadyByEnv.get(envKey) === ready) this.acpClientReadyByEnv.delete(envKey);
-    }
-  }
-
-  private leaseAcpClientForRun(runId: string, client: StdioJsonRpcClient): void {
-    this.acpClientByRun.set(runId, client);
-    this.acpClientLeases.set(client, (this.acpClientLeases.get(client) ?? 0) + 1);
-  }
-
-  private releaseAcpClientForRun(runId: string): void {
-    const client = this.acpClientByRun.get(runId);
-    if (!client) return;
-    this.acpClientByRun.delete(runId);
-    const remaining = Math.max(0, (this.acpClientLeases.get(client) ?? 1) - 1);
-    if (remaining > 0) {
-      this.acpClientLeases.set(client, remaining);
-      return;
-    }
-    this.acpClientLeases.delete(client);
-    if (this.retiredAcpClients.delete(client)) client.close();
-  }
-
-  private poisonAcpClient(envKey: string, client: StdioJsonRpcClient): void {
-    if (this.acpClientsByEnv.get(envKey) === client) this.acpClientsByEnv.delete(envKey);
-    this.retiredAcpClients.add(client);
-    if ((this.acpClientLeases.get(client) ?? 0) === 0) {
-      this.retiredAcpClients.delete(client);
-      client.close();
-    }
-  }
-
-  private async ensureAcpSession(
-    client: StdioJsonRpcClient,
+  private async handleAcpElicitation(
+    params: Record<string, unknown>,
     request: AgentTurnRequest,
-    cwd: string,
-    requestedModel: string | undefined,
-    hostToolBinding: AcpHostToolSessionBinding | undefined,
-  ): Promise<{ sessionId: string; resuming: boolean }> {
-    const sessionBindingFingerprint = hostToolBinding
-      ? `${this.options.runtimeBindingFingerprint || "native"}:host-tools:${hostToolBinding.fingerprint}`
-      : this.options.runtimeBindingFingerprint;
-    const remembered = readRememberedAcpSession(request, this.options.kernelId, sessionBindingFingerprint);
-    const clientSessions = this.acpSessionsByClient.get(client) ?? new Set<string>();
-    this.acpSessionsByClient.set(client, clientSessions);
-    if (remembered?.sessionId) {
-      if (clientSessions.has(remembered.sessionId)) {
-        await this.maybeSetAcpSessionModel(client, remembered.sessionId, requestedModel, request.signal);
-        return { sessionId: remembered.sessionId, resuming: true };
-      }
-      if (this.options.resumeSessions !== false) {
-        const loaded = await this.loadAcpSession(client, remembered.sessionId, cwd, hostToolBinding, request.signal);
-        if (loaded) {
-          clientSessions.add(loaded);
-          rememberAcpSession(request, this.options.kernelId, loaded, sessionBindingFingerprint);
-          await this.maybeSetAcpSessionModel(client, loaded, requestedModel, request.signal);
-          return { sessionId: loaded, resuming: true };
-        }
-      }
-    }
-
-    const created = asObject(
-      await client.request(
-        "session/new",
-        {
-          cwd,
-          mcpServers: hostToolBinding ? [hostToolBinding.mcpServer] : [],
-          ...(requestedModel ? { model: requestedModel } : {}),
-        },
-        { timeoutMs: this.options.controlRequestTimeoutMs ?? 30_000, signal: request.signal },
-      ),
-    );
-    const sessionId = readString(created, "sessionId");
-    if (!sessionId) {
-      throw new Error(`${this.options.kernelId}_acp_session_id_missing`);
-    }
-    clientSessions.add(sessionId);
-    this.rememberAcpModelOptions(client, sessionId, created);
-    rememberAcpSession(request, this.options.kernelId, sessionId, sessionBindingFingerprint);
-    await this.maybeSetAcpSessionModel(client, sessionId, requestedModel, request.signal);
-    return { sessionId, resuming: false };
-  }
-
-  private async loadAcpSession(
-    client: StdioJsonRpcClient,
-    sessionId: string,
-    cwd: string,
-    hostToolBinding: AcpHostToolSessionBinding | undefined,
-    signal?: AbortSignal,
-  ): Promise<string | undefined> {
-    try {
-      const loaded = asObject(
-        await client.request(
-          "session/load",
-          { sessionId, cwd, mcpServers: hostToolBinding ? [hostToolBinding.mcpServer] : [] },
-          { timeoutMs: this.options.controlRequestTimeoutMs ?? 30_000, signal },
-        ),
-      );
-      const loadedSessionId = readString(loaded, "sessionId") ?? sessionId;
-      this.rememberAcpModelOptions(client, loadedSessionId, loaded);
-      return loadedSessionId;
-    } catch (error) {
-      if (isAbandonedAcpControlRequest(error, signal)) throw error;
-      return undefined;
-    }
-  }
-
-  private async maybeSetAcpSessionModel(
-    client: StdioJsonRpcClient,
-    sessionId: string,
-    requestedModel: string | undefined,
-    signal?: AbortSignal,
-  ): Promise<void> {
-    if (!requestedModel) return;
-    const selector = this.acpModelOptionsByClient.get(client)?.get(sessionId);
-    const options = selector?.options ?? [];
-    const named = options.filter((option) => option.name === requestedModel);
-    // ACP selectors advertise opaque IDs. Kimi 0.34's environment-defined
-    // model exposes its API name as the label, but requires the advertised
-    // alias for session/set_model. Never invent that alias or guess among
-    // duplicate labels; exact IDs always take priority.
-    const modelId =
-      options.some((option) => option.id === requestedModel) || named.length !== 1 ? requestedModel : named[0]!.id;
-    try {
-      // ACP v1 configOptions supersedes the unstable model selector. Keep the
-      // legacy method only for agents that do not advertise this surface.
-      // https://agentclientprotocol.com/protocol/v1/session-config-options
-      const result = asObject(
-        await client.request(
-          selector?.configId ? "session/set_config_option" : "session/set_model",
-          selector?.configId ? { sessionId, configId: selector.configId, value: modelId } : { sessionId, modelId },
-          { timeoutMs: this.options.controlRequestTimeoutMs ?? 15_000, signal },
-        ),
-      );
-      if (Array.isArray(result.configOptions)) this.rememberAcpModelOptions(client, sessionId, result);
-    } catch (error) {
-      if (isAbandonedAcpControlRequest(error, signal)) throw error;
-      if (this.options.setModelFailure === "error") {
-        const message = error instanceof Error ? error.message : String(error);
-        throw new Error(
-          `${this.options.title} could not switch to model ${JSON.stringify(requestedModel)}: ${message}`,
-        );
-      }
-    }
-  }
-
-  private rememberAcpModelOptions(client: StdioJsonRpcClient, sessionId: string, setup: Record<string, unknown>): void {
-    if (!Array.isArray(setup.configOptions) && !Array.isArray(asObject(setup.models).availableModels)) return;
-    const configOptions = Array.isArray(setup.configOptions) ? setup.configOptions.map(asObject) : [];
-    const selector = configOptions.find(
-      (option) => option.type === "select" && (option.category === "model" || option.id === "model"),
-    );
-    const values = Array.isArray(selector?.options)
-      ? selector.options.flatMap((value) => {
-          const option = asObject(value);
-          return Array.isArray(option.options) ? option.options : [option];
-        })
-      : [];
-    const models = asObject(setup.models);
-    const legacy = Array.isArray(models.availableModels) ? models.availableModels : [];
-    const options = (selector ? values : legacy).flatMap((value) => {
-      const option = asObject(value);
-      const id = readString(option, "value") ?? readString(option, "modelId");
-      return id ? [{ id, name: readString(option, "name") ?? id }] : [];
+    runId: string,
+    queue: AsyncEventQueue<AgentEvent>,
+    signal: AbortSignal,
+  ): Promise<JsonObject> {
+    if (params.mode !== "form") return { action: "decline" };
+    const question = request.context.questions.request({
+      title: `${this.options.title} asks for input`,
+      prompt: readString(params, "message") ?? "Please provide the requested information.",
+      input: toJsonValue(params),
+      source: { type: "kernel.native", kernelId: this.options.kernelId },
+      resume: { type: "kernel.native", kernelId: this.options.kernelId, runId, continuation: "same-loop" },
     });
-    const sessions = this.acpModelOptionsByClient.get(client) ?? new Map();
-    sessions.set(sessionId, {
-      configId: readString(selector ?? {}, "id"),
-      options: [...new Map(options.map((option) => [option.id, option])).values()],
-    });
-    this.acpModelOptionsByClient.set(client, sessions);
+    queue.push({ type: "question.requested", runId, question });
+    let decided;
+    try {
+      decided = await request.context.questions.waitForDecision(question.id, { signal });
+    } catch (error) {
+      const current = request.context.questions.get(question.id);
+      if (current?.status !== "pending") {
+        if (!current) throw error;
+        decided = current;
+      } else
+        decided = request.context.questions.decide(question.id, "canceled", {
+          system: true,
+          reasonCode: signal.aborted ? "run_canceled" : "native_request_failed",
+        });
+    }
+    queue.push({ type: "question.answered", runId, question: decided });
+    if (decided.status !== "answered") return { action: decided.status === "canceled" ? "cancel" : "decline" };
+    const response = asObject(decided.response);
+    const content = response.content ?? response.answers ?? response;
+    return { action: "accept", content: toJsonValue(content) };
   }
 
   private async handleAcpPermissionRequest(
@@ -1027,21 +695,6 @@ function translateAcpRuntimeError(message: string): string {
   return message;
 }
 
-function isAbandonedAcpControlRequest(error: unknown, signal?: AbortSignal): boolean {
-  return (
-    signal?.aborted === true ||
-    (error instanceof JsonRpcRequestFailure && (error.kind === "timeout" || error.kind === "aborted"))
-  );
-}
-
-function shouldPoisonAcpTransport(error: unknown, client: StdioJsonRpcClient): boolean {
-  return (
-    client.isClosed() ||
-    (error instanceof JsonRpcRequestFailure &&
-      (error.kind === "transport" || error.kind === "closed" || error.kind === "timeout"))
-  );
-}
-
 function acpPolicyDiagnostic(
   kernelId: string,
   request: AgentTurnRequest,
@@ -1076,17 +729,6 @@ function parseJsonObject(input: string | undefined): Record<string, unknown> {
   } catch {
     return {};
   }
-}
-
-function readKimiCompactionResult(text: string): { tokensBefore: number; tokensAfter: number } | undefined {
-  if (!/Compaction completed\./i.test(text)) return undefined;
-  const before = /Tokens before:\s*([\d,]+)/i.exec(text)?.[1];
-  const after = /Tokens after:\s*([\d,]+)/i.exec(text)?.[1];
-  if (!before || !after) return undefined;
-  const tokensBefore = Number(before.replaceAll(",", ""));
-  const tokensAfter = Number(after.replaceAll(",", ""));
-  if (!Number.isFinite(tokensBefore) || !Number.isFinite(tokensAfter)) return undefined;
-  return { tokensBefore, tokensAfter };
 }
 
 // ACP ContentBlock::Image carries base64 data plus mimeType (docs/.../v2/content.mdx).
@@ -1213,137 +855,8 @@ function rememberAcpSession(
   });
 }
 
-type OpenCodeSummarizeModel = { providerID: string; modelID: string };
-
-type OpenCodeServerProcess = {
-  url: string;
-  close(): Promise<void>;
-};
-
-function openCodeSummarizeModel(
-  model: string | undefined,
-  runtimeEnv: NodeJS.ProcessEnv | undefined,
-): OpenCodeSummarizeModel | undefined {
-  const configuredModel =
-    normalizeOptionalString(model) ?? readString(parseJsonObject(runtimeEnv?.OPENCODE_CONFIG_CONTENT), "model");
-  if (!configuredModel) return undefined;
-  const separator = configuredModel.indexOf("/");
-  if (separator <= 0 || separator >= configuredModel.length - 1) return undefined;
-  return {
-    providerID: configuredModel.slice(0, separator),
-    modelID: configuredModel.slice(separator + 1),
-  };
-}
-
-async function readOpenCodeDefaultSummarizeModel(
-  serverUrl: string,
-  signal?: AbortSignal,
-): Promise<OpenCodeSummarizeModel | undefined> {
-  const response = await fetch(`${serverUrl}/config/providers`, { signal });
-  if (!response.ok) return undefined;
-  const payload = asObject(await response.json().catch(() => undefined));
-  const defaults = asObject(payload.default);
-  for (const [providerID, modelID] of Object.entries(defaults)) {
-    if (typeof modelID === "string" && providerID.trim() && modelID.trim()) {
-      return { providerID, modelID };
-    }
-  }
-  return undefined;
-}
-
-async function startOpenCodeServer(input: {
-  command: string;
-  cwd: string;
-  env: NodeJS.ProcessEnv | undefined;
-}): Promise<OpenCodeServerProcess> {
-  const env: NodeJS.ProcessEnv = { ...process.env, ...(input.env ?? {}), PWD: input.cwd };
-  for (const [key, value] of Object.entries(env)) {
-    if (value === undefined) delete env[key];
-  }
-  const invocation = resolveCommandInvocation(input.command, ["serve", "--hostname", "127.0.0.1", "--port", "0"]);
-  const child = spawn(invocation.command, invocation.args, {
-    cwd: input.cwd,
-    env,
-    stdio: ["pipe", "pipe", "pipe"],
-  });
-  child.stdin.end();
-  const url = await waitForOpenCodeServerUrl(child);
-  return {
-    url,
-    close: () => closeOpenCodeServer(child),
-  };
-}
-
-function waitForOpenCodeServerUrl(child: ChildProcessWithoutNullStreams): Promise<string> {
-  return new Promise((resolveUrl, reject) => {
-    let settled = false;
-    let output = "";
-    const timeout = setTimeout(
-      () => finish(undefined, new Error(`opencode_serve_timeout:${output.slice(0, 240)}`)),
-      30_000,
-    );
-    const onData = (chunk: Buffer | string) => {
-      output += chunk.toString();
-      const match = output.match(/http:\/\/127\.0\.0\.1:(\d+)/) ?? output.match(/http:\/\/localhost:(\d+)/);
-      if (match?.[1]) {
-        finish(`http://127.0.0.1:${match[1]}`);
-      }
-    };
-    const onError = (error: Error) => finish(undefined, error);
-    const onExit = (code: number | null, signal: NodeJS.Signals | null) => {
-      finish(undefined, new Error(`opencode_serve_exited:${code ?? signal ?? "unknown"}:${output.slice(0, 240)}`));
-    };
-    const finish = (url?: string, error?: Error) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timeout);
-      child.stdout.off("data", onData);
-      child.stderr.off("data", onData);
-      child.off("error", onError);
-      child.off("exit", onExit);
-      if (url) resolveUrl(url);
-      else reject(error ?? new Error("opencode_serve_failed"));
-    };
-    child.stdout.on("data", onData);
-    child.stderr.on("data", onData);
-    child.on("error", onError);
-    child.on("exit", onExit);
-  });
-}
-
-async function closeOpenCodeServer(child: ChildProcessWithoutNullStreams): Promise<void> {
-  if (child.exitCode !== null || child.killed) return;
-  child.kill("SIGTERM");
-  await new Promise<void>((resolveClose) => {
-    const timeout = setTimeout(() => {
-      if (child.exitCode === null && !child.killed) {
-        child.kill("SIGKILL");
-      }
-      resolveClose();
-    }, 1_000);
-    child.once("exit", () => {
-      clearTimeout(timeout);
-      resolveClose();
-    });
-  });
-}
-
-function parseBooleanJson(text: string): boolean | undefined {
-  try {
-    const value = JSON.parse(text);
-    return typeof value === "boolean" ? value : undefined;
-  } catch {
-    return undefined;
-  }
-}
-
 function asObject(value: unknown): Record<string, unknown> {
   return isRecord(value) ? value : {};
-}
-
-function acpImagePromptCapability(initializeResult: Record<string, unknown>): boolean {
-  const promptCapabilities = asObject(asObject(initializeResult.agentCapabilities).promptCapabilities);
-  return promptCapabilities.image === true || isRecord(promptCapabilities.image);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

@@ -857,7 +857,7 @@ function addTool(accumulator: InventoryAccumulator, tool: ToolSpec, workspaceRoo
       tags: [tool.activity, tool.risk],
       metadata: {
         input: tool.input as unknown as JsonObject,
-        output: tool.output as unknown as JsonObject,
+        ...(tool.output ? { output: tool.output as unknown as JsonObject } : {}),
       },
     },
     deployment,

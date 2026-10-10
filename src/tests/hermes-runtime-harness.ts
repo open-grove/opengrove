@@ -126,7 +126,7 @@ async function main() {
     },
   })) {
     events.push(event);
-    if (event.type === "turn.started" && !steered) {
+    if (event.type === "model.requested" && !steered) {
       const result = await runtime.steerTurn({
         runId,
         threadId: sessionId,
@@ -155,7 +155,7 @@ async function main() {
   assert.match(response.response.text, /FAKE_HERMES_GATEWAY_OK/);
   assert.match(response.response.text, /APP_CONTEXT_VISIBLE/);
   assert.match(response.response.text, /Default response language: Simplified Chinese/);
-  assert.match(response.response.text, /APPROVAL:allow/);
+  assert.match(response.response.text, /APPROVAL:once/);
   assert.match(response.response.text, /ANSWER:alpha/);
   assert.match(response.response.text, /STEER:HARNESS_STEER_INSTRUCTION/);
   assert.match(response.response.text, /provider: ['"]?custom:opengrove-test-provider/);

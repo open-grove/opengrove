@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createAssistantMessageEventStream, createModels, createProvider } from "@earendil-works/pi-ai";
+import { createAssistantMessageEventStream, createModels, createProvider } from "pi-ai-legacy";
 import { getBuiltinModel } from "@earendil-works/pi-ai/providers/all";
 import { createOpenGrove } from "../app/create-opengrove.js";
 import {
@@ -21,7 +21,7 @@ import { createKernelRuntime, createRuntimeKernelAdapter } from "../kernel/adapt
 import { buildPiProviderEnv, resolvePiRuntimeModel } from "../kernel/adapters/pi.js";
 import { PiAgentRuntime, type PiSession, type PiSessionContext } from "../runtime/pi-runtime.js";
 import { imageAttachmentsWithDataUrl } from "../runtime/media-input.js";
-import { createNativePiSessionFactory, piCompactionSettingsForRequest } from "../runtime/native-pi-session.js";
+import { createNativePiSessionFactory, piCompactionSettingsForRequest } from "../runtime/native-pi-session.compat.js";
 
 function createContext(sessionId: string, page?: AgentContext["page"]): AgentContext {
   return {
@@ -70,15 +70,15 @@ async function main() {
     protocol: "openai-compatible",
     apiKey: "test-key",
     openaiBaseUrl: "https://api.deepseek.com",
-    model: "deepseek-v4-flash",
+    model: "deepseek-flash",
   });
   assert.equal(
     deepSeekEnv?.OPENGROVE_PI_PROVIDER_ID,
     "deepseek",
     "Pi provider bindings must preserve the provider identity instead of reducing every OpenAI-compatible service to generic OpenAI",
   );
-  const deepSeekModel = resolvePiRuntimeModel(deepSeekEnv ?? {}, "deepseek-v4-flash");
-  const builtinDeepSeekModel = getBuiltinModel("deepseek", "deepseek-v4-flash");
+  const deepSeekModel = resolvePiRuntimeModel(deepSeekEnv ?? {}, "deepseek-flash");
+  const builtinDeepSeekModel = getBuiltinModel("deepseek", "deepseek-flash");
   assert.ok(builtinDeepSeekModel);
   assert.equal(deepSeekModel.provider, builtinDeepSeekModel.provider);
   assert.equal(deepSeekModel.contextWindow, builtinDeepSeekModel.contextWindow);
@@ -470,7 +470,7 @@ async function assertNativePiReasoningEffortContract(): Promise<void> {
     let observedReasoning = "";
     const runtime = new PiAgentRuntime({
       createSession: createNativePiSessionFactory({
-        model,
+        model: { ...model, compat: undefined },
         streamFn: (_model, _context, options) => {
           observedReasoning = options?.reasoning ?? "";
           return nativeAssistantStream(model.id, [{ type: "text", text: "ok" }], "stop");

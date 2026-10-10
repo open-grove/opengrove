@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { mkdtempSync, rmSync } from "node:fs";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
@@ -43,6 +43,7 @@ try {
     "run",
   ]);
   gateway = spawn(invocation.command, invocation.args, {
+    detached: process.platform !== "win32",
     cwd: process.cwd(),
     env: {
       ...process.env,
@@ -128,15 +129,40 @@ function reservePort() {
   });
 }
 
-function stopChild(child) {
-  if (!child || child.exitCode !== null) return Promise.resolve();
-  return new Promise((resolve) => {
-    const killTimer = setTimeout(() => child.kill("SIGKILL"), 5_000);
-    child.once("exit", () => {
-      clearTimeout(killTimer);
+async function stopChild(child) {
+  if (!child?.pid) return;
+  const killTree = (signal) => {
+    if (process.platform === "win32") {
+      const result = spawnSync("taskkill", ["/PID", String(child.pid), "/T", "/F"], {
+        stdio: "ignore",
+        timeout: 10_000,
+      });
+      if (result.error) console.warn(`Gateway cleanup: ${result.error.message}`);
+    } else {
+      try {
+        process.kill(-child.pid, signal);
+      } catch (error) {
+        if (error.code !== "ESRCH") throw error;
+      }
+    }
+  };
+  // npx can exit before its Gateway child. Reap the whole owned group even then.
+  if (child.exitCode !== null || child.signalCode !== null) {
+    killTree("SIGKILL");
+    return;
+  }
+  await new Promise((resolve, reject) => {
+    const grace = setTimeout(() => killTree("SIGKILL"), 5_000);
+    const deadline = setTimeout(
+      () => reject(new Error("Gateway process tree did not close after cancellation")),
+      10_000,
+    );
+    child.once("close", () => {
+      clearTimeout(grace);
+      clearTimeout(deadline);
       resolve();
     });
-    child.kill("SIGTERM");
+    killTree("SIGTERM");
   });
 }
 

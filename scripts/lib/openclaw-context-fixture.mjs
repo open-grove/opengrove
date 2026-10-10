@@ -18,7 +18,9 @@ export async function startOpenClawContextFixture(stateDir) {
     for await (const chunk of req) body += chunk;
     const request = JSON.parse(body);
     requests.push(request);
-    const lastUser = request.messages.filter((message) => message.role === "user").at(-1);
+    const lastUser = request.messages
+      .filter((message) => message.role === "user" && JSON.stringify(message).includes("User request:"))
+      .at(-1);
     if (JSON.stringify(lastUser).includes("CANCEL_NATIVE_TURN")) {
       res.on("close", () => {
         canceledConnection = true;
@@ -147,8 +149,11 @@ export async function startOpenClawContextFixture(stateDir) {
         assert.match(system, /STABLE_EMPLOYEE_RULE/);
         assert.doesNotMatch(system, /ATTACHMENT_ROOM_|INSTRUCTIONS_ROOM_|Default response language/);
         assert.doesNotMatch(JSON.stringify(users), /STABLE_EMPLOYEE_RULE/);
-        assert.match(JSON.stringify(users.at(-1)), new RegExp(`INSTRUCTIONS_${room}`));
-        assert.match(JSON.stringify(users.at(-1)), new RegExp(language));
+        // OpenClaw 2026.9.9 appends its own internal-context user block.
+        const current = users.findLast((message) => JSON.stringify(message).includes("User request:"));
+        assert.ok(current, "the current Host request must reach the model");
+        assert.match(JSON.stringify(current), new RegExp(`INSTRUCTIONS_${room}`));
+        assert.match(JSON.stringify(current), new RegExp(language));
         return { system, users };
       };
       try {

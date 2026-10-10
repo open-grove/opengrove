@@ -1,3 +1,4 @@
+import type { listArtifactsOperation, updateArtifactOperation, deleteArtifactOperation } from "#protocol";
 import { createHash } from "node:crypto";
 import type {
   ListSessionsOperation,
@@ -34,7 +35,7 @@ import {
 export function createStateRoutes(): BridgeRoute[] {
   return [
     route("memory-list", "GET", "/memory", handleMemoryListRoute),
-    route("artifacts-list", "GET", "/artifacts", handleArtifactsListRoute),
+    operationRoute(hostContractById["artifact.artifact.list"], handleArtifactsListRoute),
     route("artifact-item-content", "GET", /^\/artifacts\/([^/]+)\/content$/, handleArtifactItemContentRoute),
     operationRoute(hostContractById["artifact.artifact.get"], handleArtifactItemReadRoute),
     route("working-state-read", "GET", "/working-state", handleWorkingStateReadRoute),
@@ -45,8 +46,8 @@ export function createStateRoutes(): BridgeRoute[] {
     route("memory-item-delete", "DELETE", /^\/memory\/([^/]+)$/, handleMemoryItemRoute),
     route("memory-item-patch", "PATCH", /^\/memory\/([^/]+)$/, handleMemoryItemRoute),
     operationRoute(hostContractById["artifact.artifact.create"], handleArtifactsCreateRoute),
-    route("artifact-item-patch", "PATCH", /^\/artifacts\/([^/]+)$/, handleArtifactItemRoute),
-    route("artifact-item-delete", "DELETE", /^\/artifacts\/([^/]+)$/, handleArtifactItemRoute),
+    operationRoute(hostContractById["artifact.artifact.update"], handleArtifactItemRoute),
+    operationRoute(hostContractById["artifact.artifact.delete"], handleArtifactItemRoute),
     route("artifact-annotation", "POST", /^\/artifacts\/([^/]+)\/annotation$/, handleArtifactAnnotationRoute),
     route("working-state-patch", "PATCH", "/working-state", handleWorkingStatePatchRoute),
     route("computer-state-patch", "PATCH", "/computer-state", handleComputerStatePatchRoute),
@@ -69,11 +70,8 @@ function handleMemoryListRoute(context: BridgeRouteContext): boolean {
   return true;
 }
 
-function handleArtifactsListRoute(context: BridgeRouteContext): boolean {
-  const type = context.url.searchParams.get("type") ?? "";
-  const ids = context.url.searchParams.getAll("id");
-  const tags = context.url.searchParams.getAll("tag");
-  const limit = readBoundedLimit(context.url, 100, 500);
+function handleArtifactsListRoute(context: HostOperationRouteContext<typeof listArtifactsOperation>): true {
+  const { type, id: ids = [], tag: tags = [], limit } = context.input.query;
   const artifacts = presentArtifactSummaries(
     context.state.app.artifacts.list({
       ids: ids.length ? ids : undefined,
@@ -221,15 +219,16 @@ function handleArtifactsCreateRoute(context: HostOperationRouteContext<CreateArt
   return true;
 }
 
-async function handleArtifactItemRoute(context: BridgeRouteContext): Promise<boolean> {
-  const artifactAction = context.url.pathname.match(/^\/artifacts\/([^/]+)$/);
-  if (!artifactAction) return false;
-  const [, artifactId] = artifactAction;
+async function handleArtifactItemRoute(
+  context: HostOperationRouteContext<typeof updateArtifactOperation | typeof deleteArtifactOperation>,
+): Promise<true> {
+  const artifactId = context.input.params.artifactId;
   if (context.request.method === "PATCH") {
-    const artifact = context.state.app.artifacts.update(
-      decodeURIComponent(artifactId!),
-      normalizeArtifactPatchPayload(await context.readJsonBody(context.request)),
-    );
+    if (!context.state.app.artifacts.get(artifactId)) {
+      context.sendJson(context.response, 404, { ok: false, error: "artifact_not_found" });
+      return true;
+    }
+    const artifact = context.state.app.artifacts.update(artifactId, normalizeArtifactPatchPayload(context.input.body));
     context.state.store.saveFrom(context.state.app);
     context.sendJson(context.response, 200, {
       ok: true,
@@ -239,7 +238,7 @@ async function handleArtifactItemRoute(context: BridgeRouteContext): Promise<boo
     return true;
   }
   if (context.request.method === "DELETE") {
-    const deleted = context.state.app.artifacts.delete(decodeURIComponent(artifactId!));
+    const deleted = context.state.app.artifacts.delete(artifactId);
     context.state.store.saveFrom(context.state.app);
     context.sendJson(context.response, 200, {
       ok: true,
@@ -248,7 +247,7 @@ async function handleArtifactItemRoute(context: BridgeRouteContext): Promise<boo
     });
     return true;
   }
-  return false;
+  return true;
 }
 
 async function handleArtifactAnnotationRoute(context: BridgeRouteContext): Promise<boolean> {

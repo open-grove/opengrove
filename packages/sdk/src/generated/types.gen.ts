@@ -57,6 +57,122 @@ export type HostInputSharedDefinitionSchema1 =
       [key: string]: HostInputSharedDefinitionSchema1;
     };
 
+export type HostInputSharedDefinitionSchema2 =
+  | string
+  | number
+  | boolean
+  | null
+  | Array<HostInputSharedDefinitionSchema2>
+  | {
+      [key: string]: HostInputSharedDefinitionSchema2;
+    };
+
+export type HostInputSharedDefinitionSchema3 =
+  | string
+  | number
+  | boolean
+  | null
+  | Array<HostInputSharedDefinitionSchema3>
+  | {
+      [key: string]: HostInputSharedDefinitionSchema3;
+    };
+
+export type ExtensionDeployment = {
+  id: string;
+  itemId: string;
+  kind: "app" | "skill" | "mcp" | "plugin" | "hook" | "tool" | "cli";
+  kernelId?: "codex" | "claude-code" | "hermes" | "pi" | "openclaw" | "opencode" | "kimi";
+  scope: "user" | "project" | "workspace" | "system" | "managed" | "external";
+  status: "enabled" | "disabled" | "unpublished" | "missing" | "unsupported";
+  enabled: boolean;
+  managedByOpenGrove: boolean;
+  readonly: boolean;
+  system: boolean;
+  sourcePath?: string;
+  targetPath?: string;
+  configPath?: string;
+  configFormat?: string;
+  markerPath?: string;
+  reason?: string;
+  command?: string;
+  args?: Array<string>;
+  envKeys?: Array<string>;
+  metadata?: {
+    [key: string]: HostOutputSharedDefinitionSchema0;
+  };
+};
+
+export type ExtensionInventory = {
+  scannedAt: string;
+  workspaceRoot: string;
+  items: Array<{
+    id: string;
+    kind: "app" | "skill" | "mcp" | "plugin" | "hook" | "tool" | "cli";
+    name: string;
+    title: string;
+    description: string;
+    enabled: boolean;
+    managedByOpenGrove: boolean;
+    readonly: boolean;
+    system: boolean;
+    source: {
+      origin: "opengrove" | "kernel" | "plugin" | "registry" | "git" | "local" | "system" | "unknown";
+      kernelId?: "codex" | "claude-code" | "hermes" | "pi" | "openclaw" | "opencode" | "kimi";
+      path?: string;
+      url?: string;
+      packageId?: string;
+      readonly?: boolean;
+      system?: boolean;
+    };
+    deployments: Array<ExtensionDeployment>;
+    permissions: Array<{
+      type: "filesystem" | "network" | "shell" | "env" | "model" | "unknown";
+      values: Array<string>;
+    }>;
+    commandUsages: Array<{
+      command: string;
+      args: Array<string>;
+      envKeys: Array<string>;
+      parentKind: "app" | "skill" | "mcp" | "plugin" | "hook" | "tool" | "cli";
+      parentId: string;
+      kernelId?: "codex" | "claude-code" | "hermes" | "pi" | "openclaw" | "opencode" | "kimi";
+      configPath?: string;
+      resolvedPath?: string;
+      risk: "low" | "medium" | "high";
+    }>;
+    parentId?: string;
+    childIds: Array<string>;
+    tags: Array<string>;
+    metadata: {
+      [key: string]: HostOutputSharedDefinitionSchema0;
+    };
+  }>;
+  deployments: Array<ExtensionDeployment>;
+  commandUsages: Array<{
+    command: string;
+    args: Array<string>;
+    envKeys: Array<string>;
+    parentKind: "app" | "skill" | "mcp" | "plugin" | "hook" | "tool" | "cli";
+    parentId: string;
+    kernelId?: "codex" | "claude-code" | "hermes" | "pi" | "openclaw" | "opencode" | "kimi";
+    configPath?: string;
+    resolvedPath?: string;
+    risk: "low" | "medium" | "high";
+  }>;
+  summary: {
+    itemCount: number;
+    deploymentCount: number;
+    byKind: {
+      [key: string]: number;
+    };
+    byKernel: {
+      [key: string]: number;
+    };
+    managedCount: number;
+    systemCount: number;
+  };
+};
+
 export type HostError = {
   ok?: false;
   error: string;
@@ -69,6 +185,70 @@ export type HostError = {
     path: string;
     code: string;
   }>;
+};
+
+export type Routine = {
+  id: string;
+  title: string;
+  description?: string;
+  sourceKnowledgeId?: string;
+  status: "draft" | "active" | "paused" | "needs_repair" | "archived";
+  trigger: "manual" | "schedule" | "event";
+  schedule?: {
+    at?: string;
+    everyMinutes?: number;
+    daysOfWeek?: Array<number>;
+    lastFiredAt?: string;
+  };
+  capabilityIds: Array<string>;
+  steps: Array<{
+    id: string;
+    title: string;
+    toolId?: string;
+    capabilityId?: string;
+    skillId?: string;
+    memberId?: string;
+    roomId?: string;
+    prompt?: string;
+    input?: HostOutputSharedDefinitionSchema1;
+    when?: {
+      stepId: string;
+      path?: string;
+      operator?: "truthy" | "equals" | "notEquals" | "gt" | "gte" | "lt" | "lte";
+      value?: HostOutputSharedDefinitionSchema2;
+    };
+    approval?: {
+      mode: "allow" | "ask" | "deny";
+      reason: string;
+    };
+    flowApproval?: {
+      flowId: string;
+      stepId: string;
+    };
+  }>;
+  approvalRules: Array<{
+    mode: "allow" | "ask" | "deny";
+    reason: string;
+    id?: string;
+    toolId?: string;
+    capabilityId?: string;
+    risk?: "read" | "write" | "send" | "spend" | "delete";
+  }>;
+  createdAt: string;
+  updatedAt: string;
+  lastRun?: {
+    id: string;
+    routineId: string;
+    status: "running" | "succeeded" | "failed" | "paused_for_approval";
+    startedAt: string;
+    endedAt?: string;
+    eventCount: number;
+    error?: string;
+    problem?: {
+      incidentId: string;
+      code: string;
+    };
+  };
 };
 
 export type RunLifecycle = {
@@ -94,8 +274,8 @@ export type Question = {
   title: string;
   createdAt: string;
   updatedAt: string;
-  input?: HostOutputSharedDefinitionSchema0;
-  response?: HostOutputSharedDefinitionSchema1;
+  input?: HostOutputSharedDefinitionSchema3;
+  response?: HostOutputSharedDefinitionSchema4;
   resume?:
     | {
         type: "tool";
@@ -107,7 +287,7 @@ export type Question = {
         stepId: string;
         runId: string;
         stepOutputs?: {
-          [key: string]: HostOutputSharedDefinitionSchema2;
+          [key: string]: HostOutputSharedDefinitionSchema0;
         };
       }
     | {
@@ -140,8 +320,8 @@ export type Approval = {
   title: string;
   createdAt: string;
   updatedAt: string;
-  input?: HostOutputSharedDefinitionSchema0;
-  response?: HostOutputSharedDefinitionSchema1;
+  input?: HostOutputSharedDefinitionSchema3;
+  response?: HostOutputSharedDefinitionSchema4;
   resume?:
     | {
         type: "tool";
@@ -153,7 +333,7 @@ export type Approval = {
         stepId: string;
         runId: string;
         stepOutputs?: {
-          [key: string]: HostOutputSharedDefinitionSchema2;
+          [key: string]: HostOutputSharedDefinitionSchema0;
         };
       }
     | {
@@ -184,7 +364,7 @@ export type Approval = {
 
 export type ToolResult = {
   ok: boolean;
-  value?: HostOutputSharedDefinitionSchema3;
+  value?: HostOutputSharedDefinitionSchema5;
   error?: string;
   problem?: {
     incidentId: string;
@@ -259,7 +439,7 @@ export type Session = {
   runIds: Array<string>;
   lastUserInput?: string;
   metadata?: {
-    [key: string]: HostOutputSharedDefinitionSchema2;
+    [key: string]: HostOutputSharedDefinitionSchema0;
   };
 };
 
@@ -290,7 +470,7 @@ export type Execution = {
   questionId?: string;
   artifactId?: string;
   data?: {
-    [key: string]: HostOutputSharedDefinitionSchema2;
+    [key: string]: HostOutputSharedDefinitionSchema0;
   };
 };
 
@@ -356,7 +536,7 @@ export type RoutineRunResult = {
             };
             score?: number;
             data?: {
-              [key: string]: HostOutputSharedDefinitionSchema2;
+              [key: string]: HostOutputSharedDefinitionSchema0;
             };
           }>;
           budget: {
@@ -373,14 +553,14 @@ export type RoutineRunResult = {
         runId: string;
         at: string;
         reason?: string;
-        item?: HostOutputSharedDefinitionSchema4;
+        item?: HostOutputSharedDefinitionSchema6;
       }
     | {
         type: "compaction.finished";
         runId: string;
         at: string;
         summary?: string;
-        item?: HostOutputSharedDefinitionSchema5;
+        item?: HostOutputSharedDefinitionSchema7;
       }
     | {
         type: "model.requested";
@@ -445,7 +625,7 @@ export type RoutineRunResult = {
               };
               score?: number;
               data?: {
-                [key: string]: HostOutputSharedDefinitionSchema2;
+                [key: string]: HostOutputSharedDefinitionSchema0;
               };
             }>;
             budget: {
@@ -465,13 +645,13 @@ export type RoutineRunResult = {
             input: {
               type: "json-schema";
               schema: {
-                [key: string]: HostOutputSharedDefinitionSchema2;
+                [key: string]: HostOutputSharedDefinitionSchema0;
               };
             };
             output?: {
               type: "json-schema";
               schema: {
-                [key: string]: HostOutputSharedDefinitionSchema2;
+                [key: string]: HostOutputSharedDefinitionSchema0;
               };
             };
             permission: {
@@ -514,7 +694,7 @@ export type RoutineRunResult = {
             shell?: Array<string>;
             paths?: Array<string>;
             hooks?: {
-              [key: string]: HostOutputSharedDefinitionSchema2;
+              [key: string]: HostOutputSharedDefinitionSchema0;
             };
             source: "bundled" | "project" | "user" | "pack";
             trust: "trusted" | "untrusted";
@@ -550,7 +730,7 @@ export type RoutineRunResult = {
             };
             activities: Array<"browser" | "chat" | "local" | "api" | "computer">;
             triggers?: Array<{
-              [key: string]: HostOutputSharedDefinitionSchema2;
+              [key: string]: HostOutputSharedDefinitionSchema0;
             }>;
             tools: Array<{
               id: string;
@@ -561,13 +741,13 @@ export type RoutineRunResult = {
               input: {
                 type: "json-schema";
                 schema: {
-                  [key: string]: HostOutputSharedDefinitionSchema2;
+                  [key: string]: HostOutputSharedDefinitionSchema0;
                 };
               };
               output?: {
                 type: "json-schema";
                 schema: {
-                  [key: string]: HostOutputSharedDefinitionSchema2;
+                  [key: string]: HostOutputSharedDefinitionSchema0;
                 };
               };
               permission: {
@@ -610,7 +790,7 @@ export type RoutineRunResult = {
               shell?: Array<string>;
               paths?: Array<string>;
               hooks?: {
-                [key: string]: HostOutputSharedDefinitionSchema2;
+                [key: string]: HostOutputSharedDefinitionSchema0;
               };
               source: "bundled" | "project" | "user" | "pack";
               trust: "trusted" | "untrusted";
@@ -668,7 +848,7 @@ export type RoutineRunResult = {
         at: string;
         name: string;
         data: {
-          [key: string]: HostOutputSharedDefinitionSchema2;
+          [key: string]: HostOutputSharedDefinitionSchema0;
         };
       }
     | {
@@ -710,7 +890,7 @@ export type RoutineRunResult = {
         text: string;
         at: string;
         data?: {
-          [key: string]: HostOutputSharedDefinitionSchema2;
+          [key: string]: HostOutputSharedDefinitionSchema0;
         };
       }
     | {
@@ -744,7 +924,7 @@ export type RoutineRunResult = {
           shell?: Array<string>;
           paths?: Array<string>;
           hooks?: {
-            [key: string]: HostOutputSharedDefinitionSchema2;
+            [key: string]: HostOutputSharedDefinitionSchema0;
           };
           source: "bundled" | "project" | "user" | "pack";
           trust: "trusted" | "untrusted";
@@ -785,7 +965,7 @@ export type RoutineRunResult = {
           shell?: Array<string>;
           paths?: Array<string>;
           hooks?: {
-            [key: string]: HostOutputSharedDefinitionSchema2;
+            [key: string]: HostOutputSharedDefinitionSchema0;
           };
           source: "bundled" | "project" | "user" | "pack";
           trust: "trusted" | "untrusted";
@@ -825,14 +1005,14 @@ export type RoutineRunResult = {
         runId: string;
         toolId: string;
         callId?: string;
-        input: HostOutputSharedDefinitionSchema6;
+        input: HostOutputSharedDefinitionSchema8;
       }
     | {
         type: "tool.progress";
         runId: string;
         toolId: string;
         callId?: string;
-        update: HostOutputSharedDefinitionSchema7;
+        update: HostOutputSharedDefinitionSchema9;
       }
     | {
         type: "tool.finished";
@@ -870,7 +1050,7 @@ export type RoutineRunResult = {
           text: string;
           status?: string;
           raw?: {
-            [key: string]: HostOutputSharedDefinitionSchema2;
+            [key: string]: HostOutputSharedDefinitionSchema0;
           };
           updatedAt: string;
           source?:
@@ -926,7 +1106,7 @@ export type RoutineRunResult = {
           };
           tags: Array<string>;
           data?: {
-            [key: string]: HostOutputSharedDefinitionSchema2;
+            [key: string]: HostOutputSharedDefinitionSchema0;
           };
           createdAt: string;
           updatedAt: string;
@@ -989,7 +1169,7 @@ export type Artifact = {
   version?: number;
   tags: Array<string>;
   data: {
-    [key: string]: HostOutputSharedDefinitionSchema2;
+    [key: string]: HostOutputSharedDefinitionSchema0;
   };
   assets?: Array<{
     kind: "image" | "audio" | "video" | "file" | "url" | "text";
@@ -998,7 +1178,7 @@ export type Artifact = {
     title?: string;
     mimeType?: string;
     metadata?: {
-      [key: string]: HostOutputSharedDefinitionSchema2;
+      [key: string]: HostOutputSharedDefinitionSchema0;
     };
   }>;
   preview?: {
@@ -1021,7 +1201,7 @@ export type Artifact = {
   derivedFrom?: Array<string>;
   lineage?: Array<string>;
   provenance?: {
-    [key: string]: HostOutputSharedDefinitionSchema2;
+    [key: string]: HostOutputSharedDefinitionSchema0;
   };
 };
 
@@ -1236,6 +1416,17 @@ export type RoomError = {
   [key: string]: unknown;
 };
 
+export type ExtensionSkillImportResponse200 = {
+  ok: boolean;
+  result: {
+    ok: boolean;
+    action: string;
+    records: Array<ExtensionDeployment>;
+    warnings: Array<string>;
+  };
+  extensions: ExtensionInventory;
+};
+
 export type RunEventPage = {
   ok: true;
   events: Array<
@@ -1286,7 +1477,7 @@ export type RunEventPage = {
             };
             score?: number;
             data?: {
-              [key: string]: HostOutputSharedDefinitionSchema2;
+              [key: string]: HostOutputSharedDefinitionSchema0;
             };
           }>;
           budget: {
@@ -1303,14 +1494,14 @@ export type RunEventPage = {
         runId: string;
         at: string;
         reason?: string;
-        item?: HostOutputSharedDefinitionSchema4;
+        item?: HostOutputSharedDefinitionSchema6;
       }
     | {
         type: "compaction.finished";
         runId: string;
         at: string;
         summary?: string;
-        item?: HostOutputSharedDefinitionSchema5;
+        item?: HostOutputSharedDefinitionSchema7;
       }
     | {
         type: "model.requested";
@@ -1375,7 +1566,7 @@ export type RunEventPage = {
               };
               score?: number;
               data?: {
-                [key: string]: HostOutputSharedDefinitionSchema2;
+                [key: string]: HostOutputSharedDefinitionSchema0;
               };
             }>;
             budget: {
@@ -1395,13 +1586,13 @@ export type RunEventPage = {
             input: {
               type: "json-schema";
               schema: {
-                [key: string]: HostOutputSharedDefinitionSchema2;
+                [key: string]: HostOutputSharedDefinitionSchema0;
               };
             };
             output?: {
               type: "json-schema";
               schema: {
-                [key: string]: HostOutputSharedDefinitionSchema2;
+                [key: string]: HostOutputSharedDefinitionSchema0;
               };
             };
             permission: {
@@ -1444,7 +1635,7 @@ export type RunEventPage = {
             shell?: Array<string>;
             paths?: Array<string>;
             hooks?: {
-              [key: string]: HostOutputSharedDefinitionSchema2;
+              [key: string]: HostOutputSharedDefinitionSchema0;
             };
             source: "bundled" | "project" | "user" | "pack";
             trust: "trusted" | "untrusted";
@@ -1480,7 +1671,7 @@ export type RunEventPage = {
             };
             activities: Array<"browser" | "chat" | "local" | "api" | "computer">;
             triggers?: Array<{
-              [key: string]: HostOutputSharedDefinitionSchema2;
+              [key: string]: HostOutputSharedDefinitionSchema0;
             }>;
             tools: Array<{
               id: string;
@@ -1491,13 +1682,13 @@ export type RunEventPage = {
               input: {
                 type: "json-schema";
                 schema: {
-                  [key: string]: HostOutputSharedDefinitionSchema2;
+                  [key: string]: HostOutputSharedDefinitionSchema0;
                 };
               };
               output?: {
                 type: "json-schema";
                 schema: {
-                  [key: string]: HostOutputSharedDefinitionSchema2;
+                  [key: string]: HostOutputSharedDefinitionSchema0;
                 };
               };
               permission: {
@@ -1540,7 +1731,7 @@ export type RunEventPage = {
               shell?: Array<string>;
               paths?: Array<string>;
               hooks?: {
-                [key: string]: HostOutputSharedDefinitionSchema2;
+                [key: string]: HostOutputSharedDefinitionSchema0;
               };
               source: "bundled" | "project" | "user" | "pack";
               trust: "trusted" | "untrusted";
@@ -1598,7 +1789,7 @@ export type RunEventPage = {
         at: string;
         name: string;
         data: {
-          [key: string]: HostOutputSharedDefinitionSchema2;
+          [key: string]: HostOutputSharedDefinitionSchema0;
         };
       }
     | {
@@ -1640,7 +1831,7 @@ export type RunEventPage = {
         text: string;
         at: string;
         data?: {
-          [key: string]: HostOutputSharedDefinitionSchema2;
+          [key: string]: HostOutputSharedDefinitionSchema0;
         };
       }
     | {
@@ -1674,7 +1865,7 @@ export type RunEventPage = {
           shell?: Array<string>;
           paths?: Array<string>;
           hooks?: {
-            [key: string]: HostOutputSharedDefinitionSchema2;
+            [key: string]: HostOutputSharedDefinitionSchema0;
           };
           source: "bundled" | "project" | "user" | "pack";
           trust: "trusted" | "untrusted";
@@ -1715,7 +1906,7 @@ export type RunEventPage = {
           shell?: Array<string>;
           paths?: Array<string>;
           hooks?: {
-            [key: string]: HostOutputSharedDefinitionSchema2;
+            [key: string]: HostOutputSharedDefinitionSchema0;
           };
           source: "bundled" | "project" | "user" | "pack";
           trust: "trusted" | "untrusted";
@@ -1755,14 +1946,14 @@ export type RunEventPage = {
         runId: string;
         toolId: string;
         callId?: string;
-        input: HostOutputSharedDefinitionSchema6;
+        input: HostOutputSharedDefinitionSchema8;
       }
     | {
         type: "tool.progress";
         runId: string;
         toolId: string;
         callId?: string;
-        update: HostOutputSharedDefinitionSchema7;
+        update: HostOutputSharedDefinitionSchema9;
       }
     | {
         type: "tool.finished";
@@ -1800,7 +1991,7 @@ export type RunEventPage = {
           text: string;
           status?: string;
           raw?: {
-            [key: string]: HostOutputSharedDefinitionSchema2;
+            [key: string]: HostOutputSharedDefinitionSchema0;
           };
           updatedAt: string;
           source?:
@@ -1856,7 +2047,7 @@ export type RunEventPage = {
           };
           tags: Array<string>;
           data?: {
-            [key: string]: HostOutputSharedDefinitionSchema2;
+            [key: string]: HostOutputSharedDefinitionSchema0;
           };
           createdAt: string;
           updatedAt: string;
@@ -2245,6 +2436,1462 @@ export type HostOutputSharedDefinitionSchema7 =
   | {
       [key: string]: HostOutputSharedDefinitionSchema7;
     };
+
+export type HostOutputSharedDefinitionSchema8 =
+  | string
+  | number
+  | boolean
+  | null
+  | Array<HostOutputSharedDefinitionSchema8>
+  | {
+      [key: string]: HostOutputSharedDefinitionSchema8;
+    };
+
+export type HostOutputSharedDefinitionSchema9 =
+  | string
+  | number
+  | boolean
+  | null
+  | Array<HostOutputSharedDefinitionSchema9>
+  | {
+      [key: string]: HostOutputSharedDefinitionSchema9;
+    };
+
+export type ExtensionExtensionListData = {
+  body?: never;
+  path?: never;
+  query?: {
+    includeSystem?: boolean | string;
+  };
+  url: "/extensions";
+};
+
+export type ExtensionExtensionListErrors = {
+  /**
+   * The input is invalid.
+   */
+  400: HostError;
+  /**
+   * A valid Host session or token is required.
+   */
+  401: HostError;
+  /**
+   * The request is not authorized.
+   */
+  403: HostError;
+  /**
+   * The Host could not complete the operation.
+   */
+  500: HostError;
+  /**
+   * The Host or authenticated session is temporarily unavailable.
+   */
+  503: HostError;
+};
+
+export type ExtensionExtensionListError = ExtensionExtensionListErrors[keyof ExtensionExtensionListErrors];
+
+export type ExtensionExtensionListResponses = {
+  /**
+   * Successful response.
+   */
+  200: {
+    ok: true;
+    extensions: ExtensionInventory;
+  };
+};
+
+export type ExtensionExtensionListResponse = ExtensionExtensionListResponses[keyof ExtensionExtensionListResponses];
+
+export type ExtensionSkillImportData = {
+  body: {
+    sourcePath?: string;
+    deploymentId?: string;
+    itemId?: string;
+    name?: string;
+    replace?: boolean;
+  };
+  path?: never;
+  query?: {
+    includeSystem?: boolean | string;
+  };
+  url: "/extensions/skills/import";
+};
+
+export type ExtensionSkillImportErrors = {
+  /**
+   * Extension action rejected; inspect result warnings.
+   */
+  400: ExtensionSkillImportResponse200 | HostError;
+  /**
+   * A valid Host session or token is required.
+   */
+  401: HostError;
+  /**
+   * The request is not authorized.
+   */
+  403: HostError;
+  /**
+   * The Host could not complete the operation.
+   */
+  500: HostError;
+  /**
+   * The Host or authenticated session is temporarily unavailable.
+   */
+  503: HostError;
+};
+
+export type ExtensionSkillImportError = ExtensionSkillImportErrors[keyof ExtensionSkillImportErrors];
+
+export type ExtensionSkillImportResponses = {
+  /**
+   * Successful response.
+   */
+  200: {
+    ok: boolean;
+    result: {
+      ok: boolean;
+      action: string;
+      records: Array<ExtensionDeployment>;
+      warnings: Array<string>;
+    };
+    extensions: ExtensionInventory;
+  };
+};
+
+export type ExtensionSkillImportResponse = ExtensionSkillImportResponses[keyof ExtensionSkillImportResponses];
+
+export type ExtensionSkillPublishData = {
+  body: {
+    sourcePath?: string;
+    deploymentId?: string;
+    itemId?: string;
+    name?: string;
+    replace?: boolean;
+    librarySkillId?: string;
+    targetKernelIds?: Array<"codex" | "claude-code" | "hermes" | "pi" | "openclaw" | "opencode" | "kimi">;
+    scope?: "project" | "user";
+  };
+  path?: never;
+  query?: {
+    includeSystem?: boolean | string;
+  };
+  url: "/extensions/skills/publish";
+};
+
+export type ExtensionSkillPublishErrors = {
+  /**
+   * Extension action rejected; inspect result warnings.
+   */
+  400: ExtensionSkillImportResponse200 | HostError;
+  /**
+   * A valid Host session or token is required.
+   */
+  401: HostError;
+  /**
+   * The request is not authorized.
+   */
+  403: HostError;
+  /**
+   * The Host could not complete the operation.
+   */
+  500: HostError;
+  /**
+   * The Host or authenticated session is temporarily unavailable.
+   */
+  503: HostError;
+};
+
+export type ExtensionSkillPublishError = ExtensionSkillPublishErrors[keyof ExtensionSkillPublishErrors];
+
+export type ExtensionSkillPublishResponses = {
+  /**
+   * Successful response.
+   */
+  200: {
+    ok: boolean;
+    result: {
+      ok: boolean;
+      action: string;
+      records: Array<ExtensionDeployment>;
+      warnings: Array<string>;
+    };
+    extensions: ExtensionInventory;
+  };
+};
+
+export type ExtensionSkillPublishResponse = ExtensionSkillPublishResponses[keyof ExtensionSkillPublishResponses];
+
+export type ExtensionSkillRepublishData = {
+  body: {
+    deploymentIds?: Array<string>;
+    itemId?: string;
+    name?: string;
+    targetKernelIds?: Array<"codex" | "claude-code" | "hermes" | "pi" | "openclaw" | "opencode" | "kimi">;
+  };
+  path?: never;
+  query?: {
+    includeSystem?: boolean | string;
+  };
+  url: "/extensions/skills/republish";
+};
+
+export type ExtensionSkillRepublishErrors = {
+  /**
+   * Extension action rejected; inspect result warnings.
+   */
+  400: ExtensionSkillImportResponse200 | HostError;
+  /**
+   * A valid Host session or token is required.
+   */
+  401: HostError;
+  /**
+   * The request is not authorized.
+   */
+  403: HostError;
+  /**
+   * The Host could not complete the operation.
+   */
+  500: HostError;
+  /**
+   * The Host or authenticated session is temporarily unavailable.
+   */
+  503: HostError;
+};
+
+export type ExtensionSkillRepublishError = ExtensionSkillRepublishErrors[keyof ExtensionSkillRepublishErrors];
+
+export type ExtensionSkillRepublishResponses = {
+  /**
+   * Successful response.
+   */
+  200: {
+    ok: boolean;
+    result: {
+      ok: boolean;
+      action: string;
+      records: Array<ExtensionDeployment>;
+      warnings: Array<string>;
+    };
+    extensions: ExtensionInventory;
+  };
+};
+
+export type ExtensionSkillRepublishResponse = ExtensionSkillRepublishResponses[keyof ExtensionSkillRepublishResponses];
+
+export type ExtensionSkillUnpublishData = {
+  body: {
+    deploymentIds?: Array<string>;
+    itemId?: string;
+    name?: string;
+    targetKernelIds?: Array<"codex" | "claude-code" | "hermes" | "pi" | "openclaw" | "opencode" | "kimi">;
+    forceExternal?: boolean;
+    deleteLibrary?: boolean;
+  };
+  path?: never;
+  query?: {
+    includeSystem?: boolean | string;
+  };
+  url: "/extensions/skills/unpublish";
+};
+
+export type ExtensionSkillUnpublishErrors = {
+  /**
+   * Extension action rejected; inspect result warnings.
+   */
+  400: ExtensionSkillImportResponse200 | HostError;
+  /**
+   * A valid Host session or token is required.
+   */
+  401: HostError;
+  /**
+   * The request is not authorized.
+   */
+  403: HostError;
+  /**
+   * The Host could not complete the operation.
+   */
+  500: HostError;
+  /**
+   * The Host or authenticated session is temporarily unavailable.
+   */
+  503: HostError;
+};
+
+export type ExtensionSkillUnpublishError = ExtensionSkillUnpublishErrors[keyof ExtensionSkillUnpublishErrors];
+
+export type ExtensionSkillUnpublishResponses = {
+  /**
+   * Successful response.
+   */
+  200: {
+    ok: boolean;
+    result: {
+      ok: boolean;
+      action: string;
+      records: Array<ExtensionDeployment>;
+      warnings: Array<string>;
+    };
+    extensions: ExtensionInventory;
+  };
+};
+
+export type ExtensionSkillUnpublishResponse = ExtensionSkillUnpublishResponses[keyof ExtensionSkillUnpublishResponses];
+
+export type ExtensionDeploymentEnableData = {
+  body: {
+    deploymentIds?: Array<string>;
+    itemId?: string;
+    kind?: "app" | "skill" | "mcp" | "plugin" | "hook" | "tool" | "cli";
+    forceExternal?: boolean;
+    reason?: string;
+    enabled?: boolean;
+  };
+  path?: never;
+  query?: {
+    includeSystem?: boolean | string;
+  };
+  url: "/extensions/deployments/enable";
+};
+
+export type ExtensionDeploymentEnableErrors = {
+  /**
+   * Extension action rejected; inspect result warnings.
+   */
+  400: ExtensionSkillImportResponse200 | HostError;
+  /**
+   * A valid Host session or token is required.
+   */
+  401: HostError;
+  /**
+   * The request is not authorized.
+   */
+  403: HostError;
+  /**
+   * The Host could not complete the operation.
+   */
+  500: HostError;
+  /**
+   * The Host or authenticated session is temporarily unavailable.
+   */
+  503: HostError;
+};
+
+export type ExtensionDeploymentEnableError = ExtensionDeploymentEnableErrors[keyof ExtensionDeploymentEnableErrors];
+
+export type ExtensionDeploymentEnableResponses = {
+  /**
+   * Successful response.
+   */
+  200: {
+    ok: boolean;
+    result: {
+      ok: boolean;
+      action: string;
+      records: Array<ExtensionDeployment>;
+      warnings: Array<string>;
+    };
+    extensions: ExtensionInventory;
+  };
+};
+
+export type ExtensionDeploymentEnableResponse =
+  ExtensionDeploymentEnableResponses[keyof ExtensionDeploymentEnableResponses];
+
+export type ExtensionDeploymentDisableData = {
+  body: {
+    deploymentIds?: Array<string>;
+    itemId?: string;
+    kind?: "app" | "skill" | "mcp" | "plugin" | "hook" | "tool" | "cli";
+    forceExternal?: boolean;
+    reason?: string;
+  };
+  path?: never;
+  query?: {
+    includeSystem?: boolean | string;
+  };
+  url: "/extensions/deployments/disable";
+};
+
+export type ExtensionDeploymentDisableErrors = {
+  /**
+   * Extension action rejected; inspect result warnings.
+   */
+  400: ExtensionSkillImportResponse200 | HostError;
+  /**
+   * A valid Host session or token is required.
+   */
+  401: HostError;
+  /**
+   * The request is not authorized.
+   */
+  403: HostError;
+  /**
+   * The Host could not complete the operation.
+   */
+  500: HostError;
+  /**
+   * The Host or authenticated session is temporarily unavailable.
+   */
+  503: HostError;
+};
+
+export type ExtensionDeploymentDisableError = ExtensionDeploymentDisableErrors[keyof ExtensionDeploymentDisableErrors];
+
+export type ExtensionDeploymentDisableResponses = {
+  /**
+   * Successful response.
+   */
+  200: {
+    ok: boolean;
+    result: {
+      ok: boolean;
+      action: string;
+      records: Array<ExtensionDeployment>;
+      warnings: Array<string>;
+    };
+    extensions: ExtensionInventory;
+  };
+};
+
+export type ExtensionDeploymentDisableResponse =
+  ExtensionDeploymentDisableResponses[keyof ExtensionDeploymentDisableResponses];
+
+export type ExtensionDeploymentDeleteData = {
+  body: {
+    deploymentIds?: Array<string>;
+    itemId?: string;
+    kind?: "app" | "skill" | "mcp" | "plugin" | "hook" | "tool" | "cli";
+    forceExternal?: boolean;
+    reason?: string;
+    deleteLibrary?: boolean;
+  };
+  path?: never;
+  query?: {
+    includeSystem?: boolean | string;
+  };
+  url: "/extensions/deployments/delete";
+};
+
+export type ExtensionDeploymentDeleteErrors = {
+  /**
+   * Extension action rejected; inspect result warnings.
+   */
+  400: ExtensionSkillImportResponse200 | HostError;
+  /**
+   * A valid Host session or token is required.
+   */
+  401: HostError;
+  /**
+   * The request is not authorized.
+   */
+  403: HostError;
+  /**
+   * The Host could not complete the operation.
+   */
+  500: HostError;
+  /**
+   * The Host or authenticated session is temporarily unavailable.
+   */
+  503: HostError;
+};
+
+export type ExtensionDeploymentDeleteError = ExtensionDeploymentDeleteErrors[keyof ExtensionDeploymentDeleteErrors];
+
+export type ExtensionDeploymentDeleteResponses = {
+  /**
+   * Successful response.
+   */
+  200: {
+    ok: boolean;
+    result: {
+      ok: boolean;
+      action: string;
+      records: Array<ExtensionDeployment>;
+      warnings: Array<string>;
+    };
+    extensions: ExtensionInventory;
+  };
+};
+
+export type ExtensionDeploymentDeleteResponse =
+  ExtensionDeploymentDeleteResponses[keyof ExtensionDeploymentDeleteResponses];
+
+export type RoutineRoutineListData = {
+  body?: never;
+  path?: never;
+  query?: {
+    /**
+     * Defaults to 100; values above 500 are capped; invalid values use the default.
+     */
+    limit?: number | string;
+    status?: string;
+  };
+  url: "/routines";
+};
+
+export type RoutineRoutineListErrors = {
+  /**
+   * The input is invalid.
+   */
+  400: HostError;
+  /**
+   * A valid Host session or token is required.
+   */
+  401: HostError;
+  /**
+   * The request is not authorized.
+   */
+  403: HostError;
+  /**
+   * Error response.
+   */
+  404: HostError;
+  /**
+   * Error response.
+   */
+  409: HostError;
+  /**
+   * The Host could not complete the operation.
+   */
+  500: HostError;
+  /**
+   * The Host or authenticated session is temporarily unavailable.
+   */
+  503: HostError;
+};
+
+export type RoutineRoutineListError = RoutineRoutineListErrors[keyof RoutineRoutineListErrors];
+
+export type RoutineRoutineListResponses = {
+  /**
+   * Successful response.
+   */
+  200: {
+    ok: true;
+    routines: Array<Routine>;
+  };
+};
+
+export type RoutineRoutineListResponse = RoutineRoutineListResponses[keyof RoutineRoutineListResponses];
+
+export type RoutineRoutineCreateData = {
+  body: {
+    title: string;
+    description?: string;
+    status?: "draft" | "active";
+    trigger?: "manual" | "schedule" | "event";
+    schedule?: {
+      at?: string;
+      everyMinutes?: number | string;
+      daysOfWeek?: Array<number>;
+    };
+    steps: Array<{
+      id?: string;
+      title?: string;
+      toolId?: string;
+      capabilityId?: string;
+      skillId?: string;
+      memberId?: string;
+      roomId?: string;
+      prompt?: string;
+      input?: HostInputSharedDefinitionSchema0;
+      when?: {
+        stepId: string;
+        path?: string;
+        operator?: "truthy" | "equals" | "notEquals" | "gt" | "gte" | "lt" | "lte";
+        value?: HostInputSharedDefinitionSchema1;
+      };
+      approval?: {
+        mode: "allow" | "ask" | "deny";
+        reason: string;
+      };
+      flowApproval?: {
+        flowId: string;
+        stepId: string;
+      };
+    }>;
+  };
+  path?: never;
+  query?: never;
+  url: "/routines";
+};
+
+export type RoutineRoutineCreateErrors = {
+  /**
+   * The input is invalid.
+   */
+  400: HostError;
+  /**
+   * A valid Host session or token is required.
+   */
+  401: HostError;
+  /**
+   * The request is not authorized.
+   */
+  403: HostError;
+  /**
+   * Error response.
+   */
+  404: HostError;
+  /**
+   * Error response.
+   */
+  409: HostError;
+  /**
+   * The Host could not complete the operation.
+   */
+  500: HostError;
+  /**
+   * The Host or authenticated session is temporarily unavailable.
+   */
+  503: HostError;
+};
+
+export type RoutineRoutineCreateError = RoutineRoutineCreateErrors[keyof RoutineRoutineCreateErrors];
+
+export type RoutineRoutineCreateResponses = {
+  /**
+   * Successful response.
+   */
+  200: {
+    ok: true;
+    routine: Routine;
+  };
+};
+
+export type RoutineRoutineCreateResponse = RoutineRoutineCreateResponses[keyof RoutineRoutineCreateResponses];
+
+export type RoutineRoutineImportData = {
+  body: {
+    content?: string;
+    knowledgeId?: string;
+  };
+  path?: never;
+  query?: never;
+  url: "/routines/import";
+};
+
+export type RoutineRoutineImportErrors = {
+  /**
+   * The input is invalid.
+   */
+  400: HostError;
+  /**
+   * A valid Host session or token is required.
+   */
+  401: HostError;
+  /**
+   * The request is not authorized.
+   */
+  403: HostError;
+  /**
+   * Error response.
+   */
+  404: HostError;
+  /**
+   * Error response.
+   */
+  409: HostError;
+  /**
+   * The Host could not complete the operation.
+   */
+  500: HostError;
+  /**
+   * The Host or authenticated session is temporarily unavailable.
+   */
+  503: HostError;
+};
+
+export type RoutineRoutineImportError = RoutineRoutineImportErrors[keyof RoutineRoutineImportErrors];
+
+export type RoutineRoutineImportResponses = {
+  /**
+   * Successful response.
+   */
+  200: {
+    ok: true;
+    routine: Routine;
+  };
+};
+
+export type RoutineRoutineImportResponse = RoutineRoutineImportResponses[keyof RoutineRoutineImportResponses];
+
+export type RoutineRoutineScheduleData = {
+  body: {
+    trigger?: "manual" | "schedule";
+    enabled?: boolean;
+    schedule?: {
+      at?: string;
+      everyMinutes?: number | string;
+      daysOfWeek?: Array<number>;
+    };
+  };
+  path: {
+    routineId: string;
+  };
+  query?: never;
+  url: "/routines/{routineId}/schedule";
+};
+
+export type RoutineRoutineScheduleErrors = {
+  /**
+   * The input is invalid.
+   */
+  400: HostError;
+  /**
+   * A valid Host session or token is required.
+   */
+  401: HostError;
+  /**
+   * The request is not authorized.
+   */
+  403: HostError;
+  /**
+   * Error response.
+   */
+  404: HostError;
+  /**
+   * Error response.
+   */
+  409: HostError;
+  /**
+   * The Host could not complete the operation.
+   */
+  500: HostError;
+  /**
+   * The Host or authenticated session is temporarily unavailable.
+   */
+  503: HostError;
+};
+
+export type RoutineRoutineScheduleError = RoutineRoutineScheduleErrors[keyof RoutineRoutineScheduleErrors];
+
+export type RoutineRoutineScheduleResponses = {
+  /**
+   * Successful response.
+   */
+  200: {
+    ok: true;
+    routine: Routine;
+  };
+};
+
+export type RoutineRoutineScheduleResponse = RoutineRoutineScheduleResponses[keyof RoutineRoutineScheduleResponses];
+
+export type RoutineRoutineRunData = {
+  body?: never;
+  path: {
+    routineId: string;
+  };
+  query?: never;
+  url: "/routines/{routineId}/run";
+};
+
+export type RoutineRoutineRunErrors = {
+  /**
+   * The input is invalid.
+   */
+  400: HostError;
+  /**
+   * A valid Host session or token is required.
+   */
+  401: HostError;
+  /**
+   * The request is not authorized.
+   */
+  403: HostError;
+  /**
+   * Error response.
+   */
+  404: HostError;
+  /**
+   * Error response.
+   */
+  409: HostError;
+  /**
+   * The Host could not complete the operation.
+   */
+  500: HostError;
+  /**
+   * The Host or authenticated session is temporarily unavailable.
+   */
+  503: HostError;
+};
+
+export type RoutineRoutineRunError = RoutineRoutineRunErrors[keyof RoutineRoutineRunErrors];
+
+export type RoutineRoutineRunResponses = {
+  /**
+   * Successful response.
+   */
+  200: {
+    summary: {
+      id: string;
+      routineId: string;
+      status: "running" | "succeeded" | "failed" | "paused_for_approval";
+      startedAt: string;
+      endedAt?: string;
+      eventCount: number;
+      error?: string;
+      problem?: {
+        incidentId: string;
+        code: string;
+      };
+    };
+    events: Array<
+      | {
+          type: "turn.started";
+          runId: string;
+          at: string;
+        }
+      | {
+          type: "context.assembled";
+          runId: string;
+          context: {
+            id: string;
+            createdAt: string;
+            summary: string;
+            promptBlock: string;
+            hostState?: Array<{
+              id: string;
+              text: string;
+            }>;
+            turnInstructions?: Array<{
+              id: string;
+              text: string;
+            }>;
+            items: Array<{
+              id: string;
+              kind:
+                | "page"
+                | "selection"
+                | "attachment"
+                | "computer"
+                | "artifact"
+                | "session"
+                | "execution"
+                | "task"
+                | "knowledge"
+                | "memory"
+                | "routine"
+                | "permission"
+                | "skill";
+              title: string;
+              text: string;
+              source?: {
+                title?: string;
+                url?: string;
+                locator?: string;
+                quote?: string;
+              };
+              score?: number;
+              data?: {
+                [key: string]: HostOutputSharedDefinitionSchema0;
+              };
+            }>;
+            budget: {
+              maxItems: number;
+              usedItems: number;
+              maxCharacters: number;
+              usedCharacters: number;
+              truncated: boolean;
+            };
+          };
+        }
+      | {
+          type: "compaction.started";
+          runId: string;
+          at: string;
+          reason?: string;
+          item?: HostOutputSharedDefinitionSchema6;
+        }
+      | {
+          type: "compaction.finished";
+          runId: string;
+          at: string;
+          summary?: string;
+          item?: HostOutputSharedDefinitionSchema7;
+        }
+      | {
+          type: "model.requested";
+          runId: string;
+          request: {
+            systemPrompt: string;
+            userInput: string;
+            modelId?: string;
+            session?: {
+              provider: string;
+              sessionId: string;
+              persistent: boolean;
+              priorMessageCount: number;
+              priorMessages: Array<{
+                role: "system" | "user" | "assistant" | "tool";
+                content: string;
+                name?: string;
+              }>;
+              nativeSessionId?: string;
+            };
+            messages?: Array<{
+              role: "system" | "user" | "assistant" | "tool";
+              content: string;
+              name?: string;
+            }>;
+            context?: {
+              id: string;
+              createdAt: string;
+              summary: string;
+              promptBlock: string;
+              hostState?: Array<{
+                id: string;
+                text: string;
+              }>;
+              turnInstructions?: Array<{
+                id: string;
+                text: string;
+              }>;
+              items: Array<{
+                id: string;
+                kind:
+                  | "page"
+                  | "selection"
+                  | "attachment"
+                  | "computer"
+                  | "artifact"
+                  | "session"
+                  | "execution"
+                  | "task"
+                  | "knowledge"
+                  | "memory"
+                  | "routine"
+                  | "permission"
+                  | "skill";
+                title: string;
+                text: string;
+                source?: {
+                  title?: string;
+                  url?: string;
+                  locator?: string;
+                  quote?: string;
+                };
+                score?: number;
+                data?: {
+                  [key: string]: HostOutputSharedDefinitionSchema0;
+                };
+              }>;
+              budget: {
+                maxItems: number;
+                usedItems: number;
+                maxCharacters: number;
+                usedCharacters: number;
+                truncated: boolean;
+              };
+            };
+            tools: Array<{
+              id: string;
+              title: string;
+              description: string;
+              activity: "browser" | "chat" | "local" | "api" | "computer";
+              risk: "read" | "write" | "send" | "spend" | "delete";
+              input: {
+                type: "json-schema";
+                schema: {
+                  [key: string]: HostOutputSharedDefinitionSchema0;
+                };
+              };
+              output?: {
+                type: "json-schema";
+                schema: {
+                  [key: string]: HostOutputSharedDefinitionSchema0;
+                };
+              };
+              permission: {
+                mode: "allow" | "ask" | "deny";
+                reason: string;
+              };
+              liveness?: {
+                cancellation: "run-signal" | "none";
+                deadlineSource: "kernel-native" | "upstream-service" | "business-rule" | "none";
+                abandonOutcome: "outcome-unknown";
+                terminalConfirmation: "tool-result";
+                cancellationGraceMs?: number;
+              };
+            }>;
+            skills: Array<{
+              id: string;
+              name: string;
+              aliases?: Array<string>;
+              title: string;
+              description: string;
+              whenToUse?: string;
+              format: "markdown-v1" | "markdown-v2";
+              entry: string;
+              skillRoot: string;
+              activities: Array<"browser" | "chat" | "local" | "api" | "computer">;
+              toolIds: Array<string>;
+              memoryHooks: Array<{
+                kind: string;
+                mode: "direct" | "propose" | "ask";
+                reason: string;
+              }>;
+              allowedTools: Array<string>;
+              argumentHint?: string;
+              arguments?: Array<string>;
+              userInvocable: boolean;
+              disableModelInvocation: boolean;
+              model?: string;
+              effort?: string;
+              context: "inline" | "fork";
+              shell?: Array<string>;
+              paths?: Array<string>;
+              hooks?: {
+                [key: string]: HostOutputSharedDefinitionSchema0;
+              };
+              source: "bundled" | "project" | "user" | "pack";
+              trust: "trusted" | "untrusted";
+              packId?: string;
+              capabilityId?: string;
+              contentLength?: number;
+              tags?: Array<string>;
+            }>;
+            packs: Array<{
+              id: string;
+              title: string;
+              description: string;
+              source: "bundled" | "project" | "user" | "pack";
+              trust: "trusted" | "untrusted";
+              rootDir: string;
+              skillIds: Array<string>;
+              toolIds: Array<string>;
+              capabilityIds: Array<string>;
+              artifactTypes: Array<string>;
+              referenceAssetDirs?: Array<string>;
+              tags?: Array<string>;
+            }>;
+            capabilities: Array<{
+              id: string;
+              title: string;
+              version: string;
+              description: string;
+              source?: {
+                kind: "native" | "wrapped-open-source" | "mcp" | "external-api" | "user-routine";
+                project?: string;
+                url?: string;
+                license?: string;
+              };
+              activities: Array<"browser" | "chat" | "local" | "api" | "computer">;
+              triggers?: Array<{
+                [key: string]: HostOutputSharedDefinitionSchema0;
+              }>;
+              tools: Array<{
+                id: string;
+                title: string;
+                description: string;
+                activity: "browser" | "chat" | "local" | "api" | "computer";
+                risk: "read" | "write" | "send" | "spend" | "delete";
+                input: {
+                  type: "json-schema";
+                  schema: {
+                    [key: string]: HostOutputSharedDefinitionSchema0;
+                  };
+                };
+                output?: {
+                  type: "json-schema";
+                  schema: {
+                    [key: string]: HostOutputSharedDefinitionSchema0;
+                  };
+                };
+                permission: {
+                  mode: "allow" | "ask" | "deny";
+                  reason: string;
+                };
+                liveness?: {
+                  cancellation: "run-signal" | "none";
+                  deadlineSource: "kernel-native" | "upstream-service" | "business-rule" | "none";
+                  abandonOutcome: "outcome-unknown";
+                  terminalConfirmation: "tool-result";
+                  cancellationGraceMs?: number;
+                };
+              }>;
+              skills: Array<{
+                id: string;
+                name: string;
+                aliases?: Array<string>;
+                title: string;
+                description: string;
+                whenToUse?: string;
+                format: "markdown-v1" | "markdown-v2";
+                entry: string;
+                skillRoot: string;
+                activities: Array<"browser" | "chat" | "local" | "api" | "computer">;
+                toolIds: Array<string>;
+                memoryHooks: Array<{
+                  kind: string;
+                  mode: "direct" | "propose" | "ask";
+                  reason: string;
+                }>;
+                allowedTools: Array<string>;
+                argumentHint?: string;
+                arguments?: Array<string>;
+                userInvocable: boolean;
+                disableModelInvocation: boolean;
+                model?: string;
+                effort?: string;
+                context: "inline" | "fork";
+                shell?: Array<string>;
+                paths?: Array<string>;
+                hooks?: {
+                  [key: string]: HostOutputSharedDefinitionSchema0;
+                };
+                source: "bundled" | "project" | "user" | "pack";
+                trust: "trusted" | "untrusted";
+                packId?: string;
+                capabilityId?: string;
+                contentLength?: number;
+                tags?: Array<string>;
+              }>;
+              memoryHooks: Array<{
+                kind: string;
+                mode: "direct" | "propose" | "ask";
+                reason: string;
+              }>;
+              policy: Array<{
+                mode: "allow" | "ask" | "deny";
+                reason: string;
+                id?: string;
+                toolId?: string;
+                capabilityId?: string;
+                risk?: "read" | "write" | "send" | "spend" | "delete";
+              }>;
+              sandbox?: "read-only" | "workspace-write" | "danger-full-access";
+              evals?: Array<{
+                id: string;
+                description: string;
+                input: string;
+                expectedBehavior: string;
+              }>;
+            }>;
+          };
+        }
+      | {
+          type: "model.response";
+          runId: string;
+          response: {
+            text: string;
+            usage?: {
+              inputTokens?: number;
+              outputTokens?: number;
+              totalTokens?: number;
+              costUsd?: number;
+              latencyMs?: number;
+              contextWindowSize?: number;
+              contextUsedTokens?: number;
+              contextBreakdown?: Array<{
+                category: string;
+                tokens: number;
+              }>;
+            };
+          };
+        }
+      | {
+          type: "runtime.diagnostic";
+          runId: string;
+          at: string;
+          name: string;
+          data: {
+            [key: string]: HostOutputSharedDefinitionSchema0;
+          };
+        }
+      | {
+          type: "reasoning.started";
+          runId: string;
+          reasoning: {
+            id: string;
+            kind: "native" | "summary";
+            kernelId: string;
+          };
+        }
+      | {
+          type: "reasoning.completed";
+          runId: string;
+          reasoning: {
+            id: string;
+            kind: "native" | "summary";
+            kernelId: string;
+            text: string;
+            redacted?: boolean;
+            elapsedMs?: number;
+          };
+        }
+      | {
+          type: "assistant.delta";
+          runId: string;
+          text: string;
+        }
+      | {
+          type: "assistant.final";
+          runId: string;
+          text: string;
+          at: string;
+          source?: "runtime" | "adapter" | "fallback";
+        }
+      | {
+          type: "assistant.status";
+          runId: string;
+          text: string;
+          at: string;
+          data?: {
+            [key: string]: HostOutputSharedDefinitionSchema0;
+          };
+        }
+      | {
+          type: "skill.discovered";
+          runId: string;
+          skills: Array<{
+            id: string;
+            name: string;
+            aliases?: Array<string>;
+            title: string;
+            description: string;
+            whenToUse?: string;
+            format: "markdown-v1" | "markdown-v2";
+            entry: string;
+            skillRoot: string;
+            activities: Array<"browser" | "chat" | "local" | "api" | "computer">;
+            toolIds: Array<string>;
+            memoryHooks: Array<{
+              kind: string;
+              mode: "direct" | "propose" | "ask";
+              reason: string;
+            }>;
+            allowedTools: Array<string>;
+            argumentHint?: string;
+            arguments?: Array<string>;
+            userInvocable: boolean;
+            disableModelInvocation: boolean;
+            model?: string;
+            effort?: string;
+            context: "inline" | "fork";
+            shell?: Array<string>;
+            paths?: Array<string>;
+            hooks?: {
+              [key: string]: HostOutputSharedDefinitionSchema0;
+            };
+            source: "bundled" | "project" | "user" | "pack";
+            trust: "trusted" | "untrusted";
+            packId?: string;
+            capabilityId?: string;
+            contentLength?: number;
+            tags?: Array<string>;
+          }>;
+        }
+      | {
+          type: "skill.invoked";
+          runId: string;
+          skill: {
+            id: string;
+            name: string;
+            aliases?: Array<string>;
+            title: string;
+            description: string;
+            whenToUse?: string;
+            format: "markdown-v1" | "markdown-v2";
+            entry: string;
+            skillRoot: string;
+            activities: Array<"browser" | "chat" | "local" | "api" | "computer">;
+            toolIds: Array<string>;
+            memoryHooks: Array<{
+              kind: string;
+              mode: "direct" | "propose" | "ask";
+              reason: string;
+            }>;
+            allowedTools: Array<string>;
+            argumentHint?: string;
+            arguments?: Array<string>;
+            userInvocable: boolean;
+            disableModelInvocation: boolean;
+            model?: string;
+            effort?: string;
+            context: "inline" | "fork";
+            shell?: Array<string>;
+            paths?: Array<string>;
+            hooks?: {
+              [key: string]: HostOutputSharedDefinitionSchema0;
+            };
+            source: "bundled" | "project" | "user" | "pack";
+            trust: "trusted" | "untrusted";
+            packId?: string;
+            capabilityId?: string;
+            contentLength?: number;
+            tags?: Array<string>;
+          };
+          invocation: InvokedSkill;
+        }
+      | {
+          type: "skill.loaded";
+          runId: string;
+          skillId: string;
+          contentPreview: string;
+          allowedTools: Array<string>;
+          model?: string;
+          effort?: string;
+          context: "inline" | "fork";
+        }
+      | {
+          type: "skill.forked";
+          runId: string;
+          skillId: string;
+          forkSessionId: string;
+          status: "started" | "finished";
+          result?: string;
+        }
+      | {
+          type: "skill.cleared";
+          runId: string;
+          skillId?: string;
+          reason: string;
+        }
+      | {
+          type: "tool.started";
+          runId: string;
+          toolId: string;
+          callId?: string;
+          input: HostOutputSharedDefinitionSchema8;
+        }
+      | {
+          type: "tool.progress";
+          runId: string;
+          toolId: string;
+          callId?: string;
+          update: HostOutputSharedDefinitionSchema9;
+        }
+      | {
+          type: "tool.finished";
+          runId: string;
+          toolId: string;
+          callId?: string;
+          result: ToolResult;
+        }
+      | {
+          type: "approval.requested";
+          runId: string;
+          request: Approval;
+        }
+      | {
+          type: "approval.resolved";
+          runId: string;
+          request: Approval;
+        }
+      | {
+          type: "question.requested";
+          runId: string;
+          question: Question;
+        }
+      | {
+          type: "question.answered";
+          runId: string;
+          question: Question;
+        }
+      | {
+          type: "planning.updated";
+          runId: string;
+          plan: {
+            id: string;
+            title?: string;
+            text: string;
+            status?: string;
+            raw?: {
+              [key: string]: HostOutputSharedDefinitionSchema0;
+            };
+            updatedAt: string;
+            source?:
+              | {
+                  type: "kernel.native";
+                  kernelId: string;
+                }
+              | {
+                  type: "host";
+                }
+              | {
+                  type: "unknown";
+                };
+          };
+        }
+      | {
+          type: "run.cancel_requested";
+          runId: string;
+          at: string;
+          reason?: string;
+        }
+      | {
+          type: "run.paused";
+          runId: string;
+          at: string;
+          reason: string;
+          approvalId?: string;
+        }
+      | {
+          type: "run.resumed";
+          runId: string;
+          at: string;
+          reason?: string;
+          approvalId?: string;
+        }
+      | {
+          type: "memory.written";
+          runId: string;
+          record: {
+            id: string;
+            scope: "user" | "workspace" | "page" | "session";
+            kind: string;
+            text: string;
+            confidence: "asserted" | "observed" | "inferred";
+            source: {
+              kind: "user" | "agent" | "tool" | "skill";
+              ref?: {
+                title?: string;
+                url?: string;
+                locator?: string;
+                quote?: string;
+              };
+            };
+            tags: Array<string>;
+            data?: {
+              [key: string]: HostOutputSharedDefinitionSchema0;
+            };
+            createdAt: string;
+            updatedAt: string;
+            expiresAt?: string;
+          };
+        }
+      | {
+          type: "turn.finished";
+          runId: string;
+          at: string;
+          outcome: RunLifecycle;
+          synthetic?: boolean;
+        }
+      | {
+          type: "error";
+          runId: string;
+          message: string;
+          problem?: {
+            incidentId: string;
+            code: string;
+          };
+          diagnostics?: {
+            runtimeModelId?: string;
+            runtimeVersion?: string;
+            upstreamRequestId?: string;
+          };
+        }
+    >;
+    toolResults: Array<ToolResult>;
+    ok: true;
+  };
+};
+
+export type RoutineRoutineRunResponse = RoutineRoutineRunResponses[keyof RoutineRoutineRunResponses];
 
 export type HostHostBootstrapData = {
   body?: never;
@@ -2679,6 +4326,7 @@ export type InteractionApprovalListData = {
      * Defaults to 100; values above 500 are capped; invalid values use the default.
      */
     limit?: number | string;
+    runId?: string;
     status?: string;
   };
   url: "/approvals";
@@ -2720,8 +4368,8 @@ export type InteractionApprovalListResponses = {
       title: string;
       createdAt: string;
       updatedAt: string;
-      input?: HostOutputSharedDefinitionSchema0;
-      response?: HostOutputSharedDefinitionSchema1;
+      input?: HostOutputSharedDefinitionSchema3;
+      response?: HostOutputSharedDefinitionSchema4;
       nativeRequestId?: string;
       deadlineAt?: string;
       isBlocking?: boolean;
@@ -2751,7 +4399,7 @@ export type InteractionApprovalApproveData = {
     /**
      * Structured decision response or answer.
      */
-    response?: HostInputSharedDefinitionSchema0;
+    response?: HostInputSharedDefinitionSchema2;
   };
   path: {
     approvalId: string;
@@ -2800,7 +4448,7 @@ export type InteractionApprovalRejectData = {
     /**
      * Structured decision response or answer.
      */
-    response?: HostInputSharedDefinitionSchema0;
+    response?: HostInputSharedDefinitionSchema2;
   };
   path: {
     approvalId: string;
@@ -2849,7 +4497,7 @@ export type InteractionApprovalCancelData = {
     /**
      * Structured decision response or answer.
      */
-    response?: HostInputSharedDefinitionSchema0;
+    response?: HostInputSharedDefinitionSchema2;
   };
   path: {
     approvalId: string;
@@ -2901,6 +4549,7 @@ export type InteractionQuestionListData = {
      * Defaults to 100; values above 500 are capped; invalid values use the default.
      */
     limit?: number | string;
+    runId?: string;
     status?: string;
   };
   url: "/questions";
@@ -2942,8 +4591,8 @@ export type InteractionQuestionListResponses = {
       title: string;
       createdAt: string;
       updatedAt: string;
-      input?: HostOutputSharedDefinitionSchema0;
-      response?: HostOutputSharedDefinitionSchema1;
+      input?: HostOutputSharedDefinitionSchema3;
+      response?: HostOutputSharedDefinitionSchema4;
       nativeRequestId?: string;
       deadlineAt?: string;
       isBlocking?: boolean;
@@ -2972,7 +4621,7 @@ export type InteractionQuestionAnswerData = {
     /**
      * Structured decision response or answer.
      */
-    response?: HostInputSharedDefinitionSchema0;
+    response?: HostInputSharedDefinitionSchema2;
   };
   path: {
     questionId: string;
@@ -3021,7 +4670,7 @@ export type InteractionQuestionDeclineData = {
     /**
      * Structured decision response or answer.
      */
-    response?: HostInputSharedDefinitionSchema0;
+    response?: HostInputSharedDefinitionSchema2;
   };
   path: {
     questionId: string;
@@ -3070,7 +4719,7 @@ export type InteractionQuestionCancelData = {
     /**
      * Structured decision response or answer.
      */
-    response?: HostInputSharedDefinitionSchema0;
+    response?: HostInputSharedDefinitionSchema2;
   };
   path: {
     questionId: string;
@@ -3114,6 +4763,58 @@ export type InteractionQuestionCancelResponses = {
 export type InteractionQuestionCancelResponse =
   InteractionQuestionCancelResponses[keyof InteractionQuestionCancelResponses];
 
+export type ArtifactArtifactListData = {
+  body?: never;
+  path?: never;
+  query?: {
+    id?: Array<string>;
+    /**
+     * Defaults to 100; values above 500 are capped; invalid values use the default.
+     */
+    limit?: number | string;
+    tag?: Array<string>;
+    type?: string;
+  };
+  url: "/artifacts";
+};
+
+export type ArtifactArtifactListErrors = {
+  /**
+   * The input is invalid.
+   */
+  400: HostError;
+  /**
+   * A valid Host session or token is required.
+   */
+  401: HostError;
+  /**
+   * The request is not authorized.
+   */
+  403: HostError;
+  /**
+   * The Host could not complete the operation.
+   */
+  500: HostError;
+  /**
+   * The Host or authenticated session is temporarily unavailable.
+   */
+  503: HostError;
+};
+
+export type ArtifactArtifactListError = ArtifactArtifactListErrors[keyof ArtifactArtifactListErrors];
+
+export type ArtifactArtifactListResponses = {
+  /**
+   * Successful response.
+   */
+  200: {
+    ok: true;
+    artifacts: Array<Artifact>;
+  };
+};
+
+export type ArtifactArtifactListResponse = ArtifactArtifactListResponses[keyof ArtifactArtifactListResponses];
+
 export type ArtifactArtifactCreateData = {
   body: {
     id?: string;
@@ -3123,7 +4824,7 @@ export type ArtifactArtifactCreateData = {
     version?: number;
     tags?: Array<string>;
     data?: {
-      [key: string]: HostInputSharedDefinitionSchema1;
+      [key: string]: HostInputSharedDefinitionSchema3;
     };
     assets?: Array<{
       kind: "image" | "audio" | "video" | "file" | "url" | "text";
@@ -3132,7 +4833,7 @@ export type ArtifactArtifactCreateData = {
       title?: string;
       mimeType?: string;
       metadata?: {
-        [key: string]: HostInputSharedDefinitionSchema1;
+        [key: string]: HostInputSharedDefinitionSchema3;
       };
     }>;
     preview?: {
@@ -3153,7 +4854,7 @@ export type ArtifactArtifactCreateData = {
     derivedFrom?: Array<string>;
     lineage?: Array<string>;
     provenance?: {
-      [key: string]: HostInputSharedDefinitionSchema1;
+      [key: string]: HostInputSharedDefinitionSchema3;
     };
   };
   path?: never;
@@ -3194,6 +4895,53 @@ export type ArtifactArtifactCreateResponses = {
 };
 
 export type ArtifactArtifactCreateResponse = ArtifactArtifactCreateResponses[keyof ArtifactArtifactCreateResponses];
+
+export type ArtifactArtifactDeleteData = {
+  body?: never;
+  path: {
+    artifactId: string;
+  };
+  query?: never;
+  url: "/artifacts/{artifactId}";
+};
+
+export type ArtifactArtifactDeleteErrors = {
+  /**
+   * The input is invalid.
+   */
+  400: HostError;
+  /**
+   * A valid Host session or token is required.
+   */
+  401: HostError;
+  /**
+   * The request is not authorized.
+   */
+  403: HostError;
+  /**
+   * The Host could not complete the operation.
+   */
+  500: HostError;
+  /**
+   * The Host or authenticated session is temporarily unavailable.
+   */
+  503: HostError;
+};
+
+export type ArtifactArtifactDeleteError = ArtifactArtifactDeleteErrors[keyof ArtifactArtifactDeleteErrors];
+
+export type ArtifactArtifactDeleteResponses = {
+  /**
+   * Successful response.
+   */
+  200: {
+    ok: true;
+    deleted: boolean;
+    artifacts: Array<Artifact>;
+  };
+};
+
+export type ArtifactArtifactDeleteResponse = ArtifactArtifactDeleteResponses[keyof ArtifactArtifactDeleteResponses];
 
 export type ArtifactArtifactGetData = {
   body?: never;
@@ -3244,6 +4992,75 @@ export type ArtifactArtifactGetResponses = {
 };
 
 export type ArtifactArtifactGetResponse = ArtifactArtifactGetResponses[keyof ArtifactArtifactGetResponses];
+
+export type ArtifactArtifactUpdateData = {
+  body: {
+    type?: string;
+    title?: string;
+    status?: string;
+    version?: number;
+    tags?: Array<string>;
+    data?: {
+      [key: string]: HostInputSharedDefinitionSchema3;
+    };
+    sourceRefs?: Array<{
+      title?: string;
+      url?: string;
+      locator?: string;
+      quote?: string;
+    }>;
+    parentId?: string;
+    variantOf?: string;
+    derivedFrom?: Array<string>;
+    lineage?: Array<string>;
+    provenance?: {
+      [key: string]: HostInputSharedDefinitionSchema3;
+    };
+  };
+  path: {
+    artifactId: string;
+  };
+  query?: never;
+  url: "/artifacts/{artifactId}";
+};
+
+export type ArtifactArtifactUpdateErrors = {
+  /**
+   * The input is invalid.
+   */
+  400: HostError;
+  /**
+   * A valid Host session or token is required.
+   */
+  401: HostError;
+  /**
+   * The request is not authorized.
+   */
+  403: HostError;
+  /**
+   * The artifact does not exist.
+   */
+  404: HostError;
+  /**
+   * The Host could not complete the operation.
+   */
+  500: HostError;
+  /**
+   * The Host or authenticated session is temporarily unavailable.
+   */
+  503: HostError;
+};
+
+export type ArtifactArtifactUpdateError = ArtifactArtifactUpdateErrors[keyof ArtifactArtifactUpdateErrors];
+
+export type ArtifactArtifactUpdateResponses = {
+  /**
+   * Successful response.
+   */
+  200: ArtifactMutation;
+};
+
+export type ArtifactArtifactUpdateResponse = ArtifactArtifactUpdateResponses[keyof ArtifactArtifactUpdateResponses];
 
 export type AuthEmailCodeCreateData = {
   body: {

@@ -206,7 +206,7 @@ assert.deepEqual(
   ["native-openclaw-context", "packed-runtime"],
 );
 assert.deepEqual(harnessGroups.network.find((task) => task.id === "native-openclaw-context")?.args, [
-  "2026.9.2",
+  "2026.9.9",
   "--context",
 ]);
 assert.ok(!harnessGroups.full.some((task) => task.network));

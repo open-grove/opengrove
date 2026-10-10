@@ -29,7 +29,7 @@ import {
   handleGetAuthSessionOperation,
 } from "./auth.js";
 import { createHealthRoutes, createInventoryRoutes } from "./core.js";
-import { handleExtensionsRoute } from "./extensions.js";
+import { createExtensionRoutes } from "./extensions.js";
 import { handleKnowledgeRoute } from "./knowledge.js";
 import { handleLocalResourceRoute } from "./local-resources.js";
 import { createPendingActionRoutes } from "./pending-actions.js";
@@ -96,7 +96,7 @@ export function createBridgeRoutes(): BridgeRoute[] {
     ...createPendingActionRoutes(),
     ...createStateRoutes(),
     moduleRoute("knowledge", /^\/knowledge(?:\/|$)/, (context) => handleKnowledgeRoute(context)),
-    moduleRoute("extensions", /^\/extensions(?:\/|$)/, (context) => handleExtensionsRoute(context)),
+    ...createExtensionRoutes(),
     operationRoute(hostContractById["app.release.prepare"], handlePrepareAppReleaseOperation),
     operationRoute(hostContractById["app.release.publish"], handlePublishAppReleaseOperation),
     operationRoute(hostContractById["app.release.status"], handleGetAppReleaseStatusOperation),

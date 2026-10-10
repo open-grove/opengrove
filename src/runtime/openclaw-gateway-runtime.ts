@@ -1,9 +1,10 @@
 import { assertRuntimeAccessMode } from "../runtime-access.js";
-import { createHash, randomUUID } from "node:crypto";
+import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { resolve } from "node:path";
-import { WebSocket } from "undici";
+import { OpenClawGatewayClient, OpenClawAgent, compactOpenClaw } from "@open-grove/agent-host/openclaw";
+import { createHostToolBridge } from "./host-tool-bridge.js";
 import type {
   AgentCompactRequest,
   AgentCompactResult,
@@ -12,12 +13,11 @@ import type {
   AgentSessionTrace,
   AgentTurnRequest,
   JsonObject,
-  JsonValue,
 } from "../core.js";
-import { agentTurnFullContextPromptBlock, prepareAgentTurnContext } from "../core/turn-context.js";
+import { agentTurnFullContextPromptBlock, prepareAgentTurnContext } from "../core.js";
 import { appEnvName } from "../identity.js";
 import { AsyncEventQueue } from "./codex/async-event-queue.js";
-import { recentSessionMessages, recentSessionPromptBlock } from "./session-history.js";
+import { recentSessionMessages } from "./session-history.js";
 import { resolveRuntimeRunId } from "./run-id.js";
 import {
   contextBudgetDiagnostic,
@@ -63,50 +63,8 @@ export interface OpenClawGatewayDiscoveredProviderProfile {
   models: Array<{ id: string; label: string; description: "OpenClaw Gateway model" }>;
 }
 
-type GatewayEventFrame = {
-  type: "event";
-  event: string;
-  payload?: unknown;
-  seq?: number;
-};
-
-type GatewayResponseFrame = {
-  type: "res";
-  id: string;
-  ok: boolean;
-  payload?: unknown;
-  error?: {
-    code?: string;
-    message?: string;
-    details?: unknown;
-    retryable?: boolean;
-    retryAfterMs?: number;
-  };
-};
-
-type PendingGatewayRequest = {
-  method: string;
-  resolve(value: unknown): void;
-  reject(error: Error): void;
-  cleanup(): void;
-};
-
-const CONNECT_TIMEOUT_MS = 30_000;
 const DISCOVERY_TIMEOUT_MS = 3_000;
-const OPENCLAW_COMPACT_TIMEOUT_MS = 120_000;
-const OPENCLAW_WAIT_SLICE_MS = 30_000;
-const OPENCLAW_WAIT_TRANSPORT_GRACE_MS = 5_000;
-const OPENCLAW_CANCEL_SETTLE_MS = 15_000;
 const DEFAULT_OPENCLAW_GATEWAY_PORT = 18789;
-const OPENCLAW_MIN_PROTOCOL = 4;
-const OPENCLAW_MAX_PROTOCOL = 4;
-const OPENCLAW_OPERATOR_SCOPES = [
-  "operator.admin",
-  "operator.read",
-  "operator.write",
-  "operator.approvals",
-  "operator.pairing",
-];
 
 export async function discoverOpenClawGatewayVersion(
   connection: OpenClawGatewayConnection,
@@ -176,59 +134,46 @@ export async function discoverOpenClawGatewayProviderProfiles(
 
 export class OpenClawGatewayRuntime implements AgentRuntime {
   private readonly client: OpenClawGatewayClient;
+  private readonly agent: OpenClawAgent;
 
   constructor(private readonly options: OpenClawGatewayRuntimeOptions) {
     this.client = new OpenClawGatewayClient({
       url: options.url,
       token: options.token,
       password: options.password,
+      clientVersion: "opengrove",
+      clientName: "OpenGrove",
     });
+    this.agent = new OpenClawAgent({ ...options, client: this.client, waitSliceMs: options.requestTimeoutMs });
   }
 
   close(): void {
-    this.client.close();
+    this.agent.close();
   }
 
   async compactSession(request: AgentCompactRequest): Promise<AgentCompactResult> {
     const sessionKey =
       this.options.sessionKey?.trim() || openClawSessionKey(request.threadId, this.options.runtimeBindingFingerprint);
     try {
-      const result = asObject(
-        await this.client.request(
-          "sessions.compact",
-          { key: sessionKey },
-          { timeoutMs: this.options.requestTimeoutMs ?? OPENCLAW_COMPACT_TIMEOUT_MS },
-        ),
-      );
-      if (result.compacted === true) return { ok: true, compacted: true };
-      return {
-        ok: false,
-        compacted: false,
-        error: readString(result, "reason") || "openclaw_compaction_not_confirmed",
-      };
+      return await compactOpenClaw(this.client, sessionKey);
     } catch (error) {
-      return {
-        ok: false,
-        compacted: false,
-        error: error instanceof Error ? error.message : String(error),
-      };
+      return { ok: false, compacted: false, error: error instanceof Error ? error.message : String(error) };
     }
   }
 
   async *runTurn(request: AgentTurnRequest): AsyncIterable<AgentEvent> {
     assertRuntimeAccessMode("openclaw", request.accessMode);
-    // Prepare before dispatch so failures reach the Host exception boundary,
-    // even before turn.started.
-    const extraSystemPrompt = ["You are running inside the OpenGrove host.", request.sessionInstructions?.trim()]
-      .filter(Boolean)
-      .join("\n\n");
-    request = prepareAgentTurnContext(request);
+    const controller = new AbortController();
+    request = {
+      ...request,
+      signal: request.signal ? AbortSignal.any([request.signal, controller.signal]) : controller.signal,
+    };
     const queue = new AsyncEventQueue<AgentEvent>();
     const runId = resolveRuntimeRunId(request.runId);
     let turnStarted = false;
     let turnFinished = false;
     let producerFailure = "";
-    const producer = this.produceGatewayTurn(request, queue, runId, extraSystemPrompt)
+    const producer = this.produceGatewayTurn(request, queue, runId)
       .then(() => queue.close())
       .catch((error) => {
         producerFailure = error instanceof Error ? error.message : String(error);
@@ -240,12 +185,17 @@ export class OpenClawGatewayRuntime implements AgentRuntime {
         queue.close();
       });
 
-    for await (const event of queue) {
-      if (event.type === "turn.started") turnStarted = true;
-      if (event.type === "turn.finished") turnFinished = true;
-      yield event;
+    try {
+      for await (const event of queue) {
+        if (event.type === "turn.started") turnStarted = true;
+        if (event.type === "turn.finished") turnFinished = true;
+        yield event;
+      }
+      await producer;
+    } finally {
+      controller.abort();
+      await producer;
     }
-    await producer;
     if (turnStarted && !turnFinished) {
       yield {
         type: "turn.finished",
@@ -266,295 +216,148 @@ export class OpenClawGatewayRuntime implements AgentRuntime {
     request: AgentTurnRequest,
     queue: AsyncEventQueue<AgentEvent>,
     runId: string,
-    extraSystemPrompt: string,
   ): Promise<void> {
-    const requestedModel = request.requestedModelId?.trim() || this.options.configuredModel?.trim();
-    const prompt = buildOpenClawPrompt(request);
+    request = prepareAgentTurnContext(request);
+    const extraSystemPrompt = ["You are running inside the OpenGrove host.", request.sessionInstructions?.trim()]
+      .filter(Boolean)
+      .join("\n\n");
+    const model = request.requestedModelId?.trim() || this.options.configuredModel?.trim();
     const sessionKey =
       this.options.sessionKey?.trim() ||
       openClawSessionKey(request.context.sessionId, this.options.runtimeBindingFingerprint);
     const priorMessages = recentSessionMessages(request);
-    const acceptedRunIds = new Set([runId]);
-    const session: AgentSessionTrace = {
-      provider: "openclaw",
-      sessionId: sessionKey,
-      nativeSessionId: sessionKey,
-      persistent: true,
-      priorMessageCount: priorMessages.length,
-      priorMessages,
-    };
-    let assistantText = "";
-    let sawTerminalError = false;
-
-    queue.push({ type: "turn.started", runId, at: new Date().toISOString() });
-    if (request.assembledContext) {
-      queue.push({ type: "context.assembled", runId, context: request.assembledContext });
-    }
-    queue.push({
-      type: "runtime.diagnostic",
+    const prompt = buildOpenClawPrompt(request);
+    const hostTools = request.tools.length ? createHostToolBridge(request, runId, queue, "openclaw") : undefined;
+    const fingerprint = createHash("sha256")
+      .update(
+        JSON.stringify({
+          route: this.options.runtimeBindingFingerprint ?? "native",
+          sessionKey,
+          tools: hostTools?.fingerprint,
+        }),
+      )
+      .digest("hex");
+    let hasResponse = false;
+    for await (const event of this.agent.run({
+      sessionId: request.context.sessionId,
+      sessionKey,
       runId,
-      at: new Date().toISOString(),
-      name: "openclaw.gateway.session",
-      data: {
-        url: redactGatewayUrl(this.options.url),
-        sessionKey,
-        hostInstructionsChannel: "agent.extraSystemPrompt",
-        hostStateDelivery: "full-per-host-turn",
-        hostCompactionRecovery: "next-host-turn",
+      model,
+      method: "agent",
+      instructions: extraSystemPrompt,
+      input: prompt,
+      signal: request.signal,
+      toolBridge: hostTools,
+      bindingFingerprint: fingerprint,
+      bindings: {
+        get: async () => {
+          const stored = asObject(
+            request.context.sessions.get(request.context.sessionId)?.metadata?.openclawGatewayBindings,
+          );
+          return typeof stored[fingerprint] === "string" ? { threadId: stored[fingerprint], fingerprint } : undefined;
+        },
+        set: async (_id, binding) => {
+          const current = request.context.sessions.get(request.context.sessionId);
+          const previous = asObject(current?.metadata?.openclawGatewayBindings);
+          const values: JsonObject = {};
+          for (const [key, value] of Object.entries(previous)) if (typeof value === "string") values[key] = value;
+          values[fingerprint] = binding.threadId;
+          request.context.sessions.ensureSession({
+            id: request.context.sessionId,
+            activity: request.context.activity,
+            metadata: { ...current?.metadata, openclawGatewayBindings: values },
+          });
+        },
       },
-    });
-    queue.push({
-      type: "model.requested",
-      runId,
-      request: {
-        systemPrompt: extraSystemPrompt,
-        userInput: request.input,
-        modelId: requestedModel,
-        session,
-        context: request.assembledContext,
-        tools: request.tools.map((tool) => tool.spec),
-        skills: request.skills ?? [],
-        packs: request.packs ?? [],
-        capabilities: request.capabilities ?? [],
-      },
-    });
-
-    const cleanup = this.client.addEventListener((frame) => {
-      if (frame.event !== "agent") return;
-      const payload = asObject(frame.payload);
-      const payloadRunId = readString(payload, "runId");
-      if (payloadRunId && !acceptedRunIds.has(payloadRunId)) return;
-      const stream = readString(payload, "stream");
-      const data = asObject(payload.data);
-      const lifecyclePhase = readString(data, "phase") || readString(payload, "phase");
-      if (stream === "assistant") {
-        const text = normalizeAssistantText(extractGatewayText(payload) || extractGatewayText(data));
-        if (text) {
-          const delta = gatewayAssistantDelta(assistantText, text);
-          if (delta) {
-            assistantText += delta;
-            queue.push({ type: "assistant.delta", runId, text: delta });
-          }
-        }
-        return;
-      }
-      if (stream === "lifecycle" && lifecyclePhase === "error") {
-        sawTerminalError = true;
+      beforeTurn: async (_client, context) => {
+        if (!model) throw new Error("openclaw_gateway_model_selection_required");
+        if (request.assembledContext)
+          queue.push({ type: "context.assembled", runId, context: request.assembledContext });
         queue.push({
-          type: "error",
+          type: "runtime.diagnostic",
           runId,
-          message: readString(data, "error") || readString(payload, "error") || "openclaw_gateway_run_failed",
+          at: new Date().toISOString(),
+          name: "openclaw.gateway.session",
+          data: {
+            url: redactGatewayUrl(this.options.url),
+            sessionKey,
+            hostInstructionsChannel: "agent.extraSystemPrompt",
+            hostStateDelivery: "full-per-host-turn",
+            hostCompactionRecovery: "next-host-turn",
+          },
         });
-      }
-    });
-
-    let nativeRunId = runId;
-    let runSubmitted = false;
-    let cancellation: Promise<boolean> | undefined;
-    const waitController = new AbortController();
-    let cancelSettleTimer: ReturnType<typeof setTimeout> | undefined;
-    const abort = () => {
-      if (!runSubmitted) return;
-      cancellation ??= this.client
-        .request("chat.abort", { sessionKey, runId: nativeRunId }, { timeoutMs: 10_000 })
-        .then((result) => asObject(result).aborted === true)
-        .catch((error) => {
+        if (context.selectedModel)
           queue.push({
             type: "runtime.diagnostic",
             runId,
             at: new Date().toISOString(),
-            name: "openclaw.gateway.cancel-failed",
-            data: { error: String(error) },
+            name: "openclaw.gateway.model-selected",
+            data: asJsonObject(context.selectedModel),
           });
-          return false;
-        });
-      if (!cancelSettleTimer) {
-        cancelSettleTimer = setTimeout(() => waitController.abort(), OPENCLAW_CANCEL_SETTLE_MS);
-        cancelSettleTimer.unref?.();
-      }
-    };
-    request.signal?.addEventListener("abort", abort, { once: true });
-
-    try {
-      await this.client.ensureConnected();
-      if (request.signal?.aborted) {
-        queue.push({ type: "model.response", runId, response: { text: "" } });
+        const session: AgentSessionTrace = {
+          provider: "openclaw",
+          sessionId: sessionKey,
+          nativeSessionId: context.threadId,
+          persistent: true,
+          priorMessageCount: priorMessages.length,
+          priorMessages,
+        };
         queue.push({
-          type: "turn.finished",
+          type: "model.requested",
           runId,
-          at: new Date().toISOString(),
-          outcome: { taskState: "TASK_STATE_CANCELED", reasonCode: "user_canceled", retryable: false },
-        });
-        return;
-      }
-      if (!requestedModel) {
-        throw new Error("openclaw_gateway_model_selection_required");
-      }
-      const selectedRoute = await this.selectSessionModel(sessionKey, requestedModel, request.signal);
-      queue.push({
-        type: "runtime.diagnostic",
-        runId,
-        at: new Date().toISOString(),
-        name: "openclaw.gateway.model-selected",
-        data: selectedRoute,
-      });
-      await this.prepareContextBudget({
-        request,
-        queue,
-        runId,
-        sessionKey,
-        priorMessages,
-        incomingTokens: estimateTextTokens(extraSystemPrompt + "\n\n" + prompt),
-      });
-      const sent = asObject(
-        await this.client.request(
-          "agent",
-          {
-            sessionKey,
-            message: prompt,
-            extraSystemPrompt,
-            deliver: false,
-            idempotencyKey: runId,
+          request: {
+            systemPrompt: extraSystemPrompt,
+            userInput: request.input,
+            modelId: model,
+            session,
+            context: request.assembledContext,
+            tools: request.tools.map((t) => t.spec),
+            skills: request.skills ?? [],
+            packs: request.packs ?? [],
+            capabilities: request.capabilities ?? [],
           },
-          { timeoutMs: 30_000 },
-        ),
-      );
-      nativeRunId = readString(sent, "runId") || runId;
-      runSubmitted = true;
-      acceptedRunIds.add(nativeRunId);
-      if (request.signal?.aborted) abort();
-      const waitSliceMs = Math.max(100, this.options.requestTimeoutMs ?? OPENCLAW_WAIT_SLICE_MS);
-      let waitStatus = "";
-      while (true) {
-        try {
-          const wait = asObject(
-            await this.client.request(
-              "agent.wait",
-              { runId: nativeRunId, timeoutMs: waitSliceMs },
-              { timeoutMs: waitSliceMs + OPENCLAW_WAIT_TRANSPORT_GRACE_MS, signal: waitController.signal },
-            ),
-          );
-          waitStatus = readString(wait, "status") || "";
-        } catch (error) {
-          if (!waitController.signal.aborted && error instanceof Error && error.message === "agent.wait timed out") {
-            continue;
-          }
-          throw error;
-        }
-        if (!["timeout", "pending", "running", "working"].includes(waitStatus.trim().toLowerCase())) break;
+        });
+        await this.prepareContextBudget({
+          request,
+          queue,
+          runId,
+          sessionKey,
+          priorMessages,
+          incomingTokens: estimateTextTokens(extraSystemPrompt + "\n\n" + prompt),
+        });
+      },
+    })) {
+      if (event.type === "turn.started") queue.push({ type: "turn.started", runId, at: new Date().toISOString() });
+      if (event.type === "assistant.delta") queue.push(event);
+      if (event.type === "model.response") {
+        hasResponse = true;
+        queue.push({ type: "model.response", runId, response: { text: event.text } });
       }
-      const normalizedWaitStatus = waitStatus.trim().toLowerCase();
-      // agent.wait can settle with status:error after chat.abort has confirmed
-      // cancellation. Use the native acknowledgement, not merely the Host signal.
-      const nativeCanceled =
-        (await cancellation) === true ||
-        ["aborted", "cancelled", "canceled", "interrupted"].includes(normalizedWaitStatus);
-      if (
-        waitStatus &&
-        !nativeCanceled &&
-        !["ok", "complete", "completed", "success", "aborted", "cancelled", "canceled", "interrupted"].includes(
-          normalizedWaitStatus,
-        )
-      ) {
-        sawTerminalError = true;
-        queue.push({ type: "error", runId, message: `openclaw_gateway_${waitStatus}` });
-      }
-
-      if (!assistantText.trim() && !nativeCanceled) {
-        const finalText = await this.readLatestAssistantText(sessionKey);
-        if (finalText) {
-          assistantText = finalText;
-          queue.push({ type: "assistant.delta", runId, text: finalText });
-        }
-      }
-      if (!assistantText.trim() && !sawTerminalError && !nativeCanceled) {
-        queue.push({ type: "error", runId, message: "openclaw_gateway_empty_response" });
-      }
-      queue.push({ type: "model.response", runId, response: { text: assistantText.trimEnd() } });
-      queue.push({
-        type: "turn.finished",
-        runId,
-        at: new Date().toISOString(),
-        outcome: nativeCanceled
-          ? {
-              taskState: "TASK_STATE_CANCELED",
-              reasonCode: request.signal?.aborted ? "user_canceled" : "native_interrupted",
-              retryable: false,
-            }
-          : sawTerminalError
-            ? { taskState: "TASK_STATE_FAILED", reasonCode: "openclaw_gateway_run_failed" }
-            : !assistantText.trim()
-              ? { taskState: "TASK_STATE_FAILED", reasonCode: "openclaw_gateway_empty_response" }
-              : ["ok", "complete", "completed", "success"].includes(normalizedWaitStatus)
-                ? { taskState: "TASK_STATE_COMPLETED" }
-                : {
-                    taskState: "TASK_STATE_FAILED",
-                    reasonCode: "openclaw_gateway_terminal_unknown",
-                    outcomeUnknown: true,
-                  },
-      });
-    } catch (error) {
-      if (request.signal?.aborted && !runSubmitted) {
-        queue.push({ type: "model.response", runId, response: { text: "" } });
+      if (event.type === "turn.finished") {
+        const empty = event.outcome.status === "completed" && !hasResponse;
+        if (event.outcome.error || empty)
+          queue.push({ type: "error", runId, message: event.outcome.error ?? "openclaw_gateway_empty_response" });
         queue.push({
           type: "turn.finished",
           runId,
           at: new Date().toISOString(),
-          outcome: { taskState: "TASK_STATE_CANCELED", reasonCode: "user_canceled", retryable: false },
+          outcome: {
+            taskState:
+              empty || event.outcome.status === "failed"
+                ? "TASK_STATE_FAILED"
+                : event.outcome.status === "cancelled"
+                  ? "TASK_STATE_CANCELED"
+                  : "TASK_STATE_COMPLETED",
+            ...(event.outcome.status === "cancelled"
+              ? { reasonCode: event.outcome.outcomeUnknown ? "cancel_outcome_unknown" : "user_canceled" }
+              : event.outcome.error || empty
+                ? { reasonCode: event.outcome.error ?? "openclaw_gateway_empty_response" }
+                : {}),
+            ...(event.outcome.outcomeUnknown ? { outcomeUnknown: true } : {}),
+          },
         });
-        return;
       }
-      throw error;
-    } finally {
-      if (cancelSettleTimer) clearTimeout(cancelSettleTimer);
-      cleanup();
-      request.signal?.removeEventListener("abort", abort);
     }
-  }
-
-  private async selectSessionModel(
-    sessionKey: string,
-    requestedModel: string,
-    signal: AbortSignal | undefined,
-  ): Promise<JsonObject> {
-    const selected = asObject(
-      await this.client.request(
-        "sessions.patch",
-        { key: sessionKey, model: requestedModel },
-        { timeoutMs: 30_000, signal },
-      ),
-    );
-    const resolved = asObject(selected.resolved);
-    const provider = readString(resolved, "modelProvider") ?? "";
-    const model = readString(resolved, "model") ?? "";
-    const canonicalModel =
-      provider && model
-        ? model.toLowerCase().startsWith(`${provider.toLowerCase()}/`)
-          ? model
-          : `${provider}/${model}`
-        : "";
-    if (!canonicalModel || canonicalModel.toLowerCase() !== requestedModel.trim().toLowerCase()) {
-      throw new Error(`openclaw_gateway_model_mismatch:${requestedModel}:${canonicalModel || "unknown"}`);
-    }
-    return { sessionKey, requestedModel, canonicalModel };
-  }
-
-  private async readLatestAssistantText(sessionKey: string): Promise<string> {
-    try {
-      const history = asObject(
-        await this.client.request("chat.history", { sessionKey, limit: 20 }, { timeoutMs: 30_000 }),
-      );
-      const messages = Array.isArray(history.messages) ? history.messages : [];
-      for (let index = messages.length - 1; index >= 0; index -= 1) {
-        const message = asObject(messages[index]);
-        if (readString(message, "role") !== "assistant") continue;
-        const text = normalizeAssistantText(extractGatewayText(message));
-        if (text) return text;
-      }
-    } catch {
-      return "";
-    }
-    return "";
   }
 
   private async prepareContextBudget(input: {
@@ -827,312 +630,11 @@ function identifierDisplayName(value: string): string {
     .replace(/\bAi\b/g, "AI");
 }
 
-class OpenClawGatewayClient {
-  serverVersion?: string;
-  private ws?: WebSocket;
-  private connected = false;
-  private connectPromise?: Promise<void>;
-  private nextId = 1;
-  private pending = new Map<string, PendingGatewayRequest>();
-  private eventListeners = new Set<(frame: GatewayEventFrame) => void>();
-
-  constructor(
-    private readonly options: Pick<OpenClawGatewayConnection, "url" | "token" | "password"> & {
-      connectTimeoutMs?: number;
-    },
-  ) {}
-
-  async ensureConnected(): Promise<void> {
-    if (this.ws?.readyState === WebSocket.OPEN && this.connected) return;
-    if (this.connectPromise) return this.connectPromise;
-    this.connectPromise = this.openSocket();
-    try {
-      await this.connectPromise;
-    } finally {
-      this.connectPromise = undefined;
-    }
-  }
-
-  async request<T = unknown>(
-    method: string,
-    params?: unknown,
-    options: { timeoutMs?: number; signal?: AbortSignal } = {},
-  ): Promise<T> {
-    await this.ensureConnected();
-    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
-      throw new Error("openclaw gateway is not connected");
-    }
-    return await this.requestOnSocket<T>(this.ws, method, params, options);
-  }
-
-  addEventListener(listener: (frame: GatewayEventFrame) => void): () => void {
-    this.eventListeners.add(listener);
-    return () => this.eventListeners.delete(listener);
-  }
-
-  close(): void {
-    this.connected = false;
-    this.serverVersion = undefined;
-    for (const pending of this.pending.values()) {
-      pending.cleanup();
-      pending.reject(new Error("openclaw gateway closed"));
-    }
-    this.pending.clear();
-    this.ws?.close();
-    this.ws = undefined;
-  }
-
-  private openSocket(): Promise<void> {
-    this.close();
-    const ws = new WebSocket(this.options.url);
-    const connectTimeoutMs = this.options.connectTimeoutMs ?? CONNECT_TIMEOUT_MS;
-    this.ws = ws;
-    let connectSent = false;
-    let connectNonce: string | undefined;
-    let socketTimer: ReturnType<typeof setTimeout> | undefined;
-    let settled = false;
-
-    return new Promise<void>((resolve, reject) => {
-      const cleanupConnect = () => {
-        if (socketTimer) {
-          clearTimeout(socketTimer);
-          socketTimer = undefined;
-        }
-      };
-      const fail = (error: Error) => {
-        if (settled) return;
-        settled = true;
-        cleanupConnect();
-        this.connected = false;
-        reject(error);
-      };
-      const sendConnect = () => {
-        if (connectSent || ws.readyState !== WebSocket.OPEN) return;
-        connectSent = true;
-        void this.requestOnSocket(ws, "connect", this.connectParams(connectNonce), { timeoutMs: connectTimeoutMs })
-          .then((hello) => {
-            if (settled) return;
-            // Protocol 4 hello-ok identifies the running Gateway, which may be remote
-            // or differ from the locally installed CLI.
-            this.serverVersion = readString(asObject(asObject(hello).server), "version");
-            settled = true;
-            cleanupConnect();
-            this.connected = true;
-            resolve();
-          })
-          .catch(fail);
-      };
-      const onMessage = (event: { data: unknown }) => {
-        if (this.ws !== ws) return;
-        const frame = parseGatewayFrame(event.data);
-        if (!frame) return;
-        if (frame.type === "event" && frame.event === "connect.challenge") {
-          const payload = asObject(frame.payload);
-          connectNonce = readString(payload, "nonce");
-          if (!connectNonce) {
-            fail(new Error("openclaw gateway challenge did not include a nonce"));
-            ws.close();
-            return;
-          }
-          sendConnect();
-          return;
-        }
-        this.handleFrame(frame);
-      };
-      const onClose = () => {
-        if (this.ws !== ws) return;
-        cleanupConnect();
-        this.connected = false;
-        for (const pending of this.pending.values()) {
-          pending.cleanup();
-          pending.reject(new Error("openclaw gateway closed"));
-        }
-        this.pending.clear();
-        if (!settled) {
-          fail(new Error("openclaw gateway closed during connect"));
-        }
-      };
-      const onError = () => {
-        if (this.ws !== ws) return;
-        this.connected = false;
-        if (!settled) {
-          fail(new Error("openclaw gateway socket error"));
-        }
-      };
-      socketTimer = setTimeout(() => {
-        fail(new Error("openclaw gateway connect timed out"));
-        ws.close();
-      }, connectTimeoutMs);
-      socketTimer.unref?.();
-      ws.addEventListener("message", onMessage);
-      ws.addEventListener("close", onClose);
-      ws.addEventListener("error", onError);
-    });
-  }
-
-  private requestOnSocket<T>(
-    ws: WebSocket,
-    method: string,
-    params?: unknown,
-    options: { timeoutMs?: number; signal?: AbortSignal } = {},
-  ): Promise<T> {
-    if (options.signal?.aborted) {
-      return Promise.reject(new Error(`${method} aborted`));
-    }
-    const id = `${Date.now()}-${this.nextId++}-${randomUUID()}`;
-    return new Promise<T>((resolve, reject) => {
-      let timeout: ReturnType<typeof setTimeout> | undefined;
-      let cleanupAbort: (() => void) | undefined;
-      const cleanup = () => {
-        if (timeout) {
-          clearTimeout(timeout);
-          timeout = undefined;
-        }
-        cleanupAbort?.();
-        cleanupAbort = undefined;
-      };
-      const rejectPending = (error: Error) => {
-        if (!this.pending.has(id)) return;
-        this.pending.delete(id);
-        cleanup();
-        reject(error);
-      };
-      if (options.timeoutMs && options.timeoutMs > 0) {
-        timeout = setTimeout(() => rejectPending(new Error(`${method} timed out`)), options.timeoutMs);
-        timeout.unref?.();
-      }
-      if (options.signal) {
-        const abortListener = () => rejectPending(new Error(`${method} aborted`));
-        options.signal.addEventListener("abort", abortListener, { once: true });
-        cleanupAbort = () => options.signal?.removeEventListener("abort", abortListener);
-      }
-      this.pending.set(id, {
-        method,
-        resolve(value) {
-          cleanup();
-          resolve(value as T);
-        },
-        reject(error) {
-          cleanup();
-          reject(error);
-        },
-        cleanup,
-      });
-      try {
-        ws.send(JSON.stringify({ type: "req", id, method, params }));
-      } catch (error) {
-        rejectPending(error instanceof Error ? error : new Error(String(error)));
-      }
-    });
-  }
-
-  private connectParams(_nonce?: string): JsonObject {
-    return stripUndefined({
-      minProtocol: OPENCLAW_MIN_PROTOCOL,
-      maxProtocol: OPENCLAW_MAX_PROTOCOL,
-      client: {
-        id: "gateway-client",
-        version: "opengrove",
-        platform: process.platform,
-        mode: "backend",
-        instanceId: `opengrove-${process.pid}`,
-      },
-      role: "operator",
-      scopes: OPENCLAW_OPERATOR_SCOPES,
-      caps: ["tool-events"],
-      auth: stripUndefined({
-        token: this.options.token,
-        password: this.options.password,
-      }),
-      device: undefined,
-      userAgent: "OpenGrove",
-      locale: "en-US",
-    }) as JsonObject;
-  }
-
-  private handleFrame(frame: GatewayEventFrame | GatewayResponseFrame): void {
-    if (frame.type === "event") {
-      for (const listener of this.eventListeners) {
-        listener(frame);
-      }
-      return;
-    }
-    const pending = this.pending.get(frame.id);
-    if (!pending) return;
-    this.pending.delete(frame.id);
-    if (frame.ok) {
-      pending.resolve(frame.payload);
-      return;
-    }
-    const details = frame.error?.details === undefined ? "" : `: ${JSON.stringify(frame.error.details)}`;
-    pending.reject(new Error(frame.error?.message || `${pending.method} failed${details}`));
-  }
-}
-
 function buildOpenClawPrompt(request: AgentTurnRequest): string {
   const hostContext = agentTurnFullContextPromptBlock(request);
-  const threadHistory = recentSessionPromptBlock(request);
-  const sections = [
-    hostContext ? `Host context:\n${hostContext}` : "",
-    threadHistory,
-    `User request:\n${request.input}`,
-  ].filter(Boolean);
-  return sections.join("\n\n");
-}
-
-function parseGatewayFrame(data: unknown): GatewayEventFrame | GatewayResponseFrame | undefined {
-  const raw =
-    typeof data === "string"
-      ? data
-      : data instanceof ArrayBuffer
-        ? Buffer.from(data).toString("utf8")
-        : Buffer.isBuffer(data)
-          ? data.toString("utf8")
-          : "";
-  if (!raw) return undefined;
-  try {
-    const parsed = JSON.parse(raw) as { type?: unknown };
-    if (parsed.type === "event" || parsed.type === "res") {
-      return parsed as GatewayEventFrame | GatewayResponseFrame;
-    }
-  } catch {
-    return undefined;
-  }
-  return undefined;
-}
-
-function extractGatewayText(value: unknown): string {
-  const record = asObject(value);
-  const direct = readString(record, "text") || readString(record, "delta") || readString(record, "content");
-  if (direct) return direct;
-  const message = asObject(record.message);
-  const messageText = readString(message, "text") || readString(message, "content");
-  if (messageText) return messageText;
-  const content = Array.isArray(record.content)
-    ? record.content
-    : Array.isArray(message.content)
-      ? message.content
-      : [];
-  return content
-    .map((item) => {
-      const block = asObject(item);
-      return readString(block, "text") || readString(block, "content") || "";
-    })
+  return [hostContext ? `Host context:\n${hostContext}` : "", `User request:\n${request.input}`]
     .filter(Boolean)
-    .join("");
-}
-
-function normalizeAssistantText(value: string | undefined): string {
-  const text = value?.trimEnd() ?? "";
-  if (!text.trim()) return "";
-  if (text.trim() === "NO_REPLY") return "";
-  if (text.includes('"payloads"') && text.includes('"runId"')) return "";
-  return text;
-}
-
-function gatewayAssistantDelta(previousText: string, nextText: string): string {
-  if (!previousText) return nextText;
-  return nextText.startsWith(previousText) ? nextText.slice(previousText.length) : nextText;
+    .join("\n\n");
 }
 
 function redactGatewayUrl(rawUrl: string): string {
@@ -1182,19 +684,6 @@ function readNumber(record: Record<string, unknown> | undefined, key: string): n
   return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : undefined;
 }
 
-function stripUndefined(input: Record<string, unknown>): Record<string, JsonValue> {
-  const output: Record<string, JsonValue> = {};
-  for (const [key, value] of Object.entries(input)) {
-    if (value === undefined) continue;
-    if (Array.isArray(value)) {
-      output[key] = value.filter((item): item is JsonValue => item !== undefined) as JsonValue;
-      continue;
-    }
-    if (value && typeof value === "object") {
-      output[key] = stripUndefined(value as Record<string, unknown>);
-      continue;
-    }
-    output[key] = value as JsonValue;
-  }
-  return output;
+function asJsonObject(value: unknown): JsonObject {
+  return JSON.parse(JSON.stringify(value)) as JsonObject;
 }

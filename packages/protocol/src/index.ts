@@ -26,3 +26,5 @@ export * from "./routine-records.js";
 export * from "./artifacts.js";
 export * from "./schema-registry.js";
 export * from "./response.js";
+export * from "./extensions.js";
+export * from "./routines.js";

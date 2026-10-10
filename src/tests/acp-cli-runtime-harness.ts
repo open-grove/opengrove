@@ -915,13 +915,8 @@ async function assertAbortedHostToolTurnCancelsScopedSession(cwd: string): Promi
     .map((line) => JSON.parse(line) as { method: string; params: { sessionId?: string } });
   assert.deepEqual(
     notifications,
-    [
-      {
-        method: "session/cancel",
-        params: { sessionId: "fake-kimi-host-cancel-session" },
-      },
-    ],
-    "Host Tool scoped sessions must preserve the ACP cancellation fallback",
+    [],
+    "A native terminal response wins over a late UI abort; do not cancel a completed session",
   );
 }
 
@@ -1091,6 +1086,7 @@ async function assertAcpHostToolsAcrossNewAndLoad(cwd: string): Promise<void> {
     ...ledgerTool,
     async execute(input, context) {
       calls += 1;
+      assert.equal(context.signal?.aborted, false, "The tool signal must be live while the owning turn is active");
       observedHostToolSignals.push(context.signal);
       return await ledgerTool.execute(input, context);
     },
@@ -1142,11 +1138,12 @@ async function assertAcpHostToolsAcrossNewAndLoad(cwd: string): Promise<void> {
   );
   assert.ok(sessionSetup.every((entry) => entry.params.mcpServers?.length === 1));
   assert.equal(calls, 2, "Host Tool dispatcher must execute once in the new and restored ACP sessions");
-  assert.deepEqual(
-    observedHostToolSignals,
-    [hostToolController.signal, hostToolController.signal],
-    "ACP Host Tools must receive the owning Run cancellation signal",
+  assert.equal(observedHostToolSignals.length, 2);
+  assert.ok(
+    observedHostToolSignals.every((signal) => signal?.aborted),
+    "Completed turns must revoke their scoped tool execution signal",
   );
+  assert.equal(hostToolController.signal.aborted, false, "Closing a turn must not abort the product's parent signal");
 }
 
 async function assertAbortedAcpTurnCloses(cwd: string, kernelId: "opencode" | "kimi"): Promise<void> {

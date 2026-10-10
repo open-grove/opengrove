@@ -1,4 +1,8 @@
-import { resolve } from "node:path";
+import { resolve, join } from "node:path";
+import { createHash } from "node:crypto";
+import { HermesAgent, compactHermes } from "@open-grove/agent-host/hermes";
+import { APP_CONFIG_DIR } from "../identity.js";
+import { createHostToolBridge } from "./host-tool-bridge.js";
 import type {
   AgentCompactRequest,
   AgentCompactResult,
@@ -25,16 +29,12 @@ import {
   createHermesGatewayApproval,
   createHermesGatewayQuestion,
   extractQuestionAnswer,
-  gatewayQuestionResponseKey,
-  gatewayQuestionResponseMethod,
   hermesToolId,
   readHermesGatewayUsage,
   resolveHermesToolCallId,
-  sleep,
 } from "./hermes/gateway-events.js";
 import { resolveHermesTuiGatewayLaunch } from "./hermes/gateway-launch.js";
-import { readHermesFailureDiagnostic } from "./hermes/failure-diagnostic.js";
-import { createGatewayTurnState, waitForGatewayTurn, type HermesGatewayTurnState } from "./hermes/gateway-turn.js";
+import { createGatewayTurnState, type HermesGatewayTurnState } from "./hermes/gateway-turn.js";
 import { asObject, readNumber, readString, readText, toJsonObject, toJsonValue } from "./hermes/json.js";
 import {
   buildHermesPrompt,
@@ -42,8 +42,7 @@ import {
   normalizeOptionalString,
   stripHermesTemplateTokens,
 } from "./hermes/prompt.js";
-import { prepareHermesRuntimeEnv, removeHermesRuntimeHome } from "./hermes/home-env.js";
-import { recordHermesHomeOwner } from "./hermes/home-ownership.js";
+import { prepareHermesRuntimeEnv } from "./hermes/home-env.js";
 import {
   contextBudgetDiagnostic,
   contextBudgetExceeded,
@@ -74,66 +73,37 @@ export interface HermesRuntimeOptions {
 }
 
 export class HermesRuntime implements AgentRuntime {
-  private readonly isolatedHomes = new Map<string, string>();
-  private readonly gatewayClientsByEnv = new Map<string, StdioJsonRpcClient>();
-  private readonly gatewaySessionsByClient = new Map<StdioJsonRpcClient, Set<string>>();
-  private readonly gatewaySessionByThread = new Map<string, { client: StdioJsonRpcClient; sessionId: string }>();
-  private readonly activeGatewayTurns = new Map<string, { client: StdioJsonRpcClient; sessionId: string }>();
+  private readonly agents = new Map<string, HermesAgent>();
+  private readonly agentByThread = new Map<string, HermesAgent>();
+  private readonly activeRuns = new Map<string, { agent: HermesAgent; threadId: string }>();
 
   constructor(private readonly options: HermesRuntimeOptions) {}
-
   close(): void {
-    for (const client of new Set(this.gatewayClientsByEnv.values())) client.close();
-    for (const home of this.isolatedHomes.values()) removeHermesRuntimeHome(home);
-    this.isolatedHomes.clear();
-    this.gatewayClientsByEnv.clear();
-    this.gatewaySessionsByClient.clear();
-    this.gatewaySessionByThread.clear();
-    this.activeGatewayTurns.clear();
+    for (const agent of this.agents.values()) agent.close();
+    this.agents.clear();
+    this.agentByThread.clear();
+    this.activeRuns.clear();
   }
-
   async steerTurn(request: AgentSteerRequest): Promise<AgentSteerResult> {
-    const instruction = request.instruction.trim();
-    if (!instruction) {
-      return { ok: false, guided: false, error: "instruction_required" };
-    }
-    const active = this.activeGatewayTurns.get(request.runId) ?? this.activeGatewayTurns.get(request.threadId);
-    if (!active || active.client.isClosed()) {
-      return { ok: false, guided: false, error: "run_not_found" };
-    }
-    await active.client.request(
-      "session.steer",
-      { session_id: active.sessionId, text: instruction },
-      { timeoutMs: 15_000 },
-    );
+    if (!request.instruction.trim()) return { ok: false, guided: false, error: "instruction_required" };
+    const active = this.activeRuns.get(request.runId);
+    const agent = active?.agent ?? this.agentByThread.get(request.threadId);
+    if (!agent) return { ok: false, guided: false, error: "run_not_found" };
+    await agent.steer(active?.threadId ?? request.threadId, request.instruction.trim());
     return { ok: true, guided: true };
   }
-
   async compactSession(request: AgentCompactRequest): Promise<AgentCompactResult> {
-    const active = request.runId ? this.activeGatewayTurns.get(request.runId) : undefined;
-    const remembered = this.gatewaySessionByThread.get(request.threadId);
-    const client = active?.client ?? remembered?.client;
-    const sessionId = active?.sessionId ?? remembered?.sessionId;
-    if (!client || client.isClosed()) {
-      return { ok: false, compacted: false, error: "gateway_unavailable" };
-    }
-    if (!sessionId) {
-      return { ok: false, compacted: false, error: "session_not_found" };
-    }
-    const params: JsonObject = {
-      session_id: sessionId,
-    };
-    if (request.reason?.trim()) {
-      params.reason = request.reason.trim();
-    }
-    if (typeof request.maxTokens === "number") {
-      params.max_tokens = request.maxTokens;
-    }
-    await this.requestGatewayCompression(client, sessionId, params);
-    return { ok: true, compacted: true };
+    const agent = this.agentByThread.get(request.threadId);
+    if (!agent) return { ok: false, compacted: false, error: "gateway_unavailable" };
+    return agent.compact(request.threadId, request.reason);
   }
 
   async *runTurn(request: AgentTurnRequest): AsyncIterable<AgentEvent> {
+    const controller = new AbortController();
+    request = {
+      ...request,
+      signal: request.signal ? AbortSignal.any([request.signal, controller.signal]) : controller.signal,
+    };
     const queue = new AsyncEventQueue<AgentEvent>();
     const runId = resolveRuntimeRunId(request.runId);
     let turnStarted = false;
@@ -150,16 +120,21 @@ export class HermesRuntime implements AgentRuntime {
         });
         queue.close();
       });
-    for await (const event of queue) {
-      if (event.type === "error" && !turnStarted) {
-        turnStarted = true;
-        yield { type: "turn.started", runId, at: new Date().toISOString() };
+    try {
+      for await (const event of queue) {
+        if (event.type === "error" && !turnStarted) {
+          turnStarted = true;
+          yield { type: "turn.started", runId, at: new Date().toISOString() };
+        }
+        if (event.type === "turn.started") turnStarted = true;
+        if (event.type === "turn.finished") turnFinished = true;
+        yield event;
       }
-      if (event.type === "turn.started") turnStarted = true;
-      if (event.type === "turn.finished") turnFinished = true;
-      yield event;
+      await producer;
+    } finally {
+      controller.abort();
+      await producer;
     }
-    await producer;
     if (turnStarted && !turnFinished) {
       yield {
         type: "turn.finished",
@@ -179,319 +154,222 @@ export class HermesRuntime implements AgentRuntime {
     queue: AsyncEventQueue<AgentEvent>,
     runId: string,
   ): Promise<void> {
+    const cwd = resolve(this.options.cwd ?? process.cwd());
     const requestedModel =
       normalizeOptionalString(request.requestedModelId) ?? normalizeOptionalString(this.options.configuredModel);
-    const requestedProvider = normalizeOptionalString(this.options.configuredProvider);
     const runtimeEnv = mergeRuntimeEnv(this.options.env, request.runtimeEnv);
-    const prompt = buildHermesPrompt(request);
-    const client = await this.ensureGatewayClient(runtimeEnv, request.accessMode);
-    if (request.accessMode !== undefined && request.accessMode !== "full-access") {
-      // Public TUI config.get (desktop contract v3+) reports the effective policy,
-      // including managed configuration. Custom gateway commands use the same contract.
-      const expected = hermesApprovalMode(request.accessMode);
-      let actual: string | undefined;
-      try {
-        actual = readString(
-          asObject(
-            await client.request(
-              "config.get",
-              { key: "approvals.mode" },
-              { timeoutMs: 15_000, signal: request.signal },
-            ),
-          ),
-          "value",
-        );
-      } catch {
-        const stopped = client.isClosed();
-        client.close();
-        if (request.signal?.aborted) throw new Error("hermes_gateway_turn_aborted");
-        if (stopped) {
-          throw new Error("hermes_gateway_unavailable: Check the Hermes executable and its dependencies, then retry.");
-        }
-        throw new Error(
-          "runtime_access_mode_unavailable: Hermes could not report its approval mode. Update Hermes to a TUI Gateway with desktop contract v3 or newer and retry.",
-        );
-      }
-      if (actual !== expected) {
-        client.close();
-        throw new Error(
-          `runtime_access_mode_unavailable: Hermes reports ${actual ?? "unknown"}; ${expected} is required. Set approvals.mode to ${expected} in your Hermes config, or set OPENGROVE_HERMES_ISOLATED_HOME=1 to use an OpenGrove configuration copy.`,
-        );
-      }
-    }
-    const nativeSession = await this.ensureGatewaySession(client, request);
-    this.activeGatewayTurns.set(runId, { client, sessionId: nativeSession.sessionId });
-    this.activeGatewayTurns.set(request.context.sessionId, { client, sessionId: nativeSession.sessionId });
-    this.gatewaySessionByThread.set(request.context.sessionId, { client, sessionId: nativeSession.sessionId });
-    const priorMessages = recentSessionMessages(request);
-    const sessionTrace: AgentSessionTrace = {
-      provider: "hermes",
-      sessionId: nativeSession.sessionId,
-      persistent: true,
-      priorMessageCount: nativeSession.resuming ? priorMessages.length : 0,
-      priorMessages: nativeSession.resuming ? priorMessages : [],
-    };
-    const pendingRequests = new AbortController();
-    const turnState = createGatewayTurnState({
-      runId,
-      request,
-      queue,
-      client,
-      sessionId: nativeSession.sessionId,
-      pendingRequestSignal: request.signal
-        ? AbortSignal.any([request.signal, pendingRequests.signal])
-        : pendingRequests.signal,
-    });
-
-    queue.push({ type: "turn.started", runId, at: new Date().toISOString() });
-    if (request.assembledContext) {
-      queue.push({ type: "context.assembled", runId, context: request.assembledContext });
-    }
-    await this.prepareContextBudget(
-      client,
-      nativeSession.sessionId,
-      request,
-      queue,
-      runId,
-      priorMessages,
-      estimateTextTokens(prompt),
-    );
-    queue.push({
-      type: "runtime.diagnostic",
-      runId,
-      at: new Date().toISOString(),
-      name: "hermes.gateway.session",
-      data: {
-        sessionId: nativeSession.sessionId,
-        resuming: nativeSession.resuming,
-        hostInstructionsChannel: "user-input",
-        hostStateDelivery: "full-per-host-turn",
-        hostCompactionRecovery: "next-host-turn",
-        provider: requestedProvider ?? "",
-        accessMode: request.accessMode ?? "default",
-        approvalMode: hermesApprovalMode(request.accessMode),
-      },
-    });
-    queue.push({
-      type: "model.requested",
-      runId,
-      request: {
-        systemPrompt: "Hermes TUI Gateway mode. OpenGrove host context is prepended to the user prompt when present.",
-        userInput: request.input,
-        modelId: requestedModel,
-        session: sessionTrace,
-        context: request.assembledContext,
-        tools: request.tools.map((tool) => tool.spec),
-        skills: request.skills ?? [],
-        packs: request.packs ?? [],
-        capabilities: request.capabilities ?? [],
-      },
-    });
-
-    // Hermes desktop contract v7 uses server requests; v6 and earlier use *.request events.
-    // Keep the legacy event adapter until the supported Hermes baseline requires contract v7.
-    const cleanupRequests = client.addRequestHandler(async (rpc) => {
-      const payload = asObject(rpc.params);
-      if (readString(payload, "session_id") !== turnState.sessionId) return undefined;
-      if (rpc.method === "approval") return this.handleGatewayApproval(turnState, payload, false);
-      if (rpc.method === "clarify")
-        return this.handleGatewayQuestion(
-          turnState,
-          "clarify.request",
-          { ...payload, request_id: String(rpc.id) },
-          false,
-        );
-      return undefined;
-    });
-    const cleanupNotifications = client.addNotificationHandler((notification) => {
-      this.handleGatewayNotification(notification, turnState);
-    });
-    const cleanupClose = client.addCloseHandler((error) => {
-      pendingRequests.abort(error);
-      turnState.reject(error);
-    });
-    const abortPrompt = () => {
-      void client
-        .request("session.interrupt", { session_id: nativeSession.sessionId }, { timeoutMs: 5_000 })
-        .catch(() => {});
-    };
-    if (request.signal?.aborted) abortPrompt();
-    request.signal?.addEventListener("abort", abortPrompt, { once: true });
-
-    try {
-      await client.request(
-        "prompt.submit",
-        { session_id: nativeSession.sessionId, text: prompt },
-        { timeoutMs: 30_000, signal: request.signal },
-      );
-      await waitForGatewayTurn(turnState, {
-        timeoutMs: this.options.requestTimeoutMs,
-        signal: request.signal,
+    const hostTools = request.tools.length ? createHostToolBridge(request, runId, queue, "hermes") : undefined;
+    const fingerprint = createHash("sha256")
+      .update(
+        JSON.stringify({
+          route: this.options.runtimeBindingFingerprint ?? "native",
+          model: requestedModel,
+          tools: hostTools?.fingerprint,
+          access: request.accessMode,
+          cwd,
+        }),
+      )
+      .digest("hex");
+    const homeKey = createHash("sha256")
+      .update(JSON.stringify({ thread: request.context.sessionId, fingerprint }))
+      .digest("hex");
+    const key = `${homeKey}:${envFingerprint(runtimeEnv)}`;
+    let agent = this.agents.get(key);
+    if (!agent) {
+      const launch = resolveHermesTuiGatewayLaunch(this.options);
+      const prepared = prepareHermesRuntimeEnv({
+        runtimeEnv,
+        providerConfig: this.options.providerConfig,
+        nativeSkillDir: this.options.nativeSkillDir,
+        isolatedHome: undefined,
+        persistentHome: join(cwd, APP_CONFIG_DIR, "native-state", "hermes", homeKey),
+        accessMode: request.accessMode,
       });
-      const completedText = cleanHermesAssistantText(turnState.finalText || turnState.assistantText);
-      const streamedText = cleanHermesAssistantText(turnState.assistantText);
-      // Hermes may trim surrounding whitespace in message.complete after sending it
-      // in message.delta. Preserve the text already shown when the content agrees.
-      const finalText = streamedText && streamedText.trim() === completedText.trim() ? streamedText : completedText;
-      if (turnState.status === "error") {
-        queue.push({
-          type: "error",
-          runId,
-          message: finalText || turnState.errorMessage || "hermes_gateway_failed",
-        });
-      } else if (!finalText.trim()) {
-        const diagnostic =
-          readHermesFailureDiagnostic(
-            this.isolatedHomes.get(`${envFingerprint(runtimeEnv)}:${request.accessMode ?? "default"}`),
-          ) || client.stderr().trim();
-        if (diagnostic) {
+      const env = {
+        ...prepared.env,
+        PWD: cwd,
+        TERMINAL_CWD: cwd,
+        ...(launch.pythonSourceRoot ? { HERMES_PYTHON_SRC_ROOT: launch.pythonSourceRoot } : {}),
+      };
+      agent = new HermesAgent({
+        command: launch.command,
+        args: launch.args,
+        cwd,
+        env,
+        exclusiveProfile: !!prepared.isolatedHome,
+        requestTimeoutMs: this.options.requestTimeoutMs,
+      });
+      this.agents.set(key, agent);
+    }
+    this.agentByThread.set(request.context.sessionId, agent);
+    this.activeRuns.set(runId, { agent, threadId: request.context.sessionId });
+    const prompt = buildHermesPrompt(request);
+    const priorMessages = recentSessionMessages(request);
+    let state: HermesGatewayTurnState | undefined;
+    try {
+      for await (const event of agent.run({
+        sessionId: request.context.sessionId,
+        runId,
+        cwd,
+        instructions: "",
+        input: prompt,
+        model: requestedModel,
+        provider: normalizeOptionalString(this.options.configuredProvider)
+          ? `custom:${this.options.configuredProvider?.replace(/^custom:/, "")}`
+          : undefined,
+        signal: request.signal,
+        toolBridge: hostTools,
+        bindingFingerprint: fingerprint,
+        bindings: {
+          get: async () => {
+            const old = readRememberedHermesGatewaySession(request, fingerprint);
+            return old ? { threadId: old.sessionId, fingerprint } : undefined;
+          },
+          set: async (_id, binding) => rememberHermesGatewaySession(request, binding.threadId, fingerprint),
+        },
+        beforeTurn: async (client, context) => {
+          state = createGatewayTurnState({
+            runId,
+            request,
+            queue,
+            client,
+            sessionId: context.liveSessionId,
+            pendingRequestSignal: context.signal,
+            hostToolName: hostTools?.isToolName,
+          });
+          if (request.accessMode !== undefined && request.accessMode !== "full-access") {
+            const actual = asObject(
+              await client.request(
+                "config.get",
+                { key: "approvals.mode" },
+                { timeoutMs: 15_000, signal: context.signal },
+              ),
+            ).value;
+            if (actual !== hermesApprovalMode(request.accessMode))
+              throw new Error(`runtime_access_mode_unavailable: Hermes reports ${String(actual)}`);
+          }
+          if (request.assembledContext)
+            queue.push({ type: "context.assembled", runId, context: request.assembledContext });
+          await this.prepareContextBudget(
+            client,
+            context.liveSessionId,
+            request,
+            queue,
+            runId,
+            priorMessages,
+            estimateTextTokens(prompt),
+          );
           queue.push({
             type: "runtime.diagnostic",
             runId,
             at: new Date().toISOString(),
-            name: "hermes.gateway.empty_response_diagnostic",
-            data: { diagnostic },
+            name: "hermes.gateway.session",
+            data: {
+              sessionId: context.threadId,
+              liveSessionId: context.liveSessionId,
+              resuming: context.resumed,
+              hostInstructionsChannel: "user-input",
+              hostStateDelivery: "full-per-host-turn",
+              hostCompactionRecovery: "next-host-turn",
+              accessMode: request.accessMode ?? "default",
+              approvalMode: hermesApprovalMode(request.accessMode),
+            },
+          });
+          const sessionTrace: AgentSessionTrace = {
+            provider: "hermes",
+            sessionId: context.threadId,
+            persistent: true,
+            priorMessageCount: context.resumed ? priorMessages.length : 0,
+            priorMessages: context.resumed ? priorMessages : [],
+          };
+          queue.push({
+            type: "model.requested",
+            runId,
+            request: {
+              systemPrompt: "Hermes native Gateway; current OpenGrove context is in this turn's prompt.",
+              userInput: request.input,
+              modelId: requestedModel,
+              session: sessionTrace,
+              context: request.assembledContext,
+              tools: request.tools.map((t) => t.spec),
+              skills: request.skills ?? [],
+              packs: request.packs ?? [],
+              capabilities: request.capabilities ?? [],
+            },
+          });
+        },
+        onRequest: async (rpc, context) => {
+          if (!state) throw new Error("hermes_interaction_before_turn_setup");
+          const current = { ...state, pendingRequestSignal: context.signal };
+          const payload = asObject(rpc.params);
+          if (rpc.method === "approval") return this.handleGatewayApproval(current, payload);
+          if (rpc.method === "clarify") {
+            const answers: JsonObject = {};
+            for (const value of Array.isArray(payload.questions) ? payload.questions : []) {
+              const question = asObject(value);
+              const id = readString(question, "qid");
+              if (!id) throw new Error("hermes_question_id_missing");
+              answers[id] = await this.handleGatewayQuestion(current, "clarify.request", {
+                ...question,
+                request_id: String(rpc.id),
+              });
+            }
+            return { answers };
+          }
+          if (rpc.method === "sudo" || rpc.method === "secret")
+            return {
+              value:
+                (await this.handleGatewayQuestion(current, `${rpc.method}.request`, {
+                  ...payload,
+                  request_id: String(rpc.id),
+                })) ?? "",
+            };
+          return undefined;
+        },
+      })) {
+        if (event.type === "turn.started") queue.push({ type: "turn.started", runId, at: new Date().toISOString() });
+        if (event.type === "native.notification" && state)
+          this.handleGatewayNotification(
+            {
+              ...event.notification,
+              params: event.notification.params === undefined ? undefined : toJsonValue(event.notification.params),
+            },
+            state,
+          );
+        if (event.type === "model.response") {
+          const finalText = cleanHermesAssistantText(event.text);
+          const streamed = cleanHermesAssistantText(state?.assistantText ?? "");
+          queue.push({
+            type: "model.response",
+            runId,
+            response: {
+              text: streamed && streamed.trim() === finalText.trim() ? streamed : finalText,
+              ...(state?.usage ? { usage: state.usage } : {}),
+            },
           });
         }
-        queue.push({
-          type: "error",
-          runId,
-          message: diagnostic || "hermes_empty_response",
-        });
-        queue.push({
-          type: "turn.finished",
-          runId,
-          at: new Date().toISOString(),
-          outcome: { taskState: "TASK_STATE_FAILED", reasonCode: "hermes_empty_response" },
-        });
-        return;
-      } else {
-        queue.push({
-          type: "model.response",
-          runId,
-          response: { text: finalText, ...(turnState.usage ? { usage: turnState.usage } : {}) },
-        });
+        if (event.type === "turn.finished") {
+          if (event.outcome.error) queue.push({ type: "error", runId, message: event.outcome.error });
+          queue.push({
+            type: "turn.finished",
+            runId,
+            at: new Date().toISOString(),
+            outcome: {
+              taskState:
+                event.outcome.status === "completed"
+                  ? "TASK_STATE_COMPLETED"
+                  : event.outcome.status === "cancelled"
+                    ? "TASK_STATE_CANCELED"
+                    : "TASK_STATE_FAILED",
+              ...(event.outcome.error ? { reasonCode: event.outcome.error } : {}),
+              ...(event.outcome.outcomeUnknown ? { outcomeUnknown: true } : {}),
+            },
+          });
+        }
       }
-      const status = turnState.status.trim().toLowerCase();
-      queue.push({
-        type: "turn.finished",
-        runId,
-        at: new Date().toISOString(),
-        outcome: ["complete", "completed", "success", "succeeded", "ok"].includes(status)
-          ? { taskState: "TASK_STATE_COMPLETED" }
-          : ["interrupted", "cancelled", "canceled", "aborted"].includes(status)
-            ? { taskState: "TASK_STATE_CANCELED", reasonCode: "native_interrupted", retryable: false }
-            : status === "error" || status === "failed"
-              ? { taskState: "TASK_STATE_FAILED", reasonCode: "hermes_gateway_failed" }
-              : {
-                  taskState: "TASK_STATE_FAILED",
-                  reasonCode: "hermes_gateway_terminal_unknown",
-                  outcomeUnknown: true,
-                },
-      });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      queue.push({
-        type: "error",
-        runId,
-        message: client.stderr().trim() || message || "hermes_gateway_failed",
-      });
     } finally {
-      pendingRequests.abort(new Error("hermes_turn_ended"));
-      request.signal?.removeEventListener("abort", abortPrompt);
-      cleanupRequests();
-      cleanupNotifications();
-      cleanupClose();
-      this.activeGatewayTurns.delete(runId);
-      if (this.activeGatewayTurns.get(request.context.sessionId)?.sessionId === nativeSession.sessionId) {
-        this.activeGatewayTurns.delete(request.context.sessionId);
-      }
+      this.activeRuns.delete(runId);
     }
-  }
-
-  private async ensureGatewayClient(
-    runtimeEnv: NodeJS.ProcessEnv | undefined,
-    accessMode: AgentTurnRequest["accessMode"],
-  ): Promise<StdioJsonRpcClient> {
-    const envKey = `${envFingerprint(runtimeEnv)}:${accessMode ?? "native"}`;
-    const existing = this.gatewayClientsByEnv.get(envKey);
-    if (existing && !existing.isClosed()) return existing;
-    if (existing) this.gatewayClientsByEnv.delete(envKey);
-    const launch = resolveHermesTuiGatewayLaunch(this.options);
-    const cwd = resolve(this.options.cwd ?? process.cwd());
-    const preparedEnv = prepareHermesRuntimeEnv({
-      runtimeEnv,
-      providerConfig: this.options.providerConfig,
-      nativeSkillDir: this.options.nativeSkillDir,
-      isolatedHome: this.isolatedHomes.get(envKey),
-      accessMode,
-    });
-    if (preparedEnv.isolatedHome) this.isolatedHomes.set(envKey, preparedEnv.isolatedHome);
-    const env = preparedEnv.env;
-    env.PWD = cwd;
-    env.TERMINAL_CWD = cwd;
-    if (launch.pythonSourceRoot && !env.HERMES_PYTHON_SRC_ROOT) {
-      env.HERMES_PYTHON_SRC_ROOT = launch.pythonSourceRoot;
-    }
-    let client: StdioJsonRpcClient;
-    try {
-      if (preparedEnv.isolatedHome) recordHermesHomeOwner(preparedEnv.isolatedHome, "launching");
-      client = StdioJsonRpcClient.start({ command: launch.command, args: launch.args, cwd, env });
-    } catch (error) {
-      if (preparedEnv.isolatedHome) removeHermesRuntimeHome(preparedEnv.isolatedHome);
-      this.isolatedHomes.delete(envKey);
-      throw error;
-    }
-    try {
-      if (preparedEnv.isolatedHome && client.processId)
-        recordHermesHomeOwner(preparedEnv.isolatedHome, "running", client.processId);
-    } catch (error) {
-      client.addExitHandler(() => {
-        if (preparedEnv.isolatedHome) removeHermesRuntimeHome(preparedEnv.isolatedHome);
-      });
-      client.close();
-      this.isolatedHomes.delete(envKey);
-      throw error;
-    }
-    this.gatewayClientsByEnv.set(envKey, client);
-    this.gatewaySessionsByClient.set(client, new Set());
-    client.addCloseHandler(() => {
-      if (this.gatewayClientsByEnv.get(envKey) === client) this.gatewayClientsByEnv.delete(envKey);
-      if (preparedEnv.isolatedHome) {
-        removeHermesRuntimeHome(preparedEnv.isolatedHome);
-        if (this.isolatedHomes.get(envKey) === preparedEnv.isolatedHome) this.isolatedHomes.delete(envKey);
-      }
-      this.gatewaySessionsByClient.delete(client);
-      for (const [threadId, remembered] of this.gatewaySessionByThread) {
-        if (remembered.client === client) this.gatewaySessionByThread.delete(threadId);
-      }
-    });
-    // A terminating native process can still recreate logs; clean again after actual exit.
-    client.addExitHandler(() => {
-      if (preparedEnv.isolatedHome) removeHermesRuntimeHome(preparedEnv.isolatedHome);
-    });
-    return client;
-  }
-
-  private async ensureGatewaySession(
-    client: StdioJsonRpcClient,
-    request: AgentTurnRequest,
-  ): Promise<{ sessionId: string; resuming: boolean }> {
-    const sessions = this.gatewaySessionsByClient.get(client) ?? new Set<string>();
-    this.gatewaySessionsByClient.set(client, sessions);
-    const remembered = readRememberedHermesGatewaySession(request, this.options.runtimeBindingFingerprint);
-    if (remembered?.sessionId && sessions.has(remembered.sessionId)) {
-      return { sessionId: remembered.sessionId, resuming: true };
-    }
-
-    const created = asObject(await client.request("session.create", { cols: 100 }, { timeoutMs: 30_000 }));
-    const sessionId = readString(created, "session_id");
-    if (!sessionId) {
-      throw new Error("hermes_gateway_session_id_missing");
-    }
-    sessions.add(sessionId);
-    rememberHermesGatewaySession(request, sessionId, this.options.runtimeBindingFingerprint);
-    return { sessionId, resuming: false };
   }
 
   private async prepareContextBudget(
@@ -612,36 +490,13 @@ export class HermesRuntime implements AgentRuntime {
     sessionId: string,
     params: JsonObject,
   ): Promise<void> {
-    const timeoutMs = this.options.requestTimeoutMs ?? 120_000;
-    let lastBusyError: unknown;
-    for (let attempt = 0; attempt < 20; attempt += 1) {
-      try {
-        await client.request("session.compress", params, { timeoutMs });
-        return;
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        if (!/busy|interrupt/i.test(message)) {
-          throw error;
-        }
-        lastBusyError = error;
-      }
-      if (attempt === 0) {
-        await client.request("session.interrupt", { session_id: sessionId }, { timeoutMs: 15_000 }).catch(() => {});
-      }
-      await sleep(250);
-    }
-    if (lastBusyError instanceof Error) {
-      throw lastBusyError;
-    }
-    if (lastBusyError) {
-      throw new Error(String(lastBusyError));
-    }
-    try {
-      await client.request("session.compress", params, { timeoutMs });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      throw new Error(message);
-    }
+    const result = await compactHermes(
+      client,
+      sessionId,
+      typeof params.reason === "string" ? params.reason : undefined,
+      this.options.requestTimeoutMs,
+    );
+    if (!result.ok) throw new Error(result.error);
   }
 
   private handleGatewayNotification(
@@ -652,7 +507,7 @@ export class HermesRuntime implements AgentRuntime {
     const params = asObject(notification.params);
     const eventType = readString(params, "type");
     const sessionId = readString(params, "session_id");
-    if (sessionId && sessionId !== state.sessionId) return;
+    if (sessionId !== state.sessionId) return;
     if (!eventType || eventType === "gateway.ready") return;
     const payload = asObject(params.payload);
 
@@ -670,7 +525,6 @@ export class HermesRuntime implements AgentRuntime {
       state.usage = readHermesGatewayUsage(asObject(payload.usage));
       state.status = readString(payload, "status") ?? "complete";
       state.errorMessage = readString(payload, "warning");
-      state.resolve();
       return;
     }
 
@@ -678,7 +532,6 @@ export class HermesRuntime implements AgentRuntime {
       this.flushGatewayReasoning(state);
       state.status = "error";
       state.errorMessage = readString(payload, "message") ?? "hermes_gateway_error";
-      state.reject(new Error(state.errorMessage));
       return;
     }
 
@@ -696,16 +549,6 @@ export class HermesRuntime implements AgentRuntime {
 
     if (eventType === "tool.complete") {
       this.handleGatewayToolComplete(state, payload);
-      return;
-    }
-
-    if (eventType === "approval.request") {
-      void this.handleGatewayApproval(state, payload).catch((error) => state.reject(error));
-      return;
-    }
-
-    if (eventType === "clarify.request" || eventType === "sudo.request" || eventType === "secret.request") {
-      void this.handleGatewayQuestion(state, eventType, payload).catch((error) => state.reject(error));
       return;
     }
 
@@ -778,6 +621,7 @@ export class HermesRuntime implements AgentRuntime {
 
   private handleGatewayToolStart(state: HermesGatewayTurnState, payload: Record<string, unknown>): void {
     const name = readString(payload, "name") ?? "tool";
+    if (state.hostToolName?.(name.replace(/^mcp_agent_host_/, ""))) return;
     const callId = readString(payload, "tool_id") ?? name;
     if (state.toolCalls.has(callId)) return;
     const toolId = hermesToolId(name);
@@ -813,6 +657,7 @@ export class HermesRuntime implements AgentRuntime {
 
   private handleGatewayToolComplete(state: HermesGatewayTurnState, payload: Record<string, unknown>): void {
     const name = readString(payload, "name") ?? "tool";
+    if (state.hostToolName?.(name.replace(/^mcp_agent_host_/, ""))) return;
     const nativeToolId = hermesToolId(name);
     const resolved = resolveHermesToolCallId(state.toolCalls, nativeToolId, readString(payload, "tool_id"));
     if (resolved.ambiguous) {
@@ -852,7 +697,6 @@ export class HermesRuntime implements AgentRuntime {
   private async handleGatewayApproval(
     state: HermesGatewayTurnState,
     payload: Record<string, unknown>,
-    respond = true,
   ): Promise<JsonObject> {
     const approval = createHermesGatewayApproval(payload, state.runId, state.request);
     state.queue.push({ type: "approval.requested", runId: state.runId, request: approval });
@@ -880,28 +724,16 @@ export class HermesRuntime implements AgentRuntime {
           : (current ?? approval);
     }
     state.queue.push({ type: "approval.resolved", runId: state.runId, request: decided });
-    const result = { choice: decided.status === "approved" ? "allow" : "deny" };
-    if (!respond) return result;
-    await state.client.request(
-      "approval.respond",
-      {
-        session_id: state.sessionId,
-        ...result,
-        ...(typeof payload.request_id === "string" ? { request_id: payload.request_id } : {}),
-      },
-      { timeoutMs: 15_000 },
-    );
-    return result;
+    return { choice: decided.status === "approved" ? "once" : "deny" };
   }
 
   private async handleGatewayQuestion(
     state: HermesGatewayTurnState,
     eventType: string,
     payload: Record<string, unknown>,
-    respond = true,
-  ): Promise<JsonObject | undefined> {
+  ): Promise<string | null> {
     const requestId = readString(payload, "request_id");
-    if (!requestId) return;
+    if (!requestId) return null;
     const question = createHermesGatewayQuestion(payload, eventType, state.runId, state.request);
     state.queue.push({ type: "question.requested", runId: state.runId, question });
     let decided: QuestionRequest;
@@ -921,15 +753,6 @@ export class HermesRuntime implements AgentRuntime {
           : (current ?? question);
     }
     state.queue.push({ type: "question.answered", runId: state.runId, question: decided });
-    if (!respond) return { answer: decided.status === "answered" ? extractQuestionAnswer(decided.response) : "" };
-    await state.client.request(
-      gatewayQuestionResponseMethod(eventType),
-      {
-        request_id: requestId,
-        [gatewayQuestionResponseKey(eventType)]:
-          decided.status === "answered" ? extractQuestionAnswer(decided.response) : "",
-      },
-      { timeoutMs: 15_000 },
-    );
+    return decided.status === "answered" ? extractQuestionAnswer(decided.response) : null;
   }
 }

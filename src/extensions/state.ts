@@ -68,7 +68,7 @@ function normalizeExtensionManagerState(input: unknown): ExtensionManagerState {
     const item = record(value);
     disabledOverlays[id] = {
       disabledAt: stringValue(item.disabledAt) || new Date(0).toISOString(),
-      reason: stringValue(item.reason),
+      ...(stringValue(item.reason) ? { reason: stringValue(item.reason) } : {}),
     };
   }
 
