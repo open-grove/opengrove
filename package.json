@@ -329,7 +329,7 @@
     "pi-agent-core-legacy": "npm:@earendil-works/pi-agent-core@0.85.1",
     "pi-ai-legacy": "npm:@earendil-works/pi-ai@0.85.1",
     "tar": "7.5.22",
-    "undici": "7.29.0",
+    "undici": "7.30.0",
     "zod": "^4.5.4"
   },
   "overrides": {
