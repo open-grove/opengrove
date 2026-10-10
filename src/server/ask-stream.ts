@@ -1,4 +1,5 @@
 import { autoReviewFallbackReason } from "../runtime-access.js";
+import { syncExecutionSessionMetadata } from "./execution-session.js";
 import type { ServerResponse } from "node:http";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -372,6 +373,7 @@ function recordAskRunEvent(run: BackgroundAskRun, payload: BridgeAskPayload, eve
       nativeRequestId: event.question.nativeRequestId,
     });
   }
+  syncExecutionSessionMetadata(run.rootState, run.executionState, payload.threadId);
   const executionApp = run.executionState?.app ?? run.rootState.app;
   executionApp.recordEvent(event, {
     sessionId: payload.threadId,

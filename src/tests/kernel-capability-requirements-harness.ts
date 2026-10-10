@@ -52,18 +52,21 @@ assert.deepEqual(normalizeMember(member).requiredKernelCapabilities, ["tools.nat
 assert.throws(
   () =>
     assertRoomTargetKernelCapabilities(
-      roomMember({ kernel: "hermes", requiredKernelCapabilities: ["tools.hostTool"] }),
+      roomMember({ kernel: "hermes", requiredKernelCapabilities: ["output.structured"] }),
       buildKnownKernelCapabilityReport("hermes"),
     ),
   RoomKernelCapabilityError,
 );
 const missingCapabilityError = new RoomKernelCapabilityError({
   kernel: "hermes",
-  required: ["tools.hostTool"],
-  missing: ["tools.hostTool"],
+  required: ["output.structured"],
+  missing: ["output.structured"],
 });
-assert.match(roomKernelCapabilityErrorMessage(missingCapabilityError, "zh-CN") ?? "", /尚未证明.*tools\.hostTool/);
-assert.match(roomKernelCapabilityErrorMessage(missingCapabilityError, "en") ?? "", /has not proven.*tools\.hostTool/);
+assert.match(roomKernelCapabilityErrorMessage(missingCapabilityError, "zh-CN") ?? "", /尚未证明.*output\.structured/);
+assert.match(
+  roomKernelCapabilityErrorMessage(missingCapabilityError, "en") ?? "",
+  /has not proven.*output\.structured/,
+);
 
 const manifestIssues = validateAppStoreEmployeeDefaults([
   {

@@ -12,7 +12,7 @@ import { STANDARD_KERNEL_CAPABILITY_IDS } from "../kernel/capabilities/types.js"
 async function main() {
   const noCertifiedEvidence: typeof CERTIFIED_KERNEL_CONTRACT_TESTS = [];
 
-  assert.equal(CERTIFIED_KERNEL_CONTRACT_TESTS.length, 85);
+  assert.equal(CERTIFIED_KERNEL_CONTRACT_TESTS.length, 87);
   assert.deepEqual(
     Object.fromEntries(
       [...new Set(CERTIFIED_KERNEL_CONTRACT_TESTS.map((evidence) => evidence.kernel))]
@@ -25,9 +25,9 @@ async function main() {
     {
       "claude-code": 15,
       codex: 19,
-      hermes: 10,
+      hermes: 11,
       kimi: 12,
-      openclaw: 6,
+      openclaw: 7,
       opencode: 12,
       pi: 11,
     },

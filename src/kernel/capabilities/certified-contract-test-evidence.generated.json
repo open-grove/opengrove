@@ -986,6 +986,28 @@
     "verification": "real_runtime"
   },
   {
+    "kernel": "hermes",
+    "capability": "tools.hostTool",
+    "testId": "hermes.tools.hostTool",
+    "passed": true,
+    "checkedAt": "2026-10-09",
+    "hostVersion": "0.7.0",
+    "kernelVersion": "Hermes Agent vunknown (2026.9.24)",
+    "runtimeMode": "acp",
+    "verification": "real_runtime"
+  },
+  {
+    "kernel": "openclaw",
+    "capability": "tools.hostTool",
+    "testId": "openclaw.tools.hostTool",
+    "passed": true,
+    "checkedAt": "2026-10-09",
+    "hostVersion": "0.7.0",
+    "kernelVersion": "2026.9.9",
+    "runtimeMode": "gateway",
+    "verification": "real_runtime"
+  },
+  {
     "kernel": "pi",
     "capability": "tool.progress",
     "testId": "pi.tool.progress",
@@ -1001,9 +1023,9 @@
     "capability": "tools.nativeTool",
     "testId": "pi.tools.nativeTool",
     "passed": true,
-    "checkedAt": "2026-09-14",
+    "checkedAt": "2026-10-09",
     "hostVersion": "0.7.0",
-    "kernelVersion": "0.85.1",
+    "kernelVersion": "1.1.0",
     "runtimeMode": "sdk",
     "verification": "real_runtime"
   }

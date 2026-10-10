@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { Model } from "@earendil-works/pi-ai";
-import { clampThinkingLevel } from "@earendil-works/pi-ai";
+import { clampThinkingLevel, normalizeContext } from "@earendil-works/pi-ai";
 import { streamSimple } from "@earendil-works/pi-ai/api/google-generative-ai";
 import { buildPiProviderEnv, resolvePiRuntimeModel } from "../kernel/adapters/pi.js";
 import {
@@ -59,7 +59,7 @@ test("the built-in Google route reaches the versioned Gemini endpoint through Pi
   assert.equal(model.api, "google-generative-ai");
   const reply = await streamSimple(
     model as Model<"google-generative-ai">,
-    { messages: [{ role: "user", content: "Reply OK", timestamp: 0 }] },
+    normalizeContext({ messages: [{ role: "user", content: "Reply OK", timestamp: 0 }] }),
     { apiKey: "test-key" },
   ).result();
   assert.equal(reply.stopReason, "stop", reply.errorMessage);
@@ -80,7 +80,7 @@ test("Pi preserves the selected protocol when a model is in another native catal
     {
       id: "deepseek",
       protocol: "anthropic-compatible" as const,
-      model: "deepseek-v4-flash",
+      model: "deepseek-flash",
       baseUrl: "https://api.deepseek.com/anthropic",
       api: "anthropic-messages",
     },

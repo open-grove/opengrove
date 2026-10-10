@@ -372,7 +372,7 @@ async function assertHermesApprovalContract(): Promise<void> {
   const events = await runHermesGatewayContractTurn();
   assert.ok(events.some((event) => event.type === "approval.requested"));
   assert.ok(events.some((event) => event.type === "approval.resolved"));
-  assert.ok(events.some((event) => event.type === "model.response" && event.response.text.includes("APPROVAL:allow")));
+  assert.ok(events.some((event) => event.type === "model.response" && event.response.text.includes("APPROVAL:once")));
 }
 
 async function assertHermesQuestionContract(): Promise<void> {

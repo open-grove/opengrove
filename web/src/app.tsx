@@ -16,7 +16,6 @@ import "./components/sidebar/section-sidebar.css";
 import type {
   BridgeSettingsResponse,
   BridgeSettings,
-  ExtensionInventoryRecord,
   KernelInstallResponse,
   KernelLoginActionResponse,
   KernelLoginSessionResponse,
@@ -100,7 +99,7 @@ import {
   providerServesModel,
   providerSupportsKernel,
 } from "./components/sidebar/settings-model";
-import { ExtensionsView } from "./components/extensions/extensions-view";
+import { ExtensionsView, type ExtensionAction } from "./components/extensions/extensions-view";
 import { AppStoreView } from "./components/network/app-store-view";
 import { appStoreUpdateCount } from "./components/network/app-store-query";
 import { Dialog, DialogContent, DialogTitle } from "./components/ui/dialog";
@@ -134,12 +133,6 @@ import {
   writeDirectKernelChatSelection,
   type DirectKernelChatSelection,
 } from "./runtime/direct-kernel-chat-runtime";
-
-type ExtensionsResponse = {
-  ok: boolean;
-  extensions?: ExtensionInventoryRecord;
-  source?: string;
-};
 
 function contextUsageRunIds(runIds: string[], latestRun: { id?: unknown; runId?: unknown } | undefined): string[] {
   const ids = new Set(runIds);
@@ -489,7 +482,7 @@ export function App() {
       (activeView === "rooms" && roomsAppView === "contacts"));
   const extensionsQuery = useQuery({
     queryKey: ["extensions"],
-    queryFn: () => getJson<ExtensionsResponse>("/extensions"),
+    queryFn: () => openGroveClient.extensions.collection.list(),
     enabled: bridgeProtectedQueriesEnabled && extensionsInventoryNeeded,
     staleTime: 30_000,
     refetchOnWindowFocus: true,
@@ -1086,7 +1079,7 @@ export function App() {
   ]);
 
   const extensionActionMutation = useMutation({
-    mutationFn: (payload: { path: string; body: Record<string, unknown> }) => postJson<any>(payload.path, payload.body),
+    mutationFn: (action: ExtensionAction) => action(),
     onSuccess(result) {
       if (result?.extensions) {
         queryClient.setQueryData(["inventory"], (previous: any) =>
@@ -2333,7 +2326,7 @@ export function App() {
             saving={settingsMutation.isPending}
             actionPending={extensionActionMutation.isPending}
             onOpenLocalPath={(path) => openExtensionLocalPathMutation.mutate(path)}
-            onAction={(path, body) => extensionActionMutation.mutate({ path, body })}
+            onAction={(action) => extensionActionMutation.mutate(action)}
           />
         ) : null}
 
