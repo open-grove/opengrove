@@ -1,3 +1,4 @@
+import { createOpenGroveClient } from "#client";
 import assert from "node:assert/strict";
 import { once } from "node:events";
 import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
@@ -23,7 +24,7 @@ test("a newly published Skill is available to the next workflow without restarti
     JSON.stringify({
       workspaceRoot,
       kernelPathOverrides: Object.fromEntries(
-        BRIDGE_KERNEL_IDS.map((id) => [id, { configHome: join(root, "kernels", id), binaryPath: "/bin/echo" }]),
+        BRIDGE_KERNEL_IDS.map((id) => [id, { configHome: join(root, "kernels", id), binaryPath: process.execPath }]),
       ),
     }),
   );
@@ -37,29 +38,40 @@ test("a newly published Skill is available to the next workflow without restarti
   try {
     if (!server.listening) await once(server, "listening");
     const baseUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}/api`;
-    const post = async (path: string, body: unknown) => {
-      const response = await fetch(`${baseUrl}${path}`, {
-        method: "POST",
-        headers: { "content-type": "application/json", "x-opengrove-token": "test" },
-        body: JSON.stringify(body),
-      });
-      const result = await response.json();
-      assert.equal(response.status, 200, JSON.stringify(result));
-      return result;
-    };
-    await post("/extensions/skills/import", { sourcePath, name: "refresh-fixture" });
-    await post("/extensions/skills/publish", {
+    const client = createOpenGroveClient({ baseUrl, headers: { "x-opengrove-token": "test" } });
+    await client.extensions.skills.import({ sourcePath, name: "refresh-fixture" });
+    const published = await client.extensions.skills.publish({
       librarySkillId: "refresh-fixture",
       targetKernelIds: ["codex"],
       scope: "project",
     });
-    const created = await post("/routines", {
+    const created = await client.routines.collection.create({
       title: "Read the new Skill",
       steps: [{ toolId: "skill.invoke", input: { skill: "refresh-fixture" } }],
     });
-    const result = await post(`/routines/${created.routine.id}/run`, {});
+    const result = await client.routines.collection.run({ routineId: created.routine.id });
     assert.equal(result.summary.status, "succeeded", JSON.stringify(result));
     assert.match(JSON.stringify(result.toolResults), /Return the fresh Skill instructions/);
+    const deploymentIds = published.result.records.map((record) => record.id);
+    await client.extensions.deployments.disable({ deploymentIds });
+    const disabled = await client.routines.collection.run({ routineId: created.routine.id });
+    assert.equal(disabled.summary.status, "failed");
+    assert.match(disabled.summary.error ?? "", /unknown_skill/);
+    await client.extensions.deployments.enable({ deploymentIds });
+    assert.equal((await client.routines.collection.run({ routineId: created.routine.id })).summary.status, "succeeded");
+    await writeFile(
+      join(sourcePath, "SKILL.md"),
+      "---\nname: refresh-fixture\ndescription: Test refresh.\n---\nUpdated Skill instructions.\n",
+    );
+    await client.extensions.skills.import({ sourcePath, name: "refresh-fixture", replace: true });
+    await client.extensions.skills.republish({ deploymentIds });
+    assert.match(
+      JSON.stringify((await client.routines.collection.run({ routineId: created.routine.id })).toolResults),
+      /Updated Skill instructions/,
+    );
+    await client.extensions.skills.unpublish({ deploymentIds });
+    assert.equal((await client.routines.collection.run({ routineId: created.routine.id })).summary.status, "failed");
+    await client.extensions.deployments.delete({ itemId: "skill:refresh-fixture", deleteLibrary: true });
   } finally {
     server.closeAllConnections();
     await new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));

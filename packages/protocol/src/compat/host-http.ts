@@ -11,6 +11,11 @@ export const hostLongPollSupportSchema = z.boolean().optional().default(false);
 // Remove only with an explicitly versioned HTTP contract change.
 const firstValue = { "x-opengrove-query-repeated": "first" };
 const numericQuery = z.union([z.number(), z.string()]).optional();
+export const hostQueryBoolean = z
+  .union([z.boolean(), z.string()])
+  .optional()
+  .transform((value) => value === true || value === "1" || value === "true")
+  .meta(firstValue);
 export const hostQueryString = z.string().optional().meta(firstValue);
 export const hostQueryCursor = z.string().trim().optional().meta(firstValue);
 

@@ -234,6 +234,7 @@
     "test:harness:web-desktop": "npm run build:server && node scripts/run-built-harnesses.mjs web-desktop",
     "test:harness:release-contracts": "node scripts/run-built-harnesses.mjs release-contracts",
     "test:node": "npm run build:server && npm run test:node:built",
+    "test:product-interfaces": "npm run build:server && npm --workspace @opengrove/sdk run build && node --test dist/tests/product-interfaces.test.js dist/tests/extension-refresh.test.js dist/tests/routine-missing-tool.test.js && node scripts/test-product-sdk.mjs",
     "test:client": "npm run build:server && node --test dist/tests/opengrove-client.test.js dist/tests/bridge-contract.test.js dist/tests/host-operation-cli.test.js dist/tests/auth-cli.test.js dist/tests/host-openapi.test.js dist/tests/host-contract-coverage.test.js && node dist/tests/host-operation-cli-harness.js && npm run check:client-boundary",
     "test:node:built": "node --test dist/tests/*.test.js",
     "test:pack:web": "npm run test:pack:web:unit && node scripts/test-pack-web-artifact.mjs",

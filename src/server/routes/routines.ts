@@ -1,3 +1,12 @@
+import type {
+  listRoutinesOperation,
+  createRoutineOperation,
+  importRoutineOperation,
+  scheduleRoutineOperation,
+  runRoutineOperation,
+} from "#protocol";
+import { hostContractById } from "#protocol/compiled";
+import { operationRoute } from "./registry-utils.js";
 import type { JsonValue, Routine, RoutineStep } from "../../core.js";
 import { createRoutineDraftFromEvents, runRoutine } from "../../routines/routine-runner.js";
 import { createRoutineFlowInstanceObserver } from "../routine-flow-instance.js";
@@ -6,24 +15,24 @@ import { createRoutineMemberExecutor } from "../routine-scheduler.js";
 import { createRoutineProblemReporter } from "../routine-problems.js";
 import { record, stringValue } from "../http-utils.js";
 import { normalizeRoutineDraftPayload } from "../payloads.js";
-import type { BridgeRoute, BridgeRouteContext } from "../router.js";
+import type { BridgeRoute, BridgeRouteContext, HostOperationRouteContext } from "../router.js";
 import { readWwRuntimeAuth } from "../bridge-security.js";
 import { runWithBridgeTurnContext } from "../bridge-turn-context.js";
 import { route } from "./registry-utils.js";
 
 export function createRoutineRoutes(): BridgeRoute[] {
   return [
-    route("routines-list", "GET", "/routines", handleRoutinesListRoute),
-    route("routine-create", "POST", "/routines", handleRoutineCreateRoute),
+    operationRoute(hostContractById["routine.routine.list"], handleRoutinesListRoute),
+    operationRoute(hostContractById["routine.routine.create"], handleRoutineCreateRoute),
     route("routine-draft", "POST", "/routines/draft", handleRoutineDraftRoute),
-    route("routine-import", "POST", "/routines/import", handleRoutineImportRoute),
-    route("routine-schedule", "POST", /^\/routines\/([^/]+)\/schedule$/, handleRoutineScheduleRoute),
-    route("routine-run", "POST", /^\/routines\/([^/]+)\/run$/, handleRoutineRunRoute),
+    operationRoute(hostContractById["routine.routine.import"], handleRoutineImportRoute),
+    operationRoute(hostContractById["routine.routine.schedule"], handleRoutineScheduleRoute),
+    operationRoute(hostContractById["routine.routine.run"], handleRoutineRunRoute),
   ];
 }
 
-function handleRoutinesListRoute(context: BridgeRouteContext): boolean {
-  const status = context.url.searchParams.get("status");
+function handleRoutinesListRoute(context: HostOperationRouteContext<typeof listRoutinesOperation>): true {
+  const { status, limit } = context.input.query;
   const routines = (
     status === "draft" ||
     status === "active" ||
@@ -34,18 +43,15 @@ function handleRoutinesListRoute(context: BridgeRouteContext): boolean {
       : context.state.app.routines.list()
   )
     .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))
-    .slice(0, readRoutineLimit(context.url));
+    .slice(0, limit);
   context.sendJson(context.response, 200, { ok: true, routines });
   return true;
 }
 
-function readRoutineLimit(url: URL): number {
-  const requested = Number(url.searchParams.get("limit") ?? 100);
-  return Number.isSafeInteger(requested) && requested > 0 ? Math.min(requested, 500) : 100;
-}
-
-async function handleRoutineCreateRoute(context: BridgeRouteContext): Promise<boolean> {
-  const body = record(await context.readJsonBody(context.request));
+async function handleRoutineCreateRoute(
+  context: HostOperationRouteContext<typeof createRoutineOperation>,
+): Promise<true> {
+  const body = record(context.input.body);
   const title = stringValue(body.title);
   if (!title) {
     context.sendJson(context.response, 400, { ok: false, error: "title_required" });
@@ -184,17 +190,17 @@ async function handleRoutineDraftRoute(context: BridgeRouteContext): Promise<boo
   return true;
 }
 
-async function handleRoutineScheduleRoute(context: BridgeRouteContext): Promise<boolean> {
-  const match = context.url.pathname.match(/^\/routines\/([^/]+)\/schedule$/);
-  if (!match) return false;
-  const routineId = decodeURIComponent(match[1] || "");
+async function handleRoutineScheduleRoute(
+  context: HostOperationRouteContext<typeof scheduleRoutineOperation>,
+): Promise<true> {
+  const routineId = context.input.params.routineId;
   const existing = context.state.app.routines.get(routineId);
   if (!existing) {
     context.sendJson(context.response, 404, { ok: false, error: "routine_not_found" });
     return true;
   }
 
-  const body = record(await context.readJsonBody(context.request));
+  const body = record(context.input.body);
   const trigger = stringValue(body.trigger) || (body.enabled === false ? "manual" : "schedule");
   if (trigger !== "manual" && trigger !== "schedule") {
     context.sendJson(context.response, 400, { ok: false, error: "trigger_invalid" });
@@ -224,11 +230,12 @@ async function handleRoutineScheduleRoute(context: BridgeRouteContext): Promise<
   return true;
 }
 
-async function handleRoutineRunRoute(context: BridgeRouteContext): Promise<boolean> {
-  const routineRunAction = context.url.pathname.match(/^\/routines\/([^/]+)\/run$/);
-  if (!routineRunAction) return false;
-  const [, routineId] = routineRunAction;
-  const decodedRoutineId = decodeURIComponent(routineId!);
+async function handleRoutineRunRoute(context: HostOperationRouteContext<typeof runRoutineOperation>): Promise<true> {
+  const decodedRoutineId = context.input.params.routineId;
+  if (!context.state.app.routines.get(decodedRoutineId)) {
+    context.sendJson(context.response, 404, { ok: false, error: "routine_not_found" });
+    return true;
+  }
   const wwAuth = (await readWwRuntimeAuth(context.request, context.response, context.security))?.auth;
   const result = await runWithBridgeTurnContext(
     {
@@ -253,8 +260,10 @@ async function handleRoutineRunRoute(context: BridgeRouteContext): Promise<boole
 
 // 导入 .routine.md 文件 → 解析 → 逐 step 导入期校验 → routines.create。
 // 路径边界:不接受任意 filePath,只接受 { knowledgeId }(按真实 vault 路径校验)或 { content }(内联)。
-async function handleRoutineImportRoute(context: BridgeRouteContext): Promise<boolean> {
-  const body = record(await context.readJsonBody(context.request));
+async function handleRoutineImportRoute(
+  context: HostOperationRouteContext<typeof importRoutineOperation>,
+): Promise<true> {
+  const body = record(context.input.body);
   const knowledgeId = stringValue(body.knowledgeId);
   const content = knowledgeId ? undefined : stringValue(body.content);
   const imported = importRoutineFromKnowledgeOrContent(context.state.app, {

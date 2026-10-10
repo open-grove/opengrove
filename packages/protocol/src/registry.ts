@@ -12,7 +12,12 @@ import { interactionOperationGroup } from "./interactions.js";
 
 import { artifactOperationGroup } from "./artifacts.js";
 
+import { extensionOperationGroup } from "./extensions.js";
+import { routineOperationGroup } from "./routines.js";
+
 export const hostOperationGroups = [
+  extensionOperationGroup,
+  routineOperationGroup,
   hostOperationGroup,
   runOperationGroup,
   interactionOperationGroup,
