@@ -30,9 +30,6 @@
     "components/chat/chat-layout.css": {
       "spacingLiteral": 4
     },
-    "components/chat/disclosure.css": {
-      "spacingLiteral": 9
-    },
     "components/chat/opengrove-composer.css": {
       "spacingLiteral": 24,
       "shadowLiteral": 1
@@ -40,17 +37,8 @@
     "components/chat/skill-command-menu.css": {
       "spacingLiteral": 14
     },
-    "components/chat/thread-cards-status.css": {
-      "spacingLiteral": 9,
-      "shadowLiteral": 1
-    },
     "components/chat/thread-shell.module.css": {
       "spacingLiteral": 2
-    },
-    "components/chat/thread.css": {
-      "spacingLiteral": 92,
-      "motionLiteral": 2,
-      "shadowLiteral": 2
     },
     "components/extensions/extensions-view.module.css": {
       "spacingLiteral": 30

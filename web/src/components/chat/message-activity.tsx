@@ -1,10 +1,11 @@
+import { ActivityRow, InteractionActions, EditDiff, QuestionForm, type QuestionAnswers } from "@olorinm/agent-ui";
+import { SharedChatProvider } from "./shared-chat-provider";
 import { useState, type CSSProperties, type ReactNode } from "react";
 import "./thread-cards-status.css";
 import { Disclosure, useDisclosure } from "./disclosure";
 import clsx from "clsx";
 import {
   Box,
-  ChevronLeft,
   ChevronRight,
   CircleHelp,
   FileText,
@@ -16,7 +17,6 @@ import {
   Wrench,
 } from "lucide-react";
 import type { ToolPart } from "../../bridge";
-import { Button } from "../ui/button";
 import { rawDiagnosticText, translate, useI18n, type TranslationFn } from "../../i18n";
 import {
   activityItemDetailDisplay,
@@ -481,7 +481,6 @@ function ActivityItemRow(props: {
       });
   const title = activityItemTitle(props.item);
   const titleTooltip = choiceForm ? "" : activityItemTitleTooltip(props.item);
-  const [fullDetailOpen, setFullDetailOpen] = useState(false);
   const fullDetail =
     props.detailMode === "full" && !choiceForm ? collapsibleFullDetail(kind, titleTooltip, detail?.title) : "";
   const artifactCards = props.showArtifactCards === false ? [] : artifactCardsFromItem(props.item);
@@ -526,29 +525,6 @@ function ActivityItemRow(props: {
     pendingQuestionPart && props.pendingQuestionIds && !props.pendingQuestionIds.has(pendingQuestionPart.questionId),
   );
   const interactivePart = !questionUnavailable && pendingQuestionPart ? pendingQuestionPart : pendingApprovalPart;
-  const [approvalResolutionPending, setApprovalResolutionPending] = useState(false);
-  const [approvalResolutionError, setApprovalResolutionError] = useState("");
-  // 与 QuestionRequestCard 的 resolutionPending 同一模式：提交期间禁止重复点击，
-  // 失败时把错误留在卡片上（红色小字），而不是只写进全局消息流。
-  const runApprovalResolution = (action: "approve" | "reject" | "cancel") => {
-    if (!interactivePart || approvalResolutionPending) return;
-    setApprovalResolutionPending(true);
-    setApprovalResolutionError("");
-    const resetOnFailure = (error: unknown) => {
-      setApprovalResolutionPending(false);
-      setApprovalResolutionError(error instanceof Error ? error.message : String(error));
-    };
-    try {
-      const result = props.onResolveApproval(interactivePart.approvalId, action, undefined);
-      if (result instanceof Promise) {
-        void result.then(() => setApprovalResolutionPending(false), resetOnFailure);
-      } else {
-        setApprovalResolutionPending(false);
-      }
-    } catch (error) {
-      resetOnFailure(error);
-    }
-  };
   if (choiceForm) {
     return (
       <div className="thread-activity-row is-choice-form">
@@ -564,12 +540,16 @@ function ActivityItemRow(props: {
     );
   }
   return (
-    <div className={clsx("thread-activity-row", `status-${status}`, pendingQuestionPart ? "is-question" : null)}>
-      <span className="thread-activity-row-icon" aria-hidden="true">
-        <ActivitySummaryIcon kind={activityItemKind(props.item)} />
-      </span>
-      <div className="thread-activity-row-body">
-        {editInfo ? (
+    <ActivityRow
+      status={status}
+      className={pendingQuestionPart ? "is-question" : undefined}
+      title={title}
+      titleTooltip={titleTooltip || undefined}
+      detail={detail ?? undefined}
+      fullDetail={fullDetail}
+      icon={<ActivitySummaryIcon kind={kind} />}
+      header={
+        editInfo ? (
           <>
             <div className="thread-activity-edit" title={editInfo.fullPaths.join("\n") || editInfo.label}>
               <span className="thread-activity-edit-prefix">{editStatusLabel}</span>
@@ -626,115 +606,54 @@ function ActivityItemRow(props: {
             </div>
             {editDiff && editDiff.length && editDiffOpen ? <EditDiffBlock lines={editDiff} /> : null}
           </>
-        ) : (
-          <>
-            {fullDetail ? (
-              <button
-                type="button"
-                className="thread-activity-row-toggle"
-                aria-expanded={fullDetailOpen}
-                title={titleTooltip || undefined}
-                onClick={() => setFullDetailOpen((current) => !current)}
-              >
-                <span className="thread-activity-row-title-line">
-                  <span className="thread-activity-row-title">{title}</span>
-                  <ChevronRight
-                    className="thread-activity-row-detail-chevron"
-                    size={13}
-                    strokeWidth={2.1}
-                    aria-hidden="true"
-                  />
-                </span>
-                {detail?.label ? <span className="thread-activity-row-detail">{detail.label}</span> : null}
-              </button>
-            ) : (
-              <>
-                <div className="thread-activity-row-title" title={titleTooltip || undefined}>
-                  {title}
-                </div>
-                {detail ? (
-                  <div className="thread-activity-row-detail" title={detail.title || undefined}>
-                    {detail.label}
-                  </div>
-                ) : null}
-              </>
-            )}
-            {fullDetail && fullDetailOpen ? <pre className="thread-activity-row-full-detail">{fullDetail}</pre> : null}
-          </>
-        )}
-        {artifactCards.length ? (
-          <ArtifactCardList
-            cards={artifactCards}
-            onOpenResource={props.onOpenResource}
-            resourceContext={props.resourceContext}
-          />
-        ) : null}
-        {pendingQuestionPart ? (
-          <QuestionRequestCard
-            part={pendingQuestionPart}
-            disabledReason={questionUnavailable ? t("activity.questionExpired") : ""}
-            onAnswer={(answer) => {
-              return props.onResolveQuestion(
-                pendingQuestionPart.questionId,
-                "answer",
-                buildQuestionResponse(pendingQuestionPart, answer),
-              );
-            }}
-            onDecline={() => props.onResolveQuestion(pendingQuestionPart.questionId, "decline")}
-            onCancel={() =>
-              props.onResolveQuestion(pendingQuestionPart.questionId, "cancel", {
-                system: false,
-                reasonCode: "user_canceled",
-              })
+        ) : undefined
+      }
+      error={errorText ? rawDiagnosticText(errorText) : undefined}
+      errorTitle={fullErrorText ? rawDiagnosticText(fullErrorText) : undefined}
+    >
+      {artifactCards.length ? (
+        <ArtifactCardList
+          cards={artifactCards}
+          onOpenResource={props.onOpenResource}
+          resourceContext={props.resourceContext}
+        />
+      ) : null}
+      {pendingQuestionPart ? (
+        <QuestionRequestCard
+          part={pendingQuestionPart}
+          disabledReason={questionUnavailable ? t("activity.questionExpired") : ""}
+          onAnswer={(answer) => {
+            return props.onResolveQuestion(
+              pendingQuestionPart.questionId,
+              "answer",
+              buildQuestionResponse(pendingQuestionPart, answer),
+            );
+          }}
+          onDecline={() => props.onResolveQuestion(pendingQuestionPart.questionId, "decline")}
+          onCancel={() =>
+            props.onResolveQuestion(pendingQuestionPart.questionId, "cancel", {
+              system: false,
+              reasonCode: "user_canceled",
+            })
+          }
+        />
+      ) : null}
+      {interactivePart && !pendingQuestionPart ? (
+        <SharedChatProvider>
+          <InteractionActions
+            key={interactivePart.approvalId}
+            choices={[
+              { id: "approve", label: t("activity.confirm"), primary: true },
+              { id: "reject", label: t("activity.reject") },
+              { id: "cancel", label: t("activity.cancelRun") },
+            ]}
+            onChoose={(action) =>
+              props.onResolveApproval(interactivePart.approvalId, action as "approve" | "reject" | "cancel")
             }
           />
-        ) : null}
-        {interactivePart && !pendingQuestionPart ? (
-          <>
-            <div className="thread-approval-actions compact">
-              <Button
-                variant="primary"
-                disabled={approvalResolutionPending}
-                onClick={() => {
-                  runApprovalResolution("approve");
-                }}
-              >
-                {pendingQuestionPart ? t("activity.answer") : t("activity.confirm")}
-              </Button>
-              <Button
-                disabled={approvalResolutionPending}
-                onClick={() => {
-                  runApprovalResolution("reject");
-                }}
-              >
-                {t("activity.reject")}
-              </Button>
-              <Button
-                disabled={approvalResolutionPending}
-                onClick={() => {
-                  runApprovalResolution("cancel");
-                }}
-              >
-                {t("activity.cancelRun")}
-              </Button>
-            </div>
-            {approvalResolutionError ? (
-              <div className="thread-activity-row-error thread-approval-error">
-                {rawDiagnosticText(approvalResolutionError)}
-              </div>
-            ) : null}
-          </>
-        ) : null}
-        {errorText ? (
-          <div
-            className="thread-activity-row-error"
-            title={fullErrorText ? rawDiagnosticText(fullErrorText) : undefined}
-          >
-            {rawDiagnosticText(errorText)}
-          </div>
-        ) : null}
-      </div>
-    </div>
+        </SharedChatProvider>
+      ) : null}
+    </ActivityRow>
   );
 }
 
@@ -760,18 +679,7 @@ function fileLabel(path: string): string {
 
 function EditDiffBlock(props: { lines: EditDiffLine[] }) {
   const { t } = useI18n();
-  return (
-    <pre className="thread-activity-edit-diff" aria-label={t("activity.changesAria")}>
-      {props.lines.map((line, index) => (
-        <code key={index} className={`thread-activity-edit-diff-line is-${line.kind}`}>
-          <span className="thread-activity-edit-diff-sign" aria-hidden="true">
-            {line.kind === "add" ? "+" : line.kind === "del" ? "-" : line.kind === "meta" ? "" : " "}
-          </span>
-          <span className="thread-activity-edit-diff-text">{line.text}</span>
-        </code>
-      ))}
-    </pre>
-  );
+  return <EditDiff lines={props.lines} label={t("activity.changesAria")} />;
 }
 
 function ArtifactCardList(props: {
@@ -908,333 +816,22 @@ export function ApprovalInteractionCard(props: {
 function QuestionRequestCard(props: {
   part: NonNullable<ToolPart>;
   disabledReason?: string;
-  onAnswer(answer: string | Record<string, string>): PendingActionResult;
+  onAnswer(answer: QuestionAnswers): PendingActionResult;
   onDecline(): PendingActionResult;
   onCancel(): PendingActionResult;
 }) {
-  const { t } = useI18n();
-  const questions = questionPages(props.part);
-  const [pageIndex, setPageIndex] = useState(0);
-  const [answers, setAnswers] = useState<Record<string, string>>({});
-  const [skippedQuestions, setSkippedQuestions] = useState<Record<string, boolean>>({});
-  const [customAnswers, setCustomAnswers] = useState<Record<string, string>>({});
-  const [customAnswerOpen, setCustomAnswerOpen] = useState<Record<string, boolean>>({});
-  const [resolutionPending, setResolutionPending] = useState(false);
-  const page = questions[Math.min(pageIndex, Math.max(questions.length - 1, 0))];
-  const options = page?.options ?? [];
-  const currentAnswer = page ? (answers[page.id] ?? "") : "";
-  const optionValues = options.map((option) => option.value || option.label);
-  const currentAnswerIsCustom = Boolean(
-    page && currentAnswer && !page.multiSelect && !optionValues.includes(currentAnswer),
-  );
-  const currentCustomAnswer = page ? (customAnswers[page.id] ?? (currentAnswerIsCustom ? currentAnswer : "")) : "";
-  const currentSelections = currentAnswer
-    .split(",")
-    .map((item) => item.trim())
-    .filter(Boolean);
-  const isCustomAnswerOpen = Boolean(page && customAnswerOpen[page.id]);
-  const currentAnswered = currentAnswer.trim().length > 0;
-  const hasMultipleQuestions = questions.length > 1;
-  const canGoBack = pageIndex > 0;
-  const canGoForward = pageIndex < questions.length - 1;
-  const questionIsDone = (question: { id: string }, nextAnswers = answers, nextSkipped = skippedQuestions) =>
-    (nextAnswers[question.id] ?? "").trim().length > 0 || Boolean(nextSkipped[question.id]);
-  const allQuestionsDone = questions.every((question) => questionIsDone(question));
-  const firstIncompleteQuestionIndex = (nextAnswers = answers, nextSkipped = skippedQuestions) =>
-    questions.findIndex((question) => !questionIsDone(question, nextAnswers, nextSkipped));
-  const disabled = Boolean(props.disabledReason) || resolutionPending;
-  const runResolution = (resolve: () => PendingActionResult) => {
-    if (disabled) return;
-    setResolutionPending(true);
-    try {
-      const result = resolve();
-      if (result instanceof Promise) {
-        void result.catch(() => setResolutionPending(false));
-      }
-    } catch (error) {
-      setResolutionPending(false);
-      throw error;
-    }
-  };
-  const answerCurrentQuestion = (value: string) => {
-    if (disabled) return;
-    if (!page) return;
-    setAnswers((current) => ({ ...current, [page.id]: value }));
-    setSkippedQuestions((current) => ({ ...current, [page.id]: false }));
-  };
-  const advanceOrSubmit = (nextAnswers: Record<string, string>) => {
-    if (hasMultipleQuestions && canGoForward) {
-      setPageIndex((current) => Math.min(questions.length - 1, current + 1));
-      return;
-    }
-    const incompleteIndex = firstIncompleteQuestionIndex(nextAnswers);
-    if (hasMultipleQuestions && incompleteIndex >= 0) {
-      setPageIndex(incompleteIndex);
-      return;
-    }
-    runResolution(() => props.onAnswer(nextAnswers));
-  };
-  const submitAnswers = (nextAnswers = answers) => {
-    if (disabled) return;
-    if (!questions.length) {
-      runResolution(() => props.onAnswer(""));
-      return;
-    }
-    const complete = questions.every((question) => questionIsDone(question, nextAnswers));
-    if (!complete) return;
-    const output = { ...nextAnswers };
-    if (page && !options.length) {
-      output[page.id] = currentAnswer;
-    }
-    runResolution(() => props.onAnswer(output));
-  };
-  const chooseOption = (option: { value: string; label: string }) => {
-    if (disabled) return;
-    if (!page) return;
-    const value = option.value || option.label;
-    setCustomAnswerOpen((current) => ({ ...current, [page.id]: false }));
-    if (page.multiSelect) {
-      const selected = currentSelections.includes(value);
-      const nextSelections = selected
-        ? currentSelections.filter((item) => item !== value)
-        : [...currentSelections, value];
-      setAnswers({ ...answers, [page.id]: nextSelections.join(", ") });
-      setSkippedQuestions((current) => ({ ...current, [page.id]: false }));
-      return;
-    }
-    const nextAnswers = { ...answers, [page.id]: value };
-    setAnswers(nextAnswers);
-    setSkippedQuestions((current) => ({ ...current, [page.id]: false }));
-    advanceOrSubmit(nextAnswers);
-  };
-  const submitCustomAnswer = () => {
-    if (disabled) return;
-    if (!page) return;
-    const value = currentCustomAnswer.trim();
-    if (!value) return;
-    if (page.multiSelect) {
-      const nextSelections = currentSelections.includes(value) ? currentSelections : [...currentSelections, value];
-      const nextAnswers = { ...answers, [page.id]: nextSelections.join(", ") };
-      setAnswers(nextAnswers);
-      setSkippedQuestions((current) => ({ ...current, [page.id]: false }));
-      setCustomAnswers((current) => ({ ...current, [page.id]: "" }));
-      setCustomAnswerOpen((current) => ({ ...current, [page.id]: false }));
-      return;
-    }
-    const nextAnswers = { ...answers, [page.id]: value };
-    setAnswers(nextAnswers);
-    setSkippedQuestions((current) => ({ ...current, [page.id]: false }));
-    setCustomAnswerOpen((current) => ({ ...current, [page.id]: false }));
-    advanceOrSubmit(nextAnswers);
-  };
-  const skipCurrentQuestion = () => {
-    if (disabled) return;
-    if (!page) return;
-    const nextAnswers = { ...answers };
-    delete nextAnswers[page.id];
-    const nextSkipped = { ...skippedQuestions, [page.id]: true };
-    setAnswers(nextAnswers);
-    setSkippedQuestions(nextSkipped);
-    setCustomAnswers((current) => ({ ...current, [page.id]: "" }));
-    setCustomAnswerOpen((current) => ({ ...current, [page.id]: false }));
-    if (hasMultipleQuestions && canGoForward) {
-      setPageIndex((current) => Math.min(questions.length - 1, current + 1));
-      return;
-    }
-    const incompleteIndex = firstIncompleteQuestionIndex(nextAnswers, nextSkipped);
-    if (incompleteIndex >= 0) {
-      setPageIndex(incompleteIndex);
-      return;
-    }
-    runResolution(() => props.onAnswer(nextAnswers));
-  };
   return (
-    <section
-      className={clsx("thread-question-card", resolutionPending ? "is-resolving" : null)}
-      aria-busy={resolutionPending || undefined}
-    >
-      <div className="thread-question-card-header">
-        <div>
-          <div className="thread-question-card-title">{page?.title || questionPromptLabel(props.part)}</div>
-          {page?.description ? <div className="thread-question-card-description">{page.description}</div> : null}
-        </div>
-        {hasMultipleQuestions ? (
-          <div className="thread-question-card-nav" aria-label={t("activity.questionPaginationAria")}>
-            <button
-              type="button"
-              disabled={!canGoBack || disabled}
-              onClick={() => setPageIndex((current) => Math.max(0, current - 1))}
-              aria-label={t("activity.prevQuestion")}
-            >
-              <ChevronLeft size={16} strokeWidth={2.1} />
-            </button>
-            <span>
-              {pageIndex + 1} of {questions.length}
-            </span>
-            <button
-              type="button"
-              disabled={!canGoForward || disabled}
-              onClick={() => setPageIndex((current) => Math.min(questions.length - 1, current + 1))}
-              aria-label={t("activity.nextQuestion")}
-            >
-              <ChevronRight size={16} strokeWidth={2.1} />
-            </button>
-          </div>
-        ) : null}
-      </div>
-      {options.length ? (
-        <div className="thread-question-options">
-          {options.map((option, index) => (
-            <button
-              className={clsx(
-                "thread-question-option",
-                page?.multiSelect
-                  ? currentSelections.includes(option.value || option.label)
-                    ? "selected"
-                    : null
-                  : currentAnswer === option.value || currentAnswer === option.label
-                    ? "selected"
-                    : null,
-              )}
-              key={`${option.value}-${index}`}
-              type="button"
-              disabled={disabled}
-              onClick={() => chooseOption(option)}
-            >
-              <span className="thread-question-option-index">{index + 1}.</span>
-              <span className="thread-question-option-label">{option.label}</span>
-              {option.description ? (
-                <span className="thread-question-option-description">{option.description}</span>
-              ) : null}
-            </button>
-          ))}
-          {isCustomAnswerOpen ? (
-            <div className="thread-question-custom-answer">
-              <input
-                autoFocus
-                value={currentCustomAnswer}
-                disabled={disabled}
-                onChange={(event) => {
-                  if (!page) return;
-                  setCustomAnswers((current) => ({ ...current, [page.id]: event.target.value }));
-                }}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" && !event.nativeEvent.isComposing) {
-                    event.preventDefault();
-                    submitCustomAnswer();
-                  }
-                }}
-                placeholder={t("activity.customAnswerPlaceholder")}
-              />
-              <Button disabled={!currentCustomAnswer.trim() || disabled} onClick={submitCustomAnswer}>
-                {resolutionPending
-                  ? t("activity.submitting")
-                  : page?.multiSelect
-                    ? t("activity.add")
-                    : canGoForward
-                      ? t("activity.continue")
-                      : t("activity.submit")}
-              </Button>
-              <Button
-                disabled={disabled}
-                onClick={() => {
-                  if (!page) return;
-                  setCustomAnswers((current) => ({ ...current, [page.id]: "" }));
-                  setCustomAnswerOpen((current) => ({ ...current, [page.id]: false }));
-                }}
-              >
-                {t("common.cancel")}
-              </Button>
-            </div>
-          ) : (
-            <button
-              className={clsx("thread-question-option", currentAnswerIsCustom ? "selected" : null)}
-              type="button"
-              disabled={disabled}
-              onClick={() => {
-                if (!page) return;
-                setCustomAnswerOpen((current) => ({ ...current, [page.id]: true }));
-              }}
-            >
-              <span className="thread-question-option-index">{options.length + 1}.</span>
-              <span className="thread-question-option-label">{t("activity.otherOption")}</span>
-              <span className="thread-question-option-description">
-                {currentAnswerIsCustom ? currentAnswer : t("activity.ownAnswerHint")}
-              </span>
-            </button>
-          )}
-        </div>
-      ) : (
-        <textarea
-          className="thread-approval-input"
-          value={currentAnswer}
-          disabled={disabled}
-          onChange={(event) => answerCurrentQuestion(event.target.value)}
-          placeholder={t("activity.answerPlaceholder")}
-          rows={3}
-        />
-      )}
-      {props.disabledReason ? (
-        <div className="thread-question-card-expired">{props.disabledReason}</div>
-      ) : (
-        <div className="thread-approval-actions compact">
-          {hasMultipleQuestions && canGoBack ? (
-            <Button disabled={disabled} onClick={() => setPageIndex((current) => Math.max(0, current - 1))}>
-              {t("activity.prevQuestion")}
-            </Button>
-          ) : null}
-          {hasMultipleQuestions && canGoForward && (!options.length || page?.multiSelect) ? (
-            <Button
-              variant="primary"
-              disabled={!currentAnswered || disabled}
-              onClick={() => setPageIndex((current) => Math.min(questions.length - 1, current + 1))}
-            >
-              {t("activity.continue")}
-            </Button>
-          ) : null}
-          {options.length && page?.multiSelect && hasMultipleQuestions && !canGoForward ? (
-            <Button variant="primary" disabled={!allQuestionsDone || disabled} onClick={() => submitAnswers()}>
-              {resolutionPending
-                ? t("activity.submitting")
-                : allQuestionsDone
-                  ? t("activity.submit")
-                  : t("activity.submitAfterAll")}
-            </Button>
-          ) : null}
-          {options.length && page?.multiSelect && !hasMultipleQuestions ? (
-            <Button variant="primary" disabled={!allQuestionsDone || disabled} onClick={() => submitAnswers()}>
-              {resolutionPending ? t("activity.submitting") : t("activity.submit")}
-            </Button>
-          ) : null}
-          {!options.length && !canGoForward ? (
-            <Button variant="primary" disabled={!allQuestionsDone || disabled} onClick={() => submitAnswers()}>
-              {resolutionPending ? t("activity.submitting") : t("activity.answer")}
-            </Button>
-          ) : null}
-          {hasMultipleQuestions ? (
-            <Button disabled={disabled} onClick={skipCurrentQuestion}>
-              {resolutionPending ? t("activity.submitting") : t("activity.skip")}
-            </Button>
-          ) : null}
-          <Button
-            disabled={disabled}
-            onClick={() => runResolution(props.onDecline)}
-            title={hasMultipleQuestions ? t("activity.declineAllTooltip") : undefined}
-          >
-            {resolutionPending
-              ? hasMultipleQuestions
-                ? t("activity.cancelling")
-                : t("activity.skipping")
-              : hasMultipleQuestions
-                ? t("activity.cancelAll")
-                : t("activity.skip")}
-          </Button>
-          <Button disabled={disabled} onClick={() => runResolution(props.onCancel)}>
-            {resolutionPending ? t("activity.cancelling") : t("activity.cancelRun")}
-          </Button>
-        </div>
-      )}
-    </section>
+    <SharedChatProvider>
+      <QuestionForm
+        key={props.part.questionId}
+        questions={questionPages(props.part)}
+        title={questionPromptLabel(props.part)}
+        disabledReason={props.disabledReason}
+        onAnswer={props.onAnswer}
+        onDecline={props.onDecline}
+        onCancel={props.onCancel}
+      />
+    </SharedChatProvider>
   );
 }
 

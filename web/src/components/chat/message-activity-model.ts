@@ -1973,7 +1973,7 @@ export function questionPromptLabel(part: ToolPart): string {
 
 export function buildQuestionResponse(
   part: ToolPart,
-  answer: string | Record<string, string>,
+  answer: string | Record<string, string | string[]>,
 ): Record<string, unknown> {
   const input = recordValue(part?.questionInput);
   const isAskUserQuestion = stringValue(input.toolName) === "AskUserQuestion";
@@ -1985,10 +1985,17 @@ export function buildQuestionResponse(
       ? firstQuestionId
         ? { [firstQuestionId]: fallbackAnswer }
         : {}
-      : Object.fromEntries(Object.entries(answer).map(([key, value]) => [key, value.trim()]));
+      : Object.fromEntries(
+          Object.entries(answer).map(([key, value]) => [key, Array.isArray(value) ? value : value.trim()]),
+        );
 
   if (isAskUserQuestion) {
-    const answersByQuestion = canonicalAskUserQuestionAnswers(input, answersById);
+    const answersByQuestion = canonicalAskUserQuestionAnswers(
+      input,
+      Object.fromEntries(
+        Object.entries(answersById).map(([id, value]) => [id, Array.isArray(value) ? value.join(", ") : value]),
+      ),
+    );
     return Object.keys(answersByQuestion).length
       ? { answers: answersByQuestion }
       : { answers: firstQuestionId ? { [firstQuestionId]: fallbackAnswer } : { answer: fallbackAnswer } };
@@ -2005,7 +2012,10 @@ export function buildQuestionResponse(
   if (Object.keys(answersById).length) {
     return {
       answers: Object.fromEntries(
-        Object.entries(answersById).map(([id, value]) => [id, { answers: value ? [value] : [] }]),
+        Object.entries(answersById).map(([id, value]) => [
+          id,
+          { answers: Array.isArray(value) ? value : value ? [value] : [] },
+        ]),
       ),
     };
   }

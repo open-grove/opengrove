@@ -6,6 +6,11 @@ const execFileAsync = promisify(execFile);
 
 const harnesses = [
   {
+    name: "Shared chat UI preserves native answers, composer controls and localization",
+    script: "scripts/test-web-shared-chat-ui.mjs",
+    marker: "web-shared-chat-ui passed",
+  },
+  {
     name: "Expired Web sessions return to sign-in and resume Rooms synchronization",
     script: "scripts/test-web-session-expiry-ui.mjs",
     marker: "web-session-expiry browser ok",
