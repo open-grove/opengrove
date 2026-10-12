@@ -35,7 +35,6 @@
   "web/src/components/chat/message-activity-model.ts|model|{value}m {value}s",
   "web/src/components/chat/message-activity-model.ts|model|{value}s",
   "web/src/components/chat/message-activity-model.ts|model|{value}{value}",
-  "web/src/components/chat/message-activity.tsx|text|of",
   "web/src/components/chat/message-markdown.tsx|expr|· {value}",
   "web/src/components/chat/resource-model.ts|model|line {value}",
   "web/src/components/chat/resource-model.ts|model|resource",

@@ -1,3 +1,5 @@
+import { ChatComposer as SharedChatComposer } from "@olorinm/agent-ui";
+import { SharedChatProvider } from "./shared-chat-provider";
 import { accessModeUnavailableKey } from "../../runtime/access-modes";
 import {
   useRef,
@@ -240,69 +242,104 @@ export function ChatComposer(props: ChatComposerProps) {
   const unavailable = Boolean(props.unavailableReason) && !props.sending;
   const composerAnchorRef = useRef<HTMLDivElement | null>(null);
   return (
-    <section className={styles.region} aria-label={t("composer.placeholder")}>
-      <MotionPopover
-        open={Boolean(props.skillMenu)}
-        onOpenChange={(open) => props.onSkillMenuOpenChange?.(open)}
-        anchorRef={composerAnchorRef}
-        side="top"
-        sideOffset={8}
-        align="center"
-        className="skill-menu"
-        role="dialog"
-        ariaLabel={t("composer.skills")}
-        onOpenAutoFocus={(event) => event.preventDefault()}
-        onFocusOutside={(event) => event.preventDefault()}
-        onInteractOutside={(event) => {
-          const target = event.target;
-          if (target instanceof Node && composerAnchorRef.current?.contains(target)) {
-            event.preventDefault();
-          }
+    <SharedChatProvider>
+      <SharedChatComposer
+        value={props.composerQuestionValue}
+        onChange={props.onQuestionChange}
+        onSend={props.onSubmitOrStop}
+        onStop={props.onSubmitOrStop}
+        running={props.sending}
+        disabled={unavailable}
+        canSend
+        placeholder={props.composerSkillInvocation ? t("composer.skillPlaceholder") : t("composer.placeholder")}
+        textareaRef={props.composerInputRef}
+        textareaProps={{
+          "aria-expanded": Boolean(props.skillMenu),
+          "aria-haspopup": "dialog",
+          onKeyDown: props.onKeyDown,
+          onPaste: props.onPaste,
+          onCompositionStart: props.onCompositionStart,
+          onCompositionEnd: props.onCompositionEnd,
+          style: { height: `${clamp(props.composerHeight, MIN_COMPOSER_HEIGHT, MAX_COMPOSER_HEIGHT)}px` },
         }}
-      >
-        {props.skillMenu}
-      </MotionPopover>
-      {props.queuedInstructions?.length ? (
-        <QueuedInstructionList
-          items={props.queuedInstructions}
-          canGuide={props.canGuideQueuedInstruction}
-          canSubmitNow={!unavailable && (!props.sending || props.canGuideQueuedInstruction)}
-          onGuide={props.onGuideQueuedInstruction}
-          onRemove={props.onRemoveQueuedInstruction}
-          onUpdate={props.onUpdateQueuedInstruction}
-          onMove={props.onMoveQueuedInstruction}
-          onSubmitNow={props.onSubmitQueuedInstructionNow}
-        />
-      ) : null}
-
-      <div
-        ref={composerAnchorRef}
-        className={clsx("opengrove-composer", styles.composer)}
-        data-sending={props.sending ? "true" : "false"}
-        data-skill={props.composerSkillInvocation ? "true" : "false"}
-        onPointerDown={props.onPointerDown}
-      >
-        <div
-          className={clsx("opengrove-composer-resize-handle", styles.resizeHandle)}
-          data-action="resize-composer"
-        ></div>
-
-        {props.contextText || props.attachments.length || props.contextArtifacts.length ? (
-          <ComposerAttachmentBar
-            contextText={props.contextText}
-            attachments={props.attachments}
-            contextArtifacts={props.contextArtifacts}
-            onClearContext={props.onClearContext}
-            onRemoveAttachment={props.onRemoveAttachment}
-            onRemoveContextArtifact={props.onRemoveContextArtifact}
+        boxProps={{
+          ref: composerAnchorRef,
+          "data-skill": props.composerSkillInvocation ? "true" : "false",
+          onPointerDown: props.onPointerDown,
+        }}
+        inputLineProps={{ "data-skill": props.composerSkillInvocation ? "true" : "false" }}
+        footerProps={{ ref: props.modelMenuRef }}
+        classNames={{
+          region: styles.region,
+          box: clsx("opengrove-composer", styles.composer),
+          inputLine: clsx("opengrove-question-line", styles.questionLine),
+          input: clsx("opengrove-question", styles.question),
+          footer: clsx("opengrove-composer-footer", styles.footer),
+          footerLeft: clsx("opengrove-composer-footer-left", styles.footerLeft),
+          footerRight: clsx("opengrove-composer-footer-right", styles.footerRight),
+          action: clsx("opengrove-action opengrove-primary opengrove-send", styles.actionButton, styles.sendButton),
+          unavailable: styles.unavailableReason,
+        }}
+        sendIcon={<ProductIcon name="send" size={18} />}
+        unavailableReason={unavailable ? props.unavailableReason : undefined}
+        resizeHandle={
+          <div
+            className={clsx("opengrove-composer-resize-handle", styles.resizeHandle)}
+            data-action="resize-composer"
           />
-        ) : null}
-
-        <div
-          className={clsx("opengrove-question-line", styles.questionLine)}
-          data-skill={props.composerSkillInvocation ? "true" : "false"}
-        >
-          {props.composerSkillInvocation ? (
+        }
+        before={
+          <>
+            {" "}
+            <MotionPopover
+              open={Boolean(props.skillMenu)}
+              onOpenChange={(open) => props.onSkillMenuOpenChange?.(open)}
+              anchorRef={composerAnchorRef}
+              side="top"
+              sideOffset={8}
+              align="center"
+              className="skill-menu"
+              role="dialog"
+              ariaLabel={t("composer.skills")}
+              onOpenAutoFocus={(event) => event.preventDefault()}
+              onFocusOutside={(event) => event.preventDefault()}
+              onInteractOutside={(event) => {
+                const target = event.target;
+                if (target instanceof Node && composerAnchorRef.current?.contains(target)) {
+                  event.preventDefault();
+                }
+              }}
+            >
+              {props.skillMenu}
+            </MotionPopover>
+            {props.queuedInstructions?.length ? (
+              <QueuedInstructionList
+                items={props.queuedInstructions}
+                canGuide={props.canGuideQueuedInstruction}
+                canSubmitNow={!unavailable && (!props.sending || props.canGuideQueuedInstruction)}
+                onGuide={props.onGuideQueuedInstruction}
+                onRemove={props.onRemoveQueuedInstruction}
+                onUpdate={props.onUpdateQueuedInstruction}
+                onMove={props.onMoveQueuedInstruction}
+                onSubmitNow={props.onSubmitQueuedInstructionNow}
+              />
+            ) : null}
+          </>
+        }
+        attachments={
+          props.contextText || props.attachments.length || props.contextArtifacts.length ? (
+            <ComposerAttachmentBar
+              contextText={props.contextText}
+              attachments={props.attachments}
+              contextArtifacts={props.contextArtifacts}
+              onClearContext={props.onClearContext}
+              onRemoveAttachment={props.onRemoveAttachment}
+              onRemoveContextArtifact={props.onRemoveContextArtifact}
+            />
+          ) : null
+        }
+        inputPrefix={
+          props.composerSkillInvocation ? (
             <button
               className={clsx("opengrove-skill-chip", styles.skillChip)}
               type="button"
@@ -315,35 +352,11 @@ export function ChatComposer(props: ChatComposerProps) {
               <ProductIcon name="package" size={15} />
               <span>{formatComposerSkillTitle(props.composerSkillInvocation.skill)}</span>
             </button>
-          ) : null}
-
-          <textarea
-            ref={props.composerInputRef}
-            className={clsx("opengrove-question", styles.question)}
-            rows={3}
-            value={props.composerQuestionValue}
-            placeholder={props.composerSkillInvocation ? t("composer.skillPlaceholder") : t("composer.placeholder")}
-            aria-expanded={Boolean(props.skillMenu)}
-            aria-haspopup="dialog"
-            spellCheck={false}
-            disabled={unavailable}
-            onChange={(event) => props.onQuestionChange(event.target.value)}
-            onKeyDown={props.onKeyDown}
-            onPaste={props.onPaste}
-            onCompositionStart={props.onCompositionStart}
-            onCompositionEnd={props.onCompositionEnd}
-            style={{ height: `${clamp(props.composerHeight, MIN_COMPOSER_HEIGHT, MAX_COMPOSER_HEIGHT)}px` }}
-          ></textarea>
-        </div>
-
-        {unavailable ? (
-          <div className={styles.unavailableReason} role="status">
-            {props.unavailableReason}
-          </div>
-        ) : null}
-
-        <div className={clsx("opengrove-composer-footer", styles.footer)} ref={props.modelMenuRef}>
-          <div className={clsx("opengrove-composer-footer-left", styles.footerLeft)}>
+          ) : null
+        }
+        footerLeft={
+          <>
+            {" "}
             <input
               ref={props.fileInputRef}
               className={clsx("opengrove-file-input", styles.fileInput)}
@@ -399,8 +412,11 @@ export function ChatComposer(props: ChatComposerProps) {
                 </button>
               ) : null}
             </div>
-          </div>
-          <div className={clsx("opengrove-composer-footer-right", styles.footerRight)}>
+          </>
+        }
+        footerRight={
+          <>
+            {" "}
             {props.voiceInput ? (
               <button
                 className={clsx(
@@ -451,28 +467,10 @@ export function ChatComposer(props: ChatComposerProps) {
               onSetBudgetLimitUsd={props.onSetBudgetLimitUsd}
             />
             {props.contextUsage ? <ContextWindowRing usage={props.contextUsage} /> : null}
-            <button
-              className={clsx(
-                "opengrove-action opengrove-primary opengrove-send",
-                styles.actionButton,
-                styles.sendButton,
-              )}
-              type="button"
-              disabled={unavailable}
-              onClick={props.onSubmitOrStop}
-              aria-label={props.sending ? t("composer.stop") : t("composer.send")}
-              title={props.sending ? t("composer.stop") : props.unavailableReason || t("composer.send")}
-            >
-              {props.sending ? (
-                <Square size={13} fill="currentColor" strokeWidth={0} />
-              ) : (
-                <ProductIcon name="send" size={18} />
-              )}
-            </button>
-          </div>
-        </div>
-      </div>
-    </section>
+          </>
+        }
+      />
+    </SharedChatProvider>
   );
 }
 

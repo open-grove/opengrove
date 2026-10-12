@@ -1,6 +1,8 @@
+import { ChatMessage, ChatTranscript, ImagePreview } from "@olorinm/agent-ui";
+import { SharedChatProvider } from "./shared-chat-provider";
 import { memo, useEffect, useState, type CSSProperties } from "react";
 import clsx from "clsx";
-import { Bot, Check, Image as ImageIcon, ShieldAlert, X, UserRound } from "lucide-react";
+import { Bot, Check, Image as ImageIcon, ShieldAlert, UserRound } from "lucide-react";
 import type { AgentEventRecord, NotePart, RunRecord, SkillRecord, StoredMessage } from "../../bridge";
 import { summarize } from "../../format";
 import { useI18n, type TranslationFn } from "../../i18n";
@@ -50,7 +52,6 @@ export function MessageList(props: {
   onEditSkill?(skillName: string): void;
   onSaveImageArtifact?(image: ChatImagePayload): void;
 }) {
-  const { t } = useI18n();
   const [previewImage, setPreviewImage] = useState<ChatImagePayload | null>(null);
   const resourceActions = useChatResourceActions();
   const resourceContext: ChatResourceContext | undefined = props.workspaceRoot
@@ -67,16 +68,12 @@ export function MessageList(props: {
   const visibleMessages = props.messages.filter((message) => !isSuppressedSystemNoise(message));
   const activeChoiceFormKey = findActiveChoiceFormKey(visibleMessages);
 
-  useEffect(() => {
-    if (previewImage) {
-      blurActiveElement();
-    }
-  }, [previewImage]);
-
   return (
     <>
-      <div className="thread-stack">
-        {visibleMessages.map((message, index) => (
+      <ChatTranscript
+        messages={visibleMessages}
+        getKey={(message) => message.id}
+        renderMessage={(message, index) => (
           <ThreadMessage
             key={message.id}
             message={message}
@@ -97,45 +94,18 @@ export function MessageList(props: {
             onOpenResource={resourceActions.openResource}
             resourceContext={resourceContext}
           />
-        ))}
-      </div>
+        )}
+      />
       {previewImage ? (
-        <div
-          className="thread-image-lightbox"
-          role="dialog"
-          aria-modal="true"
-          aria-label={previewImage.alt || t("chat.imagePreview")}
-          onClick={() => setPreviewImage(null)}
-        >
-          <div className="thread-image-lightbox-panel" onClick={(event) => event.stopPropagation()}>
-            <div className="thread-image-lightbox-header">
-              <div>{previewImage.alt || t("chat.imagePreview")}</div>
-              <button
-                type="button"
-                className="thread-image-icon-button"
-                onClick={() => setPreviewImage(null)}
-                aria-label={t("chat.closePreview")}
-              >
-                <X size={16} />
-              </button>
-            </div>
-            <img src={previewImage.src} alt={previewImage.alt || t("chat.imagePreview")} />
-          </div>
-        </div>
+        <SharedChatProvider>
+          <ImagePreview image={previewImage} onClose={() => setPreviewImage(null)} />
+        </SharedChatProvider>
       ) : null}
       {resourceActions.preview ? (
         <ChatResourcePreviewPanel preview={resourceActions.preview} onClose={resourceActions.closePreview} />
       ) : null}
     </>
   );
-}
-
-function blurActiveElement(): void {
-  if (typeof document === "undefined") return;
-  const active = document.activeElement;
-  if (active instanceof HTMLElement) {
-    active.blur();
-  }
 }
 
 const ThreadMessage = memo(function ThreadMessage(props: {
@@ -164,87 +134,80 @@ const ThreadMessage = memo(function ThreadMessage(props: {
   const roleMeta = messageRoleMeta(message.role, messagePending);
 
   return (
-    <article className={clsx("thread-message", `role-${message.role}`)} data-role={message.role}>
-      <header className="thread-message-header">
-        <div className={clsx("thread-message-avatar", `role-${message.role}`)} aria-hidden="true">
-          {roleMeta.icon}
-        </div>
-        <div className="thread-message-meta">
-          <div className="thread-message-role-row">
-            <span className="thread-message-role">{roleMeta.title}</span>
-            {messagePending ? (
-              <span className="thread-inline-status">
-                <AgentStateIndicator
-                  state={agentOrbStateFromRun(props.runtimeEvents, [], message.runId)}
-                  label={t("chat.processing")}
-                  labelVisible={false}
-                />
-                {t("chat.processing")}
-              </span>
-            ) : null}
-          </div>
-          <div className="thread-message-subtitle">{roleMeta.subtitle}</div>
-        </div>
-      </header>
-
-      <div className="thread-message-content">
-        {message.role === "user" ? (
-          <UserMessageBody message={message} />
-        ) : message.role === "assistant" && hasParts ? (
-          <AssistantMessageBody
-            message={message}
-            skills={props.skills}
-            runtimeEvents={props.runtimeEvents}
-            runs={props.runs}
-            precedingUserText={props.precedingUserText}
-            activeChoiceFormKey={props.activeChoiceFormKey}
-            pendingQuestionIds={props.pendingQuestionIds}
-            onResolveApproval={props.onResolveApproval}
-            onResolveQuestion={props.onResolveQuestion}
-            onInsertPrompt={props.onInsertPrompt}
-            onSubmitPrompt={props.onSubmitPrompt}
-            onTrySkill={props.onTrySkill}
-            onEditSkill={props.onEditSkill}
-            onPreviewImage={props.onPreviewImage}
-            onSaveImageArtifact={props.onSaveImageArtifact}
-            onOpenResource={props.onOpenResource}
-            resourceContext={props.resourceContext}
-          />
-        ) : message.role === "assistant" && messagePending ? (
-          <AssistantPendingBody
-            message={message}
-            runtimeEvents={props.runtimeEvents}
-            runs={props.runs}
-            precedingUserText={props.precedingUserText}
-          />
-        ) : message.role === "assistant" ? (
-          <AssistantPlainBody
-            message={message}
-            skills={props.skills}
-            runtimeEvents={props.runtimeEvents}
-            runs={props.runs}
-            precedingUserText={props.precedingUserText}
-            onTrySkill={props.onTrySkill}
-            onEditSkill={props.onEditSkill}
-            onPreviewImage={props.onPreviewImage}
-            onSaveImageArtifact={props.onSaveImageArtifact}
-            onOpenResource={props.onOpenResource}
-            resourceContext={props.resourceContext}
-          />
-        ) : (
-          <ThreadTextBlock
-            text={message.text}
-            skills={props.skills}
-            onTrySkill={props.onTrySkill}
-            onEditSkill={props.onEditSkill}
-            onPreviewImage={props.onPreviewImage}
-            onSaveImageArtifact={props.onSaveImageArtifact}
-            onOpenResource={props.onOpenResource}
-            resourceContext={props.resourceContext}
-          />
-        )}
-      </div>
-    </article>
+    <ChatMessage
+      role={message.role}
+      title={roleMeta.title}
+      avatar={roleMeta.icon}
+      subtitle={roleMeta.subtitle}
+      status={
+        messagePending ? (
+          <span className="thread-inline-status">
+            <AgentStateIndicator
+              state={agentOrbStateFromRun(props.runtimeEvents, [], message.runId)}
+              label={t("chat.processing")}
+              labelVisible={false}
+            />
+            {t("chat.processing")}
+          </span>
+        ) : null
+      }
+    >
+      {message.role === "user" ? (
+        <UserMessageBody message={message} />
+      ) : message.role === "assistant" && hasParts ? (
+        <AssistantMessageBody
+          message={message}
+          skills={props.skills}
+          runtimeEvents={props.runtimeEvents}
+          runs={props.runs}
+          precedingUserText={props.precedingUserText}
+          activeChoiceFormKey={props.activeChoiceFormKey}
+          pendingQuestionIds={props.pendingQuestionIds}
+          onResolveApproval={props.onResolveApproval}
+          onResolveQuestion={props.onResolveQuestion}
+          onInsertPrompt={props.onInsertPrompt}
+          onSubmitPrompt={props.onSubmitPrompt}
+          onTrySkill={props.onTrySkill}
+          onEditSkill={props.onEditSkill}
+          onPreviewImage={props.onPreviewImage}
+          onSaveImageArtifact={props.onSaveImageArtifact}
+          onOpenResource={props.onOpenResource}
+          resourceContext={props.resourceContext}
+        />
+      ) : message.role === "assistant" && messagePending ? (
+        <AssistantPendingBody
+          message={message}
+          runtimeEvents={props.runtimeEvents}
+          runs={props.runs}
+          precedingUserText={props.precedingUserText}
+        />
+      ) : message.role === "assistant" ? (
+        <AssistantPlainBody
+          message={message}
+          skills={props.skills}
+          runtimeEvents={props.runtimeEvents}
+          runs={props.runs}
+          precedingUserText={props.precedingUserText}
+          onTrySkill={props.onTrySkill}
+          onEditSkill={props.onEditSkill}
+          onPreviewImage={props.onPreviewImage}
+          onSaveImageArtifact={props.onSaveImageArtifact}
+          onOpenResource={props.onOpenResource}
+          resourceContext={props.resourceContext}
+        />
+      ) : (
+        <ThreadTextBlock
+          text={message.text}
+          skills={props.skills}
+          onTrySkill={props.onTrySkill}
+          onEditSkill={props.onEditSkill}
+          onPreviewImage={props.onPreviewImage}
+          onSaveImageArtifact={props.onSaveImageArtifact}
+          onOpenResource={props.onOpenResource}
+          resourceContext={props.resourceContext}
+        />
+      )}
+    </ChatMessage>
   );
 });
 

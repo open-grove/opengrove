@@ -22,6 +22,25 @@ and workspace data kept on the user's machine.
   migration, ordinary updates never move the Workspace. See
   [Store App storage layout](APP_STORAGE_LAYOUT.md).
 
+## Shared chat presentation
+
+OpenGrove consumes the independent `@olorinm/agent-ui` React package from
+[Agent Host](https://github.com/Olorinm/agent-host/tree/main/packages/react).
+The pinned archive is in `vendor/`. Message layout, Markdown, composer layout,
+disclosures, activity rows, approvals, question forms and resource-card frames
+use the package's shared implementation and component stylesheets.
+
+OpenGrove retains its message/native-response adapters, localization, theme
+tokens, Room/App state, model and skill menus, attachment upload, resource
+authorization and file operations. Shared presentation changes belong upstream;
+product behavior stays in the wrappers under `web/src/components/chat/`.
+The backend's Agent Host version is independent of this UI dependency.
+
+After refreshing the archive and lockfile, run `npm run typecheck:web`,
+`node scripts/test-web-shared-chat-ui.mjs`,
+`node scripts/test-web-room-interaction-ui.mjs`,
+`node scripts/test-web-resource-references.mjs` and `npm run build:web`.
+
 ## Remote Agent conversations
 
 Contacts may also bind an external **Remote Agent** through the signed-in OpenGrove admin account and the Agent Router SDK. Direct and group messages use the same Rooms targeting and scheduling; only the selected Employee's execution dispatch chooses the network adapter or a local Kernel. Short-lived communication credentials stay in Host memory, are renewed for the

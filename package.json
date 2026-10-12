@@ -362,6 +362,7 @@
     "@lobehub/icons": "^5.23.0",
     "@milkdown/crepe": "^7.22.2",
     "@milkdown/kit": "^7.22.1",
+    "@olorinm/agent-ui": "file:vendor/olorinm-agent-ui-0.1.0-alpha.1.tgz",
     "@phosphor-icons/react": "^2.1.10",
     "@playwright/test": "1.63.0",
     "@radix-ui/react-dialog": "1.2.0",

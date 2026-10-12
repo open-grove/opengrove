@@ -109,7 +109,7 @@ async function testGroupHeaderAvatarCssContract() {
     "utf8",
   );
   const motionDisclosureSource = await readFile(
-    join(projectRoot, "web/src/components/ui/motion/disclosure.tsx"),
+    new URL("./motion-disclosure.js", import.meta.resolve("@olorinm/agent-ui/agent-host")),
     "utf8",
   );
   const directoryTreeSource = await readFile(join(projectRoot, "web/src/components/shared/directory-tree.tsx"), "utf8");
@@ -320,7 +320,7 @@ async function testGroupHeaderAvatarCssContract() {
   );
   assert.match(
     motionDisclosureSource,
-    /initial=\{initiallyOpen \? false : "collapsed"\}/,
+    /initial: initiallyOpen \? false : "collapsed"/,
     "initially-open disclosures must render at their natural height without replaying the reveal",
   );
   assert.match(

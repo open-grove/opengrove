@@ -961,6 +961,7 @@ export function MountedAppChatPanel(props: {
       }));
     } catch (error) {
       appendAppSystemMessage(t("mountedApp.resolveApprovalFailed", { message: mountedAppChatErrorMessage(error, t) }));
+      throw error;
     }
   }
 
@@ -987,6 +988,7 @@ export function MountedAppChatPanel(props: {
       }));
     } catch (error) {
       appendAppSystemMessage(t("mountedApp.resolveQuestionFailed", { message: mountedAppChatErrorMessage(error, t) }));
+      throw error;
     }
   }
 
