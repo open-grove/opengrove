@@ -100,12 +100,12 @@ async function runBrowserHarness(path) {
 
     await page.evaluate(() => window.renderQuestionHarness());
     await assertVisibleText(page, "你想让我接下来围绕哪类事情继续?");
-    await assertVisibleText(page, "1 of 2");
+    await assertVisibleText(page, "1 / 2");
     await page.getByRole("button", { name: /代码任务/ }).click();
-    await assertVisibleText(page, "2 of 2");
+    await assertVisibleText(page, "2 / 2");
     assert.equal(await page.evaluate(() => window.__questionCalls.answer.length), 0);
     await assertVisibleText(page, "你希望我的回答风格更偏哪一种?");
-    await assertVisibleText(page, "2 of 2");
+    await assertVisibleText(page, "2 / 2");
     await page.getByRole("button", { name: /简洁直接/ }).click();
     const answerCall = await page.evaluate(() => window.__questionCalls.answer[0]);
     assert.equal(answerCall[0], "question_1");
