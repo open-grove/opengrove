@@ -1,5 +1,5 @@
-import { createHash } from "node:crypto";
-import { existsSync, readdirSync } from "node:fs";
+import { createHash, randomUUID } from "node:crypto";
+import { existsSync, readdirSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import {
@@ -68,6 +68,17 @@ export interface ClaudeAgentSdkRuntimeOptions {
   modelAliases?: Record<string, string>;
   env?: NodeJS.ProcessEnv;
   query?: ClaudeAgentSdkQueryFunction;
+}
+
+// Claude 原生恢复发生在 Host 能观察到 turn 之前，因此先用保守默认值阻止超大历史进入 Node 堆。
+const DEFAULT_CLAUDE_CONTEXT_TOKEN_BUDGET = 150_000;
+const DEFAULT_CLAUDE_MAX_RESUME_TRANSCRIPT_BYTES = 16 * 1024 * 1024;
+
+interface ClaudeNativeResumeGuard {
+  previousSessionId: string;
+  transcriptBytes: number;
+  maxTranscriptBytes: number;
+  reason: "transcript_too_large";
 }
 
 interface ClaudeSdkMessageState {
@@ -201,7 +212,7 @@ export class ClaudeAgentSdkRuntime implements AgentRuntime {
     const budgetLimitUsd = normalizeClaudeBudgetLimitUsd(request.budgetLimitUsd);
     const modelWindowKey = requestedModel ?? "__claude_default__";
     const contextBudget = resolveContextTokenBudget(
-      request.contextTokenBudget,
+      request.contextTokenBudget ?? DEFAULT_CLAUDE_CONTEXT_TOKEN_BUDGET,
       this.observedContextWindowByModel.get(modelWindowKey),
     );
     const preparedEnv = this.prepareEnv(requestedModel, runtimeEnv);
@@ -232,9 +243,24 @@ export class ClaudeAgentSdkRuntime implements AgentRuntime {
         reason:
           contextBudget.budgetSource === "configured"
             ? "CLAUDE_CODE_AUTO_COMPACT_WINDOW"
-            : "employee/App budget unconfigured; preserving Claude Agent native default",
+            : "host safety default context budget",
       }),
     );
+    if (nativeSession.resumeGuard) {
+      queue.push({
+        type: "runtime.diagnostic",
+        runId,
+        at: new Date().toISOString(),
+        name: "claude.session.resume_guard",
+        data: {
+          reason: nativeSession.resumeGuard.reason,
+          previousSessionId: nativeSession.resumeGuard.previousSessionId,
+          transcriptBytes: nativeSession.resumeGuard.transcriptBytes,
+          maxTranscriptBytes: nativeSession.resumeGuard.maxTranscriptBytes,
+          sessionMode: "new",
+        },
+      });
+    }
     queue.push({
       type: "runtime.diagnostic",
       runId,
@@ -1591,14 +1617,14 @@ function resolveClaudeNativeSession(
   request: AgentTurnRequest,
   runtimeBindingFingerprint: string | undefined,
   options: { cwd: string; configDir?: string | undefined },
-): { sessionId: string; resuming: boolean } {
+): { sessionId: string; resuming: boolean; resumeGuard?: ClaudeNativeResumeGuard } {
   const current = request.context.sessions.get(request.context.sessionId);
   const fingerprint = runtimeBindingFingerprint || "native";
   const sessionByFingerprint = current?.metadata?.claudeCodeSessionIds;
   if (sessionByFingerprint && typeof sessionByFingerprint === "object" && !Array.isArray(sessionByFingerprint)) {
     const sessionId = (sessionByFingerprint as Record<string, unknown>)[fingerprint];
     if (typeof sessionId === "string" && sessionId.trim()) {
-      return { sessionId, resuming: true };
+      return guardClaudeNativeResume(sessionId, options);
     }
   }
   const metadataSession =
@@ -1607,11 +1633,35 @@ function resolveClaudeNativeSession(
     metadataSession && fingerprint === "native"
       ? metadataSession
       : toStableClaudeSessionId(`${request.context.sessionId}:${fingerprint}`);
-  return {
-    sessionId: stableSessionId,
-    resuming:
-      Boolean(metadataSession && fingerprint === "native") || claudeNativeTranscriptExists(stableSessionId, options),
-  };
+  if (metadataSession && fingerprint === "native") {
+    return guardClaudeNativeResume(stableSessionId, options);
+  }
+  const transcript = claudeNativeTranscriptPath(stableSessionId, options);
+  if (!transcript) return { sessionId: stableSessionId, resuming: false };
+  return guardClaudeNativeResume(stableSessionId, options);
+}
+
+function guardClaudeNativeResume(
+  sessionId: string,
+  options: { cwd: string; configDir?: string | undefined },
+): { sessionId: string; resuming: boolean; resumeGuard?: ClaudeNativeResumeGuard } {
+  const transcript = claudeNativeTranscriptPath(sessionId, options);
+  if (!transcript) return { sessionId, resuming: true };
+  const transcriptBytes = safeTranscriptSize(transcript);
+  const maxTranscriptBytes = resolveMaxClaudeResumeTranscriptBytes();
+  if (transcriptBytes !== undefined && transcriptBytes > maxTranscriptBytes) {
+    return {
+      sessionId: randomUUID(),
+      resuming: false,
+      resumeGuard: {
+        previousSessionId: sessionId,
+        transcriptBytes,
+        maxTranscriptBytes,
+        reason: "transcript_too_large",
+      },
+    };
+  }
+  return { sessionId, resuming: true };
 }
 
 function rememberClaudeNativeSession(
@@ -1664,27 +1714,42 @@ function summarizeClaudeMcpServers(mcpServers: readonly ClaudeMcpServerSummary[]
   }));
 }
 
-function claudeNativeTranscriptExists(
+function claudeNativeTranscriptPath(
   sessionId: string,
   options: { cwd: string; configDir?: string | undefined },
-): boolean {
+): string | undefined {
   const configDir = options.configDir?.trim() || process.env.CLAUDE_CONFIG_DIR?.trim() || resolve(homedir(), ".claude");
   const projectsDir = join(configDir, "projects");
   const projectPath = join(projectsDir, claudeProjectKey(options.cwd), `${sessionId}.jsonl`);
   if (existsSync(projectPath)) {
-    return true;
+    return projectPath;
   }
 
   try {
     for (const entry of readdirSync(projectsDir, { withFileTypes: true })) {
-      if (entry.isDirectory() && existsSync(join(projectsDir, entry.name, `${sessionId}.jsonl`))) {
-        return true;
+      const transcriptPath = join(projectsDir, entry.name, `${sessionId}.jsonl`);
+      if (entry.isDirectory() && existsSync(transcriptPath)) {
+        return transcriptPath;
       }
     }
   } catch {
     // non-critical-fallback: Missing or unreadable native transcripts do not block a fresh session.
   }
-  return false;
+  return undefined;
+}
+
+function safeTranscriptSize(transcriptPath: string): number | undefined {
+  try {
+    return statSync(transcriptPath).size;
+  } catch {
+    // non-critical-fallback: A disappearing transcript should not prevent a new turn.
+    return undefined;
+  }
+}
+
+function resolveMaxClaudeResumeTranscriptBytes(): number {
+  const configured = Number.parseInt(process.env.OPENGROVE_CLAUDE_MAX_RESUME_TRANSCRIPT_BYTES ?? "", 10);
+  return Number.isSafeInteger(configured) && configured > 0 ? configured : DEFAULT_CLAUDE_MAX_RESUME_TRANSCRIPT_BYTES;
 }
 
 function claudeProjectKey(cwd: string): string {

@@ -1283,6 +1283,110 @@ async function main() {
   assert.equal(capturedResume, transcriptSessionId);
   assert.equal(capturedSessionId, "");
 
+  // 超过恢复闸门的原生 transcript 必须创建新会话，不能先读取完整文件。
+  const oversizedTranscriptCwd = mkdtempSync(join(tmpdir(), "opengrove-claude-sdk-oversized-transcript-"));
+  const oversizedTranscriptConfigDir = join(oversizedTranscriptCwd, "claude-home");
+  const oversizedTranscriptContext = { ...context, sessionId: "claude-sdk-oversized-transcript-harness" };
+  const oversizedTranscriptFingerprint = claudeRuntimeBindingFingerprint(
+    "native",
+    oversizedTranscriptCwd,
+    app.skills.list().map((skill) => skill.name),
+  );
+  const oversizedTranscriptSessionId = stableClaudeSessionId(
+    `${oversizedTranscriptContext.sessionId}:${oversizedTranscriptFingerprint}`,
+  );
+  const oversizedTranscriptProject = join(
+    oversizedTranscriptConfigDir,
+    "projects",
+    claudeProjectKey(oversizedTranscriptCwd),
+  );
+  mkdirSync(oversizedTranscriptProject, { recursive: true });
+  writeFileSync(
+    join(oversizedTranscriptProject, `${oversizedTranscriptSessionId}.jsonl`),
+    Buffer.alloc(16 * 1024 * 1024 + 1),
+  );
+  let guardedResume = "";
+  let guardedSessionId = "";
+  const guardedRuntime = new ClaudeAgentSdkRuntime({
+    cwd: oversizedTranscriptCwd,
+    permissionMode: "default",
+    configuredModel: "opus",
+    env: { CLAUDE_CONFIG_DIR: oversizedTranscriptConfigDir },
+    query: ((params) => {
+      guardedResume = params.options?.resume ?? "";
+      guardedSessionId = params.options?.sessionId ?? "";
+      async function* messages() {
+        yield {
+          type: "system",
+          subtype: "init",
+          apiKeySource: "user",
+          claude_code_version: "2.1.fake",
+          cwd: oversizedTranscriptCwd,
+          tools: [],
+          mcp_servers: [],
+          model: "claude-test",
+          permissionMode: "default",
+          slash_commands: [],
+          output_style: "default",
+          skills: [],
+          plugins: [],
+          uuid: "00000000-0000-5000-8000-000000000311",
+          session_id: oversizedTranscriptSessionId,
+        };
+        yield {
+          type: "result",
+          subtype: "success",
+          duration_ms: 10,
+          duration_api_ms: 5,
+          is_error: false,
+          num_turns: 1,
+          result: "new session after guard",
+          stop_reason: "end_turn",
+          total_cost_usd: 0,
+          usage: {},
+          modelUsage: {},
+          permission_denials: [],
+          uuid: "00000000-0000-5000-8000-000000000312",
+          session_id: oversizedTranscriptSessionId,
+        };
+      }
+      const iterator = messages();
+      return Object.assign(iterator, {
+        close() {},
+        interrupt: async () => {},
+        setPermissionMode: async () => {},
+        setModel: async () => {},
+        setMaxThinkingTokens: async () => {},
+        setMcpServers: async () => ({ added: [], removed: [], errors: {} }),
+        reloadPlugins: async () => ({ commands: [], skills: [], plugins: [], mcpServers: [] }),
+        getSettings: async () => ({}),
+      }) as unknown;
+    }) as ClaudeAgentSdkQueryFunction,
+  });
+  const guardedEvents: AgentEvent[] = [];
+  for await (const event of guardedRuntime.runTurn({
+    input: "recover oversized transcript",
+    context: oversizedTranscriptContext,
+    tools: app.tools.list(),
+    requestedModelId: "opus",
+    skills: app.skills.list(),
+    packs: app.packs.list(),
+    capabilities: app.capabilities.list(),
+  })) {
+    guardedEvents.push(event);
+  }
+  assert.equal(guardedResume, "", "oversized Claude transcripts must not be resumed");
+  assert.notEqual(guardedSessionId, "", "oversized Claude transcripts must receive a new session id");
+  assert.ok(
+    guardedEvents.some(
+      (event) =>
+        event.type === "runtime.diagnostic" &&
+        event.name === "claude.session.resume_guard" &&
+        event.data.reason === "transcript_too_large",
+    ),
+    "resume guard should expose a diagnostic reason",
+  );
+
   const failingRuntime = new ClaudeAgentSdkRuntime({
     cwd,
     permissionMode: "default",
