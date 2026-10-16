@@ -1205,7 +1205,12 @@ async function main() {
     transcriptCwd,
     app.skills.list().map((skill) => skill.name),
   );
-  const transcriptSessionId = stableClaudeSessionId(`${transcriptContext.sessionId}:${transcriptFingerprint}`);
+  const transcriptSessionId = "91f7e606-aac7-58c1-8943-c176a1d2bab4";
+  transcriptContext.sessions.ensureSession({
+    id: transcriptContext.sessionId,
+    activity: transcriptContext.activity,
+    metadata: { claudeCodeSessionIds: { [transcriptFingerprint]: transcriptSessionId } },
+  });
   mkdirSync(join(transcriptConfigDir, "projects", claudeProjectKey(transcriptCwd)), { recursive: true });
   writeFileSync(
     join(transcriptConfigDir, "projects", claudeProjectKey(transcriptCwd), `${transcriptSessionId}.jsonl`),
@@ -1292,9 +1297,12 @@ async function main() {
     oversizedTranscriptCwd,
     app.skills.list().map((skill) => skill.name),
   );
-  const oversizedTranscriptSessionId = stableClaudeSessionId(
-    `${oversizedTranscriptContext.sessionId}:${oversizedTranscriptFingerprint}`,
-  );
+  const oversizedTranscriptSessionId = "3c4c2c10-74a2-5f04-8f9c-0ca1f2f607a1";
+  oversizedTranscriptContext.sessions.ensureSession({
+    id: oversizedTranscriptContext.sessionId,
+    activity: oversizedTranscriptContext.activity,
+    metadata: { claudeCodeSessionIds: { [oversizedTranscriptFingerprint]: oversizedTranscriptSessionId } },
+  });
   const oversizedTranscriptProject = join(
     oversizedTranscriptConfigDir,
     "projects",
@@ -1738,17 +1746,6 @@ main().catch((error) => {
   console.error(error);
   process.exitCode = 1;
 });
-
-function stableClaudeSessionId(input: string): string {
-  const hash = createHash("sha1").update(input).digest("hex");
-  return [
-    hash.slice(0, 8),
-    hash.slice(8, 12),
-    `5${hash.slice(13, 16)}`,
-    `8${hash.slice(17, 20)}`,
-    hash.slice(20, 32),
-  ].join("-");
-}
 
 function claudeRuntimeBindingFingerprint(base: string | undefined, cwd: string, skillScope: string[] | "all"): string {
   return createHash("sha1")
