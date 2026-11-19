@@ -19,7 +19,7 @@
   flex: 0 0 auto;
   width: 1em;
   height: 1em;
-  color: var(--og-text-muted);
+  color: var(--c-remote-agent);
   vertical-align: middle;
 }
 
