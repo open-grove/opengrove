@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, statSync, truncateSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { createOpenGrove } from "../app/create-opengrove.js";
@@ -1309,21 +1309,42 @@ async function main() {
     claudeProjectKey(oversizedTranscriptCwd),
   );
   mkdirSync(oversizedTranscriptProject, { recursive: true });
-  writeFileSync(
-    join(oversizedTranscriptProject, `${oversizedTranscriptSessionId}.jsonl`),
-    Buffer.alloc(16 * 1024 * 1024 + 1),
-  );
+  const oversizedTranscriptPath = join(oversizedTranscriptProject, `${oversizedTranscriptSessionId}.jsonl`);
+  const oversizedTranscriptBytes = 16 * 1024 * 1024 + 1;
+  writeFileSync(oversizedTranscriptPath, "");
+  truncateSync(oversizedTranscriptPath, oversizedTranscriptBytes);
   let guardedResume = "";
   let guardedSessionId = "";
+  let guardedConfigDir: string | undefined;
+  let guardedBudget: string | undefined;
+  let guardedQueryCount = 0;
+  let rejectGuardedStartup = true;
+  let pauseGuardedQuery: { started(): void; until: Promise<void> } | undefined;
   const guardedRuntime = new ClaudeAgentSdkRuntime({
     cwd: oversizedTranscriptCwd,
     permissionMode: "default",
     configuredModel: "opus",
     env: { CLAUDE_CONFIG_DIR: oversizedTranscriptConfigDir },
     query: ((params) => {
+      guardedQueryCount++;
       guardedResume = params.options?.resume ?? "";
       guardedSessionId = params.options?.sessionId ?? "";
+      guardedConfigDir = params.options?.env?.CLAUDE_CONFIG_DIR;
+      guardedBudget = params.options?.env?.CLAUDE_CODE_AUTO_COMPACT_WINDOW;
+      if (rejectGuardedStartup) throw new Error("fixture startup failed before init");
+      const nativeId = guardedResume || guardedSessionId;
+      assert.ok(guardedConfigDir);
+      if (!guardedResume) {
+        const project = join(guardedConfigDir, "projects", claudeProjectKey(oversizedTranscriptCwd));
+        mkdirSync(project, { recursive: true });
+        writeFileSync(join(project, `${nativeId}.jsonl`), "");
+      }
       async function* messages() {
+        const pause = pauseGuardedQuery;
+        if (pause && params.prompt !== "/compact") {
+          pause.started();
+          await pause.until;
+        }
         yield {
           type: "system",
           subtype: "init",
@@ -1339,7 +1360,7 @@ async function main() {
           skills: [],
           plugins: [],
           uuid: "00000000-0000-5000-8000-000000000311",
-          session_id: oversizedTranscriptSessionId,
+          session_id: nativeId,
         };
         yield {
           type: "result",
@@ -1355,7 +1376,7 @@ async function main() {
           modelUsage: {},
           permission_denials: [],
           uuid: "00000000-0000-5000-8000-000000000312",
-          session_id: oversizedTranscriptSessionId,
+          session_id: nativeId,
         };
       }
       const iterator = messages();
@@ -1371,20 +1392,35 @@ async function main() {
       }) as unknown;
     }) as ClaudeAgentSdkQueryFunction,
   });
-  const guardedEvents: AgentEvent[] = [];
-  for await (const event of guardedRuntime.runTurn({
-    input: "recover oversized transcript",
-    context: oversizedTranscriptContext,
-    tools: app.tools.list(),
-    requestedModelId: "opus",
-    skills: app.skills.list(),
-    packs: app.packs.list(),
-    capabilities: app.capabilities.list(),
-  })) {
-    guardedEvents.push(event);
+  async function runGuardedTurn(input: string, runtimeEnv?: NodeJS.ProcessEnv): Promise<AgentEvent[]> {
+    const turnEvents: AgentEvent[] = [];
+    for await (const event of guardedRuntime.runTurn({
+      input,
+      context: oversizedTranscriptContext,
+      tools: app.tools.list(),
+      requestedModelId: "opus",
+      skills: app.skills.list(),
+      packs: app.packs.list(),
+      capabilities: app.capabilities.list(),
+      runtimeEnv,
+    })) {
+      turnEvents.push(event);
+    }
+    return turnEvents;
   }
+
+  const failedGuardedEvents = await runGuardedTurn("fail before the new session initializes");
+  assert.ok(failedGuardedEvents.some((event) => event.type === "error"));
+  assert.equal(guardedResume, "");
+  const failedNativeId = guardedSessionId;
+  assert.ok(failedNativeId);
+  rejectGuardedStartup = false;
+
+  const guardedEvents = await runGuardedTurn("retry oversized transcript recovery");
   assert.equal(guardedResume, "", "oversized Claude transcripts must not be resumed");
-  assert.notEqual(guardedSessionId, "", "oversized Claude transcripts must receive a new session id");
+  assert.ok(guardedSessionId);
+  assert.notEqual(guardedSessionId, failedNativeId, "an unsuccessful SDK startup must not become the resume target");
+  assert.notEqual(guardedSessionId, oversizedTranscriptSessionId);
   assert.ok(
     guardedEvents.some(
       (event) =>
@@ -1394,6 +1430,54 @@ async function main() {
     ),
     "resume guard should expose a diagnostic reason",
   );
+  assert.equal(statSync(oversizedTranscriptPath).size, oversizedTranscriptBytes, "keep the previous native transcript");
+  assert.equal(guardedBudget, "150000");
+  const effectiveBudgets = guardedEvents.flatMap((event) =>
+    event.type === "runtime.diagnostic" && event.name === "context.budget.applied" ? [event.data.effectiveBudget] : [],
+  );
+  assert.deepEqual(
+    effectiveBudgets,
+    [150_000, 150_000],
+    "initial and final diagnostics should report the enforced default budget",
+  );
+
+  const recoveredNativeId = guardedSessionId;
+  const resumedTranscriptPath = join(oversizedTranscriptProject, `${recoveredNativeId}.jsonl`);
+  let notifyGuardedStart!: () => void;
+  const guardedStart = new Promise<void>((resolveStart) => {
+    notifyGuardedStart = resolveStart;
+  });
+  let finishGuardedTurn!: () => void;
+  const guardedFinish = new Promise<void>((resolveFinish) => {
+    finishGuardedTurn = resolveFinish;
+  });
+  pauseGuardedQuery = { started: notifyGuardedStart, until: guardedFinish };
+  const resumedTurn = runGuardedTurn("continue the recovered conversation");
+  await guardedStart;
+  assert.equal(guardedResume, recoveredNativeId, "the next turn must resume the initialized replacement");
+  const queryCountBeforeCompact = guardedQueryCount;
+  const blockedCompact = guardedRuntime.compactSession({
+    threadId: oversizedTranscriptContext.sessionId,
+    reason: "compact after the running turn grows the transcript",
+  });
+  truncateSync(resumedTranscriptPath, oversizedTranscriptBytes);
+  finishGuardedTurn();
+  await resumedTurn;
+  pauseGuardedQuery = undefined;
+  assert.deepEqual(await blockedCompact, { ok: false, compacted: false, error: "transcript_too_large" });
+  assert.equal(guardedQueryCount, queryCountBeforeCompact, "manual compaction must not start an unsafe SDK query");
+
+  const overrideConfigDir = join(oversizedTranscriptCwd, "turn-config");
+  const overrideProject = join(overrideConfigDir, "projects", claudeProjectKey(oversizedTranscriptCwd));
+  mkdirSync(overrideProject, { recursive: true });
+  const overrideTranscriptPath = join(overrideProject, `${recoveredNativeId}.jsonl`);
+  writeFileSync(overrideTranscriptPath, "");
+  truncateSync(overrideTranscriptPath, oversizedTranscriptBytes);
+  truncateSync(resumedTranscriptPath, 0);
+  await runGuardedTurn("check the configured SDK transcript location", { CLAUDE_CONFIG_DIR: overrideConfigDir });
+  assert.equal(guardedConfigDir, overrideConfigDir);
+  assert.equal(guardedResume, "", "the session guard must check the same config directory used by the SDK");
+  assert.notEqual(guardedSessionId, recoveredNativeId);
 
   const failingRuntime = new ClaudeAgentSdkRuntime({
     cwd,

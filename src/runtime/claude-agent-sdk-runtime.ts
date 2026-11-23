@@ -45,6 +45,7 @@ import { hostContextDelivery } from "./host-context-delivery.js";
 import { ClaudeQueryHost } from "@open-grove/agent-host/claude";
 import { imageAttachmentsWithDataUrl } from "./media-input.js";
 import { contextBudgetDiagnostic, resolveContextTokenBudget } from "./context-token-budget.js";
+import { runWithNativeSessionLock } from "./native-session-lock.js";
 import {
   claudePlanningEventsForToolFinished,
   claudePlanningEventsForToolStarted,
@@ -73,6 +74,9 @@ export interface ClaudeAgentSdkRuntimeOptions {
 // Claude 原生恢复发生在 Host 能观察到 turn 之前，因此先用保守默认值阻止超大历史进入 Node 堆。
 const DEFAULT_CLAUDE_CONTEXT_TOKEN_BUDGET = 150_000;
 const DEFAULT_CLAUDE_MAX_RESUME_TRANSCRIPT_BYTES = 16 * 1024 * 1024;
+// The SDK Host locks by native session ID. Check and replace that ID under the
+// OpenGrove session's lock so queued operations see the latest transcript.
+const CLAUDE_SESSION_BINDING_LOCK = "opengrove-claude-session";
 
 interface ClaudeNativeResumeGuard {
   previousSessionId: string;
@@ -152,7 +156,9 @@ export class ClaudeAgentSdkRuntime implements AgentRuntime {
       }
     }
 
-    const producer = this.produceTurn(request, queue, abortController)
+    const producer = runWithNativeSessionLock(CLAUDE_SESSION_BINDING_LOCK, request.context.sessionId, () =>
+      this.produceTurn(request, queue, abortController),
+    )
       .then(() => queue.close())
       .catch((error) => queue.fail(error));
 
@@ -182,13 +188,14 @@ export class ClaudeAgentSdkRuntime implements AgentRuntime {
     const cwd = this.options.cwd ?? process.cwd();
     let permissionMode = resolveClaudePermissionMode(request.accessMode, this.options.permissionMode);
     const runtimeEnv = mergeRuntimeEnv(this.options.env, request.runtimeEnv);
+    const preparedEnv = this.prepareEnv(requestedModel, runtimeEnv);
     const runtimeBindingFingerprint = claudeRuntimeBindingFingerprint({
       base: this.options.runtimeBindingFingerprint,
       cwd,
       skillScope: normalizeClaudeSkillNames(request),
     });
     const nativeSession = resolveClaudeNativeSession(request, runtimeBindingFingerprint, {
-      configDir: this.options.env?.CLAUDE_CONFIG_DIR,
+      configDir: preparedEnv.CLAUDE_CONFIG_DIR,
       cwd,
     });
     const systemPrompt = buildClaudeSdkSystemPrompt(request);
@@ -196,8 +203,7 @@ export class ClaudeAgentSdkRuntime implements AgentRuntime {
     const hostContext = agentTurnFullContextPromptBlock({
       assembledContext: { ...request.assembledContext!, promptBlock: "", items: [] },
     });
-    rememberClaudeNativeSession(request, nativeSession.sessionId, runtimeBindingFingerprint);
-    this.rememberSessionBinding(request.context.sessionId, {
+    const sessionBinding: ClaudeRuntimeSessionBinding = {
       nativeSessionId: nativeSession.sessionId,
       cwd,
       requestedModel,
@@ -208,14 +214,20 @@ export class ClaudeAgentSdkRuntime implements AgentRuntime {
       }),
       systemPrompt,
       sessionContext: request.context,
-    });
+    };
+    // Keep the prior binding until the SDK acknowledges the replacement. A
+    // failed startup can then retry recovery without resuming a nonexistent ID.
+    if (!nativeSession.resumeGuard) {
+      rememberClaudeNativeSession(request, nativeSession.sessionId, runtimeBindingFingerprint);
+      this.sessionBindings.set(request.context.sessionId, sessionBinding);
+    }
     const budgetLimitUsd = normalizeClaudeBudgetLimitUsd(request.budgetLimitUsd);
     const modelWindowKey = requestedModel ?? "__claude_default__";
+    const requestedContextBudget = request.contextTokenBudget ?? DEFAULT_CLAUDE_CONTEXT_TOKEN_BUDGET;
     const contextBudget = resolveContextTokenBudget(
-      request.contextTokenBudget ?? DEFAULT_CLAUDE_CONTEXT_TOKEN_BUDGET,
+      requestedContextBudget,
       this.observedContextWindowByModel.get(modelWindowKey),
     );
-    const preparedEnv = this.prepareEnv(requestedModel, runtimeEnv);
     const settingSources = this.settingSources();
     if (contextBudget.budgetSource === "configured" && contextBudget.effectiveBudget !== undefined) {
       preparedEnv.CLAUDE_CODE_AUTO_COMPACT_WINDOW = String(contextBudget.effectiveBudget);
@@ -241,9 +253,9 @@ export class ClaudeAgentSdkRuntime implements AgentRuntime {
         usageSource: "native",
         enforcementMode: "native-auto",
         reason:
-          contextBudget.budgetSource === "configured"
-            ? "CLAUDE_CODE_AUTO_COMPACT_WINDOW"
-            : "host safety default context budget",
+          request.contextTokenBudget === undefined
+            ? "host safety default context budget"
+            : "CLAUDE_CODE_AUTO_COMPACT_WINDOW",
       }),
     );
     if (nativeSession.resumeGuard) {
@@ -447,17 +459,11 @@ export class ClaudeAgentSdkRuntime implements AgentRuntime {
           hostBridge,
           onInit: (init) => {
             rememberClaudeNativeSession(request, init.session_id, runtimeBindingFingerprint);
-            this.rememberSessionBinding(request.context.sessionId, {
+            this.sessionBindings.set(request.context.sessionId, {
+              ...sessionBinding,
               nativeSessionId: init.session_id,
-              cwd,
               requestedModel: requestedModel || init.model,
               permissionMode,
-              runtimeEnv,
-              hostContext: agentTurnFullContextPromptBlock({
-                assembledContext: { ...request.assembledContext!, promptBlock: "", items: [], turnInstructions: [] },
-              }),
-              systemPrompt,
-              sessionContext: request.context,
             });
             recordClaudeRuntimeInventory(request, init);
           },
@@ -534,7 +540,7 @@ export class ClaudeAgentSdkRuntime implements AgentRuntime {
         response: { text: finalText, ...(messageState.usage ? { usage: messageState.usage } : {}) },
       });
     }
-    const finalContextBudget = resolveContextTokenBudget(request.contextTokenBudget, modelContextWindow);
+    const finalContextBudget = resolveContextTokenBudget(requestedContextBudget, modelContextWindow);
     if (modelContextWindow !== undefined) {
       this.observedContextWindowByModel.set(modelWindowKey, modelContextWindow);
     }
@@ -563,10 +569,26 @@ export class ClaudeAgentSdkRuntime implements AgentRuntime {
     });
   }
 
-  async compactSession(request: AgentCompactRequest): Promise<AgentCompactResult> {
-    const binding = this.sessionBindings.get(request.threadId);
+  compactSession(request: AgentCompactRequest): Promise<AgentCompactResult> {
+    return runWithNativeSessionLock(CLAUDE_SESSION_BINDING_LOCK, request.threadId, () =>
+      this.compactBoundSession(request.threadId),
+    );
+  }
+
+  private async compactBoundSession(threadId: string): Promise<AgentCompactResult> {
+    const binding = this.sessionBindings.get(threadId);
     if (!binding) {
       return { ok: false, compacted: false, error: "session_not_found" };
+    }
+
+    const preparedEnv = this.prepareEnv(binding.requestedModel, binding.runtimeEnv);
+    const transcript = claudeNativeTranscriptPath(binding.nativeSessionId, {
+      cwd: binding.cwd,
+      configDir: preparedEnv.CLAUDE_CONFIG_DIR,
+    });
+    const resumeGuard = oversizedClaudeTranscript(binding.nativeSessionId, transcript);
+    if (resumeGuard) {
+      return { ok: false, compacted: false, error: resumeGuard.reason };
     }
 
     hostContextDelivery.invalidate(`claude-code:${binding.nativeSessionId}`);
@@ -578,7 +600,7 @@ export class ClaudeAgentSdkRuntime implements AgentRuntime {
       options: {
         abortController,
         cwd: binding.cwd,
-        env: this.prepareEnv(binding.requestedModel, binding.runtimeEnv),
+        env: preparedEnv,
         includePartialMessages: true,
         includeHookEvents: true,
         // OpenGrove has no renderer for native Claude dialogs. An explicit empty
@@ -641,10 +663,6 @@ export class ClaudeAgentSdkRuntime implements AgentRuntime {
       compacted: false,
       error: state.error || (state.started ? "compact_started_without_boundary" : "compact_boundary_not_observed"),
     };
-  }
-
-  private rememberSessionBinding(threadId: string, binding: ClaudeRuntimeSessionBinding): void {
-    this.sessionBindings.set(threadId, binding);
   }
 
   // Best-effort: ask the live SDK which models + effort levels are available and persist
@@ -1620,48 +1638,32 @@ function resolveClaudeNativeSession(
 ): { sessionId: string; resuming: boolean; resumeGuard?: ClaudeNativeResumeGuard } {
   const current = request.context.sessions.get(request.context.sessionId);
   const fingerprint = runtimeBindingFingerprint || "native";
-  const sessionByFingerprint = current?.metadata?.claudeCodeSessionIds;
-  if (sessionByFingerprint && typeof sessionByFingerprint === "object" && !Array.isArray(sessionByFingerprint)) {
-    const sessionId = (sessionByFingerprint as Record<string, unknown>)[fingerprint];
-    if (typeof sessionId === "string" && sessionId.trim()) {
-      return guardClaudeNativeResume(sessionId, options);
-    }
-  }
-  const metadataSession =
-    typeof current?.metadata?.claudeCodeSessionId === "string" ? current.metadata.claudeCodeSessionId : undefined;
-  const stableSessionId =
-    metadataSession && fingerprint === "native"
-      ? metadataSession
-      : toStableClaudeSessionId(`${request.context.sessionId}:${fingerprint}`);
-  if (metadataSession && fingerprint === "native") {
-    return guardClaudeNativeResume(stableSessionId, options);
-  }
-  const transcript = claudeNativeTranscriptPath(stableSessionId, options);
-  if (!transcript) return { sessionId: stableSessionId, resuming: false };
-  return guardClaudeNativeResume(stableSessionId, options);
+  const configuredId = readObject(current?.metadata?.claudeCodeSessionIds)[fingerprint];
+  const legacyId = current?.metadata?.claudeCodeSessionId;
+  const boundId =
+    typeof configuredId === "string" && configuredId.trim()
+      ? configuredId
+      : fingerprint === "native" && typeof legacyId === "string" && legacyId
+        ? legacyId
+        : undefined;
+  const sessionId = boundId ?? toStableClaudeSessionId(`${request.context.sessionId}:${fingerprint}`);
+  const transcript = claudeNativeTranscriptPath(sessionId, options);
+  const resumeGuard = oversizedClaudeTranscript(sessionId, transcript);
+  return resumeGuard
+    ? { sessionId: randomUUID(), resuming: false, resumeGuard }
+    : { sessionId, resuming: Boolean(boundId || transcript) };
 }
 
-function guardClaudeNativeResume(
+function oversizedClaudeTranscript(
   sessionId: string,
-  options: { cwd: string; configDir?: string | undefined },
-): { sessionId: string; resuming: boolean; resumeGuard?: ClaudeNativeResumeGuard } {
-  const transcript = claudeNativeTranscriptPath(sessionId, options);
-  if (!transcript) return { sessionId, resuming: true };
+  transcript: string | undefined,
+): ClaudeNativeResumeGuard | undefined {
+  if (!transcript) return undefined;
   const transcriptBytes = safeTranscriptSize(transcript);
   const maxTranscriptBytes = resolveMaxClaudeResumeTranscriptBytes();
-  if (transcriptBytes !== undefined && transcriptBytes > maxTranscriptBytes) {
-    return {
-      sessionId: randomUUID(),
-      resuming: false,
-      resumeGuard: {
-        previousSessionId: sessionId,
-        transcriptBytes,
-        maxTranscriptBytes,
-        reason: "transcript_too_large",
-      },
-    };
-  }
-  return { sessionId, resuming: true };
+  return transcriptBytes !== undefined && transcriptBytes > maxTranscriptBytes
+    ? { previousSessionId: sessionId, transcriptBytes, maxTranscriptBytes, reason: "transcript_too_large" }
+    : undefined;
 }
 
 function rememberClaudeNativeSession(
