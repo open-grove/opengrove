@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, statSync, truncateSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { createOpenGrove } from "../app/create-opengrove.js";
@@ -1205,7 +1205,12 @@ async function main() {
     transcriptCwd,
     app.skills.list().map((skill) => skill.name),
   );
-  const transcriptSessionId = stableClaudeSessionId(`${transcriptContext.sessionId}:${transcriptFingerprint}`);
+  const transcriptSessionId = "91f7e606-aac7-58c1-8943-c176a1d2bab4";
+  transcriptContext.sessions.ensureSession({
+    id: transcriptContext.sessionId,
+    activity: transcriptContext.activity,
+    metadata: { claudeCodeSessionIds: { [transcriptFingerprint]: transcriptSessionId } },
+  });
   mkdirSync(join(transcriptConfigDir, "projects", claudeProjectKey(transcriptCwd)), { recursive: true });
   writeFileSync(
     join(transcriptConfigDir, "projects", claudeProjectKey(transcriptCwd), `${transcriptSessionId}.jsonl`),
@@ -1282,6 +1287,197 @@ async function main() {
   }
   assert.equal(capturedResume, transcriptSessionId);
   assert.equal(capturedSessionId, "");
+
+  // 超过恢复闸门的原生 transcript 必须创建新会话，不能先读取完整文件。
+  const oversizedTranscriptCwd = mkdtempSync(join(tmpdir(), "opengrove-claude-sdk-oversized-transcript-"));
+  const oversizedTranscriptConfigDir = join(oversizedTranscriptCwd, "claude-home");
+  const oversizedTranscriptContext = { ...context, sessionId: "claude-sdk-oversized-transcript-harness" };
+  const oversizedTranscriptFingerprint = claudeRuntimeBindingFingerprint(
+    "native",
+    oversizedTranscriptCwd,
+    app.skills.list().map((skill) => skill.name),
+  );
+  const oversizedTranscriptSessionId = "3c4c2c10-74a2-5f04-8f9c-0ca1f2f607a1";
+  oversizedTranscriptContext.sessions.ensureSession({
+    id: oversizedTranscriptContext.sessionId,
+    activity: oversizedTranscriptContext.activity,
+    metadata: { claudeCodeSessionIds: { [oversizedTranscriptFingerprint]: oversizedTranscriptSessionId } },
+  });
+  const oversizedTranscriptProject = join(
+    oversizedTranscriptConfigDir,
+    "projects",
+    claudeProjectKey(oversizedTranscriptCwd),
+  );
+  mkdirSync(oversizedTranscriptProject, { recursive: true });
+  const oversizedTranscriptPath = join(oversizedTranscriptProject, `${oversizedTranscriptSessionId}.jsonl`);
+  const oversizedTranscriptBytes = 16 * 1024 * 1024 + 1;
+  writeFileSync(oversizedTranscriptPath, "");
+  truncateSync(oversizedTranscriptPath, oversizedTranscriptBytes);
+  let guardedResume = "";
+  let guardedSessionId = "";
+  let guardedConfigDir: string | undefined;
+  let guardedBudget: string | undefined;
+  let guardedQueryCount = 0;
+  let rejectGuardedStartup = true;
+  let pauseGuardedQuery: { started(): void; until: Promise<void> } | undefined;
+  const guardedRuntime = new ClaudeAgentSdkRuntime({
+    cwd: oversizedTranscriptCwd,
+    permissionMode: "default",
+    configuredModel: "opus",
+    env: { CLAUDE_CONFIG_DIR: oversizedTranscriptConfigDir },
+    query: ((params) => {
+      guardedQueryCount++;
+      guardedResume = params.options?.resume ?? "";
+      guardedSessionId = params.options?.sessionId ?? "";
+      guardedConfigDir = params.options?.env?.CLAUDE_CONFIG_DIR;
+      guardedBudget = params.options?.env?.CLAUDE_CODE_AUTO_COMPACT_WINDOW;
+      if (rejectGuardedStartup) throw new Error("fixture startup failed before init");
+      const nativeId = guardedResume || guardedSessionId;
+      assert.ok(guardedConfigDir);
+      if (!guardedResume) {
+        const project = join(guardedConfigDir, "projects", claudeProjectKey(oversizedTranscriptCwd));
+        mkdirSync(project, { recursive: true });
+        writeFileSync(join(project, `${nativeId}.jsonl`), "");
+      }
+      async function* messages() {
+        const pause = pauseGuardedQuery;
+        if (pause && params.prompt !== "/compact") {
+          pause.started();
+          await pause.until;
+        }
+        yield {
+          type: "system",
+          subtype: "init",
+          apiKeySource: "user",
+          claude_code_version: "2.1.fake",
+          cwd: oversizedTranscriptCwd,
+          tools: [],
+          mcp_servers: [],
+          model: "claude-test",
+          permissionMode: "default",
+          slash_commands: [],
+          output_style: "default",
+          skills: [],
+          plugins: [],
+          uuid: "00000000-0000-5000-8000-000000000311",
+          session_id: nativeId,
+        };
+        yield {
+          type: "result",
+          subtype: "success",
+          duration_ms: 10,
+          duration_api_ms: 5,
+          is_error: false,
+          num_turns: 1,
+          result: "new session after guard",
+          stop_reason: "end_turn",
+          total_cost_usd: 0,
+          usage: {},
+          modelUsage: {},
+          permission_denials: [],
+          uuid: "00000000-0000-5000-8000-000000000312",
+          session_id: nativeId,
+        };
+      }
+      const iterator = messages();
+      return Object.assign(iterator, {
+        close() {},
+        interrupt: async () => {},
+        setPermissionMode: async () => {},
+        setModel: async () => {},
+        setMaxThinkingTokens: async () => {},
+        setMcpServers: async () => ({ added: [], removed: [], errors: {} }),
+        reloadPlugins: async () => ({ commands: [], skills: [], plugins: [], mcpServers: [] }),
+        getSettings: async () => ({}),
+      }) as unknown;
+    }) as ClaudeAgentSdkQueryFunction,
+  });
+  async function runGuardedTurn(input: string, runtimeEnv?: NodeJS.ProcessEnv): Promise<AgentEvent[]> {
+    const turnEvents: AgentEvent[] = [];
+    for await (const event of guardedRuntime.runTurn({
+      input,
+      context: oversizedTranscriptContext,
+      tools: app.tools.list(),
+      requestedModelId: "opus",
+      skills: app.skills.list(),
+      packs: app.packs.list(),
+      capabilities: app.capabilities.list(),
+      runtimeEnv,
+    })) {
+      turnEvents.push(event);
+    }
+    return turnEvents;
+  }
+
+  const failedGuardedEvents = await runGuardedTurn("fail before the new session initializes");
+  assert.ok(failedGuardedEvents.some((event) => event.type === "error"));
+  assert.equal(guardedResume, "");
+  const failedNativeId = guardedSessionId;
+  assert.ok(failedNativeId);
+  rejectGuardedStartup = false;
+
+  const guardedEvents = await runGuardedTurn("retry oversized transcript recovery");
+  assert.equal(guardedResume, "", "oversized Claude transcripts must not be resumed");
+  assert.ok(guardedSessionId);
+  assert.notEqual(guardedSessionId, failedNativeId, "an unsuccessful SDK startup must not become the resume target");
+  assert.notEqual(guardedSessionId, oversizedTranscriptSessionId);
+  assert.ok(
+    guardedEvents.some(
+      (event) =>
+        event.type === "runtime.diagnostic" &&
+        event.name === "claude.session.resume_guard" &&
+        event.data.reason === "transcript_too_large",
+    ),
+    "resume guard should expose a diagnostic reason",
+  );
+  assert.equal(statSync(oversizedTranscriptPath).size, oversizedTranscriptBytes, "keep the previous native transcript");
+  assert.equal(guardedBudget, "150000");
+  const effectiveBudgets = guardedEvents.flatMap((event) =>
+    event.type === "runtime.diagnostic" && event.name === "context.budget.applied" ? [event.data.effectiveBudget] : [],
+  );
+  assert.deepEqual(
+    effectiveBudgets,
+    [150_000, 150_000],
+    "initial and final diagnostics should report the enforced default budget",
+  );
+
+  const recoveredNativeId = guardedSessionId;
+  const resumedTranscriptPath = join(oversizedTranscriptProject, `${recoveredNativeId}.jsonl`);
+  let notifyGuardedStart!: () => void;
+  const guardedStart = new Promise<void>((resolveStart) => {
+    notifyGuardedStart = resolveStart;
+  });
+  let finishGuardedTurn!: () => void;
+  const guardedFinish = new Promise<void>((resolveFinish) => {
+    finishGuardedTurn = resolveFinish;
+  });
+  pauseGuardedQuery = { started: notifyGuardedStart, until: guardedFinish };
+  const resumedTurn = runGuardedTurn("continue the recovered conversation");
+  await guardedStart;
+  assert.equal(guardedResume, recoveredNativeId, "the next turn must resume the initialized replacement");
+  const queryCountBeforeCompact = guardedQueryCount;
+  const blockedCompact = guardedRuntime.compactSession({
+    threadId: oversizedTranscriptContext.sessionId,
+    reason: "compact after the running turn grows the transcript",
+  });
+  truncateSync(resumedTranscriptPath, oversizedTranscriptBytes);
+  finishGuardedTurn();
+  await resumedTurn;
+  pauseGuardedQuery = undefined;
+  assert.deepEqual(await blockedCompact, { ok: false, compacted: false, error: "transcript_too_large" });
+  assert.equal(guardedQueryCount, queryCountBeforeCompact, "manual compaction must not start an unsafe SDK query");
+
+  const overrideConfigDir = join(oversizedTranscriptCwd, "turn-config");
+  const overrideProject = join(overrideConfigDir, "projects", claudeProjectKey(oversizedTranscriptCwd));
+  mkdirSync(overrideProject, { recursive: true });
+  const overrideTranscriptPath = join(overrideProject, `${recoveredNativeId}.jsonl`);
+  writeFileSync(overrideTranscriptPath, "");
+  truncateSync(overrideTranscriptPath, oversizedTranscriptBytes);
+  truncateSync(resumedTranscriptPath, 0);
+  await runGuardedTurn("check the configured SDK transcript location", { CLAUDE_CONFIG_DIR: overrideConfigDir });
+  assert.equal(guardedConfigDir, overrideConfigDir);
+  assert.equal(guardedResume, "", "the session guard must check the same config directory used by the SDK");
+  assert.notEqual(guardedSessionId, recoveredNativeId);
 
   const failingRuntime = new ClaudeAgentSdkRuntime({
     cwd,
@@ -1634,17 +1830,6 @@ main().catch((error) => {
   console.error(error);
   process.exitCode = 1;
 });
-
-function stableClaudeSessionId(input: string): string {
-  const hash = createHash("sha1").update(input).digest("hex");
-  return [
-    hash.slice(0, 8),
-    hash.slice(8, 12),
-    `5${hash.slice(13, 16)}`,
-    `8${hash.slice(17, 20)}`,
-    hash.slice(20, 32),
-  ].join("-");
-}
 
 function claudeRuntimeBindingFingerprint(base: string | undefined, cwd: string, skillScope: string[] | "all"): string {
   return createHash("sha1")
